@@ -15,7 +15,7 @@
 #' # Basic usage
 #' my_function(1:10, 2:11)
 #'
-hm <- function(formula, data, weight_var, advanced_par, for_dev = F) {
+hm <- function(formula, data, weight_var, cc_setup, for_dev = F) {
   
   # Check inputs
   if (!is(formula, "formula")) stop("formula must be a formula.")
@@ -23,6 +23,9 @@ hm <- function(formula, data, weight_var, advanced_par, for_dev = F) {
   if (!missing(weight_var) && !is.character(weight_var) && !(weight_var %in% colnames(data)))
     stop("weight_var must be a character vector.")
 
+  # setup the data for case-crossover
+  cc_matrix <- setStrata(cc_setup, as.character(formula)[2], data)
+  
   # terms carries all the information throughout
   terms <- collectTerms(formula)
   
