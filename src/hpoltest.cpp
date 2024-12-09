@@ -10,12 +10,11 @@ Type objective_function<Type>::operator() () {
   DATA_SPARSE_MATRIX(A);                   // Design matrix for random effects
   DATA_VECTOR(y);                   // Observed counts (Poisson responses)
   DATA_SPARSE_MATRIX(Q);            // Full precision matrix
-  DATA_VECTOR(log_dets);              // log determinant of exp(theta) * Q
   DATA_IVECTOR(gamma_split);         // Length of gamma for each city
-  DATA_IVECTOR(theta_id);            // Length of gamma for each city
-  DATA_INTEGER(nc)              // Number of cities
-  DATA_INTEGER(np)              // Number of exposures
-    
+  DATA_IMATRIX(cc_matrix);         // Length of gamma for each city
+  int n_cc = cc_matrix.rows();
+  int d_cc = cc_matrix.cols();
+  
   
   // Parameter inputs
   PARAMETER_VECTOR(beta);                   // Fixed effects
@@ -24,14 +23,43 @@ Type objective_function<Type>::operator() () {
   
   
   
-  // Initialize negative log-likelihood
+  // Compute eta = log(lambda)
   Type nll = 0;
   vector<Type> eta_fixed = X * beta;
   vector<Type> eta_random = A * gamma;
-  vector<Type> log_lambda = eta_fixed + eta_random;
-  for (int i = 0; i < y.size(); i++) {
-    nll -= dpois(y(i), exp(log_lambda(i)), true);
+  vector<Type> eta = eta_fixed + eta_random;
+  
+  // Compute negative log likelihood (multinomial -- case crossover)
+  vector<Type> y_i(d_cc);
+  vector<Type> eta_i(d_cc);
+  Type lsa;
+  vector<Type> prob_i(d_cc);
+  for (int i = 0; i<n_cc; i++) {
+    // reset
+    y_i.setZero();
+    eta_i.setZero();
+    lsa = 0.0;
+    prob_i.setZero();
+    
+    // y, eta and sum(eta) for ith colum of cc_matrix
+    for(int j = 0; j<d_cc; j++) {
+      if(cc_matrix(i,j) == 0) continue;
+      y_i(j) = y(cc_matrix(i,j)-1);
+      eta_i(j) = eta(cc_matrix(i,j)-1);
+      lsa = logspace_add(lsa, eta(cc_matrix(i,j)-1));
+    }
+    
+    // probabilities = exp(eta_i)/sum(exp(eta_i))
+    for(int j = 0; j<d_cc; j++) {
+      if(cc_matrix(i,j) == 0) continue;
+      prob_i(j) = exp(logspace_sub(eta_i(j), lsa));
+    }
+    nll -= dmultinom(y_i, prob_i, 1);
   }
+  // REPORT(nll);
+  // Rcout << "ll : " << log_likelihood << "\n";
+
+
 
 
 
@@ -39,26 +67,17 @@ Type objective_function<Type>::operator() () {
   vector<Type> exp_theta(A.cols());
   int idx_start = 0;
   int len_j = 0;
-  int log_det_id = 0;
   for(int j = 0; j < gamma_split.size(); j++){
     len_j = gamma_split(j);
-    for(int i = idx_start; i < idx_start + gamma_split(j); i++){
-      exp_theta(i) = exp(theta(theta_id(j)));                     // construct exp_theta for later
-    }
-    nll -= 0.5 * (gamma_split(j)*theta(theta_id(j)) + log_dets(log_det_id)); // log-determinant part
-    log_det_id += 1;
-    if(log_det_id == np) log_det_id = 0;
+    // nll -= 0.5 * (len_j*theta(j) + log_dets(j)); // log-determinant part
+    nll -= 0.5*len_j*theta(j); // log-determinant part
+    for(int i = idx_start; i < idx_start + len_j; i++) exp_theta(i) = exp(theta(j)); // construct exp_theta for later
     idx_start += len_j;
   }
 
   // do sqrt(exp_theta) * gamma instead of exp_theta * Q
   gamma = gamma * sqrt(exp_theta);
-  int d = Q.cols();
-  vector<Type> gamma_i(d);
-  for (int i = 0; i < (nc+1); i++) {
-    gamma_i = gamma.segment(i*d, d);
-    nll += 0.5 * (gamma_i * (Q * gamma_i).col(0)).sum();
-  }
-
+  nll += 0.5*(gamma * (Q * gamma).col(0)).sum();
+  
   return nll;
 }

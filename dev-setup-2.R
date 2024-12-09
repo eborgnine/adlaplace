@@ -26,6 +26,7 @@ data <- data.table(
 cities <- unique(data$city)
 head_id <- lapply(cities, \(ct) which(data$city == ct)[1:5]) |> unlist()
 
+source("R/hm.R")
 source("R/hm_helpers.R")
 # source("R/custom_effects.R")
 # source("R/standard_effects.R")
@@ -37,7 +38,10 @@ knots_pol1 <- seq(floor(min(data$pol1)/5)*5,ceiling(max(data$pol1)/5)*5,5)
 formula <- hum ~ dow + hum + 
   hiwp(pol1, p=2, ref_value = knots_pol1[round(length(knots_pol1)/2)], knots = knots_pol1, group_var = city)
 
-list2env(hm(formula, data, for_dev = T), envir = environment())
+cc_design <- ccDesign(time_var = "id", strat_vars = "city")
+data <- data[sample(nrow(data)),]
+
+list2env(hm(formula, data, cc_design = cc_design, for_dev = T), envir = environment())
 
 # Log-precision parameters (2 parameters for 2 pollutants)
 theta_id <- theta_info$id

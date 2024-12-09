@@ -15,7 +15,9 @@
 #' # Basic usage
 #' my_function(1:10, 2:11)
 #'
-hm <- function(formula, data, weight_var, cc_setup, for_dev = F) {
+hm <- function(formula, data, weight_var, cc_design = ccDesign(), for_dev = F) {
+  
+  data <- as.data.frame(data)
   
   # Check inputs
   if (!is(formula, "formula")) stop("formula must be a formula.")
@@ -23,9 +25,16 @@ hm <- function(formula, data, weight_var, cc_setup, for_dev = F) {
   if (!missing(weight_var) && !is.character(weight_var) && !(weight_var %in% colnames(data)))
     stop("weight_var must be a character vector.")
 
-  # setup the data for case-crossover
-  cc_matrix <- setStrata(cc_setup, as.character(formula)[2], data)
+  # Order the rows of data appropriately.
+  if(is.null(cc_design$strat_vars) & is.null(cc_design$time_var)) stop("Provide a valid stratification (or time) variable.")
+  strat_time_vars <- c(cc_design$strat_vars, cc_design$time_var)
+  new_order <- eval(str2lang(paste0("order(", paste0("data[['", strat_time_vars, "']]", collapse = ", "), ")")))
+  data <- data[new_order,]
   
+  # setup the data for case-crossover
+  cc_matrix <- setStrata(cc_design = cc_design, data = data)
+  
+  # setup of the design matrices and other parameters
   # terms carries all the information throughout
   terms <- collectTerms(formula)
   
@@ -45,6 +54,7 @@ hm <- function(formula, data, weight_var, cc_setup, for_dev = F) {
   k <- 1
   while(k <= length(terms)){
     term <- terms[[k]]
+    term <- getExtra(term, data)
     term$id <- k
     if(!is.factor(data[[term$var]][1]) && is.null(term$range)) range <- term$range <- range(data[[term$var]])
     
@@ -70,7 +80,7 @@ hm <- function(formula, data, weight_var, cc_setup, for_dev = F) {
     # design matrix
     Asub <- getDesign(term, data)
     A <- cbind(A, Asub)
-    gamma_info$names <- c(gamma_names, rep(paste0(term$var, "_", term$id), ncol(Asub)))
+    gamma_info$names <- c(gamma_info$names, rep(paste0(term$var, "_", term$id), ncol(Asub)))
     gamma_info$split <- c(gamma_info$split, getGammaSplit(term))
     # if(!is.null(term$group_var)) gamma_info$nrep <- c(gamma_info$nrep, length(split(1:nrow(data), data[[term$group_var]])))
     # Note: for iwp 1 knot removed for constraints
@@ -100,8 +110,9 @@ hm <- function(formula, data, weight_var, cc_setup, for_dev = F) {
     X = X, A = A, y = y,
     # gamma_nreplicate = gamma_info$nreplicate, # **** when hiwp, reuse the Q matrix for all (split gamma in nreplicate equal parts). gamma_nreplicate=nlevel+1
     Q = Qs |> .bdiag(), 
-    gamma_split = gamma_info$split
+    gamma_split = gamma_info$split,
     # theta_id = theta_info$id
+    cc_matrix = cc_matrix
   )
   
   tmb_parameters <- list(
@@ -113,7 +124,7 @@ hm <- function(formula, data, weight_var, cc_setup, for_dev = F) {
   theta_info$id[theta_info$id == 0] <- max(theta_info$id) + 1:sum(theta_info$id == 0)
   map <- list(theta = factor(theta_info$id))
 
-  dyn.load(dynlib("src/hpoltest_dev"))
+  dyn.load(dynlib("src/hpoltest"))
   obj <- MakeADFun(data = tmb_data, 
                    parameters = tmb_parameters,
                    random = c("gamma"),

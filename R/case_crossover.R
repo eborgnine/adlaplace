@@ -2,7 +2,7 @@
 #'
 #' @description A brief description of what the function does.
 #'
-#' @param cc_setup A description of the `x` parameter. Mention its type and purpose (e.g., a numeric vector).
+#' @param cc_design A description of the `x` parameter. Mention its type and purpose (e.g., a numeric vector).
 #' @param formula A description of the `y` parameter. Mention its type and purpose (e.g., a numeric vector).
 #' @param data A description of the `y` parameter. Mention its type and purpose (e.g., a numeric vector).
 #' @param ... Additional arguments passed to other methods or functions.
@@ -10,7 +10,7 @@
 #' @return A description of the return value, including its type (e.g., a numeric vector, a data frame, etc.).
 #' @export
 #'
-#' @details cc_setup should contain (at least some of) the following elements:
+#' @details cc_design should contain (at least some of) the following elements:
 #' strat_vars: character or NULL (default). Variables with which to stratify the data.
 #' time_var: character vector or NULL (default).  Variable giving the timestamps.
 #' time_lag: integer (default is 7). Lag used to (further) stratify the data (only used when !is.null(time_var)).
@@ -21,14 +21,14 @@
 #' # Basic usage
 #' my_function(1:10, 2:11)
 #'
-setStrata <- function(cc_setup, response_var, data){
+setStrata <- function(cc_design, data){
   
   # data <- data.frame(date = as.Date(1:50), 
   #                  city = rep(LETTERS[1:2], each=50),
   #                  x1 = rnorm(50), x2 = rnorm(50),
   #                  y = rpois(50, 10))
   # response_var <- "y"
-  # cc_setup <- list(
+  # cc_design <- list(
   #   strat_vars = "city",
   #   time_var = "date",
   #   time_lag = 7,
@@ -36,25 +36,23 @@ setStrata <- function(cc_setup, response_var, data){
   #   scheme = "time stratified"
   # )
   
-  if(is.null(cc_setup$time_var) & is.null(cc_setup$strat_vars)) stop("Provide statification (or time) variables.")
-  if(!is.null(cc_setup$time_var) & cc_setup$scheme != "time stratified") stop("Only time stratified scheme is implemented...")
+  if(is.null(cc_design$time_var) & is.null(cc_design$strat_vars)) stop("Provide statification (or time) variables.")
+  if(!is.null(cc_design$time_var) & cc_design$scheme != "time stratified") stop("Only time stratified scheme is implemented...")
   # Now, the rows cc_days is run over with each possible case day within it.
   # To allow bidirectional designs, include (shadow) parameter that
   # force the TMB template to use only the first day as case day, and
   # create a row for each case day.
   
-  list2env(cc_setup, envir = environment())
-  # case_day_id <- which(data[[response_var]] > 0)
-  
-  if(is.null(cc_setup$strat_vars)){
-    strat_split <- list(1:nrow(data))
+  list2env(cc_design, envir = environment())
+
+  strat_split <- if(is.null(cc_design$strat_vars)){
+    list(1:nrow(data))
   }else{
-    data.table:::setorder(data[strat_vars])
-    strat_split <- split(1:nrow(data), interaction(data[strat_vars]), drop = T)
+    split(1:nrow(data), interaction(data[strat_vars]), drop = T)
   }
   
   # if no more stratification do do, return right away
-  if(is.null(cc_setup$time_var)){
+  if(is.null(cc_design$time_var)){
     max_len <- sapply(strat_split, length)
     cc_matrix <- matrix(unlist(strat_split), length(strat_split), max_len, byrow=T)
     
@@ -64,7 +62,7 @@ setStrata <- function(cc_setup, response_var, data){
   }
   
   # if not, also use time_var to further stratify 
-  if(cc_setup$time_lag %% 1 != 0) stop("Please provide a valid (integer) time_lag.")
+  if(cc_design$time_lag %% 1 != 0) stop("Please provide a valid (integer) time_lag.")
   strat_split <- lapply(strat_split, \(ss){
     split(ss, as.integer(data[ss,][[time_var]]) %% time_lag, drop = F)
   }) |> unlist(recursive = F)
@@ -125,3 +123,23 @@ setStrata <- function(cc_setup, response_var, data){
 #   
 #   # stata (case and control days togeteher)
 #   stratum <- split(time, id)
+
+
+
+
+ccDesign <- function(...){
+  
+  # default
+  cc_design <- list(
+    strat_vars = NULL,
+    time_var = NULL,
+    time_lag = 7,
+    time_size = 4,
+    scheme = "time stratified"
+  )
+  
+  params = list(...)
+  cc_design[names(params)] <- params
+  
+  return(cc_design)
+}
