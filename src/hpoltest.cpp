@@ -21,43 +21,25 @@ Type objective_function<Type>::operator() () {
   PARAMETER_VECTOR(gamma);                  // Concatenated random effects
   PARAMETER_VECTOR(theta);                  // Log-precision parameters (2J values for gamma0 and gamma)
   
-  
-  
   // Compute eta = log(lambda)
   Type nll = 0;
   vector<Type> eta_fixed = X * beta;
   vector<Type> eta_random = A * gamma;
   vector<Type> eta = eta_fixed + eta_random;
-  
+
   // Compute negative log likelihood (multinomial -- case crossover)
-  vector<Type> y_i(d_cc);
-  vector<Type> eta_i(d_cc);
   Type lsa;
-  vector<Type> prob_i(d_cc);
+  // Type y_i_sum;
   for (int i = 0; i<n_cc; i++) {
-    // reset
-    y_i.setZero();
-    eta_i.setZero();
-    lsa = 0.0;
-    prob_i.setZero();
-    
-    // y, eta and sum(eta) for ith colum of cc_matrix
-    for(int j = 0; j<d_cc; j++) {
-      if(cc_matrix(i,j) == 0) continue;
-      y_i(j) = y(cc_matrix(i,j)-1);
-      eta_i(j) = eta(cc_matrix(i,j)-1);
-      lsa = logspace_add(lsa, eta(cc_matrix(i,j)-1));
-    }
-    
-    // probabilities = exp(eta_i)/sum(exp(eta_i))
-    for(int j = 0; j<d_cc; j++) {
-      if(cc_matrix(i,j) == 0) continue;
-      prob_i(j) = exp(logspace_sub(eta_i(j), lsa));
-    }
-    nll -= dmultinom(y_i, prob_i, 1);
+    lsa = Type(-INFINITY);
+    for(int j = 0; j<d_cc; j++) 
+      if(cc_matrix(i,j) != 0) lsa = logspace_add(lsa, eta(cc_matrix(i,j)-1));
+
+    // - y_ij * log(p_ij), where p_ij = exp(eta_ij)/sum(exp(eta_i)) = exp(eta_ij - lsa)
+    for(int j = 0; j<d_cc; j++) 
+      if(cc_matrix(i,j) != 0) nll -= y(cc_matrix(i,j)-1) * (eta(cc_matrix(i,j)-1) - lsa);
   }
   // REPORT(nll);
-  // Rcout << "ll : " << log_likelihood << "\n";
 
 
 
@@ -78,6 +60,6 @@ Type objective_function<Type>::operator() () {
   // do sqrt(exp_theta) * gamma instead of exp_theta * Q
   gamma = gamma * sqrt(exp_theta);
   nll += 0.5*(gamma * (Q * gamma).col(0)).sum();
-  
+
   return nll;
 }

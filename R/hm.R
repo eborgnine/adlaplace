@@ -15,15 +15,15 @@
 #' # Basic usage
 #' my_function(1:10, 2:11)
 #'
-hm <- function(formula, data, weight_var, cc_design = ccDesign(), for_dev = F) {
+hm <- function(formula, data, cc_design = ccDesign(), weight_var, for_dev = F) {
   
   data <- as.data.frame(data)
   
-  # Check inputs
-  if (!is(formula, "formula")) stop("formula must be a formula.")
-  if (!is.data.frame(data)) stop("data must be a data.frame.")
-  if (!missing(weight_var) && !is.character(weight_var) && !(weight_var %in% colnames(data)))
-    stop("weight_var must be a character vector.")
+  # # Check inputs
+  # if (!is(formula, "formula")) stop("formula must be a formula.")
+  # if (!is.data.frame(data)) stop("data must be a data.frame.")
+  # if (!missing(weight_var) && !is.character(weight_var) && !(weight_var %in% colnames(data)))
+  #   stop("weight_var must be a character vector.")
 
   # Order the rows of data appropriately.
   if(is.null(cc_design$strat_vars) & is.null(cc_design$time_var)) stop("Provide a valid stratification (or time) variable.")
@@ -38,9 +38,6 @@ hm <- function(formula, data, weight_var, cc_design = ccDesign(), for_dev = F) {
   # terms carries all the information throughout
   terms <- collectTerms(formula)
   
-  # compute extra quantities
-  terms <- lapply(terms, getExtra, data=data)
-  
   # design matrices
   X <- NULL # fixed effects
   A <- NULL # random effects
@@ -53,8 +50,7 @@ hm <- function(formula, data, weight_var, cc_design = ccDesign(), for_dev = F) {
   # loop
   k <- 1
   while(k <= length(terms)){
-    term <- terms[[k]]
-    term <- getExtra(term, data)
+    term <- terms[[k]] |> getExtra(data=data)
     term$id <- k
     if(!is.factor(data[[term$var]][1]) && is.null(term$range)) range <- term$range <- range(data[[term$var]])
     
@@ -103,7 +99,7 @@ hm <- function(formula, data, weight_var, cc_design = ccDesign(), for_dev = F) {
     k <- k+1
   }
   
-  if(for_dev) return(list(X = X, A = A, gamma_split = gamma_info$split, Qs = Qs, theta_info=theta_info))
+  if(for_dev) return(list(X = X, A = A, gamma_split = gamma_info$split, Qs = Qs, theta_info=theta_info, new_order = new_order))
 
   y <- data[[all.vars(formula)[1]]]
   tmb_data <- list(
@@ -120,7 +116,7 @@ hm <- function(formula, data, weight_var, cc_design = ccDesign(), for_dev = F) {
     gamma = rep(0, ncol(A)),
     theta = theta_info$init
   )
-  
+
   theta_info$id[theta_info$id == 0] <- max(theta_info$id) + 1:sum(theta_info$id == 0)
   map <- list(theta = factor(theta_info$id))
 
@@ -129,7 +125,7 @@ hm <- function(formula, data, weight_var, cc_design = ccDesign(), for_dev = F) {
                    parameters = tmb_parameters,
                    random = c("gamma"),
                    map = map,
-                   DLL = "hpoltest_dev")
+                   DLL = "hpoltest")
   
   # Run optimization
   obj$fn(obj$par)

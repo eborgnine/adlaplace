@@ -20,7 +20,11 @@ collectTerms <- function(formula){
 # construct additional quantites specific to an effect.
 getExtra <- function(term, data){
   list2env(term, envir = environment())
-
+  if(term$run_as_is) return(term)
+  
+  if(term$type == "od") term$n <- nrow(data)
+    
+  
   if(!is.null(term$group_var)){
     term$ngroups <- if(is.factor(data[[group_var]])){
       data[[group_var]] |> droplevels() |> nlevels()
@@ -30,7 +34,7 @@ getExtra <- function(term, data){
   }
   
   if(!is.null(term$knots)){
-    terms$nknots <- length(knots)
+    term$nknots <- length(knots)
   }
   
   

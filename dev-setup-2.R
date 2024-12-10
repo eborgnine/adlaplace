@@ -20,7 +20,7 @@ data <- data.table(
   pol1 = rgamma(n, 20, .9),
   pol2 = rgamma(n, 50, 1.25)
 )
-
+for_dev = F
 
 # order data by city and time
 cities <- unique(data$city)
@@ -28,14 +28,13 @@ head_id <- lapply(cities, \(ct) which(data$city == ct)[1:5]) |> unlist()
 
 source("R/hm.R")
 source("R/hm_helpers.R")
-# source("R/custom_effects.R")
-# source("R/standard_effects.R")
+source("R/case_crossover.R")
 source("R/effects.R")
 source("R/ziangs_function.R")
 # knots_pol1 <- floor(min(data$pol1)):ceiling(max(data$pol1))
 knots_pol1 <- seq(floor(min(data$pol1)/5)*5,ceiling(max(data$pol1)/5)*5,5)
 # knots_pol2 <- floor(min(data$pol1)):ceiling(max(data$pol1))
-formula <- hum ~ dow + hum + 
+formula <- hum ~ hum + od(id) +
   hiwp(pol1, p=2, ref_value = knots_pol1[round(length(knots_pol1)/2)], knots = knots_pol1, group_var = city)
 
 cc_design <- ccDesign(time_var = "id", strat_vars = "city")
@@ -45,11 +44,11 @@ list2env(hm(formula, data, cc_design = cc_design, for_dev = T), envir = environm
 
 # Log-precision parameters (2 parameters for 2 pollutants)
 theta_id <- theta_info$id
-theta_true <- log(rexp(length(unique(theta_id)), .1))  # Log precision for each pollutant (will be exp(theta) to scale Q)
+theta_true <- log(rexp(length(unique(theta_id)), .0005))  # Log precision for each pollutant (will be exp(theta) to scale Q)
 theta_true_long <- theta_true[theta_id]  # Log precision for each pollutant (will be exp(theta) to scale Q)
 
 # Observed counts (Poisson responses)
-beta_true <- rexp(ncol(X), 40)
+beta_true <- .05 + rnorm(ncol(X), 0, .01)
 Q <- .bdiag(Qs)
 gamma_true <- lapply(seq_along(gamma_split), \(k){
   ii <- cumsum(c(0,gamma_split))[k + 0:1] + c(1,0)
@@ -58,13 +57,16 @@ gamma_true <- lapply(seq_along(gamma_split), \(k){
 }) |> unlist()
 plot(gamma_true)
 
-lambda_true <- exp(X %*% beta_true + A %*% gamma_true) |> as.numeric()
+lambda_true <- exp(2 + X %*% beta_true + A %*% gamma_true) |> as.numeric()
 y <- rpois(n, lambda_true)
+hist(y, breaks=c(0:max(y)))
 
-data$y <- y
+data$y <- integer(nrow(data))
+data$y[new_order] <- y # NOTE HERE new_order mimicks how the data was permuted in hm.
 
 formula <- paste0("y ~ ", as.character(formula)[3]) |> as.formula()
-opt <- hm(formula, data)
+cc_design <- ccDesign(time_var = "id", strat_vars = "city", time_size = 4)
+opt <- hm(formula, data, cc_design)
 
 opt_par <- opt$env$last.par.best
 beta_hat <- opt_par[names(opt_par) == "beta"]
@@ -75,3 +77,8 @@ plot(beta_true, col="green", ylim = range(c(beta_hat, beta_true))); points(beta_
 plot(gamma_true, col="green", ylim = range(c(gamma_hat, gamma_true))); points(gamma_hat)
 plot(theta_true, col="green", ylim = range(c(theta_hat, theta_true))); points(theta_hat)
 
+
+oo <- order(data$pol1)[seq(1,nrow(A),10)]
+aa <- A[oo,]
+plot(aa %*% gamma_true, col = match(data$city[oo], unique(data$city)))
+points(aa %*% gamma_hat, col = match(data$city[oo], unique(data$city)))

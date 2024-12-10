@@ -1,4 +1,4 @@
-.my_theta_init <- 2
+.my_theta_init <- 7
 
 #' Title of the Function
 #'
@@ -68,6 +68,9 @@ iwpTheta <- function(theta_info, term){
   
   list(id = theta_id, init = theta_init)
 }
+
+
+
 
 
 #' Title of the Function
@@ -354,4 +357,55 @@ bs <- function(x, o = 2, ref_value, range = NULL, nknots = NULL, run_as_is = T, 
   }
   
   return(l)
+}
+
+
+
+
+
+#' Title of the Function
+#'
+#' @description A brief description of what the function does.
+#'
+#' @param x A description of the `x` parameter. Mention its type and purpose (e.g., a numeric vector).
+#' @param y A description of the `y` parameter. Mention its type and purpose (e.g., a numeric vector).
+#' @param ... Additional arguments passed to other methods or functions.
+#'
+#' @return A description of the return value, including its type (e.g., a numeric vector, a data frame, etc.).
+#' @export
+#'
+#' @details Provide any additional details about the function, such as edge cases, assumptions, or implementation notes.
+#'
+#' @examples
+#' # Basic usage
+#' my_function(1:10, 2:11)
+#'
+od <- function(x) {
+  list(var = deparse(substitute(x)), 
+       type = "od",
+       run_as_is = F
+  )
+}
+
+odDesign <- function(term, data){
+  list2env(term, envir = environment())
+  sparseMatrix(x=1, i=1:nrow(data), j=1:nrow(data), rep = "T") |> as("dgTMatrix")
+}
+
+odPrecision <- function(term){
+  list2env(term, envir = environment())
+  sparseMatrix(x=1, i=1:n, j=1:n, rep = "T") |> as("dgTMatrix")
+}
+
+odTheta <- function(theta_info, term){
+  list2env(term, envir = environment())
+  m <- ifelse(is.null(theta_info$id), 0, max(theta_info$id))
+  
+  if(is.null(term$theta_id)) theta_id <- m + 1
+  if(theta_id < 0) theta_id <- m + 1
+  if(length(theta_id) != 1) stop("odTheta ", var, " ", type)
+  
+  theta_init <- .my_theta_init
+  
+  list(id = theta_id, init = theta_init)
 }

@@ -23,19 +23,6 @@
 #'
 setStrata <- function(cc_design, data){
   
-  # data <- data.frame(date = as.Date(1:50), 
-  #                  city = rep(LETTERS[1:2], each=50),
-  #                  x1 = rnorm(50), x2 = rnorm(50),
-  #                  y = rpois(50, 10))
-  # response_var <- "y"
-  # cc_design <- list(
-  #   strat_vars = "city",
-  #   time_var = "date",
-  #   time_lag = 7,
-  #   time_size = 4,
-  #   scheme = "time stratified"
-  # )
-  
   if(is.null(cc_design$time_var) & is.null(cc_design$strat_vars)) stop("Provide statification (or time) variables.")
   if(!is.null(cc_design$time_var) & cc_design$scheme != "time stratified") stop("Only time stratified scheme is implemented...")
   # Now, the rows cc_days is run over with each possible case day within it.
