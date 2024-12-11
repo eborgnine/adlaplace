@@ -8,7 +8,7 @@ library(data.table)
 # setup -------------------------------------------------------------------
 # set.seed(123)
 
-nn <- c(5,10,15)*100
+nn <- c(5,10,15)*300
 nc <- length(nn)
 np <- 2 # number of exposures
 n <- sum(nn)
@@ -45,6 +45,7 @@ list2env(hm(formula, data, cc_design = cc_design, for_dev = T), envir = environm
 # Log-precision parameters (2 parameters for 2 pollutants)
 theta_id <- theta_info$id
 theta_true <- log(rexp(length(unique(theta_id)), .0005))  # Log precision for each pollutant (will be exp(theta) to scale Q)
+theta_true[1] <- 6
 theta_true_long <- theta_true[theta_id]  # Log precision for each pollutant (will be exp(theta) to scale Q)
 
 # Observed counts (Poisson responses)
@@ -52,8 +53,14 @@ beta_true <- .05 + rnorm(ncol(X), 0, .01)
 Q <- .bdiag(Qs)
 gamma_true <- lapply(seq_along(gamma_split), \(k){
   ii <- cumsum(c(0,gamma_split))[k + 0:1] + c(1,0)
-  S <- solve(exp(theta_true_long[theta_id[k]+1]) * Q[ii[1]:ii[2],ii[1]:ii[2]])
-  mvtnorm::rmvnorm(1, sigma = S |> as.matrix())
+  Q0 <- exp(theta_true_long[theta_id[k]+1]) * Q[ii[1]:ii[2],ii[1]:ii[2]]
+  if(is.numeric(Q0) || Matrix::isDiagonal(Q0)){
+    if(is.numeric(Q0)) Q0 <- as.matrix(Q0)
+    rnorm(nrow(Q0), sd = 1/sqrt(diag(Q0)))
+  }else{
+    S <- solve(Q0)
+    mvtnorm::rmvnorm(1, sigma = S |> as.matrix())
+  }
 }) |> unlist()
 plot(gamma_true)
 
@@ -66,7 +73,10 @@ data$y[new_order] <- y # NOTE HERE new_order mimicks how the data was permuted i
 
 formula <- paste0("y ~ ", as.character(formula)[3]) |> as.formula()
 cc_design <- ccDesign(time_var = "id", strat_vars = "city", time_size = 4)
-opt <- hm(formula, data, cc_design)
+opt <- hm(formula, data, cc_design,
+          tmb_parameters = list(beta = beta_true,
+                                gamma = gamma_true,
+                                theta = theta_true_long))
 
 opt_par <- opt$env$last.par.best
 beta_hat <- opt_par[names(opt_par) == "beta"]
@@ -77,8 +87,10 @@ plot(beta_true, col="green", ylim = range(c(beta_hat, beta_true))); points(beta_
 plot(gamma_true, col="green", ylim = range(c(gamma_hat, gamma_true))); points(gamma_hat)
 plot(theta_true, col="green", ylim = range(c(theta_hat, theta_true))); points(theta_hat)
 
+z_id <- which.max(gamma_split)
+z1 <- cumsum(c(0,gamma_split))[z_id] + 1
+z2 <- cumsum(c(0,gamma_split))[z_id+1]
+plot(gamma_true[-(z1:z2)], col="green", ylim = range(c(gamma_hat, gamma_true))); points(gamma_hat[-(z1:z2)])
+hist(gamma_true[z1:z2])
+hist(gamma_hat[z1:z2])
 
-oo <- order(data$pol1)[seq(1,nrow(A),10)]
-aa <- A[oo,]
-plot(aa %*% gamma_true, col = match(data$city[oo], unique(data$city)))
-points(aa %*% gamma_hat, col = match(data$city[oo], unique(data$city)))

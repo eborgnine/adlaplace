@@ -15,7 +15,7 @@
 #' # Basic usage
 #' my_function(1:10, 2:11)
 #'
-hm <- function(formula, data, cc_design = ccDesign(), weight_var, for_dev = F) {
+hm <- function(formula, data, cc_design = ccDesign(), weight_var, tmb_parameters = NULL, for_dev = F) {
   
   data <- as.data.frame(data)
   
@@ -50,9 +50,10 @@ hm <- function(formula, data, cc_design = ccDesign(), weight_var, for_dev = F) {
   # loop
   k <- 1
   while(k <= length(terms)){
-    term <- terms[[k]] |> getExtra(data=data)
+    term <- terms[[k]] |> getExtra(data=data, cc_matrix=cc_matrix)
     term$id <- k
-    if(!is.factor(data[[term$var]][1]) && is.null(term$range)) range <- term$range <- range(data[[term$var]])
+    if(!is.factor(data[[term$var]][1]) && is.null(term$range))
+      range <- term$range <- range(data[[term$var]])
     
     if(term$run_as_is){
       Xsub <- sparse.model.matrix(term$f, data)
@@ -91,9 +92,11 @@ hm <- function(formula, data, cc_design = ccDesign(), weight_var, for_dev = F) {
     # theta parameters
     theta_setup <- getThetaSetup(theta_info, term)
     
+    theta_info$var <- c(theta_info$var, theta_setup$var)
+    theta_info$type <- c(theta_info$type, theta_setup$type)
     theta_info$id <- c(theta_info$id, theta_setup$id)
     theta_info$init <- c(theta_info$init, theta_setup$init)
-
+    
     # update term with new elements
     terms[[k]] <- term
     k <- k+1
@@ -111,23 +114,49 @@ hm <- function(formula, data, cc_design = ccDesign(), weight_var, for_dev = F) {
     cc_matrix = cc_matrix
   )
   
-  tmb_parameters <- list(
-    beta = rep(0, ncol(X)),
-    gamma = rep(0, ncol(A)),
-    theta = theta_info$init
-  )
+  if(is.null(tmb_parameters)){
+    tmb_parameters <- list(
+      beta = rep(0, ncol(X)),
+      gamma = rep(0, ncol(A)),
+      theta = theta_info$init
+    )
+  }
 
-  theta_info$id[theta_info$id == 0] <- max(theta_info$id) + 1:sum(theta_info$id == 0)
-  map <- list(theta = factor(theta_info$id))
-
+  # OPTIMIZATION ----
   dyn.load(dynlib("src/hpoltest"))
-  obj <- MakeADFun(data = tmb_data, 
+  
+  # preliminary run fixing the random effects for iwp, hiwp and od
+  # (but not the corresponding random slopes)
+  to_rm_ids <- which(theta_info$type %in% c("od", "iwp", "hiwp"))
+
+  if(length(to_rm_ids) > 0){
+    gamma_split <- gamma_info$split
+    map0 <- list(theta = factor(rep(NA, length(tmb_parameters$theta))),
+                 gamma = factor(1:length(tmb_parameters$gamma)))
+    
+    cs <- cumsum(c(0,gamma_split))
+    for(id in to_rm_ids) map0$gamma[(cs[id] + 1):cs[id+1]] <- NA
+
+    obj0 <- MakeADFun(data = tmb_data,
+                      parameters = tmb_parameters,
+                      map = map0,
+                      random = ifelse(all(is.na(map0$gamma)), NULL, "gamma"),
+                      DLL = "hpoltest")
+    opt0 <- nlminb(start = obj0$par, objective = obj0$fn, gradient = obj0$gr,
+                   control = list(eval.max=2000, iter.max=2000))
+    tmb_parameters$beta <- opt0$par[names(opt0$par) == "beta"]
+    if(!all(is.na(map0$gamma))) tmb_parameters$gamma[!is.na(map0$gamma)] <- obj0$env$last.par.best[names(obj0$env$last.par.best) == "gamma"]
+  }
+  
+  # Run optimization
+  glen <- length(tmb_parameters$gamma)
+  map <- list(theta = factor(theta_info$id))
+  obj <- MakeADFun(data = tmb_data,
                    parameters = tmb_parameters,
-                   random = c("gamma"),
+                   random = ifelse(glen > 0, "gamma", NULL),
                    map = map,
                    DLL = "hpoltest")
   
-  # Run optimization
   obj$fn(obj$par)
   opt <- nlminb(start = obj$par, objective = obj$fn, gradient = obj$gr, 
                 control = list(eval.max=2000, iter.max=2000))

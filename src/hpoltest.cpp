@@ -23,13 +23,13 @@ Type objective_function<Type>::operator() () {
   
   // Compute eta = log(lambda)
   Type nll = 0;
-  vector<Type> eta_fixed = X * beta;
-  vector<Type> eta_random = A * gamma;
-  vector<Type> eta = eta_fixed + eta_random;
+  vector<Type> eta(y.size());
+  eta.setZero();
+  if(X.cols() > 0) eta += X * beta;
+  if(A.cols() > 0) eta += A * gamma;
 
   // Compute negative log likelihood (multinomial -- case crossover)
   Type lsa;
-  // Type y_i_sum;
   for (int i = 0; i<n_cc; i++) {
     lsa = Type(-INFINITY);
     for(int j = 0; j<d_cc; j++) 
@@ -52,7 +52,7 @@ Type objective_function<Type>::operator() () {
   for(int j = 0; j < gamma_split.size(); j++){
     len_j = gamma_split(j);
     // nll -= 0.5 * (len_j*theta(j) + log_dets(j)); // log-determinant part
-    nll -= 0.5*len_j*theta(j); // log-determinant part
+    nll -= 0.5*len_j*theta(j);
     for(int i = idx_start; i < idx_start + len_j; i++) exp_theta(i) = exp(theta(j)); // construct exp_theta for later
     idx_start += len_j;
   }

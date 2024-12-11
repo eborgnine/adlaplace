@@ -3,11 +3,11 @@ collectTerms <- function(formula){
   term_labels <- attr(terms(formula), "term.labels")
   prefix <- NULL
   terms <- lapply(term_labels, \(lab){
-    if (grepl("iwp\\(|hiwp\\(|bs\\(|rpoly\\(|hrpoly\\(|fpoly\\(|hfpoly\\(", lab)) {
+    if (grepl("iwp\\(|hiwp\\(|bs\\(|rpoly\\(|hrpoly\\(|fpoly\\(|hfpoly\\(|od\\(", lab)) {
       term <- eval(parse(text = lab))
       term$f <- formula(paste0("~ 0 + ", term$prefix, lab))
     }else{
-      term <- list(var = lab, f = formula(paste0("~ 0 + ", lab)), run_as_is = T)
+      term <- list(var = lab, type="", f = formula(paste0("~ 0 + ", lab)), run_as_is = T)
     }
     return(term)
   })
@@ -18,11 +18,14 @@ collectTerms <- function(formula){
   
 
 # construct additional quantites specific to an effect.
-getExtra <- function(term, data){
+getExtra <- function(term, data, cc_matrix){
   list2env(term, envir = environment())
   if(term$run_as_is) return(term)
   
-  if(term$type == "od") term$n <- nrow(data)
+  if(term$type == "od"){
+    term$n <- nrow(data)
+    term$to_remove <- cc_matrix[,1] # IF WE GENERALIZE TO SOME OVERLAPPING STRATA, watch out here.
+  } 
     
   
   if(!is.null(term$group_var)){
@@ -83,6 +86,7 @@ getGammaSplit <- function(term){
       return(rep(length(knots)-1, ngroups+include_global))
 
     }else if(type == "od"){
+      # return(term$n - length(term$to_remove))
       return(term$n)
       
     }else if(type == "rpoly"){

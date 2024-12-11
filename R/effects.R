@@ -1,4 +1,4 @@
-.my_theta_init <- 7
+.my_theta_init <- 6
 
 #' Title of the Function
 #'
@@ -66,7 +66,8 @@ iwpTheta <- function(theta_info, term){
   # if(length(theta_init) != 1) stop("iwpTheta ", var, " ", type)
   theta_init <- .my_theta_init
   
-  list(id = theta_id, init = theta_init)
+  list(var = rep(var, length(theta_id)), type = rep(type, length(theta_id)),
+       theta_id, init = theta_init)
 }
 
 
@@ -152,7 +153,7 @@ hiwpTheta <- function(theta_info, term){
   # if(length(theta_init) != p) stop("rpolyTheta ", var, " ", type)
   theta_init <- rep(.my_theta_init, include_global+ngroups)
   
-  list(id = theta_id, init = theta_init)
+  list(var = rep(var, length(theta_id)), type = rep(type, length(theta_id)), id = theta_id, init = theta_init)
 }
 
 
@@ -240,7 +241,7 @@ rpolyTheta <- function(theta_info, term){
   # if(length(theta_init) != p) stop("rpolyTheta ", var, " ", type)
   theta_init <- rep(.my_theta_init, p)
   
-  list(id = theta_id, init = theta_init)
+  list(var = rep(var, length(theta_id)), type = rep(type, length(theta_id)), id = theta_id, init = theta_init)
 }
 
 
@@ -311,7 +312,7 @@ hrpolyTheta <- function(theta_info, term){
   # if(length(theta_init) != p) stop("rpolyTheta ", var, " ", type)
   theta_init <- rep(.my_theta_init, (include_global+ngroups)*p)
   
-  list(id = theta_id, init = theta_init)
+  list(var = rep(var, length(theta_id)), type = rep(type, length(theta_id)), id = theta_id, init = theta_init)
 }
 
 
@@ -389,11 +390,14 @@ od <- function(x) {
 
 odDesign <- function(term, data){
   list2env(term, envir = environment())
+  # sparseMatrix(x=1, i=1:nrow(data), j=1:nrow(data), rep = "T")[,-to_remove] |> as("dgTMatrix")
   sparseMatrix(x=1, i=1:nrow(data), j=1:nrow(data), rep = "T") |> as("dgTMatrix")
 }
 
 odPrecision <- function(term){
   list2env(term, envir = environment())
+  # m <- n - length(to_remove)
+  # sparseMatrix(x=1, i=1:m, j=1:m, rep = "T") |> as("dgTMatrix")
   sparseMatrix(x=1, i=1:n, j=1:n, rep = "T") |> as("dgTMatrix")
 }
 
@@ -407,5 +411,5 @@ odTheta <- function(theta_info, term){
   
   theta_init <- .my_theta_init
   
-  list(id = theta_id, init = theta_init)
+  list(var = rep(var, length(theta_id)), type = rep(type, length(theta_id)), id = theta_id, init = theta_init)
 }
