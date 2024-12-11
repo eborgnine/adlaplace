@@ -1,4 +1,4 @@
-.my_theta_init <- 6
+.my_theta_init <- 8
 
 #' Title of the Function
 #'
@@ -19,7 +19,7 @@
 #'
 iwp <- function(x, p = 2, 
                 ref_value, knots, range = NULL, 
-                rpoly_p = p-1, fpoly_p = 0) {
+                rpoly_p = 0, fpoly_p = 1) {
   l <- list(var = deparse(substitute(x)), 
             type = "iwp", 
             p = p, 
@@ -67,7 +67,7 @@ iwpTheta <- function(theta_info, term){
   theta_init <- .my_theta_init
   
   list(var = rep(var, length(theta_id)), type = rep(type, length(theta_id)),
-       theta_id, init = theta_init)
+       id = theta_id, init = theta_init)
 }
 
 
@@ -122,7 +122,7 @@ hiwpDesign <- function(term, data){
   list2env(term, envir = environment())
   
   A0 <- iwpDesign(term, data)
-  id_split <- split(1:nrow(data), data[[group_var]], drop = F)
+  id_split <- split(1:nrow(data), factor(data[[group_var]], levels = groups), drop = F)
   if(include_global) id_split <- c(list(1:nrow(data)), id_split)
   
   Afinal <- Matrix(0, nrow=nrow(data), ncol=ncol(A0)*length(id_split)) |> as("dgTMatrix")
@@ -222,7 +222,7 @@ rpoly <- function(x, p = 2, ref_value) {
 
 rpolyDesign <- function(term, data){
   list2env(term, envir = environment())
-  D <- poly(data[[var]]-ref_value, degree = p)
+  D <- poly(data[[var]]-ref_value, raw=T, degree = p)
   D[,1:ncol(D),drop=F]
 }
 
@@ -279,7 +279,7 @@ hrpolyDesign <- function(term, data){
   list2env(term, envir = environment())
   ig <- include_global
   
-  id_split <- split(1:nrow(data), data[[group_var]], drop = F)
+  id_split <- split(1:nrow(data), factor(data[[group_var]], levels = groups), drop = F)
   pp <- (ig + length(id_split)) * p
   mm <- c(0, sapply(id_split, length)) |> cumsum()
   

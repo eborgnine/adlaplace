@@ -19,17 +19,18 @@ hm <- function(formula, data, cc_design = ccDesign(), weight_var, tmb_parameters
   
   data <- as.data.frame(data)
   
-  # # Check inputs
-  # if (!is(formula, "formula")) stop("formula must be a formula.")
-  # if (!is.data.frame(data)) stop("data must be a data.frame.")
-  # if (!missing(weight_var) && !is.character(weight_var) && !(weight_var %in% colnames(data)))
-  #   stop("weight_var must be a character vector.")
+  # Check inputs
+  if (!is(formula, "formula")) stop("formula must be a formula.")
+  if (!is.data.frame(data)) stop("data must be a data.frame.")
+  if (!missing(weight_var) && !is.character(weight_var) && !(weight_var %in% colnames(data)))
+    stop("weight_var must be a character vector.")
 
   # Order the rows of data appropriately.
   if(is.null(cc_design$strat_vars) & is.null(cc_design$time_var)) stop("Provide a valid stratification (or time) variable.")
   strat_time_vars <- c(cc_design$strat_vars, cc_design$time_var)
   new_order <- eval(str2lang(paste0("order(", paste0("data[['", strat_time_vars, "']]", collapse = ", "), ")")))
   data <- data[new_order,]
+
   
   # setup the data for case-crossover
   cc_matrix <- setStrata(cc_design = cc_design, data = data)
@@ -57,7 +58,8 @@ hm <- function(formula, data, cc_design = ccDesign(), weight_var, tmb_parameters
     
     if(term$run_as_is){
       Xsub <- sparse.model.matrix(term$f, data)
-      beta_info$names <- c(beta_info$names, colnames(Xsub))
+      beta_info$var <- c(beta_info$var, term$var)
+      beta_info$pick <- c(beta_info$pick, paste0(term$pick, "__", 0))
       X <- cbind(X, Xsub)
       k <- k+1
       next
@@ -66,7 +68,8 @@ hm <- function(formula, data, cc_design = ccDesign(), weight_var, tmb_parameters
 
     if(term$type %in% "fpoly"){
       Xsub <- poly(data[[term$var]] - term$ref_value, raw = T, simple = T) |> as("dgTMatrix")
-      beta_info$names <- c(beta_info$names, colnames(Xsub))
+      beta_info$var <- c(beta_info$var, term$var)
+      beta_info$pick <- c(beta_info$pick, paste0(term$pick, "__", 0))
       X <- cbind(X, Xsub)
       k <- k+1
       next
@@ -77,8 +80,13 @@ hm <- function(formula, data, cc_design = ccDesign(), weight_var, tmb_parameters
     # design matrix
     Asub <- getDesign(term, data)
     A <- cbind(A, Asub)
-    gamma_info$names <- c(gamma_info$names, rep(paste0(term$var, "_", term$id), ncol(Asub)))
-    gamma_info$split <- c(gamma_info$split, getGammaSplit(term))
+
+    gamma_setup <- getGammaSetup(term)
+
+    gamma_info$var <- c(gamma_info$var, gamma_setup$var)
+    gamma_info$id <- c(gamma_info$id, gamma_setup$id)
+    gamma_info$split <- c(gamma_info$split, gamma_setup$split)
+    gamma_info$pick <- c(gamma_info$pick, gamma_setup$pick)
     # if(!is.null(term$group_var)) gamma_info$nrep <- c(gamma_info$nrep, length(split(1:nrow(data), data[[term$group_var]])))
     # Note: for iwp 1 knot removed for constraints
     
@@ -125,35 +133,38 @@ hm <- function(formula, data, cc_design = ccDesign(), weight_var, tmb_parameters
   # OPTIMIZATION ----
   dyn.load(dynlib("src/hpoltest"))
   
-  # preliminary run fixing the random effects for iwp, hiwp and od
-  # (but not the corresponding random slopes)
-  to_rm_ids <- which(theta_info$type %in% c("od", "iwp", "hiwp"))
-
-  if(length(to_rm_ids) > 0){
-    gamma_split <- gamma_info$split
-    map0 <- list(theta = factor(rep(NA, length(tmb_parameters$theta))),
-                 gamma = factor(1:length(tmb_parameters$gamma)))
-    
-    cs <- cumsum(c(0,gamma_split))
-    for(id in to_rm_ids) map0$gamma[(cs[id] + 1):cs[id+1]] <- NA
-
-    obj0 <- MakeADFun(data = tmb_data,
-                      parameters = tmb_parameters,
-                      map = map0,
-                      random = ifelse(all(is.na(map0$gamma)), NULL, "gamma"),
-                      DLL = "hpoltest")
-    opt0 <- nlminb(start = obj0$par, objective = obj0$fn, gradient = obj0$gr,
-                   control = list(eval.max=2000, iter.max=2000))
-    tmb_parameters$beta <- opt0$par[names(opt0$par) == "beta"]
-    if(!all(is.na(map0$gamma))) tmb_parameters$gamma[!is.na(map0$gamma)] <- obj0$env$last.par.best[names(obj0$env$last.par.best) == "gamma"]
-  }
+  # # preliminary run fixing the random effects for iwp, hiwp and od
+  # # (but not the corresponding random slopes)
+  # to_rm_ids <- which(theta_info$type %in% c("od", "iwp", "hiwp"))
+  # 
+  # if(length(to_rm_ids) > 0){
+  #   gamma_split <- gamma_info$split
+  #   map0 <- list(theta = factor(rep(NA, length(tmb_parameters$theta))),
+  #                gamma = factor(1:length(tmb_parameters$gamma)))
+  #   
+  #   cs <- cumsum(c(0,gamma_split))
+  #   for(id in to_rm_ids) map0$gamma[(cs[id] + 1):cs[id+1]] <- NA
+  # 
+  #   r <- NULL
+  #   if(!all(is.na(map0$gamma))) r <- "gamma"
+  #   obj0 <- MakeADFun(data = tmb_data,
+  #                     parameters = tmb_parameters,
+  #                     map = map0,
+  #                     random = r,
+  #                     DLL = "hpoltest")
+  #   opt0 <- nlminb(start = obj0$par, objective = obj0$fn, gradient = obj0$gr,
+  #                  control = list(eval.max=2000, iter.max=2000))
+  #   tmb_parameters$beta <- opt0$par[names(opt0$par) == "beta"]
+  #   if(!all(is.na(map0$gamma))) tmb_parameters$gamma[!is.na(map0$gamma)] <- obj0$env$last.par.best[names(obj0$env$last.par.best) == "gamma"]
+  # }
   
   # Run optimization
-  glen <- length(tmb_parameters$gamma)
   map <- list(theta = factor(theta_info$id))
+  r <- NULL
+  if(length(tmb_parameters$gamma) > 0) r <- "gamma"
   obj <- MakeADFun(data = tmb_data,
                    parameters = tmb_parameters,
-                   random = ifelse(glen > 0, "gamma", NULL),
+                   random = r,
                    map = map,
                    DLL = "hpoltest")
   
@@ -162,5 +173,8 @@ hm <- function(formula, data, cc_design = ccDesign(), weight_var, tmb_parameters
                 control = list(eval.max=2000, iter.max=2000))
   
   # Return the result
-  return(obj)
+  return(list(obj = obj, formula = formula, 
+              terms = terms, cc_design = cc_design,
+              gamma_info = gamma_info, theta_info = theta_info,
+              new_order))
 }

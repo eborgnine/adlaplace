@@ -29,11 +29,11 @@ getExtra <- function(term, data, cc_matrix){
     
   
   if(!is.null(term$group_var)){
-    term$ngroups <- if(is.factor(data[[group_var]])){
-      data[[group_var]] |> droplevels() |> nlevels()
-    }else{
-      data[[group_var]] |> unique() |> length()
-    }
+    term$groups <- factor(data[[group_var]] |> unique()) |> droplevels()
+    if(any(term$groups == "GLOBAL")) stop("Please change value (name) of GLOBAL in the group variable for ", term$var, " -- ", term$type)
+    term$groups <- factor(term$groups, levels = c("GLOBAL", levels(term$groups)))
+    
+    term$ngroups <- term$groups |> length() 
   }
   
   if(!is.null(term$knots)){
@@ -74,29 +74,52 @@ getDesign <- function(term, data){
 }
 
 
-getGammaSplit <- function(term){
+getGammaSetup <- function(term){
   list2env(term, envir = environment())
   
-    if(type == "iwp"){
-      return(length(knots)-1) # IS THIS ALWAYS THAT
+  gamma_split <- if(type == "iwp"){
+      length(knots)-1 # IS THIS ALWAYS THAT
       
-    }else if(type == "hiwp"){
-      # if(include_global) return(c(length(knots)-1,ngroups*(length(knots)-1)))
-      # return(ngroups*(length(knots)-1))
-      return(rep(length(knots)-1, ngroups+include_global))
+  }else if(type == "hiwp"){
+    # if(include_global) return(c(length(knots)-1,ngroups*(length(knots)-1)))
+    # return(ngroups*(length(knots)-1))
+    rep(length(knots)-1, ngroups+include_global)
 
-    }else if(type == "od"){
-      # return(term$n - length(term$to_remove))
-      return(term$n)
-      
-    }else if(type == "rpoly"){
-      return(1)
-      
-    }else if(type == "hrpoly"){
-      return(rep(1, (include_global + ngroups)*p))
-    }
+  }else if(type == "od"){
+    # return(term$n - length(term$to_remove))
+    term$n
+    
+  }else if(type == "rpoly"){
+    rep(1,p)
+    
+  }else if(type == "hrpoly"){
+    rep(1, (include_global + ngroups)*p)
+  }
 
-  return(NULL)
+  gamma_var <- rep(var, sum(gamma_split))
+  gamma_id <- rep(id, sum(gamma_split))
+  
+  gamma_pick <- if(type == "iwp"){
+    factor("GLOBAL") # IS THIS ALWAYS THAT
+    
+  }else if(type == "hiwp"){
+    gp <- lapply(seq_along(groups), \(i) rep(as.integer(groups)[i]-1, gamma_split[i+include_global])) |> unlist()
+    if(include_global) gp <- c(rep(0, gamma_split[1]), gp)
+    paste0(var, "__", gp)
+    
+  }else if(type == "od"){
+    paste0(var, "__", 0)
+    
+  }else if(type == "rpoly"){
+    paste0(var, "__", 0)
+    
+  }else if(type == "hrpoly"){
+    gp <- lapply(seq_along(groups), \(i) rep(as.integer(groups)[i]-1, gamma_split[i+include_global])) |> unlist()
+    if(include_global) gp <- c(rep(0, gamma_split[1]), gp)
+    paste0(var, "__", gp)
+  }
+  
+  return(list(var = gamma_var, id = gamma_id, split = gamma_split, pick = gamma_pick))
 }
 
 
@@ -121,8 +144,6 @@ getPrecision <- function(term){
   
   return(Qsub)
 }
-
-
 
 
 getThetaSetup <- function(theta_info, term){
@@ -161,7 +182,7 @@ addFPoly <- function(term){
   }
   
   if(!is.null(term$hfpoly_p) && term$hfpoly_p > 0){
-    stop("fpoly_p not yet implemented")
+    stop("hfpoly_p not yet implemented")
     # include additional fixed polynomial effects in the model
     new_f <- "~ fpoly(__var__, ref_value = __rv__, p = __p__, include_global = F)" |> 
       gsub(pattern = "__var__", replacement = term$var) |>

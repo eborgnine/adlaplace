@@ -49,7 +49,7 @@ setStrata <- function(cc_design, data){
   }
   
   # if not, also use time_var to further stratify 
-  if(cc_design$time_lag %% 1 != 0) stop("Please provide a valid (integer) time_lag.")
+  if(cc_design$time_lag %% 1 != 0) warning("non-integer time_lag(?)")
   strat_split <- lapply(strat_split, \(ss){
     split(ss, as.integer(data[ss,][[time_var]]) %% time_lag, drop = F)
   }) |> unlist(recursive = F)
@@ -66,7 +66,7 @@ setStrata <- function(cc_design, data){
       new_ss <- list()
       while(i < l){
         maybe <- i + 1:min(time_size-1, l-i)
-        new_s <- c(times[i], times[maybe][times[maybe]-times[i] < max_lag])
+        new_s <- ss[c(i, maybe[times[maybe]-times[i] < max_lag])]
         if(length(new_s) != 1) new_ss[[length(new_ss) + 1]] <- new_s
         i <- i+length(new_s)
       }
