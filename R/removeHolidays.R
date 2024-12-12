@@ -30,7 +30,7 @@ removeHolidays <- function(data, type){
   if(type == "rm_all"){
     # remove other holidays (need timeDate package)
     hol_to_rm <- c(GoodFriday, EasterSunday, Easter, EasterMonday, CAVictoriaDay, CALabourDay, CAThanksgivingDay, CACivicProvincialHoliday, CACanadaDay, CaRemembranceDay)
-    holiday_index <- holiday(min(years):max(years), hol_to_rm) |> as.Date()
+    holiday_index <- timeDate::holiday(min(years):max(years), hol_to_rm) |> as.Date()
     data <- data[!(data$date %in% holiday_index),]
   }
 

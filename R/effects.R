@@ -1,5 +1,6 @@
 #' Functions to specify terms of the formula (and associated utility functions)
-#'
+#' @name effects_and_utilities
+#' @rdname effects_and_utilities 
 #' @description This suite of functions implements various moels (fixed and random effects) polynomials, integrated Wiener processes, hierarchical extensions.
 #'
 #' @param x A numeric vector representing the data to which the model is applied.
@@ -30,7 +31,7 @@
 #'   - **Precision Matrix Functions (`*Precision`)**: Construct precision matrices corresponding to specific modeling terms.
 #'   - **Theta Functions (`*Theta`)**: Handle the variance parameters associated with random effects.
 #'
-#' The utility functions are specifically used within the `hm` function and are not be exported.
+#' The utility functions are specifically used within the `hnlm` function and are not be exported.
 #'
 #' @examples
 #' These were generated with chatGPT and have not been reviewed. See vignette for a human generated example.
@@ -58,7 +59,6 @@
 #' # Example usage for hierarchical fitted polynomial (hfpoly)
 #' term <- hfpoly(x = 1:10, ref_value = 5, group_var = factor(rep(1:2, each = 5)))
 #' design_matrix <- hfpolyDesign(term, data = data.frame(x = 1:10, group_var = factor(rep(1:2, each = 5))))
-#' @rdname effects_and_utilities 
 NULL
 
 .my_theta_init <- 8

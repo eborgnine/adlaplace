@@ -1,3 +1,12 @@
+#' Post-fit design matrices constructor.
+#' @description Replicates the loop in `hlnm` that construct the design matrices, without modifying `terms` 
+#' and creating the other objects (i.e., the precision matrices).
+#'
+#' @param terms The output `terms` of `hlnm`.
+#' @param df A data.frame with all the necessary columns (as in the `data` input of `hlnm`).
+#'
+#' @return A list containing X and A, the fixed and random effects design matrices.
+#'
 getNewXA <- function(terms, df){
   X <- NULL
   A <- NULL
@@ -30,7 +39,23 @@ getNewXA <- function(terms, df){
 }
 
 
-
+#' Helper to visualize results (of an `hlnm` fit) associated with a given variable.
+#' @description Replicates the loop in `hlnm` that construct the design matrices, without modifying `terms` 
+#' and creating the other objects (i.e., the precision matrices).
+#'
+#' @param fit Output of an `hlnm` call.
+#' @param exposure_var character indicating the variable of interest.
+#' @param group_var character indicating the variable upon which to segment the results (should match the `group_var`
+#' used in the hierarchical models of the `exposure_var`). Can be a vector, but this might lead to problems.
+#' @param group character vector indicating specific group(s) (possible value(s) of the `group_var` variable) of interest.
+#' @param values Numeric values at which to evaluate the `exposure_var` (set to the range spanned by the knots, if applicable).
+#' @param ref_values Named list indicating the reference values for each variable that uses one. 
+#' It assumes that the same reference value is used whenever a variable appears in multiple terms in the `formula`
+#' input of `hlnm`.
+#'
+#' @return A data.frame ready to use for plotting the results.
+#'
+#' @export
 getEffect <- function(fit, exposure_var, group_var, group, values, ref_values){
   vars <- c(
     as.character(fit$formula)[2],

@@ -1,26 +1,26 @@
-#' Title of the Function
+#' Stratify the observations for usage in a case-crossover model
 #'
-#' @description A brief description of what the function does.
+#' @description This function creates a stratification of the data based on the specified stratification variables
+#' and the time-related parameters, if applicable.
 #'
-#' @param cc_design A description of the `x` parameter. Mention its type and purpose (e.g., a numeric vector).
-#' @param formula A description of the `y` parameter. Mention its type and purpose (e.g., a numeric vector).
-#' @param data A description of the `y` parameter. Mention its type and purpose (e.g., a numeric vector).
-#' @param ... Additional arguments passed to other methods or functions.
-#'
-#' @return A description of the return value, including its type (e.g., a numeric vector, a data frame, etc.).
-#' @export
-#'
-#' @details cc_design should contain (at least some of) the following elements:
-#' strat_vars: character or NULL (default). Variables with which to stratify the data.
-#' time_var: character vector or NULL (default).  Variable giving the timestamps.
-#' time_lag: integer (default is 7). Lag used to (further) stratify the data (only used when !is.null(time_var)).
-#' time_size: integer (default is 4). Maximum size of strata (only used when !is.null(time_var)).
-#' scheme: character (default is "time stratified"). Scheme used to (further) stratify the data (using lag, and only when !is.null(time_var)).
-#'
-#' @examples
-#' # Basic usage
-#' my_function(1:10, 2:11)
-#'
+#' @param cc_design A list containing the design parameters for the stratification. This includes:
+#'   \itemize{
+#'     \item strat_vars: character or NULL (default). Variables with which to stratify the data.
+#'     \item time_var: character vector or NULL (default). Variable giving the timestamps.
+#'     \item time_lag: integer (default is 7). Lag used to (further) stratify the data (only used when !is.null(time_var)).
+#'     \item time_size: integer (default is 4). Maximum size of strata (only used when !is.null(time_var)).
+#'     \item scheme: character (default is "time stratified"). Scheme used to (further) stratify the data (using lag, and only when !is.null(time_var)).
+#'   }
+#' @param data A data frame containing the data to be stratified.
+#' 
+#' @return A matrix where each row represents a strata, and each column represents a day (or unit) for that strata.
+#' 
+#' @details The function performs stratification based on the specified `strat_vars` and `time_var`. If a time variable is provided,
+#' additional stratification is done using the time lag and size parameters. The result is a matrix where each row represents a 
+#' group of data points corresponding to a particular stratification level, with zeroes representing empty cases.
+#' Note that it handles only `time stratified` for now. If ever extended, beware that some other stratification 
+#' methods create overlapping strata; this may require modifying other parts of the package. 
+#' 
 setStrata <- function(cc_design, data){
   
   if(is.null(cc_design$time_var) & is.null(cc_design$strat_vars)) stop("Provide statification (or time) variables.")
@@ -83,6 +83,47 @@ setStrata <- function(cc_design, data){
   return(cc_matrix)
 }  
 
+
+#' Create a list of stratification parameters
+#'
+#' @description This function creates a list of design parameters used in stratification. The default parameters can be 
+#' customized by passing arguments to the function.
+#'
+#' @param ... Additional arguments to customize the stratification parameters. These arguments are used to update the
+#' default parameters.
+#'
+#' @return A list containing the stratification design parameters. The list includes:
+#'   \itemize{
+#'     \item strat_vars: character or NULL. Variables to stratify the data.
+#'     \item time_var: character or NULL. Time variable.
+#'     \item time_lag: integer. Lag used to stratify data (default is 7).
+#'     \item time_size: integer. Size of strata (default is 4).
+#'     \item scheme: character. Stratification scheme (default, and sole implemented scheme is "time stratified").
+#'   }
+#'
+#' @export
+ccDesign <- function(...){
+  
+  # default
+  cc_design <- list(
+    strat_vars = NULL,
+    time_var = NULL,
+    time_lag = 7,
+    time_size = 4,
+    scheme = "time stratified"
+  )
+  
+  params = list(...)
+  cc_design[names(params)] <- params
+  
+  return(cc_design)
+}
+
+
+
+
+
+# JUNK THAT MAY BE USEFUL IN GENERALIZING THE PACKAGE...
 # if(design$scheme == "unidirectional"){
 #   control_days <- purrr::map(-(design$n_control:1)*design$lag, ~ case_day + .x) |> Reduce(f="cbind")
 #   if(design$n_control == 1) control_days <- as.matrix(control_days)
@@ -112,21 +153,3 @@ setStrata <- function(cc_design, data){
 #   stratum <- split(time, id)
 
 
-
-
-ccDesign <- function(...){
-  
-  # default
-  cc_design <- list(
-    strat_vars = NULL,
-    time_var = NULL,
-    time_lag = 7,
-    time_size = 4,
-    scheme = "time stratified"
-  )
-  
-  params = list(...)
-  cc_design[names(params)] <- params
-  
-  return(cc_design)
-}
