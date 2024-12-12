@@ -1,22 +1,71 @@
-.my_theta_init <- 8
-
-#' Title of the Function
+#' Functions to specify terms of the formula (and associated utility functions)
 #'
-#' @description A brief description of what the function does.
+#' @description This suite of functions implements various moels (fixed and random effects) polynomials, integrated Wiener processes, hierarchical extensions.
 #'
-#' @param x A description of the `x` parameter. Mention its type and purpose (e.g., a numeric vector).
-#' @param y A description of the `y` parameter. Mention its type and purpose (e.g., a numeric vector).
+#' @param x A numeric vector representing the data to which the model is applied.
+#' @param p A numeric value specifying the polynomial degree (default: varies by function).
+#' @param ref_value A numeric value specifying the reference point for the basis functions.
+#' @param knots A numeric vector specifying the knot locations for spline-based models.
+#' @param range A numeric vector of length 2 specifying the range of the data (optional).
+#' @param group_var A factor or grouping variable used to define hierarchical structures (optional).
+#' @param include_global A logical value indicating whether to include a global component in hierarchical models (default: `TRUE`).
+#' @param rpoly_p A numeric value specifying the degree for (random effects) polynomial components to add to the model as a separate term.
+#' @param fpoly_p A numeric value specifying the degree for (fixed effects) polynomial components to add to the model as a separate term.
+#' @param hrpoly_p A numeric value specifying the degree for hierarchical (random effects) polynomial components to add to the model as a separate term.
+#' @param hfpoly_p A numeric value specifying the degree for hierarchical (fixed effects) polynomial components to add to the model as a separate term.
+#' @param theta_info A list containing information about parameter indexing and initialization for hierarchical models.
+#' @param term A list representing the term structure for the design matrix or precision calculations.
+#' @param data A data frame containing the data to which the model terms are applied.
 #' @param ... Additional arguments passed to other methods or functions.
 #'
-#' @return A description of the return value, including its type (e.g., a numeric vector, a data frame, etc.).
-#' @export
+#' @return A list or matrix, depending on the function, representing the design matrix, precision matrix, or parameter information for the specified model term.
 #'
-#' @details Provide any additional details about the function, such as edge cases, assumptions, or implementation notes.
+#' @details These functions provide polynomial and spline-based models:
+#' - **Raw Polynomial Functions (rpoly, hrpoly)**: Construct design matrices for raw polynomial terms (random effects polynomial terms), with hierarchical extensions available for group-specific modeling.
+#' - **Fitted Polynomial Functions (fpoly, hfpoly)**: Generate fitted polynomial terms (fixed effects polynomial terms) that adapt to specific data features, also with hierarchical extensions.
+#' - **Integrated Wiener Process (iwp, hiwp)**: Develop design and precision matrices for integrated Wiener process components, with options for hierarchical group structures.
+#' - **Spline-based Models (splines, knots)**: Support for spline terms, allowing for flexible non-linear modeling with specified knot locations.
+#' - **Utility Functions**:
+#'   - **Design Functions (`*Design`)**: Construct design matrices tailored to specific modeling terms.
+#'   - **Precision Matrix Functions (`*Precision`)**: Construct precision matrices corresponding to specific modeling terms.
+#'   - **Theta Functions (`*Theta`)**: Handle the variance parameters associated with random effects.
+#'
+#' The utility functions are specifically used within the `hm` function and are not be exported.
 #'
 #' @examples
-#' # Basic usage
-#' my_function(1:10, 2:11)
+#' These were generated with chatGPT and have not been reviewed. See vignette for a human generated example.
+#' 
+#' # Example usage for iwp
+#' term <- iwp(x = 1:10, ref_value = 5, knots = c(0, 5, 10))
+#' design_matrix <- iwpDesign(term, data = data.frame(x = 1:10))
+#' 
+#' # Example usage for hierarchical model (hiwp)
+#' term <- hiwp(x = 1:10, ref_value = 5, knots = c(0, 5, 10), group_var = factor(rep(1:2, each = 5)))
+#' design_matrix <- hiwpDesign(term, data = data.frame(x = 1:10, group_var = factor(rep(1:2, each = 5))))
 #'
+#' # Example usage for raw polynomial models
+#' term <- rpoly(x = 1:10, ref_value = 5, p = 2)
+#' design_matrix <- rpolyDesign(term, data = data.frame(x = 1:10))
+#'
+#' # Example usage for hierarchical raw polynomial (hrpoly)
+#' term <- hrpoly(x = 1:10, ref_value = 5, group_var = factor(rep(1:2, each = 5)))
+#' design_matrix <- hrpolyDesign(term, data = data.frame(x = 1:10, group_var = factor(rep(1:2, each = 5))))
+#'
+#' # Example usage for fitted polynomial models
+#' term <- fpoly(x = 1:10, ref_value = 5, p = 3)
+#' design_matrix <- fpolyDesign(term, data = data.frame(x = 1:10))
+#'
+#' # Example usage for hierarchical fitted polynomial (hfpoly)
+#' term <- hfpoly(x = 1:10, ref_value = 5, group_var = factor(rep(1:2, each = 5)))
+#' design_matrix <- hfpolyDesign(term, data = data.frame(x = 1:10, group_var = factor(rep(1:2, each = 5))))
+#' @rdname effects_and_utilities 
+NULL
+
+.my_theta_init <- 8
+
+
+#' @rdname effects_and_utilities 
+#' @export
 iwp <- function(x, p = 2, 
                 ref_value, knots, range = NULL, 
                 rpoly_p = 0, fpoly_p = 1) {
@@ -38,6 +87,7 @@ iwp <- function(x, p = 2,
   return(l)
 }
 
+#' @rdname effects_and_utilities 
 iwpDesign <- function(term, data){
   list2env(term, envir = environment())
   
@@ -50,10 +100,12 @@ iwpDesign <- function(term, data){
   methods::as(local_poly(knots = knots-ref_value, refined_x = data[[var]]-ref_value, p = p), "dgTMatrix")
 }
 
+#' @rdname effects_and_utilities 
 iwpPrecision <- function(term){
   as(compute_weights_precision(knots=term$knots), "dgTMatrix")
 }
 
+#' @rdname effects_and_utilities 
 iwpTheta <- function(theta_info, term){
   list2env(term, envir = environment())
   m <- ifelse(is.null(theta_info$id), 0, max(theta_info$id))
@@ -74,23 +126,8 @@ iwpTheta <- function(theta_info, term){
 
 
 
-#' Title of the Function
-#'
-#' @description A brief description of what the function does.
-#'
-#' @param x A description of the `x` parameter. Mention its type and purpose (e.g., a numeric vector).
-#' @param y A description of the `y` parameter. Mention its type and purpose (e.g., a numeric vector).
-#' @param ... Additional arguments passed to other methods or functions.
-#'
-#' @return A description of the return value, including its type (e.g., a numeric vector, a data frame, etc.).
+#' @rdname effects_and_utilities 
 #' @export
-#'
-#' @details Provide any additional details about the function, such as edge cases, assumptions, or implementation notes.
-#'
-#' @examples
-#' # Basic usage
-#' my_function(1:10, 2:11)
-#'
 hiwp <- function(x, p = 2, ref_value, knots, range = NULL, 
                  group_var,
                  include_global = T,
@@ -118,6 +155,7 @@ hiwp <- function(x, p = 2, ref_value, knots, range = NULL,
   return(l)
 }
 
+#' @rdname effects_and_utilities 
 hiwpDesign <- function(term, data){
   list2env(term, envir = environment())
   
@@ -133,11 +171,13 @@ hiwpDesign <- function(term, data){
   Afinal
 }
 
+#' @rdname effects_and_utilities 
 hiwpPrecision <- function(term){
   list2env(term, envir = environment())
   replicate(include_global+ngroups, iwpPrecision(term)) |> .bdiag()
 }
 
+#' @rdname effects_and_utilities 
 hiwpTheta <- function(theta_info, term){
   m <- ifelse(is.null(theta_info$id), 0, max(theta_info$id))
   list2env(term, envir = environment())
@@ -159,23 +199,8 @@ hiwpTheta <- function(theta_info, term){
 
 
 
-#' Title of the Function
-#'
-#' @description A brief description of what the function does.
-#'
-#' @param x A description of the `x` parameter. Mention its type and purpose (e.g., a numeric vector).
-#' @param y A description of the `y` parameter. Mention its type and purpose (e.g., a numeric vector).
-#' @param ... Additional arguments passed to other methods or functions.
-#'
-#' @return A description of the return value, including its type (e.g., a numeric vector, a data frame, etc.).
+#' @rdname effects_and_utilities 
 #' @export
-#'
-#' @details Provide any additional details about the function, such as edge cases, assumptions, or implementation notes.
-#'
-#' @examples
-#' # Basic usage
-#' my_function(1:10, 2:11)
-#'
 fpoly <- function(x, p = 2, ref_value = 0) {
   l <- list(var = deparse(substitute(x)), 
             type = "fpoly", 
@@ -185,6 +210,7 @@ fpoly <- function(x, p = 2, ref_value = 0) {
   return(l)
 }
 
+#' @rdname effects_and_utilities 
 fpolyDesign <- function(term, data){
   list2env(term, envir = environment())
   D <- poly(data[[var]]-ref_value, degree = p)
@@ -194,23 +220,8 @@ fpolyDesign <- function(term, data){
 
 
 
-#' Title of the Function
-#'
-#' @description A brief description of what the function does.
-#'
-#' @param x A description of the `x` parameter. Mention its type and purpose (e.g., a numeric vector).
-#' @param y A description of the `y` parameter. Mention its type and purpose (e.g., a numeric vector).
-#' @param ... Additional arguments passed to other methods or functions.
-#'
-#' @return A description of the return value, including its type (e.g., a numeric vector, a data frame, etc.).
+#' @rdname effects_and_utilities 
 #' @export
-#'
-#' @details Provide any additional details about the function, such as edge cases, assumptions, or implementation notes.
-#'
-#' @examples
-#' # Basic usage
-#' my_function(1:10, 2:11)
-#'
 rpoly <- function(x, p = 2, ref_value) {
   l <- list(var = deparse(substitute(x)), 
             type = "rpoly", 
@@ -220,16 +231,19 @@ rpoly <- function(x, p = 2, ref_value) {
   return(l)
 }
 
+#' @rdname effects_and_utilities 
 rpolyDesign <- function(term, data){
   list2env(term, envir = environment())
   D <- poly(data[[var]]-ref_value, raw=T, degree = p)
   D[,1:ncol(D),drop=F]
 }
 
+#' @rdname effects_and_utilities 
 rpolyPrecision <- function(term){
   as(matrix(1), "dgTMatrix")
 }
 
+#' @rdname effects_and_utilities 
 rpolyTheta <- function(theta_info, term){
   list2env(term, envir = environment())
   m <- ifelse(is.null(theta_info$id), 0, max(theta_info$id))
@@ -247,23 +261,8 @@ rpolyTheta <- function(theta_info, term){
 
 
 
-#' Title of the Function
-#'
-#' @description A brief description of what the function does.
-#'
-#' @param x A description of the `x` parameter. Mention its type and purpose (e.g., a numeric vector).
-#' @param y A description of the `y` parameter. Mention its type and purpose (e.g., a numeric vector).
-#' @param ... Additional arguments passed to other methods or functions.
-#'
-#' @return A description of the return value, including its type (e.g., a numeric vector, a data frame, etc.).
+#' @rdname effects_and_utilities 
 #' @export
-#'
-#' @details Provide any additional details about the function, such as edge cases, assumptions, or implementation notes.
-#'
-#' @examples
-#' # Basic usage
-#' my_function(1:10, 2:11)
-#'
 hrpoly <- function(x, p = 1, ref_value, group_var, include_global = T) {
   l <- list(var = deparse(substitute(x)), 
             type = "hrpoly", 
@@ -275,6 +274,7 @@ hrpoly <- function(x, p = 1, ref_value, group_var, include_global = T) {
   return(l)
 }
 
+#' @rdname effects_and_utilities 
 hrpolyDesign <- function(term, data){
   list2env(term, envir = environment())
   ig <- include_global
@@ -292,12 +292,14 @@ hrpolyDesign <- function(term, data){
   Afinal
 }
 
+#' @rdname effects_and_utilities 
 hrpolyPrecision <- function(term){
   list2env(term, envir = environment())
   pp <- (include_global+ngroups)*p
   sparseMatrix(i=1:pp, j=1:pp, rep = "T") |> as("dgTMatrix")
 }
 
+#' @rdname effects_and_utilities 
 hrpolyTheta <- function(theta_info, term){
   list2env(term, envir = environment())
   
@@ -321,23 +323,8 @@ hrpolyTheta <- function(theta_info, term){
 
 
 
-#' Title of the Function
-#'
-#' @description A brief description of what the function does.
-#'
-#' @param x A description of the `x` parameter. Mention its type and purpose (e.g., a numeric vector).
-#' @param y A description of the `y` parameter. Mention its type and purpose (e.g., a numeric vector).
-#' @param ... Additional arguments passed to other methods or functions.
-#'
-#' @return A description of the return value, including its type (e.g., a numeric vector, a data frame, etc.).
+#' @rdname effects_and_utilities 
 #' @export
-#'
-#' @details Provide any additional details about the function, such as edge cases, assumptions, or implementation notes.
-#'
-#' @examples
-#' # Basic usage
-#' my_function(1:10, 2:11)
-#'
 bs <- function(x, o = 2, ref_value, range = NULL, nknots = NULL, run_as_is = T, ...) {
   
   stop("bs() is not implemented.")
@@ -364,23 +351,8 @@ bs <- function(x, o = 2, ref_value, range = NULL, nknots = NULL, run_as_is = T, 
 
 
 
-#' Title of the Function
-#'
-#' @description A brief description of what the function does.
-#'
-#' @param x A description of the `x` parameter. Mention its type and purpose (e.g., a numeric vector).
-#' @param y A description of the `y` parameter. Mention its type and purpose (e.g., a numeric vector).
-#' @param ... Additional arguments passed to other methods or functions.
-#'
-#' @return A description of the return value, including its type (e.g., a numeric vector, a data frame, etc.).
+#' @rdname effects_and_utilities 
 #' @export
-#'
-#' @details Provide any additional details about the function, such as edge cases, assumptions, or implementation notes.
-#'
-#' @examples
-#' # Basic usage
-#' my_function(1:10, 2:11)
-#'
 od <- function(x) {
   list(var = deparse(substitute(x)), 
        type = "od",
@@ -388,12 +360,14 @@ od <- function(x) {
   )
 }
 
+#' @rdname effects_and_utilities 
 odDesign <- function(term, data){
   list2env(term, envir = environment())
   # sparseMatrix(x=1, i=1:nrow(data), j=1:nrow(data), rep = "T")[,-to_remove] |> as("dgTMatrix")
   sparseMatrix(x=1, i=1:nrow(data), j=1:nrow(data), rep = "T") |> as("dgTMatrix")
 }
 
+#' @rdname effects_and_utilities 
 odPrecision <- function(term){
   list2env(term, envir = environment())
   # m <- n - length(to_remove)
@@ -401,6 +375,7 @@ odPrecision <- function(term){
   sparseMatrix(x=1, i=1:n, j=1:n, rep = "T") |> as("dgTMatrix")
 }
 
+#' @rdname effects_and_utilities 
 odTheta <- function(theta_info, term){
   list2env(term, envir = environment())
   m <- ifelse(is.null(theta_info$id), 0, max(theta_info$id))

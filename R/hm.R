@@ -1,20 +1,19 @@
 #' Title of the Function
 #'
-#' @description A brief description of what the function does.
+#' @description This function fits a hierarchical model using the specified formula and data, incorporating case-crossover designs, fixed and random effects, and precision matrices for random effects. It allows for flexible inclusion of stratification variables, time variables, and complex random effect structures.
 #'
-#' @param x A description of the `x` parameter. Mention its type and purpose (e.g., a numeric vector).
-#' @param y A description of the `y` parameter. Mention its type and purpose (e.g., a numeric vector).
-#' @param ... Additional arguments passed to other methods or functions.
+#' @param formula A formula object specifying the model to be fitted.
+#' @param data A data frame containing the variables specified in the formula and any additional variables required for the model.
+#' @param cc_design An object specifying the case-crossover design, including stratification and time variables. Defaults to the output of `ccDesign()`.
+#' @param weight_var (Optional) A character string specifying the column in the data frame used for weights. If provided, it must exist in `data`.
+#' @param tmb_parameters (Optional) A list of initial parameter values for the TMB optimization, including `beta`, `gamma`, and `theta`.
+#' @param for_dev Logical; if `TRUE`, the function returns intermediate objects for development purposes. Defaults to `FALSE`.
 #'
-#' @return A description of the return value, including its type (e.g., a numeric vector, a data frame, etc.).
-#' @export
-#'
-#' @details Provide any additional details about the function, such as edge cases, assumptions, or implementation notes.
+#' @return A list containing the fitted TMB object, the formula, terms used in the model, the case-crossover design, and information about the gamma and theta parameters.
+#' @details The function handles fixed effects, random effects, and their associated precision matrices. It also optimizes the model using TMB with options for additional preprocessing and handling specific random effect structures.
 #'
 #' @examples
-#' # Basic usage
-#' my_function(1:10, 2:11)
-#'
+#' # See vignette for basic usage
 hm <- function(formula, data, cc_design = ccDesign(), weight_var, tmb_parameters = NULL, for_dev = F) {
   
   data <- as.data.frame(data)

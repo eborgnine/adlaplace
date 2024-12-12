@@ -1,4 +1,24 @@
+#' Helpers for the `hm` function
+#'
+#' This page provides common information for functions that handle the setup and 
+#' processing of terms used in the model.
+#' These functions include:
+#' - `collectTerms()`: Sets up the terms object, which is the core of the model.
+#' - `getExtra()`: Constructs additional quantities specific to an effect.
+#' - `getDesign()`: Constructs the design matrix for a given effect.
+#' - `getGammaSetup()`: Sets up the gamma parameters specific to an effect.
+#' - `getPrecision()`: Constructs the precision matrix for a random effect.
+#' - `getThetaSetup()`: Sets up theta information for a specific effect.
+#' - `addFPoly()`: Adds fixed polynomial effects to the model.
+#' - `addRPoly()`: Adds random polynomial effects to the model.
+#' 
+#' @rdname hm_helpers
+NULL  # This creates the common help page 'common_terms_page.Rd'
+
+
+
 # sets up the terms object that is core to the hm function.
+#' @rdname hm_helpers
 collectTerms <- function(formula){
   term_labels <- attr(terms(formula), "term.labels")
   prefix <- NULL
@@ -18,6 +38,7 @@ collectTerms <- function(formula){
   
 
 # construct additional quantites specific to an effect.
+#' @rdname hm_helpers
 getExtra <- function(term, data, cc_matrix){
   list2env(term, envir = environment())
   if(term$run_as_is) return(term)
@@ -48,6 +69,7 @@ getExtra <- function(term, data, cc_matrix){
 
 
 # construct the design matrix specific to an effect.
+#' @rdname hm_helpers
 getDesign <- function(term, data){
   list2env(term, envir = environment())
   
@@ -74,6 +96,7 @@ getDesign <- function(term, data){
 }
 
 
+#' @rdname hm_helpers
 getGammaSetup <- function(term){
   list2env(term, envir = environment())
   
@@ -124,6 +147,7 @@ getGammaSetup <- function(term){
 
 
 # construct the Penalty/Precision matrix specific to a random effect.
+#' @rdname hm_helpers
 getPrecision <- function(term){
   list2env(term, envir = environment())
   
@@ -146,6 +170,7 @@ getPrecision <- function(term){
 }
 
 
+#' @rdname hm_helpers
 getThetaSetup <- function(theta_info, term){
   
   theta_id <- 
@@ -167,6 +192,7 @@ getThetaSetup <- function(theta_info, term){
 
 
 
+#' @rdname hm_helpers
 addFPoly <- function(term){
   
   new_terms <- NULL
@@ -197,6 +223,7 @@ addFPoly <- function(term){
 
 
 
+#' @rdname hm_helpers
 addRPoly <- function(term){
   
   new_terms <- NULL
