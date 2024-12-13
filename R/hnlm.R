@@ -25,15 +25,12 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var, tmb_paramete
   
   data <- as.data.frame(data)
   
-  print("Hey1")
-  
   # Check inputs
   if (!is(formula, "formula")) stop("formula must be a formula.")
   if (!is.data.frame(data)) stop("data must be a data.frame.")
   if (!missing(weight_var) && !is.character(weight_var) && !(weight_var %in% colnames(data)))
     stop("weight_var must be a character vector.")
 
-  print("Hey2")
   # Order the rows of data appropriately.
   if(is.null(cc_design$strat_vars) & is.null(cc_design$time_var)) stop("Provide a valid stratification (or time) variable.")
   strat_time_vars <- c(cc_design$strat_vars, cc_design$time_var)
@@ -41,16 +38,13 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var, tmb_paramete
   data <- data[new_order,]
 
   
-  print("Hey3")
   # setup the data for case-crossover
   cc_matrix <- setStrata(cc_design = cc_design, data = data)
   
-  print("Hey4")
   # setup of the design matrices and other parameters
   # terms carries all the information throughout
   terms <- collectTerms(formula)
   
-  print("Hey5")
   # design matrices
   X <- NULL # fixed effects
   A <- NULL # random effects

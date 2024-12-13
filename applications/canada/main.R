@@ -63,7 +63,7 @@ res1_temp <- getEffect(fit, exposure_var = "temp4lag",
                     values = knots_temp4lag[1]:rev(knots_temp4lag)[1],
                     ref_values = ref_values)
 res2_temp <- getEffect(fit, exposure_var = "temp4lag", 
-                       group_var = "city", group = NA, 
+                       group_var = "city", group = NA, # for global effect
                        values = knots_temp4lag[1]:rev(knots_temp4lag)[1],
                        ref_values = ref_values)
 
