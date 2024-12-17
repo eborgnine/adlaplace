@@ -46,8 +46,8 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var, tmb_paramete
   terms <- collectTerms(formula)
   
   # design matrices
-  X <- NULL # fixed effects
-  A <- NULL # random effects
+  X <- matrix(nrow=nrow(data), ncol=0) # fixed effects
+  A <- matrix(nrow=nrow(data), ncol=0) # random effects
   Qs <- list() # precisions for random effects
   
   beta_info <- list()
