@@ -40,9 +40,12 @@ setStrata <- function(cc_design, data){
   
   # if no more stratification do do, return right away
   if(is.null(cc_design$time_var)){
-    max_len <- sapply(strat_split, length)
-    cc_matrix <- matrix(unlist(strat_split), length(strat_split), max_len, byrow=T)
-    
+    lens <- sapply(strat_split, length)
+    max_len <- max(lens)
+    cc_matrix <- sapply(seq_along(strat_split), \(k){
+      c(strat_split[[k]], rep(0, max_len - lens[k]))
+    }) |> t()
+
     # filter out strata of size 1
     cc_matrix <- cc_matrix[apply(cc_matrix > 0, 1, any),]
     return(cc_matrix)

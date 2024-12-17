@@ -137,8 +137,6 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var, tmb_paramete
   }
 
   # OPTIMIZATION ----
-  dyn.load(dynlib("src/hpoltest"))
-  
   # # preliminary run fixing the random effects for iwp, hiwp and od
   # # (but not the corresponding random slopes)
   # to_rm_ids <- which(theta_info$type %in% c("od", "iwp", "hiwp"))
