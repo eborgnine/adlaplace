@@ -179,6 +179,6 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var, tmb_paramete
   # Return the result
   return(list(obj = obj, formula = formula, 
               terms = terms, cc_design = cc_design,
-              gamma_info = gamma_info, theta_info = theta_info,
+              beta_info = beta_info, gamma_info = gamma_info, theta_info = theta_info,
               new_order))
 }
