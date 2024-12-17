@@ -14,7 +14,7 @@ allData$tempClean = pmax(allData$tempd, -10)
 cc_design <- ccDesign(strat_vars = c("cell","ecoRegionInt", "yearMonthDow") )
 
 
-pmKnots = c(0, 1, 2, 5, 10, 20, 50, 100, 200, 400) # on square root scale
+pmKnots = c(0, 1, 2, 5, 10, 20, 32) # on square root scale
 tempKnots = c(-10, -5, 5, 10, 20, 25, 30)
 
 formula <- count ~ #od(date) +
@@ -24,4 +24,62 @@ formula <- count ~ #od(date) +
 
 ```{r fit}
 fit <- hnlm(formula, allData, cc_design = cc_design)
+```
+
+
+```{r res}
+fit$obj$env$last.par.best[names(fit$obj$env$last.par.best) == "beta"]
+#
+fit$obj$env$last.par.best[names(fit$obj$env$last.par.best) == "theta"]
+```
+
+
+
+```{r resEffects}
+
+newdata = data.frame(sqrtPm = seq(0, sqrt(400), len=200), ecoRegionInt = 18)
+
+
+varInfo = do.call(rbind, lapply(fit$terms, function(xx) unlist(xx[c('var','type')])))
+whichIsHiwp  = which(varInfo[,'type'] == 'hiwp')
+
+whichIsGamma = which(names(fit$obj$env$last.par.best) == "gamma")
+gammaHat = fit$obj$env$last.par.best[whichIsGamma]
+varGammaHat = solve(fit$obj$env$spHess()[whichIsGamma, whichIsGamma])
+
+gammaIndices = mapply(function(D, id) {which(id == D)}, 
+                      D = Sid, MoreArgs = list(id = fit$gamma_info$id), SIMPLIFY=FALSE)
+gammaIndices = unlist(gammaIndices)
+
+gammaHatHere = gammaHat[gammaIndices]
+varGammaHatHere = varGammaHat[gammaIndices, gammaIndices]
+
+Sbeta = which(names(fit$obj$env$last.par.best) == "beta")
+
+
+#ref_values = lapply(fit$terms[whichIsHiwp], function(xx) xx$ref_value)
+#names(ref_values) = varInfo[whichIsHiwp, 'var']
+#ranges = lapply(fit$terms[whichIsHiwp], function(xx) xx$range)
+#names(ranges) = varInfo[whichIsHiwp, 'var']
+
+
+Sterms = which(varInfo[,'var'] %in% names(newdata))
+newDesignMat = hpoltest:::getNewXA(fit$terms[Sterms], newdata)
+
+Sid = unlist(lapply(fit$terms[Sterms], function(xx) xx$id))
+
+
+newdata$mean = drop(newDesignMat$A %*% gammaHatHere)
+newdata$sd =sqrt(apply( (newDesignMat$A %*% varGammaHatHere) * newDesignMat$A, 1, sum))
+
+
+ciMat = array(c(1, 0, 1, -1.95996398454005, 1, 1.95996398454005), dim = c(2,3), 
+              dimnames = list(c("mean", "sd"), c("est", " 2.5", "97.5")))
+
+matplot(
+  newdata$sqrtPm^2,
+  as.matrix(newdata[,c('mean','sd')]) %*% ciMat,
+  type='l', lty=c(1,2,2), col='black'
+)
+
 ```

@@ -74,6 +74,7 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var, tmb_paramete
 
     if(term$type %in% "fpoly"){
       Xsub <- poly(data[[term$var]] - term$ref_value, raw = T, simple = T) |> as("dgTMatrix")
+#      colnames(Xsub) = paste0(term$var, 1:ncol(Xsub))
       beta_info$var <- c(beta_info$var, term$var)
       beta_info$pick <- c(beta_info$pick, paste0(term$pick, "__", 0))
       X <- cbind(X, Xsub)
