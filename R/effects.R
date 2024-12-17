@@ -214,7 +214,10 @@ fpoly <- function(x, p = 2, ref_value = 0) {
 fpolyDesign <- function(term, data){
   list2env(term, envir = environment())
   D <- poly(data[[var]]-ref_value, degree = p)
-  D[,1:ncol(D),drop=F]
+  D <- D[,1:ncol(D),drop=F]
+  colnames(D) <- paste0(term$var, c('', seq(from=1, by=1, len=ncol(D)-1)))
+  
+  D
 }
 
 
