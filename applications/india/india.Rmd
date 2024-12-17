@@ -1,0 +1,27 @@
+
+```{r setup}
+# devtools::install_github("samperochkin/hpoltest")
+library("hpoltest")
+library('data.table')
+allData = readRDS('/store/patrick/copernicus/agg/indiaForCC.rds')
+allData = as.data.table(allData)
+allData = allData[!is.na(allData$ecoRegionInt), ]
+allData$sqrtPm = sqrt(pmin(allData$pm,1000))
+allData$timeIid = as.numeric(allData$date)
+allData$tempClean = pmax(allData$tempd, -10)
+
+
+cc_design <- ccDesign(strat_vars = c("cell","ecoRegionInt", "yearMonthDow") )
+
+
+pmKnots = c(0, 1, 2, 5, 10, 20, 50, 100, 200, 400) # on square root scale
+tempKnots = c(-10, -5, 5, 10, 20, 25, 30)
+
+formula <- count ~ #od(date) +
+  hiwp(sqrtPm, p=2, ref_value = sqrt(25), knots = pmKnots, group_var = ecoRegionInt) +
+  hiwp(tempClean, p=2, ref_value = 10, knots = tempKnots, group_var = ecoRegionInt)
+```
+
+```{r fit}
+fit <- hnlm(formula, allData, cc_design = cc_design)
+```
