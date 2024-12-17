@@ -122,7 +122,7 @@ getGammaSetup <- function(term){
 
   gamma_var <- rep(var, sum(gamma_split))
   gamma_id <- rep(id, sum(gamma_split))
-  
+
   gamma_pick <- if(type == "iwp"){
     factor("GLOBAL") # IS THIS ALWAYS THAT
     
