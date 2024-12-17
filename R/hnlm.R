@@ -65,9 +65,6 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var, tmb_paramete
     if(term$run_as_is){
       Xsub <- sparse.model.matrix(term$f, data)
       beta_info$var <- c(beta_info$var, term$var)
-      beta_info$var2 <- c(beta_info$var2, rep(term$var, ncol(Xsub)))
-      beta_info$id <- c(beta_info$id, rep(term$id, ncol(Xsub)))
-      beta_info$Xid <- c(beta_info$Xid, ncol(X) + 1:ncol(Xsub))
       beta_info$pick <- c(beta_info$pick, paste0(term$pick, "__", 0))
       X <- cbind(X, Xsub)
       k <- k+1
@@ -77,11 +74,8 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var, tmb_paramete
 
     if(term$type %in% "fpoly"){
       Xsub <- poly(data[[term$var]] - term$ref_value, raw = T, simple = T) |> as("dgTMatrix")
-#      colnames(Xsub) = paste0(term$var, 1:ncol(Xsub))
+      colnames(Xsub) <- paste0(term$var, c('', seq(from=1, by=1, len=ncol(Xsub)-1)))
       beta_info$var <- c(beta_info$var, term$var)
-      beta_info$var2 <- c(beta_info$var2, rep(term$var, ncol(Xsub)))
-      beta_info$id <- c(beta_info$id, rep(term$id, ncol(Xsub)))
-      beta_info$Xid <- c(beta_info$Xid, ncol(X) + 1:ncol(Xsub))
       beta_info$pick <- c(beta_info$pick, paste0(term$pick, "__", 0))
       X <- cbind(X, Xsub)
       k <- k+1
@@ -92,7 +86,6 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var, tmb_paramete
     
     # design matrix
     Asub <- getDesign(term, data)
-    gamma_info$Aid <- c(gamma_info$Aid, ncol(A) + 1:ncol(Asub))
     A <- cbind(A, Asub)
 
     gamma_setup <- getGammaSetup(term)
