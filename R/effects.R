@@ -49,7 +49,7 @@
 #' term <- f(x = 0:10, model = "hiwp", ref_value = 5, knots = seq(0,10,2), group_var = "city")
 #'
 #' @export
-f <- function(x, model = c("iwp", "hiwp", "fpoly", "rpoly", "hfpoly", "hrpoly"), ...) {
+f <- function(x, model = c("iwp", "hiwp", "fpoly", "rpoly", "hfpoly", "hrpoly", "iid"), ...) {
   model <- match.arg(model)
   x <- deparse(substitute(x))
   

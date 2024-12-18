@@ -42,7 +42,7 @@ knots_pm25lag <- seq(floor(min(data$pm25lag)/5)*5,ceiling(max(data$pm25lag)/5)*5
 knots_spm25lag <- sqrt(knots_pm25lag)
 knots_temp4lag <- seq(floor(min(data$temp4lag)/5)*5,ceiling(max(data$temp4lag)/5)*5,5)
 range(data$temp4lag)
-formula <- count ~ hum_mean + #od(date) +
+formula <- count ~ hum_mean + od(date) +
   f(spm25lag, model = "hiwp", p=2, ref_value = sqrt(15), knots = knots_spm25lag, group_var = city) +
   f(temp4lag, model = "hiwp", p=2, ref_value = 10, knots = knots_temp4lag, group_var = city)
   
