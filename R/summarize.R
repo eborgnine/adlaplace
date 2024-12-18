@@ -21,7 +21,7 @@ getNewXA <- function(terms, df){
       next
     }
     
-    if(term$type %in% "fpoly"){
+    if(term$model %in% "fpoly"){
       Xsub <- poly(df[[term$var]] - term$ref_value, raw = T, simple = T) |> as("dgTMatrix")
       X <- cbind(X, Xsub)
       k <- k+1
