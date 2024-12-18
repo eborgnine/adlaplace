@@ -43,8 +43,8 @@ knots_spm25lag <- sqrt(knots_pm25lag)
 knots_temp4lag <- seq(floor(min(data$temp4lag)/5)*5,ceiling(max(data$temp4lag)/5)*5,5)
 range(data$temp4lag)
 formula <- count ~ hum_mean + #od(date) +
-  hiwp(spm25lag, p=2, ref_value = sqrt(15), knots = knots_spm25lag, group_var = city) +
-  hiwp(temp4lag, p=2, ref_value = 10, knots = knots_temp4lag, group_var = city)
+  f(spm25lag, model = "hiwp", p=2, ref_value = sqrt(15), knots = knots_spm25lag, group_var = city) +
+  f(temp4lag, model = "hiwp", p=2, ref_value = 10, knots = knots_temp4lag, group_var = city)
   
 cc_design <- ccDesign(time_var = "date", strat_vars = "city")
 fit <- hnlm(formula, data, cc_design = cc_design)

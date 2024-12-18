@@ -49,8 +49,9 @@
 #' term <- f(x = 0:10, model = "hiwp", ref_value = 5, knots = seq(0,10,2), group_var = "city")
 #'
 #' @export
-f <- function(x, model = c("hiwp", "iwp", "fpoly", "rpoly", "spline"), ...) {
+f <- function(x, model = c("iwp", "hiwp", "fpoly", "rpoly", "hfpoly", "hrpoly"), ...) {
   model <- match.arg(model)
+  x <- deparse(substitute(x))
   
   switch(model,
          iwp = iwp(x, ...),
@@ -73,7 +74,7 @@ f <- function(x, model = c("hiwp", "iwp", "fpoly", "rpoly", "spline"), ...) {
 iwp <- function(x, p = 2, 
                 ref_value, knots, range = NULL, 
                 rpoly_p = 0, fpoly_p = 1) {
-  l <- list(var = deparse(substitute(x)), 
+  l <- list(var = x, 
             model = "iwp", 
             p = p, 
             ref_value = ref_value,
@@ -137,7 +138,7 @@ hiwp <- function(x, p = 2, ref_value, knots, range = NULL,
                  include_global = T,
                  hrpoly_p = p-1, hfpoly_p = 0, # with include_global = F
                  rpoly_p = 0, fpoly_p = include_global) {
-  l <- list(var = deparse(substitute(x)), 
+  l <- list(var = x, 
             model = "hiwp", 
             p = p,
             ref_value = ref_value,
@@ -206,7 +207,7 @@ hiwpTheta <- function(theta_info, term){
 #' @rdname effects_and_utilities 
 #' @export
 fpoly <- function(x, p = 2, ref_value = 0) {
-  l <- list(var = deparse(substitute(x)), 
+  l <- list(var = x, 
             model = "fpoly", 
             p = p, 
             ref_value = ref_value,
@@ -230,7 +231,7 @@ fpolyDesign <- function(term, data){
 #' @rdname effects_and_utilities 
 #' @export
 rpoly <- function(x, p = 2, ref_value) {
-  l <- list(var = deparse(substitute(x)), 
+  l <- list(var = x, 
             model = "rpoly", 
             p = p, 
             ref_value = ref_value,
@@ -271,7 +272,7 @@ rpolyTheta <- function(theta_info, term){
 #' @rdname effects_and_utilities 
 #' @export
 hrpoly <- function(x, p = 1, ref_value, group_var, include_global = T) {
-  l <- list(var = deparse(substitute(x)), 
+  l <- list(var = x, 
             model = "hrpoly", 
             p = p, 
             ref_value = ref_value,
@@ -336,7 +337,7 @@ hrpolyTheta <- function(theta_info, term){
 #   
 #   stop("bs() is not implemented.")
 #   
-#   l <- c(list(var = deparse(substitute(x)), 
+#   l <- c(list(var = x, 
 #               model = "bs", 
 #               o = o, 
 #               ref_value = ref_value,
@@ -361,7 +362,7 @@ hrpolyTheta <- function(theta_info, term){
 #' @rdname effects_and_utilities 
 #' @export
 iid <- function(x) {
-  list(var = deparse(substitute(x)), 
+  list(var = x, 
        model = "iid",
        run_as_is = F
   )
