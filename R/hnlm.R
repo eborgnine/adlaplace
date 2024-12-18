@@ -59,8 +59,9 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var, tmb_paramete
   while(k <= length(terms)){
     term <- terms[[k]] |> getExtra(data=data, cc_matrix=cc_matrix)
     term$id <- k
-    if(!is.factor(data[[term$var]][1]) && is.null(term$range))
-      range <- term$range <- range(data[[term$var]])
+    if(!is.factor(data[[term$var]][1]) &&
+       !is.character(data[[term$var]][1]) && 
+       is.null(term$range)) range <- term$range <- range(data[[term$var]])
     
     if(term$run_as_is){
       Xsub <- sparse.model.matrix(term$f, data)
@@ -72,7 +73,7 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var, tmb_paramete
     }
     
 
-    if(term$type %in% "fpoly"){
+    if(term$model %in% "fpoly"){
       Xsub <- poly(data[[term$var]] - term$ref_value, raw = T, simple = T) |> as("dgTMatrix")
       colnames(Xsub) <- paste0(term$var, c('', seq(from=1, by=1, len=ncol(Xsub)-1)))
       beta_info$var <- c(beta_info$var, term$var)
@@ -108,7 +109,7 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var, tmb_paramete
     theta_setup <- getThetaSetup(theta_info, term)
     
     theta_info$var <- c(theta_info$var, theta_setup$var)
-    theta_info$type <- c(theta_info$type, theta_setup$type)
+    theta_info$model <- c(theta_info$model, theta_setup$model)
     theta_info$id <- c(theta_info$id, theta_setup$id)
     theta_info$init <- c(theta_info$init, theta_setup$init)
     
@@ -140,7 +141,7 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var, tmb_paramete
   # OPTIMIZATION ----
   # # preliminary run fixing the random effects for iwp, hiwp and od
   # # (but not the corresponding random slopes)
-  # to_rm_ids <- which(theta_info$type %in% c("od", "iwp", "hiwp"))
+  # to_rm_ids <- which(theta_info$model %in% c("od", "iwp", "hiwp"))
   # 
   # if(length(to_rm_ids) > 0){
   #   gamma_split <- gamma_info$split

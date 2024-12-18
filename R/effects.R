@@ -1,9 +1,16 @@
-#' Functions to specify terms of the formula (and associated utility functions)
-#' @name effects_and_utilities
-#' @rdname effects_and_utilities 
-#' @description This suite of functions implements various moels (fixed and random effects) polynomials, integrated Wiener processes, hierarchical extensions.
+#' Functions to Specify Terms of the Formula (and Associated Utility Functions)
+#' @rdname effects_and_utilities
+#' @description This suite of functions implements various models (fixed and random effects), polynomials, integrated Wiener processes, and hierarchical extensions. 
+#' The primary interface for these models is the `f()` function, which allows specification of model terms via the `model` argument. 
 #'
 #' @param x A numeric vector representing the data to which the model is applied.
+#' @param model A character string specifying the model of model term. Options include:
+#'   - `"fpoly"`: Fixed polynomial effect terms.
+#'   - `"rpoly"`: Random polynomial effect terms.
+#'   - `"hfpoly"`: Fixed hierarchical polynomial effect terms.
+#'   - `"hrpoly"`: Random hierarchical polynomial effect terms.
+#'   - `"iwp"`: Integrated Wiener process terms (random).
+#'   - `"hiwp"`: Hierarchical integrated Wiener process terms (random).
 #' @param p A numeric value specifying the polynomial degree (default: varies by function).
 #' @param ref_value A numeric value specifying the reference point for the basis functions.
 #' @param knots A numeric vector specifying the knot locations for spline-based models.
@@ -14,63 +21,61 @@
 #' @param fpoly_p A numeric value specifying the degree for (fixed effects) polynomial components to add to the model as a separate term.
 #' @param hrpoly_p A numeric value specifying the degree for hierarchical (random effects) polynomial components to add to the model as a separate term.
 #' @param hfpoly_p A numeric value specifying the degree for hierarchical (fixed effects) polynomial components to add to the model as a separate term.
-#' @param theta_info A list containing information about parameter indexing and initialization for hierarchical models.
-#' @param term A list representing the term structure for the design matrix or precision calculations.
-#' @param data A data frame containing the data to which the model terms are applied.
 #' @param ... Additional arguments passed to other methods or functions.
 #'
 #' @return A list or matrix, depending on the function, representing the design matrix, precision matrix, or parameter information for the specified model term.
 #'
-#' @details These functions provide polynomial and spline-based models:
-#' - **Raw Polynomial Functions (rpoly, hrpoly)**: Construct design matrices for raw polynomial terms (random effects polynomial terms), with hierarchical extensions available for group-specific modeling.
-#' - **Fitted Polynomial Functions (fpoly, hfpoly)**: Generate fitted polynomial terms (fixed effects polynomial terms) that adapt to specific data features, also with hierarchical extensions.
-#' - **Integrated Wiener Process (iwp, hiwp)**: Develop design and precision matrices for integrated Wiener process components, with options for hierarchical group structures.
-#' - **Spline-based Models (splines, knots)**: Support for spline terms, allowing for flexible non-linear modeling with specified knot locations.
-#' - **Utility Functions**:
-#'   - **Design Functions (`*Design`)**: Construct design matrices tailored to specific modeling terms.
-#'   - **Precision Matrix Functions (`*Precision`)**: Construct precision matrices corresponding to specific modeling terms.
-#'   - **Theta Functions (`*Theta`)**: Handle the variance parameters associated with random effects.
+#' @details 
+#' The `f()` function serves as the primary entry point for specifying model terms. Internally, it dispatches to specific functions based on the `model` argument:
+#' - `"fpoly"`: Calls the `fpoly()` function to specify fixed polynomial effect terms.
+#' - `"rpoly"`: Calls the `rpoly()` function to specify random polynomial effect terms.
+#' - `"hfpoly"`: Calls the `hfpoly()` function to specify hierarchical fixed polynomial effect terms.
+#' - `"hrpoly"`: Calls the `hrpoly()` function to specify hierarchical random polynomial effect terms.
+#' - `"iwp"`: Calls the `iwp()` function to construct integrated Wiener process terms.
+#' - `"hiwp"`: Calls the `hiwp()` function for hierarchical integrated Wiener process terms.
 #'
-#' The utility functions are specifically used within the `hnlm` function and are not be exported.
+#' Utility functions:
+#' - **Design Functions (`*Design`)**: Construct design matrices tailored to specific modeling terms.
+#' - **Precision Matrix Functions (`*Precision`)**: Construct precision matrices corresponding to specific modeling terms.
+#' - **Theta Functions (`*Theta`)**: Handle the variance parameters associated with random effects.
+#'
+#' These utility functions are specifically used within the `hnlm` framework and are not exported.
 #'
 #' @examples
 #' These were generated with chatGPT and have not been reviewed. See vignette for a human generated example.
 #' 
-#' # Example usage for iwp
-#' term <- iwp(x = 1:10, ref_value = 5, knots = c(0, 5, 10))
-#' design_matrix <- iwpDesign(term, data = data.frame(x = 1:10))
-#' 
-#' # Example usage for hierarchical model (hiwp)
-#' term <- hiwp(x = 1:10, ref_value = 5, knots = c(0, 5, 10), group_var = factor(rep(1:2, each = 5)))
-#' design_matrix <- hiwpDesign(term, data = data.frame(x = 1:10, group_var = factor(rep(1:2, each = 5))))
+#' # Example usage with f()
+#' term <- f(x = 0:10, model = "iwp", ref_value = 5, knots = seq(0,10,2))
+#' term <- f(x = 0:10, model = "hiwp", ref_value = 5, knots = seq(0,10,2), group_var = "city")
 #'
-#' # Example usage for raw polynomial models
-#' term <- rpoly(x = 1:10, ref_value = 5, p = 2)
-#' design_matrix <- rpolyDesign(term, data = data.frame(x = 1:10))
-#'
-#' # Example usage for hierarchical raw polynomial (hrpoly)
-#' term <- hrpoly(x = 1:10, ref_value = 5, group_var = factor(rep(1:2, each = 5)))
-#' design_matrix <- hrpolyDesign(term, data = data.frame(x = 1:10, group_var = factor(rep(1:2, each = 5))))
-#'
-#' # Example usage for fitted polynomial models
-#' term <- fpoly(x = 1:10, ref_value = 5, p = 3)
-#' design_matrix <- fpolyDesign(term, data = data.frame(x = 1:10))
-#'
-#' # Example usage for hierarchical fitted polynomial (hfpoly)
-#' term <- hfpoly(x = 1:10, ref_value = 5, group_var = factor(rep(1:2, each = 5)))
-#' design_matrix <- hfpolyDesign(term, data = data.frame(x = 1:10, group_var = factor(rep(1:2, each = 5))))
-NULL
+#' @export
+f <- function(x, model = c("iwp", "hiwp", "fpoly", "rpoly", "hfpoly", "hrpoly", "iid"), ...) {
+  model <- match.arg(model)
+  x <- deparse(substitute(x))
+  
+  switch(model,
+         iwp = iwp(x, ...),
+         hiwp = hiwp(x, ...),
+         fpoly = fpoly(x, ...),
+         rpoly = rpoly(x, ...),
+         hfpoly = hfpoly(x, ...),
+         hrpoly = hrpoly(x, ...),
+         iid = iid(x, ...),
+         stop("Unknown model")
+  )
+}
+
+
 
 .my_theta_init <- 8
-
 
 #' @rdname effects_and_utilities 
 #' @export
 iwp <- function(x, p = 2, 
                 ref_value, knots, range = NULL, 
                 rpoly_p = 0, fpoly_p = 1) {
-  l <- list(var = deparse(substitute(x)), 
-            type = "iwp", 
+  l <- list(var = x, 
+            model = "iwp", 
             p = p, 
             ref_value = ref_value,
             knots = knots,
@@ -112,13 +117,13 @@ iwpTheta <- function(theta_info, term){
   
   if(is.null(term$theta_id)) theta_id <- m + 1
   if(theta_id < 0) theta_id <- m + 1
-  if(length(theta_id) != 1) stop("iwpTheta ", var, " ", type)
+  if(length(theta_id) != 1) stop("iwpTheta ", var, " ", model)
   
   # if(is.null(theta_init)) theta_init <- .my_theta_init
-  # if(length(theta_init) != 1) stop("iwpTheta ", var, " ", type)
+  # if(length(theta_init) != 1) stop("iwpTheta ", var, " ", model)
   theta_init <- .my_theta_init
   
-  list(var = rep(var, length(theta_id)), type = rep(type, length(theta_id)),
+  list(var = rep(var, length(theta_id)), model = rep(model, length(theta_id)),
        id = theta_id, init = theta_init)
 }
 
@@ -133,8 +138,8 @@ hiwp <- function(x, p = 2, ref_value, knots, range = NULL,
                  include_global = T,
                  hrpoly_p = p-1, hfpoly_p = 0, # with include_global = F
                  rpoly_p = 0, fpoly_p = include_global) {
-  l <- list(var = deparse(substitute(x)), 
-            type = "hiwp", 
+  l <- list(var = x, 
+            model = "hiwp", 
             p = p,
             ref_value = ref_value,
             knots = knots, 
@@ -187,13 +192,13 @@ hiwpTheta <- function(theta_info, term){
     theta_id <- m + c(include_global + rep(1, ngroups))
     if(include_global) theta_id <- c(m + 1, theta_id)
   } 
-  if(length(theta_id) != include_global+ngroups) stop("hiwpTheta ", var, " ", type)
+  if(length(theta_id) != include_global+ngroups) stop("hiwpTheta ", var, " ", model)
   
   # if(is.null(theta_init)) theta_init <- rep(.my_theta_init, p)
-  # if(length(theta_init) != p) stop("rpolyTheta ", var, " ", type)
+  # if(length(theta_init) != p) stop("rpolyTheta ", var, " ", model)
   theta_init <- rep(.my_theta_init, include_global+ngroups)
   
-  list(var = rep(var, length(theta_id)), type = rep(type, length(theta_id)), id = theta_id, init = theta_init)
+  list(var = rep(var, length(theta_id)), model = rep(model, length(theta_id)), id = theta_id, init = theta_init)
 }
 
 
@@ -202,8 +207,8 @@ hiwpTheta <- function(theta_info, term){
 #' @rdname effects_and_utilities 
 #' @export
 fpoly <- function(x, p = 2, ref_value = 0) {
-  l <- list(var = deparse(substitute(x)), 
-            type = "fpoly", 
+  l <- list(var = x, 
+            model = "fpoly", 
             p = p, 
             ref_value = ref_value,
             run_as_is = F)
@@ -226,8 +231,8 @@ fpolyDesign <- function(term, data){
 #' @rdname effects_and_utilities 
 #' @export
 rpoly <- function(x, p = 2, ref_value) {
-  l <- list(var = deparse(substitute(x)), 
-            type = "rpoly", 
+  l <- list(var = x, 
+            model = "rpoly", 
             p = p, 
             ref_value = ref_value,
             run_as_is = F)
@@ -252,13 +257,13 @@ rpolyTheta <- function(theta_info, term){
   m <- ifelse(is.null(theta_info$id), 0, max(theta_info$id))
   
   if(is.null(term$theta_id)) theta_id <- m + 1:p
-  if(length(theta_id) != p) stop("rpolyTheta ", var, " ", type)
+  if(length(theta_id) != p) stop("rpolyTheta ", var, " ", model)
   
   # if(is.null(theta_init)) theta_init <- rep(.my_theta_init, p)
-  # if(length(theta_init) != p) stop("rpolyTheta ", var, " ", type)
+  # if(length(theta_init) != p) stop("rpolyTheta ", var, " ", model)
   theta_init <- rep(.my_theta_init, p)
   
-  list(var = rep(var, length(theta_id)), type = rep(type, length(theta_id)), id = theta_id, init = theta_init)
+  list(var = rep(var, length(theta_id)), model = rep(model, length(theta_id)), id = theta_id, init = theta_init)
 }
 
 
@@ -267,8 +272,8 @@ rpolyTheta <- function(theta_info, term){
 #' @rdname effects_and_utilities 
 #' @export
 hrpoly <- function(x, p = 1, ref_value, group_var, include_global = T) {
-  l <- list(var = deparse(substitute(x)), 
-            type = "hrpoly", 
+  l <- list(var = x, 
+            model = "hrpoly", 
             p = p, 
             ref_value = ref_value,
             group_var = deparse(substitute(group_var)),
@@ -311,13 +316,13 @@ hrpolyTheta <- function(theta_info, term){
     theta_id <- m + c(p*include_global + rep(1:p, ngroups))
     if(include_global) theta_id <- c(m + 1:p, theta_id)
   } 
-  if(length(theta_id) != (include_global+ngroups)*p) stop("hrpolyTheta ", var, " ", type)
+  if(length(theta_id) != (include_global+ngroups)*p) stop("hrpolyTheta ", var, " ", model)
   
   # if(is.null(theta_init)) theta_init <- rep(.my_theta_init, p)
-  # if(length(theta_init) != p) stop("rpolyTheta ", var, " ", type)
+  # if(length(theta_init) != p) stop("rpolyTheta ", var, " ", model)
   theta_init <- rep(.my_theta_init, (include_global+ngroups)*p)
   
-  list(var = rep(var, length(theta_id)), type = rep(type, length(theta_id)), id = theta_id, init = theta_init)
+  list(var = rep(var, length(theta_id)), model = rep(model, length(theta_id)), id = theta_id, init = theta_init)
 }
 
 
@@ -326,29 +331,29 @@ hrpolyTheta <- function(theta_info, term){
 
 
 
-#' @rdname effects_and_utilities 
-#' @export
-bs <- function(x, o = 2, ref_value, range = NULL, nknots = NULL, run_as_is = T, ...) {
-  
-  stop("bs() is not implemented.")
-  
-  l <- c(list(var = deparse(substitute(x)), 
-              type = "bs", 
-              o = o, 
-              ref_value = ref_value,
-              nknots = nknots,
-              range = range,
-              run_as_is = run_as_is,
-              prefix = "splines::"),
-         list(...))
-  
-  if(!is.null(range)){
-    if(ref_value < range[1] | ref_value > range[2])
-      stop("ref_value not in the range of the data for", var, " (bs).")
-  }
-  
-  return(l)
-}
+# #' @rdname effects_and_utilities 
+# #' @export
+# bs <- function(x, o = 2, ref_value, range = NULL, nknots = NULL, run_as_is = T, ...) {
+#   
+#   stop("bs() is not implemented.")
+#   
+#   l <- c(list(var = x, 
+#               model = "bs", 
+#               o = o, 
+#               ref_value = ref_value,
+#               nknots = nknots,
+#               range = range,
+#               run_as_is = run_as_is,
+#               prefix = "splines::"),
+#          list(...))
+#   
+#   if(!is.null(range)){
+#     if(ref_value < range[1] | ref_value > range[2])
+#       stop("ref_value not in the range of the data for", var, " (bs).")
+#   }
+#   
+#   return(l)
+# }
 
 
 
@@ -356,38 +361,36 @@ bs <- function(x, o = 2, ref_value, range = NULL, nknots = NULL, run_as_is = T, 
 
 #' @rdname effects_and_utilities 
 #' @export
-od <- function(x) {
-  list(var = deparse(substitute(x)), 
-       type = "od",
+iid <- function(x) {
+  list(var = x, 
+       model = "iid",
        run_as_is = F
   )
 }
 
 #' @rdname effects_and_utilities 
-odDesign <- function(term, data){
+iidDesign <- function(term, data){
   list2env(term, envir = environment())
-  # sparseMatrix(x=1, i=1:nrow(data), j=1:nrow(data), rep = "T")[,-to_remove] |> as("dgTMatrix")
-  sparseMatrix(x=1, i=1:nrow(data), j=1:nrow(data), rep = "T") |> as("dgTMatrix")
+  ff <- paste0("~ 0 + factor(", var, ")") |> formula()
+  sparse.model.matrix(ff, data) |> as("TsparseMatrix")
 }
 
 #' @rdname effects_and_utilities 
-odPrecision <- function(term){
+iidPrecision <- function(term){
   list2env(term, envir = environment())
-  # m <- n - length(to_remove)
-  # sparseMatrix(x=1, i=1:m, j=1:m, rep = "T") |> as("dgTMatrix")
-  sparseMatrix(x=1, i=1:n, j=1:n, rep = "T") |> as("dgTMatrix")
+  sparseMatrix(x=1, i=1:n, j=1:n, rep = "T") |> as("TsparseMatrix")
 }
 
 #' @rdname effects_and_utilities 
-odTheta <- function(theta_info, term){
+iidTheta <- function(theta_info, term){
   list2env(term, envir = environment())
   m <- ifelse(is.null(theta_info$id), 0, max(theta_info$id))
   
   if(is.null(term$theta_id)) theta_id <- m + 1
   if(theta_id < 0) theta_id <- m + 1
-  if(length(theta_id) != 1) stop("odTheta ", var, " ", type)
+  if(length(theta_id) != 1) stop("odTheta ", var, " ", model)
   
   theta_init <- .my_theta_init
   
-  list(var = rep(var, length(theta_id)), type = rep(type, length(theta_id)), id = theta_id, init = theta_init)
+  list(var = rep(var, length(theta_id)), model = rep(model, length(theta_id)), id = theta_id, init = theta_init)
 }
