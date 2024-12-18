@@ -1,0 +1,35 @@
+---
+title: cc multinom dirichelet
+---
+
+CC model
+
+\begin{eqnarray*}
+[ Y_{i\cdot} | \rho_{i\cdot}, N_{i} ] &\sim & \text{Multinom}(\rho_{i\cdot}, N_i)\\
+\rho_{ij} &=& \exp\left(\eta_{ij}\right) \left/ \sum_k \exp\left(\eta_{ik}\right)  \right.\\
+\eta_{ij} &=& X_{ij}\beta + \sum_p A_{ij} U_p \\
+U_p \sim &=& \text{N}(0, \Sigma_p)
+\end{eqnarray*}
+
+with [direchelet random effect](https://en.wikipedia.org/wiki/Dirichlet-multinomial_distribution)
+
+\begin{eqnarray*}
+[Y_{i\cdot} | P_{i\cdot}] &\sim & \text{Multinom}(P_{i\cdot}, N_i)\\
+P_{i\cdot} &\sim& \text{Dirichelet}(\rho_{i\cdot}, \tau)\\
+\rho_{ij} &=& \exp\left(\eta_{ij}\right) \left/ \sum_k \exp\left(\eta_{ik}\right)  \right.\\
+\eta_{ij} &=& X_{ij}\beta + \sum_p A_{ij} U_p \\
+U_p \sim &=& \text{N}(0, \Sigma_p)
+\end{eqnarray*}
+
+in wikipedia's notation my dirichelet is 
+$\text{Dirichelet}(N_i, \tau \rho_{i1}, \ldots \tau \rho_{iJ})$, and $\tau = p_0$.
+
+Integrate out the Dirichelet
+
+\begin{eqnarray*}
+[Y_{ij} | \rho_{i\cdot}] &\sim & \text{DM}(\rho_{i\cdot}, \tau)\\
+\log\pi(Y_{i\cdot} &=& \log N_i + \log \text{B}\left(\tau, N_i\right) - \\
+ && \sum_{j; Y_{ij} > 0} \left[ 
+  \log(Y_{ij}) - \log \text{B}\left(\tau \rho_{ij}, Y_{ij}\right)
+\right]
+\end{eqnarray*}

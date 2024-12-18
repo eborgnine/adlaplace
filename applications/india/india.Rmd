@@ -45,7 +45,8 @@ names(betaHat) = fit$beta_info$var
 
 whichIsGamma = which(names(parMle) == "gamma")
 gammaHat = parMle[whichIsGamma]
-varGammaHat = solve(fit$obj$env$spHess()[whichIsGamma, whichIsGamma])
+precGammahat = fit$obj$env$spHess(fit$obj$env$last.par)
+varGammaHat = solve(precGammahat[whichIsGamma, whichIsGamma])
 
 # identify the random effects needed in newdata
 varInfo = do.call(rbind, lapply(fit$terms, function(xx) unlist(xx[c('var','type')])))
