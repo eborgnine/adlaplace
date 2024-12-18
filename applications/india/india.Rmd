@@ -15,43 +15,27 @@ cc_design <- ccDesign(strat_vars = c("cell","ecoRegionInt", "yearMonthDow") )
 
 
 pmKnots = c(0, 1, 2, 5, 10, 20, 32) # on square root scale
-tempKnots = c(-10, -5, 5, 10, 20, 25, 30)
+tempKnots = c(-10, -5, 5, 10, 20, 23, 27, 30)
 
-formula <- count ~ #od(date) +
+formula <- count ~ od(date) +
   hiwp(sqrtPm,  ref_value = sqrt(25), knots = pmKnots, group_var = ecoRegionInt) +
   hiwp(tempClean, ref_value = 10, knots = tempKnots, group_var = ecoRegionInt)
 ```
 
-```{r fit}
-if(exists('fit')) {
-  start = fit$obj$env$last.par.best
-  tmb_parameters = list(
-      beta = start[grep("beta", names(start))],
-      gamma = start[grep("gamma", names(start))],
-      theta = start[grep("theta", names(start))]
-    )
-} else {
-  tmb_parameters = NULL
-}
+```{r fit, cache=TRUE, stuff=1}
 fit <- hnlm(
-  formula, allData, cc_design = cc_design,
-  tmb_parameters = tmb_parameters
+  formula, allData, cc_design = cc_design
   )
 ```
 
 
-```{r res}
-fit$obj$env$last.par.best[names(fit$obj$env$last.par.best) == "beta"]
-#
-fit$obj$env$last.par.best[names(fit$obj$env$last.par.best) == "theta"]
-```
 
 
-
-```{r resEffects}
+```{r resEffects, eval=FALSE}
 
 #newdata = data.frame(sqrtPm = seq(0, sqrt(200), len=200), ecoRegionInt = 'Global')
 newdata = data.frame(sqrtPm = seq(0, sqrt(200), len=200), ecoRegionInt = 18)
+newdata = data.frame(tempClean = seq(-10, 30, len=201), ecoRegionInt = 'Global')
 
 parMle = fit$obj$env$last.par.best
 
@@ -78,6 +62,7 @@ gammaIndices = which(fit$gamma_info$id %in% Sid)
 gammaHatHere = gammaHat[gammaIndices]
 varGammaHatHere = varGammaHat[gammaIndices, gammaIndices]
 
+
 newdata$mean = drop(newDesignMat$A %*% gammaHatHere) + newdata$fixed
 newdata$sd =sqrt(apply( (newDesignMat$A %*% varGammaHatHere) * newDesignMat$A, 1, sum))
 
@@ -88,11 +73,23 @@ ciMat = array(c(1, -1.95996398454005, 1, 1.95996398454005), dim = c(2,2),
 lowerUpper = as.matrix(newdata[,c('mean','sd')]) %*% ciMat
 newdata = cbind(newdata, as.data.frame(lowerUpper))
 
+
+
 matplot(
-  newdata$sqrtPm^2,
+  newdata$tempClean,
   newdata[,c('mean','0.025quant','0.975quant')],
   ylim = range(newdata[-(1:20),c('0.025quant','0.975quant')]),
   type='l', lty=c(1,2,2), col='black', xaxs='i', bty='n'
 )
+
+# joint confidence regions
+toKeep = round(seq(1, nrow(newdata), len = 7+2)[seq(from=2, by=1, len=7)])
+toKeep = toKeep[-3]
+varFull =  Matrix::forceSymmetric(
+  tcrossprod(newDesignMat$A[toKeep,] %*% varGammaHatHere, 
+             newDesignMat$A[toKeep,]))
+cholVar = solve(chol(varFull))
+stuff = excursions::simconf(0.8, newdata$mean, Q.chol = cholVar)
+matplot(newdata$tempClean, as.data.frame(stuff[c('a','b')]))
 
 ```
