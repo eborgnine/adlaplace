@@ -14,15 +14,16 @@ allData$tempClean = pmax(allData$tempd, -10)
 cc_design <- ccDesign(strat_vars = c("cell","ecoRegionInt", "yearMonthDow") )
 
 
-pmKnots = c(0, 1, 2, 5, 10, 20, 32) # on square root scale
-tempKnots = c(-10, -5, 5, 10, 20, 23, 27, 30)
-
-formula <- count ~ od(date) +
-  hiwp(sqrtPm,  ref_value = sqrt(25), knots = pmKnots, group_var = ecoRegionInt) +
-  hiwp(tempClean, ref_value = 10, knots = tempKnots, group_var = ecoRegionInt)
 ```
 
 ```{r fit, cache=TRUE, stuff=1}
+pmKnots = c(0, 1, 2, 5, 10, 20, 32) # on square root scale
+tempKnots = c(-10, -5, 5, 10, 20, 23, 27, 30)
+
+formula <- count ~ f(date, model='iid') +
+  f(sqrtPm, model='hiwp', ref_value = sqrt(25), knots = pmKnots, group_var = ecoRegionInt) +
+  f(tempClean, model='hiwp',ref_value = 10, knots = tempKnots, group_var = ecoRegionInt)
+
 fit <- hnlm(
   formula, allData, cc_design = cc_design
   )
