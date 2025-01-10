@@ -10,15 +10,14 @@ allData$sqrtPm = sqrt(pmin(allData$pm,1000))
 allData$timeIid = as.numeric(allData$date)
 allData$tempClean = pmax(allData$tempd, -10)
 
-
 cc_design <- ccDesign(strat_vars = c("cell","ecoRegionInt", "yearMonthDow") )
 
 
 ```
 
 ```{r fit, cache=TRUE, stuff=1}
-pmKnots = c(0, 1, 2, 5, 10, 20, 32) # on square root scale
-tempKnots = c(-10, -5, 5, 10, 20, 23, 27, 30)
+pmKnots = c(0, 1, 2, 5, 7,  10, 15, 20, 25, 32) # on square root scale
+tempKnots = c(-10, 0, 5, 10, 20, 23, 27, 30)
 
 formula <- count ~ f(date, model='iid') +
   f(sqrtPm, model='hiwp', ref_value = sqrt(25), knots = pmKnots, group_var = ecoRegionInt) +
@@ -34,23 +33,104 @@ fit <- hnlm(
 
 ```{r resEffects, eval=FALSE}
 
-#newdata = data.frame(sqrtPm = seq(0, sqrt(200), len=200), ecoRegionInt = 'Global')
-newdata = data.frame(sqrtPm = seq(0, sqrt(200), len=200), ecoRegionInt = 18)
-newdata = data.frame(tempClean = seq(-10, 30, len=201), ecoRegionInt = 'Global')
 
-parMle = fit$obj$env$last.par.best
+report <- sdreport(fit$obj)
+randomMean = report$par.random
+
+random2 = fit$obj$env$random
+
+
+
+parMle = fit$obj$env$last.par.best[
+  grep("gamma", names(fit$obj$env$last.par.best), invert=TRUE)
+  ]
+
+sdMle = 1/sqrt(exp(fit$obj$env$last.par.best[
+  grep("theta", names(fit$obj$env$last.par.best))
+  ]))
+
+parAllMle = fit$obj$env$last.par.best
+parAllMle[grep("gamma", names(parAllMle))] = randomMean
+
+fit$funNoRandom$fn(parAllMle)
+fit$obj$gr(parMle)
+
+
+myfun = function(par) {
+  parAllMle[grep("gamma", names(parAllMle))] = par
+  fit$funNoRandom$fn(parAllMle)
+}
+
+# this isn't right... need to do parscale better
+stuff = optim(randomMean, myfun, control = list(trace=TRUE,
+              parscale = c(1e5, 1)[1+grepl("date", fit$gamma_info$var)]
+              ))
+
+newdata = data.frame(sqrtPm = seq(0, sqrt(200), len=200), ecoRegionInt = 'Global')
+#newdata = data.frame(sqrtPm = seq(0, sqrt(200), len=200), ecoRegionInt = 18)
+#newdata = data.frame(tempClean = seq(-10, 30, len=201), ecoRegionInt = 'Global')
+
+varInfo = do.call(rbind, lapply(fit$terms, function(xx) 
+  data.frame(var=xx$var,model=xx$model, id = c(xx$id, NA)[1])
+  ))
+varInfo$name = paste(varInfo$var, varInfo$model, sep='_')
+
+
+fit$obj$env$ADfun(parameters = parList, data = fit$obj$env$.data)
+
+names(parMleSansRandom) = c(
+  paste0(fit$beta_info$var, '_fixed'),
+  fit$theta_info$var[!duplicated(fit$theta_info$id)])
+
+parGradient = fit$obj$gr(parMleSansRandom)
+names(parGradient) = names(parMleSansRandom)
+cbind(est = parMleSansRandom, gr = parGradient)
+
+gammaHat = parMle[grep("gamma", names(parMle))]
+
+stuff = optim(
+  parMle,
+  fit$obj$fn,
+  fit$obj$gr,
+  method = 'BFGS'
+)
+
+stuff2 = fit$obj$env$ADFun(parMLE)
+```
+
+```{r somestuff}
+
+parMle = fit$obj$env$last.par.best[
+  grep("gamma", names(fit$obj$env$last.par.best), invert=TRUE)
+  ]
 
 betaHat = parMle[names(parMle) == 'beta']
 #betaHat = betaHat[fit$beta_info$Xid]
 names(betaHat) = fit$beta_info$var
 
-whichIsGamma = which(names(parMle) == "gamma")
-gammaHat = parMle[whichIsGamma]
-precGammahat = fit$obj$env$spHess(fit$obj$env$last.par)
-varGammaHat = solve(precGammahat[whichIsGamma, whichIsGamma])
+whichIsGamma = which(names(fit$obj$env$last.par.best) == "gamma")
+gammaHat = fit$obj$env$last.par.best[whichIsGamma]
+
+varInfo = do.call(rbind, lapply(fit$terms, function(xx) 
+  data.frame(var=xx$var,model=xx$model, id = c(xx$id, NA)[1])
+  ))
+
+
+plot(factor(fit$gamma_info$var), gammaHat)
+
+
+
+
+precGammaHat = fit$obj$env$spHess(fit$obj$env$last.par)
+precGammaHat = forceSymmetric(precGammaHat[whichIsGamma, whichIsGamma])
+varGammaHat = solve(precGammaHat)
+Nsim = 10
+gammaSim = t(mvtnorm::rmvnorm(Nsim, gammaHat, as.matrix(varGammaHat)))
+
+
+gammaHat[grep("date", fit$gamma_info$var, invert=TRUE)]
 
 # identify the random effects needed in newdata
-varInfo = do.call(rbind, lapply(fit$terms, function(xx) unlist(xx[c('var','type')])))
 Sterms = which(varInfo[,'var'] %in% names(newdata))
 
 newDesignMat = hpoltest:::getNewXA(fit$terms[Sterms], newdata)
@@ -64,6 +144,8 @@ gammaIndices = which(fit$gamma_info$id %in% Sid)
 gammaHatHere = gammaHat[gammaIndices]
 varGammaHatHere = varGammaHat[gammaIndices, gammaIndices]
 
+gammaSimHere = gammaSim[gammaIndices,]
+simHere = newDesignMat$A %*% gammaSim + newdata$fixed
 
 newdata$mean = drop(newDesignMat$A %*% gammaHatHere) + newdata$fixed
 newdata$sd =sqrt(apply( (newDesignMat$A %*% varGammaHatHere) * newDesignMat$A, 1, sum))
@@ -78,10 +160,11 @@ newdata = cbind(newdata, as.data.frame(lowerUpper))
 
 
 matplot(
-  newdata$tempClean,
+  newdata[,1]^2,
   newdata[,c('mean','0.025quant','0.975quant')],
   ylim = range(newdata[-(1:20),c('0.025quant','0.975quant')]),
-  type='l', lty=c(1,2,2), col='black', xaxs='i', bty='n'
+  type='l', lty=c(1,2,2), col='black', xaxs='i', bty='n',
+  xlab='exposure', ylab='log rr'
 )
 
 # joint confidence regions
@@ -90,8 +173,8 @@ toKeep = toKeep[-3]
 varFull =  Matrix::forceSymmetric(
   tcrossprod(newDesignMat$A[toKeep,] %*% varGammaHatHere, 
              newDesignMat$A[toKeep,]))
-cholVar = solve(chol(varFull))
-stuff = excursions::simconf(0.8, newdata$mean, Q.chol = cholVar)
-matplot(newdata$tempClean, as.data.frame(stuff[c('a','b')]))
+#cholVar = solve(chol(varFull))
+#stuff = excursions::simconf(0.8, newdata$mean, Q.chol = cholVar)
+#matplot(newdata$tempClean, as.data.frame(stuff[c('a','b')]))
 
 ```
