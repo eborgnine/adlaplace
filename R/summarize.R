@@ -29,6 +29,15 @@ getNewXA <- function(terms, df){
       next
     }    
     
+    if(term$model %in% "iid"){
+      Asub <- Matrix(data = 0, nrow = nrow(df), ncol = term$n) |> as("dgTMatrix")
+      colnames(Asub) <- paste0(term$var, seq(from=1, by=1, len=ncol(Asub)))
+      A <- cbind(A, Asub)
+      k <- k+1
+      next
+    }    
+    
+    
     # below takes care of random effects
     # design matrix
     Asub <- getDesign(term, df)
@@ -73,11 +82,17 @@ getEffect <- function(fit, exposure_var, group_var, group, values, ref_values){
   df[[group_var]] <- rep(group, each = length(values)) |> unlist()
   df[[exposure_var]] <- rep(values, times = max(1,length(group)))
   
+  # # takes care of overdispersion
+  # term_models <- c("", sapply(fit$terms, "[[", "model"))
+  # for(v in vars[which(term_models == "iid")]) df[[v]] <- factor(1:nrow(df))
+  
   list2env(getNewXA(fit$terms, df), envir = environment())
   pars <- fit$obj$env$last.par.best
   beta <- pars[names(pars) == "beta"]
   gamma <- pars[names(pars) == "gamma"]
 
+  #
+  
   data.frame(variable = exposure_var, var_value = values, 
              effect_value = as.numeric(X %*% beta + A %*% gamma), 
              group = df[[group_var]])
