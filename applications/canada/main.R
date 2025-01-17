@@ -105,3 +105,16 @@ ggs <- lapply(c("pm25lag", "temp4lag"), \(x){
 })
 ggs[[1]]
 ggs[[2]]
+
+
+ggs <- lapply(c("pm25lag", "temp4lag"), \(x){
+  ggplot(res1[res1$variable == x,], aes(x=var_value, y=effect_value, colour=group)) +
+    theme_bw() +
+    theme(panel.grid.minor = element_blank()) +
+    geom_hline(yintercept = 0, col="gray75") +
+    geom_line() +
+    geom_line(data=res2[res2$variable == x,][,-4], linetype=2, colour="black") +
+    facet_grid(~variable, scales = "free_x")
+})
+ggs[[1]]
+ggs[[2]]

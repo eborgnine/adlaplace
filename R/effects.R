@@ -137,7 +137,7 @@ hiwp <- function(x, p = 2, ref_value, knots, range = NULL,
                  group_var,
                  include_global = T,
                  hrpoly_p = p-1, hfpoly_p = 0, # with include_global = F
-                 rpoly_p = 0, fpoly_p = include_global) {
+                 rpoly_p = 0, fpoly_p = include_global*(p-1)) {
   l <- list(var = x, 
             model = "hiwp", 
             p = p,
