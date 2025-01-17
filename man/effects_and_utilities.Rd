@@ -26,7 +26,11 @@
 \alias{iidTheta}
 \title{Functions to Specify Terms of the Formula (and Associated Utility Functions)}
 \usage{
-f(x, model = c("hiwp", "iwp", "fpoly", "rpoly", "spline"), ...)
+f(
+  x,
+  model = c("iwp", "hiwp", "fpoly", "rpoly", "hfpoly", "hrpoly", "iid"),
+  ...
+)
 
 iwp(x, p = 2, ref_value, knots, range = NULL, rpoly_p = 0, fpoly_p = 1)
 
@@ -47,7 +51,7 @@ hiwp(
   hrpoly_p = p - 1,
   hfpoly_p = 0,
   rpoly_p = 0,
-  fpoly_p = include_global
+  fpoly_p = include_global * (p - 1)
 )
 
 hiwpDesign(term, data)
