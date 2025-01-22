@@ -59,8 +59,9 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var, tmb_paramete
   while(k <= length(terms)){
     term <- terms[[k]] |> getExtra(data=data, cc_matrix=cc_matrix)
     term$id <- k
-    if(!is.factor(data[[term$var]][1]) && is.null(term$range))
-      range <- term$range <- range(data[[term$var]])
+    if(!is.factor(data[[term$var]][1]) &&
+       !is.character(data[[term$var]][1]) && 
+       is.null(term$range)) range <- term$range <- range(data[[term$var]])
     
     if(term$run_as_is){
       Xsub <- sparse.model.matrix(term$f, data)
