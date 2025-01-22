@@ -129,13 +129,10 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var, tmb_paramete
     cc_matrix = cc_matrix
   )
   
-  if(is.null(tmb_parameters)){
-    tmb_parameters <- list(
-      beta = rep(0, ncol(X)),
-      gamma = rep(0, ncol(A)),
-      theta = theta_info$init
-    )
-  }
+  if(is.null(tmb_parameters)) tmb_parameters <- list()
+  if(is.null(tmb_parameters$beta)) tmb_parameters$beta <- rep(0, ncol(X))
+  if(is.null(tmb_parameters$gamma)) tmb_parameters$gamma <- rep(0, ncol(A))
+  if(is.null(tmb_parameters$theta)) tmb_parameters$theta <- theta_info$init
 
   # OPTIMIZATION ----
   # # preliminary run fixing the random effects for iwp, hiwp and od
