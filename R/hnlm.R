@@ -6,7 +6,7 @@
 #' @param data A data frame containing the variables specified in the formula and any additional variables required for the model.
 #' @param cc_design An object specifying the case-crossover design, including stratification and time variables. Defaults to the output of `ccDesign()`.
 #' @param weight_var (Optional) A character string specifying the column in the data frame used for weights. If provided, it must exist in `data`.
-#' @param tmb_parameters (Optional) A list of initial parameter values for the TMB optimization, including `beta`, `gamma`, and `theta`.
+#' @param tmb_parameters (Optional) A list of initial parameter values for the TMB optimization, including `beta`, `gamma`, and `theta` (or a subset of them).
 #' @param for_dev Logical; if `TRUE`, the function returns intermediate objects for development purposes. Defaults to `FALSE`.
 #'
 #' @return A list containing the fitted TMB object, the formula, terms used in the model, the case-crossover design, and information about the gamma and theta parameters.
@@ -99,8 +99,8 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var, tmb_paramete
     # Note: for iwp 1 knot removed for constraints
     
     # Add fized and random polynomial effects
-    terms <- c(terms, addFPoly(term), addRPoly(term))
-    
+    # terms <- c(terms, addFPoly(term), addRPoly(term))
+    terms <- c(terms[1:k], addFPoly(term), addRPoly(term), terms[-(1:k)])
     
     # precision matrix
     Qs[[length(Qs) + 1]] <- getPrecision(term)
@@ -110,7 +110,9 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var, tmb_paramete
     
     theta_info$var <- c(theta_info$var, theta_setup$var)
     theta_info$model <- c(theta_info$model, theta_setup$model)
-    theta_info$id <- c(theta_info$id, theta_setup$id)
+    theta_info$name <- c(theta_info$name, theta_setup$name)
+    theta_info$name_mapped <- c(theta_info$name_mapped, theta_setup$name_mapped)
+    theta_info$map <- c(theta_info$map, theta_setup$map)
     theta_info$init <- c(theta_info$init, theta_setup$init)
     
     # update term with new elements
@@ -123,10 +125,8 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var, tmb_paramete
   y <- data[[all.vars(formula)[1]]]
   tmb_data <- list(
     X = X, A = A, y = y,
-    # gamma_nreplicate = gamma_info$nreplicate, # **** when hiwp, reuse the Q matrix for all (split gamma in nreplicate equal parts). gamma_nreplicate=nlevel+1
     Q = Qs |> .bdiag(), 
     gamma_split = gamma_info$split,
-    # theta_id = theta_info$id
     cc_matrix = cc_matrix
   )
   
@@ -162,7 +162,7 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var, tmb_paramete
   # }
   
   # Run optimization
-  map <- list(theta = factor(theta_info$id))
+  map <- list(theta = factor(theta_info$map))
   r <- NULL
   if(length(tmb_parameters$gamma) > 0) r <- "gamma"
   obj <- MakeADFun(data = tmb_data,
