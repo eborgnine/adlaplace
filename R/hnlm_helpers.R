@@ -183,7 +183,7 @@ getPrecision <- function(term){
 #' @rdname hnlm_helpers
 getThetaSetup <- function(theta_info, term){
   
-  theta_id <- 
+  theta_setup <- 
     if(term$model == "iwp"){
       iwpTheta(theta_info, term)
     }else if(term$model == "hiwp"){
@@ -197,7 +197,7 @@ getThetaSetup <- function(theta_info, term){
     }else{
       stop("Unknown term model (", term$model, ")")
     }
-  return(theta_id)
+  return(theta_setup)
 }
 
 

@@ -42,7 +42,7 @@ knots_pm25lag <- seq(floor(min(data$pm25lag)/5)*5,ceiling(max(data$pm25lag)/5)*5
 knots_spm25lag <- sqrt(knots_pm25lag)
 knots_temp4lag <- seq(floor(min(data$temp4lag)/5)*5,ceiling(max(data$temp4lag)/5)*5,5)
 range(data$temp4lag)
-formula <- count ~ hum_mean + od(date) +
+formula <- count ~ hum_mean + f(date, model = "iid") +
   f(spm25lag, model = "hiwp", p=2, ref_value = sqrt(15), knots = knots_spm25lag, group_var = city) +
   f(temp4lag, model = "hiwp", p=2, ref_value = 10, knots = knots_temp4lag, group_var = city)
   
@@ -57,6 +57,8 @@ fit$obj$env$last.par.best[names(fit$obj$env$last.par.best) == "theta"]
 
 # results per group
 ref_values <- list("spm25lag" = sqrt(15), "temp4lag" = 10)
+
+# HERE. WHAT TO DO WITH OVERDISPERSION TERMS!! THERE 
 
 res1_temp <- getEffect(fit, exposure_var = "temp4lag", 
                     group_var = "city", group = unique(data$city), 
@@ -100,6 +102,19 @@ ggs <- lapply(c("pm25lag", "temp4lag"), \(x){
     geom_line() +
     geom_line(data=res2[res2$variable == x,][,-4], linetype=2) +
     facet_grid(group~variable, scales = "free_x")
+})
+ggs[[1]]
+ggs[[2]]
+
+
+ggs <- lapply(c("pm25lag", "temp4lag"), \(x){
+  ggplot(res1[res1$variable == x,], aes(x=var_value, y=effect_value, colour=group)) +
+    theme_bw() +
+    theme(panel.grid.minor = element_blank()) +
+    geom_hline(yintercept = 0, col="gray75") +
+    geom_line() +
+    geom_line(data=res2[res2$variable == x,][,-4], linetype=2, colour="black") +
+    facet_grid(~variable, scales = "free_x")
 })
 ggs[[1]]
 ggs[[2]]
