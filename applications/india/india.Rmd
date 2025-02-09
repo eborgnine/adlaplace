@@ -23,9 +23,24 @@ formula <- count ~ f(date, model='iid') +
   f(sqrtPm, model='hiwp', ref_value = sqrt(25), knots = pmKnots, group_var = ecoRegionInt) +
   f(tempClean, model='hiwp',ref_value = 10, knots = tempKnots, group_var = ecoRegionInt)
 
+theStart = c(-1.20432700162894, -0.269452213370445, 1.77332638641821, -0.515828055927241, 
+0.458245635873159, -0.0335784418356015, -1.21387059514634, 0.235281681335617, 
+-0.165174547935726)
 fit <- hnlm(
-  formula, allData, cc_design = cc_design
+  formula, allData, cc_design = cc_design,
+  tmb_parameters = list(
+    beta = theStart[1:2],
+    theta = theStart[-(1:2)],
+    gamma = rep(0, 4758)
   )
+  )
+fit$obj$par
+
+
+#fit2 = optim(theStart, fit$obj$fn, fit$obj$gr)
+
+
+
 ```
 
 
@@ -52,7 +67,7 @@ sdMle = 1/sqrt(exp(fit$obj$env$last.par.best[
 parAllMle = fit$obj$env$last.par.best
 parAllMle[grep("gamma", names(parAllMle))] = randomMean
 
-fit$funNoRandom$fn(parAllMle)
+fit$obj$fn(parAllMle)
 fit$obj$gr(parMle)
 
 
@@ -99,6 +114,8 @@ stuff2 = fit$obj$env$ADFun(parMLE)
 ```
 
 ```{r somestuff}
+
+newdata = data.frame(sqrtPm = seq(0, sqrt(200), len=200), ecoRegionInt = 'Global')
 
 parMle = fit$obj$env$last.par.best[
   grep("gamma", names(fit$obj$env$last.par.best), invert=TRUE)

@@ -28,8 +28,13 @@ Integrate out the Dirichelet
 
 \begin{eqnarray*}
 [Y_{ij} | \rho_{i\cdot}] &\sim & \text{DM}(\rho_{i\cdot}, \tau)\\
-\log\pi(Y_{i\cdot} &=& \log N_i + \log \text{B}\left(\tau, N_i\right) - \\
- && \sum_{j; Y_{ij} > 0} \left[ 
+\log\pi(Y | \rho )  &=& \sum_i \log N_i + \log \text{B}\left(\tau, N_i\right) - 
+ \sum_{j; Y_{ij} > 0} \left[ 
   \log(Y_{ij}) - \log \text{B}\left(\tau \rho_{ij}, Y_{ij}\right)
-\right]
+\right] \\
+&=& \sum_i \log N_i + \log \Gamma(\tau) + \log \Gamma(N_i) - \log \Gamma(N_i + \tau) + \\
+&& \sum_{j; Y_{ij} > 0} \log(Y_{ij}) + \log \Gamma(\tau \rho_{ij} + Y_{ij}) -
+\log \Gamma(\tau \rho_{ij}) - \log \Gamma( Y_{ij})
 \end{eqnarray*}
+
+B is beta function
