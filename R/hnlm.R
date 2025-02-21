@@ -52,8 +52,8 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
   terms <- collectTerms(formula)
   
   # design matrices
-  X <- matrix(nrow=nrow(data), ncol=0) # fixed effects
-  A <- matrix(nrow=nrow(data), ncol=0) # random effects
+  Xlist <- list() # <- matrix(nrow=nrow(data), ncol=0) # fixed effects
+  Alist <- list()#matrix(nrow=nrow(data), ncol=0) # random effects
   Qs <- list() # precisions for random effects
   
   beta_info <- list()
@@ -75,7 +75,7 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
       Xsub <- sparse.model.matrix(term$f, data)
       beta_info$var <- c(beta_info$var, term$var)
       beta_info$pick <- c(beta_info$pick, paste0(term$pick, "__", 0))
-      X <- cbind(X, Xsub)
+      Xlist[[k]] <- Xsub #cbind(X, Xsub)
       k <- k+1
       next
     }
@@ -86,7 +86,7 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
       colnames(Xsub) <- paste0(term$var, c('', seq(from=1, by=1, len=ncol(Xsub)-1)))
       beta_info$var <- c(beta_info$var, term$var)
       beta_info$pick <- c(beta_info$pick, paste0(term$pick, "__", 0))
-      X <- cbind(X, Xsub)
+      Xlist[[k]] <- Xsub #cbind(X, Xsub)
       k <- k+1
       next
     }    
@@ -94,7 +94,7 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
     
     # design matrix
     Asub <- getDesign(term, data)
-    A <- cbind(A, Asub)
+    Alist[[k]] <- Asub #cbind(A, Asub)
 
     gamma_setup <- getGammaSetup(term)
 
@@ -110,14 +110,14 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
     
     
     # precision matrix
-    Qs[[length(Qs) + 1]] <- getPrecision(term)
+    Qs[[k]] <- getPrecision(term)
     
     # theta parameters
     theta_setup <- getThetaSetup(theta_info, term)
-    
+    print(theta_setup)
     theta_info$var <- c(theta_info$var, theta_setup$var)
     theta_info$model <- c(theta_info$model, theta_setup$model)
-    theta_info$id <- c(theta_info$id, theta_setup$id)
+    theta_info$map <- c(theta_info$map, theta_setup$map)
     theta_info$init <- c(theta_info$init, theta_setup$init)
     
     # update term with new elements
@@ -126,6 +126,12 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
   }
   if(verbose) cat('.\n')
   
+    A = do.call(cbind, Alist)
+    if(length(Xlist)) {
+      X = do.call(cbind, Xlist)
+    } else {
+      X= matrix(nrow=nrow(data), ncol=0)
+    }
   
   if(for_dev) return(list(X = X, A = A, gamma_split = gamma_info$split, Qs = Qs, theta_info=theta_info, new_order = new_order))
 
@@ -133,7 +139,7 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
   tmb_data <- list(
     X = X, A = A, y = y,
     # gamma_nreplicate = gamma_info$nreplicate, # **** when hiwp, reuse the Q matrix for all (split gamma in nreplicate equal parts). gamma_nreplicate=nlevel+1
-    Q = Qs |> .bdiag(), 
+    Q = do.call(bdiag, Qs[!unlist(lapply(Qs, is.null))]), #Qs |> .bdiag(), 
     gamma_split = gamma_info$split,
     # theta_id = theta_info$id
     cc_matrix = cc_matrix
@@ -174,7 +180,7 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
   # }
   
   # Run optimization
-  map <- list(theta = factor(theta_info$id))
+  map <- list(theta = factor(theta_info$map))
   r <- NULL
   if(length(tmb_parameters$gamma) > 0) r <- "gamma"
   if(verbose) message("making AD function")

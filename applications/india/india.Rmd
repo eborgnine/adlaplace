@@ -12,7 +12,7 @@ allData$tempClean = pmax(allData$tempd, -10)
 
 cc_design <- ccDesign(strat_vars = c("cell","ecoRegionInt", "yearMonthDow") )
 
-
+allDataSub = allData[allData$ecoRegionInt %in% 2:4, ]
 ```
 
 
@@ -21,19 +21,22 @@ pmKnots = c(0, 1, 2, 5, 7,  10, 15, 20, 25, 32) # on square root scale
 tempKnots = c(-10, 0, 5, 10, 20, 23, 27, 30)
 
 formula <- count ~ f(date, model='iid') +
-  f(sqrtPm, model='hiwp', ref_value = sqrt(25), knots = pmKnots, group_var = ecoRegionInt) +
-  f(tempClean, model='hiwp',ref_value = 10, knots = tempKnots, group_var = ecoRegionInt)
+  f(sqrtPm, model='hiwp', ref_value = sqrt(25), knots = pmKnots, group_var = ecoRegionInt) #+
+#  f(tempClean, model='hiwp',ref_value = 10, knots = tempKnots, group_var = ecoRegionInt)
 
 theStart = c(-1.20432700162894, -0.269452213370445, 1.77332638641821, -0.515828055927241, 
 0.458245635873159, -0.0335784418356015, -1.21387059514634, 0.235281681335617, 
 -0.165174547935726)
+
+data = allDataSub;verbose=TRUE
+
 fit <- hnlm(
-  formula, allData, cc_design = cc_design,
-  tmb_parameters = list(
-    beta = theStart[1:2],
-    theta = theStart[-(1:2)],
-    gamma = rep(0, 4758)
-  ),
+  formula, allDataSub, cc_design = cc_design,
+#  tmb_parameters = list(
+#    beta = theStart[1:2],
+#    theta = theStart[-(1:2)],
+#    gamma = rep(0, 4758)
+#  ),
   optim_parameters = list(eval.max=5, iter.max=2),
   verbose=TRUE
   )
