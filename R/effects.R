@@ -168,14 +168,28 @@ hiwpDesign <- function(term, data){
   list2env(term, envir = environment())
   
   A0 <- iwpDesign(term, data)
-  id_split <- split(1:nrow(data), factor(data[[group_var]], levels = groups), drop = F)
+  id_split <- split(1:nrow(data), 
+                    factor(data[[group_var]], levels = groups), 
+                    drop = F)
   if(include_global) id_split <- c(list(1:nrow(data)), id_split)
-  
-  Afinal <- Matrix(0, nrow=nrow(data), ncol=ncol(A0)*length(id_split)) |> as("dgTMatrix")
-  for(k in seq_along(id_split)){
-    Afinal[id_split[[k]], (k-1)*ncol(A0) + 1:ncol(A0)] <- A0[id_split[[k]],]
-  } 
-    
+  A0split = mapply(function(AA, xx) {
+    res = as(AA[xx, ], "TsparseMatrix")
+    cbind(i=xx, j=res@j+1, x=res@x)
+    }, 
+    xx = id_split, MoreArgs = list(AA=A0))
+  A0combine = cbind(
+    as.data.frame(do.call(rbind, A0split)), 
+    split = rep(1:length(A0split), unlist(lapply(A0split, nrow)))
+    )
+  A0combine[,'j2'] = A0combine[,'j'] + ncol(A0) * (A0combine[,'split']-1)
+  Afinal = sparseMatrix(i=A0combine$i, j=A0combine$j2, x=A0combine$x)
+  if(FALSE) {
+    # the slow way
+    Afinal <- Matrix(0, nrow=nrow(data), ncol=ncol(A0)*length(id_split)) |> as("dgTMatrix")
+    for(k in seq_along(id_split)){
+      Afinal[id_split[[k]], (k-1)*ncol(A0) + 1:ncol(A0)] <- A0[id_split[[k]],]
+    } 
+  }
   Afinal
 }
 

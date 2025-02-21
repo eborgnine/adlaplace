@@ -15,6 +15,7 @@ cc_design <- ccDesign(strat_vars = c("cell","ecoRegionInt", "yearMonthDow") )
 
 ```
 
+
 ```{r fit, cache=TRUE, stuff=1}
 pmKnots = c(0, 1, 2, 5, 7,  10, 15, 20, 25, 32) # on square root scale
 tempKnots = c(-10, 0, 5, 10, 20, 23, 27, 30)
@@ -32,7 +33,9 @@ fit <- hnlm(
     beta = theStart[1:2],
     theta = theStart[-(1:2)],
     gamma = rep(0, 4758)
-  )
+  ),
+  optim_parameters = list(eval.max=5, iter.max=2),
+  verbose=TRUE
   )
 fit$obj$par
 
@@ -67,23 +70,9 @@ sdMle = 1/sqrt(exp(fit$obj$env$last.par.best[
 parAllMle = fit$obj$env$last.par.best
 parAllMle[grep("gamma", names(parAllMle))] = randomMean
 
-fit$obj$fn(parAllMle)
-fit$obj$gr(parMle)
 
-
-myfun = function(par) {
-  parAllMle[grep("gamma", names(parAllMle))] = par
-  fit$funNoRandom$fn(parAllMle)
-}
-
-# this isn't right... need to do parscale better
-stuff = optim(randomMean, myfun, control = list(trace=TRUE,
-              parscale = c(1e5, 1)[1+grepl("date", fit$gamma_info$var)]
-              ))
 
 newdata = data.frame(sqrtPm = seq(0, sqrt(200), len=200), ecoRegionInt = 'Global')
-#newdata = data.frame(sqrtPm = seq(0, sqrt(200), len=200), ecoRegionInt = 18)
-#newdata = data.frame(tempClean = seq(-10, 30, len=201), ecoRegionInt = 'Global')
 
 varInfo = do.call(rbind, lapply(fit$terms, function(xx) 
   data.frame(var=xx$var,model=xx$model, id = c(xx$id, NA)[1])
@@ -91,26 +80,8 @@ varInfo = do.call(rbind, lapply(fit$terms, function(xx)
 varInfo$name = paste(varInfo$var, varInfo$model, sep='_')
 
 
-fit$obj$env$ADfun(parameters = parList, data = fit$obj$env$.data)
-
-names(parMleSansRandom) = c(
-  paste0(fit$beta_info$var, '_fixed'),
-  fit$theta_info$var[!duplicated(fit$theta_info$id)])
-
-parGradient = fit$obj$gr(parMleSansRandom)
-names(parGradient) = names(parMleSansRandom)
-cbind(est = parMleSansRandom, gr = parGradient)
-
 gammaHat = parMle[grep("gamma", names(parMle))]
 
-stuff = optim(
-  parMle,
-  fit$obj$fn,
-  fit$obj$gr,
-  method = 'BFGS'
-)
-
-stuff2 = fit$obj$env$ADFun(parMLE)
 ```
 
 ```{r somestuff}

@@ -6,8 +6,10 @@
 #' @param data A data frame containing the variables specified in the formula and any additional variables required for the model.
 #' @param cc_design An object specifying the case-crossover design, including stratification and time variables. Defaults to the output of `ccDesign()`.
 #' @param weight_var (Optional) A character string specifying the column in the data frame used for weights. If provided, it must exist in `data`.
-#' @param tmb_parameters (Optional) A list of initial parameter values for the TMB optimization, including `beta`, `gamma`, and `theta` (or a subset of them).
+#' @param tmb_parameters (Optional) A list of initial parameter values for the TMB optimization, including `beta`, `gamma`, and `theta`.
+#' @param optim_parameters (Optional) A list of   parameters passed to `nlminb`
 #' @param for_dev Logical; if `TRUE`, the function returns intermediate objects for development purposes. Defaults to `FALSE`.
+#' @param verbose logical, if `TRUE` occasional information is printed
 #'
 #' @return A list containing the fitted TMB object, the formula, terms used in the model, the case-crossover design, and information about the gamma and theta parameters.
 #' @details The function handles fixed effects, random effects, and their associated precision matrices. It also optimizes the model using TMB with options for additional preprocessing and handling specific random effect structures.
@@ -21,7 +23,10 @@
 #' @useDynLib hpoltest
 #' @export
 #' 
-hnlm <- function(formula, data, cc_design = ccDesign(), weight_var, tmb_parameters = NULL, for_dev = F) {
+hnlm <- function(formula, data, cc_design = ccDesign(), weight_var, 
+                 tmb_parameters = NULL,  
+                 optim_parameters = list(eval.max=2000, iter.max=2000),
+                 for_dev = FALSE, verbose=FALSE) {
   
   data <- as.data.frame(data)
   
@@ -39,8 +44,9 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var, tmb_paramete
 
   
   # setup the data for case-crossover
+  if(verbose) cat("setting strata")
   cc_matrix <- setStrata(cc_design = cc_design, data = data)
-  
+  if(verbose) cat(".\n")
   # setup of the design matrices and other parameters
   # terms carries all the information throughout
   terms <- collectTerms(formula)
@@ -56,7 +62,9 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var, tmb_paramete
 
   # loop
   k <- 1
+  if(verbose) cat('collecting terms ')
   while(k <= length(terms)){
+    if(verbose) cat(k, ' ')
     term <- terms[[k]] |> getExtra(data=data, cc_matrix=cc_matrix)
     term$id <- k
     if(!is.factor(data[[term$var]][1]) &&
@@ -82,7 +90,6 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var, tmb_paramete
       k <- k+1
       next
     }    
-    
     # below takes care of random effects
     
     # design matrix
@@ -99,8 +106,8 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var, tmb_paramete
     # Note: for iwp 1 knot removed for constraints
     
     # Add fized and random polynomial effects
-    # terms <- c(terms, addFPoly(term), addRPoly(term))
-    terms <- c(terms[1:k], addFPoly(term), addRPoly(term), terms[-(1:k)])
+    terms <- c(terms, addFPoly(term), addRPoly(term))
+    
     
     # precision matrix
     Qs[[length(Qs) + 1]] <- getPrecision(term)
@@ -110,30 +117,35 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var, tmb_paramete
     
     theta_info$var <- c(theta_info$var, theta_setup$var)
     theta_info$model <- c(theta_info$model, theta_setup$model)
-    theta_info$name <- c(theta_info$name, theta_setup$name)
-    theta_info$name_mapped <- c(theta_info$name_mapped, theta_setup$name_mapped)
-    theta_info$map <- c(theta_info$map, theta_setup$map)
+    theta_info$id <- c(theta_info$id, theta_setup$id)
     theta_info$init <- c(theta_info$init, theta_setup$init)
     
     # update term with new elements
     terms[[k]] <- term
     k <- k+1
   }
+  if(verbose) cat('.\n')
+  
   
   if(for_dev) return(list(X = X, A = A, gamma_split = gamma_info$split, Qs = Qs, theta_info=theta_info, new_order = new_order))
 
   y <- data[[all.vars(formula)[1]]]
   tmb_data <- list(
     X = X, A = A, y = y,
+    # gamma_nreplicate = gamma_info$nreplicate, # **** when hiwp, reuse the Q matrix for all (split gamma in nreplicate equal parts). gamma_nreplicate=nlevel+1
     Q = Qs |> .bdiag(), 
     gamma_split = gamma_info$split,
+    # theta_id = theta_info$id
     cc_matrix = cc_matrix
   )
   
-  if(is.null(tmb_parameters)) tmb_parameters <- list()
-  if(is.null(tmb_parameters$beta)) tmb_parameters$beta <- rep(0, ncol(X))
-  if(is.null(tmb_parameters$gamma)) tmb_parameters$gamma <- rep(0, ncol(A))
-  if(is.null(tmb_parameters$theta)) tmb_parameters$theta <- theta_info$init
+  if(is.null(tmb_parameters)){
+    tmb_parameters <- list(
+      beta = rep(0, ncol(X)),
+      gamma = rep(0, ncol(A)),
+      theta = theta_info$init
+    )
+  }
 
   # OPTIMIZATION ----
   # # preliminary run fixing the random effects for iwp, hiwp and od
@@ -162,22 +174,30 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var, tmb_paramete
   # }
   
   # Run optimization
-  map <- list(theta = factor(theta_info$map))
+  map <- list(theta = factor(theta_info$id))
   r <- NULL
   if(length(tmb_parameters$gamma) > 0) r <- "gamma"
+  if(verbose) message("making AD function")
   obj <- MakeADFun(data = tmb_data,
                    parameters = tmb_parameters,
                    random = r,
                    map = map,
+                   intern=FALSE, type='ADFun',
                    DLL = "hpoltest")
-  
+  if(verbose) message("beginning optimization")
   obj$fn(obj$par)
   opt <- nlminb(start = obj$par, objective = obj$fn, gradient = obj$gr, 
-                control = list(eval.max=2000, iter.max=2000))
+                control = optim_parameters)
+  if(verbose) message("done optimization")
+  
+#  funNoRandom <- MakeADFun(data = tmb_data,
+#                             parameters = tmb_parameters,
+#                             map = map,
+#                             DLL = "hpoltest")
   
   # Return the result
   return(list(obj = obj, formula = formula, 
               terms = terms, cc_design = cc_design,
               beta_info = beta_info, gamma_info = gamma_info, theta_info = theta_info,
-              new_order))
+              order = new_order, opt = opt))#, funNoRandom = funNoRandom))
 }

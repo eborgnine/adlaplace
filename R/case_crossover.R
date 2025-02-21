@@ -30,12 +30,17 @@ setStrata <- function(cc_design, data){
   # force the TMB template to use only the first day as case day, and
   # create a row for each case day.
   
-  list2env(cc_design, envir = environment())
+  theEnv = list2env(cc_design, envir = environment())
 
-  strat_split <- if(is.null(cc_design$strat_vars)){
-    list(1:nrow(data))
-  }else{
-    split(1:nrow(data), interaction(data[strat_vars]), drop = T)
+  if(is.null(cc_design$strat_vars)){
+      strat_split <- 
+        list(1:nrow(data))
+  } else {
+    dataToSplit = as.data.frame(lapply(data[cc_design$strat_vars], factor))
+    toSplit = interaction_cpp(dataToSplit)
+    strat_split <- split(1:nrow(data), 
+          toSplit, 
+          drop = TRUE)
   }
   
   # if no more stratification do do, return right away
@@ -85,6 +90,40 @@ setStrata <- function(cc_design, data){
   cc_matrix <- cc_matrix[apply(cc_matrix > 0, 1, any),]
   return(cc_matrix)
 }  
+
+
+Rcpp::cppFunction('
+  IntegerVector interaction_cpp(DataFrame df) {
+    int n = df.nrows(); // Number of rows
+    int m = df.size();  // Number of columns
+    IntegerVector out(n); // Output vector
+
+    // Vector to store the number of levels for each column
+    IntegerVector nlevels(m);
+    
+    // Compute the number of levels for each column
+    for (int j = 0; j < m; ++j) {
+      IntegerVector col = df[j]; // Extract the j-th column
+      StringVector levels = col.attr("levels"); // Get the levels attribute
+      nlevels[j] = levels.size(); // Store the number of levels
+    }
+
+       // Compute the interaction term
+    for (int i = 0; i < n; ++i) {
+      int combined = 0; // Initialize combined value
+      for (int j = 0; j < m; ++j) {
+        IntegerVector col = df[j]; // Extract the j-th column
+        combined = combined * nlevels[j] + col[i]; // Combine integers using nlevels
+      }
+      out[i] = combined; // Store the combined value in the output
+    }
+   // Convert out to a factor
+//    out.attr("class") = "factor";
+//    StringVector levels = unique(out).sort();
+//    out.attr("levels") = levels;
+    return(out);
+  }
+')
 
 
 #' Create a list of stratification parameters
