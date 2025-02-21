@@ -125,15 +125,17 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
     k <- k+1
   }
   if(verbose) cat('.\n')
-  
-    A = do.call(cbind, Alist)
+    if(length(Alist)) {
+      A = do.call(cbind, Alist)
+    } else {
+      A = matrix(nrow=0, ncol=0)
+    }
     if(length(Xlist)) {
       X = do.call(cbind, Xlist)
     } else {
       X= matrix(nrow=nrow(data), ncol=0)
     }
   
-  if(for_dev) return(list(X = X, A = A, gamma_split = gamma_info$split, Qs = Qs, theta_info=theta_info, new_order = new_order))
 
   y <- data[[all.vars(formula)[1]]]
   tmb_data <- list(
@@ -145,14 +147,24 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
     cc_matrix = cc_matrix
   )
   
-  if(is.null(tmb_parameters)){
-    tmb_parameters <- list(
-      beta = rep(0, ncol(X)),
-      gamma = rep(0, ncol(A)),
-      theta = theta_info$init
-    )
+  if(is.null(tmb_parameters)){ 
+    tmb_parameters = list(beta=0, gamma=0, theta=theta_info$init)
   }
+  
+  tmb_parameters$beta = rep_len(tmb_parameters$beta, ncol(X))
+  tmb_parameters$gamma = rep_len(tmb_parameters$gamma, ncol(A))
+  tmb_parameters$theta = rep_len(tmb_parameters$theta, 
+                                 length(theta_info$init))
 
+  map <- list(theta = factor(theta_info$map))
+  
+  if(for_dev) return(list(X = X, A = A, 
+                          gamma_split = gamma_info$split, Qs = Qs, 
+                          theta_info=theta_info, new_order = new_order,
+                          tmb_parameteres = tmb_parameters,
+                          tmb_data = tmb_data, map=map))
+  
+  
   # OPTIMIZATION ----
   # # preliminary run fixing the random effects for iwp, hiwp and od
   # # (but not the corresponding random slopes)
@@ -180,7 +192,6 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
   # }
   
   # Run optimization
-  map <- list(theta = factor(theta_info$map))
   r <- NULL
   if(length(tmb_parameters$gamma) > 0) r <- "gamma"
   if(verbose) message("making AD function")

@@ -32,12 +32,12 @@ data = allDataSub;verbose=TRUE
 
 fit <- hnlm(
   formula, allData, cc_design = cc_design,
-#  tmb_parameters = list(
-#    beta = 0,
-#    theta = rep(1,8),
-#    gamma = rep(0, 4421)
-#  ),
-  optim_parameters = list(eval.max=5000, iter.max=1000),
+  tmb_parameters = list(
+    beta = 0,
+    theta = rep(1,42),
+    gamma = rep(0, 4591)
+  ),
+  optim_parameters = list(eval.max=50, iter.max=3),
   verbose=TRUE
   )
 fit$obj$par
@@ -55,12 +55,10 @@ fit$obj$par
 ```{r resEffects, eval=FALSE}
 
 
-report <- sdreport(fit$obj)
-randomMean = report$par.random
+#report <- sdreport(fit$obj)
+#randomMean = report$par.random
 
 random2 = fit$obj$env$random
-
-
 
 parMle = fit$obj$env$last.par.best[
   grep("gamma", names(fit$obj$env$last.par.best), invert=TRUE)
@@ -71,7 +69,7 @@ sdMle = 1/sqrt(exp(fit$obj$env$last.par.best[
   ]))
 
 parAllMle = fit$obj$env$last.par.best
-parAllMle[grep("gamma", names(parAllMle))] = randomMean
+#parAllMle[grep("gamma", names(parAllMle))] = randomMean
 
 
 
