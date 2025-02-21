@@ -114,7 +114,7 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
     
     # theta parameters
     theta_setup <- getThetaSetup(theta_info, term)
-    print(theta_setup)
+
     theta_info$var <- c(theta_info$var, theta_setup$var)
     theta_info$model <- c(theta_info$model, theta_setup$model)
     theta_info$map <- c(theta_info$map, theta_setup$map)
@@ -185,7 +185,7 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
   if(length(tmb_parameters$gamma) > 0) r <- "gamma"
   if(verbose) message("making AD function")
   obj <- MakeADFun(data = tmb_data,
-                   parameters = tmb_parameters,
+                   parameters = tmb_parameters[c('beta','gamma','theta')],
                    random = r,
                    map = map,
                    intern=FALSE, type='ADFun',

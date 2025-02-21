@@ -31,13 +31,13 @@ theStart = c(-1.20432700162894, -0.269452213370445, 1.77332638641821, -0.5158280
 data = allDataSub;verbose=TRUE
 
 fit <- hnlm(
-  formula, allDataSub, cc_design = cc_design,
+  formula, allData, cc_design = cc_design,
 #  tmb_parameters = list(
-#    beta = theStart[1:2],
-#    theta = theStart[-(1:2)],
-#    gamma = rep(0, 4758)
+#    beta = 0,
+#    theta = rep(1,8),
+#    gamma = rep(0, 4421)
 #  ),
-  optim_parameters = list(eval.max=5, iter.max=2),
+  optim_parameters = list(eval.max=5000, iter.max=1000),
   verbose=TRUE
   )
 fit$obj$par
