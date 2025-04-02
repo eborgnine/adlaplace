@@ -1,49 +1,107 @@
 
 ```{r setup}
+
 # devtools::install_github("samperochkin/hpoltest")
-library("hpoltest")
+#library("hpoltest")
+devtools::load_all("~/research/hpoltest")
 library('data.table')
-allData = readRDS('/store/patrick/copernicus/agg/indiaForCC.rds')
-allData = as.data.table(allData)
-allData = allData[!is.na(allData$ecoRegionInt), ]
-allData$sqrtPm = sqrt(pmin(allData$pm,1000))
-allData$timeIid = as.numeric(allData$date)
-allData$tempClean = pmax(allData$tempd, -10)
+# /home/patrick/Admin/globalHealth/indiaSpatial/daily.Rmd
+deaths = readRDS( "/store/patrick/copernicus/agg/indiaForCC.rds")
 
-cc_design <- ccDesign(strat_vars = c("cell","ecoRegionInt", "yearMonthDow") )
+indiaEcoRegions = terra::unwrap(readRDS("/store/patrick/copernicus/agg/indiaEcoRegions.rds"))
 
-allDataSub = allData[allData$ecoRegionInt %in% 2:4, ]
+# trransform variables
+deaths$sqrtPm = sqrt(pmin(deaths$pm,1000))
+deaths$timeIid = as.numeric(deaths$date)
+
+deaths$tempClean = pmax(deaths$tempd, -15)
+tempRef = 15
+deaths$tempLow = pmin(deaths$tempClean, tempRef)
+deaths$tempHigh = pmax(deaths$tempClean, tempRef)
+
+
+theMax = which.max(deaths$count)
+
+deaths[
+  deaths$yearMonthDow == unlist(deaths[theMax, 'yearMonthDow']) &
+  deaths$cell == unlist(deaths[theMax, 'cell']), ]
+
+  cc_design <- ccDesign(strat_vars = c("cell","ecoRegion", "yearMonthDow"))
+
 ```
 
 
-```{r fit, cache=TRUE, stuff=1}
+```{r fit, cache=TRUE, stuff=1, eval=FALSE}
+quantile(deaths$sqrtPm)
+quantile(deaths$tempClean)
 pmKnots = c(0, 1, 2, 5, 7,  10, 15, 20, 25, 32) # on square root scale
-tempKnots = c(-10, 0, 5, 10, 20, 23, 27, 30)
+tempKnots = c(-15, -5, 0, 5, 10, 12, seq(15,25), 27, 30)
+tempLowKnots = c(-15, -5, 0, 5, 8, 10, 15)
+tempHighKnots = c(-15, -5, 0, 5, 10, 20, 23, 27, 30)
 
 formula <- count ~ f(date, model='iid') +
-  f(sqrtPm, model='hiwp', ref_value = sqrt(25), knots = pmKnots, group_var = ecoRegionInt) #+
+#  f(sqrtPm, model='hiwp', ref_value = sqrt(25), knots = pmKnots, group_var = ecoRegionInt) #+
 #  f(tempClean, model='hiwp',ref_value = 10, knots = tempKnots, group_var = ecoRegionInt)
+  f(tempClean, model='iwp',ref_value = 15, p=3, knots = tempKnots)
 
-theStart = c(-1.20432700162894, -0.269452213370445, 1.77332638641821, -0.515828055927241, 
-0.458245635873159, -0.0335784418356015, -1.21387059514634, 0.235281681335617, 
--0.165174547935726)
 
-data = allDataSub;verbose=TRUE
 
 fit <- hnlm(
-  formula, allData, cc_design = cc_design,
-  tmb_parameters = list(
-    beta = 0,
-    theta = rep(1,42),
-    gamma = rep(0, 4591)
-  ),
-  optim_parameters = list(eval.max=50, iter.max=3),
-  verbose=TRUE
+  formula, data=deaths, cc_design = cc_design,
+#  tmb_parameters = list(
+#    beta = 0,
+#    theta = rep(-1,42),
+#    gamma = rnorm(4591)
+#  ),
+  optim_parameters = list(eval.max=10, iter.max=2),
+  verbose=TRUE 
   )
-fit$obj$par
 
 
-#fit2 = optim(theStart, fit$obj$fn, fit$obj$gr)
+table(names(fit$obj$env$last.par.best))
+fit$obj$env$last.par.best[grep("gamma", names(fit$obj$env$last.par.best), invert=TRUE)]
+
+betaHat = fit$obj$env$last.par.best[grep("beta", names(fit$obj$env$last.par.best))]
+names(betaHat) = fit$beta_info$var
+randomMean = fit$obj$env$last.par.best[grep("gamma", names(fit$obj$env$last.par.best))]
+randomHess = bob = fit$obj$env$spHess(par = fit$obj$env$last.par.best,
+                                      random=TRUE)
+randomVcov = solve(randomHess)
+
+term = 'tempClean'
+Nsim = 100
+
+termInfo = do.call(rbind,
+                   lapply(fit$terms, function(xx) unlist(xx[c('var','model')])))
+
+termLims = quantile(fit$obj$env$data$X[,term], c(0,1), na.rm=TRUE)
+newx = seq(termLims[1], termLims[2], len=1000)
+termRef = fit$terms[[min(which(termInfo[,'var'] == term))]]$ref_value
+newxRef = newx-termRef
+
+parametricPart = newxRef * betaHat[grep(term, names(betaHat))]
+
+plot(newx, parametricPart, type='l')
+
+termIwp = which(termInfo[,'var'] == term & termInfo[,'model'] == 'iwp')
+newxDf = data.frame(x = newx)
+names(newxDf) = term
+newDesign = getDesign(fit$terms[[termIwp]], newxDf)
+
+# matplot(newx, newDesign,lty=1, type='l')
+
+
+
+termId = grep(term, fit$gamma_info$var)
+termMean = randomMean[termId]
+termVcov = randomVcov[termId, termId]
+
+termGammaSim = mvtnorm::rmvnorm(Nsim, termMean, as.matrix(termVcov))
+
+iwpSimC = tcrossprod(newDesign, termGammaSim)
+iwpSim = iwpSimC + parametricPart
+
+matplot(newx, iwpSim, type='l',lty=1, col='#00000030')
 
 
 
@@ -54,6 +112,12 @@ fit$obj$par
 
 ```{r resEffects, eval=FALSE}
 
+estPm <- getEffect(fit, exposure_var = "tempClean",
+                    group_var = "ecoRegionInt", 
+                    group = c(1,2),
+                    values = seq(-10, 30,by=1),
+                    ref_values = list(tempClean=10))
+plot(estPm[estPm$group == 10,c('var_value','effect_value')])
 
 #report <- sdreport(fit$obj)
 #randomMean = report$par.random

@@ -73,7 +73,7 @@ f <- function(x, model = c("iwp", "hiwp", "fpoly", "rpoly", "hfpoly", "hrpoly", 
 #' @export
 iwp <- function(x, p = 2, 
                 ref_value, knots, range = NULL, 
-                rpoly_p = 0, fpoly_p = 1) {
+                rpoly_p = 0, fpoly_p = p-1) {
   l <- list(var = x, 
             model = "iwp", 
             p = p, 
@@ -101,7 +101,6 @@ iwpDesign <- function(term, data){
   # should not happen
   if(length(ref_pos) == 0) stop("ref_value of", var, "cannot be found in the corresponding knots vector. \n")
   if(range[1] < knots[1] & range[2] > rev(knots)[1]) warning("knots for ", var, " do not span its range. Continuing anyway. \n")
-  
   methods::as(local_poly(knots = knots-ref_value, refined_x = data[[var]]-ref_value, p = p), "dgTMatrix")
 }
 

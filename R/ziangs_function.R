@@ -3,7 +3,6 @@
 
 # Adaptation of the local_poly function from the OSplines packages --------
 local_poly <- function(knots, refined_x, p){
-  
   if (min(knots) >= 0) {
     dif <- diff(knots)
     nn <- length(refined_x)
