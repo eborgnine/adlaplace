@@ -126,9 +126,9 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
   }
   if(verbose) cat('.\n')
     if(length(Alist)) {
-      A = do.call(cbind, Alist)
+      A = do.call(cbind, Alist) |> as("TsparseMatrix")
     } else {
-      A = matrix(nrow=0, ncol=0)
+      A = matrix(nrow=0, ncol=0) |> as("TsparseMatrix")
     }
     if(length(Xlist)) {
       X = do.call(cbind, Xlist)
@@ -141,7 +141,8 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
   tmb_data <- list(
     X = X, A = A, y = y,
     # gamma_nreplicate = gamma_info$nreplicate, # **** when hiwp, reuse the Q matrix for all (split gamma in nreplicate equal parts). gamma_nreplicate=nlevel+1
-    Q = do.call(bdiag, Qs[!unlist(lapply(Qs, is.null))]), #Qs |> .bdiag(), 
+    # Q = do.call(bdiag, Qs[!unlist(lapply(Qs, is.null))]), #Qs |> .bdiag(), 
+    Q = Qs[!sapply(Qs, is.null)] |> bdiag(), 
     gamma_split = gamma_info$split,
     # theta_id = theta_info$id
     cc_matrix = cc_matrix
@@ -153,8 +154,7 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
   
   tmb_parameters$beta = rep_len(tmb_parameters$beta, ncol(X))
   tmb_parameters$gamma = rep_len(tmb_parameters$gamma, ncol(A))
-  tmb_parameters$theta = rep_len(tmb_parameters$theta, 
-                                 length(theta_info$init))
+  tmb_parameters$theta = rep_len(tmb_parameters$theta, length(theta_info$init))
 
   map <- list(theta = factor(theta_info$map))
   
@@ -192,8 +192,7 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
   # }
   
   # Run optimization
-  r <- NULL
-  if(length(tmb_parameters$gamma) > 0) r <- "gamma"
+  r <- if(length(tmb_parameters$gamma) > 0){"gamma"}else{NULL}
   if(verbose) message("making AD function")
   obj <- MakeADFun(data = tmb_data,
                    parameters = tmb_parameters[c('beta','gamma','theta')],
