@@ -101,12 +101,13 @@ iwpDesign <- function(term, data){
   # should not happen
   if(length(ref_pos) == 0) stop("ref_value of", var, "cannot be found in the corresponding knots vector. \n")
   if(range[1] < knots[1] & range[2] > rev(knots)[1]) warning("knots for ", var, " do not span its range. Continuing anyway. \n")
-  methods::as(local_poly(knots = knots-ref_value, refined_x = data[[var]]-ref_value, p = p), "dgTMatrix")
+  res=local_poly(knots = knots-ref_value, refined_x = data[[var]]-ref_value, p = p)
+  methods::as(res, "TsparseMatrix")
 }
 
 #' @rdname effects_and_utilities 
 iwpPrecision <- function(term){
-  as(compute_weights_precision(knots=term$knots), "dgTMatrix")
+  as(compute_weights_precision(knots=term$knots), "TsparseMatrix")
 }
 
 #' @rdname effects_and_utilities 
@@ -172,13 +173,11 @@ hiwpDesign <- function(term, data, use_dev_version = F){
                     drop = F)
   if(include_global) id_split <- c(list(1:nrow(data)), id_split)
   
-  if(use_dev_version){
-    
-    # Hey P. Somehow this creates warnings() which lead to errors later when I run
-    # my example. S.
+  if(TRUE){
+    # fixed
     A0split = mapply(function(AA, xx) {
       res = as(AA[xx, ], "TsparseMatrix")
-      cbind(i=xx, j=res@j+1, x=res@x)
+      cbind(i=xx[1+res@i], j=res@j+1, x=res@x)
     }, 
     xx = id_split, MoreArgs = list(AA=A0))
     A0combine = cbind(

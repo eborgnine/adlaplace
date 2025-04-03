@@ -14,6 +14,11 @@ getNewXA <- function(terms, df){
   while(k <= length(terms)){
     term <- terms[[k]]
     
+    if(! (term$var %in% names(df))) {
+      k <- k+1
+      next
+    }
+    
     if(term$run_as_is){
       Xsub <- sparse.model.matrix(term$f, df)
       X <- cbind(X, Xsub)
@@ -22,7 +27,8 @@ getNewXA <- function(terms, df){
     }
     
     if(term$model %in% "fpoly"){
-      Xsub <- poly(df[[term$var]] - term$ref_value, raw = T, simple = T) |> as("dgTMatrix")
+      Xsub <- poly(df[[term$var]] - term$ref_value, raw = T, simple = T,
+                   degree = term$p) |> as("dgTMatrix")
       colnames(Xsub) <- paste0(term$var, c('', seq(from=1, by=1, len=ncol(Xsub)-1)))
       X <- cbind(X, Xsub)
       k <- k+1
