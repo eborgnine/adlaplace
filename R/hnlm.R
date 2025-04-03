@@ -27,29 +27,32 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
                  tmb_parameters = NULL,  
                  optim_parameters = list(eval.max=2000, iter.max=2000),
                  for_dev = FALSE, verbose=FALSE) {
-  
-  data <- as.data.frame(data)
+  data <- as.data.table(data)
   
   # Check inputs
   if (!is(formula, "formula")) stop("formula must be a formula.")
-  if (!is.data.frame(data)) stop("data must be a data.frame.")
+#  if (!is.data.frame(data)) stop("data must be a data.frame.")
   if (!missing(weight_var) && !is.character(weight_var) && !(weight_var %in% colnames(data)))
     stop("weight_var must be a character vector.")
 
   # Order the rows of data appropriately.
   if(is.null(cc_design$strat_vars) & is.null(cc_design$time_var)) stop("Provide a valid stratification (or time) variable.")
+
   strat_time_vars <- c(cc_design$strat_vars, cc_design$time_var)
-  new_order <- eval(str2lang(paste0("order(", paste0("data[['", strat_time_vars, "']]", collapse = ", "), ")")))
-  data <- data[new_order,]
+  setorderv(data, strat_time_vars)
+
+#  strat_time_vars <- c(cc_design$strat_vars, cc_design$time_var)
+#  new_order <- eval(str2lang(paste0("order(", paste0("data[['", strat_time_vars, "']]", collapse = ", "), ")")))
+#  data <- data[new_order,]
 
   
   # setup the data for case-crossover
   if(verbose) cat("setting strata")
-  cc_matrix <- setStrata(cc_design = cc_design, data = data)
+  cc_matrix <- hpoltest:::setStrata(cc_design = cc_design, data = data)
   if(verbose) cat(".\n")
   # setup of the design matrices and other parameters
   # terms carries all the information throughout
-  terms <- collectTerms(formula)
+  terms <- hpoltest:::collectTerms(formula)
   
   # design matrices
   Xlist <- list() # <- matrix(nrow=nrow(data), ncol=0) # fixed effects
@@ -65,7 +68,8 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
   if(verbose) cat('collecting terms ')
   while(k <= length(terms)){
     if(verbose) cat(k, ' ')
-    term <- terms[[k]] |> getExtra(data=data, cc_matrix=cc_matrix)
+     
+    term <- hpoltest:::getExtra(terms[[k]], data=data, cc_matrix=cc_matrix)
     term$id <- k
     if(!is.factor(data[[term$var]][1]) &&
        !is.character(data[[term$var]][1]) && 
@@ -93,10 +97,10 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
     # below takes care of random effects
     
     # design matrix
-    Asub <- getDesign(term, data)
+    Asub <- hpoltest:::getDesign(term, data)
     Alist[[k]] <- Asub #cbind(A, Asub)
 
-    gamma_setup <- getGammaSetup(term)
+    gamma_setup <- hpoltest:::getGammaSetup(term)
 
     gamma_info$var <- c(gamma_info$var, gamma_setup$var)
     gamma_info$id <- c(gamma_info$id, gamma_setup$id)
@@ -106,14 +110,14 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
     # Note: for iwp 1 knot removed for constraints
     
     # Add fized and random polynomial effects
-    terms <- c(terms, addFPoly(term), addRPoly(term))
+    terms <- c(terms, hpoltest:::addFPoly(term), hpoltest:::addRPoly(term))
     
     
     # precision matrix
-    Qs[[k]] <- getPrecision(term)
+    Qs[[k]] <- hpoltest:::getPrecision(term)
     
     # theta parameters
-    theta_setup <- getThetaSetup(theta_info, term)
+    theta_setup <- hpoltest:::getThetaSetup(theta_info, term)
 
     theta_info$var <- c(theta_info$var, theta_setup$var)
     theta_info$model <- c(theta_info$model, theta_setup$model)
@@ -142,7 +146,7 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
     X = X, A = A, y = y,
     # gamma_nreplicate = gamma_info$nreplicate, # **** when hiwp, reuse the Q matrix for all (split gamma in nreplicate equal parts). gamma_nreplicate=nlevel+1
     # Q = do.call(bdiag, Qs[!unlist(lapply(Qs, is.null))]), #Qs |> .bdiag(), 
-    Q = Qs[!sapply(Qs, is.null)] |> bdiag(), 
+    Q =  bdiag(Qs[!sapply(Qs, is.null)]), 
     gamma_split = gamma_info$split,
     # theta_id = theta_info$id
     cc_matrix = cc_matrix
@@ -160,7 +164,7 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
   
   if(for_dev) return(list(X = X, A = A, 
                           gamma_split = gamma_info$split, Qs = Qs, 
-                          theta_info=theta_info, new_order = new_order,
+                          theta_info=theta_info, #new_order = new_order,
                           tmb_parameteres = tmb_parameters,
                           tmb_data = tmb_data, map=map))
   
@@ -215,5 +219,6 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
   return(list(obj = obj, formula = formula, 
               terms = terms, cc_design = cc_design,
               beta_info = beta_info, gamma_info = gamma_info, theta_info = theta_info,
-              order = new_order, opt = opt))#, funNoRandom = funNoRandom))
+              #order = new_order, 
+              opt = opt))#, funNoRandom = funNoRandom))
 }
