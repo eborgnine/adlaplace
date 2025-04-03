@@ -29,7 +29,7 @@ getNewXA <- function(terms, df){
     if(term$model %in% "fpoly"){
       Xsub <- poly(df[[term$var]] - term$ref_value, raw = T, simple = T,
                    degree = term$p) |> as("TsparseMatrix")
-      colnames(Xsub) <- paste0(term$var, c('', seq(from=1, by=1, len=ncol(Xsub)-1)))
+      colnames(Xsub) <- paste0(term$var,  seq(from=1, by=1, len=ncol(Xsub)))
       X <- cbind(X, Xsub)
       k <- k+1
       next

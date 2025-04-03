@@ -48,7 +48,7 @@ fitCvd <- hnlm(
   data=deaths[which(deaths$N_cvd > 0 & deaths$date > as.Date('2010/1/1')), ],
   cc_design = cc_design,
   optim_parameters = list(eval.max=4, iter.max=2),
-  verbose=TRUE, for_dev=TRUE 
+  verbose=TRUE, for_dev=FALSE 
   )
 saveRDS(fitCvd, file.path(storeDir, 'ccCvd.rds'))
 }
@@ -70,8 +70,12 @@ sudo ln -s /opt/intel/oneapi/mkl/latest/lib/libmkl_avx512.so.2 /lib/x86_64-linux
 ```{r }
 fit = readRDS(file.path(storeDir, 'ccCvd.rds'))
 
-thetaHat = fit$obj$env$last.par.best[grep("theta", names(fit$obj$env$last.par.best))]
+thetaHat = fit$est$param$est[grep("theta", names(fit$est$param$est))]
 (thetaSd = exp(-thetaHat/2))
+
+betaHat = fit$est$param$est[grep("beta", names(fit$est$param$est))]
+names(betaHat) = paste0(fit$beta_info$var, seq(1, by=1, len=length(betaHat)))
+betaHat
 
 
 Dterm = 'tempClean'
@@ -79,16 +83,12 @@ Dterm = 'tempClean'
 
 Nsim = 100
 
-betaHat = fit$obj$env$last.par.best[grep("beta", names(fit$obj$env$last.par.best))]
-names(betaHat) = paste0(fit$beta_info$var, seq(1, by=1, len=length(betaHat)))
-randomMean = fit$obj$env$last.par.best[grep("gamma", names(fit$obj$env$last.par.best))]
-randomHess = fitCvd$randomHess
-# approx gamma | Y ~ N(gamma hat, hessian^(-1))
 
-randomVcovChol = solve(chol(Matrix::forceSymmetric(randomHess)))
+# approx gamma | Y ~ N(gamma hat, hessian^(-1))
+randomMean = fit$est$random$est
+randomVcovChol = solve(chol(Matrix::forceSymmetric(fit$est$random$hessian)))
 
 gammaSim = randomVcovChol %*% matrix(rnorm(Nsim*length(randomMean)), ncol=Nsim)
-rownames(gammaSim) = fit$gamma_info$var
 
 df = data.frame(tempClean = seq(4, 41), ecoRegion = NA)
 df2 = df;df2$ecoRegion = 1
@@ -96,8 +96,9 @@ newXA = hpoltest:::getNewXA(fit$terms, df)
 newXA2 = hpoltest:::getNewXA(fit$terms, df2)
 
 parametricPart = newXA$X %*% betaHat[grep(Dterm, names(betaHat))]
+iwpConstr = newXA$A %*% gammaSim[colnames(newXA$A), ]
 
-iwpSim = parametricPart + newXA$A %*% gammaSim[grep(Dterm, rownames(gammaSim)), ]
+iwpSim = parametricPart + iwpConstr
 matplot(df$tempClean, exp(iwpSim), type='l', col='#00000040', lty=1, xaxs='i', log='y')
 
 ```
