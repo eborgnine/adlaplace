@@ -1,6 +1,5 @@
 
 ```{r setup}
-
 library('data.table')
 # /home/patrick/Admin/globalHealth/indiaSpatial/daily.Rmd
 storeDir = c('/store/patrick/copernicus/agg', '~/Downloads')[2]
