@@ -30,16 +30,19 @@ setStrata <- function(cc_design, data){
   # force the TMB template to use only the first day as case day, and
   # create a row for each case day.
   
-  theEnv = list2env(cc_design, envir = environment())
+#  theEnv = list2env(cc_design, envir = environment())
 
   if(is.null(cc_design$strat_vars)){
-      strat_split <- 
-        list(1:nrow(data))
+      strat_split <- list(1:nrow(data))
   } else {
-    dataToSplit = as.data.frame(lapply(data[cc_design$strat_vars], factor))
-    toSplit = interaction_cpp(dataToSplit)
+    setDT(data)
+    dataToSplit <- data[, lapply(.SD, function(x) as.integer(factor(x))), .SDcols = cc_design$strat_vars]
+    dataToSplit[, interaction := {
+      nlev <- sapply(.SD, nlevels)  # Max integer = number of levels
+      Reduce(\(x, i) x * nlev[i] + .SD[[i]], seq_len(ncol(.SD))[-1], init = .SD[[1]]) 
+    }]
     strat_split <- split(1:nrow(data), 
-          toSplit, 
+          dataToSplit$interaction, 
           drop = TRUE)
   }
   
@@ -47,9 +50,9 @@ setStrata <- function(cc_design, data){
   if(is.null(cc_design$time_var)){
     lens <- sapply(strat_split, length)
     max_len <- max(lens)
-    cc_matrix <- sapply(seq_along(strat_split), \(k){
+    cc_matrix <- t(sapply(seq_along(strat_split), \(k){
       c(strat_split[[k]], rep(0, max_len - lens[k]))
-    }) |> t()
+    }))
 
     # filter out strata of size 1
     cc_matrix <- cc_matrix[apply(cc_matrix > 0, 1, any),]
@@ -61,7 +64,6 @@ setStrata <- function(cc_design, data){
   strat_split <- lapply(strat_split, \(ss){
     split(ss, as.integer(data[ss,][[time_var]]) %% time_lag, drop = F)
   }) |> unlist(recursive = F)
-    
     
   if(!is.null(time_size)){
     
@@ -92,6 +94,7 @@ setStrata <- function(cc_design, data){
 }  
 
 
+if(FALSE){
 Rcpp::cppFunction('
   IntegerVector interaction_cpp(DataFrame df) {
     int n = df.nrows(); // Number of rows
@@ -124,7 +127,7 @@ Rcpp::cppFunction('
     return(out);
   }
 ')
-
+}
 
 #' Create a list of stratification parameters
 #'

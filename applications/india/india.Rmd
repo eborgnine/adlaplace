@@ -1,14 +1,11 @@
 
 ```{r setup}
-
-# devtools::install_github("samperochkin/hpoltest")
-library("hpoltest")
-#devtools::load_all("~/research/hpoltest")
 library('data.table')
 # /home/patrick/Admin/globalHealth/indiaSpatial/daily.Rmd
-deaths = as.data.table(readRDS( "/store/patrick/copernicus/agg/indiaCC.rds"))
+storeDir = c('/store/patrick/copernicus/agg', '~/Downloads')[2]
+deaths = as.data.table(readRDS( file.path(storeDir, "indiaCC.rds")))
+indiaEcoRegions = terra::unwrap(readRDS(file.path(storeDir, "indiaEcoRegions.rds")))
 
-indiaEcoRegions = terra::unwrap(readRDS("/store/patrick/copernicus/agg/indiaEcoRegions.rds"))
 
 # trransform variables
 deaths$sqrtPm = sqrt(pmin(deaths$pm,1000))
@@ -22,16 +19,17 @@ deaths[
   deaths$yearMonthDow == unlist(deaths[theMax, 'yearMonthDow']) &
   deaths$cell == unlist(deaths[theMax, 'cell']), ]
 
-
-```
-
-
-```{r fit, cache=TRUE, stuff=1, eval=FALSE}
 quantile(deaths$sqrtPm)
 quantile(deaths$tempClean)
 pmKnots = c(0, 1, 2, 5, 7,  10, 15, 20, 25, 32) # on square root scale
 tempKnots = c(-15, -5,  5, 10, 13, seq(25,35), 37, 39, 41)
+```
 
+
+```{r fit, cache=TRUE, stuff=1, eval=FALSE}
+# devtools::install_github("samperochkin/hpoltest")
+#devtools::load_all("~/research/hpoltest")
+library("hpoltest")
 cc_design <- ccDesign(strat_vars = c("cell","ecoRegion", "yearMonthDow"))
 
 formulaMed <- medical ~ f(date, model='iid') +
@@ -41,20 +39,20 @@ formulaMed <- medical ~ f(date, model='iid') +
 
 formulaCvd = update(formulaMed, cvd ~ .)
 
-fitMed <- hnlm(
-  formula=formulaMed, data=deaths, cc_design = cc_design,
-  verbose=TRUE 
-  )
+#fitMed <- hnlm( formula=formulaMed, data=deaths, cc_design = cc_design,verbose=TRUE )
 fitCvd <- hnlm(
-  formula=formulaCvd, data=deaths[which(deaths$N_cvd > 0), ],
+  formula=formulaCvd, 
+  data=deaths[which(deaths$N_cvd > 0), ],
   cc_design = cc_design,
-  verbose=TRUE 
+  optim_parameters = list(eval.max=20, iter.max=5),
+  verbose=TRUE, for_dev=FALSE 
   )
 
 ```
 
+
 ```{r }
-fit = fitMed
+fit = fitCvd
 Dterm = 'tempClean'
 #table(names(fit$obj$env$last.par.best))
 
