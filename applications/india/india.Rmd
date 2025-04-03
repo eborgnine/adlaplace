@@ -2,7 +2,8 @@
 ```{r setup}
 library('data.table')
 # /home/patrick/Admin/globalHealth/indiaSpatial/daily.Rmd
-storeDir = c('/store/patrick/copernicus/agg', '~/Downloads')[2]
+storeDir = c('/store/patrick/copernicus/agg', '~/Downloads')[1]
+storeDir = c('/store/patrick/copernicus/agg', '~/Downloads')[]
 deaths = as.data.table(readRDS( file.path(storeDir, "indiaCC.rds")))
 indiaEcoRegions = terra::unwrap(readRDS(file.path(storeDir, "indiaEcoRegions.rds")))
 
@@ -22,7 +23,7 @@ deaths[
 quantile(deaths$sqrtPm)
 quantile(deaths$tempClean)
 pmKnots = c(0, 1, 2, 5, 7,  10, 15, 20, 25, 32) # on square root scale
-tempKnots = c(-15, -5,  5, 10, 13, seq(25,35), 37, 39, 41)
+tempKnots = c(-15, -5,  5, 10, 13, seq(25,35, by=2), 37, 39, 41)
 ```
 
 
@@ -44,13 +45,28 @@ fitMed <- hnlm( formula=formulaMed, data=deaths, cc_design = cc_design,verbose=T
 saveRDS(fitMed, file.path(storeDir, 'ccMed.rds'))
 fitCvd <- hnlm(
   formula=formulaCvd, 
-  data=deaths[which(deaths$N_cvd > 0), ],
+  data=deaths[which(deaths$N_cvd > 0 & deaths$date > as.Date('2010/1/1')), ],
   cc_design = cc_design,
-#  optim_parameters = list(eval.max=20, iter.max=5),
+  optim_parameters = list(eval.max=4, iter.max=2),
   verbose=TRUE, for_dev=FALSE 
   )
-saveRDS(fitCvd file.path(storeDir, 'ccCvd.rds'))
+fitCvd$randomHess = fitCvd$obj$env$spHess(
+  par = fitCvd$obj$env$last.par.best,
+  random=TRUE)
+saveRDS(fitCvd, file.path(storeDir, 'ccCvd.rds'))
 }
+
+```
+
+```
+# darjeeling
+# INTEL oneMKL ERROR: /usr/lib/x86_64-linux-gnu/libmkl_core.so.2: cannot open shared object file: No such file or directory.
+sudo ln -s /opt/intel/oneapi/mkl/latest/lib/libmkl_core.so.2  /usr/lib/x86_64-linux-gnu/libmkl_core.so.2
+sudo ln -s /opt/intel/oneapi/mkl/latest/lib/libmkl_gnu_thread.so.2  /usr/lib/x86_64-linux-gnu/libmkl_gnu_thread.so.2
+sudo ln -s /opt/intel/oneapi/mkl/latest/lib/libmkl_intel_lp64.so.2 /lib/x86_64-linux-gnu/libmkl_intel_lp64.so.2
+sudo ln -s /opt/intel/oneapi/mkl/latest/lib/libmkl_intel_lp64.so.2 /lib/x86_64-linux-gnu/libmkl_intel_lp64.so.2
+sudo ln -s /opt/intel/oneapi/mkl/latest/lib/libmkl_def.so.2 /lib/x86_64-linux-gnu/libmkl_def.so.2
+sudo ln -s /opt/intel/oneapi/mkl/latest/lib/libmkl_avx512.so.2 /lib/x86_64-linux-gnu/libmkl_avx512.so.2
 ```
 
 
@@ -64,8 +80,7 @@ Nsim = 100
 betaHat = fit$obj$env$last.par.best[grep("beta", names(fit$obj$env$last.par.best))]
 names(betaHat) = paste0(fit$beta_info$var, seq(1, by=1, len=length(betaHat)))
 randomMean = fit$obj$env$last.par.best[grep("gamma", names(fit$obj$env$last.par.best))]
-randomHess = fit$obj$env$spHess(par = fit$obj$env$last.par.best,
-                                      random=TRUE)
+randomHess = fitCvd$randomHess
 # approx gamma | Y ~ N(gamma hat, hessian^(-1))
 
 randomVcovChol = solve(chol(Matrix::forceSymmetric(randomHess)))
@@ -84,6 +99,8 @@ iwpSim = parametricPart + newXA$A %*% gammaSim[grep(Dterm, rownames(gammaSim)), 
 matplot(df$tempClean, exp(iwpSim), type='l', col='#00000040', lty=1, xaxs='i', log='y')
 
 ```
+
+
 
 ```{r}
 

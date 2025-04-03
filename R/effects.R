@@ -169,9 +169,9 @@ hiwpDesign <- function(term, data, use_dev_version = F){
   
   A0 <- iwpDesign(term, data)
   id_split <- split(1:nrow(data), 
-                    factor(data[[group_var]], levels = groups), 
+                    factor(data[[term$group_var]], levels = term$groups), 
                     drop = F)
-  if(include_global) id_split <- c(list(1:nrow(data)), id_split)
+  if(term$include_global) id_split <- c(list(global=1:nrow(data)), id_split)
   
   if(TRUE){
     # fixed
@@ -185,13 +185,19 @@ hiwpDesign <- function(term, data, use_dev_version = F){
       split = rep(1:length(A0split), unlist(lapply(A0split, nrow)))
     )
     A0combine[,'j2'] = A0combine[,'j'] + ncol(A0) * (A0combine[,'split']-1)
-    Afinal = sparseMatrix(i=A0combine$i, j=A0combine$j2, x=A0combine$x)
+    Afinal = sparseMatrix(i=A0combine$i, j=A0combine$j2, x=A0combine$x,
+      dims = c(nrow(data), ncol(A0)*length(id_split)),
+      dimnames = list(rownames(data), 
+        paste(term$var, term$model, 
+          rep(names(id_split), each=ncol(A0)),
+          rep(1:ncol(A0), length(id_split)), sep='_')))
   }else{
     
     # the slow way
     Afinal <- Matrix(0, nrow=nrow(data), ncol=ncol(A0)*length(id_split)) |> as("TsparseMatrix")
     for(k in seq_along(id_split)) 
       Afinal[id_split[[k]], (k-1)*ncol(A0) + 1:ncol(A0)] <- A0[id_split[[k]],]
+    AfinalOld = Afinal
   }
   
   Afinal

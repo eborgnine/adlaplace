@@ -27,7 +27,7 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
                  tmb_parameters = NULL,  
                  optim_parameters = list(eval.max=2000, iter.max=2000),
                  for_dev = FALSE, verbose=FALSE) {
-  data <- as.data.table(data)
+  setDT(data)
   
   # Check inputs
   if (!is(formula, "formula")) stop("formula must be a formula.")
@@ -86,7 +86,7 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
     
 
     if(term$model %in% "fpoly"){
-      Xsub <- poly(data[[term$var]] - term$ref_value, degree=term$p, raw = T, simple = T) |> as("TsparseMatrix")
+      Xsub <- as(poly(data[[term$var]] - term$ref_value, degree=term$p, raw = TRUE, simple = TRUE), "TsparseMatrix")
       colnames(Xsub) <- paste0(term$var, c('', seq(from=1, by=1, len=ncol(Xsub)-1)))
       beta_info$var <- c(beta_info$var, term$var)
       beta_info$pick <- c(beta_info$pick, paste0(term$pick, "__", 0))
@@ -165,7 +165,7 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
   if(for_dev) return(list(X = X, A = A, 
                           gamma_split = gamma_info$split, Qs = Qs, 
                           theta_info=theta_info, #new_order = new_order,
-                          tmb_parameteres = tmb_parameters,
+                          tmb_parameteres = tmb_parameters, Alist = Alist, 
                           tmb_data = tmb_data, map=map))
   
   
@@ -216,9 +216,11 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
 #                             DLL = "hpoltest")
   
   # Return the result
+  randomHess = obj$env$spHess(par = obj$env$last.par.best,random=TRUE)
   return(list(obj = obj, formula = formula, 
               terms = terms, cc_design = cc_design,
               beta_info = beta_info, gamma_info = gamma_info, theta_info = theta_info,
+              randomHess = randomHess,
               #order = new_order, 
               opt = opt))#, funNoRandom = funNoRandom))
 }
