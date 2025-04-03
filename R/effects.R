@@ -189,7 +189,7 @@ hiwpDesign <- function(term, data, use_dev_version = F){
   }else{
     
     # the slow way
-    Afinal <- Matrix(0, nrow=nrow(data), ncol=ncol(A0)*length(id_split)) |> as("dgTMatrix")
+    Afinal <- Matrix(0, nrow=nrow(data), ncol=ncol(A0)*length(id_split)) |> as("TsparseMatrix")
     for(k in seq_along(id_split)) 
       Afinal[id_split[[k]], (k-1)*ncol(A0) + 1:ncol(A0)] <- A0[id_split[[k]],]
   }
@@ -283,7 +283,7 @@ rpolyDesign <- function(term, data){
 
 #' @rdname effects_and_utilities 
 rpolyPrecision <- function(term){
-  as(matrix(1), "dgTMatrix")
+  as(matrix(1), "TsparseMatrix")
 }
 
 #' @rdname effects_and_utilities 
@@ -330,7 +330,7 @@ hrpolyDesign <- function(term, data){
   mm <- c(0, sapply(id_split, length)) |> cumsum()
   
   A0 <- rpolyDesign(term, data)
-  Afinal <- Matrix(0, nrow=nrow(data), ncol=pp) |> as("dgTMatrix")
+  Afinal <- Matrix(0, nrow=nrow(data), ncol=pp) |> as("TsparseMatrix")
   if(ig) Afinal[,1:p] <- A0
   for(k in seq_along(id_split)) 
     Afinal[id_split[[k]], (ig+k-1)*p + 1:p] <- A0[id_split[[k]],]
@@ -342,7 +342,7 @@ hrpolyDesign <- function(term, data){
 hrpolyPrecision <- function(term){
   list2env(term, envir = environment())
   pp <- (include_global+ngroups)*p
-  sparseMatrix(i=1:pp, j=1:pp, rep = "T") |> as("dgTMatrix")
+  sparseMatrix(i=1:pp, j=1:pp, rep = "T") |> as("TsparseMatrix")
 }
 
 #' @rdname effects_and_utilities 

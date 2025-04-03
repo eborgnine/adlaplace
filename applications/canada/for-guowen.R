@@ -5,7 +5,6 @@ library(RhpcBLASctl)
 blas_set_num_threads(5)
 
 library(ggplot2)
-source("R/removeHolidays.R") # requires lubridate and timeDate
 
 app_path <- "applications/canada/"
 store_path <- "../../Data" # hum..
@@ -13,6 +12,7 @@ store_path <- "../../Data" # hum..
 
 # Data --------------------------------------------------------------------
 dataset_path <- file.path(store_path, "sam_data.RData")
+dataset_path = '/home/patrick/Downloads/sam_data.RData'
 attach(dataset_path)
 ls(); search()
 data <- as.data.table(sam_data)
@@ -33,7 +33,7 @@ names(data)
 data$spm25 <- sqrt(data$pm25)
 data$sno2 <- sqrt(data$no2)
 data$so3 <- sqrt(data$o3)
-data <- removeHolidays(data, "rm_all")
+data <- hpoltest:::removeHolidays(data, "rm_all")
 
 
 # Fit models --------------------------------------------------------------
@@ -42,11 +42,11 @@ knots_spm25 <- sqrt(knots_pm25)
 range(data$pm25)
 
 knots_no2 <- seq(floor(min(data$no2)/5)*5,ceiling(max(data$no2)/5)*5,5)
-knots_sno2 <- sqrt(knots_sno2)
+knots_sno2 <- sqrt(knots_no2)
 range(data$no2)
 
 knots_o3 <- seq(floor(min(data$o3)/5)*5,ceiling(max(data$o3)/5)*5,5)
-knots_so3 <- sqrt(knots_so3)
+knots_so3 <- sqrt(knots_o3)
 range(data$o3)
 
 knots_temp <- seq(floor(min(data$temp)/5)*5,ceiling(max(data$temp)/5)*5,5)

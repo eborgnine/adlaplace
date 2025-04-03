@@ -82,7 +82,7 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
     
 
     if(term$model %in% "fpoly"){
-      Xsub <- poly(data[[term$var]] - term$ref_value, degree=term$p, raw = T, simple = T) |> as("dgTMatrix")
+      Xsub <- poly(data[[term$var]] - term$ref_value, degree=term$p, raw = T, simple = T) |> as("TsparseMatrix")
       colnames(Xsub) <- paste0(term$var, c('', seq(from=1, by=1, len=ncol(Xsub)-1)))
       beta_info$var <- c(beta_info$var, term$var)
       beta_info$pick <- c(beta_info$pick, paste0(term$pick, "__", 0))
