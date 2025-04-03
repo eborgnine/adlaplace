@@ -28,7 +28,7 @@ getNewXA <- function(terms, df){
     
     if(term$model %in% "fpoly"){
       Xsub <- poly(df[[term$var]] - term$ref_value, raw = T, simple = T,
-                   degree = term$p) |> as("dgTMatrix")
+                   degree = term$p) |> as("TsparseMatrix")
       colnames(Xsub) <- paste0(term$var, c('', seq(from=1, by=1, len=ncol(Xsub)-1)))
       X <- cbind(X, Xsub)
       k <- k+1
@@ -36,7 +36,7 @@ getNewXA <- function(terms, df){
     }    
     
     if(term$model %in% "iid"){
-      Asub <- Matrix(data = 0, nrow = nrow(df), ncol = term$n) |> as("dgTMatrix")
+      Asub <- Matrix(data = 0, nrow = nrow(df), ncol = term$n) |> as("TsparseMatrix")
       colnames(Asub) <- paste0(term$var, seq(from=1, by=1, len=ncol(Asub)))
       A <- cbind(A, Asub)
       k <- k+1

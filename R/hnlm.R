@@ -48,11 +48,11 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
   
   # setup the data for case-crossover
   if(verbose) cat("setting strata")
-  cc_matrix <- hpoltest:::setStrata(cc_design = cc_design, data = data)
+  cc_matrix <- setStrata(cc_design = cc_design, data = data)
   if(verbose) cat(".\n")
   # setup of the design matrices and other parameters
   # terms carries all the information throughout
-  terms <- hpoltest:::collectTerms(formula)
+  terms <- collectTerms(formula)
   
   # design matrices
   Xlist <- list() # <- matrix(nrow=nrow(data), ncol=0) # fixed effects
@@ -97,10 +97,10 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
     # below takes care of random effects
     
     # design matrix
-    Asub <- hpoltest:::getDesign(term, data)
+    Asub <- getDesign(term, data)
     Alist[[k]] <- Asub #cbind(A, Asub)
 
-    gamma_setup <- hpoltest:::getGammaSetup(term)
+    gamma_setup <- getGammaSetup(term)
 
     gamma_info$var <- c(gamma_info$var, gamma_setup$var)
     gamma_info$id <- c(gamma_info$id, gamma_setup$id)
@@ -110,14 +110,14 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
     # Note: for iwp 1 knot removed for constraints
     
     # Add fized and random polynomial effects
-    terms <- c(terms, hpoltest:::addFPoly(term), hpoltest:::addRPoly(term))
+    terms <- c(terms, addFPoly(term), addRPoly(term))
     
     
     # precision matrix
-    Qs[[k]] <- hpoltest:::getPrecision(term)
+    Qs[[k]] <- getPrecision(term)
     
     # theta parameters
-    theta_setup <- hpoltest:::getThetaSetup(theta_info, term)
+    theta_setup <- getThetaSetup(theta_info, term)
 
     theta_info$var <- c(theta_info$var, theta_setup$var)
     theta_info$model <- c(theta_info$model, theta_setup$model)

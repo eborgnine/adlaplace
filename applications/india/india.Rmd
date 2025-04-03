@@ -27,33 +27,36 @@ tempKnots = c(-15, -5,  5, 10, 13, seq(25,35), 37, 39, 41)
 ```
 
 
-```{r fit, cache=TRUE, stuff=1, eval=FALSE}
+```{r fit}
 # devtools::install_github("samperochkin/hpoltest")
 #devtools::load_all("~/research/hpoltest")
 library("hpoltest")
 cc_design <- ccDesign(strat_vars = c("cell","ecoRegion", "yearMonthDow"))
 
 formulaMed <- medical ~ f(date, model='iid') +
-    f(tempClean, model='iwp',ref_value = 25, p=3, knots = tempKnots)
+#    f(tempClean, model='iwp',ref_value = 25, p=3, knots = tempKnots)
 #  f(sqrtPm, model='hiwp', ref_value = sqrt(25), p=2, knots = pmKnots, group_var = ecoRegion) +
-#  f(tempClean, model='hiwp',ref_value = 25, p=3, knots = tempKnots, group_var = ecoRegion)
+  f(tempClean, model='hiwp',ref_value = 25, p=3, knots = tempKnots, group_var = ecoRegion)
 
 formulaCvd = update(formulaMed, cvd ~ .)
 
-#fitMed <- hnlm( formula=formulaMed, data=deaths, cc_design = cc_design,verbose=TRUE )
+if(FALSE) {
+fitMed <- hnlm( formula=formulaMed, data=deaths, cc_design = cc_design,verbose=TRUE )
+saveRDS(fitMed, file.path(storeDir, 'ccMed.rds'))
 fitCvd <- hnlm(
   formula=formulaCvd, 
   data=deaths[which(deaths$N_cvd > 0), ],
   cc_design = cc_design,
-  optim_parameters = list(eval.max=20, iter.max=5),
+#  optim_parameters = list(eval.max=20, iter.max=5),
   verbose=TRUE, for_dev=FALSE 
   )
-
+saveRDS(fitCvd file.path(storeDir, 'ccCvd.rds'))
+}
 ```
 
 
 ```{r }
-fit = fitCvd
+fit = readRDS(file.path(storeDir, 'ccCvd.rds'))
 Dterm = 'tempClean'
 #table(names(fit$obj$env$last.par.best))
 
@@ -71,10 +74,10 @@ randomVcovChol = solve(chol(Matrix::forceSymmetric(randomHess)))
 gammaSim = randomVcovChol %*% matrix(rnorm(Nsim*length(randomMean)), ncol=Nsim)
 rownames(gammaSim) = fit$gamma_info$var
 
-df = data.frame(tempClean = seq(9, 41), ecoRegion = NA)
+df = data.frame(tempClean = seq(4, 41), ecoRegion = NA)
 df2 = df;df2$ecoRegion = 1
-newXA = getNewXA(fit$terms, df)
-newXA2 = getNewXA(fit$terms, df2)
+newXA = hpoltest:::getNewXA(fit$terms, df)
+newXA2 = hpoltest:::getNewXA(fit$terms, df2)
 
 parametricPart = newXA$X %*% betaHat[grep(Dterm, names(betaHat))]
 
