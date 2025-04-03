@@ -340,7 +340,9 @@ hrpolyDesign <- function(term, data){
   if(ig) Afinal[,1:p] <- A0
   for(k in seq_along(id_split)) 
     Afinal[id_split[[k]], (ig+k-1)*p + 1:p] <- A0[id_split[[k]],]
-  colnames(Afinal) = paste(rep(term$groups, each=term$p), rep(1:term$p, length(term$groups)), sep='_')
+  colnames(Afinal) = paste(
+    term$var, term$model, 
+    rep(term$groups, each=term$p), rep(1:term$p, length(term$groups)), sep='_')
 
   Afinal
 }
