@@ -2,8 +2,8 @@
 ```{r setup}
 
 # devtools::install_github("samperochkin/hpoltest")
-#library("hpoltest")
-devtools::load_all("~/research/hpoltest")
+library("hpoltest")
+#devtools::load_all("~/research/hpoltest")
 library('data.table')
 # /home/patrick/Admin/globalHealth/indiaSpatial/daily.Rmd
 deaths = as.data.table(readRDS( "/store/patrick/copernicus/agg/indiaCC.rds"))
@@ -35,9 +35,9 @@ tempKnots = c(-15, -5,  5, 10, 13, seq(25,35), 37, 39, 41)
 cc_design <- ccDesign(strat_vars = c("cell","ecoRegion", "yearMonthDow"))
 
 formulaMed <- medical ~ f(date, model='iid') +
-    f(tempClean, model='iwp',ref_value = 25, p=3, knots = tempKnots)
+#    f(tempClean, model='iwp',ref_value = 25, p=3, knots = tempKnots)
 #  f(sqrtPm, model='hiwp', ref_value = sqrt(25), p=2, knots = pmKnots, group_var = ecoRegion) +
-#  f(tempClean, model='hiwp',ref_value = 25, p=3, knots = tempKnots, group_var = ecoRegion)
+  f(tempClean, model='hiwp',ref_value = 25, p=3, knots = tempKnots, group_var = ecoRegion)
 
 formulaCvd = update(formulaMed, cvd ~ .)
 
