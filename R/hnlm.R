@@ -224,7 +224,8 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
       est = obj$env$last.par.best[grep("gamma", names(obj$env$last.par.best), invert=TRUE)]
     )
   )
-  names(fitList$random$est) = colnames(fitList$random$hessian) = rownames(fitList$random$hessian) = colnames(tmb_data$A)
+  names(fitList$random$est) = colnames(fitList$random$hessian) = 
+    rownames(fitList$random$hessian) = colnames(tmb_data$A)
 
   # Return the result
   return(list(obj = obj, formula = formula, 
