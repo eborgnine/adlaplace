@@ -204,8 +204,9 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
                    map = map,
                    intern=FALSE, type='ADFun',
                    DLL = "hpoltest")
-  if(verbose) message("beginning optimization")
+  if(verbose) message("first evaluation")
   obj$fn(obj$par)
+  if(verbose) message("beginning optimization")
   opt <- nlminb(start = obj$par, objective = obj$fn, gradient = obj$gr, 
                 control = optim_parameters)
   if(verbose) message("done optimization")
@@ -215,12 +216,21 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
 #                             map = map,
 #                             DLL = "hpoltest")
   
+  fitList = list(
+    random = list(
+      hessian=obj$env$spHess(par = obj$env$last.par.best,random=TRUE),
+      est = obj$env$last.par.best[grep("gamma", names(obj$env$last.par.best))]),
+    param = list(
+      est = obj$env$last.par.best[grep("gamma", names(obj$env$last.par.best), invert=TRUE)]
+    )
+  )
+  names(fitList$random$est) = colnames(fitList$random$hessian) = rownames(fitList$random$hessian) = colnames(tmb_data$A)
+
   # Return the result
-  randomHess = obj$env$spHess(par = obj$env$last.par.best,random=TRUE)
   return(list(obj = obj, formula = formula, 
               terms = terms, cc_design = cc_design,
               beta_info = beta_info, gamma_info = gamma_info, theta_info = theta_info,
-              randomHess = randomHess,
+              est = fitList,
               #order = new_order, 
               opt = opt))#, funNoRandom = funNoRandom))
 }

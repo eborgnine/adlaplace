@@ -3,7 +3,7 @@
 library('data.table')
 # /home/patrick/Admin/globalHealth/indiaSpatial/daily.Rmd
 storeDir = c('/store/patrick/copernicus/agg', '~/Downloads')[1]
-storeDir = c('/store/patrick/copernicus/agg', '~/Downloads')[]
+storeDir = c('/store/patrick/copernicus/agg', '~/Downloads')[2]
 deaths = as.data.table(readRDS( file.path(storeDir, "indiaCC.rds")))
 indiaEcoRegions = terra::unwrap(readRDS(file.path(storeDir, "indiaEcoRegions.rds")))
 
@@ -48,11 +48,8 @@ fitCvd <- hnlm(
   data=deaths[which(deaths$N_cvd > 0 & deaths$date > as.Date('2010/1/1')), ],
   cc_design = cc_design,
   optim_parameters = list(eval.max=4, iter.max=2),
-  verbose=TRUE, for_dev=FALSE 
+  verbose=TRUE, for_dev=TRUE 
   )
-fitCvd$randomHess = fitCvd$obj$env$spHess(
-  par = fitCvd$obj$env$last.par.best,
-  random=TRUE)
 saveRDS(fitCvd, file.path(storeDir, 'ccCvd.rds'))
 }
 
@@ -72,6 +69,11 @@ sudo ln -s /opt/intel/oneapi/mkl/latest/lib/libmkl_avx512.so.2 /lib/x86_64-linux
 
 ```{r }
 fit = readRDS(file.path(storeDir, 'ccCvd.rds'))
+
+thetaHat = fit$obj$env$last.par.best[grep("theta", names(fit$obj$env$last.par.best))]
+(thetaSd = exp(-thetaHat/2))
+
+
 Dterm = 'tempClean'
 #table(names(fit$obj$env$last.par.best))
 
