@@ -59,11 +59,21 @@ formulaMed <- medical ~ dom + f(dateInt, model='iid') +
 
 formulaCvd = cvd ~ dom + f(date, model='iid') + f(tempClean, model='hiwp',ref_value = 25, p=3, knots = tempKnots, group_var = ecoRegion)
 
+formulaMedSenior <- medical_senior ~ dom + f(date, model='iid') +
+    f(tempClean, model='iwp',ref_value = 25, p=3, knots = tempKnots)
+#  f(sqrtPm, model='hiwp', ref_value = 7, p=2, knots = pmKnots, group_var = ecoRegion) 
+
 
 if(FALSE) {
     deaths$dateInt = as.integer(deaths$date)
     dataMed = deaths[which(deaths$N_Week3_medical > 0 & deaths$date > as.Date('2009/1/1')),]
+    dataMedSenior = deaths[which(deaths$N_Week3_medical_senior > 0 & 
+                                   deaths$date > as.Date('2006/1/1')),]
 dataCvd = deaths[which(deaths$N_Week3_cvd > 0 & deaths$date > as.Date('2006/1/1')), ]
+
+fitMedSenior = hnlm(formulaMedSenior, dataMedSenior, cc_design, verbose=TRUE)
+
+
 fitMed1 <- hnlm( 
   formula=formulaMed, data=dataMed, #[which(deaths$date > as.Date('2009/1/1')), ], 
   cc_design = cc_design,verbose=TRUE, for_dev=TRUE )
@@ -130,7 +140,7 @@ dayEffect = data.frame(
 )
 plot(dayEffect)
 
-dayEffect[seq(-5, 5) + which.max(abs(dayEffect$est)), ]
+dayEffect[order(abs(dayEffect$est), decreasing=TRUE)[1:12], ]
 
 randomVcovChol = solve(chol(Matrix::forceSymmetric(fit$est$random$hessian)))
 
@@ -140,7 +150,7 @@ df = data.frame(tempClean = seq(4, 41), ecoRegion = NA)
 newXA = hpoltest:::getNewXA(fit$terms, df)
 
 parametricPart = newXA$X[,grep(Dterm, colnames(newXA$X))] %*% betaHat[grep(Dterm, names(betaHat))]
-iwpConstr = newXA$A %*% gammaSim[colnames(newXA$A), ]
+iwpConstr = newXA$A %*% gammaSim[seq(to=nrow(gammaSim), by=1, len=ncol(newXA$A)), ]
 
 
 iwpSim = parametricPart + iwpConstr
