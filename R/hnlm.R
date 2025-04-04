@@ -165,7 +165,7 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
   if(for_dev) return(list(X = X, A = A, 
                           gamma_split = gamma_info$split, Qs = Qs, 
                           theta_info=theta_info, #new_order = new_order,
-                          tmb_parameteres = tmb_parameters, Alist = Alist, 
+                          tmb_parameters = tmb_parameters, Alist = Alist, 
                           tmb_data = tmb_data, map=map))
   
   
@@ -225,7 +225,7 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
     )
   )
   names(fitList$random$est) = colnames(fitList$random$hessian) = 
-    rownames(fitList$random$hessian) = colnames(tmb_data$A)
+    rownames(fitList$random$hessian) = colnames(obj$env$.data$A)
 
   # Return the result
   return(list(obj = obj, formula = formula, 

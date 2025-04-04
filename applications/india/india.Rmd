@@ -41,13 +41,24 @@ formulaMed <- medical ~ f(date, model='iid') +
 formulaCvd = update(formulaMed, cvd ~ .)
 
 if(FALSE) {
-fitMed <- hnlm( formula=formulaMed, data=deaths, cc_design = cc_design,verbose=TRUE )
+fitMed1 <- hnlm( formula=formulaMed, data=deaths, cc_design = cc_design,verbose=TRUE, for_dev=TRUE )
+  obj <- MakeADFun(data = fitMed1$tmb_data,
+                   parameters = fitMed1$tmb_parameters[c('beta','gamma','theta')],
+                   random = 'gamma',
+                   map = fitMed1$map,
+                   intern=FALSE, type='ADFun',
+                   DLL = "hpoltest")
+  obj$fn(obj$par)
+    opt <- optim(par = obj$par, 
+      fn = obj$fn, gr = obj$gr,
+      control = list(trace=TRUE)
+  )
 saveRDS(fitMed, file.path(storeDir, 'ccMed.rds'))
 fitCvd <- hnlm(
   formula=formulaCvd, 
   data=deaths[which(deaths$N_cvd > 0 & deaths$date > as.Date('2010/1/1')), ],
   cc_design = cc_design,
-  optim_parameters = list(eval.max=100, iter.max=5),
+#  optim_parameters = list(eval.max=100, iter.max=5),
   verbose=TRUE, for_dev=FALSE 
   )
 saveRDS(fitCvd, file.path(storeDir, 'ccCvd.rds'))
@@ -81,7 +92,7 @@ betaHat
 Dterm = 'tempClean'
 #table(names(fit$obj$env$last.par.best))
 
-Nsim = 100
+Nsim = 500
 
 
 # approx gamma | Y ~ N(gamma hat, hessian^(-1))
@@ -108,10 +119,12 @@ for(D in unique(deaths$ecoRegion)) {
 }
 iwpSimRegion = lapply(iwpSimRegion, as.matrix)
 iwpSimRegion = do.call(abind::abind, c(iwpSimRegion, list(along=3)))
-iwpSimRegionSum = apply(exp(iwpSimRegion))
+iwpSimRegionSum = apply(exp(iwpSimRegion), 1:2, mean)
 
-iwpSim2 = parametricPart + iwpConstr2
-matplot(df$tempClean, exp(iwpSim2), type='l', col='#00000040', lty=1, xaxs='i', log='y')
+matplot(df$tempClean, iwpSimRegionSum, type='l', col='#00000040', lty=1, xaxs='i', log='y')
+matlines(df$tempClean, t(apply(iwpSimRegionSum,1,quantile, prob = c(0.025, 0.975, 0.5))), 
+  col='blue', lty=c(2,2,1))
+
 
 ```
 
