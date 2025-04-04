@@ -15,15 +15,31 @@ deaths$timeIid = as.numeric(deaths$date)
 deaths$tempClean = pmax(deaths$temp, -15)
 
 theMax = which.max(deaths$medical)
+whichIsTheMax = which(deaths$yearMonthDow == unlist(deaths[theMax, 'yearMonthDow']) &
+  deaths$cell == unlist(deaths[theMax, 'cell']))
 
-deaths[
-  deaths$yearMonthDow == unlist(deaths[theMax, 'yearMonthDow']) &
-  deaths$cell == unlist(deaths[theMax, 'cell']), ]
+deaths[whichIsTheMax,]
+deaths = deaths[-whichIsTheMax, ]
+
+deaths$dom = as.numeric(format(deaths$date, '%d'))
+deaths[deaths$dom == Hmisc::monthDays(deaths$date), 'dom'] = 31
+deaths$dom = factor(deaths$dom)
+deaths$month = format(deaths$date, '%m')
+
 
 quantile(deaths$sqrtPm)
 quantile(deaths$tempClean)
-pmKnots = c(0, 1, 2, 5, 7,  10, 15, 20, 25, 32) # on square root scale
-tempKnots = c(-15, -5,  5, 10, 13, seq(25,35, by=2), 37, 39, 41)
+pmKnots = c(0,1, 2, 5, 7,  10, 15, 20, 25) # on square root scale
+tempKnots = c(-15, -5,  5, 10, 13, seq(25,35, by=2), 37, 39)
+```
+
+```{r digitPreference}
+checkForDigitPreference1 = aggregate(deaths[,'medical', drop=FALSE],
+  deaths[,c('dom','month')], sum)
+checkForDigitPreference = dcast(as.data.table(checkForDigitPreference1), dom ~ month)
+image(as.numeric(checkForDigitPreference$dom),
+ as.numeric(colnames(checkForDigitPreference)[-1]),
+  as.matrix(checkForDigitPreference[,-1]))
 ```
 
 
@@ -31,17 +47,23 @@ tempKnots = c(-15, -5,  5, 10, 13, seq(25,35, by=2), 37, 39, 41)
 # devtools::install_github("samperochkin/hpoltest")
 #devtools::load_all("~/research/hpoltest")
 library("hpoltest")
-cc_design <- ccDesign(strat_vars = c("cell","ecoRegion", "yearMonthDow"))
+cc_design <- ccDesign(strat_vars = c("cell","ecoRegion", "yearWeek3Dow"))
 
-formulaMed <- medical ~ f(date, model='iid') +
+formulaMed <- medical ~ dom + f(dateInt, model='iid') +
 #    f(tempClean, model='iwp',ref_value = 25, p=3, knots = tempKnots)
-#  f(sqrtPm, model='hiwp', ref_value = sqrt(25), p=2, knots = pmKnots, group_var = ecoRegion) +
-  f(tempClean, model='hiwp',ref_value = 25, p=3, knots = tempKnots, group_var = ecoRegion)
+  f(sqrtPm, model='hiwp', ref_value = 7, p=2, knots = pmKnots, group_var = ecoRegion) 
+#  f(tempClean, model='hiwp',ref_value = 25, p=3, knots = tempKnots, group_var = ecoRegion)
 
-formulaCvd = update(formulaMed, cvd ~ .)
+formulaCvd = cvd ~ dom + f(date, model='iid') + f(tempClean, model='hiwp',ref_value = 25, p=3, knots = tempKnots, group_var = ecoRegion)
+
 
 if(FALSE) {
-fitMed1 <- hnlm( formula=formulaMed, data=deaths, cc_design = cc_design,verbose=TRUE, for_dev=TRUE )
+    deaths$dateInt = as.integer(deaths$date)
+    dataMed = deaths[which(deaths$N_Week3_medical > 0 & deaths$date > as.Date('2009/1/1')),]
+
+fitMed1 <- hnlm( 
+  formula=formulaMed, data=dataMed, #[which(deaths$date > as.Date('2009/1/1')), ], 
+  cc_design = cc_design,verbose=TRUE, for_dev=TRUE )
   obj <- MakeADFun(data = fitMed1$tmb_data,
                    parameters = fitMed1$tmb_parameters[c('beta','gamma','theta')],
                    random = 'gamma',
@@ -56,7 +78,7 @@ fitMed1 <- hnlm( formula=formulaMed, data=deaths, cc_design = cc_design,verbose=
 saveRDS(fitMed, file.path(storeDir, 'ccMed.rds'))
 fitCvd <- hnlm(
   formula=formulaCvd, 
-  data=deaths[which(deaths$N_cvd > 0 & deaths$date > as.Date('2010/1/1')), ],
+  data=deaths[which(deaths$N_cvd > 0 & deaths$date > as.Date('2009/1/1')), ],
   cc_design = cc_design,
 #  optim_parameters = list(eval.max=100, iter.max=5),
   verbose=TRUE, for_dev=FALSE 
@@ -85,7 +107,7 @@ thetaHat = fit$est$param$est[grep("theta", names(fit$est$param$est))]
 (thetaSd = exp(-thetaHat/2))
 
 betaHat = fit$est$param$est[grep("beta", names(fit$est$param$est))]
-names(betaHat) = paste0(fit$beta_info$var, seq(1, by=1, len=length(betaHat)))
+names(betaHat) = colnames(fit$obj$env$.data$X)
 betaHat
 
 
@@ -97,6 +119,13 @@ Nsim = 500
 
 # approx gamma | Y ~ N(gamma hat, hessian^(-1))
 randomMean = fit$est$random$est
+
+dayEffect = randomMean[grep("factor.date", names(randomMean))]
+dayEffect = data.frame(
+  date = as.Date(gsub("factor.date.", "", names(dayEffect))),
+  est = dayEffect
+)
+
 randomVcovChol = solve(chol(Matrix::forceSymmetric(fit$est$random$hessian)))
 
 gammaSim = randomVcovChol %*% matrix(rnorm(Nsim*length(randomMean)), ncol=Nsim)
@@ -104,7 +133,7 @@ gammaSim = randomVcovChol %*% matrix(rnorm(Nsim*length(randomMean)), ncol=Nsim)
 df = data.frame(tempClean = seq(4, 41), ecoRegion = NA)
 newXA = hpoltest:::getNewXA(fit$terms, df)
 
-parametricPart = newXA$X %*% betaHat[grep(Dterm, names(betaHat))]
+parametricPart = newXA$X[,grep(Dterm, colnames(newXA$X))] %*% betaHat[grep(Dterm, names(betaHat))]
 iwpConstr = newXA$A %*% gammaSim[colnames(newXA$A), ]
 
 

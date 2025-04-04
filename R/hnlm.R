@@ -226,6 +226,8 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
   )
   names(fitList$random$est) = colnames(fitList$random$hessian) = 
     rownames(fitList$random$hessian) = colnames(obj$env$.data$A)
+  names(fitList$param$est)[grep("beta", names(fitList$param$est))] = 
+    colnames(obj$env$.data$X)
 
   # Return the result
   return(list(obj = obj, formula = formula, 
