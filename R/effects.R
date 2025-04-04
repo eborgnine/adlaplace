@@ -102,7 +102,13 @@ iwpDesign <- function(term, data){
   if(length(ref_pos) == 0) stop("ref_value of", var, "cannot be found in the corresponding knots vector. \n")
   if(range[1] < knots[1] & range[2] > rev(knots)[1]) warning("knots for ", var, " do not span its range. Continuing anyway. \n")
   res=local_poly(knots = knots-ref_value, refined_x = data[[var]]-ref_value, p = p)
-  methods::as(res, "TsparseMatrix")
+  res = methods::as(res, "TsparseMatrix")
+
+  dimnames(res) = list(
+    rownames(data), 
+    paste(term$var, term$model, 1:ncol(res), sep='_')
+  )
+  res
 }
 
 #' @rdname effects_and_utilities 
