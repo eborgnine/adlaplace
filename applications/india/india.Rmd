@@ -25,7 +25,8 @@ deaths = deaths[-whichIsTheMax, ]
 
 deaths$dom = as.numeric(format(deaths$date, '%d'))
 deaths[deaths$dom == Hmisc::monthDays(deaths$date), 'dom'] = 31
-deaths$dom = factor(deaths$dom)
+deaths[format(deaths$date, '%m%d') == '0101', 'dom'] = 0
+deaths$dom = relevel(factor(deaths$dom), '1')
 deaths$month = format(deaths$date, '%m')
 
 
