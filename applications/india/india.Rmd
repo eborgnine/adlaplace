@@ -2,8 +2,10 @@
 ```{r setup}
 library('data.table')
 # /home/patrick/Admin/globalHealth/indiaSpatial/daily.Rmd
-storeDir = c('/store/patrick/copernicus/agg', '~/Downloads')[1]
-storeDir = c('/store/patrick/copernicus/agg', '~/Downloads')[2]
+SstoreDir = c('/store/patrick/copernicus/agg', '~/Downloads')
+storeDir = SstoreDir[1]
+if(!dir.exists(storeDir)) storeDir = SstoreDir[2]
+
 deaths = as.data.table(readRDS( file.path(storeDir, "indiaCC.rds")))
 indiaEcoRegions = terra::unwrap(readRDS(file.path(storeDir, "indiaEcoRegions.rds")))
 
