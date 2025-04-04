@@ -63,7 +63,7 @@ formulaCvd = cvd ~ dom + f(date, model='iid') + f(tempClean, model='hiwp',ref_va
 if(FALSE) {
     deaths$dateInt = as.integer(deaths$date)
     dataMed = deaths[which(deaths$N_Week3_medical > 0 & deaths$date > as.Date('2009/1/1')),]
-
+dataCvd = deaths[which(deaths$N_Week3_cvd > 0 & deaths$date > as.Date('2006/1/1')), ]
 fitMed1 <- hnlm( 
   formula=formulaMed, data=dataMed, #[which(deaths$date > as.Date('2009/1/1')), ], 
   cc_design = cc_design,verbose=TRUE, for_dev=TRUE )
@@ -81,7 +81,7 @@ fitMed1 <- hnlm(
 saveRDS(fitMed, file.path(storeDir, 'ccMed.rds'))
 fitCvd <- hnlm(
   formula=formulaCvd, 
-  data=deaths[which(deaths$N_cvd > 0 & deaths$date > as.Date('2009/1/1')), ],
+  data=dataCvd,
   cc_design = cc_design,
 #  optim_parameters = list(eval.max=100, iter.max=5),
   verbose=TRUE, for_dev=FALSE 
@@ -128,6 +128,9 @@ dayEffect = data.frame(
   date = as.Date(gsub("factor.date.", "", names(dayEffect))),
   est = dayEffect
 )
+plot(dayEffect)
+
+dayEffect[seq(-5, 5) + which.max(abs(dayEffect$est)), ]
 
 randomVcovChol = solve(chol(Matrix::forceSymmetric(fit$est$random$hessian)))
 
