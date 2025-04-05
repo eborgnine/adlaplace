@@ -153,12 +153,14 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
   )
   
   if(is.null(tmb_parameters)){ 
-    tmb_parameters = list(beta=0, gamma=0, theta=theta_info$init)
+    tmb_parameters = list()
   }
+  tmbParametersDefault = list(beta=0, gamma=0, theta=theta_info$init)
+  tmb_parameters = c(tmb_parameters, tmbParametersDefault[setdiff(names(tmbParametersDefault), names(tmb_parameters))])
   
-  tmb_parameters$beta = rep_len(tmb_parameters$beta, ncol(X))
-  tmb_parameters$gamma = rep_len(tmb_parameters$gamma, ncol(A))
-  tmb_parameters$theta = rep_len(tmb_parameters$theta, length(theta_info$init))
+    tmb_parameters$beta  = rep_len(tmb_parameters$beta, ncol(X))
+    tmb_parameters$gamma = rep_len(tmb_parameters$gamma, ncol(A))
+    tmb_parameters$theta = rep_len(tmb_parameters$theta, length(theta_info$init))
 
   map <- list(theta = factor(theta_info$map))
   
@@ -216,6 +218,9 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
 #                             map = map,
 #                             DLL = "hpoltest")
   
+  fitList = formatResult(opt)
+
+formatResult = function(opt) {
   fitList = list(
     random = list(
       hessian=obj$env$spHess(par = obj$env$last.par.best,random=TRUE),
@@ -228,6 +233,9 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
     rownames(fitList$random$hessian) = colnames(obj$env$.data$A)
   names(fitList$param$est)[grep("beta", names(fitList$param$est))] = 
     colnames(obj$env$.data$X)
+
+    fitList
+  }
 
   # Return the result
   return(list(obj = obj, formula = formula, 

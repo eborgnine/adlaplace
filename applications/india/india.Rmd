@@ -64,8 +64,10 @@ formulaMedSenior <- medical_senior ~ dom + f(date, model='iid') +
 #  f(sqrtPm, model='hiwp', ref_value = 7, p=2, knots = pmKnots, group_var = ecoRegion) 
 
 
+formulaCvdSimple = cvd ~ dom + f(date, model='iid') + f(tempClean, model='iwp',ref_value = 25, p=3, knots = tempKnots)
+
+
 if(FALSE) {
-    deaths$dateInt = as.integer(deaths$date)
     dataMed = deaths[which(deaths$N_Week3_medical > 0 & deaths$date > as.Date('2009/1/1')),]
     dataMedSenior = deaths[which(deaths$N_Week3_medical_senior > 0 & 
                                    deaths$date > as.Date('2006/1/1')),]
@@ -73,6 +75,43 @@ dataCvd = deaths[which(deaths$N_Week3_cvd > 0 & deaths$date > as.Date('2006/1/1'
 
 fitMedSenior = hnlm(formulaMedSenior, dataMedSenior, cc_design, verbose=TRUE)
 
+fitCvdSimple<- hnlm(
+  formula=formulaCvdSimple, 
+  data=dataCvd,
+  tmb_parameters = list(theta = c(5,20)),
+  cc_design = cc_design,
+#  optim_parameters = list(eval.max=100, iter.max=5),
+  verbose=TRUE, for_dev=FALSE 
+  )
+saveRDS(fitCvdSimple, file.path(storeDir, 'cvdSimple.rds'))
+
+fitCvdSetup <- hnlm(
+  formula=formulaCvd, 
+  data=dataCvd,
+  cc_design = cc_design,
+#  optim_parameters = list(eval.max=100, iter.max=5),
+  verbose=TRUE, for_dev=TRUE 
+  )
+
+fitCvdSetup$tmb_parameters$beta = fitCvdSimple$est$param$est[1:length(fitCvdSetup$tmb_parameters$beta)]
+thetaHat = fitCvdSimple$est$param$est[grep("theta", names(fitCvdSimple$est$param$est))]
+
+fitCvdSetup$tmb_parameters$theta[1:length(thetaHat)] = thetaHat
+fitCvdSetup$tmb_parameters$theta[-(1:length(thetaHat))] = 20
+fitCvdSetup$tmb_parameters$gamma[1:length(fitCvdSimple$est$random$est)] = fitCvdSimple$est$random$est
+
+  obj <- MakeADFun(data = fitCvdSetup$tmb_data,
+                   parameters = fitCvdSetup$tmb_parameters,
+                   random = 'gamma',
+                   map = fitCvdSetup$map,
+                   intern=FALSE, type='ADFun',
+                   DLL = "hpoltest")
+  obj$fn(obj$par)
+    opt <- optim(par = obj$par, 
+      fn = obj$fn, gr = obj$gr,
+      control = list(trace=TRUE)
+  )
+>>>>>>> 8cbb3bf9e9590b843e67f7040d28f9141ffe1872
 
 fitMed1 <- hnlm( 
   formula=formulaMed, data=dataMed, #[which(deaths$date > as.Date('2009/1/1')), ], 
@@ -146,8 +185,9 @@ randomVcovChol = solve(chol(Matrix::forceSymmetric(fit$est$random$hessian)))
 
 gammaSim = randomVcovChol %*% matrix(rnorm(Nsim*length(randomMean)), ncol=Nsim)
 
-df = data.frame(tempClean = seq(4, 41), ecoRegion = NA)
-newXA = hpoltest:::getNewXA(fit$terms, df)
+df = data.frame(tempClean = seq(-9, 41), ecoRegion = NA)
+newXA = #hpoltest:::
+  getNewXA(fit$terms, df)
 
 parametricPart = newXA$X[,grep(Dterm, colnames(newXA$X))] %*% betaHat[grep(Dterm, names(betaHat))]
 iwpConstr = newXA$A %*% gammaSim[seq(to=nrow(gammaSim), by=1, len=ncol(newXA$A)), ]
