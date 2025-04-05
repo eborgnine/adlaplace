@@ -60,7 +60,7 @@ formulaMed <- medical ~ dom + f(dateInt, model='iid') +
 formulaCvd = cvd ~ dom + f(date, model='iid') + f(tempClean, model='hiwp',ref_value = 25, p=3, knots = tempKnots, group_var = ecoRegion)
 
 formulaMedSenior <- medical_senior ~ dom + f(date, model='iid') +
-    f(tempClean, model='hiwp',ref_value = 25, p=3, knots = tempKnots)
+    f(tempClean, model='hiwp',ref_value = 25, p=3, knots = tempKnots, group_var=ecoRegion)
 #  f(sqrtPm, model='hiwp', ref_value = 7, p=2, knots = pmKnots, group_var = ecoRegion) 
 
 
@@ -68,13 +68,13 @@ formulaCvdSimple = cvd ~ dom + f(date, model='iid') + f(tempClean, model='iwp',r
 
 formulaMedSeniorSimple = medical_senior ~ dom + f(date, model='iid') + f(tempClean, model='iwp',ref_value = 25, p=3, knots = tempKnots)
 
-
-if(FALSE) {
     dataMed = deaths[which(deaths$N_Week3_medical > 0 & deaths$date > as.Date('2009/1/1')),]
 
         dataMedSenior = deaths[which(deaths$N_Week3_medical_senior > 0 & 
                                    deaths$date > as.Date('2006/1/1')),]
 dataCvd = deaths[which(deaths$N_Week3_cvd > 0 & deaths$date > as.Date('2006/1/1')), ]
+
+if(FALSE) {
 
 fitMedSeniorSimple = hnlm(formulaMedSeniorSimple, dataMedSenior, cc_design, 
                             optim_parameters = list(eval.max=1e4, iter.max=1e4, trace=1),
@@ -147,7 +147,7 @@ fitCvdSetup$tmb_parameters$gamma[1:length(fitCvdSimple$est$random$est)] = fitCvd
         
 fitMedSenior <- hnlm( 
   formula=formulaMedSenior, data=dataMedSenior, #[which(deaths$date > as.Date('2009/1/1')), ], 
-  cc_design = cc_design,verbose=TRUE, for_dev=TRUE,
+  cc_design = cc_design,verbose=TRUE, for_dev=FALSE,
     optim_parameters = list(eval.max=1e4, iter.max=1e4),
   inner.control = list(maxit = 1e4, tol10=1e-4, tol=1e-9, ustep=0.5, intern=TRUE)
   )
