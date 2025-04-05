@@ -77,16 +77,16 @@ if(FALSE) {
 dataCvd = deaths[which(deaths$N_Week3_cvd > 0 & deaths$date > as.Date('2006/1/1')), ]
 
 fitMedSeniorSimple = hnlm(formulaMedSeniorSimple, dataMedSenior, cc_design, 
-                            optim_parameters = list(eval.max=1e4, iter.max=1e4),
+                            optim_parameters = list(eval.max=1e4, iter.max=1e4, trace=1),
   inner.control = list(maxit = 1e4, tol10=1e-4, tol=1e-9, ustep=0.5, intern=TRUE),
                           verbose=TRUE)
 
 fitCvdSimple<- hnlm(
   formula=formulaCvdSimple, 
   data=dataCvd,
-  tmb_parameters = list(theta = c(4,10)),
+  tmb_parameters = list(theta = c(5.25,31)),
   cc_design = cc_design,
-  optim_parameters = list(eval.max=1e4, iter.max=1e4),
+  optim_parameters = list(eval.max=1e4, iter.max=1e4, trace=1),
   inner.control = list(maxit = 1e4, tol10=1e-4, tol=1e-9, ustep=0.5, intern=TRUE),
   verbose=TRUE, for_dev=FALSE 
   )
@@ -102,7 +102,7 @@ fitCvdSetup <- hnlm(
 fitCvdSetup$tmb_parameters$beta = fitCvdSimple$est$param$est[1:length(fitCvdSetup$tmb_parameters$beta)]
 thetaHat = fitCvdSimple$est$param$est[grep("theta", names(fitCvdSimple$est$param$est))]
 
-fitCvdSetup$tmb_parameters$theta[1:length(thetaHat)] = thetaHat-1
+fitCvdSetup$tmb_parameters$theta[1:length(thetaHat)] = thetaHat
 fitCvdSetup$tmb_parameters$theta[-(1:length(thetaHat))] = 0
 fitCvdSetup$tmb_parameters$gamma[1:length(fitCvdSimple$est$random$est)] = fitCvdSimple$est$random$est
 
@@ -125,25 +125,23 @@ fitCvdSetup$tmb_parameters$gamma[1:length(fitCvdSimple$est$random$est)] = fitCvd
 
   obj$fn(obj$par)
     opt <- optim(
-      par = obj$par, 
+      par = rnorm(length(obj$par), obj$par, 1e-2),
       fn = obj$fn, 
       gr = obj$gr,
-      method = 'BFGS',
+      method = 'CG',
       control = list(
         trace=TRUE, 
         maxit=1e5,
-        parscale = c(date=1,global=1e-2, hiwp=1e-3, poly=1e-4)[parCat]
+        parscale = c(date=1,global=1e-1, hiwp=1e-2, poly=1e-2)[parCat]
     )
   )
-<<<<<<< HEAD
->>>>>>> 8cbb3bf9e9590b843e67f7040d28f9141ffe1872
-=======
+
     names(opt$par) = colnames(obj$env$.data$A)
     opt$par1 = opt$par[grep("date", names(opt$par))]
     opt$par2 = opt$par[!names(opt$par)%in% names(opt$par1)]
 
     quantile(obj$gr(opt$par))
->>>>>>> 4445ba9817e44127ea900cb0f979dcf74bd07053
+
 
 fitMed1 <- hnlm( 
   formula=formulaMed, data=dataMed, #[which(deaths$date > as.Date('2009/1/1')), ], 
@@ -190,7 +188,7 @@ fit = readRDS(file.path(storeDir, 'ccCvd.rds'))
 thetaHat = fit$est$param$est[grep("theta", names(fit$est$param$est))]
 (thetaSd = exp(-thetaHat/2))
 
-betaHat = fit$est$param$est[grep("beta", names(fit$est$param$est))]
+betaHat = fit$est$param$est[grep("theta", names(fit$est$param$est), invert=TRUE)]
 names(betaHat) = colnames(fit$obj$env$.data$X)
 betaHat
 
