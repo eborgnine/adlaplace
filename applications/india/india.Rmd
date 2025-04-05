@@ -60,7 +60,7 @@ formulaMed <- medical ~ dom + f(dateInt, model='iid') +
 formulaCvd = cvd ~ dom + f(date, model='iid') + f(tempClean, model='hiwp',ref_value = 25, p=3, knots = tempKnots, group_var = ecoRegion)
 
 formulaMedSenior <- medical_senior ~ dom + f(date, model='iid') +
-    f(tempClean, model='iwp',ref_value = 25, p=3, knots = tempKnots)
+    f(tempClean, model='hiwp',ref_value = 25, p=3, knots = tempKnots)
 #  f(sqrtPm, model='hiwp', ref_value = 7, p=2, knots = pmKnots, group_var = ecoRegion) 
 
 
@@ -76,7 +76,10 @@ if(FALSE) {
                                    deaths$date > as.Date('2006/1/1')),]
 dataCvd = deaths[which(deaths$N_Week3_cvd > 0 & deaths$date > as.Date('2006/1/1')), ]
 
-fitMedSenior = hnlm(formulaMedSenior, dataMedSenior, cc_design, verbose=TRUE)
+fitMedSeniorSimple = hnlm(formulaMedSeniorSimple, dataMedSenior, cc_design, 
+                            optim_parameters = list(eval.max=1e4, iter.max=1e4),
+  inner.control = list(maxit = 1e4, tol10=1e-4, tol=1e-9, ustep=0.5, intern=TRUE),
+                          verbose=TRUE)
 
 fitCvdSimple<- hnlm(
   formula=formulaCvdSimple, 
