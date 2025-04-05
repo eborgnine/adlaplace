@@ -135,19 +135,22 @@ fitCvdSetup$tmb_parameters$gamma[1:length(fitCvdSimple$est$random$est)] = fitCvd
         parscale = c(date=1,global=1e-2, hiwp=1e-3, poly=1e-4)[parCat]
     )
   )
-<<<<<<< HEAD
->>>>>>> 8cbb3bf9e9590b843e67f7040d28f9141ffe1872
-=======
-    names(opt$par) = colnames(obj$env$.data$A)
+
+        names(opt$par) = colnames(obj$env$.data$A)
     opt$par1 = opt$par[grep("date", names(opt$par))]
     opt$par2 = opt$par[!names(opt$par)%in% names(opt$par1)]
 
     quantile(obj$gr(opt$par))
->>>>>>> 4445ba9817e44127ea900cb0f979dcf74bd07053
 
-fitMed1 <- hnlm( 
-  formula=formulaMed, data=dataMed, #[which(deaths$date > as.Date('2009/1/1')), ], 
-  cc_design = cc_design,verbose=TRUE, for_dev=TRUE )
+    
+fitMedSenior <- hnlm( 
+  formula=formulaMedSenior, data=dataMedSenior, #[which(deaths$date > as.Date('2009/1/1')), ], 
+  cc_design = cc_design,verbose=TRUE, for_dev=TRUE,
+    optim_parameters = list(eval.max=1e4, iter.max=1e4),
+  inner.control = list(maxit = 1e4, tol10=1e-4, tol=1e-9, ustep=0.5, intern=TRUE)
+  )
+
+
   obj <- MakeADFun(data = fitMed1$tmb_data,
                    parameters = fitMed1$tmb_parameters[c('beta','gamma','theta')],
                    random = 'gamma',
