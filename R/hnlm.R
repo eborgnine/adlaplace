@@ -218,7 +218,7 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
 #                             map = map,
 #                             DLL = "hpoltest")
   
-  fitList = formatResult(opt)
+  fitList = try(formatResult(opt))
 
 
   # Return the result

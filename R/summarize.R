@@ -106,17 +106,21 @@ getEffect <- function(fit, exposure_var, group_var, group, values, ref_values){
 
 
 
-formatResult = function(opt) {
+formatResult = function(obj) {
   fitList = list(
     random = list(
-      hessian=obj$env$spHess(par = obj$env$last.par.best,random=TRUE),
+      hessian=try(obj$env$spHess(par = obj$env$last.par.best,random=TRUE)),
       est = obj$env$last.par.best[grep("gamma", names(obj$env$last.par.best))]),
     param = list(
       est = obj$env$last.par.best[grep("gamma", names(obj$env$last.par.best), invert=TRUE)]
     )
   )
-  names(fitList$random$est) = colnames(fitList$random$hessian) = 
-    rownames(fitList$random$hessian) = colnames(obj$env$.data$A)
+  
+  names(fitList$random$est) = colnames(obj$env$.data$A)
+  if(! 'try-error' %in% class(fitList$random$hessian))     
+    colnames(fitList$random$hessian) = 
+      rownames(fitList$random$hessian) = colnames(obj$env$.data$A)
+
   names(fitList$param$est)[grep("beta", names(fitList$param$est))] = 
     colnames(obj$env$.data$X)
 
