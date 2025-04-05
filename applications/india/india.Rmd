@@ -62,17 +62,20 @@ formulaCvd = cvd ~ dom + f(date, model='iid') + f(tempClean, model='hiwp',ref_va
 
 formulaCvdSimple = cvd ~ dom + f(date, model='iid') + f(tempClean, model='iwp',ref_value = 25, p=3, knots = tempKnots)
 
+formulaMedSeniorSimple = medical_senior ~ dom + f(date, model='iid') + f(tempClean, model='iwp',ref_value = 25, p=3, knots = tempKnots)
+
 
 if(FALSE) {
     dataMed = deaths[which(deaths$N_Week3_medical > 0 & deaths$date > as.Date('2009/1/1')),]
-dataCvd = deaths[which(deaths$N_Week3_cvd > 0 & deaths$date > as.Date('2006/1/1')), ]
+  dataCvd = deaths[which(deaths$N_Week3_cvd > 0 & deaths$date > as.Date('2006/1/1')), ]
 
 fitCvdSimple<- hnlm(
   formula=formulaCvdSimple, 
   data=dataCvd,
-  tmb_parameters = list(theta = c(5,20)),
+  tmb_parameters = list(theta = c(4,10)),
   cc_design = cc_design,
-#  optim_parameters = list(eval.max=100, iter.max=5),
+  optim_parameters = list(eval.max=1e4, iter.max=1e4),
+  inner.control = list(maxit = 1e4, tol10=1e-4, tol=1e-9, ustep=0.5, intern=TRUE),
   verbose=TRUE, for_dev=FALSE 
   )
 saveRDS(fitCvdSimple, file.path(storeDir, 'cvdSimple.rds'))
@@ -81,28 +84,50 @@ fitCvdSetup <- hnlm(
   formula=formulaCvd, 
   data=dataCvd,
   cc_design = cc_design,
-#  optim_parameters = list(eval.max=100, iter.max=5),
   verbose=TRUE, for_dev=TRUE 
   )
 
 fitCvdSetup$tmb_parameters$beta = fitCvdSimple$est$param$est[1:length(fitCvdSetup$tmb_parameters$beta)]
 thetaHat = fitCvdSimple$est$param$est[grep("theta", names(fitCvdSimple$est$param$est))]
 
-fitCvdSetup$tmb_parameters$theta[1:length(thetaHat)] = thetaHat
-fitCvdSetup$tmb_parameters$theta[-(1:length(thetaHat))] = 20
+fitCvdSetup$tmb_parameters$theta[1:length(thetaHat)] = thetaHat-1
+fitCvdSetup$tmb_parameters$theta[-(1:length(thetaHat))] = 0
 fitCvdSetup$tmb_parameters$gamma[1:length(fitCvdSimple$est$random$est)] = fitCvdSimple$est$random$est
 
   obj <- MakeADFun(data = fitCvdSetup$tmb_data,
                    parameters = fitCvdSetup$tmb_parameters,
-                   random = 'gamma',
-                   map = fitCvdSetup$map,
+#                   random = 'gamma',
+                   map = list(
+                    beta = factor(rep(NA, length(fitCvdSetup$tmb_parameters$beta))),
+                    theta=factor(rep(NA, length(fitCvdSetup$map$theta)))),
                    intern=FALSE, type='ADFun',
                    DLL = "hpoltest")
+
+  parCat = rep(NA, ncol(obj$env$.data$A))
+  parCat[grep("date", colnames(obj$env$.data$A))]='date'
+  parCat[grep("hrpoly", colnames(obj$env$.data$A))]='poly'
+  parCat[grep("hiwp", colnames(obj$env$.data$A))]='hiwp'
+  parCat[grep("global", colnames(obj$env$.data$A))]='global'
+
+  the19 = grep('hiwp_19', colnames(obj$env$.data$A), value=TRUE)
+
   obj$fn(obj$par)
-    opt <- optim(par = obj$par, 
-      fn = obj$fn, gr = obj$gr,
-      control = list(trace=TRUE)
+    opt <- optim(
+      par = obj$par, 
+      fn = obj$fn, 
+      gr = obj$gr,
+      method = 'BFGS',
+      control = list(
+        trace=TRUE, 
+        maxit=1e5,
+        parscale = c(date=1,global=1e-2, hiwp=1e-3, poly=1e-4)[parCat]
+    )
   )
+    names(opt$par) = colnames(obj$env$.data$A)
+    opt$par1 = opt$par[grep("date", names(opt$par))]
+    opt$par2 = opt$par[!names(opt$par)%in% names(opt$par1)]
+
+    quantile(obj$gr(opt$par))
 
 fitMed1 <- hnlm( 
   formula=formulaMed, data=dataMed, #[which(deaths$date > as.Date('2009/1/1')), ], 
