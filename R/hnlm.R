@@ -26,6 +26,7 @@
 hnlm <- function(formula, data, cc_design = ccDesign(), weight_var, 
                  tmb_parameters = NULL,  
                  optim_parameters = list(eval.max=2000, iter.max=2000),
+                 optimizer = c('nlminb','optim'),
                  for_dev = FALSE, verbose=FALSE, ...) {
   setDT(data)
   
@@ -209,8 +210,24 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
   if(verbose) message("first evaluation")
   obj$fn(obj$par)
   if(verbose) message("beginning optimization")
-  opt <- nlminb(start = obj$par, objective = obj$fn, gradient = obj$gr, 
-                control = optim_parameters)
+  if(optimizer[1] == 'nlminb') {
+    if(verbose) message("nlminb")
+    opt <- stats::nlminb(start = obj$par, objective = obj$fn, gradient = obj$gr, 
+                control = optim_parameters) 
+  } else if(optimizer[1] == 'optim') {
+    if(verbose) message("optim")
+    optimMethod = optim_parameters$method
+    optim_parameters = optim_parameters[setdiff(names(optim_parameters), 'method')]
+    if(!length(optimMethod)) optimMethod = 'BFGS'
+    opt <- stats::optim(par = obj$par, fn = obj$fn, gr = obj$gr, 
+                  method = optimMethod,
+                  control = optim_parameters, hessian=TRUE) 
+  } else {
+    warning("optimizer must be nlminb or optim")
+    return(list(obj=obj, formula = formula, 
+                terms = terms, cc_design = cc_design,
+    ))
+  }
   if(verbose) message("done optimization")
   
 #  funNoRandom <- MakeADFun(data = tmb_data,
