@@ -26,7 +26,7 @@
 hnlm <- function(formula, data, cc_design = ccDesign(), weight_var, 
                  tmb_parameters = NULL,  
                  optim_parameters = list(eval.max=2000, iter.max=2000),
-                 for_dev = FALSE, verbose=FALSE) {
+                 for_dev = FALSE, verbose=FALSE, ...) {
   setDT(data)
   
   # Check inputs
@@ -205,7 +205,7 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
                    random = r,
                    map = map,
                    intern=FALSE, type='ADFun',
-                   DLL = "hpoltest")
+                   DLL = "hpoltest", ...)
   if(verbose) message("first evaluation")
   obj$fn(obj$par)
   if(verbose) message("beginning optimization")
@@ -220,22 +220,6 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
   
   fitList = formatResult(opt)
 
-formatResult = function(opt) {
-  fitList = list(
-    random = list(
-      hessian=obj$env$spHess(par = obj$env$last.par.best,random=TRUE),
-      est = obj$env$last.par.best[grep("gamma", names(obj$env$last.par.best))]),
-    param = list(
-      est = obj$env$last.par.best[grep("gamma", names(obj$env$last.par.best), invert=TRUE)]
-    )
-  )
-  names(fitList$random$est) = colnames(fitList$random$hessian) = 
-    rownames(fitList$random$hessian) = colnames(obj$env$.data$A)
-  names(fitList$param$est)[grep("beta", names(fitList$param$est))] = 
-    colnames(obj$env$.data$X)
-
-    fitList
-  }
 
   # Return the result
   return(list(obj = obj, formula = formula, 
