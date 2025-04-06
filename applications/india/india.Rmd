@@ -7,6 +7,7 @@ storeDir = SstoreDir[1]
 if(!dir.exists(storeDir)) storeDir = SstoreDir[2]
 
 deaths = as.data.table(readRDS( file.path(storeDir, "indiaCC.rds")))
+
 indiaEcoRegions = terra::unwrap(readRDS(file.path(storeDir, "indiaEcoRegions.rds")))
 
 
@@ -66,7 +67,8 @@ formulaMedSenior <- medical_senior ~ dom + f(date, model='iid') +
 
 formulaCvdSimple = cvd ~ dom + f(date, model='iid') + f(tempClean, model='iwp',ref_value = 25, p=3, knots = tempKnots)
 
-formulaMedSeniorSimple = medical_senior ~ dom + f(date, model='iid') + f(tempClean, model='iwp',ref_value = 25, p=3, knots = tempKnots)
+formulaMedSeniorSimple = medical_senior ~ dom + f(date, model='iid') + 
+  f(tempClean, model='iwp',ref_value = 25, p=3, knots = tempKnots)
 
     dataMed = deaths[which(deaths$N_Week3_medical > 0 & deaths$date > as.Date('2009/1/1')),]
 
@@ -174,7 +176,34 @@ fitCvd <- hnlm(
   )
 saveRDS(fitCvd, file.path(storeDir, 'ccCvd.rds'))
 }
+```
 
+```{r temperatureDataFromIndia}
+deathsTemp = as.data.table(readRDS( file.path(storeDir, "indiaTemperature.rds")))
+deathsTemp$dom = as.numeric(format(deathsTemp$date, '%d'))
+deathsTemp[deathsTemp$dom == Hmisc::monthDays(deathsTemp$date), 'dom'] = 31
+deathsTemp[format(deathsTemp$date, '%m%d') == '0101', 'dom'] = 0
+deathsTemp$dom = relevel(factor(deathsTemp$dom), '1')
+deathsTemp$month = format(deathsTemp$date, '%m')
+
+deathsTempSeniorMed3 = deathsTemp[deathsTemp$N_Week3_medical_senior > 0, ]
+
+knotsTemperature = seq(0,45, by=5)
+
+formulaMedSeniorIwp = medical_senior ~ dom + f(date, model='iid') + 
+  f(maxtemp, model='iwp',ref_value = 25, p=3, knots = knotsTemperature)
+
+fitTempMedSeniorIwp <- hnlm(
+  formula=formulaMedSeniorIwp, 
+  data=deathsTempSeniorMed3,
+  cc_design = ccDesign(strat_vars = c("cell","ecoRegion", "yearWeek3Dow")),
+  optimizer='optim',
+  optim_parameters = list(
+    method = 'BFGS',
+    maxit=1e5, eval.max=1e4, iter.max=1e4),
+  inner.control = list(
+    maxit = 1e4, tol10=1e-4, tol=1e-9, ustep=0.5, intern=TRUE),
+  verbose=TRUE)
 ```
 
 ```
@@ -447,3 +476,6 @@ varFull =  Matrix::forceSymmetric(
 #matplot(newdata$tempClean, as.data.frame(stuff[c('a','b')]))
 
 ```
+
+
+
