@@ -78,9 +78,12 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
     
     if(term$run_as_is){
       Xsub <- sparse.model.matrix(term$f, data)
+      if(is.factor(data[[term$var]])) {
+        Xsub = Xsub[,-1] 
+      }
       beta_info$var <- c(beta_info$var, term$var)
       beta_info$pick <- c(beta_info$pick, paste0(term$pick, "__", 0))
-      Xlist[[k]] <- Xsub #cbind(X, Xsub)
+      Xlist[[k]] <- Xsub  
       k <- k+1
       next
     }

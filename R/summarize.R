@@ -21,6 +21,9 @@ getNewXA <- function(terms, df){
     
     if(term$run_as_is){
       Xsub <- sparse.model.matrix(term$f, df)
+      if(is.factor(df[[term$var]])) {
+        Xsub = Xsub[,-1] 
+      }
       X <- cbind(X, Xsub)
       k <- k+1
       next

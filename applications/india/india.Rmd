@@ -130,7 +130,7 @@ fitCvdSetup$tmb_parameters$gamma[1:length(fitCvdSimple$est$random$est)] = fitCvd
       par = rnorm(length(obj$par), obj$par, 1e-2),
       fn = obj$fn, 
       gr = obj$gr,
-      method = 'CG',
+      method = 'BFGS',
       control = list(
         trace=TRUE, 
         maxit=1e5,
@@ -186,16 +186,39 @@ deathsTemp[format(deathsTemp$date, '%m%d') == '0101', 'dom'] = 0
 deathsTemp$dom = relevel(factor(deathsTemp$dom), '1')
 deathsTemp$month = format(deathsTemp$date, '%m')
 
-deathsTempSeniorMed3 = deathsTemp[deathsTemp$N_Week3_medical_senior > 0, ]
+
+deathsTempSeniorMed3 = deathsTemp[
+  deathsTemp$N_Week3_medical_senior > 0 &
+  deathsTemp$Ndays3recount > 1 & 
+  deathsTemp$date >= as.Date('2006/1/1'), ]
+
+
+deathsTempMed = deathsTemp[
+  deathsTemp$N_Week3_medical > 0 & deathsTemp$Ndays3recount > 1 &
+  deathsTemp$date >= as.Date('2006/1/1'), ]
 
 knotsTemperature = seq(0,45, by=5)
 
 formulaMedSeniorIwp = medical_senior ~ dom + f(date, model='iid') + 
   f(maxtemp, model='iwp',ref_value = 25, p=3, knots = knotsTemperature)
+formulaMedIwp = medical ~  f(date, model='iid') + 
+  f(maxtemp, model='iwp',ref_value = 25, p=3, knots = knotsTemperature)
 
 fitTempMedSeniorIwp <- hnlm(
   formula=formulaMedSeniorIwp, 
   data=deathsTempSeniorMed3,
+  cc_design = ccDesign(strat_vars = c("cell","ecoRegion", "yearWeek3Dow")),
+  optimizer='optim',
+  optim_parameters = list(
+    method = 'BFGS',
+    maxit=1e5, eval.max=1e4, iter.max=1e4),
+  inner.control = list(
+    maxit = 1e4, tol10=1e-4, tol=1e-9, ustep=0.5, intern=TRUE),
+  verbose=TRUE)
+
+fitTempMedIwp <- hnlm(
+  formula=formulaMedIwp, 
+  data=deathsTempMed,
   cc_design = ccDesign(strat_vars = c("cell","ecoRegion", "yearWeek3Dow")),
   optimizer='optim',
   optim_parameters = list(
@@ -244,6 +267,7 @@ dayEffect = data.frame(
   date = as.Date(gsub("factor.date.", "", names(dayEffect))),
   est = dayEffect
 )
+
 plot(dayEffect)
 
 dayEffect[order(abs(dayEffect$est), decreasing=TRUE)[1:12], ]
@@ -252,16 +276,16 @@ randomVcovChol = solve(chol(Matrix::forceSymmetric(fit$est$random$hessian)))
 
 gammaSim = randomVcovChol %*% matrix(rnorm(Nsim*length(randomMean)), ncol=Nsim)
 
-df = data.frame(tempClean = seq(-9, 41), ecoRegion = NA)
-newXA = #hpoltest:::
-  getNewXA(fit$terms, df)
+df = data.frame(x = seq(10, 45), ecoRegion = NA)
+names(df) = gsub("^x$", Dterm, names(df))
+newXA = hpoltest:::getNewXA(fit$terms, df)
 
 parametricPart = newXA$X[,grep(Dterm, colnames(newXA$X))] %*% betaHat[grep(Dterm, names(betaHat))]
 iwpConstr = newXA$A %*% gammaSim[seq(to=nrow(gammaSim), by=1, len=ncol(newXA$A)), ]
 
 
 iwpSim = parametricPart + iwpConstr
-matplot(df$tempClean, exp(iwpSim), type='l', col='#00000040', lty=1, xaxs='i', log='y')
+matplot(df[[Dterm]], exp(iwpSim), type='l', col='#00000040', lty=1, xaxs='i', log='y')
 
 iwpSimRegion = list()
 for(D in unique(deaths$ecoRegion)) {
