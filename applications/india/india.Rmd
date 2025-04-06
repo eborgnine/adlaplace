@@ -134,7 +134,7 @@ fitCvdSetup$tmb_parameters$gamma[1:length(fitCvdSimple$est$random$est)] = fitCvd
       control = list(
         trace=TRUE, 
         maxit=1e5,
-        parscale = c(date=1,global=1e-3, hiwp=1e-2, poly=1e-2)[parCat]
+        parscale = c(date=1,global=1e-5, hiwp=1e-2, poly=1e-2)[parCat]
     )
   )
 
