@@ -26,6 +26,7 @@
 hnlm <- function(formula, data, cc_design = ccDesign(), weight_var, 
                  tmb_parameters = NULL,  
                  optim_parameters = list(eval.max=2000, iter.max=2000),
+                 dirichelet = FALSE,
                  optimizer = c('nlminb','optim'),
                  for_dev = FALSE, verbose=FALSE, ...) {
   setDT(data)

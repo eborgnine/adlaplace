@@ -1,5 +1,51 @@
 
 ```{r setup}
+removeUnusedStrata = function(x, Sstrata, outcome, NeventCutoff = 0) {
+  # Convert to data.table if not already
+  if (!data.table::is.data.table(x)) {
+    x <- data.table::as.data.table(x)
+  }
+  
+  # Calculate summary statistics by strata
+  NinStrata <- x[, .(Ndays = .N, Nevents = sum(get(outcome[1]))), by = Sstrata]
+  
+  # Filter strata meeting criteria
+  NinStrata <- NinStrata[Ndays > 1 & Nevents > NeventCutoff]
+  
+  # Merge back with original data
+  xout <- x[NinStrata, on = Sstrata, nomatch = 0]
+  
+  # Add required columns and attributes
+  xout[, y := get(outcome[1])]
+  data.table::setattr(xout, "strata", Sstrata)
+  data.table::setattr(xout, "outcome", outcome[1])
+  
+  return(xout)
+}
+removeUnusedStrataOld = function(x, Sstrata, outcome,
+  NeventCutoff = 0) {
+
+NinStrata = aggregate(
+  data.frame(Ndays = 1, Nevents = x[[outcome[1] ]]),
+  as.data.frame(x)[,Sstrata, drop=FALSE],
+  sum)
+NinStrata = NinStrata[
+NinStrata$Ndays > 1 &
+  NinStrata$Nevents > NeventCutoff, ]
+xout = merge(x, NinStrata, by =Sstrata)
+xout$y = xout[[outcome[1] ]]
+attributes(xout)$strata = Sstrata
+attributes(xout)$outcome = outcome[1]
+xout
+}
+
+Sstrata = c("cell","ecoRegion", "yearWeek3Dow")
+pmKnots = c(0,1, 2, 5, 7,  10, 15, 20, 25) # on square root scale
+tempKnots = c(-15, -5,  5, 10, 13, seq(25,35, by=2), 37, 39)
+
+outcome = 'medical'
+
+
 library('data.table')
 # /home/patrick/Admin/globalHealth/indiaSpatial/daily.Rmd
 SstoreDir = c('/store/patrick/copernicus/agg', '~/Downloads')
@@ -33,9 +79,8 @@ deaths$month = format(deaths$date, '%m')
 
 quantile(deaths$sqrtPm)
 quantile(deaths$tempClean)
-pmKnots = c(0,1, 2, 5, 7,  10, 15, 20, 25) # on square root scale
-tempKnots = c(-15, -5,  5, 10, 13, seq(25,35, by=2), 37, 39)
 ```
+
 
 ```{r digitPreference}
 checkForDigitPreference1 = aggregate(deaths[,'medical', drop=FALSE],
@@ -51,11 +96,47 @@ image(as.numeric(checkForDigitPreference$dom),
 # devtools::install_github("samperochkin/hpoltest")
 #devtools::load_all("~/research/hpoltest")
 library("hpoltest")
-cc_design <- ccDesign(strat_vars = c("cell","ecoRegion", "yearWeek3Dow"))
 
-formulaMed <- medical ~ dom + f(dateInt, model='iid') +
-#    f(tempClean, model='iwp',ref_value = 25, p=3, knots = tempKnots)
-  f(sqrtPm, model='hiwp', ref_value = 7, p=2, knots = pmKnots, group_var = ecoRegion) 
+dataMedSimple = removeUnusedStrata(
+  deaths[
+    deaths$date >= as.Date('2006/1/1') &
+    format(deaths$date, '%b%d') != 'Jan01' &
+    !deaths$ecoRegion %in% c(7, 8,10), ],
+  Sstrata, outcome)
+formulaMedSimple <- y ~ dom + f(date, model='iid') +
+    f(tempClean, model='iwp',ref_value = 25, p=3, knots = tempKnots)
+
+fit<- hnlm(
+  formula=formulaMedSimple, 
+  data=dataMedSimple,
+#  tmb_parameters = list(theta = c(5.25,31)),
+  cc_design =  ccDesign(strat_vars = Sstrata),
+  optim_parameters = list(eval.max=1e4, iter.max=1e4, trace=1),
+  inner.control = list(maxit = 1e4, tol10=1e-4, tol=1e-9, ustep=0.5, intern=TRUE),
+  verbose=TRUE, for_dev=FALSE 
+  )
+
+
+dataMedSimplePm = removeUnusedStrata(
+  deaths[
+    deaths$date >= as.Date('2006/1/1') &
+    format(deaths$date, '%b%d') != 'Jan01' &
+    !deaths$ecoRegion %in% c(7, 8,10), ],
+  Sstrata, outcome)
+formulaMedSimplePm <- y ~ dom + f(date, model='iid') +
+    f(sqrtPm, model='iwp',ref_value = 25, p=3, knots = pmKnots)
+
+fitPm<- hnlm(
+  formula=formulaMedSimplePm, 
+  data=dataMedSimplePm,
+#  tmb_parameters = list(theta = c(5.25,31)),
+  cc_design =  ccDesign(strat_vars = Sstrata),
+  optim_parameters = list(eval.max=1e4, iter.max=1e4, trace=1),
+  inner.control = list(maxit = 1e4, tol10=1e-4, tol=1e-9, ustep=0.5, intern=TRUE),
+  verbose=TRUE, for_dev=FALSE 
+  )
+
+#  f(sqrtPm, model='hiwp', ref_value = 7, p=2, knots = pmKnots, group_var = ecoRegion) 
 #  f(tempClean, model='hiwp',ref_value = 25, p=3, knots = tempKnots, group_var = ecoRegion)
 
 formulaCvd = cvd ~ dom + f(date, model='iid') + f(tempClean, model='hiwp',ref_value = 25, p=3, knots = tempKnots, group_var = ecoRegion)
@@ -65,7 +146,9 @@ formulaMedSenior <- medical_senior ~ dom + f(date, model='iid') +
 #  f(sqrtPm, model='hiwp', ref_value = 7, p=2, knots = pmKnots, group_var = ecoRegion) 
 
 
-formulaCvdSimple = cvd ~ dom + f(date, model='iid') + f(tempClean, model='iwp',ref_value = 25, p=3, knots = tempKnots)
+formulaCvdSimple = cvd ~ dom + f(date, model='iid') + 
+  f(sqrtPm, model='hiwp', ref_value = 7, p=2, knots = pmKnots, group_var = ecoRegion) 
+#f(tempClean, model='iwp',ref_value = 25, p=3, knots = tempKnots)
 
 formulaMedSeniorSimple = medical_senior ~ dom + f(date, model='iid') + 
   f(tempClean, model='iwp',ref_value = 25, p=3, knots = tempKnots)
@@ -86,7 +169,7 @@ fitMedSeniorSimple = hnlm(formulaMedSeniorSimple, dataMedSenior, cc_design,
 fitCvdSimple<- hnlm(
   formula=formulaCvdSimple, 
   data=dataCvd,
-  tmb_parameters = list(theta = c(5.25,31)),
+#  tmb_parameters = list(theta = c(5.25,31)),
   cc_design = cc_design,
   optim_parameters = list(eval.max=1e4, iter.max=1e4, trace=1),
   inner.control = list(maxit = 1e4, tol10=1e-4, tol=1e-9, ustep=0.5, intern=TRUE),
@@ -187,21 +270,56 @@ deathsTemp$dom = relevel(factor(deathsTemp$dom), '1')
 deathsTemp$month = format(deathsTemp$date, '%m')
 
 
-deathsTempSeniorMed3 = deathsTemp[
-  deathsTemp$N_Week3_medical_senior > 0 &
-  deathsTemp$Ndays3recount > 1 & 
-  deathsTemp$date >= as.Date('2006/1/1'), ]
+(theEtable = sort(table(deathsTemp$ecoRegion), decreasing=TRUE))
+# 10, 17, 20 looks dodgy
 
 
-deathsTempMed = deathsTemp[
-  deathsTemp$N_Week3_medical > 0 & deathsTemp$Ndays3recount > 1 &
-  deathsTemp$date >= as.Date('2006/1/1'), ]
 
-knotsTemperature = seq(0,45, by=5)
+Sstrata = c("cell","ecoRegion", "yearWeek3Dow")
+knotsTemperature = seq(0,50, by=2.5)  
+
+outcome = 'medical'
+
+deathsTempMed = removeUnusedStrata(deathsTemp[
+  deathsTemp$date >= as.Date('2006/1/1') &
+  format(deathsTemp$date, '%b%d') != 'Jan01', ],
+  Sstrata, outcome)
+
+
+deathsTempMed$tempCut = 2*round(deathsTempMed$maxtemp/2)
+ttable1 = dcast(deathsTempMed, tempCut ~ ecoRegion, value.var=outcome, fun.aggregate=sum)
+ttable2 = dcast(deathsTempMed, tempCut ~ ecoRegion, value.var=outcome, fun.aggregate=length)
+
+matplot(ttable1[,1], as.matrix(ttable1[,-1]/ttable2[,-1])[,names(theEtable)[10+1:9]])
+merge(
+  deathsTempMed, 
+    as.data.frame(deathsTempMed)[order(deathsTempMed$y, decreasing=TRUE)[1:3], Sstrata],
+    all.x=FALSE, all.y=TRUE)
+
+deathsTempMed$tempLow = pmin(25, deathsTempMed$maxtempLag01)
+deathsTempMed$tempHigh = pmax(25, deathsTempMed$maxtempLag01)
+
+SexcludeRegions  = c(7, 10,13)
+SincludeRegions = c(1:6, 8,9)
+library(hpoltest)
+fit <- hnlm(
+  formula= y ~  dom + 
+    f(date, model='iid') +
+    f(maxtempLag01, model='hiwp',ref_value = 25, p=3, knots = knotsTemperature, group_var=ecoRegion),
+  data=deathsTempMed[deathsTempMed$ecoRegion %in% SincludeRegions,],
+  cc_design = ccDesign(strat_vars = Sstrata),
+  optimizer='optim',
+  optim_parameters = list(
+    method = 'BFGS',
+    maxit=1e5, eval.max=1e4, iter.max=1e4),
+  inner.control = list(
+    smartsearch=FALSE, 
+    maxit = 1e4, tol10=1e-4, tol=1e-9, ustep=0.5, intern=TRUE),
+  verbose=TRUE)
+
+
 
 formulaMedSeniorIwp = medical_senior ~ dom + f(date, model='iid') + 
-  f(maxtemp, model='iwp',ref_value = 25, p=3, knots = knotsTemperature)
-formulaMedIwp = medical ~  f(date, model='iid') + 
   f(maxtemp, model='iwp',ref_value = 25, p=3, knots = knotsTemperature)
 
 fitTempMedSeniorIwp <- hnlm(
@@ -219,7 +337,7 @@ fitTempMedSeniorIwp <- hnlm(
 fitTempMedIwp <- hnlm(
   formula=formulaMedIwp, 
   data=deathsTempMed,
-  cc_design = ccDesign(strat_vars = c("cell","ecoRegion", "yearWeek3Dow")),
+  cc_design = ccDesign(strat_vars = Sstrata),
   optimizer='optim',
   optim_parameters = list(
     method = 'BFGS',
@@ -228,6 +346,7 @@ fitTempMedIwp <- hnlm(
     maxit = 1e4, tol10=1e-4, tol=1e-9, ustep=0.5, intern=TRUE),
   verbose=TRUE)
 ```
+
 
 ```
 # darjeeling
@@ -245,22 +364,38 @@ sudo ln -s /opt/intel/oneapi/mkl/latest/lib/libmkl_avx512.so.2 /lib/x86_64-linux
 ```{r }
 fit = readRDS(file.path(storeDir, 'ccCvd.rds'))
 
-thetaHat = fit$est$param$est[grep("theta", names(fit$est$param$est))]
-(thetaSd = exp(-thetaHat/2))
-
-betaHat = fit$est$param$est[grep("theta", names(fit$est$param$est), invert=TRUE)]
-names(betaHat) = colnames(fit$obj$env$.data$X)
-betaHat
-
-
 Dterm = 'tempClean'
 #table(names(fit$obj$env$last.par.best))
 
-Nsim = 500
+Dterm = 'maxtempLag01'
+  Nsim = 500
 
 
-# approx gamma | Y ~ N(gamma hat, hessian^(-1))
-randomMean = fit$est$random$est
+  thetaHat = fit$est$param$est[grep("theta", names(fit$est$param$est))]
+  (thetaSd = exp(-thetaHat/2))
+
+  betaHat = fit$est$param$est[grep("theta", names(fit$est$param$est), invert=TRUE)]
+  names(betaHat) = colnames(fit$obj$env$.data$X)
+  betaHat
+
+  # approx gamma | Y ~ N(gamma hat, hessian^(-1))
+  randomMean = fit$est$random$est
+
+  randomVcovChol = solve(chol(Matrix::forceSymmetric(fit$est$random$hessian)))
+
+  gammaSim = randomVcovChol %*% matrix(rnorm(Nsim*length(randomMean)), ncol=Nsim)
+
+  df = data.frame(x = seq(5, 47), ecoRegion = NA)
+  names(df) = gsub("^x$", Dterm, names(df))
+  newXA = hpoltest:::getNewXA(fit$terms, df)
+
+  parametricPart = newXA$X[,grep(Dterm, colnames(newXA$X)),drop=FALSE] %*% 
+    betaHat[grep(Dterm, names(betaHat))]
+  iwpConstr = newXA$A %*% gammaSim[seq(to=nrow(gammaSim), by=1, len=ncol(newXA$A)), ]
+
+
+  iwpSim = parametricPart + iwpConstr
+  matplot(df[[Dterm]], exp(iwpSim), type='l', col='#00000040', lty=1, xaxs='i', log='y')
 
 dayEffect = randomMean[grep("factor.date", names(randomMean))]
 dayEffect = data.frame(
@@ -272,20 +407,6 @@ plot(dayEffect)
 
 dayEffect[order(abs(dayEffect$est), decreasing=TRUE)[1:12], ]
 
-randomVcovChol = solve(chol(Matrix::forceSymmetric(fit$est$random$hessian)))
-
-gammaSim = randomVcovChol %*% matrix(rnorm(Nsim*length(randomMean)), ncol=Nsim)
-
-df = data.frame(x = seq(10, 45), ecoRegion = NA)
-names(df) = gsub("^x$", Dterm, names(df))
-newXA = hpoltest:::getNewXA(fit$terms, df)
-
-parametricPart = newXA$X[,grep(Dterm, colnames(newXA$X))] %*% betaHat[grep(Dterm, names(betaHat))]
-iwpConstr = newXA$A %*% gammaSim[seq(to=nrow(gammaSim), by=1, len=ncol(newXA$A)), ]
-
-
-iwpSim = parametricPart + iwpConstr
-matplot(df[[Dterm]], exp(iwpSim), type='l', col='#00000040', lty=1, xaxs='i', log='y')
 
 iwpSimRegion = list()
 for(D in unique(deaths$ecoRegion)) {
