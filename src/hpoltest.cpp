@@ -91,7 +91,10 @@ Type objective_function<Type>::operator() () {
   // do sqrt(exp_theta) * gamma instead of exp_theta * Q
   gamma = gamma * sqrt(exp_theta);
 
-  Rcout<< "nu " << nu << " nll " << nll << " gamma " << gamma << " : ";
+//  Rcout<< "nu " << nu << " nll " << nll << " gamma " << gamma << " .:. ";
+
+  REPORT(theta);
+  REPORT(nu);
 
   nll += 0.5*(gamma * (Q * gamma).col(0)).sum();
   

@@ -366,6 +366,7 @@ attach(fit)
                    random = r,
                    map = map,
                    intern=FALSE, type='ADFun',
+                   silent=FALSE,
                    DLL = "hpoltest")
   obj$fn(obj$par)
 
