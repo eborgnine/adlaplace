@@ -1,41 +1,260 @@
 
-```{r setup}
-library('data.table')
-# /home/patrick/Admin/globalHealth/indiaSpatial/daily.Rmd
-SstoreDir = c('/store/patrick/copernicus/agg', '~/Downloads')
-storeDir = SstoreDir[1]
-if(!dir.exists(storeDir)) storeDir = SstoreDir[2]
-
-deaths = as.data.table(readRDS( file.path(storeDir, "indiaCC.rds")))
-
-indiaEcoRegions = terra::unwrap(readRDS(file.path(storeDir, "indiaEcoRegions.rds")))
-
-
-# trransform variables
-deaths$sqrtPm = sqrt(pmin(deaths$pm,1000))
-deaths$timeIid = as.numeric(deaths$date)
-
-deaths$tempClean = pmax(deaths$temp, -15)
-
-theMax = which.max(deaths$medical)
-whichIsTheMax = which(deaths$yearMonthDow == unlist(deaths[theMax, 'yearMonthDow']) &
-  deaths$cell == unlist(deaths[theMax, 'cell']))
-
-deaths[whichIsTheMax,]
-deaths = deaths[-whichIsTheMax, ]
-
-deaths$dom = as.numeric(format(deaths$date, '%d'))
-deaths[deaths$dom == Hmisc::monthDays(deaths$date), 'dom'] = 31
-deaths[format(deaths$date, '%m%d') == '0101', 'dom'] = 0
-deaths$dom = relevel(factor(deaths$dom), '1')
-deaths$month = format(deaths$date, '%m')
-
-
-quantile(deaths$sqrtPm)
-quantile(deaths$tempClean)
-pmKnots = c(0,1, 2, 5, 7,  10, 15, 20, 25) # on square root scale
-tempKnots = c(-15, -5,  5, 10, 13, seq(25,35, by=2), 37, 39)
+```{r setup, include=FALSE}
+#devtools::install_github("samperochkin/hpoltest")
 ```
+
+```{r indiaDataAlex}
+load("/home/patrick/research/hpoltest/applications/india/combinedindianmorttempdata_meannofilter.Rdata")
+x = indianmorttempdata
+
+table(x$death_cause, x$case)
+quantile(x$final_temp)
+tempSdByStrata = tapply(x$final_temp, x$riskset, sd)
+countByStrata = tapply(x$case, x$riskset, sum)
+# nuber cases per day
+table(tapply(x$case, x$date, sum))
+
+
+tempRef = 32
+
+x$tempHigh = pmax(x$final_temp - tempRef, 0)
+x$tempLow = pmin(x$final_temp - tempRef, 0)
+
+x$tempC = x$final_temp - tempRef
+x$tempSq = (x$final_temp - tempRef)^2
+x$temp3 = (x$final_temp - tempRef)^3
+
+x$dateInt = as.integer(x$date)
+
+xSub = x[x$death_cause == 'stroke', ]
+Slow = unique(unlist(xSub[xSub$final_temp < 10, 'riskset']))
+
+Shigh = unique(unlist(xSub[xSub$final_temp >37, 'riskset']))
+
+
+
+xSub2 = xSub[! xSub$riskset %in% c(Slow, Shigh), ]
+
+library('survival')
+fitClogit = clogit(case ~ tempHigh + tempLow + strata(riskset),
+       data = x[x$death_cause == 'stroke',])
+summary(fitClogit)$coef
+
+
+#library('hpoltest')
+fitLinear <- hnlm(
+  formula = case ~  tempHigh + tempLow + f(dateInt, model='iid'),
+  cc_design = ccDesign(strat_vars = c('riskset')),
+  tmb_parameters = list(theta = 20, map = list(theta=factor(NA))),
+  data = xSub2,
+  verbose=FALSE
+  )
+
+fitLinear$est$param$est
+
+randomDate = as.Date(
+  as.integer(gsub("factor.dateInt.", "", names(fitLinear$est$random$est))),
+  as.integer(as.Date('1970/1/1')))
+  
+badDates = randomDate[order(abs(fitLinear$est$random$est), decreasing=TRUE)[1:2]]
+stuff = as.data.frame(xSub[xSub$date %in% badDates, c('riskset', 'date','final_temp','case')])
+stuff = stuff[order(stuff$date,stuff$riskset), ]
+stuff
+
+
+plot(randomDate, fitLinear$est$random$est)
+
+fitLinear2 <- hnlm(
+  formula = case ~  tempHigh + tempLow + f(dateInt, model='iid'),
+  cc_design = ccDesign(strat_vars = c('riskset')),
+  data = xSub2,
+  verbose=FALSE
+  )
+
+fitLinear$est$param$est
+fitLinear2$est$param$est
+
+
+fitQuad  <- hnlm(
+  formula = case ~  tempC + tempSq + temp3 + f(dateInt, model='iid'),
+  cc_design = ccDesign(strat_vars = c('riskset')),
+  tmb_parameters = list(theta = -5, map = list(theta=factor(NA))),
+  data = xSub2,
+  verbose=FALSE
+  )
+fitLinear$est$param$est
+fitLinear2$est$param$est
+fitQuad$est$param$est
+```
+
+```{r comparePlots}
+tempSeq = seq(10, 40)
+tempSeqC = tempSeq - tempRef
+
+plot(tempSeq,
+     tempSeqC*fitQuad$est$param$est['tempC'] + 
+     tempSeqC^2*fitQuad$est$param$est['tempSq'] +
+     tempSeqC^3*fitQuad$est$param$est['temp3'],
+     type='l'
+)
+lines(tempSeq,
+      pmin(tempSeqC, 0) * fitClogit$coef['tempLow'] + 
+      pmax(tempSeqC, 0) * fitClogit$coef['tempHigh'],
+      col='green', lwd=3, lty=1
+)
+lines(tempSeq,
+      pmin(tempSeqC, 0) * fitLinear$est$param$est['tempLow'] + 
+      pmax(tempSeqC, 0) * fitLinear$est$param$est['tempHigh'],
+      col='red', lwd=3, lty=2
+)
+lines(tempSeq,
+      pmin(tempSeqC, 0) * fitLinear2$est$param$est['tempLow'] + 
+      pmax(tempSeqC, 0) * fitLinear2$est$param$est['tempHigh'],
+      col='orange', lwd=3, lty=2
+)
+
+legend('bottomleft', bty='n', lty=1, col=c('black','red','orange','green'),
+       legend = c('cubic', 'linear no OD','linear','clogit'))
+
+```
+
+```{r fitSimple, include=FALSE}
+tempKnots = seq(0,40, by=0.5)
+fitSimple <- hnlm(
+  formula = case ~  f(final_temp, model='iwp', ref_value = tempRef, p=4, knots = tempKnots) + 
+    f(dateInt, model='iid'),
+  cc_design = ccDesign(strat_vars = c('riskset')),
+  tmb_parameters = list(theta = c(-1,-5), map = list(theta=factor(c(NA,1)))),
+  data = xSub2,
+  verbose=FALSE
+  )
+
+fitSimple$est$param$est 
+fitQuad$est$param$est
+```
+
+
+
+```{r plotIwp}
+fit = fitSimple
+
+thetaHat = fit$est$param$est[grep("theta", names(fit$est$param$est))]
+(thetaSd = exp(-thetaHat/2))
+
+betaHat = fit$est$param$est[grep("theta", names(fit$est$param$est), invert=TRUE)]
+names(betaHat) = colnames(fit$obj$env$.data$X)
+betaHat
+
+
+Dterm = 'final_temp'
+
+
+Nsim = 500
+
+# approx gamma | Y ~ N(gamma hat, hessian^(-1))
+randomMean = fit$est$random$est
+precMat = Matrix::forceSymmetric(fit$est$random$hessian)
+#cholPrecMat = chol(precMat)
+#randomVcovChol = solve(cholPrecMat)
+
+Shere = grep(Dterm, names(randomMean))
+cholSchur = chol(rje::schur(as.matrix(precMat), Shere, Shere, setdiff(1:length(randomMean), Shere)))
+cholSchurInv = solve(cholSchur)
+
+gammaSim = cholSchurInv %*% matrix(rnorm(Nsim*nrow(cholSchur)), ncol=Nsim,
+                                     dimnames = list(rownames(cholSchur), 1:Nsim))
+
+
+#gammaSim = randomVcovChol %*% matrix(rnorm(Nsim*length(randomMean)), ncol=Nsim,
+#                                     dimnames = list(names(randomMean), 1:Nsim))
+
+
+df = data.frame(x = seq(10, 40,by=0.1))
+names(df) = gsub("^x$", Dterm, names(df))
+newXA = hpoltest:::getNewXA(fit$terms, df)
+
+parametricPart = newXA$X[,grep(Dterm, colnames(newXA$X)),drop=FALSE] %*% 
+  betaHat[grep(Dterm, names(betaHat)),drop=FALSE]
+iwpConstr = newXA$A %*% gammaSim[colnames(newXA$A), ]
+
+
+iwpSim = parametricPart + iwpConstr
+matplot(df[[Dterm]], 
+        t(apply(iwpSim, 1, quantile, prob = c(0.025, 0.5, 0.975))), 
+        type='l', col='black', lty=1, xaxs='i',
+        ylim = c(-1,2))
+
+lines(tempSeq,
+     tempSeqC*fitQuad$est$param$est['tempC'] + 
+     tempSeqC^2*fitQuad$est$param$est['tempSq'] +
+     tempSeqC^3*fitQuad$est$param$est['temp3'],
+     col='yellow'
+)
+lines(tempSeq,
+      pmin(tempSeqC, 0) * fitClogit$coef['tempLow'] + 
+      pmax(tempSeqC, 0) * fitClogit$coef['tempHigh'],
+      col='green', lwd=3, lty=1
+)
+lines(tempSeq,
+      pmin(tempSeqC, 0) * fitLinear$est$param$est['tempLow'] + 
+      pmax(tempSeqC, 0) * fitLinear$est$param$est['tempHigh'],
+      col='red', lwd=3, lty=2
+)
+lines(tempSeq,
+      pmin(tempSeqC, 0) * fitLinear2$est$param$est['tempLow'] + 
+      pmax(tempSeqC, 0) * fitLinear2$est$param$est['tempHigh'],
+      col='orange', lwd=3, lty=2
+)
+
+legend('bottomleft', bty='n', lty=1, col=c('black','yellow','red','orange','green'),
+       legend = c('iwp','cubic', 'linear no OD','linear','clogit'))
+
+```
+
+
+
+```{r fitTemperatureAlex, include=FALSE, eval=FALSE}
+
+tempKnots = seq(-5,40,by=2.5)
+library('hpoltest')
+fitAsAlex <- hnlm(
+  case ~  f(final_temp, model='iwp', ref_value = 30, p=2, knots = tempKnots),
+  cc_design = ccDesign(strat_vars = c('riskset')),
+  data = x[x$death_cause == 'stroke',],
+  verbose=FALSE
+  )
+fitIwp3NoOd <- hnlm(
+  case ~  f(final_temp, model='iwp', ref_value = 30, p=3, knots = tempKnots),
+  cc_design = ccDesign(strat_vars = c('riskset')),
+  data = x[x$death_cause == 'stroke',],
+  verbose=FALSE
+  )
+
+fitIwp3 <- hnlm(
+  case ~  f(final_temp, model='iwp', ref_value = 30, p=3, knots = tempKnots) +
+     f(date, model='iid'),
+  cc_design = ccDesign(strat_vars = c('riskset')),
+  data = x[x$death_cause == 'stroke',],
+  optim_parameters = list(eval.max=1e4, iter.max=1e4, trace=FALSE),
+  inner.control = list(maxit = 1e4, tol10=1e-4, tol=1e-9, ustep=0.5),
+  verbose=FALSE
+  )
+fitIwp2 <- hnlm(
+  case ~  f(final_temp, model='iwp', ref_value = 30, p=2, knots = tempKnots) +
+     f(date, model='iid'),
+  cc_design = ccDesign(strat_vars = c('riskset')),
+  data = x[x$death_cause == 'stroke',],
+  verbose=FALSE
+  )
+fitAsAlex <- hnlm(
+  case ~  f(final_temp, model='iwp', ref_value = 30, p=2, knots = tempKnots),
+  cc_design = ccDesign(strat_vars = c('riskset')),
+  data = x[x$death_cause == 'stroke',],
+  verbose=FALSE
+  )
+```
+
+
 
 ```{r digitPreference}
 checkForDigitPreference1 = aggregate(deaths[,'medical', drop=FALSE],
@@ -176,6 +395,7 @@ fitCvd <- hnlm(
   )
 saveRDS(fitCvd, file.path(storeDir, 'ccCvd.rds'))
 }
+fitCvd = readRDS(file.path(storeDir, 'ccCvd.rds'))
 ```
 
 ```{r temperatureDataFromIndia}
@@ -201,7 +421,7 @@ knotsTemperature = seq(0,45, by=5)
 
 formulaMedSeniorIwp = medical_senior ~ dom + f(date, model='iid') + 
   f(maxtemp, model='iwp',ref_value = 25, p=3, knots = knotsTemperature)
-formulaMedIwp = medical ~  f(date, model='iid') + 
+formulaMedIwp = medical ~  #f(date, model='iid') + 
   f(maxtemp, model='iwp',ref_value = 25, p=3, knots = knotsTemperature)
 
 fitTempMedSeniorIwp <- hnlm(
