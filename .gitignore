@@ -5,3 +5,4 @@ workspaces/
 .Ruserdata
 cache
 india.md
+*.o

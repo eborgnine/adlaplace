@@ -2,39 +2,58 @@
 title: cc multinom dirichelet
 ---
 
-CC model
 
-\begin{eqnarray*}
-[ Y_{i\cdot} | \rho_{i\cdot}, N_{i} ] &\sim & \text{Multinom}(\rho_{i\cdot}, N_i)\\
-\rho_{ij} &=& \exp\left(\eta_{ij}\right) \left/ \sum_k \exp\left(\eta_{ik}\right)  \right.\\
-\eta_{ij} &=& X_{ij}\beta + \sum_p A_{ij} U_p \\
-U_p \sim &=& \text{N}(0, \Sigma_p)
-\end{eqnarray*}
 
-with [direchelet random effect](https://en.wikipedia.org/wiki/Dirichlet-multinomial_distribution)
+Strata
+$Y_{i\ell} = \{Y_{i\ell m}, m = 1 \ldots M_{i\ell} \}$ 
 
-\begin{eqnarray*}
-[Y_{i\cdot} | P_{i\cdot}] &\sim & \text{Multinom}(P_{i\cdot}, N_i)\\
-P_{i\cdot} &\sim& \text{Dirichelet}(\rho_{i\cdot}, \tau)\\
-\rho_{ij} &=& \exp\left(\eta_{ij}\right) \left/ \sum_k \exp\left(\eta_{ik}\right)  \right.\\
-\eta_{ij} &=& X_{ij}\beta + \sum_p A_{ij} U_p \\
-U_p \sim &=& \text{N}(0, \Sigma_p)
-\end{eqnarray*}
+$$
+\begin{aligned}
+\lambda_{ij}(t) = & Z_i(t) \rho_{ij}(t) \mu_i(t)  \\
+Z_{i}(t) \sim &  \text{Gamma}(1/\sqrt{\nu}, \sqrt{\nu})\\
+Y_{i\ell} | \text{sum}\{Y_{i\ell}\},  Z, \mu \sim & 
+\text{Multinom}\left(\text{sum}\{Y_{i\ell}\}, P_{i\ell}\right)\\
+P_{i\ell m} | Z, \eta \propto & Z_{i}(t_{i\ell m})\mu_i(t_{i\ell m})\\
+\end{aligned}
+$$
+Note $\text{E}[Z_i(t)] = 1$, $\text{sd}[Z_i(t)] = \nu$ and
+$$
+\begin{aligned} 
+P_{i\ell} | \eta \sim & \text{Dirichelet}\left[1/\sqrt{\nu}, \bar\mu_{i\ell}\right] \\
+\bar \mu_{i\ell m}  = & \mu_{i}(t_{i\ell m}) \left/ \sum_m \mu_{i}(t_{i\ell m}) \right. \\
+\end{aligned}
+$$
 
-in wikipedia's notation my dirichelet is 
-$\text{Dirichelet}(N_i, \tau \rho_{i1}, \ldots \tau \rho_{iJ})$, and $\tau = p_0$.
 
-Integrate out the Dirichelet
+Dirichlet multinomial 
+(\href{https://w.wiki/D$by}{wikipedia})
+$$
+\begin{aligned} 
+Y_{i\ell} | \text{sum}\{Y_{i\ell}\} , \mu \sim & \text{DirMult}\left[\text{sum}\{Y_{i\ell}\}, 1/\sqrt{\nu} , \bar\mu_{i\ell} \right]\\
+\pi(Y_{i\ell}; 1/\sqrt{\nu}, \bar\mu_{i\ell}) = & 
+\frac{
+    \Gamma(1+\text{sum}\{Y_{i\ell}\}  )\Gamma(1/\sqrt{\nu})
+}{
+    \Gamma(1/\sqrt{\nu}+\text{sum}\{Y_{i\ell}\}  )
+} 
+    \prod_{m=1}^{M_{i\ell}} \frac{\Gamma(Y_{i\ell m}+\bar\mu_{i\ell m}/\sqrt{\nu})
+}{
+    \Gamma(Y_{i\ell m}+1)\Gamma(\bar\mu_{i\ell m}/\sqrt{\nu})
+} \\
+= & \text{sum} \{Y_{i\ell}\}  B\left(1/\sqrt{\nu}, \text{sum} \{Y_{i\ell}\} \right)
+\left/
+\prod_{m; Y_{i\ell m}>0} Y_{i\ell m}B\left(\bar\mu_{i\ell m}/\sqrt{\nu}, Y_{i\ell m}\right)
+\right.
+\end{aligned}
+$$
 
-\begin{eqnarray*}
-[Y_{ij} | \rho_{i\cdot}] &\sim & \text{DM}(\rho_{i\cdot}, \tau)\\
-\log\pi(Y | \rho )  &=& \sum_i \log N_i + \log \text{B}\left(\tau, N_i\right) - 
- \sum_{j; Y_{ij} > 0} \left[ 
-  \log(Y_{ij}) - \log \text{B}\left(\tau \rho_{ij}, Y_{ij}\right)
-\right] \\
-&=& \sum_i \log N_i + \log \Gamma(\tau) + \log \Gamma(N_i) - \log \Gamma(N_i + \tau) + \\
-&& \sum_{j; Y_{ij} > 0} \log(Y_{ij}) + \log \Gamma(\tau \rho_{ij} + Y_{ij}) -
-\log \Gamma(\tau \rho_{ij}) - \log \Gamma( Y_{ij})
-\end{eqnarray*}
-
-B is beta function
+Log likelikhood
+$$
+\begin{aligned}
+\log \pi(Y_{i\ell}; 1/\sqrt{\nu}, \bar\eta_{i\ell}) = &
+\log \Gamma \left(1+\text{sum} \{Y_{i\ell}\}\right) + \log \Gamma(1/\sqrt{\nu}) 
+- \log  \Gamma(1/\sqrt{\nu}+\text{sum}\{Y_{i\ell}\}  ) \\
+& + \sum_m  \log \Gamma(Y_{i\ell m}+\bar\mu_{i\ell m}/\sqrt{\nu}) 
+- \log \Gamma(Y_{i\ell m}+1) -\log \Gamma(\bar\mu_{i\ell m}/\sqrt{\nu})
+\end{aligned}
+$$
