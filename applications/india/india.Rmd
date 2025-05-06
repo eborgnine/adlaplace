@@ -325,6 +325,7 @@ quantile(deaths$tempClean)
 
 
 
+
 ```{r digitPreference}
 checkForDigitPreference1 = aggregate(deaths[,'medical', drop=FALSE],
   deaths[,c('dom','month')], sum)
@@ -347,14 +348,15 @@ dataMedSimple = removeUnusedStrata(
     !deaths$ecoRegion %in% c(7, 8,10), ],
   Sstrata, outcome)
 formulaMedSimple <- y ~ f(date, model='iid') +
-    f(tempClean, model='iwp',ref_value = 25, p=3, knots = tempKnots)
+    f(temp, model='iwp',ref_value = 25, p=3, knots = seq(-40,45,by=2.5))
 
 devtools::load_all("~/research/hpoltest")
 fit<- hnlm(
   formula=formulaMedSimple, 
   data=dataMedSimple,
 #  tmb_parameters = list(theta = c(5.25,31)),
-  cc_design =  ccDesign(strat_vars = Sstrata),
+  cc_design =  c("cell",  "ecoRegion", "yearWeek3Dow"),
+  dirichelet=TRUE,
 #  optim_parameters = list(eval.max=1e4, iter.max=1e4, trace=1),
 #  inner.control = list(maxit = 1e4, tol10=1e-4, tol=1e-9, ustep=0.5, intern=TRUE),
   verbose=TRUE, for_dev=TRUE 
@@ -369,7 +371,9 @@ attach(fit)
                    DLL = "hpoltest")
   obj$fn(obj$par)
 
-  obj$fn(c(0,0,0,0,0.3))
+  obj$fn(c(0,0,4,4,0.3))
+  obj$fn(c(0,0,4,4,0.01))
+  obj$fn(c(0,0,4,4,0))
 
   
 dataMedSimplePm = removeUnusedStrata(
