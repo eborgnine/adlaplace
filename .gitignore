@@ -6,3 +6,5 @@ workspaces/
 cache
 india.md
 *.o
+*.o
+*.so

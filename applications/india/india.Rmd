@@ -277,22 +277,7 @@ removeUnusedStrata = function(x, Sstrata, outcome, NeventCutoff = 0) {
   
   return(xout)
 }
-removeUnusedStrataOld = function(x, Sstrata, outcome,
-  NeventCutoff = 0) {
 
-NinStrata = aggregate(
-  data.frame(Ndays = 1, Nevents = x[[outcome[1] ]]),
-  as.data.frame(x)[,Sstrata, drop=FALSE],
-  sum)
-NinStrata = NinStrata[
-NinStrata$Ndays > 1 &
-  NinStrata$Nevents > NeventCutoff, ]
-xout = merge(x, NinStrata, by =Sstrata)
-xout$y = xout[[outcome[1] ]]
-attributes(xout)$strata = Sstrata
-attributes(xout)$outcome = outcome[1]
-xout
-}
 
 Sstrata = c("cell","ecoRegion", "yearWeek3Dow")
 pmKnots = c(0,1, 2, 5, 7,  10, 15, 20, 25) # on square root scale
@@ -304,7 +289,7 @@ outcome = 'medical'
 library('data.table')
 # /home/patrick/Admin/globalHealth/indiaSpatial/daily.Rmd
 SstoreDir = c('/store/patrick/copernicus/agg', '~/Downloads')
-storeDir = SstoreDir[1]
+storeDir = SstoreDir[2]
 if(!dir.exists(storeDir)) storeDir = SstoreDir[2]
 
 deaths = as.data.table(readRDS( file.path(storeDir, "indiaCC.rds")))
@@ -338,6 +323,8 @@ quantile(deaths$tempClean)
 
 >>>>>>> 5cd10894fd1efbce224e23e3a8e7001c616db32c
 
+
+
 ```{r digitPreference}
 checkForDigitPreference1 = aggregate(deaths[,'medical', drop=FALSE],
   deaths[,c('dom','month')], sum)
@@ -359,18 +346,27 @@ dataMedSimple = removeUnusedStrata(
     format(deaths$date, '%b%d') != 'Jan01' &
     !deaths$ecoRegion %in% c(7, 8,10), ],
   Sstrata, outcome)
-formulaMedSimple <- y ~ dom + f(date, model='iid') +
+formulaMedSimple <- y ~ f(date, model='iid') +
     f(tempClean, model='iwp',ref_value = 25, p=3, knots = tempKnots)
 
+devtools::load_all("~/research/hpoltest")
 fit<- hnlm(
   formula=formulaMedSimple, 
   data=dataMedSimple,
 #  tmb_parameters = list(theta = c(5.25,31)),
   cc_design =  ccDesign(strat_vars = Sstrata),
-  optim_parameters = list(eval.max=1e4, iter.max=1e4, trace=1),
-  inner.control = list(maxit = 1e4, tol10=1e-4, tol=1e-9, ustep=0.5, intern=TRUE),
-  verbose=TRUE, for_dev=FALSE 
+#  optim_parameters = list(eval.max=1e4, iter.max=1e4, trace=1),
+#  inner.control = list(maxit = 1e4, tol10=1e-4, tol=1e-9, ustep=0.5, intern=TRUE),
+  verbose=TRUE, for_dev=TRUE 
   )
+attach(fit)
+ r <- if(length(tmb_parameters$gamma) > 0){"gamma"}else{NULL}
+  obj <- MakeADFun(data = tmb_data,
+                   parameters = tmb_parameters[c('beta','gamma','theta')],
+                   random = r,
+                   map = map,
+                   intern=FALSE, type='ADFun',
+                   DLL = "hpoltest")
 
 
 dataMedSimplePm = removeUnusedStrata(
