@@ -369,9 +369,12 @@ attach(fit)
                    silent=FALSE,
                    DLL = "hpoltest")
   obj$fn(obj$par)
+  obj$report()
 
   obj$fn(c(0,0,4,4,0.3))
+  obj$report()
   obj$fn(c(0,0,4,4,0))
+  obj$report()
 
   
 dataMedSimplePm = removeUnusedStrata(
