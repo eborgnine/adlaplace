@@ -24,9 +24,9 @@
 #' @export
 #' 
 hnlm <- function(formula, data, cc_design = ccDesign(), weight_var, 
+                 dirichelet = FALSE,
                  tmb_parameters = NULL,  
                  optim_parameters = list(eval.max=2000, iter.max=2000),
-                 dirichelet = FALSE,
                  optimizer = c('nlminb','optim'),
                  for_dev = FALSE, verbose=FALSE, ...) {
   setDT(data)
@@ -136,7 +136,12 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
   # final element of theta is the dirichelet SD
   theta_info$var = c(theta_info$var, 'overdisp')
   theta_info$map = c(theta_info$map, max(theta_info$map)+1)
-  theta_info$init <- c(theta_info$init, 0.1)
+  if(is.logical(dirichelet)) {
+    diricheletStart = 0.1*dirichelet
+  } else {
+    diricheletStart = dirichelet    
+  }
+  theta_info$init <- c(theta_info$init, diricheletStart)
 
   if(verbose) cat('.\n')
     if(length(Alist)) {

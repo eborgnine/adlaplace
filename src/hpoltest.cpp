@@ -34,31 +34,34 @@ Type objective_function<Type>::operator() () {
 
   if(nu > 0) { // dirichelet multinom
 
+#ifdef UNDEF
     Type sumY, yHere;
     Type logSqrtNu = log(nu)/2;
     Type oneOverSqrtNu = exp(-logSqrtNu);
     Type gammaNu = lgamma(oneOverSqrtNu);
     Type gammaNuSumY, muBar;
-
     for (int i = 0; i<n_cc; i++) {
       lsa = Type(-INFINITY);
-      sumY = 0L;
-      for(int j = 0; j<d_cc; j++)
-        if(cc_matrix(i,j) != 0) {
-          lsa = logspace_add(lsa, eta(cc_matrix(i,j)-1));
-          sumY += y(cc_matrix(i,j)-1); 
-        }
-        gammaNuSumY = gammaNu + lgamma(1+sumY) - lgamma(oneOverSqrtNu+sumY);
-        lsa = lsa + logSqrtNu;
+      for(int j = 0; j<d_cc; j++) {
+        if(cc_matrix(i,j) != 0) lsa = logspace_add(lsa, eta(cc_matrix(i,j)-1));
+      }
+      sumY = Type(0);
+      for(int j = 0; j<d_cc; j++) {
+        if(cc_matrix(i,j) != 0) sumY += y(cc_matrix(i,j)-1); 
+      }
 
+      gammaNuSumY = gammaNu + lgamma(1+sumY) - lgamma(oneOverSqrtNu+sumY);
+      lsa += logSqrtNu;
     // etaBar = (1/sqrt(nu)) * exp(eta_ij)/sum(exp(eta_i)) = exp(eta_ij - lsa)
-        for(int j = 0; j<d_cc; j++) 
+        for(int j = 0; j<d_cc; j++) {
           if(cc_matrix(i,j) != 0) {
             muBar = exp(eta(cc_matrix(i,j)-1) - lsa);
             yHere = y(cc_matrix(i,j)-1);
             nll -= lgamma(yHere + muBar) - lgamma(yHere + 1) - lgamma(muBar);
           }
         }
+      }
+#endif        
   } else { // multinom
     for (int i = 0; i<n_cc; i++) {
       lsa = Type(-INFINITY);
