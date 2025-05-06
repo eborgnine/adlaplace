@@ -289,7 +289,7 @@ outcome = 'medical'
 library('data.table')
 # /home/patrick/Admin/globalHealth/indiaSpatial/daily.Rmd
 SstoreDir = c('/store/patrick/copernicus/agg', '~/Downloads')
-storeDir = SstoreDir[2]
+storeDir = SstoreDir[1]
 if(!dir.exists(storeDir)) storeDir = SstoreDir[2]
 
 deaths = as.data.table(readRDS( file.path(storeDir, "indiaCC.rds")))
@@ -321,7 +321,7 @@ quantile(deaths$sqrtPm)
 quantile(deaths$tempClean)
 ```
 
->>>>>>> 5cd10894fd1efbce224e23e3a8e7001c616db32c
+
 
 
 
@@ -367,8 +367,11 @@ attach(fit)
                    map = map,
                    intern=FALSE, type='ADFun',
                    DLL = "hpoltest")
+  obj$fn(obj$par)
 
+  obj$fn(c(0,0,0,0,0.3))
 
+  
 dataMedSimplePm = removeUnusedStrata(
   deaths[
     deaths$date >= as.Date('2006/1/1') &
