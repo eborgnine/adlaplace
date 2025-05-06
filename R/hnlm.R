@@ -39,6 +39,9 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
     stop("weight_var must be a character vector.")
   
   # Order the rows of data appropriately.
+  if(is.character(cc_design)) {
+    cc_design = ccDesign(strat_vars = cc_design)
+  }
   if (is.null(cc_design$strat_vars) &
       is.null(cc_design$time_var))
     stop("Provide a valid stratification (or time) variable.")
@@ -269,6 +272,15 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
   if (verbose)
     message("first evaluation")
   obj$fn(obj$par)
+
+  optim_inline_parameters = optim_parameters[
+    intersect(names(optim_parameters), c('upper','lower','scale','method'))]
+  if(is.null(optim_inline_parameters$upper))
+      optim_inline_parameters$upper = rep(Inf, length(obj$par))
+  if(is.null(optim_inline_parameters$lower))
+      optim_inline_parameters$lower = c(rep(-Inf, length(obj$par)-1), 0)
+
+
   if (verbose)
     message("beginning optimization")
   if (optimizer[1] == 'nlminb') {
@@ -278,13 +290,13 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
       start = obj$par,
       objective = obj$fn,
       gradient = obj$gr,
-      control = optim_parameters
+      control = optim_parameters[setdiff(names(optim_parameters), c('lower','upper','scale'))]
     )
   } else if (optimizer[1] == 'optim') {
     if (verbose)
       message("optim")
     optimMethod = optim_parameters$method
-    optim_parameters = optim_parameters[setdiff(names(optim_parameters), 'method')]
+    optim_parameters = optim_parameters[setdiff(names(optim_parameters), c('lower','upper','method'))]
     if (!length(optimMethod))
       optimMethod = 'BFGS'
     opt <- stats::optim(
