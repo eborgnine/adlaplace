@@ -22,6 +22,7 @@ Type objective_function<Type>::operator() () {
   
   // Compute eta = log(lambda)
   Type nll = 0;
+  Type toreport;
   vector<Type> eta(y.size());
   eta.setZero();
   if(X.cols() > 0) eta += X * beta;
@@ -36,7 +37,7 @@ Type objective_function<Type>::operator() () {
   Type gammaNu, gammaNuSumY, muBar;
   
   if(nu > 0) { // dirichelet multinom
-    
+    toreport = 0;
     logSqrtNu = log(nu)/2;
     oneOverSqrtNu = exp(-logSqrtNu);
     gammaNu = lgamma(oneOverSqrtNu);
@@ -61,6 +62,7 @@ Type objective_function<Type>::operator() () {
       }
     }
   } else { // multinom
+    toreport =1;
     for (int i = 0; i<n_cc; i++) {
       lsa = Type(-INFINITY);
       for(int j = 0; j<d_cc; j++) 
@@ -95,6 +97,7 @@ Type objective_function<Type>::operator() () {
 
   REPORT(theta);
   REPORT(nu);
+  REPORT(sumY);
 
   nll += 0.5*(gamma * (Q * gamma).col(0)).sum();
   
