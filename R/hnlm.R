@@ -133,6 +133,11 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
     terms[[k]] <- term
     k <- k+1
   }
+  # final element of theta is the dirichelet SD
+  theta_info$var = c(theta_info$var, 'overdisp')
+  theta_info$map = c(theta_info$map, max(theta_info$map)+1)
+  theta_info$init <- c(theta_info$init, 0.1)
+
   if(verbose) cat('.\n')
     if(length(Alist)) {
       A = do.call(cbind, Alist) |> as("TsparseMatrix")

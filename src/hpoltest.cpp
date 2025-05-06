@@ -34,19 +34,19 @@ Type objective_function<Type>::operator() () {
 
   if(nu > 0) { // dirichelet multinom
 
-    int logSqrtNu = log(nu)/2;
-    int oneOverSqrtNu = exp(-logOneOverSqrtNu);
-    int gammaNu = lgamma(oneOverSqrtNu);
-    int sumY, gammaNuSumY, muBar, yHere;
+    Type sumY, yHere;
+    Type logSqrtNu = log(nu)/2;
+    Type oneOverSqrtNu = exp(-logSqrtNu);
+    Type gammaNu = lgamma(oneOverSqrtNu);
+    Type gammaNuSumY, muBar;
 
     for (int i = 0; i<n_cc; i++) {
       lsa = Type(-INFINITY);
       sumY = 0L;
       for(int j = 0; j<d_cc; j++)
-        lsa = Type(-INFINITY);
         if(cc_matrix(i,j) != 0) {
           lsa = logspace_add(lsa, eta(cc_matrix(i,j)-1));
-          sumY += y(cc_matrix(i,j)-1) 
+          sumY += y(cc_matrix(i,j)-1); 
         }
         gammaNuSumY = gammaNu + lgamma(1+sumY) - lgamma(oneOverSqrtNu+sumY);
         lsa = lsa + logSqrtNu;
