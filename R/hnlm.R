@@ -22,20 +22,14 @@
 #'
 #' @useDynLib hpoltest
 #' @export
-hnlm <- function(formula,
-                 data,
-                 cc_design = ccDesign(),
-                 weight_var,
-                 tmb_parameters = NULL,
+hnlm <- function(formula, data, cc_design = ccDesign(), weight_var, 
                  dirichelet = FALSE,
-                 optim_parameters = list(eval.max = 2000, iter.max = 2000),
-                 optimizer = c('nlminb', 'optim'),
-                 for_dev = FALSE,
-                 verbose = FALSE,
-                 ...) {
+                 tmb_parameters = NULL,  
+                 optim_parameters = list(eval.max=2000, iter.max=2000),
+                 optimizer = c('nlminb','optim'),
+                 for_dev = FALSE, verbose=FALSE, ...) {
+  setDT(data)
 
-    setDT(data)
-  
   # Check inputs
   if (!is(formula, "formula"))
     stop("formula must be a formula.")
@@ -157,30 +151,17 @@ hnlm <- function(formula,
     
     # update term with new elements
     terms[[k]] <- term
-<<<<<<< HEAD
-    k <- k + 1
-  } # done k
-  
-  if (verbose)
-    cat('.\n')
-  if (length(Alist)) {
-    A = do.call(cbind, Alist) |> as("TsparseMatrix")
-  } else {
-    A = matrix(nrow = 0, ncol = 0) |> as("TsparseMatrix")
-  }
-  if (length(Xlist)) {
-    X = do.call(cbind, Xlist)
-  } else {
-    X = matrix(nrow = nrow(data), ncol = 0)
-  }
-  
-=======
     k <- k+1
   }
   # final element of theta is the dirichelet SD
   theta_info$var = c(theta_info$var, 'overdisp')
   theta_info$map = c(theta_info$map, max(theta_info$map)+1)
-  theta_info$init <- c(theta_info$init, 0.1)
+  if(is.logical(dirichelet)) {
+    diricheletStart = 0.1*dirichelet
+  } else {
+    diricheletStart = dirichelet    
+  }
+  theta_info$init <- c(theta_info$init, diricheletStart)
 
   if(verbose) cat('.\n')
     if(length(Alist)) {
@@ -193,8 +174,7 @@ hnlm <- function(formula,
     } else {
       X= matrix(nrow=nrow(data), ncol=0)
     }
->>>>>>> 5cd10894fd1efbce224e23e3a8e7001c616db32c
-  
+
   y <- data[[all.vars(formula)[1]]]
   tmb_data <- list(
     X = X,
