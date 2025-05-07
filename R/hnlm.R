@@ -151,12 +151,12 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
     theta_info$model <- c(theta_info$model, theta_setup$model)
     theta_info$map <- c(theta_info$map, theta_setup$map)
     theta_info$init <- c(theta_info$init, theta_setup$init)
-    theta_info$psd_scale_log <- c(theta_info$psd_scale_log, c(theta_setup$psd_scale_log, NA)[1])
+    theta_info$psd_scale_log <- c(theta_info$psd_scale_log, c(theta_setup$psd_scale_log, 0)[1])
     
     # update term with new elements
     terms[[k]] <- term
     k <- k+1
-  }
+  } # done k loop
   # final element of theta is the dirichelet SD
   theta_info$var = c(theta_info$var, 'overdisp')
   theta_info$map = c(theta_info$map, max(theta_info$map)+1)
@@ -223,7 +223,7 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
   if(is.null(optim_inline_parameters$lower))
     optim_inline_parameters$lower =  c(-5/theMax, rep(1e-5, length(theta_info$init)))
   if(!'parscale' %in% names(optim_parameters)) {
-    optim_parameters$parscale = c(theMax, rep(1, length(obj$par)-length(theMax)))
+    optim_parameters$parscale = c(theMax, rep(1, length(theta_info$init)))
   }
   
   
