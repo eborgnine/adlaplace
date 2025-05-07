@@ -316,9 +316,16 @@ deaths[format(deaths$date, '%m%d') == '0101', 'dom'] = 0
 deaths$dom = relevel(factor(deaths$dom), '1')
 deaths$month = format(deaths$date, '%m')
 
+dataMedSimple = removeUnusedStrata(
+  deaths[
+    deaths$date >= as.Date('2006/1/1') &
+    format(deaths$date, '%b%d') != 'Jan01' &
+    deaths$ecoRegion %in% c(4,17), ],
+  Sstrata, outcome)
 
-quantile(deaths$sqrtPm)
-quantile(deaths$tempClean)
+
+quantile(dataMedSimple$sqrtPm)
+quantile(dataMedSimple$tempClean)
 ```
 
 
@@ -337,21 +344,14 @@ image(as.numeric(checkForDigitPreference$dom),
 
 ```{r fit}
 # devtools::install_github("samperochkin/hpoltest")
-#devtools::load_all("~/research/hpoltest")
-library("hpoltest")
-
-dataMedSimple = removeUnusedStrata(
-  deaths[
-    deaths$date >= as.Date('2006/1/1') &
-    format(deaths$date, '%b%d') != 'Jan01' &
-    !deaths$ecoRegion %in% c(7, 8,10), ],
-  Sstrata, outcome)
-formulaMedSimple <- y ~ f(date, model='iid') +
-    f(tempClean, model='iwp',ref_value = 25, p=3, knots = tempKnots)
+#library("hpoltest")
 
 devtools::load_all("~/research/hpoltest")
+
+
 fit<- hnlm(
-  formula=formulaMedSimple, 
+  formula= y ~ #f(date, model='iid') +
+    f(tempClean, model='iwp',ref_value = 25, p=3, knots = tempKnots), 
   data=dataMedSimple,
 #  tmb_parameters = list(theta = c(5.25,31)),
   cc_design =  ccDesign(strat_vars = Sstrata),
@@ -359,23 +359,55 @@ fit<- hnlm(
 #  inner.control = list(maxit = 1e4, tol10=1e-4, tol=1e-9, ustep=0.5, intern=TRUE),
   verbose=TRUE, for_dev=TRUE 
   )
-attach(fit)
- r <- if(length(tmb_parameters$gamma) > 0){"gamma"}else{NULL}
-  obj <- MakeADFun(data = tmb_data,
-                   parameters = tmb_parameters[c('beta','gamma','theta')],
-                   random = r,
-                   map = map,
-                   intern=FALSE, type='ADFun',
-                   silent=FALSE,
-                   DLL = "hpoltest")
-  obj$fn(obj$par)
-  obj$report()
 
-  obj$fn(c(0,0,4,4,0.3))
-  obj$report()
-  obj$fn(c(0,0,4,4,0))
-  obj$report()
+  obj <- MakeADFun(data = fit$tmb_data,
+                   parameters = list(beta = c(0,0), 
+                                     gamma = rep(0, length(fit$tmb_parameters$gamma)),
+                                     theta = c(0.1, 0.1)),
+                                     #tmb_parameters[c('beta','gamma','theta')],
+                   random = 'gamma', map = fit$map, type='ADFun',
+                   silent=TRUE, intern=FALSE, DLL = "hpoltest")
+  
+  (r3 =   obj$fn(x=c(0,0,0.1,0.001)))
+  (r2 =   obj$fn(x=c(0,0,0.3,0.0001)))
+obj$report()  
+(thePar = obj$env$last.par)
+obj$env$f(theta = c(thePar[-length(thePar)],1), order=0, type='double')
+obj$env$f(theta = c(thePar[-length(thePar)],1e-5), order=0, type='double')
+obj$env$f(theta = c(thePar[-length(thePar)],1e-10), order=0, type='double')
+obj$env$f(theta = c(thePar[-length(thePar)],1e-15), order=0, type='double')
+obj$env$f(theta = c(thePar[-length(thePar)],1e-20), order=0, type='double')
+obj$env$f(theta = c(thePar[-length(thePar)],0), order=0, type='double')
 
+# problem, can't do the AD part
+obj$env$f(theta = c(thePar[-length(thePar)],0), order=0, type='ADdouble')
+
+
+theMax = apply(fit$tmb_data$X,2,function(xx) max(abs(xx)))
+
+  stuff = optim(c(0, 0.002, 1, 1e-3),
+                obj$fn, obj$gr,
+                lower = c(-10/theMax, 1e-3, 1e-5),
+                upper = c(10/theMax, 2,2),
+                method='L-BFGS-B',
+                control = list(
+                  REPORT=10, trace=2, maxit=20,
+                  parscale= c(theMax,1,10)))
+fit2 <- hnlm(
+  formula= y ~ #f(date, model='iid') +
+    f(tempClean, model='iwp',ref_value = 25, p=3, knots = tempKnots), 
+  data=dataMedSimple,
+  dirichelet=TRUE,
+#  tmb_parameters = list(theta = c(5.25,31)),
+  cc_design =  ccDesign(strat_vars = Sstrata),
+  optim_parameters = list(maxit = 10, trace=1),
+#  inner.control = list(maxit = 1e4, tol10=1e-4, tol=1e-9, ustep=0.5, intern=TRUE),
+  verbose=TRUE, for_dev=FALSE, optimizer='optim' 
+  )
+  
+```
+
+```{r moreSimlpeModels, eval=FALSE}
   
 dataMedSimplePm = removeUnusedStrata(
   deaths[

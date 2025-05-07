@@ -151,6 +151,7 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
     theta_info$model <- c(theta_info$model, theta_setup$model)
     theta_info$map <- c(theta_info$map, theta_setup$map)
     theta_info$init <- c(theta_info$init, theta_setup$init)
+    theta_info$psd_scale_log <- c(theta_info$psd_scale_log, c(theta_setup$psd_scale_log, NA)[1])
     
     # update term with new elements
     terms[[k]] <- term
@@ -159,6 +160,7 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
   # final element of theta is the dirichelet SD
   theta_info$var = c(theta_info$var, 'overdisp')
   theta_info$map = c(theta_info$map, max(theta_info$map)+1)
+  theta_info$psd_scale = exp(theta_info$psd_scale_log)
   if(is.logical(dirichelet)) {
     diricheletStart = 0.1*dirichelet
   } else {
@@ -187,6 +189,7 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
     # Q = do.call(bdiag, Qs[!unlist(lapply(Qs, is.null))]), #Qs |> .bdiag(),
     Q =  bdiag(Qs[!sapply(Qs, is.null)]),
     gamma_split = gamma_info$split,
+    psd_scale = theta_info$psd_scale,
     # theta_id = theta_info$id
     cc_matrix = cc_matrix
   )
@@ -202,12 +205,28 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
   tmb_parameters$beta  = rep_len(tmb_parameters$beta, ncol(X))
   tmb_parameters$gamma = rep_len(tmb_parameters$gamma, ncol(A))
   tmb_parameters$theta = rep_len(tmb_parameters$theta, length(theta_info$init))
-  
+
+    
   if(! 'map' %in% names(tmb_parameters)) {
     map <- list(theta = factor(theta_info$map))
   } else {
     map = tmb_parameters$map
   }
+  
+  
+  optim_inline_parameters = optim_parameters[
+    intersect(names(optim_parameters), c('upper','lower','method'))]
+  theMax = apply(tmb_data$X,2,function(xx) quantile(abs(xx), 0.9))
+  
+  if(is.null(optim_inline_parameters$upper))
+    optim_inline_parameters$upper = c(5/theMax, rep(2, length(theta_info$init)))
+  if(is.null(optim_inline_parameters$lower))
+    optim_inline_parameters$lower =  c(-5/theMax, rep(1e-5, length(theta_info$init)))
+  if(!'parscale' %in% names(optim_parameters)) {
+    optim_parameters$parscale = c(theMax, rep(1, length(obj$par)-length(theMax)))
+  }
+  
+  
   if (for_dev)
     return(
       list(
@@ -220,7 +239,9 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
         tmb_parameters = tmb_parameters,
         Alist = Alist,
         tmb_data = tmb_data,
-        map = map
+        map = map,
+        optim_parameters = optim_parameters,
+        optim_inline_parameters = optim_inline_parameters
       )
     )
   
@@ -273,13 +294,6 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
     message("first evaluation")
   obj$fn(obj$par)
 
-  optim_inline_parameters = optim_parameters[
-    intersect(names(optim_parameters), c('upper','lower','scale','method'))]
-  if(is.null(optim_inline_parameters$upper))
-      optim_inline_parameters$upper = rep(Inf, length(obj$par))
-  if(is.null(optim_inline_parameters$lower))
-      optim_inline_parameters$lower = c(rep(-Inf, length(obj$par)-1), 0)
-
 
   if (verbose)
     message("beginning optimization")
@@ -290,21 +304,24 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
       start = obj$par,
       objective = obj$fn,
       gradient = obj$gr,
+      upper = optim_inline_parameters$upper,
+      lower = optim_inline_parameters$lower,
       control = optim_parameters[setdiff(names(optim_parameters), c('lower','upper','scale'))]
     )
   } else if (optimizer[1] == 'optim') {
-    if (verbose)
-      message("optim")
-    optimMethod = optim_parameters$method
+    if (verbose) message("optim")
     optim_parameters = optim_parameters[setdiff(names(optim_parameters), c('lower','upper','method'))]
-    if (!length(optimMethod))
-      optimMethod = 'BFGS'
+    if (!length(optim_inline_parameters$method))
+      optim_inline_parameters$method = 'L-BFGS-B'
+    names(optim_parameters) = gsub("^iter.max$", "maxit", names(optim_parameters))
     opt <- stats::optim(
       par = obj$par,
       fn = obj$fn,
       gr = obj$gr,
-      method = optimMethod,
-      control = optim_parameters,
+      method = optim_inline_parameters$method,
+      upper = optim_inline_parameters$upper,
+      lower = optim_inline_parameters$lower,
+      control = optim_parameters[setdiff(names(optim_parameters), 'eval.max')],
       hessian = TRUE
     )
   } else {

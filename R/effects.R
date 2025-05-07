@@ -67,7 +67,7 @@ f <- function(x, model = c("iwp", "hiwp", "fpoly", "rpoly", "hfpoly", "hrpoly", 
 
 
 
-.my_theta_init <- 4
+.my_theta_init <- 0.1
 
 #' @rdname effects_and_utilities 
 #' @export
@@ -129,10 +129,17 @@ iwpTheta <- function(theta_info, term){
   # if(length(theta_init) != 1) stop("iwpTheta ", var, " ", model)
   theta_init <- .my_theta_init
   
+  # predictive SD
+  iqrKnots = diff(quantile(term$knots, c(0.25, 0.75)))
+  pMhalf = term$p-1/2
+  logPsd = pMhalf * log(iqrKnots)- 0.5*log(2*pMhalf)-lfactorial(term$p-1)
+  names(logPsd) = var
+  
   list(var = var, model = model,
        name = paste0(var, "_", model),
        name_mapped = paste0(var, "_", model),
        level_mapped = "GLOBAL",
+       psd_scale_log = logPsd,
        map = theta_map, init = theta_init)
 }
 
