@@ -159,12 +159,13 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
   } # done k loop
   # final element of theta is the dirichelet SD
   theta_info$var = c(theta_info$var, 'overdisp')
-  theta_info$map = c(theta_info$map, max(theta_info$map)+1)
   theta_info$psd_scale = exp(theta_info$psd_scale_log)
-  if(is.logical(dirichelet)) {
-    diricheletStart = 0.1*dirichelet
+  if(dirichelet) {
+    theta_info$map = c(theta_info$map, max(theta_info$map)+1)
+    diricheletStart = 0.01
   } else {
-    diricheletStart = dirichelet    
+    diricheletStart = 0
+    theta_info$map = c(theta_info$map, NA)
   }
   theta_info$init <- c(theta_info$init, diricheletStart)
 
@@ -218,12 +219,13 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
     intersect(names(optim_parameters), c('upper','lower','method'))]
   theMax = apply(tmb_data$X,2,function(xx) quantile(abs(xx), 0.9))
   
+  Nthetas = length(theta_info$init)-1+dirichelet
   if(is.null(optim_inline_parameters$upper))
-    optim_inline_parameters$upper = c(5/theMax, rep(2, length(theta_info$init)))
+    optim_inline_parameters$upper = c(5/theMax, rep(5, Nthetas))
   if(is.null(optim_inline_parameters$lower))
-    optim_inline_parameters$lower =  c(-5/theMax, rep(1e-5, length(theta_info$init)))
+    optim_inline_parameters$lower =  c(-5/theMax, rep(1e-5, Nthetas))
   if(!'parscale' %in% names(optim_parameters)) {
-    optim_parameters$parscale = c(theMax, rep(1, length(theta_info$init)))
+    optim_parameters$parscale = c(theMax, rep(1, Nthetas))
   }
   
   
@@ -287,9 +289,7 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
     map = map,
     intern = FALSE,
     type = 'ADFun',
-    DLL = "hpoltest",
-    ...
-  )
+    DLL = "hpoltest",  ... )
   if (verbose)
     message("first evaluation")
   obj$fn(obj$par)
@@ -306,7 +306,7 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
       gradient = obj$gr,
       upper = optim_inline_parameters$upper,
       lower = optim_inline_parameters$lower,
-      control = optim_parameters[setdiff(names(optim_parameters), c('lower','upper','scale'))]
+      control = optim_parameters[setdiff(names(optim_parameters), c('parscale','lower','upper','scale'))]
     )
   } else if (optimizer[1] == 'optim') {
     if (verbose) message("optim")
@@ -336,11 +336,7 @@ hnlm <- function(formula, data, cc_design = ccDesign(), weight_var,
   if (verbose)
     message("done optimization")
   
-  #  funNoRandom <- MakeADFun(data = tmb_data,
-  #                             parameters = tmb_parameters,
-  #                             map = map,
-  #                             DLL = "hpoltest")
-  
+
   fitList = try(formatResult(obj))
   
   

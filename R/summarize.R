@@ -39,8 +39,10 @@ getNewXA <- function(terms, df){
     }    
     
     if(term$model %in% "iid"){
-      Asub <- Matrix(data = 0, nrow = nrow(df), ncol = term$n) |> as("TsparseMatrix")
-      colnames(Asub) <- paste0(term$var, seq(from=1, by=1, len=ncol(Asub)))
+      # problem: doesn't use df
+      Asub <- Diagonal(nrow(df))
+      colnames(Asub) <- paste0('factor(',term$var,')',
+                               df[[term$var]])
       A <- cbind(A, Asub)
       k <- k+1
       next
