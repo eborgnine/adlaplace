@@ -1,39 +1,51 @@
 #include <TMB.hpp>
 #define EIGEN_DONT_PARALLELIZE
 
-//#define EVALCONSTANTS
+// Constants (consider moving to R-side if they change often)
 #define LOGTWOPI 1.8378770664093454835606594728112352797227949472755668
 
 template<class Type>
 Type objective_function<Type>::operator() () {
-  // Data inputs
-  DATA_SPARSE_MATRIX(X);                   // Design matrix for fixed effects
-  DATA_SPARSE_MATRIX(A);                   // Design matrix for random effects
+  // ======================
+  // 1. Data Inputs
+  // ======================
+  DATA_SPARSE_MATRIX(X);                   // Fixed effects design matrix
+  DATA_SPARSE_MATRIX(A);                   // Random effects design matrix
   DATA_VECTOR(y);                          // Observed counts
   DATA_SPARSE_MATRIX(Q);                   // Precision matrix
   DATA_IVECTOR(gamma_split);               // Random effects grouping
-  DATA_VECTOR(psd_scale);                  // Scaling factors
+  DATA_VECTOR(psd_scale);                  // Scaling factors (unused in current code)
   DATA_IMATRIX(cc_matrix);                 // Case-control matrix
+  DATA_INTEGER(dirichlet);                 // 0=Multinomial, 1=Dirichlet-Multinomial
   
-  // Parameters
+  // ======================
+  // 2. Parameters
+  // ======================
   PARAMETER_VECTOR(beta);                  // Fixed effects
   PARAMETER_VECTOR(gamma);                 // Random effects
   PARAMETER_VECTOR(theta);                 // Variance parameters
   
-  // Linear predictor (keep serial for AD)
+  // ======================
+  // 3. Linear Predictor
+  // ======================
   vector<Type> eta = X * beta + A * gamma;
   
-  // Initialize parallel accumulator (thread-safe for AD)
-  parallel_accumulator<Type> loglik_par(this);
-  Type nu = theta(gamma_split.size());
-  int n_cc = cc_matrix.rows();
-  int d_cc = cc_matrix.cols();
+  if (theta(theta.size()-1) < 0) {
+    Rf_error("theta must be positive!", theta(theta.size()-1));
+  }
   
-  // Parallel region for case-control contributions
+  // ======================
+  // 4. Parallel Likelihood Calculation
+  // ======================
+  parallel_accumulator<Type> loglik_par(this);
+  Type nu = theta(gamma_split.size());     // Dirichlet dispersion parameter
+  int n_cc = cc_matrix.rows();            // Number of case-control groups
+  int d_cc = cc_matrix.cols();             // Max group size
+  
   PARALLEL_REGION {
-    if (nu > 0) {
-      // DIRICHLET-MULTINOMIAL parallelized
-      Type logSqrtNu = log(nu)/2;
+    if (dirichlet) {
+      // Precompute Dirichlet constants (thread-safe)
+      Type logSqrtNu = log(nu) / 2;
       Type oneOverSqrtNu = exp(-logSqrtNu);
       Type lgammaOneOverSqrtNu = lgamma(oneOverSqrtNu);
       
@@ -41,99 +53,105 @@ Type objective_function<Type>::operator() () {
         Type logSumMu = Type(-INFINITY);
         Type sumY = 0;
         
-        // First pass (serial within parallel region)
+        // First pass: Compute logSumMu and sumY
         for (int j = 0; j < d_cc; j++) {
-          int idx = cc_matrix(i,j);
+          int idx = cc_matrix(i, j);
           if (idx != 0) {
-            idx -= 1;
+            idx -= 1;  // Convert to 0-based index
             logSumMu = logspace_add(logSumMu, eta(idx));
             sumY += y(idx);
           }
         }
         
+        // Dirichlet-Multinomial contribution
         Type contrib = lgammaOneOverSqrtNu - lgamma(oneOverSqrtNu + sumY);
 #ifdef EVALCONSTANTS
         contrib += lgamma(1 + sumY);
 #endif
         
-        // Second pass
+        // Second pass: Add per-observation terms
         for (int j = 0; j < d_cc; j++) {
-          int idx = cc_matrix(i,j);
+          int idx = cc_matrix(i, j);
           if (idx != 0) {
             idx -= 1;
             Type muBarDivSqrtNu = exp(eta(idx) - logSumMu - logSqrtNu);
-            Type yHere = y(idx);
-            contrib += lgamma(yHere + muBarDivSqrtNu) - lgamma(muBarDivSqrtNu);
+            contrib += lgamma(y(idx) + muBarDivSqrtNu) - lgamma(muBarDivSqrtNu);
 #ifdef EVALCONSTANTS
-            contrib -= lgamma(yHere + 1);
+            contrib -= lgamma(y(idx) + 1);
 #endif
           }
         }
-        loglik_par += contrib; // Thread-safe accumulation
+        loglik_par += contrib;
       }
     } else {
-      // MULTINOMIAL parallelized
+      // Multinomial likelihood (parallelized)
       for (int i = 0; i < n_cc; i++) {
-        Type lsa = Type(-INFINITY);
+        Type logSumExpEta = Type(-INFINITY);
 #ifdef EVALCONSTANTS
         Type sumY = 0;
-        Type sumGammaY_local = 0;
+        Type sumLgammaY = 0;
 #endif
         
-        // First pass
+        // First pass: Compute logSumExpEta
         for (int j = 0; j < d_cc; j++) {
-          int idx = cc_matrix(i,j);
+          int idx = cc_matrix(i, j);
           if (idx != 0) {
             idx -= 1;
-            lsa = logspace_add(lsa, eta(idx));
+            logSumExpEta = logspace_add(logSumExpEta, eta(idx));
 #ifdef EVALCONSTANTS
             sumY += y(idx);
-            sumGammaY_local += lgamma(y(idx) + 1);
+            sumLgammaY += lgamma(y(idx) + 1);
 #endif
           }
         }
         
-        // Second pass
+        // Second pass: Compute multinomial log-likelihood
         Type contrib = 0;
         for (int j = 0; j < d_cc; j++) {
-          int idx = cc_matrix(i,j);
+          int idx = cc_matrix(i, j);
           if (idx != 0) {
             idx -= 1;
-            contrib += y(idx) * (eta(idx) - lsa);
+            contrib += y(idx) * (eta(idx) - logSumExpEta);
           }
         }
-        
 #ifdef EVALCONSTANTS
-        contrib += lgamma(sumY + 1) - sumGammaY_local;
+        contrib += lgamma(sumY + 1) - sumLgammaY;
 #endif
         loglik_par += contrib;
       }
     }
-  } // End PARALLEL_REGION
+  }  // End PARALLEL_REGION
   
-  // Serial section for random effects (critical for AD)
-  Type loglik = loglik_par; // Convert accumulator to regular Type
+  // ======================
+  // 5. Random Effects Penalty (Serial)
+  // ======================
+  Type loglik = loglik_par;  // Convert parallel accumulator to serial
   
-  // Random effects calculations (keep serial)
+  // Scale random effects by theta
   vector<Type> sdTheta(A.cols());
   int idx_start = 0;
-  for(int j = 0; j < gamma_split.size(); j++) {
+  for (int j = 0; j < gamma_split.size(); j++) {
     int len_j = gamma_split(j);
-    for(int i = idx_start; i < idx_start + len_j; i++) {
-      sdTheta(i) = theta(j)/psd_scale(j);
-      loglik += log(sdTheta(i)); // Log-det part
+    Type theta_j = theta(j);  // Reuse for all elements in group j
+    for (int i = idx_start; i < idx_start + len_j; i++) {
+      sdTheta(i) = theta_j;  // Note: psd_scale unused (commented out)
+      loglik += log(sdTheta(i));  // Log-det of transformation
     }
     idx_start += len_j;
   }
   
   gamma = gamma * sdTheta;
-  Type randomContribution = -0.5*(gamma * (Q * gamma).col(0)).sum();
+  Type randomContribution = -0.5 * (gamma * (Q * gamma).col(0)).sum();
 #ifdef EVALCONSTANTS
-  randomContribution += (gamma.size()/2)*LOGTWOPI;
+  randomContribution += (gamma.size() / 2) * LOGTWOPI;
 #endif
   
   loglik += randomContribution;
-  ADREPORT(loglik);
-  
-  return -loglik;
+  REPORT(eta);
+  REPORT(beta);
+  REPORT(theta);
+  REPORT(randomContribution);
+  REPORT(loglik);
+
+  return -loglik;  // Minimize negative log-likelihood
 }

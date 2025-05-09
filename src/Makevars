@@ -1,8 +1,32 @@
-# Base TMB headers
-PKG_CPPFLAGS = -I$(shell $(R_HOME)/bin/Rscript -e "cat(system.file('include', package='TMB'))") \
-               -I$(shell $(R_HOME)/bin/Rscript -e "cat(system.file('include', package='RcppEigen'))") \
-               -fopenmp
+# =============================================
+# 1. Compiler Flags (Optimization & Warnings)
+# =============================================
+CXX = g++ -std=c++14          # Use C++14 (required by TMB/Eigen)
+CXXFLAGS = -O3 -march=native  # Aggressive optimizations (-O3) and CPU-specific tuning
+CXXFLAGS += -Wno-ignored-attributes  # Suppress Eigen/TMB attribute warnings
 
-# Linker flags
+# =============================================
+# 2. Preprocessor Flags (Headers)
+# =============================================
+PKG_CPPFLAGS = -I"$(shell Rscript -e "cat(system.file('include', package='TMB'))")" \
+               -I"$(shell Rscript -e "cat(system.file('include', package='RcppEigen'))")" \
+               -fopenmp  # Enable OpenMP (if used)
+
+# =============================================
+# 3. Linker Flags (Libraries)
+# =============================================
 PKG_LIBS = -fopenmp $(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS) \
-           -L$(shell $(R_HOME)/bin/Rscript -e "cat(system.file('libs', package='TMB'))") -lTMB
+           -L"$(shell Rscript -e "cat(system.file('lib', package='TMB'))")" -lTMB
+
+# =============================================
+# 4. Optional: Cache Compilation (ccache)
+# =============================================
+# Uncomment to use ccache (if installed)
+# CC = ccache gcc
+# CXX = ccache g++
+
+# =============================================
+# 5. Optional: Parallel Compilation
+# =============================================
+# Unix/macOS only: Use all CPU cores
+MAKEFLAGS = -j$(shell nproc)

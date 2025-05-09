@@ -164,7 +164,33 @@ ccDesign <- function(...){
   return(cc_design)
 }
 
+#' @export
+removeUnusedStrata = function(x, Sstrata, outcome, NeventCutoff = 0) {
+  setDT(x)
+  
+  if (!all(Sstrata %in% names(x))) stop("Some strata columns not found in data")
+  if (!outcome[1] %in% names(x)) stop("Outcome variable not found in data")
 
+# Calculate strata statistics using efficient data.table operations
+NinStrata <- x[, .(
+  Ndays = .N, 
+  Nevents = sum(.SD[[1]], na.rm = TRUE)  # Explicit NA handling
+), by = Sstrata, .SDcols = outcome[1]]
+
+# Filter using a single pass with compound condition
+keep_strata <- NinStrata[Ndays > 1L & Nevents > NeventCutoff, ..Sstrata]
+
+# Use an anti-join pattern for better memory efficiency
+xout <- x[keep_strata, on = Sstrata, nomatch = NULL]
+
+# Add metadata more efficiently
+data.table::set(xout, j = "y", value = xout[[outcome[1]]])
+data.table::setattr(xout, "strata", Sstrata)
+data.table::setattr(xout, "outcome", outcome[1])
+
+  
+  return(xout)
+}
 
 
 
