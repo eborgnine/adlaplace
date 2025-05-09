@@ -5,6 +5,7 @@
 
 
 ```{r setup2}
+
 removeUnusedStrata = function(x, Sstrata, outcome, NeventCutoff = 0) {
   # Convert to data.table if not already
   if (!data.table::is.data.table(x)) {
@@ -70,7 +71,7 @@ dataMedSimple = removeUnusedStrata(
   deaths[
     deaths$date >= as.Date('2006/1/1') &
     format(deaths$date, '%b%d') != 'Jan01'
-    & deaths$ecoRegion %in% 1:5
+#    & deaths$ecoRegion %in% 1:5
     , ],
   Sstrata, outcome)
 
@@ -85,19 +86,23 @@ quantile(dataMedSimple$tempClean)
 
 
 ```{r fit}
+# R CMD INSTALL --clean --preclean hpoltest_0.0.1.tar.gz   --configure-args="--enable-openmp" --configure-vars="PKG_CPPFLAGS='-fopenmp' PKG_LIBS='-fopenmp'"
 # devtools::install_github("samperochkin/hpoltest")
 #library("hpoltest")
 
-devtools::load_all("~/research/hpoltest")
+#devtools::load_all("~/research/hpoltest")
+Sys.setenv(OMP_NUM_THREADS = 4)
+library('hpoltest')
+TMB::openmp(8, DLL='hpoltest')
 
 
 fit2 <- hnlm(
   formula= y ~ #f(date, model='iid') +
-    f(tempClean, model='iwp',ref_value = 25, p=3, knots = seq(-15, 45, by=5)),#, group_var = ecoRegion), 
+    f(tempClean, model='iwp',ref_value = 25, p=3, knots = seq(-20, 45, by=5)),#, group_var = ecoRegion), 
   data=dataMedSimple,
   dirichelet=FALSE,
   cc_design =  ccDesign(strat_vars = Sstrata),
-  optim_parameters = list(maxit = 10, trace=1),
+  optim_parameters = list(maxit = 100),
   verbose=TRUE, for_dev=FALSE, optimizer='optim' 
   )
 
@@ -171,7 +176,7 @@ simTemp = condSim(fit2, 'tempClean', Nsim = 500, Nvalues = 1001)
 
   
 matplot(simTemp$x, exp(simTemp$y), type='l', col='#00000040', lty=1, xaxs='i', log='y',
-        ylim = exp(quantile(simTemp$y, c(0.01, 0.99))))
+        ylim = exp(quantile(simTemp$y, c(0.01, 0.99))),bty='n')
 lines(simTemp$x, exp(simTemp$mean), col='red', lwd=2)
 
 #simDate = condSim(fit, 'date', Nsim = 500, Nvalues = 1001) 

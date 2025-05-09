@@ -1,6 +1,6 @@
 Package: hpoltest
 Title: Tools for fitting hierarchical models with integrated Wiener processes random effects (and more).
-Version: 0.0.0.9000
+Version: 0.0.1
 Authors@R: 
     person("Samuel", "Perreault", , "sperreault2407@gmail.com", role = c("aut", "cre"))
 Description: Contains the code implementing the model proposed in Brown, Huang, Perreault (2025+).
@@ -8,5 +8,5 @@ License: use_mit_license()
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.2
-Depends:  R (>= 3.5.0), TMB, Matrix, RcppEigen, data.table
+Depends:  R (>= 4.1.0), TMB, Matrix, RcppEigen, data.table
 LinkingTo: TMB, Matrix, RcppEigen
