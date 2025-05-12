@@ -75,7 +75,7 @@ dataMedSimple = hpoltest:::removeUnusedStrata(
 fit <- hnlm(
   formula= y ~ f(date, model='iid') +
 #    f(tempClean, model='iwp',ref_value = 20, p=3, knots = seq(-5, 45, by=1)),
-    f(tempClean, model='hiwp',ref_value = 25, p=3, knots = seq(-20, 45, by=5), group_var = ecoRegion), 
+    f(tempClean, model='iwp',ref_value = 25, p=3, knots = seq(-20, 45, by=5)),#, group_var = ecoRegion), 
   data=dataMedSimple,
   dirichlet=TRUE,
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
@@ -83,20 +83,20 @@ fit <- hnlm(
   verbose=TRUE, for_dev=FALSE, optimizer='optim' 
   )
 fitM <- hnlm(
-  formula= y ~ #f(date, model='iid') +
+  formula= y ~# f(date, model='iid') +
 #    f(tempClean, model='iwp',ref_value = 20, p=3, knots = seq(-5, 45, by=1)),
     f(tempClean, model='hiwp',ref_value = 25, p=3, knots = seq(-20, 45, by=5), group_var = ecoRegion), 
   data=dataMedSimple,
   dirichlet=FALSE,
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
   optim_parameters = list(maxit = 2, REPORT=1,trace=2),
-  verbose=TRUE, for_dev=TRUE, optimizer='optim' 
+  verbose=TRUE, for_dev=FALSE, optimizer='optim' 
   )
 #attach(fit)
 ```
 
 ```{r plotFit2}
-simTemp =  hpoltest:::condSim(fit, 'tempClean', Nsim = 500, Nvalues = 1001) 
+simTemp =  hpoltest:::condSim(fitM, 'tempClean', Nsim = 500, Nvalues = 1001) 
 
 matplot(simTemp$x, exp(simTemp$y), type='l', col='#00000040', lty=1, xaxs='i', log='y',
         ylim = exp(quantile(simTemp$y, c(0.01, 0.99))),bty='n')
