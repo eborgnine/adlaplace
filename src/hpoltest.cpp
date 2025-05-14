@@ -14,7 +14,7 @@ Type objective_function<Type>::operator() () {
   DATA_VECTOR(y);                          // Observed counts
   DATA_SPARSE_MATRIX(Q);                   // Precision matrix
   DATA_IVECTOR(gamma_split);               // Random effects grouping
-  DATA_VECTOR(psd_scale);                  // Scaling factors (unused in current code)
+  DATA_VECTOR(psd_scale);                  // Scaling factors for predictive standard deviations
   DATA_IMATRIX(cc_matrix);                 // Case-control matrix
   DATA_INTEGER(dirichlet);                 // 0=Multinomial, 1=Dirichlet-Multinomial
   
@@ -38,13 +38,13 @@ Type objective_function<Type>::operator() () {
   // 4. Parallel Likelihood Calculation
   // ======================
   parallel_accumulator<Type> loglik_par(this);
-  Type nu = theta(gamma_split.size());     // Dirichlet dispersion parameter
   int n_cc = cc_matrix.rows();            // Number of case-control groups
   int d_cc = cc_matrix.cols();             // Max group size
   
   PARALLEL_REGION {
     if (dirichlet) {
       // Precompute Dirichlet constants (thread-safe)
+      Type nu = theta.tail(1)(0); 
       Type logSqrtNu = log(nu) / 2;
       Type oneOverSqrtNu = exp(-logSqrtNu);
       Type lgammaOneOverSqrtNu = lgamma(oneOverSqrtNu);
@@ -63,10 +63,9 @@ Type objective_function<Type>::operator() () {
           }
         }
         
-        // Dirichlet-Multinomial contribution
         Type contrib = lgammaOneOverSqrtNu - lgamma(oneOverSqrtNu + sumY);
 #ifdef EVALCONSTANTS
-        contrib += lgamma(1 + sumY);
+        contrib += lgamma(sumY + 1);
 #endif
         
         // Second pass: Add per-observation terms
@@ -122,34 +121,47 @@ Type objective_function<Type>::operator() () {
     }
   }  // End PARALLEL_REGION
   
+  Type loglik = loglik_par;  // Convert parallel accumulator to serial
+
+  
   // ======================
   // 5. Random Effects Penalty (Serial)
   // ======================
-  Type loglik = loglik_par;  // Convert parallel accumulator to serial
+  
+  // SD with PSD
+  
+  vector<Type> thetaSub = theta.head(gamma_split.size());
+  if (psd_scale.size() > 0) {
+    vector<Type> psd_scale_cast = psd_scale.head(thetaSub.size()).template cast<Type>();
+//    thetaSub = thetaSub / psd_scale_cast;  // Apply scaling
+  }  
+  
+  Type randomContribution = -(gamma_split.template cast<Type>() * log(thetaSub)).sum();
+  
   
   // Scale random effects by theta
-  vector<Type> sdTheta(A.cols());
-  int idx_start = 0;
+  vector<Type> scaled_gamma(gamma.size());
+  int idx = 0;
   for (int j = 0; j < gamma_split.size(); j++) {
-    int len_j = gamma_split(j);
-    Type theta_j = theta(j);  // Reuse for all elements in group j
-    for (int i = idx_start; i < idx_start + len_j; i++) {
-      sdTheta(i) = theta_j;  // Note: psd_scale unused (commented out)
-      loglik += log(sdTheta(i));  // Log-det of transformation
+    for (int k = 0; k < gamma_split(j); k++) {
+      scaled_gamma(idx) = gamma(idx) / thetaSub(j);  // Scale by group theta
+      idx++;
     }
-    idx_start += len_j;
   }
-  
-  gamma = gamma * sdTheta;
-  Type randomContribution = -0.5 * (gamma * (Q * gamma).col(0)).sum();
+  randomContribution -= 0.5 * (scaled_gamma * (Q * scaled_gamma)).sum();
+
 #ifdef EVALCONSTANTS
-  randomContribution += (gamma.size() / 2) * LOGTWOPI;
+  randomContribution -= 0.5*gamma.size() * LOGTWOPI;
+  randomContribution += 0.5*logdet(Q);
 #endif
   
   loglik += randomContribution;
+
+  REPORT(gamma);
   REPORT(eta);
   REPORT(beta);
   REPORT(theta);
+  REPORT(thetaSub);
   REPORT(randomContribution);
   REPORT(loglik);
 
