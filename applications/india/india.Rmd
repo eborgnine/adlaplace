@@ -59,6 +59,7 @@ deaths$month = format(deaths$date, '%m')
 Sys.setenv(OMP_NUM_THREADS = 32)
 library('hpoltest')
 TMB::openmp(as.integer(Sys.getenv("OMP_NUM_THREADS")), DLL='hpoltest')
+system("ulimit -s")
 
 outcome = 'medical'
 
@@ -72,35 +73,35 @@ dataMedSimple = hpoltest:::removeUnusedStrata(
   c("cell","ecoRegion", "yearWeek3Dow"), outcome)
 
 # dput(fitM$theta_info$map)
-thetaStart = c(0.2, 0.2, 0.01, 0.01, 0.01, 0.2)[c(1, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 
+thetaStartD = thetaStartM = c(0.2, 0.01, 0.5, 0.01, 0.01, 0.2)[c(1, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 
 3, 3, 4, 5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 
 5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 5, 
 6)]
+thetaStartM[length(thetaStartM)] = 0
 fitD <- hnlm(
   formula= y ~ f(date, model='iid') +
     f(tempClean, model='hiwp',ref_value = 22, p=3, knots = seq(0, 42, by=2), group_var = ecoRegion), 
   data=dataMedSimple,
   dirichlet=TRUE,
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
-  tmb_parameters = list(theta = thetaStart),
+  tmb_parameters = list(theta = thetaStartD),
   optim_parameters = list(maxit = 2, REPORT=1,trace=2),
-  verbose=TRUE, for_dev=FALSE, optimizer='optim' 
+  verbose=TRUE, optimizer='optim' 
   )
-thetaStart[length(thetaStart)] = 0
 fitM <- hnlm(
   formula= y ~ f(date, model='iid') +
     f(tempClean, model='hiwp',ref_value = 22, p=3, knots = seq(0, 42, by=2), group_var = ecoRegion), 
   data=dataMedSimple,
   dirichlet=FALSE,
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
-  tmb_parameters = list(theta = thetaStart),
-  optim_parameters = list(maxit = 2, REPORT=1,trace=2),
+  tmb_parameters = list(theta = thetaStartM),
+  optim_parameters = list(maxit = 20),
   verbose=TRUE, optimizer='optim', intern=FALSE, inner.method = 'BFGS', 
   inner.control = list(maxit = 500), for_dev=FALSE)
 ```
 
 ```{r plotFit2, fig.height=4, fig.width=4}
-simTemp =  condSim(fitD, 'tempClean') 
+simTemp =  hpoltest:::condSim(fitD, 'tempClean') 
 
 theYlim = c(0.2, 5) #exp(quantile(simTemp$y[,'GLOBAL', ], c(0.01, 0.99)))
 for(D in dimnames(simTemp$y)[[2]]) {
@@ -114,13 +115,23 @@ lines(simTemp$x, exp(apply(simTemp$y[,D, ], 1, mean)), col='red')
 ```
 
 ```{r plotDate}
-simDate = condSim(fitM, 'date') 
+simDate = hpoltest:::condSim(fitD, 'date') 
 
 matplot(as.Date(simDate$x), t(apply(simDate$y, 1, quantile, c(0.025, 0.975, 0.5))), col=c('grey','grey','black'), cex=0.3, pch=16,
         xlab='date', ylab='logrr')
 
 ```
 
+
+```{r debug}
+
+xx = fitD$obj$env$last.par.best
+xx = xx[grep("gamma", names(xx))]
+names(xx) = colnames(fitD$obj$env$data$A)
+xxDate = xx[grep("date", names(xx))]
+xx = xx[grep("date", names(xx), invert=TRUE)]
+
+```
 
 
 ```{r digitPreference, eval=FALSE}

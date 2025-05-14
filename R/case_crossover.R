@@ -12,126 +12,90 @@
 #'     \item scheme: character (default is "time stratified"). Scheme used to (further) stratify the data (using lag, and only when !is.null(time_var)).
 #'   }
 #' @param data A data frame containing the data to be stratified.
-#' 
+#'
 #' @return A matrix where each row represents a strata, and each column represents a day (or unit) for that strata.
-#' 
+#'
 #' @details The function performs stratification based on the specified `strat_vars` and `time_var`. If a time variable is provided,
-#' additional stratification is done using the time lag and size parameters. The result is a matrix where each row represents a 
+#' additional stratification is done using the time lag and size parameters. The result is a matrix where each row represents a
 #' group of data points corresponding to a particular stratification level, with zeroes representing empty cases.
-#' Note that it handles only `time stratified` for now. If ever extended, beware that some other stratification 
-#' methods create overlapping strata; this may require modifying other parts of the package. 
-#' 
-setStrata <- function(cc_design, data){
-  
-  if(is.null(cc_design$time_var) & is.null(cc_design$strat_vars)) stop("Provide statification (or time) variables.")
-  if(!is.null(cc_design$time_var) & cc_design$scheme != "time stratified") stop("Only time stratified scheme is implemented...")
+#' Note that it handles only `time stratified` for now. If ever extended, beware that some other stratification
+#' methods create overlapping strata; this may require modifying other parts of the package.
+#'
+setStrata <- function(cc_design, data) {
+  if (is.null(cc_design$time_var) &
+      is.null(cc_design$strat_vars))
+    stop("Provide statification (or time) variables.")
+  if (!is.null(cc_design$time_var) &
+      cc_design$scheme != "time stratified")
+    stop("Only time stratified scheme is implemented...")
   # Now, the rows cc_days is run over with each possible case day within it.
   # To allow bidirectional designs, include (shadow) parameter that
   # force the TMB template to use only the first day as case day, and
   # create a row for each case day.
   
-#  theEnv = list2env(cc_design, envir = environment())
-
-  if(is.null(cc_design$strat_vars)){
-      strat_split <- list(1:nrow(data))
+  #  theEnv = list2env(cc_design, envir = environment())
+  
+  if (is.null(cc_design$strat_vars)) {
+    strat_split <- list(1:nrow(data))
   } else {
     setDT(data)
-    dataToSplit <- data[, lapply(.SD, function(x) as.integer(factor(x))), .SDcols = cc_design$strat_vars]
-    dataToSplit[, interaction := {
-      nlev <- sapply(.SD, nlevels)  # Max integer = number of levels
-      Reduce(\(x, i) x * nlev[i] + .SD[[i]], seq_len(ncol(.SD))[-1], init = .SD[[1]]) 
-    }]
-    strat_split <- split(1:nrow(data), 
-          dataToSplit$interaction, 
-          drop = TRUE)
+    data[, interaction := .GRP, by = eval(cc_design$strat_vars)]
+    
+    strat_split <- split(1:nrow(data), data$interaction, drop = TRUE)
   }
   
   # if no more stratification do do, return right away
-  if(is.null(cc_design$time_var)){
+  if (is.null(cc_design$time_var)) {
     lens <- sapply(strat_split, length)
     max_len <- max(lens)
-    cc_matrix <- t(sapply(seq_along(strat_split), \(k){
-      c(strat_split[[k]], rep(0, max_len - lens[k]))
+    
+    cc_matrix <- do.call(rbind, lapply(strat_split, function(x) {
+      c(x, rep(0L, max_len - length(x)))  # Using 0L for integer
     }))
-
-    # filter out strata of size 1
-    cc_matrix <- cc_matrix[apply(cc_matrix > 0, 1, any),]
+    
+    cc_matrix <- cc_matrix[rowSums(cc_matrix > 0) > 0, , drop = FALSE]
+    
     return(cc_matrix)
   }
   
-  # if not, also use time_var to further stratify 
-  if(cc_design$time_lag %% 1 != 0) warning("non-integer time_lag(?)")
-  strat_split <- lapply(strat_split, \(ss){
-    split(ss, as.integer(data[ss,][[time_var]]) %% time_lag, drop = F)
+  # if not, also use time_var to further stratify
+  if (cc_design$time_lag %% 1 != 0)
+    warning("non-integer time_lag(?)")
+  strat_split <- lapply(strat_split, \(ss) {
+    split(ss, as.integer(data[ss, ][[time_var]]) %% time_lag, drop = F)
   }) |> unlist(recursive = F)
-    
-  if(!is.null(time_size)){
-    
-    strat_split <- lapply(strat_split, \(ss){
-      
-      times <- data[ss,][[time_var]]
+  
+  if (!is.null(time_size)) {
+    strat_split <- lapply(strat_split, \(ss) {
+      times <- data[ss, ][[time_var]]
       l <- length(ss)
       i <- 1
-      max_lag <- time_lag*time_size
+      max_lag <- time_lag * time_size
       new_ss <- list()
-      while(i < l){
-        maybe <- i + 1:min(time_size-1, l-i)
-        new_s <- ss[c(i, maybe[times[maybe]-times[i] < max_lag])]
-        if(length(new_s) != 1) new_ss[[length(new_ss) + 1]] <- new_s
-        i <- i+length(new_s)
+      while (i < l) {
+        maybe <- i + 1:min(time_size - 1, l - i)
+        new_s <- ss[c(i, maybe[times[maybe] - times[i] < max_lag])]
+        if (length(new_s) != 1)
+          new_ss[[length(new_ss) + 1]] <- new_s
+        i <- i + length(new_s)
       }
       
       return(new_ss)
     }) |> unlist(recursive = F)
-
+    
     # for each case day, enumerates control days (0 means empty)
-    cc_matrix <- sapply(strat_split, \(ss) c(ss, rep(0, time_size-length(ss)))) |> t()
+    cc_matrix <- sapply(strat_split, \(ss) c(ss, rep(0, time_size - length(ss)))) |> t()
   }
   
   # filter out strata of size 1
-  cc_matrix <- cc_matrix[apply(cc_matrix > 0, 1, any),]
+  cc_matrix <- cc_matrix[apply(cc_matrix > 0, 1, any), ]
   return(cc_matrix)
-}  
-
-
-if(FALSE){
-Rcpp::cppFunction('
-  IntegerVector interaction_cpp(DataFrame df) {
-    int n = df.nrows(); // Number of rows
-    int m = df.size();  // Number of columns
-    IntegerVector out(n); // Output vector
-
-    // Vector to store the number of levels for each column
-    IntegerVector nlevels(m);
-    
-    // Compute the number of levels for each column
-    for (int j = 0; j < m; ++j) {
-      IntegerVector col = df[j]; // Extract the j-th column
-      StringVector levels = col.attr("levels"); // Get the levels attribute
-      nlevels[j] = levels.size(); // Store the number of levels
-    }
-
-       // Compute the interaction term
-    for (int i = 0; i < n; ++i) {
-      int combined = 0; // Initialize combined value
-      for (int j = 0; j < m; ++j) {
-        IntegerVector col = df[j]; // Extract the j-th column
-        combined = combined * nlevels[j] + col[i]; // Combine integers using nlevels
-      }
-      out[i] = combined; // Store the combined value in the output
-    }
-   // Convert out to a factor
-//    out.attr("class") = "factor";
-//    StringVector levels = unique(out).sort();
-//    out.attr("levels") = levels;
-    return(out);
-  }
-')
 }
+
 
 #' Create a list of stratification parameters
 #'
-#' @description This function creates a list of design parameters used in stratification. The default parameters can be 
+#' @description This function creates a list of design parameters used in stratification. The default parameters can be
 #' customized by passing arguments to the function.
 #'
 #' @param ... Additional arguments to customize the stratification parameters. These arguments are used to update the
@@ -147,8 +111,7 @@ Rcpp::cppFunction('
 #'   }
 #'
 #' @export
-ccDesign <- function(...){
-  
+ccDesign <- function(...) {
   # default
   cc_design <- list(
     strat_vars = NULL,
@@ -168,28 +131,31 @@ ccDesign <- function(...){
 removeUnusedStrata = function(x, Sstrata, outcome, NeventCutoff = 0) {
   setDT(x)
   
-  if (!all(Sstrata %in% names(x))) stop("Some strata columns not found in data")
-  if (!outcome[1] %in% names(x)) stop("Outcome variable not found in data")
-
-# Calculate strata statistics using efficient data.table operations
-NinStrata <- x[, .(
-  Ndays = .N, 
-  Nevents = sum(.SD[[1]], na.rm = TRUE)  # Explicit NA handling
-), by = Sstrata, .SDcols = outcome[1]]
-
-# Filter using a single pass with compound condition
-keep_strata <- NinStrata[Ndays > 1L & Nevents > NeventCutoff, ..Sstrata]
-
-# Use an anti-join pattern for better memory efficiency
-xout <- x[keep_strata, on = Sstrata, nomatch = NULL]
-
-# Add metadata more efficiently
-data.table::set(xout, j = "y", value = xout[[outcome[1]]])
-data.table::setattr(xout, "strata", Sstrata)
-data.table::setattr(xout, "outcome", outcome[1])
-
+  if (!all(Sstrata %in% names(x)))
+    stop("Some strata columns not found in data")
+  if (!outcome[1] %in% names(x))
+    stop("Outcome variable not found in data")
   
-  return(xout)
+  # Calculate strata statistics using efficient data.table operations
+  NinStrata <- x[, .(
+    Ndays = .N,
+    Nevents = sum(.SD[[1]], na.rm = TRUE)  # Explicit NA handling), by = Sstrata, .SDcols = outcome[1]]
+  ), by = Sstrata, .SDcols = outcome[1]]
+  
+    # Filter using a single pass with compound condition
+    keep_strata <- NinStrata[Ndays > 1L &
+                               Nevents > NeventCutoff, ..Sstrata]
+    
+    # Use an anti-join pattern for better memory efficiency
+    xout <- x[keep_strata, on = Sstrata, nomatch = NULL]
+    
+    # Add metadata more efficiently
+    data.table::set(xout, j = "y", value = xout[[outcome[1]]])
+    data.table::setattr(xout, "strata", Sstrata)
+    data.table::setattr(xout, "outcome", outcome[1])
+    
+    
+    return(xout)
 }
 
 
@@ -214,13 +180,11 @@ data.table::setattr(xout, "outcome", outcome[1])
 #     # id <- paste(floor((time - t0)/(design$lag * (design$n_control+1))),
 #     #             (time - t0) %% design$lag,
 #     #             stratum_var, sep = "-")
-#     
+#
 #   }else if(design$stratum_rule == "month"){
 #     id <- paste(format(data[, model$time_index], "%Y-%m"), time %% design$lag, sep=".")
-#     
+#
 #   }else stop("The stratum rule", design$stratum_rule, "is not implemented.")
-#   
+#
 #   # stata (case and control days togeteher)
 #   stratum <- split(time, id)
-
-
