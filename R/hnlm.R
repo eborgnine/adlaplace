@@ -159,8 +159,7 @@ hnlm <- function(formula,
     theta_info$model <- c(theta_info$model, theta_setup$model)
     theta_info$map <- c(theta_info$map, theta_setup$map)
     theta_info$init <- c(theta_info$init, theta_setup$init)
-    theta_info$psd_scale_log <- c(theta_info$psd_scale_log,
-                                  c(theta_setup$psd_scale_log, 0)[1])
+    theta_info$psd_scale_log <- c(theta_info$psd_scale_log, rep_len(c(theta_setup$psd_scale_log, 0), length(theta_info$init)))
     
     # update term with new elements
     terms[[k]] <- term
@@ -168,6 +167,7 @@ hnlm <- function(formula,
   } # done k loop
   # final element of theta is the dirichlet SD
   theta_info$var = c(theta_info$var, 'overdisp')
+  theta_info$model = c(theta_info$model, '')
   theta_info$psd_scale = exp(theta_info$psd_scale_log)
   if (dirichlet) {
     theta_info$map = c(theta_info$map, max(theta_info$map) + 1)
@@ -177,6 +177,10 @@ hnlm <- function(formula,
     theta_info$map = c(theta_info$map, NA)
   }
   theta_info$init <- c(theta_info$init, dirichletStart)
+  
+  uniqueTheta = which(!duplicated(theta_info$map))
+  theta_info$name = paste(theta_info$var[uniqueTheta], c(theta_info$model[uniqueTheta]), sep =
+                            '_')
   
   if (verbose)
     cat('.\n')
@@ -200,7 +204,7 @@ hnlm <- function(formula,
     # Q = do.call(bdiag, Qs[!unlist(lapply(Qs, is.null))]), #Qs |> .bdiag(),
     Q =  bdiag(Qs[!sapply(Qs, is.null)]),
     gamma_split = gamma_info$split,
-    psd_scale = theta_info$psd_scale,
+    psd_scale = theta_info$psd_scale[theta_info$map],
     # theta_id = theta_info$id
     cc_matrix = cc_matrix,
     dirichlet = as.integer(dirichlet)
@@ -234,9 +238,9 @@ hnlm <- function(formula,
   if (is.null(optim_inline_parameters$upper))
     optim_inline_parameters$upper = c(5 / theMax, rep(5, Nthetas))
   if (is.null(optim_inline_parameters$lower))
-    optim_inline_parameters$lower =  c(-5 / theMax, rep(1e-5, Nthetas))
+    optim_inline_parameters$lower =  c(-5 / theMax, rep(1e-3, Nthetas))
   if (!'parscale' %in% names(optim_parameters)) {
-    optim_parameters$parscale = c(theMax, rep(1/100, Nthetas))
+    optim_parameters$parscale = c(theMax, rep(1 / 100, Nthetas))
   }
   
   r <- if (length(tmb_parameters$gamma) > 0) {
@@ -261,6 +265,7 @@ hnlm <- function(formula,
         optim_parameters = optim_parameters,
         optim_inline_parameters = optim_inline_parameters,
         r = r,
+        terms = terms,
         dirichlet = dirichlet,
         verbose = verbose
       )
@@ -302,7 +307,6 @@ hnlm <- function(formula,
     parameters = tmb_parameters[c('beta', 'gamma', 'theta')],
     random = r,
     map = map,
-    intern = FALSE,
     type = 'ADFun',
     DLL = "hpoltest",
     ...
@@ -338,7 +342,10 @@ hnlm <- function(formula,
       optim_inline_parameters$method = 'L-BFGS-B'
     names(optim_parameters) = gsub("^iter.max$", "maxit", names(optim_parameters))
     opt <- try(stats::optim(
-      par = pmin(pmax(obj$par,optim_inline_parameters$lower), optim_inline_parameters$upper),
+      par = pmin(
+        pmax(obj$par, optim_inline_parameters$lower),
+        optim_inline_parameters$upper
+      ),
       fn = obj$fn,
       gr = obj$gr,
       method = optim_inline_parameters$method,
@@ -351,17 +358,9 @@ hnlm <- function(formula,
       warning('errrors in first evaluation')
       return(obj)
     }
-    if (FALSE) {
-      obj$fn(obj$env$last.par[grep("gamma", names(obj$env$last.par), invert = TRUE)])
-      obj$env$last.par[1:20]
-      obj$env$last.par[grep("gamma", names(obj$env$last.par), invert = TRUE)]
-      obj$env$f(obj$env$last.par)
-      thebad = which.min(obj$report()$eta)
-      plot(obj$report()$eta)
-      obj$fn(c(0.29968561, -0.01796229,  1.28560509,  0.16854090,  0.00001000 ))
-      obj$gr(obj$env$last.par[grep("gamma", names(obj$env$last.par), invert=TRUE)])
-    }
     opt$control = c(optim_parameters, optim_inline_parameters)
+  } else if (optimizer[1] == 'none') {
+    opt = list()
   } else {
     warning("optimizer must be nlminb or optim")
     return(list(
@@ -376,7 +375,8 @@ hnlm <- function(formula,
   
   
   fitList = try(formatResult(obj))
-  
+  isTheta = grep("theta", names(fitList$param$est))
+  try(names(fitList$param$est)[isTheta] <- rep_len(theta_info$name, length(isTheta)))
   
   # Return the result
   return(

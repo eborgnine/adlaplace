@@ -6,8 +6,6 @@
 
 ```{r setup2}
 
-
-
 library('data.table')
 # /home/patrick/Admin/globalHealth/indiaSpatial/daily.Rmd
 SstoreDir = c('/store/patrick/copernicus/agg', '~/Downloads')
@@ -58,7 +56,7 @@ deaths$month = format(deaths$date, '%m')
 # ulimit -s unlimited 
 
 #devtools::load_all("~/research/hpoltest")
-Sys.setenv(OMP_NUM_THREADS = 16)
+Sys.setenv(OMP_NUM_THREADS = 32)
 library('hpoltest')
 TMB::openmp(as.integer(Sys.getenv("OMP_NUM_THREADS")), DLL='hpoltest')
 
@@ -66,45 +64,60 @@ outcome = 'medical'
 
 dataMedSimple = hpoltest:::removeUnusedStrata(
   deaths[
-    deaths$date >= as.Date('2006/1/1') &
+#    deaths$date >= as.Date('2006/1/1') &
     format(deaths$date, '%b%d') != 'Jan01'
-    & deaths$ecoRegion %in% setdiff(1:20, c(1,7,19)) # regions 1, 7, 19 have very low temperatures.
+    & deaths$tempClean >=0
+#    & deaths$ecoRegion %in% 2:6 #setdiff(1:20, c(1,7,19)) # regions 1, 7, 19 have some very low temperatures.
     , ],
   c("cell","ecoRegion", "yearWeek3Dow"), outcome)
 
-fit <- hnlm(
+# dput(fitM$theta_info$map)
+thetaStart = c(0.2, 0.2, 0.01, 0.01, 0.01, 0.2)[c(1, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 
+3, 3, 4, 5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 
+5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 5, 
+6)]
+fitD <- hnlm(
   formula= y ~ f(date, model='iid') +
-#    f(tempClean, model='iwp',ref_value = 20, p=3, knots = seq(-5, 45, by=1)),
-    f(tempClean, model='iwp',ref_value = 25, p=3, knots = seq(-20, 45, by=5)),#, group_var = ecoRegion), 
+    f(tempClean, model='hiwp',ref_value = 22, p=3, knots = seq(0, 42, by=2), group_var = ecoRegion), 
   data=dataMedSimple,
   dirichlet=TRUE,
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
+  tmb_parameters = list(theta = thetaStart),
   optim_parameters = list(maxit = 2, REPORT=1,trace=2),
   verbose=TRUE, for_dev=FALSE, optimizer='optim' 
   )
+thetaStart[length(thetaStart)] = 0
 fitM <- hnlm(
-  formula= y ~# f(date, model='iid') +
-#    f(tempClean, model='iwp',ref_value = 20, p=3, knots = seq(-5, 45, by=1)),
-    f(tempClean, model='hiwp',ref_value = 25, p=3, knots = seq(-20, 45, by=5), group_var = ecoRegion), 
+  formula= y ~ f(date, model='iid') +
+    f(tempClean, model='hiwp',ref_value = 22, p=3, knots = seq(0, 42, by=2), group_var = ecoRegion), 
   data=dataMedSimple,
   dirichlet=FALSE,
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
+  tmb_parameters = list(theta = thetaStart),
   optim_parameters = list(maxit = 2, REPORT=1,trace=2),
-  verbose=TRUE, for_dev=FALSE, optimizer='optim' 
-  )
-#attach(fit)
+  verbose=TRUE, optimizer='optim', intern=FALSE, inner.method = 'BFGS', 
+  inner.control = list(maxit = 500), for_dev=FALSE)
 ```
 
-```{r plotFit2}
-simTemp =  hpoltest:::condSim(fitM, 'tempClean', Nsim = 500, Nvalues = 1001) 
+```{r plotFit2, fig.height=4, fig.width=4}
+simTemp =  condSim(fitD, 'tempClean') 
 
-matplot(simTemp$x, exp(simTemp$y), type='l', col='#00000040', lty=1, xaxs='i', log='y',
-        ylim = exp(quantile(simTemp$y, c(0.01, 0.99))),bty='n')
-lines(simTemp$x, exp(simTemp$mean), col='red', lwd=2)
+theYlim = c(0.2, 5) #exp(quantile(simTemp$y[,'GLOBAL', ], c(0.01, 0.99)))
+for(D in dimnames(simTemp$y)[[2]]) {
+matplot(simTemp$x, exp(simTemp$y[,D, ]), type='l', col='#00000010', lty=1, 
+        xaxs='i', log='y',
+        ylim =theYlim,bty='n', 
+        xlab='temperature',ylab=D)
+lines(simTemp$x, exp(simTemp$fixed_mean), col='yellow')
+lines(simTemp$x, exp(apply(simTemp$y[,D, ], 1, mean)), col='red')
+}
+```
 
-#simDate = condSim(fit, 'date', Nsim = 500, Nvalues = 1001) 
-#matplot(as.Date(simDate$x), simDate$y, cex=0.2, col='#00000030', pch=15)
-#points(as.Date(simDate$x), apply(simDate$y, 1, mean), col='red', cex=0.3)
+```{r plotDate}
+simDate = condSim(fitM, 'date') 
+
+matplot(as.Date(simDate$x), t(apply(simDate$y, 1, quantile, c(0.025, 0.975, 0.5))), col=c('grey','grey','black'), cex=0.3, pch=16,
+        xlab='date', ylab='logrr')
 
 ```
 
