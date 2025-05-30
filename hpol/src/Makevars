@@ -1,0 +1,25 @@
+# Default: use system GCC
+CXX = g++
+CC  = gcc
+
+# Detect OS: Darwin = macOS, otherwise assume Linux
+UNAME_S := $(shell uname -s)
+
+ifeq ($(UNAME_S),Darwin)
+    # macOS with Homebrew GCC
+    CXX = /opt/homebrew/bin/g++-15
+    CC  = /opt/homebrew/bin/gcc-15
+    OMPINC = -I/opt/homebrew/opt/libomp/include -I/opt/homebrew/include
+    OMPLIB = -L/opt/homebrew/opt/libomp/lib -lomp
+else
+    # Linux: system GCC, usually OpenMP built-in
+    OMPINC =
+    OMPLIB =
+endif
+
+# C++ flags
+CXXFLAGS += -fopenmp $(OMPINC)
+PKG_CXXFLAGS += -fopenmp $(OMPINC)
+
+# Linker flags
+PKG_LIBS += -fopenmp $(OMPLIB)

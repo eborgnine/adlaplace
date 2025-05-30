@@ -1,0 +1,12 @@
+Package: hpolcc
+Type: Package
+Title: Test CppAD Integration
+Version: 0.1.0
+Author: Your Name
+Maintainer: Your Name <you@example.com>
+Description: hierarchical functional case crossover
+SystemRequirements: cppad, openmp
+License: GPL-3
+LinkingTo: Rcpp
+Imports: Rcpp
+Encoding: UTF-8
