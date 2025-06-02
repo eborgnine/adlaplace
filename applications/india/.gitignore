@@ -1,3 +1,5 @@
 cache
 *.md
 figure
+*.RData
+.RData
