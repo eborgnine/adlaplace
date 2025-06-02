@@ -22,7 +22,7 @@
 #' @examples
 #' # See vignette for basic usage
 #'
-#' @useDynLib hpoltest
+#' @useDynLib hpolcc
 #' @export
 hnlm <- function(formula,
                  data,
@@ -63,11 +63,13 @@ hnlm <- function(formula,
   
   
   # setup the data for case-crossover
-  if (verbose)
-    cat("setting strata")
+  if (verbose) {
+    cat("setting strata\n")
+  }
+  
   cc_matrix <- setStrata(cc_design = cc_design, data = data)
-  if (verbose)
-    cat(".\n")
+
+  if (verbose) cat("collecting terms\n")
   # setup of the design matrices and other parameters
   # terms carries all the information throughout
   terms <- collectTerms(formula)
@@ -83,8 +85,6 @@ hnlm <- function(formula,
   
   # loop
   k <- 1
-  if (verbose)
-    cat('collecting terms ')
   while (k <= length(terms)) {
     if (verbose)
       cat(k, ' ')
@@ -194,40 +194,46 @@ hnlm <- function(formula,
   } else {
     X = matrix(nrow = nrow(data), ncol = 0)
   }
+
+  allMap = 
+    rep(theta_info$map[1:length(gamma_info$split)], gamma_info$split)
   
-  y <- data[[all.vars(formula)[1]]]
+  
   tmb_data <- list(
     X = X,
     A = A,
-    y = y,
+    y = data[[all.vars(formula)[1]]],
     # gamma_nreplicate = gamma_info$nreplicate, # **** when hiwp, reuse the Q matrix for all (split gamma in nreplicate equal parts). gamma_nreplicate=nlevel+1
     # Q = do.call(bdiag, Qs[!unlist(lapply(Qs, is.null))]), #Qs |> .bdiag(),
     Q =  Matrix::bdiag(Qs[!sapply(Qs, is.null)]),
-    gamma_split = gamma_info$split,
+    map = allMap,
     psd_scale = theta_info$psd_scale[theta_info$map],
     # theta_id = theta_info$id
     cc_matrix = cc_matrix
   )
   
-  config = list(  dirichelet = as.integer(dirichelet))
+  config = list(verbose = verbose,  dirichelet = as.integer(dirichelet))
   
   tmb_data = formatHpolData(tmb_data)
   
+  start_parameters = c(
+    rep(0, nrow(tmb_data$XTp)), # beta
+    rep(0, nrow(tmb_data$ATp)), # gamma
+    theta_info$init[!duplicated(theta_info$map)]
+    
+  )
   
   if (for_dev)
     return(
       list(
-        X = X,
-        A = A,
-        Qs = Qs,
+        start_parameters = start_parameters,
         theta_info = theta_info,
-        Alist = Alist,
         tmb_data = tmb_data,
         terms = terms,
-        dirichelet = dirichelet,
-        verbose = verbose
+        config = config
       )
     )
+  
   
   
   if (is.null(tmb_parameters)) {
@@ -281,126 +287,10 @@ stuff = objectiveFunction(parameters, data=tmb_data, config)
     NULL
   }
   
-  
-  # OPTIMIZATION ----
-  # # preliminary run fixing the random effects for iwp, hiwp and od
-  # # (but not the corresponding random slopes)
-  # to_rm_ids <- which(theta_info$model %in% c("od", "iwp", "hiwp"))
-  #
-  # if(length(to_rm_ids) > 0){
-  #   gamma_split <- gamma_info$split
-  #   map0 <- list(theta = factor(rep(NA, length(tmb_parameters$theta))),
-  #                gamma = factor(1:length(tmb_parameters$gamma)))
-  #
-  #   cs <- cumsum(c(0,gamma_split))
-  #   for(id in to_rm_ids) map0$gamma[(cs[id] + 1):cs[id+1]] <- NA
-  #
-  #   r <- NULL
-  #   if(!all(is.na(map0$gamma))) r <- "gamma"
-  #   obj0 <- MakeADFun(data = tmb_data,
-  #                     parameters = tmb_parameters,
-  #                     map = map0,
-  #                     random = r,
-  #                     DLL = "hpoltest")
-  #   opt0 <- nlminb(start = obj0$par, objective = obj0$fn, gradient = obj0$gr,
-  #                  control = list(eval.max=2000, iter.max=2000))
-  #   tmb_parameters$beta <- opt0$par[names(opt0$par) == "beta"]
-  #   if(!all(is.na(map0$gamma))) tmb_parameters$gamma[!is.na(map0$gamma)] <- obj0$env$last.par.best[names(obj0$env$last.par.best) == "gamma"]
-  # }
-  
-  # Run optimization
-  
-  if (verbose)
-    message("making AD function")
-  obj <- MakeADFun(
-    data = tmb_data,
-    parameters = tmb_parameters[c('beta', 'gamma', 'theta')],
-    random = r,
-    map = map,
-    type = 'ADFun',
-    DLL = "hpoltest",
-    ...
-  )
-  if (verbose)
-    message("first evaluation")
-  firstEval = try(obj$fn(obj$par))
-  if (any(class(firstEval) == 'try-error')) {
-    warning('errrors in first evaluation')
-    return(obj)
-  }
-  
-  
-  if (verbose)
-    message("beginning optimization")
-  if (optimizer[1] == 'nlminb') {
-    if (verbose)
-      message("nlminb")
-    opt <- stats::nlminb(
-      start = obj$par,
-      objective = obj$fn,
-      gradient = obj$gr,
-      upper = optim_inline_parameters$upper,
-      lower = optim_inline_parameters$lower,
-      control = optim_parameters[setdiff(names(optim_parameters),
-                                         c('parscale', 'lower', 'upper', 'scale'))]
-    )
-  } else if (optimizer[1] == 'optim') {
-    if (verbose)
-      message("optim")
-    optim_parameters = optim_parameters[setdiff(names(optim_parameters), c('lower', 'upper', 'method'))]
-    if (!length(optim_inline_parameters$method))
-      optim_inline_parameters$method = 'L-BFGS-B'
-    names(optim_parameters) = gsub("^iter.max$", "maxit", names(optim_parameters))
-    opt <- try(stats::optim(
-      par = pmin(
-        pmax(obj$par, optim_inline_parameters$lower),
-        optim_inline_parameters$upper
-      ),
-      fn = obj$fn,
-      gr = obj$gr,
-      method = optim_inline_parameters$method,
-      upper = optim_inline_parameters$upper,
-      lower = optim_inline_parameters$lower,
-      control = optim_parameters[setdiff(names(optim_parameters), 'eval.max')],
-      hessian = TRUE
-    ))
-    if (any(class(opt) == 'try-error')) {
-      warning('errrors in first evaluation')
-      return(obj)
-    }
-    opt$control = c(optim_parameters, optim_inline_parameters)
-  } else if (optimizer[1] == 'none') {
-    opt = list()
-  } else {
-    warning("optimizer must be nlminb or optim")
-    return(list(
-      obj = obj,
-      formula = formula,
-      terms = terms,
-      cc_design = cc_design,
-    ))
-  }
-  if (verbose)
-    message("done optimization")
-  
-  
-  fitList = try(formatResult(obj))
-  isTheta = grep("theta", names(fitList$param$est))
-  try(names(fitList$param$est)[isTheta] <- rep_len(theta_info$name, length(isTheta)))
-  
   # Return the result
   return(
     list(
-      obj = obj,
-      formula = formula,
-      terms = terms,
-      cc_design = cc_design,
-      beta_info = beta_info,
-      gamma_info = gamma_info,
-      theta_info = theta_info,
-      est = fitList,
-      #order = new_order,
-      opt = opt
+      NULL
     )
   )#, funNoRandom = funNoRandom))
 }
