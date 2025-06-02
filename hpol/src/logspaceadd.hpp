@@ -40,7 +40,7 @@ extern atomic_logspace_add logspace_add_atomic;
 
 // Only specialize for double:
 inline double logspace_add_ad(double x, double y) {
-    return logspace_add(x,y);
+    return R::logspace_add(x,y);
 }
 
 

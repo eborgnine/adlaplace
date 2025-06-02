@@ -34,15 +34,16 @@ deaths$month = format(deaths$date, '%m')
 
 
 
-# deaths[whichIsTheMax,]
-#theMax = which.max(deaths$medical)
-#whichIsTheMax = which(deaths$yearMonthDow == unlist(deaths[theMax, 'yearMonthDow']) &
-#  deaths$cell == unlist(deaths[theMax, 'cell']))
 
-#deaths = deaths[-whichIsTheMax, ]
 
-#quantile(dataMedSimple$sqrtPm)
-#quantile(dataMedSimple$tempClean)
+dataMedSimple =
+  deaths[
+    deaths$date >= as.Date('2006/1/1') &
+    format(deaths$date, '%b%d') != 'Jan01'
+    & deaths$tempClean >=0
+#    & deaths$ecoRegion %in% 2:6 #setdiff(1:20, c(1,7,19)) # regions 1, 7, 19 have some very low temperatures.
+    , ]
+
 ```
 
 
@@ -55,39 +56,33 @@ deaths$month = format(deaths$date, '%m')
 # devtools::install_github("samperochkin/hpoltest")
 # ulimit -s unlimited 
 
-#devtools::load_all("~/research/hpoltest")
+if(FALSE) {
+devtools::document("~/research/hpoltest/hpol")
+devtools::load_all("~/research/hpoltest/hpol")
+}
 Sys.setenv(OMP_NUM_THREADS = 32)
-library('hpoltest')
+library('hpolcc')
 TMB::openmp(as.integer(Sys.getenv("OMP_NUM_THREADS")), DLL='hpoltest')
 system("ulimit -s")
 
-outcome = 'medical'
 
-dataMedSimple = hpoltest:::removeUnusedStrata(
-  deaths[
-#    deaths$date >= as.Date('2006/1/1') &
-    format(deaths$date, '%b%d') != 'Jan01'
-    & deaths$tempClean >=0
-#    & deaths$ecoRegion %in% 2:6 #setdiff(1:20, c(1,7,19)) # regions 1, 7, 19 have some very low temperatures.
-    , ],
-  c("cell","ecoRegion", "yearWeek3Dow"), outcome)
 
-# dput(fitM$theta_info$map)
-thetaStartD = thetaStartM = c(0.2, 0.01, 0.5, 0.01, 0.01, 0.2)[c(1, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 
-3, 3, 4, 5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 
-5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 5, 4, 5, 
-6)]
-thetaStartM[length(thetaStartM)] = 0
 fitD <- hnlm(
-  formula= y ~ f(date, model='iid') +
+  formula= medical ~ f(date, model='iid') +
     f(tempClean, model='hiwp',ref_value = 22, p=3, knots = seq(0, 42, by=2), group_var = ecoRegion), 
   data=dataMedSimple,
-  dirichlet=TRUE,
+  dirichelet=TRUE,
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
   tmb_parameters = list(theta = thetaStartD),
   optim_parameters = list(maxit = 2, REPORT=1,trace=2),
-  verbose=TRUE, optimizer='optim' 
+  for_dev=TRUE, verbose=TRUE
   )
+
+str(fitD[c('start_parameters','config','tmb_data')])
+
+res = objectiveFunctionC(fitD$start_parameters, fitD$tmb_data, fitD$config)
+
+
 fitM <- hnlm(
   formula= y ~ f(date, model='iid') +
     f(tempClean, model='hiwp',ref_value = 22, p=3, knots = seq(0, 42, by=2), group_var = ecoRegion), 

@@ -197,6 +197,7 @@ Type logspace_add_ad(Type x, Type y) {
 template CppAD::AD<double> logspace_add_ad<CppAD::AD<double>>(CppAD::AD<double>, CppAD::AD<double>);
 
 
+atomic_logspace_add logspace_add_atomic("logspace_add_atomic");
 
 
 

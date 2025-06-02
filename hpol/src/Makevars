@@ -11,15 +11,21 @@ ifeq ($(UNAME_S),Darwin)
     CC  = /opt/homebrew/bin/gcc-15
     OMPINC = -I/opt/homebrew/opt/libomp/include -I/opt/homebrew/include
     OMPLIB = -L/opt/homebrew/opt/libomp/lib -lomp
+    # If CppAD is installed with Homebrew:
+    CPPADINC = -I/opt/homebrew/include
+    CPPADLIB = -L/opt/homebrew/lib -lcppad
 else
     # Linux: system GCC, usually OpenMP built-in
     OMPINC =
     OMPLIB =
+    CPPADINC = -I/usr/include/cppad
+    CPPADLIB = -lcppad_lib
 endif
 
 # C++ flags
 CXXFLAGS += -fopenmp $(OMPINC)
+PKG_CPPFLAGS += $(CPPADINC)
 PKG_CXXFLAGS += -fopenmp $(OMPINC)
 
 # Linker flags
-PKG_LIBS += -fopenmp $(OMPLIB)
+PKG_LIBS += -fopenmp $(OMPLIB) $(CPPADLIB)
