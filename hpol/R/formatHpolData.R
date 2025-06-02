@@ -1,14 +1,10 @@
 #' @export
 formatHpolData = function(data) {
-	requireNamespace('Matrix')
-	newMatrixClasses = c(X='dgRMatrix', A='dgRMatrix', cc_matrix = 'dgRMatrix')
-	for(Ddata in names(newMatrixClasses)) {
-		if(!any(class(data[[Ddata]] == newMatrixClasses[Ddata]))) {
-			data[[Ddata]] = as(data[[Ddata]], newMatrixClasses[Ddata])
-		}
-	}
+	for(Ddata in c('X', 'A', 'cc_matrix')) {
+      data[[paste0(Ddata, 'Tp')]] = as(Matrix::t(data[[Ddata]]), 'dgCMatrix')
+  	}
 	if(!'Qdiag' %in% names(data)) {
-		data$Qdiag = diag(data$Q)
+		data$Qdiag = Matrix::diag(data$Q)
 	}
 	if(!'QsansDiag' %in% names(data)) {
 		QsansDiag = as(Matrix::forceSymmetric(data$Q), 'dsTMatrix')
@@ -19,5 +15,9 @@ formatHpolData = function(data) {
 			data$QsansDiag = as(Matrix::forceSymmetric(data$QsansDiag), 'dsTMatrix')
 		}
 	}
+	
+	ccMatrixToCheck = cc_matrix[seq(1, min(c(100, length(cc_matrix))))]
+
+	 	
 	return(data)
 }

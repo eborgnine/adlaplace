@@ -10,15 +10,16 @@ CppAD::vector<AD<double>> objectiveFunctionInternal(
 	) {
 
 	// S4 objects from data
-	Rcpp::S4 QsansDiag(data["QsansDiag"]), A(data["A"]),
-	X(data["X"]), CC(data["CC"]);
-
+	Rcpp::S4 QsansDiag(data["QsansDiag"]), A(data["ATp"]),
+	X(data["XTp"]), CC(data["cc_matrixTp"]);
+// matrices are transposed, of class dgCMatrix
+  
 	// row, column indices in matrices
 	Rcpp::IntegerVector 
 	Qrow(QsansDiag.slot("i")), Qcol(QsansDiag.slot("j")),
-	Xcol(X.slot("j")), Xp(X.slot("p")), 
-	Acol(A.slot("j")), Ap(A.slot("p")), 
-	CCcol(CC.slot("j")), CCp(CC.slot("p"));
+	Xcol(X.slot("i")), Xp(X.slot("p")), 
+	Acol(A.slot("i")), Ap(A.slot("p")), 
+	CCcol(CC.slot("i")), CCp(CC.slot("p"));
 		// data in matrices
 	Rcpp::NumericVector	Qdata =QsansDiag.slot("x"),
 	Adata =A.slot("x"), Xdata =X.slot("x");
@@ -37,8 +38,9 @@ CppAD::vector<AD<double>> objectiveFunctionInternal(
 	Rcpp::IntegerVector dimsX = X.slot("Dim"), dimsA = A.slot("Dim"),
 	dimsC = CC.slot("Dim");
 
-	const size_t Nbeta =dimsX[1], Ngamma = dimsA[1], Neta = dimsA[0],
-	Nstrata = dimsC[0];
+	// recall X, A, CC transposed
+	const size_t Nbeta =dimsX[0], Ngamma = dimsA[0], Neta = dimsA[1],
+  	Nstrata = dimsC[1];
 	const size_t Ntheta = ad_params.size() - Nbeta - Ngamma;
 
 

@@ -198,7 +198,7 @@ hiwpDesign <- function(term, data, use_dev_version = F){
       split = rep(1:length(A0split), unlist(lapply(A0split, nrow)))
     )
     A0combine[,'j2'] = A0combine[,'j'] + ncol(A0) * (A0combine[,'split']-1)
-    Afinal = sparseMatrix(i=A0combine$i, j=A0combine$j2, x=A0combine$x,
+    Afinal = Matrix::sparseMatrix(i=A0combine$i, j=A0combine$j2, x=A0combine$x,
       dims = c(nrow(data), ncol(A0)*length(id_split)),
       dimnames = list(rownames(data), 
         paste(term$var, term$model, 
@@ -207,7 +207,7 @@ hiwpDesign <- function(term, data, use_dev_version = F){
   }else{
     
     # the slow way
-    Afinal <- Matrix(0, nrow=nrow(data), ncol=ncol(A0)*length(id_split)) |> as("TsparseMatrix")
+    Afinal <- Matrix::Matrix(0, nrow=nrow(data), ncol=ncol(A0)*length(id_split)) |> as("TsparseMatrix")
     for(k in seq_along(id_split)) 
       Afinal[id_split[[k]], (k-1)*ncol(A0) + 1:ncol(A0)] <- A0[id_split[[k]],]
     AfinalOld = Afinal
@@ -219,7 +219,7 @@ hiwpDesign <- function(term, data, use_dev_version = F){
 #' @rdname effects_and_utilities 
 hiwpPrecision <- function(term){
   list2env(term, envir = environment())
-  replicate(include_global+ngroups, iwpPrecision(term)) |> .bdiag()
+  Matrix::.bdiag(replicate(include_global+ngroups, iwpPrecision(term)))
 }
 
 #' @rdname effects_and_utilities 
@@ -349,7 +349,7 @@ hrpolyDesign <- function(term, data){
   mm <- c(0, sapply(id_split, length)) |> cumsum()
   
   A0 <- rpolyDesign(term, data)
-  Afinal <- Matrix(0, nrow=nrow(data), ncol=pp) |> as("TsparseMatrix")
+  Afinal <- Matrix::Matrix(0, nrow=nrow(data), ncol=pp) |> as("TsparseMatrix")
   if(ig) Afinal[,1:p] <- A0
   for(k in seq_along(id_split)) 
     Afinal[id_split[[k]], (ig+k-1)*p + 1:p] <- A0[id_split[[k]],]
@@ -364,7 +364,7 @@ hrpolyDesign <- function(term, data){
 hrpolyPrecision <- function(term){
   list2env(term, envir = environment())
   pp <- (include_global+ngroups)*p
-  sparseMatrix(i=1:pp, j=1:pp, rep = "T") |> as("TsparseMatrix")
+  Matrix::sparseMatrix(i=1:pp, j=1:pp, rep = "T") |> as("TsparseMatrix")
 }
 
 #' @rdname effects_and_utilities 
@@ -445,13 +445,13 @@ iid <- function(x) {
 iidDesign <- function(term, data){
   list2env(term, envir = environment())
   ff <- paste0("~ 0 + factor(", var, ")") |> formula()
-  sparse.model.matrix(ff, data) |> as("TsparseMatrix")
+  Matrix::sparse.model.matrix(ff, data) |> as("TsparseMatrix")
 }
 
 #' @rdname effects_and_utilities 
 iidPrecision <- function(term){
   list2env(term, envir = environment())
-  sparseMatrix(x=1, i=1:n, j=1:n, rep = "T") |> as("TsparseMatrix")
+  Matrix::sparseMatrix(x=1, i=1:n, j=1:n, rep = "T") |> as("TsparseMatrix")
 }
 
 #' @rdname effects_and_utilities 

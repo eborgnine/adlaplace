@@ -21,6 +21,8 @@
 #' Note that it handles only `time stratified` for now. If ever extended, beware that some other stratification
 #' methods create overlapping strata; this may require modifying other parts of the package.
 #'
+#' @import data.table
+
 setStrata <- function(cc_design, data) {
   if (is.null(cc_design$time_var) &
       is.null(cc_design$strat_vars))
@@ -35,15 +37,25 @@ setStrata <- function(cc_design, data) {
   
   #  theEnv = list2env(cc_design, envir = environment())
   
+  # First level: stratify by strat_vars if provided
   if (is.null(cc_design$strat_vars)) {
-    strat_split <- list(1:nrow(data))
+    strat_split <- list(seq_len(nrow(data)))
   } else {
-    setDT(data)
-    data[, interaction := .GRP, by = eval(cc_design$strat_vars)]
-    
-    strat_split <- split(1:nrow(data), data$interaction, drop = TRUE)
+    # pick out all your old column names
+    old_cols <- setdiff(names(data), "interaction")
+    data <- data[,
+                 c(.SD, list(interaction = .GRP)),
+                 by = eval(cc_design$strat_vars),
+                 .SDcols = old_cols
+    ]
+#    data <- data[,
+#                 c(.SD, .(interaction = .GRP)),
+#                 by = cc_design$strat_vars,
+#                 .SDcols = old_cols
+#    ]
+    # Split row indices by interaction group
+    strat_split <- split(seq_len(nrow(data)), data$interaction, drop = TRUE)
   }
-  
   # if no more stratification do do, return right away
   if (is.null(cc_design$time_var)) {
     lens <- sapply(strat_split, length)
@@ -53,11 +65,8 @@ setStrata <- function(cc_design, data) {
       c(x, rep(0L, max_len - length(x)))  # Using 0L for integer
     }))
     
-    cc_matrix <- cc_matrix[rowSums(cc_matrix > 0) > 0, , drop = FALSE]
-    
-    return(cc_matrix)
-  }
-  
+
+  } else {
   # if not, also use time_var to further stratify
   if (cc_design$time_lag %% 1 != 0)
     warning("non-integer time_lag(?)")
@@ -86,10 +95,27 @@ setStrata <- function(cc_design, data) {
     # for each case day, enumerates control days (0 means empty)
     cc_matrix <- sapply(strat_split, \(ss) c(ss, rep(0, time_size - length(ss)))) |> t()
   }
+  }
   
-  # filter out strata of size 1
-  cc_matrix <- cc_matrix[apply(cc_matrix > 0, 1, any), ]
-  return(cc_matrix)
+  cc_long <- data.table(
+    i = as.vector(row(cc_matrix)),
+    j = as.vector(col(cc_matrix)),
+    value = as.vector(cc_matrix)
+  )[
+    value != 0
+  ][
+    , n_i := .N, by = i
+  ][
+    n_i > 1
+  ]
+  cc_long$i2 = as.numeric(factor(cc_long$i))
+  
+  cc_sparse = Matrix::sparseMatrix(
+    i = cc_long$i2, j = cc_long$value)
+  
+  
+  
+  return(cc_sparse)
 }
 
 

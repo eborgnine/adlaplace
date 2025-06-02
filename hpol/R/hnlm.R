@@ -28,14 +28,14 @@ hnlm <- function(formula,
                  data,
                  cc_design = ccDesign(),
                  weight_var,
-                 dirichlet = FALSE,
+                 dirichelet = FALSE,
                  tmb_parameters = NULL,
                  optim_parameters = list(eval.max = 2000, iter.max = 2000),
                  optimizer = c('nlminb', 'optim'),
                  for_dev = FALSE,
                  verbose = FALSE,
                  ...) {
-  setDT(data)
+  data.table::setDT(data)
   
   # Check inputs
   if (!is(formula, "formula"))
@@ -97,7 +97,7 @@ hnlm <- function(formula,
       range <- term$range <- range(data[[term$var]])
     
     if (term$run_as_is) {
-      Xsub <- sparse.model.matrix(term$f, data)
+      Xsub <- Matrix::sparse.model.matrix(term$f, data)
       if (is.factor(data[[term$var]])) {
         Xsub = Xsub[, -1]
       }
@@ -169,7 +169,7 @@ hnlm <- function(formula,
   theta_info$var = c(theta_info$var, 'overdisp')
   theta_info$model = c(theta_info$model, '')
   theta_info$psd_scale = exp(theta_info$psd_scale_log)
-  if (dirichlet) {
+  if (dirichelet) {
     theta_info$map = c(theta_info$map, max(theta_info$map) + 1)
     dirichletStart = 0.01
   } else {
@@ -202,13 +202,33 @@ hnlm <- function(formula,
     y = y,
     # gamma_nreplicate = gamma_info$nreplicate, # **** when hiwp, reuse the Q matrix for all (split gamma in nreplicate equal parts). gamma_nreplicate=nlevel+1
     # Q = do.call(bdiag, Qs[!unlist(lapply(Qs, is.null))]), #Qs |> .bdiag(),
-    Q =  bdiag(Qs[!sapply(Qs, is.null)]),
+    Q =  Matrix::bdiag(Qs[!sapply(Qs, is.null)]),
     gamma_split = gamma_info$split,
     psd_scale = theta_info$psd_scale[theta_info$map],
     # theta_id = theta_info$id
-    cc_matrix = cc_matrix,
-    dirichlet = as.integer(dirichlet)
+    cc_matrix = cc_matrix
   )
+  
+  config = list(  dirichelet = as.integer(dirichelet))
+  
+  tmb_data = formatHpolData(tmb_data)
+  
+  
+  if (for_dev)
+    return(
+      list(
+        X = X,
+        A = A,
+        Qs = Qs,
+        theta_info = theta_info,
+        Alist = Alist,
+        tmb_data = tmb_data,
+        terms = terms,
+        dirichelet = dirichelet,
+        verbose = verbose
+      )
+    )
+  
   
   if (is.null(tmb_parameters)) {
     tmb_parameters = list()
@@ -222,6 +242,18 @@ hnlm <- function(formula,
   tmb_parameters$gamma = rep_len(tmb_parameters$gamma, ncol(A))
   tmb_parameters$theta = rep_len(tmb_parameters$theta, length(theta_info$init))
   
+  
+  objectiveFunction = function(parameters, data, 
+                               config) {
+                                 data = formatHpolData(data)
+                                 result = objectiveFunctionC(parameters, data, config)
+                                 try(result$hessian <- do.call(Matrix::sparseMatrix, resut$hessian))
+                                 result
+                               }
+parameters = c(tmb_parameters$beta, tmb_parameters$gamma, tmb_parameters$theta)
+stuff = objectiveFunction(parameters, data=tmb_data, config)
+
+
   
   if (!'map' %in% names(tmb_parameters)) {
     map <- list(theta = factor(theta_info$map))
@@ -248,28 +280,6 @@ hnlm <- function(formula,
   } else{
     NULL
   }
-  
-  if (for_dev)
-    return(
-      list(
-        X = X,
-        A = A,
-        gamma_split = gamma_info$split,
-        Qs = Qs,
-        theta_info = theta_info,
-        #new_order = new_order,
-        tmb_parameters = tmb_parameters,
-        Alist = Alist,
-        tmb_data = tmb_data,
-        map = map,
-        optim_parameters = optim_parameters,
-        optim_inline_parameters = optim_inline_parameters,
-        r = r,
-        terms = terms,
-        dirichlet = dirichlet,
-        verbose = verbose
-      )
-    )
   
   
   # OPTIMIZATION ----
