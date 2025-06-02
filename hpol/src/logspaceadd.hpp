@@ -38,12 +38,10 @@ private:
 // Declaration of the global atomic function instance
 extern atomic_logspace_add logspace_add_atomic;
 
-// Template function declaration
-template<class Type>
-Type logspace_add_ad(Type x, Type y);
+// Only specialize for double:
+inline double logspace_add_ad(double x, double y) {
+    return logspace_add(x,y);
+}
 
-// Explicit instantiation for common types
-//extern template double logspace_add_ad<double>(double, double);
-extern template CppAD::AD<double> logspace_add_ad<CppAD::AD<double>>(CppAD::AD<double>, CppAD::AD<double>);
 
 #endif
