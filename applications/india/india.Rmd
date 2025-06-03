@@ -73,7 +73,7 @@ fitD <- hpolcc::hnlm(
   formula= medical ~ #f(date, model='iid') +
     f(tempClean, model='hiwp',ref_value = 20, p=3, knots = seq(0, 45, by=5), 
     group_var = ecoRegion), 
-  data=dataMedSimple,
+  data=dataMedSimple[dataMedSimple$ecoRegion < 6,],
   dirichelet=TRUE,
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
   tmb_parameters = list(theta = thetaStartD),
@@ -83,7 +83,6 @@ fitD <- hpolcc::hnlm(
 
 
 
-str(fitD[c('start_parameters','config','tmb_data')])
 fitD$config$verbose = FALSE
 
 resFun = function(xx)  hpolcc:::objectiveFunctionC(xx, fitD$tmb_data, 
@@ -95,7 +94,6 @@ theGrad = hpolcc:::objectiveFunctionC(fitD$start_parameters, fitD$tmb_data,
   c(fitD$config, list(maxDeriv = 1)))
 
 
-fitD$config$verbose = TRUE
 fitD$config$maxDeriv = 2
 
 res = hpolcc:::objectiveFunctionC(fitD$start_parameters, fitD$tmb_data, fitD$config)
