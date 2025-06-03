@@ -8,6 +8,29 @@
 #include<omp.h>
 #endif
 
+Rcpp::S4 make_dgTMatrix(
+    const std::vector<double>& x,
+    const std::vector<size_t>& i,
+    const std::vector<size_t>& j,
+    int N)
+{
+
+    Rcpp::IntegerVector dims = 
+      Rcpp::IntegerVector::create(N, N);
+
+    // Convert std::vector<size_t> to IntegerVector (R requires int32 indices)
+    Rcpp::IntegerVector iR(i.begin(), i.end());
+    Rcpp::IntegerVector jR(j.begin(), j.end());
+    Rcpp::NumericVector xR(x.begin(), x.end());
+
+    Rcpp::S4 mat("dgTMatrix");
+    mat.slot("i") = iR;
+    mat.slot("j") = jR;
+    mat.slot("x") = xR;
+    mat.slot("Dim") = dims;
+    return mat;
+}
+
 CppAD::vector<AD<double>> objectiveFunctionInternal(
   CppAD::vector<AD<double>> ad_params, 
   Rcpp::List data, 
@@ -305,17 +328,26 @@ Rcpp::List objectiveFunctionC(
   if(maxDeriv == 1) {
       return result;
   }
-
 // hessian
   if (verbose ) {
     Rcpp::Rcout << "hess ";
   }
- typedef vector< std::set<size_t> > pattern;
 
-  pattern select_range(1);
+  // Before RevSparseHes, you MUST call ForSparseJac with a set-based pattern
+  CppAD::vector<std::set<size_t>> jac_pattern(Nparams);
+  for (size_t i = 0; i < Nparams; ++i)
+    jac_pattern[i].insert(i); // Identity pattern
+
+  f.ForSparseJac(Nparams, jac_pattern);  // <-- REQUIRED!
+
+
+  CppAD::vector< std::set<size_t> > select_range(1);//, hes_pattern(Nparams);
+
   select_range[0].insert(0);
-  auto hes_pattern =
-   f.RevSparseHes(Nparams, select_range, /*transpose=*/false);
+  bool transpose = false;
+
+auto hes_pattern = f.RevSparseHes(Nparams, select_range, transpose);
+
 
 
 std::vector<size_t> row, col;
@@ -330,7 +362,9 @@ for (size_t i = 0; i < Nparams; ++i) {
       }
     }
 
-
+  if (verbose ) {
+    Rcpp::Rcout << ".";
+  }
 CppAD::vector<double> cppad_x(x_val.size()), cppad_w(1, 1.0), hes(row.size());
 CppAD::vector<size_t> cppad_row(row.size()), cppad_col(col.size());
 CppAD::vector<std::set<size_t>> cppad_pattern(hes_pattern.size());
@@ -339,98 +373,24 @@ for (size_t i = 0; i < x_val.size(); ++i) cppad_x[i] = x_val[i];
 for (size_t i = 0; i < row.size(); ++i) cppad_row[i] = row[i];
 for (size_t i = 0; i < col.size(); ++i) cppad_col[i] = col[i];
 for (size_t i = 0; i < hes_pattern.size(); ++i) cppad_pattern[i] = hes_pattern[i];
-
+  if (verbose ) {
+    Rcpp::Rcout << ".";
+  }
 CppAD::sparse_hessian_work work;
 f.SparseHessian(cppad_x, cppad_w, cppad_pattern, cppad_row, cppad_col, hes, work);
 
-
+  if (verbose ) {
+    Rcpp::Rcout << ".";
+  }
 // Copy to STL/Rcpp for return
 std::vector<double> hes_x(hes.size());
 std::copy(hes.begin(), hes.end(), hes_x.begin());
 
 
-result["hessian"] = Rcpp::List::create(
-  Rcpp::Named("x") = hes_x,
-  Rcpp::Named("i") = row,
-  Rcpp::Named("j") = col
-);
+Rcpp::S4 hessianR = make_dgTMatrix(hes_x, row, col, Nparams);
 
-    return result;
+result["hessian"] = hessianR;
+
+return result;
 }
-
-#ifdef UNDEF
-  CppAD::vector<double> w(1, 1.0);
-
-  std::vector<double> u(Nparams, 0.0);
-  std::vector<double> ddw(2*Nparams); 
-  double eps = 1e-10, dhere;
-  
-  if (verbose ) {
-    Rcpp::Rcout << "reverse, " << Nparams << " parameters: ";
-  }
-  
-  for (size_t j = 0; j < Nparams; ++j) {
-    if (verbose ) {
-      if(100*(j/100) == j)
-        Rcpp::Rcout << j << " ";
-    }
-    u[j] = 1.0;
-    f.Forward(1, u);
-    u[j] = 0.0;  
-    
-    // Second-order reverse sweep: compute partials of the directional derivative
-    ddw = f.Reverse(2, w);
-    for (size_t Drow = 0; Drow <= j; ++Drow) {
-      dhere = ddw[2 * Drow + 1];
-      if (!CppAD::NearEqual(dhere, 0.0, eps, eps)) {
-        if(hindex < hesMax) {
-          Hrow[hindex] = Drow;
-          Hcol[hindex]= j;
-          Hvalue[hindex] = dhere;
-        }
-        hindex++;
-      }
-    }
-  }
-  
-  if (verbose ) {
-    Rcpp::Rcout << " done." << std::endl;
-  }
-  
-  const int upperBound = std::min(hindex, hesMax);
-  
-  if(hindex > upperBound)
-    Rcpp::warning(
-      std::string("increase hesMax, number of hessian elements =  ") + std::to_string(hindex)
-      );
-  
-  
-  Rcpp::IntegerVector theDims = Rcpp::IntegerVector::create(Nparams, Nparams);
-  
-  result["hessian"] = 
-    Rcpp::List::create(
-      Rcpp::Named("i") = Rcpp::head(Hrow, upperBound), 
-      Rcpp::Named("j") = Rcpp::head(Hcol, upperBound), 
-      Rcpp::Named("x") = Rcpp::head(Hvalue, upperBound), 
-      Rcpp::Named("dims") = theDims,
-      Rcpp::Named("index1") = false,
-      Rcpp::Named("symmetric") = true,
-      Rcpp::Named("dimnames") = Rcpp::List::create(parameters.names(), parameters.names())
-      );
-  
-  return result;
-}
-
-
-
-  int hesMax; // Default value
-  if (config.containsElementNamed("hesMax")) {
-    hesMax = config["hesMax"]; // Override if exists
-  } else {
-    hesMax = parameters.size()*parameters.size()/5; // Default value
-  }
-    int hindex=0;
-  Rcpp::NumericVector Hvalue(hesMax);
-  Rcpp::IntegerVector Hrow(hesMax), Hcol(hesMax);
-#endif
 
