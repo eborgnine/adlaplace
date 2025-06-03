@@ -17,7 +17,6 @@
 #' @details The function handles fixed effects, random effects, and their associated precision matrices. It also optimizes the model using TMB with options for additional preprocessing and handling specific random effect structures.
 #'
 #' @import Matrix
-#' @import TMB
 #'
 #' @examples
 #' # See vignette for basic usage
@@ -89,7 +88,7 @@ hnlm <- function(formula,
     if (verbose)
       cat(k, ' ')
     
-    term <- hpoltest:::getExtra(terms[[k]], data = data, cc_matrix = cc_matrix)
+    term <- getExtra(terms[[k]], data = data, cc_matrix = cc_matrix)
     term$id <- k
     if (!is.factor(data[[term$var]][1]) &&
         !is.character(data[[term$var]][1]) &&

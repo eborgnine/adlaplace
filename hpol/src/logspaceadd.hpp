@@ -2,7 +2,7 @@
 #define LOGSPACE_ADD_HPP
 
 #include <cppad/cppad.hpp>
-
+#include <Rmath.h>
 
 class atomic_logspace_add : public CppAD::atomic_four<double> {
 public:
@@ -40,7 +40,9 @@ extern atomic_logspace_add logspace_add_atomic;
 
 // Only specialize for double:
 inline double logspace_add_ad(double x, double y) {
-    return R::logspace_add(x,y);
+    return  x < y ?
+             y + log1p (exp (x - y)) :
+             x + log1p (exp (y - x)) ;
 }
 
 

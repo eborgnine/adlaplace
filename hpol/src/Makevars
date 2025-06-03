@@ -1,6 +1,7 @@
 # Default: use system GCC
 CXX = g++
 CC  = gcc
+CPPADLIB = /opt/homebrew/lib/libcppad_lib.a
 
 # Detect OS: Darwin = macOS, otherwise assume Linux
 UNAME_S := $(shell uname -s)
@@ -13,7 +14,7 @@ ifeq ($(UNAME_S),Darwin)
     OMPLIB = -L/opt/homebrew/opt/libomp/lib -lomp
     # If CppAD is installed with Homebrew:
     CPPADINC = -I/opt/homebrew/include
-    CPPADLIB = -L/opt/homebrew/lib -lcppad
+    CPPADLIB = -L/opt/homebrew/lib -lcppad_lib
 else
     # Linux: system GCC, usually OpenMP built-in
     OMPINC =

@@ -6,6 +6,7 @@
 
 ```{r setup2}
 
+
 library('data.table')
 # /home/patrick/Admin/globalHealth/indiaSpatial/daily.Rmd
 SstoreDir = c('/store/patrick/copernicus/agg', '~/Downloads')
@@ -59,17 +60,19 @@ dataMedSimple =
 if(FALSE) {
 devtools::document("~/research/hpoltest/hpol")
 devtools::load_all("~/research/hpoltest/hpol")
+
 }
 Sys.setenv(OMP_NUM_THREADS = 32)
 library('hpolcc')
-TMB::openmp(as.integer(Sys.getenv("OMP_NUM_THREADS")), DLL='hpoltest')
+#TMB::openmp(as.integer(Sys.getenv("OMP_NUM_THREADS")), DLL='hpoltest')
 system("ulimit -s")
 
 
 
-fitD <- hnlm(
-  formula= medical ~ f(date, model='iid') +
-    f(tempClean, model='hiwp',ref_value = 22, p=3, knots = seq(0, 42, by=2), group_var = ecoRegion), 
+fitD <- hpolcc::hnlm(
+  formula= medical ~ #f(date, model='iid') +
+    f(tempClean, model='hiwp',ref_value = 21, p=3, knots = seq(0, 42, by=3), 
+    group_var = ecoRegion), 
   data=dataMedSimple,
   dirichelet=TRUE,
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
@@ -78,9 +81,25 @@ fitD <- hnlm(
   for_dev=TRUE, verbose=TRUE
   )
 
-str(fitD[c('start_parameters','config','tmb_data')])
 
-res = objectiveFunctionC(fitD$start_parameters, fitD$tmb_data, fitD$config)
+str(fitD[c('start_parameters','config','tmb_data')])
+fitD$config$verbose = FALSE
+
+resFun = function(xx)  hpolcc:::objectiveFunctionC(xx, fitD$tmb_data, 
+  c(fitD$config, list(maxDeriv = 0)))$value
+
+resFun(fitD$start_parameters)  
+
+theGrad = hpolcc:::objectiveFunctionC(fitD$start_parameters, fitD$tmb_data, 
+  c(fitD$config, list(maxDeriv = 1)))
+
+theGradAgain = numDeriv::grad(resFun, fitD$start_parameters)  
+
+
+res = hpolcc:::objectiveFunctionC(fitD$start_parameters, fitD$tmb_data, fitD$config)
+
+
+res$h2 = do.call(Matrix::SymmetricMatrix, res$hessian)
 
 
 fitM <- hnlm(
