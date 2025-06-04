@@ -53,12 +53,25 @@ atomic_logspace_add& get_logspace_add_atomic_instance() {
 CppAD::vector<AD<double>> objectiveFunctionInternal(
   CppAD::vector<AD<double>> ad_params, 
   Rcpp::List data, 
-  int dirichelet
+  Rcpp::List config 
   ) {
 
 #ifdef DEBUG
   Rcpp::Rcout << "in objfun\n";
 #endif  
+
+  bool verbose = false;
+  if (config.containsElementNamed("verbose")) {
+    verbose = Rcpp::as<bool>(config["verbose"]);
+  }
+  bool dirichelet = false;
+  if (config.containsElementNamed("dirichelet")) {
+    dirichelet = Rcpp::as<bool>(config["dirichelet"]);
+  }
+  bool transform_theta = false; // theta is logged
+  if (config.containsElementNamed("transform_theta")) {
+    transform_theta = Rcpp::as<bool>(config["transform_theta"]);
+  }
 
   // S4 objects from data
   Rcpp::S4 QsansDiag(data["QsansDiag"]), A(data["ATp"]),
@@ -114,9 +127,16 @@ CppAD::vector<AD<double>> objectiveFunctionInternal(
     gamma[D] = ad_params[Nbeta+D];
   }
 
-  for(size_t D=0;D<Ntheta;D++) {
-    theta[D] = ad_params[Nbeta+Ngamma+D];
-    logTheta[D] = log(theta[D]);
+  if(transform_theta) {
+    for(size_t D=0;D<Ntheta;D++) {
+      logTheta[D] = ad_params[Nbeta+Ngamma+D];
+      theta[D] = exp(logTheta[D]);      
+    }
+  } else {
+    for(size_t D=0;D<Ntheta;D++) {
+      theta[D] = ad_params[Nbeta+Ngamma+D];
+      logTheta[D] = log(theta[D]);      
+    }
   }
 
 // for data contribution
