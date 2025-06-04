@@ -17,10 +17,9 @@ make_trustoptim_wrappers <- function(data,
     } else {
       result <- obj_fn(x, cache_env$data, c(cache_env$config1, cache_env$config2))
       cache_env$last_x <- x
-      cache_env$config2$hessMax = ceiling(1.1*length(result$hessian$x))
       result$hessian <- as(
       	result$hessian,
-      	'dgCMatrix')
+      	'CsparseMatrix')
       cache_env$last_result <- result
       return(result)
     }

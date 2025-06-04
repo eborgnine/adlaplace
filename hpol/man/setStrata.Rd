@@ -4,7 +4,7 @@
 \alias{setStrata}
 \title{Stratify the observations for usage in a case-crossover model}
 \usage{
-setStrata(cc_design, data)
+setStrata(cc_design, data, outcome = NULL)
 }
 \arguments{
 \item{cc_design}{A list containing the design parameters for the stratification. This includes:
