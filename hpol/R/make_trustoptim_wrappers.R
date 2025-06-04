@@ -19,7 +19,7 @@ make_trustoptim_wrappers <- function(data,
       cache_env$last_x <- x
       cache_env$config2$hessMax = ceiling(1.1*length(result$hessian$x))
       result$hessian <- as(
-      	do.call(Matrix::sparseMatrix, result$hessian),
+      	result$hessian,
       	'dgCMatrix')
       cache_env$last_result <- result
       return(result)
