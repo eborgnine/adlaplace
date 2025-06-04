@@ -17,9 +17,7 @@ make_trustoptim_wrappers <- function(data,
     } else {
       result <- obj_fn(x, cache_env$data, c(cache_env$config1, cache_env$config2))
       cache_env$last_x <- x
-      result$hessian <- as(
-      	result$hessian,
-      	'CsparseMatrix')
+      result$hessian <-as(as(result$hessian, 'CsparseMatrix'), 'generalMatrix')
       cache_env$last_result <- result
       return(result)
     }
