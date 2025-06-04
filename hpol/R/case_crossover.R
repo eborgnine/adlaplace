@@ -23,7 +23,7 @@
 #'
 #' @import data.table
 
-setStrata <- function(cc_design, data) {
+setStrata <- function(cc_design, data, outcome = NULL) {
   if (is.null(cc_design$time_var) &
       is.null(cc_design$strat_vars))
     stop("Provide statification (or time) variables.")
@@ -37,83 +37,43 @@ setStrata <- function(cc_design, data) {
   
   #  theEnv = list2env(cc_design, envir = environment())
   
-  # First level: stratify by strat_vars if provided
-  if (is.null(cc_design$strat_vars)) {
-    strat_split <- list(seq_len(nrow(data)))
-  } else {
-    # pick out all your old column names
+    if (is.null(cc_design$strat_vars)) {
+      data$interaction = as.numeric(factor(data$strat_vars[1]))
+    } else {
     old_cols <- setdiff(names(data), "interaction")
     data <- data[,
                  c(.SD, list(interaction = .GRP)),
                  by = eval(cc_design$strat_vars),
                  .SDcols = old_cols
-    ]
-#    data <- data[,
-#                 c(.SD, .(interaction = .GRP)),
-#                 by = cc_design$strat_vars,
-#                 .SDcols = old_cols
-#    ]
-    # Split row indices by interaction group
-    strat_split <- split(seq_len(nrow(data)), data$interaction, drop = TRUE)
-  }
-  # if no more stratification do do, return right away
-  if (is.null(cc_design$time_var)) {
-    lens <- sapply(strat_split, length)
-    max_len <- max(lens)
-    
-    cc_matrix <- do.call(rbind, lapply(strat_split, function(x) {
-      c(x, rep(0L, max_len - length(x)))  # Using 0L for integer
-    }))
-    
+      ]
+    }
 
-  } else {
-  # if not, also use time_var to further stratify
-  if (cc_design$time_lag %% 1 != 0)
-    warning("non-integer time_lag(?)")
-  strat_split <- lapply(strat_split, \(ss) {
-    split(ss, as.integer(data[ss, ][[time_var]]) %% time_lag, drop = F)
-  }) |> unlist(recursive = F)
-  
-  if (!is.null(time_size)) {
-    strat_split <- lapply(strat_split, \(ss) {
-      times <- data[ss, ][[time_var]]
-      l <- length(ss)
-      i <- 1
-      max_lag <- time_lag * time_size
-      new_ss <- list()
-      while (i < l) {
-        maybe <- i + 1:min(time_size - 1, l - i)
-        new_s <- ss[c(i, maybe[times[maybe] - times[i] < max_lag])]
-        if (length(new_s) != 1)
-          new_ss[[length(new_ss) + 1]] <- new_s
-        i <- i + length(new_s)
-      }
-      
-      return(new_ss)
-    }) |> unlist(recursive = F)
-    
-    # for each case day, enumerates control days (0 means empty)
-    cc_matrix <- sapply(strat_split, \(ss) c(ss, rep(0, time_size - length(ss)))) |> t()
-  }
-  }
-  
-  cc_long <- data.table(
-    i = as.vector(row(cc_matrix)),
-    j = as.vector(col(cc_matrix)),
-    value = as.vector(cc_matrix)
-  )[
-    value != 0
-  ][
-    , n_i := .N, by = i
-  ][
-    n_i > 1
-  ]
-  cc_long$i2 = as.numeric(factor(cc_long$i))
-  
-  cc_sparse = Matrix::sparseMatrix(
-    i = cc_long$i2, j = cc_long$value)
-  
-  
+if (!is.null(outcome)) {
+  # Summing by interaction for the outcome variable
+  summaryDT <- data[, .(
+    Noutcome = sum(get(outcome[1]), na.rm = TRUE),
+    Ndays = .N
+  ), by = interaction]
+} else {
+  summaryDT <- data[, .(
+    Noutcome = 1,
+    Ndays = .N
+  ), by = interaction]
+}
+summaryDT$toKeep <- summaryDT$Noutcome > 0 & summaryDT$Ndays > 1
+summaryDT = summaryDT[summaryDT$toKeep,]
+
+data$interaction_sub = match(data$interaction, summaryDT$interaction)
+whichToKeep = which(!is.na(data$interaction_sub))
+
+cc_matrix_sub = cbind(i = whichToKeep, j = data$interaction_sub[whichToKeep])
+
+
+
+    cc_sparse = Matrix::sparseMatrix(
+      i = cc_matrix_sub[,'i'], j = cc_matrix_sub[,'j'], 
+      dims = c(nrow(data), max(cc_matrix_sub[,'j']))
+    )
   
   return(cc_sparse)
 }

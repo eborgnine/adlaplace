@@ -54,7 +54,7 @@ hnlm <- function(formula,
     stop("Provide a valid stratification (or time) variable.")
   
   strat_time_vars <- c(cc_design$strat_vars, cc_design$time_var)
-  setorderv(data, strat_time_vars)
+  data.table::setorderv(data, strat_time_vars)
   
   #  strat_time_vars <- c(cc_design$strat_vars, cc_design$time_var)
   #  new_order <- eval(str2lang(paste0("order(", paste0("data[['", strat_time_vars, "']]", collapse = ", "), ")")))
@@ -66,7 +66,9 @@ hnlm <- function(formula,
     cat("setting strata\n")
   }
   
-  cc_matrix <- setStrata(cc_design = cc_design, data = data)
+  cc_matrix <- setStrata(
+    cc_design = cc_design, data = data, 
+    outcome = all.vars(formula)[1])
 
   if (verbose) cat("collecting terms\n")
   # setup of the design matrices and other parameters
@@ -168,18 +170,18 @@ hnlm <- function(formula,
   theta_info$var = c(theta_info$var, 'overdisp')
   theta_info$model = c(theta_info$model, '')
   theta_info$psd_scale = exp(theta_info$psd_scale_log)
+
   if (dirichelet) {
     theta_info$map = c(theta_info$map, max(theta_info$map) + 1)
     dirichletStart = 0.01
-  } else {
-    dirichletStart = 0
-    theta_info$map = c(theta_info$map, NA)
-  }
-  theta_info$init <- c(theta_info$init, dirichletStart)
+    theta_info$init <- c(theta_info$init, dirichletStart)
+  } 
+
   
   uniqueTheta = which(!duplicated(theta_info$map))
-  theta_info$name = paste(theta_info$var[uniqueTheta], c(theta_info$model[uniqueTheta]), sep =
-                            '_')
+  theta_info$name = paste(theta_info$var[uniqueTheta], 
+    c(theta_info$model[uniqueTheta]), 
+    sep = '_')
   
   if (verbose)
     cat('.\n')
@@ -195,7 +197,7 @@ hnlm <- function(formula,
   }
 
   allMap = 
-    rep(theta_info$map[1:length(gamma_info$split)], gamma_info$split)
+    rep(theta_info$map[1:length(gamma_info$split)], gamma_info$split)-1
   
   
   tmb_data <- list(
@@ -229,7 +231,8 @@ hnlm <- function(formula,
         theta_info = theta_info,
         tmb_data = tmb_data,
         terms = terms,
-        config = config
+        config = config,
+        data = data
       )
     )
   

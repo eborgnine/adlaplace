@@ -62,10 +62,11 @@ devtools::document("~/research/hpoltest/hpol")
 devtools::load_all("~/research/hpoltest/hpol")
 
 }
-Sys.setenv(OMP_NUM_THREADS = 32)
+Sys.setenv(OMP_NUM_THREADS = 1)
 library('hpolcc')
 #TMB::openmp(as.integer(Sys.getenv("OMP_NUM_THREADS")), DLL='hpoltest')
 system("ulimit -s")
+
 
 
 
@@ -74,34 +75,45 @@ fitD <- hpolcc::hnlm(
     f(tempClean, model='hiwp',ref_value = 20, p=3, knots = seq(0, 45, by=5), 
     group_var = ecoRegion), 
   data=dataMedSimple[dataMedSimple$ecoRegion < 6,],
-  dirichelet=TRUE,
+  dirichelet=FALSE,
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
-  tmb_parameters = list(theta = thetaStartD),
-  optim_parameters = list(maxit = 2, REPORT=1,trace=2),
   for_dev=TRUE, verbose=TRUE
   )
+beta = fitD$start_parameters[1:2]
+
+gamma =fitD$start_parameters[seq(from=3, len=64)]
+theta = fitD$start_parameters[seq(from = length(beta) + length(gamma)+1,
+  len = 4)]
 
 
 
-fitD$config$verbose = FALSE
+fitD$data[which(fitD$tmb_data$cc_matrixTp[,1]),
+  c('ecoRegion','yearWeek3Dow','cell','medical', 'tempClean')]
+
+
+fitD$config$verbose = TRUE
+
+
 
 resFun = function(xx)  hpolcc:::objectiveFunctionC(xx, fitD$tmb_data, 
-  c(fitD$config, list(maxDeriv = 0)))$value
+  c(fitD$config[setdiff(names(fitD$config), 'maxDeriv')], 
+  list(maxDeriv = 0)))$value
 
+
+#str(fitD$tmb_data)
 resFun(fitD$start_parameters)  
-
-theGrad = hpolcc:::objectiveFunctionC(fitD$start_parameters, fitD$tmb_data, 
-  c(fitD$config, list(maxDeriv = 1)))
-
 
 fitD$config$maxDeriv = 2
 
 res = hpolcc:::objectiveFunctionC(fitD$start_parameters, fitD$tmb_data, fitD$config)
 
+res$grad
+
 
 theGradAgain = numDeriv::grad(resFun, fitD$start_parameters)  
 
 quantile(theGrad$grad /theGradAgain)
+
 
 
 
