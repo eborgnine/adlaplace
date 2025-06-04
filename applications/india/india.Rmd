@@ -77,45 +77,52 @@ fitD <- hpolcc::hnlm(
   data=dataMedSimple[dataMedSimple$ecoRegion < 6,],
   dirichelet=FALSE,
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
-  for_dev=TRUE, verbose=TRUE
+  for_dev=TRUE, verbose=FALSE
   )
 beta = fitD$start_parameters[1:2]
 
 gamma =fitD$start_parameters[seq(from=3, len=64)]
 theta = fitD$start_parameters[seq(from = length(beta) + length(gamma)+1,
-  len = 4)]
+  to=length(fitD$start_parameters))]
 
 
 
 fitD$data[which(fitD$tmb_data$cc_matrixTp[,1]),
   c('ecoRegion','yearWeek3Dow','cell','medical', 'tempClean')]
 
-
-fitD$config$verbose = TRUE
-
-
-
 resFun = function(xx)  hpolcc:::objectiveFunctionC(xx, fitD$tmb_data, 
-  c(fitD$config[setdiff(names(fitD$config), 'maxDeriv')], 
-  list(maxDeriv = 0)))$value
+  c(fitD$config[
+    setdiff(names(fitD$config), c('transform_theta','maxDeriv'))], 
+  list(maxDeriv = 0, transform_theta=TRUE)))$value
 
 
 #str(fitD$tmb_data)
 resFun(fitD$start_parameters)  
 
-fitD$config$maxDeriv = 2
+res1 = hpolcc:::objectiveFunctionC(fitD$start_parameters, fitD$tmb_data, fitD$config)
 
-res = hpolcc:::objectiveFunctionC(fitD$start_parameters, fitD$tmb_data, fitD$config)
+
+fitD$config$maxDeriv = 2
+fitD$config$transform_theta = TRUE
+
+params = c(beta, gamma, log(theta))
+
+res2 = hpolcc:::objectiveFunctionC(fitD$start_parameters, fitD$tmb_data, fitD$config)
+
+Matrix::determinant(res$hessian)
 
 res$grad
 
-
 theGradAgain = numDeriv::grad(resFun, fitD$start_parameters)  
 
-quantile(theGrad$grad /theGradAgain)
+quantile(res$grad /theGradAgain, na.rm=TRUE)
 
 
+theHessAgain = numDeriv::hessian(resFun, fitD$start_parameters)
 
+```
+
+```{r stuffagain}
 
 fitM <- hnlm(
   formula= y ~ f(date, model='iid') +
