@@ -2,9 +2,8 @@
 
 //#define DEBUG
 
-#define MAX_THREADS 64
 
-#define SINGLETHREAD
+//#define SINGLETHREAD
 
 #ifndef SINGLETHREAD
 #include<omp.h>
@@ -189,9 +188,15 @@ CppAD::vector<AD<double>> objectiveFunctionInternal(
 #endif    
 
 
+#ifdef SINGLETHREAD
+  size_t max_threads = 1;
+#else 
+  size_t max_threads = omp_get_max_threads();
+#endif  
+    
   // off diagonals
-  std::vector<AD<double>> thread_offdiagQ(MAX_THREADS, 0.0);
-  std::vector<AD<double>> thread_loglik(MAX_THREADS, 0.0);
+  std::vector<AD<double>> thread_offdiagQ(max_threads, 0.0);
+  std::vector<AD<double>> thread_loglik(max_threads, 0.0);
 
 
 #ifndef SINGLETHREAD
