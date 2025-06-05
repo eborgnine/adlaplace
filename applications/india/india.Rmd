@@ -80,27 +80,18 @@ fitD <- hpolcc::hnlm(
   for_dev=TRUE, verbose=FALSE
   )
 
-beta = fitD$start_parameters[1:nrow(fitD$tmb_data$XTp)]
-gamma =fitD$start_parameters[seq(from=length(beta)+1, 
-  len=nrow(fitD$tmb_data$ATp)
-  )]
-theta = fitD$start_parameters[seq(from = length(beta) + length(gamma)+1,
-  to=length(fitD$start_parameters))]
 
 
-resFun = function(xx)  hpolcc:::objectiveFunctionC(xx, fitD$tmb_data, 
-  c(fitD$config[
-    setdiff(names(fitD$config), 'maxDeriv')], 
-  list(maxDeriv = 0)))$value
-
-
-
-
-fitD$config$verbose = TRUE
+fitD$config$verbose = FALSE
 fitD$config$transform_theta = FALSE
 fitD$config$num_threads = 4
 
-resFun(fitD$start_parameters)  
+
+
+
+fitD$config$maxDeriv = 2
+res = hpolcc:::objectiveFunctionC(fitD$start_parameters, fitD$tmb_data, fitD$config)
+str(res)
 
 
 wrappers <- make_trustoptim_wrappers(
@@ -125,11 +116,28 @@ result <- trust.optim(
   hs = wrappers$hs,
   method = "Sparse"
 )
+```
 
 
-fitD$config$maxDeriv = 2
-res = hpolcc:::objectiveFunctionC(fitD$start_parameters, fitD$tmb_data, fitD$config)
-str(res)
+
+```{r otherstuff22}
+
+
+beta = fitD$start_parameters[1:nrow(fitD$tmb_data$XTp)]
+gamma =fitD$start_parameters[seq(from=length(beta)+1, 
+  len=nrow(fitD$tmb_data$ATp)
+  )]
+theta = fitD$start_parameters[seq(from = length(beta) + length(gamma)+1,
+  to=length(fitD$start_parameters))]
+
+
+resFun = function(xx)  hpolcc:::objectiveFunctionC(xx, fitD$tmb_data, 
+  c(fitD$config[
+    setdiff(names(fitD$config), 'maxDeriv')], 
+  list(maxDeriv = 0)))$value
+
+
+resFun(fitD$start_parameters)  
 
 Matrix::determinant(res$hessian)
 
