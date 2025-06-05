@@ -2,7 +2,7 @@
 #define LOGSPACE_ADD_HPP
 
 #include <cppad/cppad.hpp>
-#include <Rmath.h>
+
 
 class atomic_logspace_add : public CppAD::atomic_four<double> {
 public:
@@ -36,14 +36,15 @@ private:
 };
 
 // Declaration of the global atomic function instance
-extern atomic_logspace_add logspace_add_atomic;
+extern atomic_logspace_add logspace_add_instance;
 
-// Only specialize for double:
-inline double logspace_add_ad(double x, double y) {
-    return  x < y ?
-             y + log1p (exp (x - y)) :
-             x + log1p (exp (y - x)) ;
-}
+// Template function declaration
+template<class Type>
+Type logspace_add_ad(Type x, Type y);
+
+// Explicit instantiation for common types
+extern template CppAD::AD<double> logspace_add_ad<CppAD::AD<double>>(CppAD::AD<double>, CppAD::AD<double>);
+
 
 
 #endif

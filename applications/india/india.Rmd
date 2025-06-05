@@ -62,60 +62,59 @@ devtools::document("~/research/hpoltest/hpol")
 devtools::load_all("~/research/hpoltest/hpol")
 
 }
-Sys.setenv(OMP_NUM_THREADS = 1)
-library('hpolcc')
+#Sys.setenv(OMP_NUM_THREADS = 1)
 #TMB::openmp(as.integer(Sys.getenv("OMP_NUM_THREADS")), DLL='hpoltest')
-system("ulimit -s")
+#system("ulimit -s")
 
 
 
+library('hpolcc')
 
 fitD <- hpolcc::hnlm(
   formula= medical ~ #f(date, model='iid') +
     f(tempClean, model='hiwp',ref_value = 20, p=3, knots = seq(0, 45, by=5), 
     group_var = ecoRegion), 
-  data=dataMedSimple[dataMedSimple$ecoRegion < 6,],
+  data=dataMedSimple[dataMedSimple$ecoRegion < 4,],
   dirichelet=FALSE,
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
   for_dev=TRUE, verbose=FALSE
   )
-beta = fitD$start_parameters[1:2]
 
-gamma =fitD$start_parameters[seq(from=3, len=64)]
+beta = fitD$start_parameters[1:nrow(fitD$tmb_data$XTp)]
+gamma =fitD$start_parameters[seq(from=length(beta)+1, 
+  len=nrow(fitD$tmb_data$ATp)
+  )]
 theta = fitD$start_parameters[seq(from = length(beta) + length(gamma)+1,
   to=length(fitD$start_parameters))]
 
 
-
-fitD$data[which(fitD$tmb_data$cc_matrixTp[,1]),
-  c('ecoRegion','yearWeek3Dow','cell','medical', 'tempClean')]
-
 resFun = function(xx)  hpolcc:::objectiveFunctionC(xx, fitD$tmb_data, 
   c(fitD$config[
-    setdiff(names(fitD$config), c('transform_theta','maxDeriv'))], 
-  list(maxDeriv = 0, transform_theta=TRUE)))$value
+    setdiff(names(fitD$config), 'maxDeriv')], 
+  list(maxDeriv = 0)))$value
 
 
-#str(fitD$tmb_data)
+
+fitD$config$verbose = TRUE
+fitD$config$transform_theta = FALSE
 resFun(fitD$start_parameters)  
-
-res1 = hpolcc:::objectiveFunctionC(fitD$start_parameters, fitD$tmb_data, fitD$config)
 
 
 fitD$config$maxDeriv = 2
-fitD$config$transform_theta = TRUE
+res = hpolcc:::objectiveFunctionC(fitD$start_parameters, fitD$tmb_data, fitD$config)
+str(res)
 
-params = c(beta, gamma, log(theta))
 
-res2 = hpolcc:::objectiveFunctionC(fitD$start_parameters, fitD$tmb_data, fitD$config)
+fitD$config$verbose=FALSE
+res$grad
+theGradAgain = numDeriv::grad(resFun, fitD$start_parameters)  
+
+rbind(res$grad, theGradAgain)
 
 Matrix::determinant(res$hessian)
 
-res$grad
 
-theGradAgain = numDeriv::grad(resFun, fitD$start_parameters)  
 
-quantile(res$grad /theGradAgain, na.rm=TRUE)
 
 
 theHessAgain = numDeriv::hessian(resFun, fitD$start_parameters)
