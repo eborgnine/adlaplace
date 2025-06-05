@@ -75,7 +75,7 @@ fitD <- hpolcc::hnlm(
     f(tempClean, model='hiwp',ref_value = 20, p=3, knots = seq(0, 45, by=5), 
     group_var = ecoRegion), 
   data=dataMedSimple, #[dataMedSimple$ecoRegion < 4,],
-  dirichelet=FALSE,
+  dirichelet=TRUE,
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
   for_dev=TRUE, verbose=FALSE
   )
@@ -106,7 +106,7 @@ library('trustOptim')
 start_val <- c(
   rep(0, nrow(fitD$tmb_data$XTp)), 
   rep(0, nrow(fitD$tmb_data$ATp)), 
-  rep(1, length(unique(fitD$tmb_data$map))+1))
+  rep(log(0.1), length(unique(fitD$tmb_data$map))+1))
 
 
 result <- trust.optim(
@@ -116,6 +116,11 @@ result <- trust.optim(
   hs = wrappers$hs,
   method = "Sparse"
 )
+
+fitD$theta_info$name
+result$solution[-seq(1, 
+  nrow(fitD$tmb_data$XTp) + nrow(fitD$tmb_data$ATp))]
+
 ```
 
 
