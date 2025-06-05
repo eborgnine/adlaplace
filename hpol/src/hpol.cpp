@@ -2,10 +2,11 @@
 
 //#define DEBUG
 
-#define SINGLETHREAD
+//#define SINGLETHREAD
 
 #ifndef SINGLETHREAD
 #include<omp.h>
+#include <vector>
 #endif
 
 
@@ -25,14 +26,13 @@ Rcpp::S4 make_dgTMatrix(
   Rcpp::IntegerVector iR = i[Rcpp::Range(0, maxEntries - 1)];
   Rcpp::IntegerVector jR = j[Rcpp::Range(0, maxEntries - 1)];
 
-  Rcpp::CharacterVector uplo= Rcpp::wrap('L');
 
-  Rcpp::S4 mat("dsTMatrix");
+  Rcpp::S4 mat("dgTMatrix");
   mat.slot("i") = iR;
   mat.slot("j") = jR;
   mat.slot("x") = xR;
   mat.slot("Dim") = dims;
-  mat.slot("uplo") = uplo;
+//  mat.slot("uplo") =  Rcpp::CharacterVector uplo= Rcpp::wrap('L');
   return mat;
 }
 
@@ -289,12 +289,13 @@ Rcpp::List objectiveFunctionC(
     maxDeriv = Rcpp::as<int>(config["maxDeriv"]);
   }
 
-  int hesMax = 100000;
+  size_t Nparams = parameters.size();
+  int NparamsI = static_cast<int>(Nparams);
+  int hesMax = NparamsI*NparamsI;
   if (config.containsElementNamed("hesMax")) {
     hesMax = Rcpp::as<int>(config["hesMax"]);
   }
 
-  size_t Nparams = parameters.size();
 
 
   CppAD::vector<AD<double>> ad_params(Nparams);  
@@ -351,35 +352,97 @@ Rcpp::List objectiveFunctionC(
     Rcpp::Rcout << "hess ";
   }
 
-  int hindex=0;
+
+  if (config.containsElementNamed("num_threads")) {
+    int num_threads_config = Rcpp::as<int>(config["num_threads"]);
+    omp_set_num_threads(num_threads_config);
+  }
+// Prepare storage for each thread
+int nthreads = static_cast<size_t>(omp_get_max_threads());
+
+std::vector<CppAD::ADFun<double>> f_thread(nthreads);
+
+for(int D =0; D<nthreads;D++)
+  f_thread[D] = f;
+
+//  int hindex=0;
   Rcpp::NumericVector Hvalue(hesMax);
   Rcpp::IntegerVector Hrow(hesMax), Hcol(hesMax);
+  double eps = 1e-9;
+
+  std::vector<int> hindex_thread(nthreads, 0);
   
+// Temporary storage for each thread (to avoid race conditions)
+std::vector< std::vector<double> > thread_Hvalue(nthreads, std::vector<double>(hesMax));
+std::vector< std::vector<int> > thread_Hrow(nthreads, std::vector<int>(hesMax));
+std::vector< std::vector<int> > thread_Hcol(nthreads, std::vector<int>(hesMax));
+
+  if (verbose ) {
+    Rcpp::Rcout << "parallel\n";
+  }
+
+
+// Parallelized over j (columns)
+#pragma omp parallel
+{
+  int tid = omp_get_thread_num();
+  if (verbose ) {
+    Rcpp::Rcout <<tid << "\n";
+  }
+  if (verbose ) {
+    Rcpp::Rcout <<tid << "\n";
+  }
+
+
   std::vector<double> u(Nparams, 0.0);
   std::vector<double> w(1, 1.0);
   std::vector<double> ddw(2*Nparams); 
-  double dhere, eps = 1e-9;
+  double dhere;
+
+  if (verbose ) {
+    Rcpp::Rcout <<tid << "\n";
+  }
 
 
-for (size_t j = 0; j < Nparams; ++j) { 
-    u[j] = 1.0;
-    f.Forward(1, u);
+  for (int j = tid; j < NparamsI; j+= nthreads) { 
+    u[j] = 1.0;    
+    f_thread[tid].Forward(1, u);
     u[j] = 0.0;  
+    ddw = f_thread[tid].Reverse(2, w);
 
-    ddw = f.Reverse(2, w);
-
-  for (size_t Drow = 0; Drow <= j; ++Drow) {
+    for (int Drow = 0; Drow <= NparamsI; ++Drow) {
       dhere = ddw[2 * Drow + 1];
       if (!CppAD::NearEqual(dhere, 0.0, eps, eps)) {
-        if(hindex < hesMax) {
-          Hrow[hindex] = Drow;
-          Hcol[hindex]= j;
-          Hvalue[hindex] = dhere;
+        if(hindex_thread[tid] < hesMax) {
+          thread_Hrow[tid][hindex_thread[tid]] = Drow;
+           thread_Hcol[tid][hindex_thread[tid]] = j;
+           thread_Hvalue[tid][hindex_thread[tid]] = dhere;
         }
-        hindex++;
+        hindex_thread[tid]++;
       }
     }
   }
+  if (verbose ) {
+    Rcpp::Rcout <<tid << "\n";
+  }
+
+}
+
+  if (verbose ) {
+    Rcpp::Rcout << "combine\n";
+  }
+// Combine threads' results into the main vectors
+int hindex = 0;
+for (int tid = 0; tid < nthreads; ++tid) {
+  for (int k = 0; k < hindex_thread[tid]; ++k) {
+    if(hindex < hesMax) {
+      Hrow[hindex] = thread_Hrow[tid][k];
+      Hcol[hindex] = thread_Hcol[tid][k];
+      Hvalue[hindex] = thread_Hvalue[tid][k];
+    }
+    hindex++;
+  }
+}
 
   if (verbose ) { 
     Rcpp::Rcout << " done." << std::endl;
@@ -391,16 +454,14 @@ for (size_t j = 0; j < Nparams; ++j) {
       std::to_string(hindex)
     );
 
-
   Rcpp::S4 hessianR = make_dgTMatrix(Hvalue, Hrow, Hcol, Nparams, hindex);
-
   result["hessian"] = hessianR;
 
-#ifdef DEBUG
-  result["hes2"] = Rcpp::List::create(
-    Rcpp::Named("x") = Hvalue, Rcpp::Named("i") = Hrow, Rcpp::Named("j") = Hcol
-    );
-#endif  
+  if(verbose)
+    result["hes2"] = Rcpp::List::create(
+      Rcpp::Named("x") = Hvalue, Rcpp::Named("i") = Hrow, Rcpp::Named("j") = Hcol,
+      Rcpp::Named("nonzeros") = hindex
+      );
 
   return result;
 }
