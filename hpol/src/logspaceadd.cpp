@@ -39,7 +39,7 @@ bool atomic_logspace_add::forward(
         x0[i]  = tx[i * q + 0];
     }
     auto max_iter = std::max_element(x0.begin(), x0.end());
-    size_t max_idx = std::distance(x0.begin(), max_iter);
+//    size_t max_idx = std::distance(x0.begin(), max_iter);
     double max_x = *max_iter;
 
   
@@ -140,7 +140,7 @@ bool atomic_logspace_add::reverse(
     }
 
     auto max_iter = std::max_element(x0.begin(), x0.end());
-    size_t max_idx = std::distance(x0.begin(), max_iter);
+//    size_t max_idx = std::distance(x0.begin(), max_iter);
     double max_x = *max_iter;
 
     // Numerically stable log-sum-exp
@@ -151,7 +151,7 @@ bool atomic_logspace_add::reverse(
         if (x0[i] == max_x) continue; // skip max for stability
         sum_exp += expDiff[i];
     }
-    double logsumexp = max_x + std::log1p(sum_exp), expMaxX = exp(max_x);
+    double logsumexp = max_x + std::log1p(sum_exp);
     for (size_t i = 0; i < n; ++i) {
         xDivSum[i] = std::exp(x0[i]-logsumexp);
     }

@@ -1,4 +1,5 @@
-#include "logspaceadd.hpp"
+#include "hpol.hpp"
+
 #include <Rcpp.h>
 
 
@@ -118,7 +119,7 @@ Rcpp::NumericVector logspaceadd_inbuilt_deriv(Rcpp::NumericVector x, int order) 
         }
     }
     return mat;
-}
+} 
 
 if(order == 3) {
     Rcpp::NumericVector third(n * n * n);
@@ -151,3 +152,61 @@ if(order == 3) {
     return Rcpp::wrap(0);
 }
 
+
+atomic_logspace_add atomic3("logspace_add_n" + std::to_string(3), 3);
+
+
+CppAD::vector<CppAD::AD<double>> testAddGamma(  
+    CppAD::vector<CppAD::AD<double>> ad_params) {
+
+
+    ad_params[0] = ad_params[0]*ad_params[0];
+    ad_params[1] = ad_params[1]*ad_params[0];
+    ad_params[2] = lgamma_ad(ad_params[2]);
+
+    CppAD::vector<CppAD::AD<double>> result(1);
+    atomic3(ad_params, result);
+    return result;
+}
+
+
+// [[Rcpp::export]]
+Rcpp::List testAddGammaR(
+  Rcpp::NumericVector parameters
+  ) {
+
+    size_t Nparams = parameters.size();
+    CppAD::vector<CppAD::AD<double>> ad_params(Nparams);  
+    for (size_t D = 0; D < Nparams; D++) {
+        ad_params[D] = parameters[D];  // Initialize CppAD variables
+    }
+    CppAD::Independent(ad_params);  // Tell CppAD these are inputs for differentiation
+
+    CppAD::vector<CppAD::AD<double>> y =testAddGamma(ad_params);
+    CppAD::ADFun<double> f(ad_params, y);
+
+    std::vector<double> x_val(Nparams);
+    for (size_t i = 0; i < Nparams; ++i) x_val[i] = parameters[i];
+
+    std::vector<double> y_val(1);
+    y_val = f.Forward(0, x_val);
+    Rcpp::List result = Rcpp::List::create(
+        Rcpp::Named("value") = y_val[0]
+    );
+
+  std::vector<double> grad = f.Jacobian(x_val);
+
+  result["grad"] = grad;
+
+  std::vector<double> hess = f.Hessian(x_val, 0);
+        // Return as matrix
+        Rcpp::NumericMatrix mat(Nparams, Nparams);
+        for (size_t i = 0; i < Nparams; ++i) {
+            for (size_t j = 0; j < Nparams; ++j) {
+                mat(i, j) = hess[i * Nparams + j];
+            }
+        }
+  result["hessian"] = mat;
+
+  return result;
+}

@@ -21,3 +21,7 @@ logspaceadd_inbuilt_deriv <- function(x, order) {
     .Call('_hpolcc_logspaceadd_inbuilt_deriv', PACKAGE = 'hpolcc', x, order)
 }
 
+testAddGammaR <- function(parameters) {
+    .Call('_hpolcc_testAddGammaR', PACKAGE = 'hpolcc', parameters)
+}
+

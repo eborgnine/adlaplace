@@ -1,6 +1,6 @@
 #include"hpol.hpp"
 
-//#define DEBUG
+#define DEBUG
 
 //#define SINGLETHREAD
 
@@ -47,10 +47,10 @@ CppAD::vector<AD<double>> objectiveFunctionInternal(
   Rcpp::Rcout << "in objfun\n";
 #endif  
 
-  bool verbose = false;
+/*  bool verbose = false;
   if (config.containsElementNamed("verbose")) {
     verbose = Rcpp::as<bool>(config["verbose"]);
-  }
+  }*/
   bool dirichelet = false;
   if (config.containsElementNamed("dirichelet")) {
     dirichelet = Rcpp::as<bool>(config["dirichelet"]);
@@ -195,10 +195,21 @@ CppAD::vector<AD<double>> objectiveFunctionInternal(
   std::adjacent_difference(CCp.begin(), CCp.end(), pdiff.begin());
   // Skip d[0] (always xx[0])
   size_t max_n = *std::max_element(pdiff.begin() + 1, pdiff.end());
-  std::vector<atomic_logspace_add> logspace_add_atomic_vect;
-  for (size_t n = 2; n <= max_n; ++n) {
+
+
+
+std::vector<atomic_logspace_add> logspace_add_atomic_vect;
+
+for (size_t n = 2; n <= max_n; ++n) {
     logspace_add_atomic_vect.emplace_back("logspace_add_n" + std::to_string(n), n);
   }
+
+static atomic_logspace_add logspace_add3("logspace_add3", 3);
+static atomic_logspace_add logspace_add2("logspace_add3", 2);
+
+#ifdef DEBUG
+  Rcpp::Rcout << "max in strata "  <<max_n << std::endl;
+#endif 
     // loop through strata
   for (size_t i = 0; i < Nstrata; i++) {
 
@@ -217,7 +228,16 @@ CppAD::vector<AD<double>> objectiveFunctionInternal(
       etaHere[j0] = eta[idx];
     }
     CppAD::vector<AD<double>> logSumMu(1);
-    logspace_add_atomic_vect[NinStrata-2](etaHere, logSumMu);
+
+//    logspace_add_atomic_vect[NinStrata-2](etaHere, logSumMu);
+    if(NinStrata == 2 ) {
+      logspace_add2(etaHere, logSumMu);
+    } else if(NinStrata == 3) {
+      logspace_add3(etaHere, logSumMu);
+    } else {
+      Rcpp::Rcout << "number in strata " << i << " has " << NinStrata<<"\n";
+    }
+
 
     if(dirichelet) {
       contrib += lgammaOneOverSqrtNu - lgamma_ad(oneOverSqrtNu + sumY);
@@ -236,12 +256,15 @@ CppAD::vector<AD<double>> objectiveFunctionInternal(
       } else {
         contrib += y[idx] * etaMinusLogSumMu;
       }
+
 #ifdef EVALCONSTANTS
       contrib -= lgamma(y[idx] + 1);
 #endif
-    }
+    } // j second pass
+
     local_loglik += contrib;
   } // loop through strata
+
   #ifdef DEBUG
   Rcpp::Rcout << "ll " << local_loglik << std::endl;
   #endif  
@@ -323,10 +346,12 @@ Rcpp::List objectiveFunctionC(
   if (verbose ) {
     Rcpp::Rcout << "eval done " << y[0] << "\n";
   }
-
+  Rcpp::Rcout << ".";
   CppAD::ADFun<double> f(ad_params, y);
+  Rcpp::Rcout << ".";
 
   std::vector<double> x_val(Nparams);
+  Rcpp::Rcout << ".";
   for (size_t i = 0; i < Nparams; ++i) x_val[i] = parameters[i];
 
   if (verbose ) {
@@ -364,13 +389,16 @@ Rcpp::List objectiveFunctionC(
     Rcpp::Rcout << "hess ";
   }
 
-
+#ifndef SINGLETHREAD
   if (config.containsElementNamed("num_threads")) {
     int num_threads_config = Rcpp::as<int>(config["num_threads"]);
     omp_set_num_threads(num_threads_config);
   }
 // Prepare storage for each thread
 int nthreads = static_cast<size_t>(omp_get_max_threads());
+#else
+int nthreads = 1;
+#endif
 
 std::vector<CppAD::ADFun<double>> f_thread(nthreads);
 
@@ -389,6 +417,7 @@ std::vector< std::vector<double> > thread_Hvalue(nthreads, std::vector<double>(h
 std::vector< std::vector<int> > thread_Hrow(nthreads, std::vector<int>(hesMax));
 std::vector< std::vector<int> > thread_Hcol(nthreads, std::vector<int>(hesMax));
 
+#ifndef SINGLETHREAD
   if (verbose ) {
     Rcpp::Rcout << "parallel\n";
   }
@@ -404,7 +433,10 @@ std::vector< std::vector<int> > thread_Hcol(nthreads, std::vector<int>(hesMax));
   if (verbose ) {
     Rcpp::Rcout <<tid << "\n";
   }
-
+#else
+{
+  int tid=1;
+#endif  
 
   std::vector<double> u(Nparams, 0.0);
   std::vector<double> w(1, 1.0);
@@ -474,7 +506,10 @@ for (int tid = 0; tid < nthreads; ++tid) {
       Rcpp::Named("x") = Hvalue, Rcpp::Named("i") = Hrow, Rcpp::Named("j") = Hcol,
       Rcpp::Named("nonzeros") = hindex
       );
-
+#ifdef DEBUG
+  std::vector<double> hess = f.Hessian(x_val, 0);
+  result["hess3"] = hess;
+#endif
   return result;
 }
 

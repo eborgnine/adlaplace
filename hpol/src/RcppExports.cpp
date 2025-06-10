@@ -71,6 +71,17 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// testAddGammaR
+Rcpp::List testAddGammaR(Rcpp::NumericVector parameters);
+RcppExport SEXP _hpolcc_testAddGammaR(SEXP parametersSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type parameters(parametersSEXP);
+    rcpp_result_gen = Rcpp::wrap(testAddGammaR(parameters));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_hpolcc_objectiveFunctionC", (DL_FUNC) &_hpolcc_objectiveFunctionC, 3},
@@ -78,6 +89,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_hpolcc_lgamma_reverse_deriv", (DL_FUNC) &_hpolcc_lgamma_reverse_deriv, 2},
     {"_hpolcc_logspaceadd_forward_deriv", (DL_FUNC) &_hpolcc_logspaceadd_forward_deriv, 2},
     {"_hpolcc_logspaceadd_inbuilt_deriv", (DL_FUNC) &_hpolcc_logspaceadd_inbuilt_deriv, 2},
+    {"_hpolcc_testAddGammaR", (DL_FUNC) &_hpolcc_testAddGammaR, 1},
     {NULL, NULL, 0}
 };
 

@@ -1,5 +1,12 @@
 library(hpolcc)
 
+
+hpolcc:::testAddGammaR(1:3)
+
+numDeriv::grad(function(xx) hpolcc:::testAddGammaR(xx)$value, 1:3)
+numDeriv::hessian(function(xx) hpolcc:::testAddGammaR(xx)$value, 1:3)
+
+
 # A few sample input vectors
 inputs <- list(
 #  c(1,10),
