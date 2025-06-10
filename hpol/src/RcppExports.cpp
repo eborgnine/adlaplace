@@ -23,9 +23,61 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// lgamma_forward_deriv
+double lgamma_forward_deriv(double x, int order);
+RcppExport SEXP _hpolcc_lgamma_forward_deriv(SEXP xSEXP, SEXP orderSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< double >::type x(xSEXP);
+    Rcpp::traits::input_parameter< int >::type order(orderSEXP);
+    rcpp_result_gen = Rcpp::wrap(lgamma_forward_deriv(x, order));
+    return rcpp_result_gen;
+END_RCPP
+}
+// lgamma_reverse_deriv
+double lgamma_reverse_deriv(double x, int order);
+RcppExport SEXP _hpolcc_lgamma_reverse_deriv(SEXP xSEXP, SEXP orderSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< double >::type x(xSEXP);
+    Rcpp::traits::input_parameter< int >::type order(orderSEXP);
+    rcpp_result_gen = Rcpp::wrap(lgamma_reverse_deriv(x, order));
+    return rcpp_result_gen;
+END_RCPP
+}
+// logspaceadd_forward_deriv
+Rcpp::NumericMatrix logspaceadd_forward_deriv(Rcpp::NumericVector x, int order);
+RcppExport SEXP _hpolcc_logspaceadd_forward_deriv(SEXP xSEXP, SEXP orderSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type x(xSEXP);
+    Rcpp::traits::input_parameter< int >::type order(orderSEXP);
+    rcpp_result_gen = Rcpp::wrap(logspaceadd_forward_deriv(x, order));
+    return rcpp_result_gen;
+END_RCPP
+}
+// logspaceadd_inbuilt_deriv
+Rcpp::NumericVector logspaceadd_inbuilt_deriv(Rcpp::NumericVector x, int order);
+RcppExport SEXP _hpolcc_logspaceadd_inbuilt_deriv(SEXP xSEXP, SEXP orderSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type x(xSEXP);
+    Rcpp::traits::input_parameter< int >::type order(orderSEXP);
+    rcpp_result_gen = Rcpp::wrap(logspaceadd_inbuilt_deriv(x, order));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_hpolcc_objectiveFunctionC", (DL_FUNC) &_hpolcc_objectiveFunctionC, 3},
+    {"_hpolcc_lgamma_forward_deriv", (DL_FUNC) &_hpolcc_lgamma_forward_deriv, 2},
+    {"_hpolcc_lgamma_reverse_deriv", (DL_FUNC) &_hpolcc_lgamma_reverse_deriv, 2},
+    {"_hpolcc_logspaceadd_forward_deriv", (DL_FUNC) &_hpolcc_logspaceadd_forward_deriv, 2},
+    {"_hpolcc_logspaceadd_inbuilt_deriv", (DL_FUNC) &_hpolcc_logspaceadd_inbuilt_deriv, 2},
     {NULL, NULL, 0}
 };
 

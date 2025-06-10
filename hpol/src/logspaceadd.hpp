@@ -6,9 +6,9 @@
 
 class atomic_logspace_add : public CppAD::atomic_four<double> {
 public:
-    atomic_logspace_add(const std::string& name);
+    size_t n;
+    atomic_logspace_add(const std::string& name, size_t n_);
     
-private:
     bool for_type(
         size_t call_id,
         const CppAD::vector<CppAD::ad_type_enum>& type_x,
@@ -35,15 +35,14 @@ private:
     ) override;
 };
 
-// Declaration of the global atomic function instance
-extern atomic_logspace_add logspace_add_instance;
 
-// Template function declaration
+
 template<class Type>
-Type logspace_add_ad(Type x, Type y);
-
-// Explicit instantiation for common types
-extern template CppAD::AD<double> logspace_add_ad<CppAD::AD<double>>(CppAD::AD<double>, CppAD::AD<double>);
+Type logspace_add_ad(const CppAD::vector<Type>& x, atomic_logspace_add& atomic) {
+    CppAD::vector<Type> y(1);
+    atomic(x, y); // call the atomic instance
+    return y[0];
+}
 
 
 

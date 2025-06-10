@@ -1,24 +1,25 @@
 #include "logspaceadd.hpp"
 #include <Rcpp.h>
 
-// Define the global atomic function instance
-atomic_logspace_add logspace_add_atomic("logspace_add_atomic");
 
 // Constructor implementation
-atomic_logspace_add::atomic_logspace_add(const std::string& name)
-    : CppAD::atomic_four<double>(name) {}
+atomic_logspace_add::atomic_logspace_add(const std::string& name, size_t n_)
+    : CppAD::atomic_four<double>(name), n(n_) {}
 
 
 bool atomic_logspace_add::for_type(
     size_t call_id,
     const CppAD::vector<CppAD::ad_type_enum>& type_x,
     CppAD::vector<CppAD::ad_type_enum>& type_y
-  )  {
-    assert(type_x.size() == 2);
+  ) {
+    // For log-sum-exp with n inputs, output is scalar
     assert(type_y.size() == 1);
-    type_y[0] = std::max(type_x[0], type_x[1]);
+    // Take max type of any input as output type
+    type_y[0] = type_x[0];
+    for(size_t i = 1; i < type_x.size(); ++i)
+        type_y[0] = std::max(type_y[0], type_x[i]);
     return true;
-  }
+}
 
 bool atomic_logspace_add::forward(
     size_t call_id,
@@ -28,63 +29,84 @@ bool atomic_logspace_add::forward(
     const CppAD::vector<double>& tx,
     CppAD::vector<double>& ty
   )  {
-    size_t n_order = order_up + 1;
-    assert(tx.size() >= 2 * n_order);
-    assert(ty.size() >= 1 * n_order);
-
-    // Zeroth-order values
-    double x0 = tx[0];
-    double x1 = tx[1];
- //   double x2 = tx[2];
+//    size_t n_order = order_up + 1;
+    size_t n = this->n; // number of inputs
+    size_t q = order_up + 1;
 
 
-    double y0 = tx[n_order];
-    double y1 = tx[n_order + 1];
-//    double y2 = tx[n_order + 2];
-
-    int xIsSmaller = x0 < y0;
-    double diff0 = (xIsSmaller ? 
-      y0-x0 :
-      x0-y0 
-      );
-    double log1pexpdiff0 = std::log1p(std::exp(-diff0));
-    double res, logDx, logDy;
-     if(xIsSmaller) {
-      res = y0 + log1pexpdiff0; // log(exp(x) + exp(y))
-      logDx = - diff0 - log1pexpdiff0;
-      logDy = - log1pexpdiff0;
-    } else {
-      res = x0 + log1pexpdiff0;
-      logDx = - log1pexpdiff0;
-      logDy = - diff0 - log1pexpdiff0;
+    std::vector<double> x0(n), dx(n), dx2(n), ddx(n);
+    for(size_t i=0; i<n; ++i) {
+        x0[i]  = tx[i * q + 0];
     }
-    double logD2 = x0+y0-2*res;
-    double dx = std::exp(logDx), dy=std::exp(logDy), d2 = std::exp(logD2);
+    auto max_iter = std::max_element(x0.begin(), x0.end());
+    size_t max_idx = std::distance(x0.begin(), max_iter);
+    double max_x = *max_iter;
 
-
-
-    // Zero order (function value)
-    if (order_low <= 0) {
-      ty[0] = res;
+  
+    // Numerically stable log-sum-exp
+    double sum_exp = 0.0;
+    for (size_t i = 0; i < n; ++i) {
+        if (x0[i] == max_x) continue; // skip max for stability
+        sum_exp += std::exp(x0[i] - max_x);
     }
+    double logsumexp = max_x + std::log1p(sum_exp);
 
-    // First order (first derivatives)
+
+    if (order_low <= 0)
+        ty[0] = logsumexp;
+
+
+    // Softmax weights (include max index)
+    std::vector<double> w(n);
+
+ // First order
     if (order_up >= 1) {
-      ty[1] = dx * x1 + dy * y1;
+        double t1 = 0.0;
+        for(size_t i = 0; i < n; ++i){
+            dx[i] = tx[i * q + 1];
+            w[i] = std::exp(x0[i] - logsumexp);
+            t1 += w[i] * dx[i];
+        }
+        ty[1] = t1;
     }
 
-    // Second order (second derivatives)
+    // Second order (Hessian applied to direction)
     if (order_up >= 2) {
-    double x1 = tx[2];  // x, order 1
-    double y1 = tx[n_order + 2];  // y, order 1
-    double x2 = tx[4];  // x, order 2
-    double y2 = tx[n_order + 4];  // y, order 2
 
-    // Function values at zero order (already computed: x0, y0, res, dx, dy, d2)
-    // d2 = exp(x0 + y0 - 2 * res)
+        ty[2] =0;
 
-    // Second order Taylor coefficient for the output
-    ty[2] = dx * x2 + dy * y2 + d2 * (x1 - y1) * (x1 - y1);
+        for (size_t j = 0; j < n; ++j) {
+            dx2[j] = tx[j * q + 2]; // second direction
+            ty[2] += exp(x0[j]) /  exp(logsumexp) * dx2[j];
+        }
+        for (size_t i = 0; i < n; ++i) {
+            for (size_t j = 0; j < n; ++j) {
+                ty[2] +=  ( // hess
+                    (i == j) * exp(x0[i])/exp(logsumexp) 
+                    - exp(x0[i] + x0[j]) / exp(2*logsumexp)
+                ) * dx[i] *dx[j];
+            }
+        }
+    } // order 2
+   
+    if (order_up >= 3) {
+          // We'll need y1 for the higher orders
+    double y1 = 0.0;
+    std::vector<double> wi(n);
+    for (size_t i = 0; i < n; ++i) {
+        wi[i] = std::exp(tx[i*q + 0] - max_x) / sum_exp;
+        y1 += wi[i] * tx[i*q + 1];
+    }
+     // Compute y3 according to the formula:
+    double y3 = 0.0;
+    for (size_t i = 0; i < n; ++i) {
+        double delta1 = tx[i*q + 1] - y1;
+        y3 += wi[i] * tx[i*q + 3];
+        y3 += 3.0 * wi[i] * delta1 * tx[i*q + 2];
+        y3 += wi[i] * delta1 * delta1 * delta1;
+    }
+
+    ty[3] = y3;
     }
 
     return true;
@@ -100,6 +122,8 @@ bool atomic_logspace_add::reverse(
     const CppAD::vector<double>& py
 )  {
     size_t q = order_up + 1;
+    size_t n = this->n; // number of inputs
+
     assert(tx.size() >= 2 * q);
     assert(ty.size() >= 1 * q);
     assert(px.size() >= 2 * q);
@@ -107,98 +131,73 @@ bool atomic_logspace_add::reverse(
 
     std::fill(px.begin(), px.end(), 0.0);
 
-    double x0 = tx[0];
-    double x1 = tx[1];
-//    double x2 = tx[2];
-
-    double y0 = tx[q];
-    double y1 = tx[q + 1];
-//    double y2 = tx[q + 2];
-
-    int xIsSmaller = x0 < y0;
-    double diff = x1 - y1;
-    double diff0 = (xIsSmaller ? 
-      y0-x0 :
-      x0-y0 
-      );
-
-    double log1pexpdiff0 = std::log1p(std::exp(-diff0));
-    double res, logDx, logDy;
-    if(xIsSmaller) {
-      res = y0 + log1pexpdiff0; // log(exp(x) + exp(y))
-      logDx = - diff0 - log1pexpdiff0;
-      logDy = - log1pexpdiff0;
-    } else {
-      res = x0 + log1pexpdiff0;
-      logDx = - log1pexpdiff0;
-      logDy = - diff0 - log1pexpdiff0;
-    }
-    double logD2 = x0+y0-2*res;
-    double dx = std::exp(logDx), dy=std::exp(logDy);
-    double d2 = std::exp(logD2);
-
-
- 
-    // Order 0
-    if (order_up >= 0) {
-        px[0] = py[0] * dx;
-        px[q] = py[0] * dy;
+    // Zeroth order (function value)
+    std::vector<double> x0(n), x1(n), x2(n),xDivSum(n);
+    for(size_t i = 0; i < n; ++i) {
+        x0[i] = tx[i*q];  
+        x1[i] = tx[i*q+1];  
+        x2[i] = tx[i*q + 2];
     }
 
-    // Order 1
-    if (order_up >= 1) {
+    auto max_iter = std::max_element(x0.begin(), x0.end());
+    size_t max_idx = std::distance(x0.begin(), max_iter);
+    double max_x = *max_iter;
 
-        px[0] += py[1] * d2 * diff;   
-        px[1] = py[1] * dx;
-
-        px[q] += py[1] * d2 * (-diff);   
-        px[q + 1] = py[1] * dy;
+    // Numerically stable log-sum-exp
+    double sum_exp = 0.0;
+    std::vector<double> expDiff(n);
+    for (size_t i = 0; i < n; ++i) {
+        expDiff[i] = std::exp(x0[i] - max_x);
+        if (x0[i] == max_x) continue; // skip max for stability
+        sum_exp += expDiff[i];
+    }
+    double logsumexp = max_x + std::log1p(sum_exp), expMaxX = exp(max_x);
+    for (size_t i = 0; i < n; ++i) {
+        xDivSum[i] = std::exp(x0[i]-logsumexp);
     }
 
-    // Order 2
-    if (order_up >= 2) {
-        double x1 = tx[1];
-        double y1 = tx[q + 1];
-//        double x2 = tx[2];
-//        double y2 = tx[q + 2];
+// Compute S and S1
+    double S = exp(logsumexp), S1 = 0.0, S2=0.0;
+    for(size_t i = 0; i < n; ++i) {
+        S1 += expDiff[i] * x1[i];
+        S2 += expDiff[i] * x2[i];
+    }
+    double logS1 = max_x + log(S1), logS2 = max_x + log(S2);
+    S1 = exp(logS1);
+    S2 = exp(logS2);
+    double logS1divS = logS1 - logsumexp;
+    double S1divS = exp(logS1divS), S1divSsq = exp(2*logS1divS);
 
-        double dx1 = x1 - y1;
-        // Second derivatives of logsumexp are:
-        // d2x = d2 * (1 - 2*dx)
-        // d2y = d2 * (1 - 2*dy)
-        // d2xy = -d2
+// order 0
+    if(order_up >= 0) {
 
-        // Output is z2 = dx * x2 + dy * y2 + d2 * (x1 - y1)^2
+    for(size_t i = 0; i < n; ++i)
+        px[i*q] = py[0] * xDivSum[i];
+    }
+// order 1
+    if(order_up >= 1) {
+    for(size_t i = 0; i < n; ++i) {
+        px[q*i] += py[1] * xDivSum[i] * (x1[i] - S1divS);
+        px[q * i + 1] = py[1] * xDivSum[i];
+    }
+}
 
-        // dL/dx2 = py[2] * dx
-        px[2] += py[2] * dx;
-        // dL/dy2 = py[2] * dy
-        px[q + 2] += py[2] * dy;
+    if(order_up >= 2) {
+        for(size_t i = 0; i < n; ++i) {
+            double vi = x2[i] - 2 * S1divS * x1[i] + 
+                2 *  S1divSsq - S2/S;
+            px[i*q + 2] = py[2] * xDivSum[i];
+            px[i*q + 0] += py[2] * xDivSum[i] * vi;
 
-        // dL/dx1 = py[2] * (2*d2*(x1 - y1))
-        px[1] += py[2] * 2.0 * d2 * dx1;
-        px[q + 1] += py[2] * 2.0 * d2 * (-dx1);
-
+            // The "mixed" second-order terms, which couple x1 for i,j
+            for (size_t j = 0; j < n; ++j) {
+                px[i*q + 0] += py[2] * xDivSum[i] *
+                    (x1[i] - S1divS) * (i==j ? 1 : 0) * x1[j];
+                px[i*q + 0] -= py[2] * xDivSum[i] * (x1[i] - S1divS) * xDivSum[j] * x1[j];
+            }
+        }
     }
     return true;
 }
-
-template<class Type>
-Type logspace_add_ad(Type x, Type y) {
-  CppAD::vector<Type> tx(2), ty(1);
-  tx[0] = x;
-  tx[1] = y;
-  logspace_add_atomic(tx, ty);
-  return ty[0];
-}
-
-
-//template double logspace_add_ad<double>(double, double);
-template CppAD::AD<double> logspace_add_ad<CppAD::AD<double>>(CppAD::AD<double>, CppAD::AD<double>);
-
-
-
-
-
 
 

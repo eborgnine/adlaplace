@@ -5,3 +5,19 @@ objectiveFunctionC <- function(parameters, data, config) {
     .Call('_hpolcc_objectiveFunctionC', PACKAGE = 'hpolcc', parameters, data, config)
 }
 
+lgamma_forward_deriv <- function(x, order) {
+    .Call('_hpolcc_lgamma_forward_deriv', PACKAGE = 'hpolcc', x, order)
+}
+
+lgamma_reverse_deriv <- function(x, order) {
+    .Call('_hpolcc_lgamma_reverse_deriv', PACKAGE = 'hpolcc', x, order)
+}
+
+logspaceadd_forward_deriv <- function(x, order) {
+    .Call('_hpolcc_logspaceadd_forward_deriv', PACKAGE = 'hpolcc', x, order)
+}
+
+logspaceadd_inbuilt_deriv <- function(x, order) {
+    .Call('_hpolcc_logspaceadd_inbuilt_deriv', PACKAGE = 'hpolcc', x, order)
+}
+

@@ -190,6 +190,15 @@ CppAD::vector<AD<double>> objectiveFunctionInternal(
   Rcpp::Rcout << "o "  <<local_offdiagQ << std::endl;
 #endif 
 
+// logspace add function
+  std::vector<size_t> pdiff(CCp.size());
+  std::adjacent_difference(CCp.begin(), CCp.end(), pdiff.begin());
+  // Skip d[0] (always xx[0])
+  size_t max_n = *std::max_element(pdiff.begin() + 1, pdiff.end());
+  std::vector<atomic_logspace_add> logspace_add_atomic_vect;
+  for (size_t n = 2; n <= max_n; ++n) {
+    logspace_add_atomic_vect.emplace_back("logspace_add_n" + std::to_string(n), n);
+  }
     // loop through strata
   for (size_t i = 0; i < Nstrata; i++) {
 
@@ -199,14 +208,17 @@ CppAD::vector<AD<double>> objectiveFunctionInternal(
     // First pass: Compute logSumMu and sumY
     // loop through row i of CCmatrix
     // this is j=startHere
-    size_t idx = CCcol[startHere];
-    AD<double> logSumMu = eta[idx];
-    int sumY = y[idx];
-    for(size_t j=startHere+1; j < Nhere; j++) {
-      idx = CCcol[j];
+    size_t NinStrata = Nhere - startHere;
+    CppAD::vector<AD<double>> etaHere(NinStrata);
+    int sumY = 0;
+    for(size_t j0=0, j=startHere; j < Nhere; j++,j0++) {
+      size_t idx = CCcol[j];
       sumY += y[idx];     
-      logSumMu = logspace_add_ad(logSumMu, eta[idx]);
+      etaHere[j0] = eta[idx];
     }
+    CppAD::vector<AD<double>> logSumMu(1);
+    logspace_add_atomic_vect[NinStrata-2](etaHere, logSumMu);
+
     if(dirichelet) {
       contrib += lgammaOneOverSqrtNu - lgamma_ad(oneOverSqrtNu + sumY);
     }
@@ -217,7 +229,7 @@ CppAD::vector<AD<double>> objectiveFunctionInternal(
     // Second pass: Add per-observation terms
     for(size_t j=startHere+1; j < Nhere; j++) {
       size_t idx = CCcol[j];
-      AD<double> etaMinusLogSumMu = eta[idx] - logSumMu;
+      AD<double> etaMinusLogSumMu = eta[idx] - logSumMu[0];
       AD<double>  muBarDivSqrtNu = exp(etaMinusLogSumMu - logSqrtNu);
       if(dirichelet) {
         contrib += lgamma_ad(y[idx] + muBarDivSqrtNu) - lgamma_ad(muBarDivSqrtNu);

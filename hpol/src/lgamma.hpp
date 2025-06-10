@@ -8,7 +8,6 @@ class atomic_lgamma_ad : public CppAD::atomic_four<double> {
 public:
   atomic_lgamma_ad(const std::string& name);
 
-private:
   // for_type
   bool for_type(
     size_t call_id,

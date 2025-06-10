@@ -23,10 +23,19 @@ else
     CPPADLIB = -lcppad_lib
 endif
 
+# Conditional OpenMP flag
+ifeq ($(shell $(CXX) --version 2>&1 | grep -ci 'intel\|icpx\|oneapi'),1)
+  OPENMP_FLAG = -qopenmp
+else
+  OPENMP_FLAG = -fopenmp
+endif
+
 # C++ flags
-CXXFLAGS += -fopenmp $(OMPINC)
+CXXFLAGS += $(OPENMP_FLAG) $(OMPINC)
 PKG_CPPFLAGS += $(CPPADINC)
-PKG_CXXFLAGS += -fopenmp $(OMPINC)
+PKG_CXXFLAGS += $(OPENMP_FLAG) $(OMPINC)
+
+
 
 # Linker flags
-PKG_LIBS += -fopenmp $(OMPLIB) $(CPPADLIB)
+PKG_LIBS += $(OPENMP_FLAG) $(OMPLIB) $(CPPADLIB)
