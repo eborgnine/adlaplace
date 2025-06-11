@@ -62,18 +62,18 @@ CppAD::vector<CppAD::AD<double>> objectiveFunctionInternal(
 
   // S4 objects from data
   Rcpp::S4 QsansDiag(data["QsansDiag"]), A(data["ATp"]),
-  X(data["XTp"]), CC(data["cc_matrixTp"]);
+    X(data["XTp"]), CC(data["cc_matrixTp"]);
   // matrices are transposed, of class dgCMatrix
   
   // row, column indices in matrices
   Rcpp::IntegerVector 
-  Qrow(QsansDiag.slot("i")), Qcol(QsansDiag.slot("j")),
-  Xcol(X.slot("i")), Xp(X.slot("p")), 
-  Acol(A.slot("i")), Ap(A.slot("p")), 
-  CCcol(CC.slot("i")), CCp(CC.slot("p"));
+    Qrow(QsansDiag.slot("i")), Qcol(QsansDiag.slot("j")),
+    Xi(X.slot("i")), Xp(X.slot("p")), 
+    Ai(A.slot("i")), Ap(A.slot("p")), 
+    CCcol(CC.slot("i")), CCp(CC.slot("p"));
   // data in matrices
   Rcpp::NumericVector	Qdata =QsansDiag.slot("x"),
-  Adata =A.slot("x"), Xdata =X.slot("x");
+    Adata =A.slot("x"), Xdata =X.slot("x");
   
   // number of nonzeros on off-diagonals
   size_t Nq = Qdata.size();
@@ -87,16 +87,16 @@ CppAD::vector<CppAD::AD<double>> objectiveFunctionInternal(
   
   // dimensions
   Rcpp::IntegerVector dimsX = X.slot("Dim"), dimsA = A.slot("Dim"),
-  dimsC = CC.slot("Dim");
+    dimsC = CC.slot("Dim");
   
   // recall X, A, CC transposed
-  const size_t Nbeta =dimsX[0], Ngamma = dimsA[0], Neta = dimsA[1],
-  Nstrata = dimsC[1];
+  const size_t Nbeta =dimsX[0], Ngamma = dimsA[0], 
+    Neta = dimsA[1], Nstrata = dimsC[1];
   const size_t Ntheta = ad_params.size() - Nbeta - Ngamma;
   
   
-  CppAD::vector<CppAD::AD<double>> eta(Neta, 0.0), beta(Nbeta), 
-  gamma(Ngamma), theta(Ntheta), logTheta(Ntheta);
+  CppAD::vector<CppAD::AD<double>> beta(Nbeta), 
+    gamma(Ngamma), theta(Ntheta), logTheta(Ntheta);
   
 
 #ifdef DEBUG
@@ -134,24 +134,27 @@ CppAD::vector<CppAD::AD<double>> objectiveFunctionInternal(
 
 
 #ifdef DEBUG
-  Rcpp::Rcout << "etas";
+  Rcpp::Rcout << "etas\n";
 #endif
   
   
   // eta = A gamma + X beta
-
-  for(size_t Drow=0; Drow < Neta; Drow++) {
-    size_t endCol = Xp[Drow+1];
-    for(size_t Dcol=Xp[Drow]; Dcol < endCol; Dcol++) {
-      eta[Drow] += Xdata[Dcol] * beta[Xcol[Dcol]];
+  // Deta is element of eta, columns of t(X)
+  CppAD::vector<CppAD::AD<double>> eta(Neta, 0.0);
+  for(size_t Deta=0; Deta < Neta; Deta++) {
+    size_t endX = Xp[Deta+1];
+    for(size_t Dbeta=Xp[Deta]; Dbeta < endX; Dbeta++) {
+      eta[Deta] += Xdata[Dbeta] * beta[Xi[Dbeta]];
     }
-    endCol = Ap[Drow+1];
-    for(size_t Dcol=Ap[Drow]; Dcol < endCol; Dcol++) {
-      eta[Drow] += Adata[Dcol] * gamma[Acol[Dcol]];
+    size_t endA = Ap[Deta+1];
+    for(size_t Dgamma=Ap[Deta]; Dgamma < endA; Dgamma++) {
+      eta[Deta] += Adata[Dgamma] * gamma[Ai[Dgamma]];
     }
   }
 
-
+#ifdef DEBUG
+  Rcpp::Rcout << "sum log etas\n";
+#endif
   // calculate log(sum(exp(eta_i))) within strata
   CppAD::vector<CppAD::AD<double>> etaLogSum(Nstrata);
 
@@ -173,7 +176,7 @@ CppAD::vector<CppAD::AD<double>> objectiveFunctionInternal(
 
 
 #ifdef DEBUG
-  Rcpp::Rcout << "." << std::endl;
+  Rcpp::Rcout << "Q diag" << std::endl;
 #endif  
 
   // log(|Q|) + 0.5 * gamma^T Q gamma
@@ -192,7 +195,7 @@ CppAD::vector<CppAD::AD<double>> objectiveFunctionInternal(
 
 
 #ifdef DEBUG
-  Rcpp::Rcout << "Q offdiag, strata" << std::endl;
+  Rcpp::Rcout << "Q offdiag" << std::endl;
 #endif    
 
   CppAD::AD<double> local_offdiagQ = 0.0;
@@ -202,9 +205,10 @@ CppAD::vector<CppAD::AD<double>> objectiveFunctionInternal(
     local_offdiagQ += gammaScaled[Qrow[D]] * gammaScaled[Qcol[D]] * Qdata[D];
   }
 
+
 #ifdef DEBUG
-  Rcpp::Rcout << "o "  <<local_offdiagQ << std::endl;
-#endif 
+  Rcpp::Rcout << "data" << std::endl;
+#endif    
 
   // data contribution to loglik, loop through strata
   CppAD::AD<double> local_loglik = 0.0;
@@ -240,13 +244,6 @@ CppAD::vector<CppAD::AD<double>> objectiveFunctionInternal(
     local_loglik += contrib;
   } // loop through strata
 
-  #ifdef DEBUG
-  Rcpp::Rcout << "ll " << local_loglik << std::endl;
-  #endif  
-
-#ifdef DEBUG
-  Rcpp::Rcout << "strata loop done" << std::endl;
-#endif 
 
 
 #ifdef DEBUG
@@ -255,8 +252,10 @@ CppAD::vector<CppAD::AD<double>> objectiveFunctionInternal(
 #endif 
 
   CppAD::vector<CppAD::AD<double>> minusLogDens(1,
-    - local_loglik + local_offdiagQ + 
-    randomContributionDiag);
+    - local_loglik 
+    + local_offdiagQ 
+    + randomContributionDiag
+    );
 
 #ifdef EVALCONSTANTS
   minusLogDens[0] += Ngamma * HALFLOGTWOPI;

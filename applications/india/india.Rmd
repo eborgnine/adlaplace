@@ -72,10 +72,11 @@ devtools::load_all("~/research/hpoltest/hpol")
 library('hpolcc')
 
 fitD <- hpolcc::hnlm(
+
   formula= medical ~ #f(date, model='iid') +
     f(tempClean, model='hiwp',ref_value = 20, p=3, knots = seq(0, 45, by=2.5), 
     group_var = ecoRegion), 
-  data=dataMedSimple[dataMedSimple$ecoRegion < 4,],
+  data=dataMedSimple,#[dataMedSimple$ecoRegion < 4,],
   dirichelet=TRUE,
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
   for_dev=TRUE, verbose=FALSE
@@ -85,7 +86,7 @@ fitD <- hpolcc::hnlm(
 
 fitD$config$verbose = TRUE
 fitD$config$transform_theta = FALSE
-fitD$config$num_threads = 2
+fitD$config$num_threads = 1
 
 
 
