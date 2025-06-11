@@ -39,17 +39,18 @@ bool atomic_logspace_add::forward(
         x0[i]  = tx[i * q + 0];
     }
     auto max_iter = std::max_element(x0.begin(), x0.end());
-//    size_t max_idx = std::distance(x0.begin(), max_iter);
     double max_x = *max_iter;
+    size_t max_idx = std::distance(x0.begin(), max_iter);
 
-  
+//    Rcpp::Rcout << "max_x " << max_x << "\n";
     // Numerically stable log-sum-exp
     double sum_exp = 0.0;
     for (size_t i = 0; i < n; ++i) {
-        if (x0[i] == max_x) continue; // skip max for stability
+        if (i == max_idx) continue; // skip max for stability
         sum_exp += std::exp(x0[i] - max_x);
     }
     double logsumexp = max_x + std::log1p(sum_exp);
+//    Rcpp::Rcout << "sum_exp " << sum_exp << " logsumexp " << logsumexp << "\n";
 
 
     if (order_low <= 0)
