@@ -1,6 +1,4 @@
 # Default: use system GCC
-CXX = g++
-CC  = gcc
 CPPADLIB = /opt/homebrew/lib/libcppad_lib.a
 
 # Detect OS: Darwin = macOS, otherwise assume Linux
@@ -24,17 +22,20 @@ else
 endif
 
 # Conditional OpenMP flag
-ifeq ($(shell $(CXX) --version 2>&1 | grep -ci 'intel\|icpx\|oneapi'),1)
-  OPENMP_FLAG = -qopenmp
-else
+ifeq ($(shell $(CXX) --version 2>&1 | grep -Eci 'intel|icpx|oneapi|dpc\+\+|classic'),0)
   OPENMP_FLAG = -fopenmp
+else
+  OPENMP_FLAG = -qopenmp
 endif
+
 
 # C++ flags
 CXXFLAGS += $(OPENMP_FLAG) $(OMPINC)
 PKG_CPPFLAGS += $(CPPADINC)
 PKG_CXXFLAGS += $(OPENMP_FLAG) $(OMPINC)
 
+$(info CXX is $(CXX))
+$(info Using OpenMP flag: $(OPENMP_FLAG))
 
 
 # Linker flags

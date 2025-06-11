@@ -2,7 +2,7 @@
 
 //#define DEBUG
 
-#define SINGLETHREAD
+//#define SINGLETHREAD
 
 #ifndef SINGLETHREAD
 #include<omp.h>
@@ -488,15 +488,15 @@ Rcpp::List objectiveFunctionC(
       Rcpp::S4 hessianR = make_dgTMatrix(Hvalue, Hrow, Hcol, Nparams, hindex);
       result["hessian"] = hessianR;
 
-      if(verbose)
+      if(verbose) {
         result["hes2"] = Rcpp::List::create(
           Rcpp::Named("x") = Hvalue, Rcpp::Named("i") = Hrow, Rcpp::Named("j") = Hcol,
           Rcpp::Named("nonzeros") = hindex
           );
-#ifdef DEBUG
       std::vector<double> hess = f.Hessian(x_val, 0);
       result["hess3"] = hess;
-#endif
-      return result;
     }
+
+    return result;
+}
 
