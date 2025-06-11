@@ -12,7 +12,6 @@ Rcpp::NumericMatrix logspaceadd_forward_deriv(Rcpp::NumericVector x, int order) 
 
     size_t n = x.size();
     Rcpp::NumericMatrix result(n, n);
-    atomic_logspace_add atomic("logspace_add_n" + std::to_string(n), n);
 
     size_t q=order + 1;
 
@@ -24,7 +23,7 @@ Rcpp::NumericMatrix logspaceadd_forward_deriv(Rcpp::NumericVector x, int order) 
         Rcpp::Rcout << "1";
         for (size_t i = 0; i < n; ++i) {
             tx[i*q+1] = 1;
-            atomic.forward(0, CppAD::vector<bool>(1,true), 0, order, tx, ty);
+            logspace_add_atomic.forward(0, CppAD::vector<bool>(1,true), 0, order, tx, ty);
             result(i,0) = ty[1];
             tx[i*q+1] = 0;
         }
@@ -36,7 +35,7 @@ Rcpp::NumericMatrix logspaceadd_forward_deriv(Rcpp::NumericVector x, int order) 
             for (size_t j = 0; j < n; ++j) {
                tx[i*q+1] = 1;
                tx[j*q+1] = 1;
-               atomic.forward(0, CppAD::vector<bool>(1,true), 0, order, tx, ty);
+               logspace_add_atomic.forward(0, CppAD::vector<bool>(1,true), 0, order, tx, ty);
                result(i,j) = ty[2];
                tx[i*q+1] = 0;
                tx[j*q+1] = 0;
@@ -59,7 +58,6 @@ Rcpp::NumericMatrix logspaceadd_forward_deriv(Rcpp::NumericVector x, int order) 
 // [[Rcpp::export]]
 Rcpp::NumericVector logspaceadd_inbuilt_deriv(Rcpp::NumericVector x, int order) {
     size_t n = x.size();
-    atomic_logspace_add atomic("logspace_add_n" + std::to_string(n), n);
 
     // Record with CppAD
     CppAD::vector<CppAD::AD<double>> ax(n);
@@ -68,7 +66,7 @@ Rcpp::NumericVector logspaceadd_inbuilt_deriv(Rcpp::NumericVector x, int order) 
     CppAD::Independent(ax);
 
     CppAD::vector<CppAD::AD<double>> ay(1);
-    atomic(ax, ay);
+    ay[0] = logspace_add_n(ax);
 
     CppAD::ADFun<double> f(ax, ay);
 
@@ -153,10 +151,8 @@ if(order == 3) {
 }
 
 
-atomic_logspace_add atomic3("logspace_add_n" + std::to_string(3), 3);
 
-
-CppAD::vector<CppAD::AD<double>> testAddGamma(  
+CppAD::vector< CppAD::AD<double> > testAddGamma(  
     CppAD::vector<CppAD::AD<double>> ad_params) {
 
 
@@ -164,8 +160,8 @@ CppAD::vector<CppAD::AD<double>> testAddGamma(
     ad_params[1] = ad_params[1]*ad_params[0];
     ad_params[2] = lgamma_ad(ad_params[2]);
 
-    CppAD::vector<CppAD::AD<double>> result(1);
-    atomic3(ad_params, result);
+    CppAD::vector< CppAD::AD<double> > result(1);
+    result[0] = logspace_add_n(ad_params);
     return result;
 }
 
@@ -182,7 +178,7 @@ Rcpp::List testAddGammaR(
     }
     CppAD::Independent(ad_params);  // Tell CppAD these are inputs for differentiation
 
-    CppAD::vector<CppAD::AD<double>> y =testAddGamma(ad_params);
+    auto y = testAddGamma(ad_params);
     CppAD::ADFun<double> f(ad_params, y);
 
     std::vector<double> x_val(Nparams);

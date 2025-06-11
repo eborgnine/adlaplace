@@ -3,8 +3,8 @@
 
 
 // Constructor implementation
-atomic_logspace_add::atomic_logspace_add(const std::string& name, size_t n_)
-    : CppAD::atomic_four<double>(name), n(n_) {}
+atomic_logspace_add::atomic_logspace_add(const std::string& name)
+    : CppAD::atomic_four<double>(name) {}
 
 
 bool atomic_logspace_add::for_type(
@@ -30,8 +30,8 @@ bool atomic_logspace_add::forward(
     CppAD::vector<double>& ty
   )  {
 //    size_t n_order = order_up + 1;
-    size_t n = this->n; // number of inputs
     size_t q = order_up + 1;
+    size_t n = tx.size()/q;// number of inputs
 
 
     std::vector<double> x0(n), dx(n), dx2(n), ddx(n);
@@ -122,7 +122,7 @@ bool atomic_logspace_add::reverse(
     const CppAD::vector<double>& py
 )  {
     size_t q = order_up + 1;
-    size_t n = this->n; // number of inputs
+    size_t n = tx.size()/q;// number of inputs
 
     assert(tx.size() >= 2 * q);
     assert(ty.size() >= 1 * q);
@@ -200,4 +200,14 @@ bool atomic_logspace_add::reverse(
     return true;
 }
 
+atomic_logspace_add logspace_add_atomic("logspace_add_n");
 
+
+// function implementation
+CppAD::AD<double> logspace_add_n(const CppAD::vector<CppAD::AD<double>>& x){
+
+    CppAD::vector<CppAD::AD<double>> yout(1);
+
+    logspace_add_atomic(x, yout); // call the atomic instance
+    return yout[0];
+}
