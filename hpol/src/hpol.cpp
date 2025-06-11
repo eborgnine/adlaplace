@@ -1,8 +1,8 @@
 #include"hpol.hpp"
 
-#define DEBUG
+//#define DEBUG
 
-//#define SINGLETHREAD
+#define SINGLETHREAD
 
 #ifndef SINGLETHREAD
 #include<omp.h>
@@ -125,7 +125,6 @@ CppAD::vector<CppAD::AD<double>> objectiveFunctionInternal(
       logTheta[D] = log(theta[D]);      
     }
   }
-
 // for data contribution
   CppAD::AD<double> nu = theta[theta.size()-1];
   CppAD::AD<double> logSqrtNu = logTheta[theta.size()-1]/ 2;
@@ -152,6 +151,8 @@ CppAD::vector<CppAD::AD<double>> objectiveFunctionInternal(
     }
   }
 
+
+
 #ifdef DEBUG
   Rcpp::Rcout << "sum log etas\n";
 #endif
@@ -159,7 +160,6 @@ CppAD::vector<CppAD::AD<double>> objectiveFunctionInternal(
   CppAD::vector<CppAD::AD<double>> etaLogSum(Nstrata);
 
   for (size_t i = 0; i < Nstrata; i++) {
-
     size_t startHere = CCp[i], Nhere = CCp[i+1];
     size_t NinStrata = Nhere - startHere;
     CppAD::vector<CppAD::AD<double>> etaHere(NinStrata);
@@ -167,11 +167,11 @@ CppAD::vector<CppAD::AD<double>> objectiveFunctionInternal(
     // loop through row i of CCmatrix
     // this is j=startHere
     for(size_t j0=0, j=startHere; j < Nhere; j++,j0++) {
-      size_t idx = CCcol[j];
-      etaHere[j0] = eta[idx];
+      etaHere[j0] = eta[CCcol[j]];
     }
     etaLogSum[i] = logspace_add_n(etaHere);
   }
+
 
 
 
@@ -251,11 +251,9 @@ CppAD::vector<CppAD::AD<double>> objectiveFunctionInternal(
   " diag " << randomContributionDiag << std::endl;
 #endif 
 
-  CppAD::vector<CppAD::AD<double>> minusLogDens(1,
-    - local_loglik 
-    + local_offdiagQ 
-    + randomContributionDiag
-    );
+  CppAD::vector<CppAD::AD<double>> minusLogDens(1,0);
+  minusLogDens[0] =
+     - local_loglik + local_offdiagQ  + randomContributionDiag;
 
 #ifdef EVALCONSTANTS
   minusLogDens[0] += Ngamma * HALFLOGTWOPI;
@@ -268,6 +266,7 @@ CppAD::vector<CppAD::AD<double>> objectiveFunctionInternal(
 #ifdef DEBUG
   Rcpp::Rcout << "all done " << minusLogDens[0] << std::endl;
 #endif 
+
 
 
   return minusLogDens;
@@ -320,12 +319,9 @@ Rcpp::List objectiveFunctionC(
   if (verbose ) {
     Rcpp::Rcout << "eval done " << y[0] << "\n";
   }
-  Rcpp::Rcout << ".";
   CppAD::ADFun<double> f(ad_params, y);
-  Rcpp::Rcout << ".";
 
   std::vector<double> x_val(Nparams);
-  Rcpp::Rcout << ".";
   for (size_t i = 0; i < Nparams; ++i) x_val[i] = parameters[i];
 
     if (verbose ) {
@@ -369,7 +365,7 @@ Rcpp::List objectiveFunctionC(
       omp_set_num_threads(num_threads_config);
     }
 // Prepare storage for each thread
-    int nthreads = static_cast<size_t>(omp_get_max_threads());
+    int nthreads = omp_get_max_threads();
 #else
     int nthreads = 1;
 #endif
@@ -408,25 +404,39 @@ Rcpp::List objectiveFunctionC(
         Rcpp::Rcout <<tid << "\n";
       }
 #else
+    if (verbose ) {
+      Rcpp::Rcout << "single threaded\n";
+    }
       {
-        int tid=1;
+        int tid=0;
 #endif  
 
         std::vector<double> u(Nparams, 0.0);
         std::vector<double> w(1, 1.0);
-        std::vector<double> ddw(2*Nparams); 
+//        std::vector<double> ddw(2*Nparams); 
         double dhere;
 
         if (verbose ) {
-          Rcpp::Rcout <<tid << "\n";
+          Rcpp::Rcout <<"thread " << tid << "\n";
         }
 
 
         for (int j = tid; j < NparamsI; j+= nthreads) { 
           u[j] = 1.0;    
-          f_thread[tid].Forward(1, u);
+#ifdef DEBUG
+            Rcpp::Rcout <<"column " << j;
+#endif
+          auto f1out = f_thread[tid].Forward(1, u);
+#ifdef DEBUG
+            Rcpp::Rcout << "fout " << f1out[0] << " "<< f1out[1] << " ";
+#endif
           u[j] = 0.0;  
-          ddw = f_thread[tid].Reverse(2, w);
+          auto ddw = f_thread[tid].Reverse(2, w);
+#ifdef DEBUG
+            Rcpp::Rcout << ddw.size() << " " 
+            << ddw[0] << " " << ddw[1] << " " 
+            << ddw[2*Nparams-2]<< " " << ddw[2*Nparams-1] << " ";
+#endif
 
           for (int Drow = 0; Drow <= NparamsI; ++Drow) {
             dhere = ddw[2 * Drow + 1];
@@ -439,7 +449,10 @@ Rcpp::List objectiveFunctionC(
               hindex_thread[tid]++;
             }
           }
-        }
+#ifdef DEBUG
+            Rcpp::Rcout <<"r\n";
+#endif
+          }
         if (verbose ) {
           Rcpp::Rcout <<tid << "\n";
         }

@@ -141,7 +141,7 @@ bool atomic_logspace_add::reverse(
     }
 
     auto max_iter = std::max_element(x0.begin(), x0.end());
-//    size_t max_idx = std::distance(x0.begin(), max_iter);
+    size_t max_idx = std::distance(x0.begin(), max_iter);
     double max_x = *max_iter;
 
     // Numerically stable log-sum-exp
@@ -149,7 +149,7 @@ bool atomic_logspace_add::reverse(
     std::vector<double> expDiff(n);
     for (size_t i = 0; i < n; ++i) {
         expDiff[i] = std::exp(x0[i] - max_x);
-        if (x0[i] == max_x) continue; // skip max for stability
+        if (i == max_idx) continue; // skip max for stability
         sum_exp += expDiff[i];
     }
     double logsumexp = max_x + std::log1p(sum_exp);
@@ -157,17 +157,7 @@ bool atomic_logspace_add::reverse(
         xDivSum[i] = std::exp(x0[i]-logsumexp);
     }
 
-// Compute S and S1
-    double S = exp(logsumexp), S1 = 0.0, S2=0.0;
-    for(size_t i = 0; i < n; ++i) {
-        S1 += expDiff[i] * x1[i];
-        S2 += expDiff[i] * x2[i];
-    }
-    double logS1 = max_x + log(S1), logS2 = max_x + log(S2);
-    S1 = exp(logS1);
-    S2 = exp(logS2);
-    double logS1divS = logS1 - logsumexp;
-    double S1divS = exp(logS1divS), S1divSsq = exp(2*logS1divS);
+
 
 // order 0
     if(order_up >= 0) {
@@ -176,14 +166,39 @@ bool atomic_logspace_add::reverse(
         px[i*q] = py[0] * xDivSum[i];
     }
 // order 1
+    double S1 = 0.0, logS1divS;
     if(order_up >= 1) {
-    for(size_t i = 0; i < n; ++i) {
-        px[q*i] += py[1] * xDivSum[i] * (x1[i] - S1divS);
-        px[q * i + 1] = py[1] * xDivSum[i];
-    }
-}
+        double S1divS;
+        for(size_t i = 0; i < n; ++i) {
+            S1 += expDiff[i] * x1[i];
+        }
 
+        if(S1 > 0) {
+            double logS1 = max_x + log(S1);
+            S1 = exp(logS1);
+            logS1divS = logS1 - logsumexp;
+            S1divS = exp(logS1divS);
+        } else {
+//            Rcpp::Rcout << " " << S1 << " ";
+            // S1 stays zero
+            S1divS = 0;
+        }
+//        Rcpp::Rcout << " " << S1divS << " ";
+        for(size_t i = 0; i < n; ++i) {
+            px[q*i] += py[1] * xDivSum[i] * (x1[i] - S1divS);
+            px[q * i + 1] = py[1] * xDivSum[i];
+        }
+    }
+#ifdef UNDEF    
+    // not tested yet
     if(order_up >= 2) {
+        double S = exp(logsumexp),  S2=0.0, S1divSsq = exp(2*logS1divS); 
+         for(size_t i = 0; i < n; ++i) {
+            S2 += expDiff[i] * x2[i];
+        }
+        double logS2 = max_x + log(S2);
+        S2 = exp(logS2);
+
         for(size_t i = 0; i < n; ++i) {
             double vi = x2[i] - 2 * S1divS * x1[i] + 
                 2 *  S1divSsq - S2/S;
@@ -198,6 +213,7 @@ bool atomic_logspace_add::reverse(
             }
         }
     }
+#endif    
     return true;
 }
 

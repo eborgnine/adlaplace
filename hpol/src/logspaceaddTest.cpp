@@ -162,7 +162,10 @@ CppAD::vector< CppAD::AD<double> > testAddGamma(
 
     CppAD::vector< CppAD::AD<double> > result(1);
     result[0] = logspace_add_n(ad_params);
-    return result;
+    CppAD::vector< CppAD::AD<double> > result2(1);
+    result2[0] = lgamma_ad(result[0]) ;
+
+    return result2;
 }
 
 

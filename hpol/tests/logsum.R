@@ -5,6 +5,11 @@ hpolcc:::logspaceadd_forward_deriv(c(0,0,0)+10, 1L)
 
 hpolcc:::testAddGammaR(1:3)
 
+bob = function(xx) hpolcc:::testAddGammaR(xx)$value
+numDeriv::hessian(bob, 1:3)
+
+
+
 numDeriv::grad(function(xx) hpolcc:::testAddGammaR(xx)$value, 1:3)
 numDeriv::hessian(function(xx) hpolcc:::testAddGammaR(xx)$value, 1:3)
 

@@ -76,7 +76,7 @@ fitD <- hpolcc::hnlm(
   formula= medical ~ #f(date, model='iid') +
     f(tempClean, model='hiwp',ref_value = 20, p=3, knots = seq(0, 45, by=2.5), 
     group_var = ecoRegion), 
-  data=dataMedSimple,#[dataMedSimple$ecoRegion < 4,],
+  data=dataMedSimple[dataMedSimple$ecoRegion < 3,],
   dirichelet=TRUE,
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
   for_dev=TRUE, verbose=FALSE
@@ -97,6 +97,23 @@ res = hpolcc:::objectiveFunctionC(
   fitD$tmb_data, fitD$config)
 str(res)
 
+
+if(FALSE) {
+resFun = function(xx)  hpolcc:::objectiveFunctionC(xx, fitD$tmb_data, 
+  c(fitD$config[
+    setdiff(names(fitD$config), c('verbose','maxDeriv'))], 
+  list(maxDeriv = 0, verbose=FALSE)))$value
+
+resFun(fitD$start_parameters)  
+
+theGrad = numDeriv::grad(resFun, fitD$start_parameters)  
+rbind(res$grad, theGrad)
+
+
+theHess = numDeriv::hessian(resFun, fitD$start_parameters)
+theHess[1:5,1:5]
+res$hessian[1:5,1:5]
+}
 
 wrappers <- make_trustoptim_wrappers(
   data=fitD$tmb_data,
