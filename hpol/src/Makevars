@@ -14,6 +14,13 @@ ifeq ($(UNAME_S),Darwin)
     CPPADINC = -I/opt/homebrew/include
     CPPADLIB = -L/opt/homebrew/lib -lcppad_lib
 else
+INTELC := $(shell which icpx 2>/dev/null)
+ifeq ($(INTELC),)
+  # Not found, fallback
+else
+  CXX = icpx
+  CC  = icx
+endif
     # Linux: system GCC, usually OpenMP built-in
     OMPINC =
     OMPLIB =
