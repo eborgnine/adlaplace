@@ -486,8 +486,8 @@ Rcpp::List objectiveFunctionC(
           Rcpp::Named("x") = Hvalue, Rcpp::Named("i") = Hrow, Rcpp::Named("j") = Hcol,
           Rcpp::Named("nonzeros") = hindex
           );
-      std::vector<double> hess = f.Hessian(x_val, 0);
-      result["hess3"] = hess;
+//      std::vector<double> hess = f.Hessian(x_val, 0);
+//      result["hess3"] = hess;
     }
 
     return result;
