@@ -12,3 +12,6 @@ sandbox/test
 .Rhistory
 .o
 hpoltest.Rproj
+*.o
+*.o
+hpol/src/RcppExports.o

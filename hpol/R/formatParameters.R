@@ -1,4 +1,4 @@
-
+#' @export
 formatParameters = function(x, obj, logscale_theta = FALSE) {
   Ntheta = length(obj$theta_info$name)
   Nbeta = nrow(obj$tmb_data$XTp)
@@ -9,7 +9,7 @@ formatParameters = function(x, obj, logscale_theta = FALSE) {
     beta = x[seq(1, Nbeta)]
     )
   names(result$beta) = rownames(obj$tmb_data$XTp)
-  names(result$theta) = obj$theta_info$names
+  names(result$theta) = obj$theta_info$name
   if(logscale_theta | any(result$theta < 0)) {
     result$theta = exp(result$theta)
   }
