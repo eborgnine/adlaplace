@@ -167,12 +167,11 @@ bool atomic_logspace_add::reverse(
 // order 1
     // S1 = sum x1[i]exp(x0[i]), S1div = S1/exp(maxx) S1divS = S1/S = S1div/sum(exp(xi-maxx))
     // S = sum exp(xi) = exp(maxx) sum(exp(xi - maxx))
-    double S1div = 0.0, S1divS, S1=0;
+    double S1div = 0.0, S1divS;
     if(order_up >= 1) {
         for(size_t i = 0; i < n; ++i) {
             x1[i] = tx[i*q+1];
             S1div += expDiff[i] * x1[i];
-            S1 += x1[i] * exp(x0[i]);
         }
         S1divS = S1div/(sum_exp+1);
         for(size_t i = 0; i < n; ++i) {
