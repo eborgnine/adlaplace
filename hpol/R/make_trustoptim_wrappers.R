@@ -1,7 +1,8 @@
 #' @export
 make_trustoptim_wrappers <- function(data, 
     config = list(dirichelet=TRUE), 
-    obj_fn = objectiveFunctionC) {
+    obj_fn = objectiveFunctionC,
+    debug=FALSE) {
   # Create environment to store the last evaluated x and result
   cache_env <- new.env()
   cache_env$last_x <- NULL
@@ -19,6 +20,7 @@ make_trustoptim_wrappers <- function(data,
       cache_env$last_x <- x
       result$hessian <-as(as(result$hessian, 'CsparseMatrix'), 'generalMatrix')
       cache_env$last_result <- result
+      if(debug) saveRDS(c(result, list(x=x)), file='hpoldebug.rds')
       return(result)
     }
   }
