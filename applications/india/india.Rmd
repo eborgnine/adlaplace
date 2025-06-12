@@ -73,7 +73,7 @@ fitD <- hpolcc::hnlm(
   formula= medical ~ #f(date, model='iid') +
     f(tempClean, model='hiwp',ref_value = 20, p=3, knots = seq(0, 45, by=2.5), 
     group_var = ecoRegion), 
-  data=dataMedSimple[dataMedSimple$ecoRegion < 3,],
+  data=dataMedSimple, #[dataMedSimple$ecoRegion < 3,],
   dirichelet=TRUE,
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
   for_dev=TRUE, verbose=FALSE
@@ -81,9 +81,9 @@ fitD <- hpolcc::hnlm(
 
 
 
-fitD$config$verbose = FALSE
+fitD$config$verbose = TRUE
 fitD$config$transform_theta = FALSE
-fitD$config$num_threads = 1
+fitD$config$num_threads = 8
 
 
 fitD$config$maxDeriv = 2
@@ -94,59 +94,20 @@ str(res)
 
 res$hessian[1:4,1:4]
 
-matrix(res$hess3, ncol(res$hessian))[1:4,1:4]
+stuff = matrix(res$hess3, 425)
 
+stuff2 = as.data.frame(res$hess2)[1:res$hess2$nonzeros, ]
 
+stuff[1:4,1:4]
+stuff2[stuff2$i < 3 & stuff2$j < 3,]
 
-Sstart = 1:(nrow(fitD$tmb_data$XTp)+1)
-Send = seq(to = length(fitD$start_parameters), by=1, 
-  len=length(fitD$theta_info$name)+1)
-
-bob = function(xx) {
-  print(xx) 
-  hpolcc:::objectiveFunctionC( 
-c(xx[Sstart], fitD$start_parameters[-c(Sstart, Send)], 
-  xx[-Sstart]),
- fitD$tmb_data, 
- c(
- fitD$config[setdiff(names(fitD$config), c('verbose','maxDeriv'))], 
-  list(maxDeriv = 0, verbose=FALSE))
-  )$value
-}
-
-round(numDeriv::hessian(bob, fitD$start_parameters[c(Sstart, Send)]), 3)
-
-res$hessian[c(Sstart, Send), c(Sstart, Send)]
-
-res$grad[c(Sstart, Send)]
-round(numDeriv::grad(bob,  fitD$start_parameters[c(Sstart, Send)]), 3)
-
-matrix(res$hess3, nrow(res$hessian))[c(Sstart, Send), c(Sstart, Send)]
-
-
-if(FALSE) {
-resFun = function(xx)  hpolcc:::objectiveFunctionC(xx, fitD$tmb_data, 
-  c(fitD$config[
-    setdiff(names(fitD$config), c('verbose','maxDeriv'))], 
-  list(maxDeriv = 0, verbose=FALSE)))$value
-
-resFun(fitD$start_parameters)  
-
-theGrad = numDeriv::grad(resFun, fitD$start_parameters)  
-rbind(res$grad, theGrad)
-
-
-theHess = numDeriv::hessian(resFun, fitD$start_parameters)
-theHess[1:5,1:5]
-res$hessian[1:5,1:5]
-}
+stuff2 = stuff2[stuff2$i < 425,]
+stuff3 = Matrix::sparseMatrix(i=stuff2$i, j=stuff2$j, x=stuff2$x)
 
 wrappers <- make_trustoptim_wrappers(
   data=fitD$tmb_data,
   config=list(verbose=FALSE, transform_theta = TRUE, dirichelet = TRUE)
 )
-
-
 
 
 library('trustOptim')
@@ -178,6 +139,26 @@ result$solution[1:nrow(fitD$tmb_data$XTp)]
 
 
 ```{r otherstuff22}
+
+Sstart = 1:(nrow(fitD$tmb_data$XTp)+1)
+Send = seq(to = length(fitD$start_parameters), by=1, 
+  len=length(fitD$theta_info$name)+1)
+
+bob = function(xx) {
+  hpolcc:::objectiveFunctionC( 
+c(xx[Sstart], fitD$start_parameters[-c(Sstart, Send)], 
+  xx[-Sstart]),
+ fitD$tmb_data, 
+ c(
+ fitD$config[setdiff(names(fitD$config), c('verbose','maxDeriv'))], 
+  list(maxDeriv = 0, verbose=FALSE))
+  )$value
+}
+
+round(numDeriv::hessian(bob, fitD$start_parameters[c(Sstart, Send)]), 3)
+
+res$hessian[c(Sstart, Send), c(Sstart, Send)]
+
 
 
 beta = fitD$start_parameters[1:nrow(fitD$tmb_data$XTp)]

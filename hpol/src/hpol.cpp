@@ -147,7 +147,7 @@ CppAD::vector<CppAD::AD<double>> objectiveFunctionInternal(
     }
     size_t endA = Ap[Deta+1];
     for(size_t Dgamma=Ap[Deta]; Dgamma < endA; Dgamma++) {
-//      eta[Deta] += Adata[Dgamma] * gamma[Ai[Dgamma]];
+      eta[Deta] += Adata[Dgamma] * gamma[Ai[Dgamma]];
     }
   }
 
@@ -431,22 +431,11 @@ Rcpp::List objectiveFunctionC(
 
         for (int j = tid; j < NparamsI; j+= nthreads) { 
           u[j] = 1.0;    
-#ifdef DEBUG
-            Rcpp::Rcout <<"column " << j;
-#endif
           auto f1out = f_thread[tid].Forward(1, u);
-#ifdef DEBUG
-            Rcpp::Rcout << "fout " << f1out[0] << " "<< f1out[1] << " ";
-#endif
           u[j] = 0.0;  
           auto ddw = f_thread[tid].Reverse(2, w);
-#ifdef DEBUG
-            Rcpp::Rcout << ddw.size() << " " 
-            << ddw[0] << " " << ddw[1] << " " 
-            << ddw[2*Nparams-2]<< " " << ddw[2*Nparams-1] << " ";
-#endif
 
-          for (int Drow = 0; Drow <= NparamsI; ++Drow) {
+          for (int Drow = 0; Drow < NparamsI; ++Drow) {
             dhere = ddw[2 * Drow + 1];
             if (!CppAD::NearEqual(dhere, 0.0, eps, eps)) {
               if(hindex_thread[tid] < hesMax) {
@@ -457,14 +446,10 @@ Rcpp::List objectiveFunctionC(
               hindex_thread[tid]++;
             }
           }
-#ifdef DEBUG
-            Rcpp::Rcout <<"r\n";
-#endif
-          }
+        }
         if (verbose ) {
           Rcpp::Rcout <<tid << "\n";
         }
-
       }
 
       if (verbose ) {
