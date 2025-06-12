@@ -1,12 +1,21 @@
 library(hpolcc)
+hpolcc:::testAddGammaR(c(0,0))
+hpolcc:::testAddGammaR(c(1e-4,0))
+
+
+bob = function(xx) {
+#  print(xx)
+  hpolcc:::testAddGammaR(xx)$value
+}
+numDeriv::grad(bob, c(0,0))
+numDeriv::hessian(bob, c(0,0))
+
+
+
 
 hpolcc:::logspaceadd_forward_deriv(c(0,0,0)+10, 1L)    
 
 
-hpolcc:::testAddGammaR(1:3)
-
-bob = function(xx) hpolcc:::testAddGammaR(xx)$value
-numDeriv::hessian(bob, 1:3)
 
 
 
@@ -16,7 +25,7 @@ numDeriv::hessian(function(xx) hpolcc:::testAddGammaR(xx)$value, 1:3)
 
 # A few sample input vectors
 inputs <- list(
-  c(1,10),
+  c(0,0,0),
   c(1,1),
   c(0.5, 1, 2),
   c(1, 2, 3, 4),

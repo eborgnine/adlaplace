@@ -78,13 +78,13 @@ bool atomic_logspace_add::forward(
 
         for (size_t j = 0; j < n; ++j) {
             dx2[j] = tx[j * q + 2]; // second direction
-            ty[2] += exp(x0[j]) /  exp(logsumexp) * dx2[j];
+            ty[2] += exp(x0[j] - logsumexp) * dx2[j];
         }
         for (size_t i = 0; i < n; ++i) {
             for (size_t j = 0; j < n; ++j) {
                 ty[2] +=  ( // hess
-                    (i == j) * exp(x0[i])/exp(logsumexp) 
-                    - exp(x0[i] + x0[j]) / exp(2*logsumexp)
+                    (i == j) * exp(x0[i]-logsumexp) 
+                    - exp(x0[i] + x0[j] - 2*logsumexp)
                 ) * dx[i] *dx[j];
             }
         }
@@ -95,7 +95,7 @@ bool atomic_logspace_add::forward(
     double y1 = 0.0;
     std::vector<double> wi(n);
     for (size_t i = 0; i < n; ++i) {
-        wi[i] = std::exp(tx[i*q + 0] - max_x) / sum_exp;
+        wi[i] = std::exp(tx[i*q + 0] - max_x) / sum_exp; // use logsumexp?
         y1 += wi[i] * tx[i*q + 1];
     }
      // Compute y3 according to the formula:
@@ -136,8 +136,6 @@ bool atomic_logspace_add::reverse(
     std::vector<double> x0(n), x1(n), x2(n),xDivSum(n);
     for(size_t i = 0; i < n; ++i) {
         x0[i] = tx[i*q];  
-        x1[i] = tx[i*q+1];  
-        x2[i] = tx[i*q + 2];
     }
 
     auto max_iter = std::max_element(x0.begin(), x0.end());
@@ -165,35 +163,30 @@ bool atomic_logspace_add::reverse(
     for(size_t i = 0; i < n; ++i)
         px[i*q] = py[0] * xDivSum[i];
     }
-// order 1
-    double S1 = 0.0, logS1divS;
-    if(order_up >= 1) {
-        double S1divS;
-        for(size_t i = 0; i < n; ++i) {
-            S1 += expDiff[i] * x1[i];
-        }
 
-        if(S1 > 0) {
-            double logS1 = max_x + log(S1);
-            S1 = exp(logS1);
-            logS1divS = logS1 - logsumexp;
-            S1divS = exp(logS1divS);
-        } else {
-//            Rcpp::Rcout << " " << S1 << " ";
-            // S1 stays zero
-            S1divS = 0;
+// order 1
+    // S1 = sum x1[i]exp(x0[i]), S1div = S1/exp(maxx) S1divS = S1/S = S1div/sum(exp(xi-maxx))
+    // S = sum exp(xi) = exp(maxx) sum(exp(xi - maxx))
+    double S1div = 0.0, S1divS, S1=0;
+    if(order_up >= 1) {
+        for(size_t i = 0; i < n; ++i) {
+            x1[i] = tx[i*q+1];
+            S1div += expDiff[i] * x1[i];
+            S1 += x1[i] * exp(x0[i]);
         }
-//        Rcpp::Rcout << " " << S1divS << " ";
+        S1divS = S1div/(sum_exp+1);
         for(size_t i = 0; i < n; ++i) {
             px[q*i] += py[1] * xDivSum[i] * (x1[i] - S1divS);
             px[q * i + 1] = py[1] * xDivSum[i];
         }
     }
-#ifdef UNDEF    
+
     // not tested yet
     if(order_up >= 2) {
-        double S = exp(logsumexp),  S2=0.0, S1divSsq = exp(2*logS1divS); 
+        Rcpp::Rcout << "havent tested this\n";
+        double S = exp(logsumexp),  S2=0.0, S1divSsq = S1divS*S1divS; 
          for(size_t i = 0; i < n; ++i) {
+            x2[i] = tx[i*q + 2];
             S2 += expDiff[i] * x2[i];
         }
         double logS2 = max_x + log(S2);
@@ -213,7 +206,6 @@ bool atomic_logspace_add::reverse(
             }
         }
     }
-#endif    
     return true;
 }
 

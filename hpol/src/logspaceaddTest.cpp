@@ -156,16 +156,26 @@ CppAD::vector< CppAD::AD<double> > testAddGamma(
     CppAD::vector<CppAD::AD<double>> ad_params) {
 
 
-    ad_params[0] = ad_params[0]*ad_params[0];
-    ad_params[1] = ad_params[1]*ad_params[0];
-    ad_params[2] = lgamma_ad(ad_params[2]);
+    CppAD::vector< CppAD::AD<double> > v1(3), v2(3);
 
-    CppAD::vector< CppAD::AD<double> > result(1);
-    result[0] = logspace_add_n(ad_params);
-    CppAD::vector< CppAD::AD<double> > result2(1);
-    result2[0] = lgamma_ad(result[0]) ;
+    for(size_t D=0; D < v1.size(); D++) {
+        double D1 = 1.0*D;
+        v1[D] = D1 * ad_params[0] + (D1 *D1) * ad_params[1];
+        double D2 = -12.0-D1;
+//        Rcpp::Rcout << D << " " << D1 << " " << D2 << "\n";
+        v2[D] = D2 * ad_params[0] + (D2 * D2) * ad_params[1];
+    }
+ //   Rcpp::Rcout << " " << v2[0] << " " << v2[1] << " " << v2[2]<< "\n";
 
-    return result2;
+
+    CppAD::vector< CppAD::AD<double> > result(2), resultOut(1);
+//    result[0] = logspace_add_n(v1);
+    result[1] = logspace_add_n(v2);
+
+//    Rcpp::Rcout << " " << result[0] << " " << result[1] << "\n";
+
+    resultOut[0] = result[1];// + result[0];
+    return resultOut;
 }
 
 
@@ -206,6 +216,30 @@ Rcpp::List testAddGammaR(
             }
         }
   result["hessian"] = mat;
+
+    size_t n= Nparams;
+        // Compute Hessian of f(x) wrt x
+    std::vector<double> u1(n, 0), u2(n,0);
+    Rcpp::NumericMatrix mat2(n, n);
+    for (size_t i = 0; i < n; ++i){
+        u1[i]=1;
+        f.Forward(1, u1);
+        auto y2 = f.Forward(2, u2);
+        mat2(i,i) = y2[0];
+        u1[i]=0;
+        for (size_t j = 0; j < i; ++j){
+           u1[i]=1;
+           u1[j]=1;
+           f.Forward(1, u1);
+           y2 = f.Forward(2, u2);
+           mat2(i,j) = (y2[0]- mat2(i,i) - mat2(j,j))/2;
+           mat2(j,i) = mat2(i,j);
+           u1[i]=0;
+           u1[j]=0;
+        }
+    }
+      result["hessian2"] = mat2;
+
 
   return result;
 }

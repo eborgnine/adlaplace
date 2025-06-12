@@ -147,7 +147,7 @@ CppAD::vector<CppAD::AD<double>> objectiveFunctionInternal(
     }
     size_t endA = Ap[Deta+1];
     for(size_t Dgamma=Ap[Deta]; Dgamma < endA; Dgamma++) {
-      eta[Deta] += Adata[Dgamma] * gamma[Ai[Dgamma]];
+//      eta[Deta] += Adata[Dgamma] * gamma[Ai[Dgamma]];
     }
   }
 
@@ -166,10 +166,14 @@ CppAD::vector<CppAD::AD<double>> objectiveFunctionInternal(
 
     // loop through row i of CCmatrix
     // this is j=startHere
+//    CppAD::AD<double> stuff=0;
     for(size_t j0=0, j=startHere; j < Nhere; j++,j0++) {
+//      stuff += exp(eta[CCcol[j]]);
       etaHere[j0] = eta[CCcol[j]];
     }
-    etaLogSum[i] = logspace_add_n(etaHere);
+//    Rcpp::Rcout << stuff << " ";
+    etaLogSum[i] = //log(stuff);//
+      logspace_add_n(etaHere);
   }
 
 
@@ -253,7 +257,11 @@ CppAD::vector<CppAD::AD<double>> objectiveFunctionInternal(
 
   CppAD::vector<CppAD::AD<double>> minusLogDens(1,0);
   minusLogDens[0] =
-     - local_loglik + local_offdiagQ  + randomContributionDiag;
+//  etaLogSum[0]  + etaLogSum[1]
+     - local_loglik + local_offdiagQ  + randomContributionDiag
+     ;
+
+//    Rcpp::Rcout << " " << etaLogSum[0] << " " << etaLogSum[1] << "\n";
 
 #ifdef EVALCONSTANTS
   minusLogDens[0] += Ngamma * HALFLOGTWOPI;
@@ -489,7 +497,7 @@ Rcpp::List objectiveFunctionC(
       result["hessian"] = hessianR;
 
       if(verbose) {
-        result["hes2"] = Rcpp::List::create(
+        result["hess2"] = Rcpp::List::create(
           Rcpp::Named("x") = Hvalue, Rcpp::Named("i") = Hrow, Rcpp::Named("j") = Hcol,
           Rcpp::Named("nonzeros") = hindex
           );
