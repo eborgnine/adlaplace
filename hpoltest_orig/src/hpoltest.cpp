@@ -4,7 +4,6 @@
 #include <Rcpp.h>
 #include <TMB.hpp>
 #include "lgamma_ad.hpp"
-#include "logspaceadd.hpp"
 
 #define EIGEN_DONT_PARALLELIZE
 
@@ -141,185 +140,23 @@ bool atomic_lgamma_ad::reverse(
 * logspace add
 */ 
 
+template<class Type>
+Type logspace_add_n(const CppAD::vector<Type>& x) {
 
-
-atomic_logspace_add logspace_add_atomic("logspace_add_n");
-
-// Constructor implementation
-atomic_logspace_add::atomic_logspace_add(const std::string& name)
-    : CppAD::atomic_base<double>(name) {}
-
-
-
-bool atomic_logspace_add::forward(
-        size_t p,
-        size_t q,
-        const CppAD::vector<bool>& vx,
-        CppAD::vector<bool>& vy,
-        const CppAD::vector<double>& tx,
-        CppAD::vector<double>& ty
-  )  {
-    size_t n = tx.size() / (q + 1);
-    std::vector<double> x0(n);
-    for (size_t i = 0; i < n; ++i)
-        x0[i] = tx[i * (q + 1) + 0];
-    double max_x = *std::max_element(x0.begin(), x0.end());
-    double sum_exp = 0.0;
-    for (size_t i = 0; i < n; ++i)
-        sum_exp += std::exp(x0[i] - max_x);
-    double logsumexp = max_x + std::log(sum_exp);
-
-
-
-    for (size_t k = p; k <= q; ++k) {
-        if (k == 0) {
-            ty[0] = logsumexp;
-        } else if (k == 1) {
-            std::vector<double> dx(n);
-            double t1 = 0.0;
-            for (size_t i = 0; i < n; ++i)
-                dx[i] = tx[i * (q + 1) + 1];
-            for (size_t i = 0; i < n; ++i)
-                t1 += std::exp(x0[i] - logsumexp) * dx[i];
-            ty[1] = t1;
-        } else if (k == 2) {
-            std::vector<double> dx(n), dx2(n);
-            for (size_t i = 0; i < n; ++i) {
-                dx[i]  = tx[i * (q + 1) + 1];
-                dx2[i] = tx[i * (q + 1) + 2];
-            }
-            double val = 0.0;
-            for (size_t j = 0; j < n; ++j)
-                val += std::exp(x0[j] - logsumexp) * dx2[j];
-            for (size_t i = 0; i < n; ++i) {
-                for (size_t j = 0; j < n; ++j) {
-                    val += (
-                        (i == j ? 1.0 : 0.0) * std::exp(x0[i] - logsumexp)
-                        - std::exp(x0[i] + x0[j] - 2 * logsumexp)
-                    ) * dx[i] * dx[j];
-                }
-            }
-            ty[2] = val;
-        } else if (k == 3) {
-            std::vector<double> wi(n), dx(n), dx2(n);
-            for (size_t i = 0; i < n; ++i) {
-                dx[i]  = tx[i * (q + 1) + 1];
-                dx2[i] = tx[i * (q + 1) + 2];
-            }
-            // Softmax weights, sum_exp != 0!
-            for (size_t i = 0; i < n; ++i)
-                wi[i] = std::exp(x0[i] - max_x) / sum_exp;
-
-            double y1 = 0.0;
-            for (size_t i = 0; i < n; ++i)
-                y1 += wi[i] * dx[i];
-
-            double y3 = 0.0;
-            for (size_t i = 0; i < n; ++i) {
-                double delta1 = dx[i] - y1;
-                y3 += wi[i] * tx[i * (q + 1) + 3];
-                y3 += 3.0 * wi[i] * delta1 * dx2[i];
-                y3 += wi[i] * delta1 * delta1 * delta1;
-            }
-            ty[3] = y3;
+    auto n = x.size();
+    Type max_x = x[0];
+    for (size_t i = 1; i < n; ++i) {
+        if (x[i] > max_x) {
+            max_x = x[i];
         }
     }
-    return true;
-  }
 
-bool atomic_logspace_add::reverse(
-        size_t q,
-        const CppAD::vector<double>& tx,
-        const CppAD::vector<double>& ty,
-        CppAD::vector<double>& px,
-        const CppAD::vector<double>& py
-)  {
-    size_t n = tx.size(); // Should be #inputs (q+1 == 1)
-    for (size_t i = 0; i < px.size(); ++i) px[i] = 0.0;
-  // Zeroth-order (function value) inputs
-    std::vector<double> x0(n), expDiff(n), xDivSum(n);
+    Type sum_exp = 0.0;
     for (size_t i = 0; i < n; ++i) {
-        x0[i] = tx[i * (q + 1) + 0];
+        sum_exp += exp(x[i] - max_x);
     }
-    double max_x = *std::max_element(x0.begin(), x0.end());
-    double sum_exp = 0.0;
-    for (size_t i = 0; i < n; ++i) {
-        expDiff[i] = std::exp(x0[i] - max_x);
-        sum_exp += expDiff[i];
-    }
-//    double logsumexp = max_x + std::log(sum_exp);
-    for (size_t i = 0; i < n; ++i)
-        xDivSum[i] = expDiff[i] / sum_exp;
-
-    // Order 0: gradient w.r.t. inputs
-    if (q >= 0) {
-        for (size_t i = 0; i < n; ++i)
-            px[i * (q + 1) + 0] += py[0] * xDivSum[i];
-    }
-
-    // Order 1: directional derivative (Hessian-vector)
-    if (q >= 1) {
-        std::vector<double> x1(n);
-        double S1 = 0.0;
-        for (size_t i = 0; i < n; ++i) {
-            x1[i] = tx[i * (q + 1) + 1];
-            S1 += x1[i] * xDivSum[i];
-        }
-        for (size_t i = 0; i < n; ++i) {
-            // Chain rule for softmax
-            px[i * (q + 1) + 1] += py[1] * xDivSum[i];
-            px[i * (q + 1) + 0] += py[1] * xDivSum[i] * (x1[i] - S1);
-        }
-    }
-
-#ifdef UNDEF
-    // not tested yet
-    if(q >= 2) {
-        Rcpp::Rcout << "havent tested this\n";
-        double S = exp(logsumexp),  S2=0.0, S1divSsq = S1divS*S1divS; 
-         for(size_t i = 0; i < n; ++i) {
-            x2[i] = tx[i*q + 2];
-            S2 += expDiff[i] * x2[i];
-        }
-        double logS2 = max_x + log(S2);
-        S2 = exp(logS2);
-
-        for(size_t i = 0; i < n; ++i) {
-            double vi = x2[i] - 2 * S1divS * x1[i] + 
-                2 *  S1divSsq - S2/S;
-            px[i*q + 2] = py[2] * xDivSum[i];
-            px[i*q + 0] += py[2] * xDivSum[i] * vi;
-
-            // The "mixed" second-order terms, which couple x1 for i,j
-            for (size_t j = 0; j < n; ++j) {
-                px[i*q + 0] += py[2] * xDivSum[i] *
-                    (x1[i] - S1divS) * (i==j ? 1 : 0) * x1[j];
-                px[i*q + 0] -= py[2] * xDivSum[i] * (x1[i] - S1divS) * xDivSum[j] * x1[j];
-            }
-        }
-    }
-#endif    
-    return true;
+    return max_x + log(sum_exp);
 }
-
-
-// logspace_add_n for double
-template<>
-inline double logspace_add_n(const CppAD::vector<double>& x) {
-double max_x = x[0];
-for (size_t i = 1; i < x.size(); ++i)
-    if (x[i] > max_x) max_x = x[i];
-
-double sum_exp = 0.0;
-for (size_t i = 0; i < x.size(); ++i)
-    sum_exp += std::exp(x[i] - max_x);
-
-return max_x + std::log(sum_exp);
-
-}
-
-template CppAD::AD<double> logspace_add_n<CppAD::AD<double>>(const CppAD::vector<CppAD::AD<double>>&);
-template CppAD::AD<CppAD::AD<double>> logspace_add_n<CppAD::AD<CppAD::AD<double>>>(const CppAD::vector<CppAD::AD<CppAD::AD<double>>>&);
 
 /*
 * MODEL
