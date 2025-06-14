@@ -28,17 +28,17 @@ formatParameters = function(x, obj, logscale_theta = FALSE) {
     x
   })
   gammaCat = as.data.frame(do.call(rbind, gammaCatN))
-  names(gammaCat) = c('group','order')
+  names(gammaCat) = c('group','index')
   theGamma = cbind(theGamma, gammaCat)
 
   rownames(theGamma) = theGamma$name
-  theGamma$order = as.numeric(theGamma$order)
+  theGamma$index = as.numeric(theGamma$index)
   theGamma$group = factor(theGamma$group,
       levels= c('global', sort(as.numeric(setdiff(unique(theGamma$group), 'global')))))
 
-  theGamma = theGamma[order(theGamma$term, theGamma$order, theGamma$group),]
+  theGamma = theGamma[order(theGamma$term, theGamma$index, theGamma$group),]
 
-  result$gamma = theGamma[,c('term','group','order','value')]
+  result$gamma = theGamma[,c('term','group','index','value')]
 
   result
 

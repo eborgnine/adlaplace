@@ -1,32 +1,49 @@
-# =============================================
-# 1. Compiler Flags (Optimization & Warnings)
-# =============================================
-CXX = g++ -std=c++14          # Use C++14 (required by TMB/Eigen)
-CXXFLAGS = -O3 -march=native  # Aggressive optimizations (-O3) and CPU-specific tuning
-CXXFLAGS += -Wno-ignored-attributes  # Suppress Eigen/TMB attribute warnings
+# Default: use system GCC
+#CPPADLIB = /opt/homebrew/lib/libcppad_lib.a
 
-# =============================================
-# 2. Preprocessor Flags (Headers)
-# =============================================
-PKG_CPPFLAGS = -I"$(shell Rscript -e "cat(system.file('include', package='TMB'))")" \
-               -I"$(shell Rscript -e "cat(system.file('include', package='RcppEigen'))")" \
-               -fopenmp  # Enable OpenMP (if used)
+# Detect OS: Darwin = macOS, otherwise assume Linux
+UNAME_S := $(shell uname -s)
 
-# =============================================
-# 3. Linker Flags (Libraries)
-# =============================================
-PKG_LIBS = -fopenmp $(LAPACK_LIBS) $(BLAS_LIBS) $(FLIBS) \
-           -L"$(shell Rscript -e "cat(system.file('lib', package='TMB'))")" -lTMB
+ifeq ($(UNAME_S),Darwin)
+    # macOS with Homebrew GCC
+    CXX = /opt/homebrew/bin/g++-15
+    CC  = /opt/homebrew/bin/gcc-15
+    OMPINC = -I/opt/homebrew/opt/libomp/include -I/opt/homebrew/include
+    OMPLIB = -L/opt/homebrew/opt/libomp/lib -lomp
+    # If CppAD is installed with Homebrew:
+#    CPPADINC = -I/opt/homebrew/include
+#    CPPADLIB = -L/opt/homebrew/lib -lcppad_lib
+else
+INTELC := $(shell which icpx 2>/dev/null)
+ifeq ($(INTELC),)
+  # Not found, fallback
+else
+  CXX = icpx
+  CC  = icx
+endif
+    # Linux: system GCC, usually OpenMP built-in
+    OMPINC =
+    OMPLIB =
+ #   CPPADINC = -I/usr/include/cppad
+ #   CPPADLIB = -lcppad_lib
+endif
 
-# =============================================
-# 4. Optional: Cache Compilation (ccache)
-# =============================================
-# Uncomment to use ccache (if installed)
-# CC = ccache gcc
-# CXX = ccache g++
+# Conditional OpenMP flag
+ifeq ($(shell $(CXX) --version 2>&1 | grep -Eci 'intel|icpx|oneapi|dpc\+\+|classic'),0)
+  OPENMP_FLAG = -fopenmp
+else
+  OPENMP_FLAG = -qopenmp
+endif
 
-# =============================================
-# 5. Optional: Parallel Compilation
-# =============================================
-# Unix/macOS only: Use all CPU cores
-MAKEFLAGS = -j$(shell nproc)
+
+# C++ flags
+CXXFLAGS += $(OPENMP_FLAG) $(OMPINC)
+PKG_CPPFLAGS += $(CPPADINC)
+PKG_CXXFLAGS += $(OPENMP_FLAG) $(OMPINC)
+
+$(info CXX is $(CXX))
+$(info Using OpenMP flag: $(OPENMP_FLAG))
+
+
+# Linker flags
+PKG_LIBS += $(OPENMP_FLAG) $(OMPLIB) $(CPPADLIB)

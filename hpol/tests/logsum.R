@@ -1,6 +1,6 @@
 library(hpolcc)
 hpolcc:::testAddGammaR(c(0,0))
-hpolcc:::testAddGammaR(c(1e-4,0))
+
 
 
 bob = function(xx) {

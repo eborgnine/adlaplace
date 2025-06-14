@@ -61,40 +61,44 @@ CppAD::vector<CppAD::AD<double>> objectiveFunctionInternal(
   }
 
   // S4 objects from data
-  Rcpp::S4 QsansDiag(data["QsansDiag"]), A(data["ATp"]),
+  const Rcpp::S4 QsansDiag(data["QsansDiag"]), A(data["ATp"]),
     X(data["XTp"]), CC(data["cc_matrixTp"]);
   // matrices are transposed, of class dgCMatrix
   
   // row, column indices in matrices
-  Rcpp::IntegerVector 
+  const Rcpp::IntegerVector 
     Qrow(QsansDiag.slot("i")), Qcol(QsansDiag.slot("j")),
     Xi(X.slot("i")), Xp(X.slot("p")), 
     Ai(A.slot("i")), Ap(A.slot("p")), 
     CCcol(CC.slot("i")), CCp(CC.slot("p"));
   // data in matrices
-  Rcpp::NumericVector	Qdata =QsansDiag.slot("x"),
+  const Rcpp::NumericVector	Qdata =QsansDiag.slot("x"),
     Adata =A.slot("x"), Xdata =X.slot("x");
   
   // number of nonzeros on off-diagonals
-  size_t Nq = Qdata.size();
+  const size_t Nq = Qdata.size();
   
   // Q off diagonals
   // separate diagonals and off-diagonals
-  Rcpp::NumericVector	Qdiag(data["Qdiag"]);
+  const Rcpp::NumericVector	Qdiag(data["Qdiag"]);
   
   // map thetas to gammas, y
-  Rcpp::IntegerVector map(data["map"]), y(data["y"]);
+  const Rcpp::IntegerVector map(data["map"]), y(data["y"]);
   
   // dimensions
-  Rcpp::IntegerVector dimsX = X.slot("Dim"), dimsA = A.slot("Dim"),
+  const Rcpp::IntegerVector dimsX = X.slot("Dim"), dimsA = A.slot("Dim"),
     dimsC = CC.slot("Dim");
   
   // recall X, A, CC transposed
   const size_t Nbeta =dimsX[0], Ngamma = dimsA[0], 
     Neta = dimsA[1], Nstrata = dimsC[1];
-  const size_t Ntheta = ad_params.size() - Nbeta - Ngamma;
+//  const size_t NthetaFromParams = ad_params.size() - Nbeta - Ngamma;
   
-  
+  const std::set<double> unique_map(map.begin(), map.end());
+  const size_t Ntheta = unique_map.size() + dirichelet;
+  size_t startGamma;
+
+
   CppAD::vector<CppAD::AD<double>> beta(Nbeta), 
     gamma(Ngamma), theta(Ntheta), logTheta(Ntheta);
   
@@ -104,42 +108,70 @@ CppAD::vector<CppAD::AD<double>> objectiveFunctionInternal(
   " Ngamma " << Ngamma << "\n";
 #endif  
 
-
-
-  // separate out parameters and latent variables
-  for(size_t D=0;D<Nbeta;D++) {
-    beta[D] = ad_params[D];
-  }
-  for(size_t D=0;D<Ngamma;D++) {
-    gamma[D] = ad_params[Nbeta+D];
-  }
-
-  if(transform_theta) {
-    for(size_t D=0;D<Ntheta;D++) {
-      logTheta[D] = ad_params[Nbeta+Ngamma+D];
-      theta[D] = exp(logTheta[D]);      
-    }
-  } else {
-    for(size_t D=0;D<Ntheta;D++) {
-      theta[D] = ad_params[Nbeta+Ngamma+D];
-      logTheta[D] = log(theta[D]);      
-    }
-  }
-// for data contribution
-  CppAD::AD<double> nu = theta[theta.size()-1];
-  CppAD::AD<double> logSqrtNu = logTheta[theta.size()-1]/ 2;
-  CppAD::AD<double> oneOverSqrtNu = exp(-logSqrtNu);
-  CppAD::AD<double> lgammaOneOverSqrtNu = lgamma_ad(oneOverSqrtNu);
-
-
-#ifdef DEBUG
-  Rcpp::Rcout << "etas\n";
-#endif
-  
-  
   // eta = A gamma + X beta
-  // Deta is element of eta, columns of t(X)
+
+  if(ad_params.size() == Ngamma) { // beta and theta are supplied in config
+    startGamma = 0;
+    if (config.containsElementNamed("theta")) {
+      Rcpp::NumericVector thetaOrig = config["theta"];
+
+      if(transform_theta) {
+        for(size_t D=0;D<Ntheta;D++) {
+          logTheta[D] = thetaOrig[D];
+          theta[D] = exp(logTheta[D]);      
+        }
+      } else {
+        for(size_t D=0;D<Ntheta;D++) {
+          theta[D] = thetaOrig[D];
+          logTheta[D] = log(theta[D]);      
+        }
+      }
+    } else {
+      Rcpp::warning("theta missing from config");
+    }
+
+    if (config.containsElementNamed("beta")) {
+      Rcpp::NumericVector betaOrig = config["beta"];
+      for(size_t D=0; D<Nbeta; D++)
+        beta[D] = betaOrig[D];
+    } else {
+      Rcpp::warning("beta missing from config");    
+    }
+  } else { // theta and beta in parameters
+      if(Ntheta + Ngamma + Nbeta != ad_params.size()) {
+        Rcpp::warning("parameters is the wrong size");
+        Rcpp::Rcout << "Ntheta " << Ntheta << " Neta " << Neta 
+        << " Nbeta " << Nbeta << " Ngamma " << Ngamma << 
+        " parameter size " << ad_params.size() << "\n";
+      }
+
+    startGamma = Nbeta;
+    for(size_t D=0;D<Nbeta;D++) {
+      beta[D] = ad_params[D];
+    }
+    size_t startTheta = Nbeta + Ngamma;
+    if(transform_theta) {
+        for(size_t D=0;D<Ntheta;D++) {
+          logTheta[D] = ad_params[startTheta+D];
+          theta[D] = exp(logTheta[D]);      
+        }
+    } else {
+        for(size_t D=0;D<Ntheta;D++) {
+          theta[D] = ad_params[startTheta+D];
+          logTheta[D] = log(theta[D]);      
+        }
+    }
+
+  } // end theta and beta in parameters
+
+
+  // gamma and eta
+  for(size_t D=0;D<Ngamma;D++) {
+    gamma[D] = ad_params[startGamma+D];
+  }
+
   CppAD::vector<CppAD::AD<double>> eta(Neta, 0.0);
+  
   for(size_t Deta=0; Deta < Neta; Deta++) {
     size_t endX = Xp[Deta+1];
     for(size_t Dbeta=Xp[Deta]; Dbeta < endX; Dbeta++) {
@@ -150,7 +182,6 @@ CppAD::vector<CppAD::AD<double>> objectiveFunctionInternal(
       eta[Deta] += Adata[Dgamma] * gamma[Ai[Dgamma]];
     }
   }
-
 
 
 #ifdef DEBUG
@@ -166,14 +197,10 @@ CppAD::vector<CppAD::AD<double>> objectiveFunctionInternal(
 
     // loop through row i of CCmatrix
     // this is j=startHere
-//    CppAD::AD<double> stuff=0;
     for(size_t j0=0, j=startHere; j < Nhere; j++,j0++) {
-//      stuff += exp(eta[CCcol[j]]);
       etaHere[j0] = eta[CCcol[j]];
     }
-//    Rcpp::Rcout << stuff << " ";
-    etaLogSum[i] = //log(stuff);//
-      logspace_add_n(etaHere);
+    etaLogSum[i] = logspace_add_n(etaHere);
   }
 
 
@@ -213,6 +240,15 @@ CppAD::vector<CppAD::AD<double>> objectiveFunctionInternal(
 #ifdef DEBUG
   Rcpp::Rcout << "data" << std::endl;
 #endif    
+
+// for data contribution
+  CppAD::AD<double> nu = theta[theta.size()-1];
+  CppAD::AD<double> logSqrtNu = logTheta[theta.size()-1]/ 2;
+  CppAD::AD<double> oneOverSqrtNu = exp(-logSqrtNu);
+  CppAD::AD<double> lgammaOneOverSqrtNu = lgamma_ad(oneOverSqrtNu);
+
+
+
 
   // data contribution to loglik, loop through strata
   CppAD::AD<double> local_loglik = 0.0;
