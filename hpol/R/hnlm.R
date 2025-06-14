@@ -199,7 +199,6 @@ hnlm <- function(formula,
   allMap = 
     rep(theta_info$map[1:length(gamma_info$split)], gamma_info$split)-1
   
-  
   tmb_data <- list(
     X = X,
     A = A,

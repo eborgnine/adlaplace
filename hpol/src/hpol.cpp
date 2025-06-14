@@ -94,10 +94,9 @@ CppAD::vector<CppAD::AD<double>> objectiveFunctionInternal(
     Neta = dimsA[1], Nstrata = dimsC[1];
 //  const size_t NthetaFromParams = ad_params.size() - Nbeta - Ngamma;
   
-  const std::set<double> unique_map(map.begin(), map.end());
+  const std::set<int> unique_map(map.begin(), map.end());
   const size_t Ntheta = unique_map.size() + dirichelet;
   size_t startGamma;
-
 
   CppAD::vector<CppAD::AD<double>> beta(Nbeta), 
     gamma(Ngamma), theta(Ntheta), logTheta(Ntheta);
@@ -226,7 +225,7 @@ CppAD::vector<CppAD::AD<double>> objectiveFunctionInternal(
 
 
 #ifdef DEBUG
-  Rcpp::Rcout << "Q offdiag" << std::endl;
+  Rcpp::Rcout << "Q offdiag " << Nq << std::endl;
 #endif    
 
   CppAD::AD<double> local_offdiagQ = 0.0;

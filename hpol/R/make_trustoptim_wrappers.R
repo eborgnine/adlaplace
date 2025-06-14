@@ -11,7 +11,8 @@ make_trustoptim_wrappers <- function(data,
   cache_env$config1 = config[setdiff(names(config), 'hessMax')]
   cache_env$config2 = list()
   if(!is.null(config$hessMax)) cache_env$config2$hessMax = config$hessMax
-  
+  if(is.null(config$debugfile)) config$debugfile = 'hpoldebug.rds'
+
   get_result <- function(x) {
     if (!is.null(cache_env$last_x) && all(x == cache_env$last_x)) {
       return(cache_env$last_result)
@@ -20,7 +21,7 @@ make_trustoptim_wrappers <- function(data,
       cache_env$last_x <- x
       result$hessian <-as(as(result$hessian, 'CsparseMatrix'), 'generalMatrix')
       cache_env$last_result <- result
-      if(debug) saveRDS(c(result, list(x=x)), file='hpoldebug.rds')
+      if(debug) saveRDS(c(result, list(x=x)), file=config$debugfile)
       return(result)
     }
   }
