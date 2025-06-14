@@ -134,8 +134,6 @@ bool atomic_lgamma_ad::reverse(
   }
 
 
-
-
 /* 
 * logspace add
 */ 
