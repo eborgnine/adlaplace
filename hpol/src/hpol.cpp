@@ -446,8 +446,8 @@ Rcpp::List objectiveFunctionC(
       num_threads_config, in_parallel, thread_number
     );
     CppAD::thread_alloc::hold_memory(true);
-    
-
+    omp_set_dynamic(0);
+// https://www.coin-or.org/CppAD/Doc/team_openmp.cpp.htm
     
 //    CppAD::parallel_ad<double>();
 
