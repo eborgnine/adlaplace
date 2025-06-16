@@ -435,7 +435,7 @@ Rcpp::List objectiveFunctionC(
   
     CPPAD_TESTVECTOR( CppAD::ADFun<double> ) f_thread(num_threads_config);
     CPPAD_TESTVECTOR( CppAD::AD<double> ) Jac(Nparams);
-    for(size_t i = 0; i < num_threads_config; ++i)
+    for(int i = 0; i < num_threads_config; ++i)
       f_thread[i] = f;
       
     omp_set_num_threads(num_threads_config);
@@ -451,7 +451,7 @@ Rcpp::List objectiveFunctionC(
     CppAD::thread_alloc::parallel_setup(
       num_threads_config, in_parallel, thread_number
     );
-    thread_alloc::hold_memory(true);
+    CppAD::thread_alloc::hold_memory(true);
     
 
     
