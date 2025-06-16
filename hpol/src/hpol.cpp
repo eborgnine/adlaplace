@@ -55,8 +55,6 @@ CppAD::vector<CppAD::AD<double>> objectiveFunctionInternal(
 #endif  
 
 
-#ifdef UNDEFXX
-
   /*  bool verbose = false;
    if (config.containsElementNamed("verbose")) {
    verbose = Rcpp::as<bool>(config["verbose"]);
@@ -325,10 +323,6 @@ CppAD::vector<CppAD::AD<double>> objectiveFunctionInternal(
 
   return minusLogDens;
 
-#endif
-
-  CppAD::vector<CppAD::AD<double>> minusLogDens(1,0);
-  return  minusLogDens;
 }
 
 
@@ -491,6 +485,7 @@ Rcpp::List objectiveFunctionC(
     
       // Temporary storage for each thread (to avoid race conditions)
       int hindex_thread=0;
+      size_t nthreads_thread_size_t = (size_t) nthreads_thread;
       std::vector<double> thread_Hvalue(hesMax, 0);
       std::vector<int>  thread_Hrow(hesMax, 0);
       std::vector<int>  thread_Hcol(hesMax, 0);
@@ -504,15 +499,11 @@ Rcpp::List objectiveFunctionC(
           Rcpp::Rcout <<"thread " << tid << "\n";
       }
 
-//      for (int j = tid; j < NparamsI; j+= nthreads_thread) { 
-      for (int j = tid; j < nthreads_thread; j+= nthreads_thread) { 
-//        std::fill(u.begin(), u.end(), 0.0); 
+      for (int j = tid; j < NparamsI; j+= nthreads_thread_size_t) { 
+        std::fill(u.begin(), u.end(), 0.0); 
         u[j] = 1.0;    
-        if(j == 8)
-          auto f1out = f_thread_here.Forward(1, u);
-#ifdef UNDEF        
+        auto f1out = f_thread_here.Forward(1, u);
         auto ddw = f_thread_here.Reverse(2, w);
-        Rcpp::Rcout << "+";
         for (int Drow = 0; Drow < NparamsI; ++Drow) {
           dhere = ddw[2 * Drow + 1];
           if (!CppAD::NearEqual(dhere, 0.0, eps, eps)) {
@@ -524,7 +515,6 @@ Rcpp::List objectiveFunctionC(
             }
           }
         }
-#endif        
       } //j loop
 
       if (verbose ) {
@@ -544,13 +534,7 @@ Rcpp::List objectiveFunctionC(
         Hvalue[hindex] = thread_Hvalue[k];
         hindex++;
       }
-      if (verbose ) {
-        Rcpp::Rcout << "combine_ " << tid << "\n";
-      }
     } // critical
-    if (verbose ) {
-      Rcpp::Rcout << "combine__ " << tid << "\n";
-    }
   } // parallel
     if (verbose ) { 
       Rcpp::Rcout << " done," << std::endl;
@@ -558,7 +542,7 @@ Rcpp::List objectiveFunctionC(
 #ifndef SINGLETHREAD
     CppAD::thread_alloc::parallel_setup(1, nullptr, nullptr);
     CppAD::thread_alloc::hold_memory(false);
-    for (size_t i = 1; i < num_threads; ++i)
+    for (int i = 1; i < num_threads; ++i)
       CppAD::thread_alloc::free_available(i);
     CppAD::thread_alloc::free_available(0);
 #endif

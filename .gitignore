@@ -15,3 +15,4 @@ hpoltest_orig/src/.DS_Store
 hpoldebug.rds
 result.rds
 
+.RDataTmp
