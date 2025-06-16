@@ -460,15 +460,9 @@ Rcpp::List objectiveFunctionC(
       // Each thread reconstructs its own tape
       CppAD::ADFun<double> &f_thread_here = f_thread[tid];
   
-  if (verbose ) {
-    Rcpp::Rcout <<"threadA " << tid << "\n";
-  }
   
       f_thread_here.Forward(0, x_val);
-      if (verbose ) {
-        Rcpp::Rcout <<"threadB " << tid << "\n";
-      }
-      
+    
       
 //      f_thread_here.capacity_order(tid);  
 
