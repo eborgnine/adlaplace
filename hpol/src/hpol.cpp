@@ -2,19 +2,14 @@
 
 #define DEBUG
 
-//#define SINGLETHREAD
-
-#ifndef SINGLETHREAD
 #include<omp.h>
-#include <vector>
-#endif
+//#include <vector>
 
 
-#ifndef SINGLETHREAD
 // ---- CppAD parallel hooks ----
 bool in_parallel() { return omp_in_parallel() != 0; }
 size_t thread_number() { return static_cast<size_t>(omp_get_thread_num()); }
-#endif
+
 
 
 Rcpp::S4 make_dgTMatrix(
@@ -71,18 +66,18 @@ CppAD::vector<CppAD::AD<double>> objectiveFunctionInternal(
 
   // S4 objects from data
   const Rcpp::S4 QsansDiag(data["QsansDiag"]), A(data["ATp"]),
-    X(data["XTp"]), CC(data["cc_matrixTp"]);
+  X(data["XTp"]), CC(data["cc_matrixTp"]);
   // matrices are transposed, of class dgCMatrix
   
   // row, column indices in matrices
   const Rcpp::IntegerVector 
-    Qrow(QsansDiag.slot("i")), Qcol(QsansDiag.slot("j")),
-    Xi(X.slot("i")), Xp(X.slot("p")), 
-    Ai(A.slot("i")), Ap(A.slot("p")), 
-    CCcol(CC.slot("i")), CCp(CC.slot("p"));
+  Qrow(QsansDiag.slot("i")), Qcol(QsansDiag.slot("j")),
+  Xi(X.slot("i")), Xp(X.slot("p")), 
+  Ai(A.slot("i")), Ap(A.slot("p")), 
+  CCcol(CC.slot("i")), CCp(CC.slot("p"));
   // data in matrices
   const Rcpp::NumericVector	Qdata =QsansDiag.slot("x"),
-    Adata =A.slot("x"), Xdata =X.slot("x");
+  Adata =A.slot("x"), Xdata =X.slot("x");
   
   // number of nonzeros on off-diagonals
   const size_t Nq = Qdata.size();
@@ -96,11 +91,11 @@ CppAD::vector<CppAD::AD<double>> objectiveFunctionInternal(
   
   // dimensions
   const Rcpp::IntegerVector dimsX = X.slot("Dim"), dimsA = A.slot("Dim"),
-    dimsC = CC.slot("Dim");
+  dimsC = CC.slot("Dim");
   
   // recall X, A, CC transposed
   const size_t Nbeta =dimsX[0], Ngamma = dimsA[0], 
-    Neta = dimsA[1], Nstrata = dimsC[1];
+  Neta = dimsA[1], Nstrata = dimsC[1];
 //  const size_t NthetaFromParams = ad_params.size() - Nbeta - Ngamma;
   
   const std::set<int> unique_map(map.begin(), map.end());
@@ -108,7 +103,7 @@ CppAD::vector<CppAD::AD<double>> objectiveFunctionInternal(
   size_t startGamma;
 
   CppAD::vector<CppAD::AD<double>> beta(Nbeta), 
-    gamma(Ngamma), theta(Ntheta), logTheta(Ntheta);
+  gamma(Ngamma), theta(Ntheta), logTheta(Ntheta);
   
 
 #ifdef DEBUG
@@ -146,12 +141,12 @@ CppAD::vector<CppAD::AD<double>> objectiveFunctionInternal(
       Rcpp::warning("beta missing from config");    
     }
   } else { // theta and beta in parameters
-      if(Ntheta + Ngamma + Nbeta != ad_params.size()) {
-        Rcpp::warning("parameters is the wrong size");
-        Rcpp::Rcout << "Ntheta " << Ntheta << " Neta " << Neta 
-        << " Nbeta " << Nbeta << " Ngamma " << Ngamma << 
-        " parameter size " << ad_params.size() << "\n";
-      }
+    if(Ntheta + Ngamma + Nbeta != ad_params.size()) {
+      Rcpp::warning("parameters is the wrong size");
+      Rcpp::Rcout << "Ntheta " << Ntheta << " Neta " << Neta 
+      << " Nbeta " << Nbeta << " Ngamma " << Ngamma << 
+      " parameter size " << ad_params.size() << "\n";
+    }
 
     startGamma = Nbeta;
     for(size_t D=0;D<Nbeta;D++) {
@@ -159,15 +154,15 @@ CppAD::vector<CppAD::AD<double>> objectiveFunctionInternal(
     }
     size_t startTheta = Nbeta + Ngamma;
     if(transform_theta) {
-        for(size_t D=0;D<Ntheta;D++) {
-          logTheta[D] = ad_params[startTheta+D];
-          theta[D] = exp(logTheta[D]);      
-        }
+      for(size_t D=0;D<Ntheta;D++) {
+        logTheta[D] = ad_params[startTheta+D];
+        theta[D] = exp(logTheta[D]);      
+      }
     } else {
-        for(size_t D=0;D<Ntheta;D++) {
-          theta[D] = ad_params[startTheta+D];
-          logTheta[D] = log(theta[D]);      
-        }
+      for(size_t D=0;D<Ntheta;D++) {
+        theta[D] = ad_params[startTheta+D];
+        logTheta[D] = log(theta[D]);      
+      }
     }
 
   } // end theta and beta in parameters
@@ -302,8 +297,8 @@ CppAD::vector<CppAD::AD<double>> objectiveFunctionInternal(
   CppAD::vector<CppAD::AD<double>> minusLogDens(1,0);
   minusLogDens[0] =
 //  etaLogSum[0]  + etaLogSum[1]
-     - local_loglik + local_offdiagQ  + randomContributionDiag
-     ;
+  - local_loglik + local_offdiagQ  + randomContributionDiag
+  ;
 
 //    Rcpp::Rcout << " " << etaLogSum[0] << " " << etaLogSum[1] << "\n";
 
@@ -348,6 +343,10 @@ Rcpp::List objectiveFunctionC(
   if (config.containsElementNamed("maxDeriv")) {
     maxDeriv = Rcpp::as<int>(config["maxDeriv"]);
   }
+    int num_threads = 1;
+    if (config.containsElementNamed("num_threads"))
+        num_threads = Rcpp::as<int>(config["num_threads"]);
+
 
   size_t Nparams = parameters.size();
   int NparamsI = static_cast<int>(Nparams);
@@ -371,8 +370,7 @@ Rcpp::List objectiveFunctionC(
   if (verbose ) {
     Rcpp::Rcout << "eval done " << y[0] << "\n";
   }
-  CppAD::ADFun<double> f;//(ad_params, y);
-  f.Dependent(ad_params, y);
+  CppAD::ADFun<double> fun(ad_params, y);
 
   std::vector<double> x_val(Nparams);
   for (size_t i = 0; i < Nparams; ++i) x_val[i] = parameters[i];
@@ -382,7 +380,7 @@ Rcpp::List objectiveFunctionC(
     }
 
     std::vector<double> y_val(1);
-    y_val = f.Forward(0, x_val);
+    y_val = fun.Forward(0, x_val);
 
     if (verbose ) {
       Rcpp::Rcout << "f0" << y_val[0] << "\n";
@@ -400,7 +398,7 @@ Rcpp::List objectiveFunctionC(
     if (verbose ) {
       Rcpp::Rcout << "grad ";
     }
-    std::vector<double> grad = f.Jacobian(x_val);
+    std::vector<double> grad = fun.Jacobian(x_val);
 
     result["grad"] = grad;
     if(maxDeriv == 1) {
@@ -411,159 +409,90 @@ Rcpp::List objectiveFunctionC(
     if (verbose ) {
       Rcpp::Rcout << "hess ";
     }
-
-    
+    // Sparse Hessian (parallelized over columns)
     Rcpp::NumericVector Hvalue(hesMax);
     Rcpp::IntegerVector Hrow(hesMax), Hcol(hesMax);
-    double eps = 1e-9;
-    int hindex = 0;
     
-    
-    
-#ifndef SINGLETHREAD
-
-    int num_threads_config=1;
-    if (config.containsElementNamed("num_threads")) {
-      num_threads_config = Rcpp::as<int>(config["num_threads"]);
-    }
-  
-    CPPAD_TESTVECTOR( CppAD::ADFun<double> ) f_thread(num_threads_config);
-    CPPAD_TESTVECTOR( CppAD::AD<double> ) Jac(Nparams);
-    for(int i = 0; i < num_threads_config; ++i)
-      f_thread[i] = f;
-      
-    omp_set_num_threads(num_threads_config);
-    int num_threads = omp_get_max_threads();  // <-- get actual #threads
-    if (verbose ) {
-      Rcpp::Rcout << "parallel " << num_threads << " " << num_threads_config << "\n";
-    }
-    
-    // https://cppad.readthedocs.io/latest/openmp_get_started.cpp.html#openmp-get-started-cpp-name
- 
-    
-    // Register OpenMP setup with CppAD
-    CppAD::thread_alloc::parallel_setup(
-      num_threads_config, in_parallel, thread_number
-    );
+    omp_set_num_threads(num_threads);
+    CppAD::thread_alloc::parallel_setup(num_threads, in_parallel, thread_number);
     CppAD::thread_alloc::hold_memory(true);
-    omp_set_dynamic(0);
-// https://www.coin-or.org/CppAD/Doc/team_openmp.cpp.htm
-    
-//    CppAD::parallel_ad<double>();
 
-#pragma omp parallel
-    {
-    int nthreads_thread = omp_get_num_threads();
-    int tid = thread_number();
-    
-  
-      // Each thread reconstructs its own tape
-      CppAD::ADFun<double> &f_thread_here = f_thread[tid];
-  
-  
-      f_thread_here.Forward(0, x_val);
-    
-      
-//      f_thread_here.capacity_order(tid);  
+    // Replicate fun object for each thread
+    std::vector<CppAD::ADFun<double>> fun_threads(num_threads);
+    for (int i = 0; i < num_threads; ++i) fun_threads[i] = fun;
 
-      
-#else
-    if (verbose ) {
-      Rcpp::Rcout << "single threaded\n";
-    }
-    {
-      CppAD::ADFun<double> &f_thread_here = f;
-      int tid=0;
-      int nthreads_thread = 1;
-#endif  
-    
-      // Temporary storage for each thread (to avoid race conditions)
-      int hindex_thread=0;
-      size_t nthreads_thread_size_t = (size_t) nthreads_thread;
+      double eps = 1e-9;
+    int hindex = 0;
+
+    #pragma omp parallel
+    {    
+
+
+      int tid = thread_number();
+      int nthreads_thread = omp_get_num_threads();
+      int hindex_thread = 0;
       std::vector<double> thread_Hvalue(hesMax, 0);
-      std::vector<int>  thread_Hrow(hesMax, 0);
-      std::vector<int>  thread_Hcol(hesMax, 0);
-
+      std::vector<int> thread_Hrow(hesMax, 0);
+      std::vector<int> thread_Hcol(hesMax, 0);
       std::vector<double> u(Nparams, 0.0);
       std::vector<double> w(1, 1.0);
-//        std::vector<double> ddw(2*Nparams); 
-      double dhere;
 
-      if (verbose ) {
-          Rcpp::Rcout <<"thread " << tid << "\n";
-      }
-
-      for (int j = tid; j < NparamsI; j+= nthreads_thread_size_t) { 
-        std::fill(u.begin(), u.end(), 0.0); 
-        u[j] = 1.0;    
-        auto f1out = f_thread_here.Forward(1, u);
-        auto ddw = f_thread_here.Reverse(2, w);
-        for (int Drow = 0; Drow < NparamsI; ++Drow) {
-          dhere = ddw[2 * Drow + 1];
+      for (int j = tid; j < NparamsI; j += nthreads_thread) {
+        std::fill(u.begin(), u.end(), 0.0);
+        u[j] = 1.0;
+        fun_threads[tid].Forward(0, x_val);
+        fun_threads[tid].Forward(1, u);
+        std::vector<double> ddw = fun_threads[tid].Reverse(2, w);
+        for (int irow = 0; irow < NparamsI; ++irow) {
+          double dhere = ddw[2 * irow + 1];
           if (!CppAD::NearEqual(dhere, 0.0, eps, eps)) {
-            if(hindex_thread < hesMax) {
-                thread_Hrow[hindex_thread] = Drow;
-                thread_Hcol[hindex_thread] = j;
-                thread_Hvalue[hindex_thread] = dhere;
-                hindex_thread++;
+            if (hindex_thread < hesMax) {
+              thread_Hrow[hindex_thread] = irow;
+              thread_Hcol[hindex_thread] = j;
+              thread_Hvalue[hindex_thread] = dhere;
+              hindex_thread++;
             }
           }
         }
-      } //j loop
+      }
 
-      if (verbose ) {
-        Rcpp::Rcout <<"d " << tid << "\n";
+        #pragma omp critical
+      {
+        for (int k = 0; k < hindex_thread; ++k) {
+          if (hindex < hesMax) {
+            Hrow[hindex] = thread_Hrow[k];
+            Hcol[hindex] = thread_Hcol[k];
+            Hvalue[hindex] = thread_Hvalue[k];
+          }
+          hindex++;
+        }
       }
-#ifndef SINGLETHREAD
-// Combine threads' results into the main vectors
-    #pragma omp critical
-#endif    
-    {
-      if (verbose ) {
-        Rcpp::Rcout << "combine " << tid << " hi " << hindex_thread << "\n";
-      }
-      for (int k = 0; k < hindex_thread; ++k) {
-        Hrow[hindex] = thread_Hrow[k];
-        Hcol[hindex] = thread_Hcol[k];
-        Hvalue[hindex] = thread_Hvalue[k];
-        hindex++;
-      }
-    } // critical
-  } // parallel
-    if (verbose ) { 
-      Rcpp::Rcout << " done," << std::endl;
-    } 
-#ifndef SINGLETHREAD
+    }
+    // CppAD/omp cleanup
+
+
     CppAD::thread_alloc::parallel_setup(1, nullptr, nullptr);
     CppAD::thread_alloc::hold_memory(false);
     for (int i = 1; i < num_threads; ++i)
       CppAD::thread_alloc::free_available(i);
     CppAD::thread_alloc::free_available(0);
-#endif
+
+    Rcpp::S4 hessianR = make_dgTMatrix(Hvalue, Hrow, Hcol, Nparams, hindex);
+    result["hessian"] = hessianR;
+
     
-  if (verbose ) { 
+    if (verbose ) { 
       Rcpp::Rcout << " done." << std::endl;
-  }
-      if(hindex >= hesMax) 
-        Rcpp::warning(
-          std::string("increase hesMax, number of hessian elements =  ") + 
-          std::to_string(hindex)
-          );
+    }
 
-      Rcpp::S4 hessianR = make_dgTMatrix(Hvalue, Hrow, Hcol, Nparams, hindex);
-      result["hessian"] = hessianR;
+    if(verbose) {
+      result["hess2"] = Rcpp::List::create(
+        Rcpp::Named("x") = Hvalue, Rcpp::Named("i") = Hrow, Rcpp::Named("j") = Hcol,
+        Rcpp::Named("nonzeros") = hindex
+        );
 
-      if(verbose) {
-        result["hess2"] = Rcpp::List::create(
-          Rcpp::Named("x") = Hvalue, Rcpp::Named("i") = Hrow, Rcpp::Named("j") = Hcol,
-          Rcpp::Named("nonzeros") = hindex
-          );
-#ifdef DEBUG2        
-      std::vector<double> hess = f.Hessian(x_val, 0);
-      result["hess3"] = hess;
-#endif      
     }
 
     return result;
-}
+  }
 
