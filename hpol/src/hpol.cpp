@@ -364,11 +364,11 @@ Rcpp::List objectiveFunctionC(
   CppAD::Independent(ad_params);  // Tell CppAD these are inputs for differentiation
   
   if (verbose ) {
-    Rcpp::Rcout << "eval\n";
+    Rcpp::Rcout << "eval";
   }
   CppAD::vector<CppAD::AD<double>> y = objectiveFunctionInternal(ad_params, data, config);
   if (verbose ) {
-    Rcpp::Rcout << "eval done " << y[0] << "\n";
+    Rcpp::Rcout << " " << y[0] << "\n";
   }
   CppAD::ADFun<double> fun(ad_params, y);
 
@@ -383,7 +383,7 @@ Rcpp::List objectiveFunctionC(
     y_val = fun.Forward(0, x_val);
 
     if (verbose ) {
-      Rcpp::Rcout << "f0" << y_val[0] << "\n";
+      Rcpp::Rcout << "f0 " << y_val[0] << "\n";
     }
 
 
@@ -399,7 +399,9 @@ Rcpp::List objectiveFunctionC(
       Rcpp::Rcout << "grad ";
     }
     std::vector<double> grad = fun.Jacobian(x_val);
-
+    if (verbose ) {
+      Rcpp::Rcout << ".\n";
+    }
     result["grad"] = grad;
     if(maxDeriv == 1) {
       return result;
@@ -407,7 +409,7 @@ Rcpp::List objectiveFunctionC(
 
 // hessian
     if (verbose ) {
-      Rcpp::Rcout << "hess ";
+      Rcpp::Rcout << "hess " << num_threads << " threads\n";
     }
     // Sparse Hessian (parallelized over columns)
     Rcpp::NumericVector Hvalue(hesMax);
