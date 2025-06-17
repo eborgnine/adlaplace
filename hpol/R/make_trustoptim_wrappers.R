@@ -26,9 +26,22 @@ make_trustoptim_wrappers <- function(data,
   }
   hs_wrapper <- function(x, ...) {
     result = get_result(x,  maxDeriv=2)$hessian
-    as(
-      as(result, 'CsparseMatrix'), 
-      'generalMatrix')
+ 
+    if(is.null(cache_env$hessian)) {
+      hessT= as(as(result, 'TsparseMatrix'),'generalMatrix')
+      # fancy stuff to force matrix to be integers
+      cache_env$hessian = cbind(
+        i = as.integer(hessT@i), 
+        j = as.integer(hessT@j), 
+        idx = as.integer(hessT@i + hessT@Dim[1] * hessT@j))
+
+    } 
+    as(as(Matrix::sparseMatrix(
+        i = cache_env$hessian[,'i'],
+        j = cache_env$hessian[,'j'],
+        x = result[cache_env$hessian[,'idx']+1],
+        index1 = FALSE), 
+      'CsparseMatrix'), 'generalMatrix')
   }
   list(fn = fn_wrapper, gr = gr_wrapper, hs = hs_wrapper)
 }

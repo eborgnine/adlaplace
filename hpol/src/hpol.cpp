@@ -471,7 +471,9 @@ Rcpp::List objectiveFunctionC(
       }
     }
     // CppAD/omp cleanup
-
+   if (verbose ) { 
+      Rcpp::Rcout << "hessian " << hindex << " entries" << std::endl;
+    }
 
     CppAD::thread_alloc::parallel_setup(1, nullptr, nullptr);
     CppAD::thread_alloc::hold_memory(false);
