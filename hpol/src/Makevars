@@ -6,8 +6,8 @@ UNAME_S := $(shell uname -s)
 
 ifeq ($(UNAME_S),Darwin)
     # macOS with Homebrew GCC
-    CXX = /opt/homebrew/bin/g++-15
-    CC  = /opt/homebrew/bin/gcc-15
+    CXX = /opt/homebrew/opt/llvm/bin/clang++
+    CC  = /opt/homebrew/opt/llvm/bin/clang
     OMPINC = -I/opt/homebrew/opt/libomp/include -I/opt/homebrew/include
     OMPLIB = -L/opt/homebrew/opt/libomp/lib -lomp
     # If CppAD is installed with Homebrew:

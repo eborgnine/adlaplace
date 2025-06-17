@@ -411,6 +411,8 @@ Rcpp::List objectiveFunctionC(
     if (verbose ) {
       Rcpp::Rcout << "hess " << num_threads << " threads\n";
     }
+
+
     // Sparse Hessian (parallelized over columns)
     Rcpp::NumericVector Hvalue(hesMax);
     Rcpp::IntegerVector Hrow(hesMax), Hcol(hesMax);
@@ -426,6 +428,9 @@ Rcpp::List objectiveFunctionC(
       double eps = 1e-9;
     int hindex = 0;
 
+// TO DO: https://cppad.readthedocs.io/latest/sparse_hessian.html
+    // keep sparsity pattern, get pairs of row, col, divide into equal parts
+
     #pragma omp parallel
     {    
 
@@ -439,7 +444,7 @@ Rcpp::List objectiveFunctionC(
       std::vector<double> u(Nparams, 0.0);
       std::vector<double> w(1, 1.0);
 
-      for (int j = tid; j < NparamsI; j += nthreads_thread) {
+       for (int j = tid; j < NparamsI; j += nthreads_thread) {
         std::fill(u.begin(), u.end(), 0.0);
         u[j] = 1.0;
         fun_threads[tid].Forward(0, x_val);
@@ -457,6 +462,7 @@ Rcpp::List objectiveFunctionC(
           }
         }
       }
+
 
         #pragma omp critical
       {
