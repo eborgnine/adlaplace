@@ -13,7 +13,6 @@ make_trustoptim_wrappers <- function(data,
       result <- obj_fn(x, cache_env$data, 
         c(cache_env$config1, list(maxDeriv = unname(maxDeriv))))
 
-      if(debug) saveRDS(c(result, list(x=x)), file=cache_env$debugfile)  
 
       return(result)
   }
@@ -26,7 +25,8 @@ make_trustoptim_wrappers <- function(data,
   }
   hs_wrapper <- function(x, ...) {
     result = get_result(x,  maxDeriv=2)$hessian
- 
+    if(debug) saveRDS(c(result, list(x=x)), file=cache_env$debugfile)  
+
     if(is.null(cache_env$hessian)) {
       hessT= as(as(result, 'TsparseMatrix'),'generalMatrix')
       # fancy stuff to force matrix to be integers

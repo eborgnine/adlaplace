@@ -81,15 +81,11 @@ dataMedSimple =
 
 
 
-```{r fit, include=FALSE}
+```{r fit}
 # R CMD INSTALL --clean --preclean hpoltest_0.0.1.tar.gz   --configure-args="--enable-openmp" --configure-vars="PKG_CPPFLAGS='-fopenmp' PKG_LIBS='-fopenmp'"
 # devtools::install_github("samperochkin/hpoltest")
 # ulimit -s unlimited 
 
-
-#Sys.setenv(OMP_NUM_THREADS = 1)
-#TMB::openmp(as.integer(Sys.getenv("OMP_NUM_THREADS")), DLL='hpoltest')
-#system("ulimit -s")
 
 library('hpolcc')
 
@@ -98,7 +94,7 @@ fitD <- hpolcc::hnlm(
     f(tempClean, model='hiwp',ref_value = 20, p=3, 
     knots = seq(0, 45, by=2.5), 
     group_var = ecoRegion), 
-  data=dataMedSimple[dataMedSimple$ecoRegion < 7,],
+  data=dataMedSimple,#[dataMedSimple$ecoRegion < 7,],
   dirichelet=TRUE,
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
   for_dev=TRUE, verbose=FALSE
@@ -138,7 +134,7 @@ wrappers <- hpolcc::make_trustoptim_wrappers(
   data=fitD$tmb_data,
   config=list(verbose=FALSE, transform_theta = TRUE, 
     dirichelet = TRUE, num_threads = fitD$config$num_threads),
-  debug=TRUE
+  debug=FALSE
 )
 
 
@@ -154,11 +150,15 @@ result <- trust.optim(
   hs = wrappers$hs,
   method = "Sparse",
   control = list(
-    start.trust.radius = 50, maxit=10, trust.iter = 50,
+    start.trust.radius = 50, maxit=500, trust.iter = 5000,
     preconditioner=1, report.level=4, report.freq=1)
 )
 
+saveRDS(result, file='result.rds')
+```
 
+
+```{r theResults}
 result$parameters = hpolcc::formatParameters(
   result$solution, fitD, TRUE)
 
@@ -206,15 +206,11 @@ matplot(theX[theOrder], simSum[theOrder,], type='l',
   ylim = c(-1,1)*1e5)
 
 
-
-
-
-
 ```
 
 
 
-```{r otherstuff22}
+```{r otherstuff22, eval=FALSE}
 
 Sstart = 1:(nrow(fitD$tmb_data$XTp)+1)
 Send = seq(to = length(fitD$start_parameters), by=1, 
@@ -270,7 +266,7 @@ theHessAgain = numDeriv::hessian(resFun, fitD$start_parameters)
 
 ```
 
-```{r originalPackage}
+```{r originalPackage, eval=FALSE}
 # using the hpoltest original package (and TMB)
 
 fitM <- hnlm(
@@ -285,7 +281,7 @@ fitM <- hnlm(
   inner.control = list(maxit = 500), for_dev=FALSE)
 ```
 
-```{r plotFit2, fig.height=4, fig.width=4}
+```{r plotFit2, fig.height=4, fig.width=4, eval=FALSE}
 simTemp =  hpoltest:::condSim(fitD, 'tempClean') 
 
 theYlim = c(0.2, 5) #exp(quantile(simTemp$y[,'GLOBAL', ], c(0.01, 0.99)))
@@ -299,7 +295,7 @@ lines(simTemp$x, exp(apply(simTemp$y[,D, ], 1, mean)), col='red')
 }
 ```
 
-```{r plotDate}
+```{r plotDate, eval=FALSE}
 simDate = hpoltest:::condSim(fitD, 'date') 
 
 matplot(as.Date(simDate$x), t(apply(simDate$y, 1, quantile, c(0.025, 0.975, 0.5))), col=c('grey','grey','black'), cex=0.3, pch=16,
@@ -308,7 +304,7 @@ matplot(as.Date(simDate$x), t(apply(simDate$y, 1, quantile, c(0.025, 0.975, 0.5)
 ```
 
 
-```{r debug}
+```{r debug, eval=FALSE}
 
 xx = fitD$obj$env$last.par.best
 xx = xx[grep("gamma", names(xx))]
