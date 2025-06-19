@@ -127,11 +127,12 @@ str(res)
 
 fitD$config$sparsity = list(
   i = res$hessian@i,
-  j = res$hessian@j,
-  p = c(0, cumsum(tabulate(
-      factor(res$hessian@j, levels = seq(0, ncol(res$hessian)-1))
-    )))
+  j = res$hessian@j
+#  p = c(0, cumsum(tabulate(
+#      factor(res$hessian@j, levels = seq(0, ncol(res$hessian)-1))
+#    )))
   )
+fitD$config$num_threads =1  
 res2 = hpolcc:::objectiveFunctionC(
   start_val, 
   fitD$tmb_data, fitD$config)
@@ -141,18 +142,30 @@ res$hessian[1:5,1:5]
 res2$hessian[1:5,1:5]
 
 
-fitD$config = list(
-  beta = start_val[1:2], 
-  theta = start_val[seq(to=length(start_val), len=5)])
-startValGamma= start_val[seq(3, length(start_val)-5)]
+fitD$configRandom = c(
+  fitD$config, list(
+    beta = start_val[1:2], 
+    theta = start_val[seq(to=length(start_val), len=5)])
+  )
+
+gammaSeq = seq(3, length(start_val)-5)
+startValGamma= start_val[gammaSeq]
+
+hessianSub = res$hessian[gammaSeq, gammaSeq]
+fitD$configRandom$sparsity = list(
+  i = hessianSub@i, j=hessianSub@j)
+
+
+
 res3 = hpolcc:::objectiveFunctionC(
   startValGamma, 
   fitD$tmb_data, 
-  fitD$config[setdiff(names(fitD$config), 'sparsity')]
+  fitD$configRandom
   )
 
+res$hessian[2+1:4,2+1:4]
+res3$hessian[1:4,1:4]
 
-res$hessian[1:4,1:4]
 }
 
 wrappers <- hpolcc::make_trustoptim_wrappers(
