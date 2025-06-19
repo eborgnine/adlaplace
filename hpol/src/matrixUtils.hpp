@@ -2,7 +2,8 @@ Rcpp::S4 make_dgTMatrix(
   const Rcpp::NumericVector& x,
   const Rcpp::IntegerVector& i,
   const Rcpp::IntegerVector& j,
-  size_t N, size_t maxEntries);
+  size_t N, size_t maxEntries,
+  bool isLower);
 
 
 Rcpp::IntegerVector  compute_p_vector(

@@ -387,38 +387,55 @@ Rcpp::List objectiveFunctionC(
       Rcpp::Rcout << "hess " << num_threads << " threads\n";
     }
 
-    Rcpp::IntegerVector Hrow, Hcol;
-    bool haveSparsity;
     CppAD::vector< std::set<size_t> >  sparsity(Nparams);
+    int Nlower = 0;
+    Rcpp::IntegerVector HrowR, HcolR;
+    bool haveSparsity;
 
     if (config.containsElementNamed("sparsity")) {
       if (verbose ) {
         Rcpp::Rcout << "given sparsity pattern\n";
       }      
       haveSparsity=TRUE;
+
       Rcpp::List sparsityR = config["sparsity"];
-      Hrow = sparsityR["i"];
-      Hcol = sparsityR["j"];
-      auto Hp = compute_p_vector(Hcol, Nparams);//sparsityR["p"];
+      HrowR = sparsityR["i"]; 
+      HcolR = sparsityR["j"];
+
+      auto Hp = compute_p_vector(HcolR, Nparams); 
 // Loop over columns (variables)
       for (size_t col = 0; col < Nparams; ++col) {
         for (int idx = Hp[col]; idx < Hp[col + 1]; ++idx) {
-          size_t row = Hrow[idx];
+          size_t row = HrowR[idx];
           sparsity[col].insert(row);
         // For symmetric sparsity (Hessian), also do:
           sparsity[row].insert(col);
         }
       }
+
+      for (int D = 0; D < HrowR.size(); D++) {
+        if (HrowR[D] >= HcolR[D]) Nlower++;
+      }
     } else {
-#ifdef DEBUG
-      Rcpp::Rcout << "no sparsity pattern\n";
-#endif      
-      Hrow = Rcpp::IntegerVector(hesMax);
-      Hcol = Rcpp::IntegerVector(hesMax);
-      haveSparsity=FALSE;
+      haveSparsity = FALSE;
+      Nlower = hesMax;
     }
 
-    Rcpp::NumericVector Hvalue(Hrow.size());
+    // objects to store hessian
+    Rcpp::IntegerVector HrowL(Nlower), HcolL(Nlower); // for lower triangle (if sparse)
+    Rcpp::NumericVector Hvalue(Nlower);
+
+    if(haveSparsity) {
+      int Dentry = 0;
+      // extract lower triangle
+      for(int D = 0; D<HrowR.size(); D++){
+        if(HrowR[D] >= HcolR[D]) {
+          HrowL[Dentry] = HrowR[D];
+          HcolL[Dentry] = HcolR[D];
+          Dentry++;
+        }
+      }
+    }
 
     
     omp_set_num_threads(num_threads);
@@ -430,7 +447,7 @@ Rcpp::List objectiveFunctionC(
     for (int i = 0; i < num_threads; ++i) fun_threads[i] = fun;
 
       const double eps = 1e-9;
-    int hindex = 0;
+      int hindex = 0;
 
 // TO DO: https://cppad.readthedocs.io/latest/sparse_hessian.html
     // https://cppad.readthedocs.io/latest/RevSparseHes.html
@@ -446,10 +463,10 @@ Rcpp::List objectiveFunctionC(
       std::vector<double> w(1, 1.0);
       std::vector<double> thread_Hvalue;
       std::vector<int> thread_Hrow, thread_Hcol;
-        int NperThread = Hvalue.size() / nthreads_thread;
-        if(NperThread * nthreads_thread < Hvalue.size()) {
-          NperThread += 1;
-        }
+      int NperThread = Hvalue.size() / nthreads_thread;
+      if(NperThread * nthreads_thread < Hvalue.size()) {
+        NperThread += 1;
+      }
 
       // 
       if(haveSparsity){
@@ -458,14 +475,12 @@ Rcpp::List objectiveFunctionC(
         if(Hend > Hvalue.size()) Hend = Hvalue.size();
         hindex_thread = Hend - Hstart;
 
-
-
         CppAD::sparse_hessian_work work; 
 
         thread_Hrow = std::vector<int>(
-          Hrow.begin() + Hstart, Hrow.begin() + Hend);
+          HrowL.begin() + Hstart, HrowL.begin() + Hend);
         thread_Hcol = std::vector<int>(
-          Hcol.begin() + Hstart, Hcol.begin() + Hend);
+          HcolL.begin() + Hstart, HcolL.begin() + Hend);
         thread_Hvalue.resize(hindex_thread);
    
 #ifdef DEBUG
@@ -509,8 +524,8 @@ Rcpp::List objectiveFunctionC(
       int out_start = haveSparsity ? Hstart : hindex;
       for (int k = 0; k < hindex_thread; ++k) {
         if(!haveSparsity) {
-          Hrow[out_start + k] = thread_Hrow[k];
-          Hcol[out_start + k] = thread_Hcol[k];
+          HrowL[out_start + k] = thread_Hrow[k];
+          HcolL[out_start + k] = thread_Hcol[k];
         }
         Hvalue[out_start + k] = thread_Hvalue[k];
       }
@@ -527,7 +542,9 @@ Rcpp::List objectiveFunctionC(
     CppAD::thread_alloc::free_available(i);
   CppAD::thread_alloc::free_available(0);
 
-  Rcpp::S4 hessianR = make_dgTMatrix(Hvalue, Hrow, Hcol, Nparams, hindex);
+  Rcpp::S4 hessianR = make_dgTMatrix(
+    Hvalue, HrowL, HcolL, 
+    Nparams, hindex, haveSparsity); // lower if have sparsity
   result["hessian"] = hessianR;
 
 
@@ -535,13 +552,6 @@ Rcpp::List objectiveFunctionC(
     Rcpp::Rcout << " done." << std::endl;
   }
 
-  if(verbose) {
-    result["hess2"] = Rcpp::List::create(
-      Rcpp::Named("x") = Hvalue, Rcpp::Named("i") = Hrow, Rcpp::Named("j") = Hcol,
-      Rcpp::Named("nonzeros") = hindex
-      );
-
-  }
 
   return result;
 }
