@@ -94,7 +94,7 @@ fitD <- hpolcc::hnlm(
     f(tempClean, model='hiwp',ref_value = 20, p=3, 
     knots = seq(0, 45, by=2.5), 
     group_var = ecoRegion), 
-  data=dataMedSimple,#[dataMedSimple$ecoRegion < 7,],
+  data=dataMedSimple[dataMedSimple$ecoRegion < 7,],
   dirichelet=TRUE,
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
   for_dev=TRUE, verbose=FALSE
@@ -125,7 +125,32 @@ res = hpolcc:::objectiveFunctionC(
   fitD$tmb_data, fitD$config)
 str(res)
 
-sum(unlist(lapply(res$sparsity, length)))
+fitD$config$sparsity = list(
+  i = res$hessian@i,
+  j = res$hessian@j,
+  p = c(0, cumsum(tabulate(
+      factor(res$hessian@j, levels = seq(0, ncol(res$hessian)-1))
+    )))
+  )
+res2 = hpolcc:::objectiveFunctionC(
+  start_val, 
+  fitD$tmb_data, fitD$config)
+str(res2)
+
+res$hessian[1:5,1:5]
+res2$hessian[1:5,1:5]
+
+
+fitD$config = list(
+  beta = start_val[1:2], 
+  theta = start_val[seq(to=length(start_val), len=5)])
+startValGamma= start_val[seq(3, length(start_val)-5)]
+res3 = hpolcc:::objectiveFunctionC(
+  startValGamma, 
+  fitD$tmb_data, 
+  fitD$config[setdiff(names(fitD$config), 'sparsity')]
+  )
+
 
 res$hessian[1:4,1:4]
 }
