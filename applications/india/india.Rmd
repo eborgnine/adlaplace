@@ -138,6 +138,8 @@ fitD$config$sparsity = data.frame(
 #      factor(res$hessian@j, levels = seq(0, ncol(res$hessian)-1))
 #    )))
   )
+fitD$config$sparsity = fitD$config$sparsity[
+  order(fitD$config$sparsity$j, fitD$config$sparsity$j), ]  
 
 res2 = hpolcc:::objectiveFunctionC(
   start_val, 
