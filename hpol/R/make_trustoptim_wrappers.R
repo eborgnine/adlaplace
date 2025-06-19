@@ -27,21 +27,16 @@ make_trustoptim_wrappers <- function(data,
     result = get_result(x,  maxDeriv=2)$hessian
     if(debug) saveRDS(c(result, list(x=x)), file=cache_env$debugfile)  
 
-    if(is.null(cache_env$hessian)) {
-      hessT= as(as(result, 'TsparseMatrix'),'generalMatrix')
-      # fancy stuff to force matrix to be integers
-      cache_env$hessian = cbind(
-        i = as.integer(hessT@i), 
-        j = as.integer(hessT@j), 
-        idx = as.integer(hessT@i + hessT@Dim[1] * hessT@j))
+    if(is.null(cache_env$config1$sparsity)) {
+      # save the sparsity pattern
+      hess2 = as(as(result, 'TsparseMatrix'), 'generalMatrix')
+      config1$sparsity = data.frame(
+        i=result@i, j=result@j
+      )
+    }
 
-    } 
-    as(as(Matrix::sparseMatrix(
-        i = cache_env$hessian[,'i'],
-        j = cache_env$hessian[,'j'],
-        x = result[cache_env$hessian[,'idx']+1],
-        index1 = FALSE), 
-      'CsparseMatrix'), 'generalMatrix')
+    as(as(result, 'CsparseMatrix'),'generalMatrix')
+
   }
   list(fn = fn_wrapper, gr = gr_wrapper, hs = hs_wrapper)
 }
