@@ -5,5 +5,5 @@ Rcpp::S4 make_dgTMatrix(
   size_t N, size_t maxEntries);
 
 
-std::vector<int> compute_p_vector(
-  const std::vector<int>& j, int ncol);
+Rcpp::IntegerVector  compute_p_vector(
+  const Rcpp::IntegerVector & j, int ncol);

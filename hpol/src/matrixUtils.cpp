@@ -1,8 +1,10 @@
 #include <Rcpp.h>
 #include <vector>
-#include <numeric>  // for std::partial_sum
 
-std::vector<int> compute_p_vector(const std::vector<int>& j, int ncol) {
+
+Rcpp::IntegerVector compute_p_vector(
+    const Rcpp::IntegerVector& j, 
+    int ncol) {
     // Step 1: Count nonzeros per column
     std::vector<int> counts(ncol, 0);
     for (size_t k = 0; k < j.size(); ++k) {
@@ -10,11 +12,15 @@ std::vector<int> compute_p_vector(const std::vector<int>& j, int ncol) {
         counts[j[k]]++;
     }
 
-    // Step 2: Cumulative sum (CSC pointer)
-    std::vector<int> p(ncol + 1, 0);
-    std::partial_sum(counts.begin(), counts.end(), p.begin() + 1);
+    // Step 2: Cumulative sum (CSC pointer)   
+    Rcpp::IntegerVector p(ncol + 1);
+    p[0] = 0;
+    for (int c = 0; c < ncol; ++c) {
+        p[c + 1] = p[c] + counts[c];
+    }
+//    return p;std::vector<int> p(ncol + 1, 0);
+//    std::partial_sum(counts.begin(), counts.end(), p.begin() + 1);
 
-    // p[0] = 0, p[ncol] = total nnz
     return p;
 }
 

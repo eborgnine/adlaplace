@@ -125,10 +125,13 @@ start_val <- c(
 if(FALSE) {
 res = hpolcc:::objectiveFunctionC(
   start_val, 
-  fitD$tmb_data, fitD$config)
+  fitD$tmb_data, 
+  fitD$config[
+    setdiff(names(fitD$config), 'sparsity')
+    ])
 str(res)
 
-fitD$config$sparsity = list(
+fitD$config$sparsity = data.frame(
   i = res$hessian@i,
   j = res$hessian@j
 #  p = c(0, cumsum(tabulate(
@@ -155,8 +158,11 @@ gammaSeq = seq(3, length(start_val)-5)
 startValGamma= start_val[gammaSeq]
 
 hessianSub = res$hessian[gammaSeq, gammaSeq]
-fitD$configRandom$sparsity = list(
-  i = hessianSub@i, j=hessianSub@j)
+fitD$configRandom$sparsity = 
+  fitD$config$sparsity[
+    fitD$config$sparsity$i %in% gammaSeq & 
+    fitD$config$sparsity$j %in% gammaSeq ,
+  ]
 
 
 

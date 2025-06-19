@@ -399,8 +399,7 @@ Rcpp::List objectiveFunctionC(
       Rcpp::List sparsityR = config["sparsity"];
       Hrow = sparsityR["i"];
       Hcol = sparsityR["j"];
-      std::vector<int> Hcol_std(Hcol.begin(), Hcol.end());
-      auto Hp = compute_p_vector(Hcol_std, Nparams);//sparsityR["p"];
+      auto Hp = compute_p_vector(Hcol, Nparams);//sparsityR["p"];
 // Loop over columns (variables)
       for (size_t col = 0; col < Nparams; ++col) {
         for (int idx = Hp[col]; idx < Hp[col + 1]; ++idx) {
