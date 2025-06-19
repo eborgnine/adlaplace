@@ -30,9 +30,11 @@ make_trustoptim_wrappers <- function(data,
     if(is.null(cache_env$config1$sparsity)) {
       # save the sparsity pattern
       hess2 = as(as(result, 'TsparseMatrix'), 'generalMatrix')
-      config1$sparsity = data.frame(
+      sparsity = data.frame(
         i=result@i, j=result@j
       )
+      reordered = order( sparsity$j,  sparsity$i)
+      config1$sparsity = sparsity[reordered,]
     }
 
     as(as(result, 'CsparseMatrix'),'generalMatrix')

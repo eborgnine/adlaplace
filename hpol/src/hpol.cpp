@@ -1,6 +1,6 @@
 #include"hpol.hpp"
 
-//#define DEBUG
+#define DEBUG
 
 #include<omp.h>
 //#include <vector>
