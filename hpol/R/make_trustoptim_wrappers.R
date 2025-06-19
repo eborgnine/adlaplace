@@ -34,7 +34,7 @@ make_trustoptim_wrappers <- function(data,
         i=result@i, j=result@j
       )
       reordered = order( sparsity$j,  sparsity$i)
-      config1$sparsity = sparsity[reordered,]
+      cache_env$config1$sparsity = sparsity[reordered,]
     }
 
     as(as(result, 'CsparseMatrix'),'generalMatrix')
