@@ -45,9 +45,10 @@ extern atomic_lgamma_ad lgamma_ad_atomic;
 template<class Type>
 Type lgamma_ad(Type x);
 
-// Explicit instantiation for common types
-//extern template double  lgamma_ad<double>(double);
-extern template CppAD::AD<double>  lgamma_ad<CppAD::AD<double>>(CppAD::AD<double>);
+
+// Template function declaration: works for double, AD<double>, AD<AD<double>>, etc.
+template<class Type>
+Type lgamma_ad(Type x);
 
 
 #endif

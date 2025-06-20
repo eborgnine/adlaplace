@@ -37,8 +37,8 @@ public:
 // Declaration of the global atomic function instance
 extern atomic_logspace_add logspace_add_atomic;
 
+template <class Type>
+Type logspace_add_n(const CppAD::vector<Type>& x);
 
-// function declaration
-CppAD::AD<double> logspace_add_n(const CppAD::vector<CppAD::AD<double>>& x);
 
 #endif

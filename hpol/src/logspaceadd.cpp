@@ -211,11 +211,13 @@ bool atomic_logspace_add::reverse(
 atomic_logspace_add logspace_add_atomic("logspace_add_n");
 
 
-// function implementation
-CppAD::AD<double> logspace_add_n(const CppAD::vector<CppAD::AD<double>>& x){
-
-    CppAD::vector<CppAD::AD<double>> yout(1);
-
-    logspace_add_atomic(x, yout); // call the atomic instance
+template <class Type>
+Type logspace_add_n(const CppAD::vector<Type>& x) {
+    CppAD::vector<Type> yout(1);
+    logspace_add_atomic(x, yout);
     return yout[0];
 }
+
+// Explicit instantiation for AD<double> and AD<AD<double>> if you want:
+template CppAD::AD<double> logspace_add_n(const CppAD::vector<CppAD::AD<double>>&);
+
