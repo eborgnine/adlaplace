@@ -34,8 +34,12 @@ inline double lgamma_ad(double x) {
     return std::lgamma(x);
 }
 
-template<class T>
-inline CppAD::AD<T> lgamma_ad(CppAD::AD<T> x) {
-    return CppAD::AD<T>(lgamma_ad(Value(x)));
+// Overload for CppAD types
+template <class Type>
+inline Type lgamma_ad(const Type& x) {
+    // This will work for AD<double>, AD<AD<double>>, etc.
+    CppAD::vector<Type> X(1), Y(1);
+    X[0] = x;
+    lgamma_ad_atomic(X, Y);
+    return Y[0];
 }
-#endif
