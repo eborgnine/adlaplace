@@ -1,7 +1,3 @@
-
-
-
-
 #include <Rcpp.h>
 #include <cppad/cppad.hpp>
 
@@ -18,8 +14,12 @@
 #define LOGTWOPI 1.8378770664093454835606594728112352797227949472755668
 #define HALFLOGTWOPI 0.918938533204672741780329736405617639861397473637783
 
-
-
+template<class Type>
+CppAD::vector<Type> objectiveFunctionInternal(
+  CppAD::vector<Type> ad_params, 
+  Rcpp::List data, 
+  Rcpp::List config 
+);
 
 
 #endif

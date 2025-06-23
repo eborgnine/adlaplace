@@ -11,8 +11,8 @@ ifeq ($(UNAME_S),Darwin)
     OMPINC = -I/opt/homebrew/opt/libomp/include -I/opt/homebrew/include
     OMPLIB = -L/opt/homebrew/opt/libomp/lib -lomp
     # If CppAD is installed with Homebrew:
-#    CPPADINC = -I/opt/homebrew/include
-#    CPPADLIB = -L/opt/homebrew/lib -lcppad_lib
+    CPPADINC = -I/opt/homebrew/include
+    CPPADLIB = -L/opt/homebrew/lib -lcppad_lib
 else
 INTELC := $(shell which icpx 2>/dev/null)
 ifeq ($(INTELC),)

@@ -12,8 +12,9 @@ size_t thread_number() { return static_cast<size_t>(omp_get_thread_num()); }
 
 
 
-CppAD::vector<CppAD::AD<double>> objectiveFunctionInternal(
-  CppAD::vector<CppAD::AD<double>> ad_params, 
+template<class Type>
+CppAD::vector<Type>  objectiveFunctionInternal(
+  CppAD::vector<Type> ad_params, 
   Rcpp::List data, 
   Rcpp::List config 
   ) {
@@ -75,8 +76,8 @@ CppAD::vector<CppAD::AD<double>> objectiveFunctionInternal(
   const size_t Ntheta = unique_map.size() + dirichelet;
   size_t startGamma;
 
-  CppAD::vector<CppAD::AD<double>> beta(Nbeta), 
-  gamma(Ngamma), theta(Ntheta), logTheta(Ntheta);
+  CppAD::vector<Type> beta(Nbeta), 
+    gamma(Ngamma), theta(Ntheta), logTheta(Ntheta);
   
 
 #ifdef DEBUG
@@ -147,7 +148,7 @@ CppAD::vector<CppAD::AD<double>> objectiveFunctionInternal(
     gamma[D] = ad_params[startGamma+D];
   }
 
-  CppAD::vector<CppAD::AD<double>> eta(Neta, 0.0);
+  CppAD::vector<Type> eta(Neta, 0.0);
   
   for(size_t Deta=0; Deta < Neta; Deta++) {
     size_t endX = Xp[Deta+1];
@@ -165,12 +166,12 @@ CppAD::vector<CppAD::AD<double>> objectiveFunctionInternal(
   Rcpp::Rcout << "sum log etas\n";
 #endif
   // calculate log(sum(exp(eta_i))) within strata
-  CppAD::vector<CppAD::AD<double>> etaLogSum(Nstrata);
+  CppAD::vector<Type> etaLogSum(Nstrata);
 
   for (size_t i = 0; i < Nstrata; i++) {
     size_t startHere = CCp[i], Nhere = CCp[i+1];
     size_t NinStrata = Nhere - startHere;
-    CppAD::vector<CppAD::AD<double>> etaHere(NinStrata);
+    CppAD::vector<Type> etaHere(NinStrata);
 
     // loop through row i of CCmatrix
     // this is j=startHere
@@ -188,8 +189,8 @@ CppAD::vector<CppAD::AD<double>> objectiveFunctionInternal(
 #endif  
 
   // log(|Q|) + 0.5 * gamma^T Q gamma
-  CppAD::vector<CppAD::AD<double>> gammaScaled(Ngamma);
-  CppAD::AD<double> randomContributionDiag = 0.0; 
+  CppAD::vector<Type> gammaScaled(Ngamma);
+  Type randomContributionDiag = 0.0; 
   
   // diagonals
   for(size_t D=0;D<Ngamma;D++) {
@@ -206,7 +207,7 @@ CppAD::vector<CppAD::AD<double>> objectiveFunctionInternal(
   Rcpp::Rcout << "Q offdiag " << Nq << std::endl;
 #endif    
 
-  CppAD::AD<double> local_offdiagQ = 0.0;
+  Type local_offdiagQ = 0.0;
 
     // Q offdiag    
   for(size_t D = 0; D < Nq; D++) {
@@ -219,27 +220,25 @@ CppAD::vector<CppAD::AD<double>> objectiveFunctionInternal(
 #endif    
 
 // for data contribution
-  CppAD::AD<double> nu = theta[theta.size()-1];
-  CppAD::AD<double> logSqrtNu = logTheta[theta.size()-1]/ 2;
-  CppAD::AD<double> oneOverSqrtNu = exp(-logSqrtNu);
-  CppAD::AD<double> lgammaOneOverSqrtNu = lgamma_ad(oneOverSqrtNu);
-
-
+  Type nu = theta[theta.size()-1],
+    logSqrtNu = logTheta[theta.size()-1]/ 2,
+    oneOverSqrtNu = exp(-logSqrtNu),
+    lgammaOneOverSqrtNu = lgamma_ad(oneOverSqrtNu),
+    local_loglik = 0.0;
 
 
   // data contribution to loglik, loop through strata
-  CppAD::AD<double> local_loglik = 0.0;
   for (size_t i = 0; i < Nstrata; i++) {
 
-    CppAD::AD<double>  contrib = 0.0;
+    Type  contrib = 0.0;
     size_t startHere = CCp[i], Nhere = CCp[i+1];
     int sumY = 0;
 
     for(size_t j=startHere; j < Nhere; j++) {
       size_t idx = CCcol[j];
       sumY += y[idx];     
-      CppAD::AD<double> etaMinusLogSumMu = eta[idx] - etaLogSum[i];
-      CppAD::AD<double>  muBarDivSqrtNu = exp(etaMinusLogSumMu - logSqrtNu);
+      Type etaMinusLogSumMu = eta[idx] - etaLogSum[i];
+      Type  muBarDivSqrtNu = exp(etaMinusLogSumMu - logSqrtNu);
       if(dirichelet) {
         contrib += lgamma_ad(y[idx] + muBarDivSqrtNu) - 
           lgamma_ad(muBarDivSqrtNu);
@@ -269,7 +268,7 @@ CppAD::vector<CppAD::AD<double>> objectiveFunctionInternal(
   " diag " << randomContributionDiag << std::endl;
 #endif 
 
-  CppAD::vector<CppAD::AD<double>> minusLogDens(1,0);
+  CppAD::vector<Type> minusLogDens(1,0);
   minusLogDens[0] =
 //  etaLogSum[0]  + etaLogSum[1]
   - local_loglik + local_offdiagQ  + randomContributionDiag
