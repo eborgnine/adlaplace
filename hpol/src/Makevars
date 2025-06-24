@@ -1,49 +1,54 @@
-# Default: use system GCC
-CPPADLIB = /opt/homebrew/lib/libcppad_lib.a
-
-# Detect OS: Darwin = macOS, otherwise assume Linux
 UNAME_S := $(shell uname -s)
+UNAME_M := $(shell uname -m)
 
 ifeq ($(UNAME_S),Darwin)
-    # macOS with Homebrew GCC
-    CXX = /opt/homebrew/opt/llvm/bin/clang++
-    CC  = /opt/homebrew/opt/llvm/bin/clang
-    OMPINC = -I/opt/homebrew/opt/libomp/include -I/opt/homebrew/include
-    OMPLIB = -L/opt/homebrew/opt/libomp/lib -lomp
-    # If CppAD is installed with Homebrew:
-    CPPADINC = -I/opt/homebrew/include
-    CPPADLIB = -L/opt/homebrew/lib -lcppad_lib
+    HOMEBREW_PREFIX := $(shell brew --prefix)
+
+    # Use Homebrew LLVM and OpenMP
+    CXX = $(HOMEBREW_PREFIX)/opt/llvm/bin/clang++
+    CC  = $(HOMEBREW_PREFIX)/opt/llvm/bin/clang
+
+    OPENMP_FLAG = -fopenmp
+    OMPINC = -I$(HOMEBREW_PREFIX)/opt/libomp/include
+    OMPLIB = -L$(HOMEBREW_PREFIX)/opt/libomp/lib -lomp
+
+    CPPADINC = -I$(HOMEBREW_PREFIX)/include
+    CPPADLIB = -L$(HOMEBREW_PREFIX)/lib -lcppad_lib
+
+    # Add SDKROOT flags only for Intel macOS
+    ifeq ($(UNAME_M),x86_64)
+        SDKROOT := /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk
+        CXXFLAGS += -isysroot $(SDKROOT)
+        PKG_CPPFLAGS += -isysroot $(SDKROOT)
+    endif
 else
-INTELC := $(shell which icpx 2>/dev/null)
-ifeq ($(INTELC),)
-  # Not found, fallback
-else
-  CXX = icpx
-  CC  = icx
-endif
-    # Linux: system GCC, usually OpenMP built-in
+    # Assume Linux
+    INTELC := $(shell which icpx 2>/dev/null)
+    ifneq ($(INTELC),)
+        CXX = icpx
+        CC  = icx
+        OPENMP_FLAG = -qopenmp
+    else
+        OPENMP_FLAG = -fopenmp
+    endif
+
     OMPINC =
     OMPLIB =
     CPPADINC = -I/usr/include/cppad
     CPPADLIB = -lcppad_lib
 endif
 
-# Conditional OpenMP flag
-ifeq ($(shell $(CXX) --version 2>&1 | grep -Eci 'intel|icpx|oneapi|dpc\+\+|classic'),0)
-  OPENMP_FLAG = -fopenmp
-else
-  OPENMP_FLAG = -qopenmp
-endif
-
-
-# C++ flags
+# Compiler flags
 CXXFLAGS += $(OPENMP_FLAG) $(OMPINC)
 PKG_CPPFLAGS += $(CPPADINC)
 PKG_CXXFLAGS += $(OPENMP_FLAG) $(OMPINC)
 
-$(info CXX is $(CXX))
-$(info Using OpenMP flag: $(OPENMP_FLAG))
-
-
 # Linker flags
 PKG_LIBS += $(OPENMP_FLAG) $(OMPLIB) $(CPPADLIB)
+
+# Debug print
+$(info CXX is $(CXX))
+$(info Using OpenMP flag: $(OPENMP_FLAG))
+ifeq ($(UNAME_M),x86_64)
+    $(info Using SDKROOT: $(SDKROOT))
+endif
