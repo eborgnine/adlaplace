@@ -1,54 +1,72 @@
+## ----------  src/Makevars  ---------------------------------------------
+
 UNAME_S := $(shell uname -s)
 UNAME_M := $(shell uname -m)
 
+# -----------------------------------------------------------------------
+# === macOS with Homebrew LLVM & libomp =================================
+# -----------------------------------------------------------------------
 ifeq ($(UNAME_S),Darwin)
-    HOMEBREW_PREFIX := $(shell brew --prefix)
+    HB := $(shell brew --prefix)
 
-    # Use Homebrew LLVM and OpenMP
-    CXX = $(HOMEBREW_PREFIX)/opt/llvm/bin/clang++
-    CC  = $(HOMEBREW_PREFIX)/opt/llvm/bin/clang
+    CC   = $(HB)/opt/llvm/bin/clang
+    CXX  = $(HB)/opt/llvm/bin/clang++
 
-    OPENMP_FLAG = -fopenmp
-    OMPINC = -I$(HOMEBREW_PREFIX)/opt/libomp/include
-    OMPLIB = -L$(HOMEBREW_PREFIX)/opt/libomp/lib -lomp
+    # R already defines SHLIB_OPENMP_* = -fopenmp on this setup
+    OMPINC = -I$(HB)/opt/libomp/include
+    OMPLIB = -L$(HB)/opt/libomp/lib -lomp
 
-    CPPADINC = -I$(HOMEBREW_PREFIX)/include
-    CPPADLIB = -L$(HOMEBREW_PREFIX)/lib -lcppad_lib
+    CPPADINC = -I$(HB)/include
+    CPPADLIB = -L$(HB)/lib -lcppad_lib
 
-    # Add SDKROOT flags only for Intel macOS
+    # Only Intel-Mac needs an SDKROOT flag
     ifeq ($(UNAME_M),x86_64)
         SDKROOT := /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk
-        CXXFLAGS += -isysroot $(SDKROOT)
         PKG_CPPFLAGS += -isysroot $(SDKROOT)
-    endif
-else
-    # Assume Linux
-    INTELC := $(shell which icpx 2>/dev/null)
-    ifneq ($(INTELC),)
-        CXX = icpx
-        CC  = icx
-        OPENMP_FLAG = -qopenmp
-    else
-        OPENMP_FLAG = -fopenmp
+        CXXFLAGS     += -isysroot $(SDKROOT)
     endif
 
-    OMPINC =
-    OMPLIB =
+# -----------------------------------------------------------------------
+# === Linux: choose Intel oneAPI if icpx is present =====================
+# -----------------------------------------------------------------------
+else
+    ifneq ($(shell which icpx 2>/dev/null),)
+        CC  = icx
+        CXX = icpx
+        # oneAPI: R sets SHLIB_OPENMP_* = -qopenmp
+        # Add the explicit runtime lib to be safe
+        OMPLIB = -liomp5
+    else
+        # GCC / Clang on Linux
+        # SHLIB_OPENMP_* expands to -fopenmp here
+    endif
+
     CPPADINC = -I/usr/include/cppad
     CPPADLIB = -lcppad_lib
 endif
 
-# Compiler flags
-CXXFLAGS += $(OPENMP_FLAG) $(OMPINC)
-PKG_CPPFLAGS += $(CPPADINC)
-PKG_CXXFLAGS += $(OPENMP_FLAG) $(OMPINC)
+# ---------  Compiler & linker flags that work everywhere ---------------
+PKG_CPPFLAGS += $(CPPADINC) $(OMPINC)
+PKG_CFLAGS   += $(SHLIB_OPENMP_CFLAGS)
+PKG_CXXFLAGS += $(SHLIB_OPENMP_CXXFLAGS)
 
-# Linker flags
-PKG_LIBS += $(OPENMP_FLAG) $(OMPLIB) $(CPPADLIB)
+PKG_LIBS     += $(SHLIB_OPENMP_CXXFLAGS) $(OMPLIB) $(CPPADLIB)
 
-# Debug print
-$(info CXX is $(CXX))
-$(info Using OpenMP flag: $(OPENMP_FLAG))
-ifeq ($(UNAME_M),x86_64)
-    $(info Using SDKROOT: $(SDKROOT))
+# ---- If we are compiling with Intel oneAPI (icpx / icx) ------------- 
+ifeq ($(CXX),icpx)
+    # strip any -fopenmp that R added, then append -qopenmp
+    PKG_CFLAGS   := $(filter-out -fopenmp,$(PKG_CFLAGS))   -qopenmp
+    PKG_CXXFLAGS := $(filter-out -fopenmp,$(PKG_CXXFLAGS)) -qopenmp
+    PKG_LIBS     := $(filter-out -fopenmp,$(PKG_LIBS))     -qopenmp -liomp5
+endif
+
+# ---------------------  helpful build echo -----------------------------
+$(info  >> CC is        $(CC))
+$(info  >> CXX is       $(CXX))
+$(info  >> OpenMP flag  $(SHLIB_OPENMP_CXXFLAGS))
+ifneq ($(strip $(OMPLIB)),)
+  $(info >> Linking with  $(OMPLIB))
+endif
+ifneq ($(strip $(SDKROOT)),)
+  $(info >> SDKROOT      $(SDKROOT))
 endif
