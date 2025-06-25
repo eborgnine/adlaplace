@@ -6,11 +6,13 @@
 Rcpp::List test3(
   Rcpp::NumericVector X,
   Rcpp::NumericVector U,
+  Rcpp::NumericVector V,
   Rcpp::NumericVector W){
 
   std::vector<double> w = Rcpp::as<std::vector<double>>(W);
   std::vector<double> x = Rcpp::as<std::vector<double>>(X);
-  std::vector<double> direction = Rcpp::as<std::vector<double>>(U);
+  std::vector<double> direction1 = Rcpp::as<std::vector<double>>(U);
+  std::vector<double> direction2 = Rcpp::as<std::vector<double>>(V);
   int Nparams = X.size();
 
       Rcpp::Rcout << "Nparms" << Nparams << "\n";
@@ -37,7 +39,8 @@ Rcpp::List test3(
 
   y_val = fun.Forward(0, x);
           Rcpp::Rcout << "b3\n";
-  auto taylor2 = fun.Forward(1, direction);
+  auto taylor1 = fun.Forward(1, direction1);
+  auto taylor2 = fun.Forward(2, direction2);
         Rcpp::Rcout << "c\n";
 
 

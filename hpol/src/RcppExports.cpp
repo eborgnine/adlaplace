@@ -11,15 +11,16 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
 // test3
-Rcpp::List test3(Rcpp::NumericVector X, Rcpp::NumericVector U, Rcpp::NumericVector W);
-RcppExport SEXP _hpolcc_test3(SEXP XSEXP, SEXP USEXP, SEXP WSEXP) {
+Rcpp::List test3(Rcpp::NumericVector X, Rcpp::NumericVector U, Rcpp::NumericVector V, Rcpp::NumericVector W);
+RcppExport SEXP _hpolcc_test3(SEXP XSEXP, SEXP USEXP, SEXP VSEXP, SEXP WSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< Rcpp::NumericVector >::type X(XSEXP);
     Rcpp::traits::input_parameter< Rcpp::NumericVector >::type U(USEXP);
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type V(VSEXP);
     Rcpp::traits::input_parameter< Rcpp::NumericVector >::type W(WSEXP);
-    rcpp_result_gen = Rcpp::wrap(test3(X, U, W));
+    rcpp_result_gen = Rcpp::wrap(test3(X, U, V, W));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -110,7 +111,7 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_hpolcc_test3", (DL_FUNC) &_hpolcc_test3, 3},
+    {"_hpolcc_test3", (DL_FUNC) &_hpolcc_test3, 4},
     {"_hpolcc_derivForLaplace", (DL_FUNC) &_hpolcc_derivForLaplace, 3},
     {"_hpolcc_objectiveFunctionC", (DL_FUNC) &_hpolcc_objectiveFunctionC, 3},
     {"_hpolcc_lgamma_forward_deriv", (DL_FUNC) &_hpolcc_lgamma_forward_deriv, 2},
