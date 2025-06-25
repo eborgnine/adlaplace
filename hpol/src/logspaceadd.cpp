@@ -91,6 +91,7 @@ bool atomic_logspace_add::forward(
     } // order 2
    
     if (order_up >= 3) {
+              Rcpp::Rcout << "logspaceadd forward 3 havent tested this\n";
           // We'll need y1 for the higher orders
     double y1 = 0.0;
     std::vector<double> wi(n);
@@ -161,6 +162,7 @@ bool atomic_logspace_add::reverse(
     if(order_up >= 0) {
 
     for(size_t i = 0; i < n; ++i)
+        // ∂L/∂x0[i] += py[0] * ∂y0/∂x0[i] = py[0] * xDivSum[i]
         px[i*q] = py[0] * xDivSum[i];
     }
 
@@ -170,41 +172,87 @@ bool atomic_logspace_add::reverse(
     double S1div = 0.0, S1divS;
     if(order_up >= 1) {
         for(size_t i = 0; i < n; ++i) {
-            x1[i] = tx[i*q+1];
-            S1div += expDiff[i] * x1[i];
+            S1div += expDiff[i] * tx[i*q+1];
         }
         S1divS = S1div/(sum_exp+1);
         for(size_t i = 0; i < n; ++i) {
-            px[q*i] += py[1] * xDivSum[i] * (x1[i] - S1divS);
+            px[q*i] += py[1] * xDivSum[i] * (tx[i*q+1] - S1divS);
             px[q * i + 1] = py[1] * xDivSum[i];
         }
     }
 
     // not tested yet
     if(order_up >= 2) {
-        Rcpp::Rcout << "havent tested this\n";
-        double S = exp(logsumexp),  S2=0.0, S1divSsq = S1divS*S1divS; 
-         for(size_t i = 0; i < n; ++i) {
-            x2[i] = tx[i*q + 2];
-            S2 += expDiff[i] * x2[i];
+        for(size_t i=0; i<n; ++i) {
+            // x2 direction
+            px[i*q + 2] += py[2] * xDivSum[i];
+
+            // accumulate x1 part and x0 part
+            double contrib0 = 0.0;
+            double contrib1 = 0.0;
+            for(size_t j=0; j<n; ++j) {
+                double H_ij = xDivSum[i] * ((i==j ? 1.0 : 0.0) - xDivSum[j]);
+                // to x1[j]:
+                contrib1 += (H_ij + xDivSum[j]*((j==i?1.0:0.0)-xDivSum[i])) * tx[j*q + 1];
+                // to x0[i] via x2 term:
+                contrib0 += H_ij * tx[i*q + 2];
+                // to x0[j] via x1*x1 term:
+                contrib0 -= xDivSum[j]* (tx[j*q + 1]*tx[i*q + 1]);
+            }
+            // x1 part
+            px[i*q + 1] += py[2] * contrib1;
+            // x0 part
+            px[i*q + 0] += py[2] * contrib0;
         }
-        double logS2 = max_x + log(S2);
-        S2 = exp(logS2);
 
-        for(size_t i = 0; i < n; ++i) {
-            double vi = x2[i] - 2 * S1divS * x1[i] + 
-                2 *  S1divSsq - S2/S;
-            px[i*q + 2] = py[2] * xDivSum[i];
-            px[i*q + 0] += py[2] * xDivSum[i] * vi;
+    }
 
-            // The "mixed" second-order terms, which couple x1 for i,j
-            for (size_t j = 0; j < n; ++j) {
-                px[i*q + 0] += py[2] * xDivSum[i] *
-                    (x1[i] - S1divS) * (i==j ? 1 : 0) * x1[j];
-                px[i*q + 0] -= py[2] * xDivSum[i] * (x1[i] - S1divS) * xDivSum[j] * x1[j];
+//--- order 3 ---------------------------------------------------------------
+    if(order_up >= 3) {
+        // forward did:
+        //   y3 = sum_i w[i] * x3[i]
+        //      + 3 * sum_i w[i]*(x1[i]-μ1) * x2[i]
+        //      + sum_i w[i]*(x1[i]-μ1)^3
+        // where μ1 = sum_j w[j]*x1[j].
+        //
+        // reverse of that:
+        //  ∂L/∂x3[i] += py[3] * w[i]
+        //  ∂L/∂x2[i] += py[3] * 3 * w[i] * (x1[i] - μ1)
+        //  ∂L/∂x1[i] += py[3] * [3 * w[i] * x2[i] + 3 * w[i] * (x1[i] - μ1)^2]
+        //  ∂L/∂x0 via all w[i] dependencies — a bit messy, but you can
+        //    reuse the derivative of w wrt x0: ∂w[i]/∂x0[k] = H_{ik}.
+
+        // precompute μ1
+        double mu1 = 0.0;
+        for(size_t i=0; i<n; ++i) {
+            mu1 += xDivSum[i] * tx[i*q + 1];
+        }
+        for(size_t i=0; i<n; ++i) {
+            double dx1 = tx[i*q + 1] - mu1;
+            // x3 part
+            px[i*q + 3] += py[3] * xDivSum[i];
+            // x2 part
+            px[i*q + 2] += py[3] * 3.0 * xDivSum[i] * dx1;
+            // x1 part
+            px[i*q + 1] += py[3] * (3.0 * xDivSum[i] * tx[i*q + 2]
+                                   + 3.0 * xDivSum[i] * dx1 * dx1);
+
+            // now the contributions back to x0 via w[i] dependence
+            // ∂w[i]/∂x0[k] = w[i]*((i==k?1.0:0.0) - w[k])
+            for(size_t k=0; k<n; ++k) {
+                double dwi = xDivSum[i] * ((i==k?1.0:0.0) - xDivSum[k]);
+                double term = 0.0;
+                // from x3 term:
+                term += py[3] * tx[i*q + 3];
+                // from x2 term:
+                term += py[3] * 3.0 * dx1 * tx[i*q + 2];
+                // from x1^3 term:
+                term += py[3] * dx1 * dx1 * dx1;
+                px[k*q + 0] += dwi * term;
             }
         }
     }
+
     return true;
 }
 

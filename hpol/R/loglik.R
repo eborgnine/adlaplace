@@ -1,10 +1,7 @@
-library(hpolcc)
-library(trustOptim)
-library(Matrix)
 
 get_gamma_hat_and_derivative <- function(beta, theta, gamma_start, fitD) {
 
-  # Indices setup
+  # Indices setupfdsa
   Sbeta <- seq_along(beta)
   Stheta <- seq_along(theta) + length(beta)
   Sgamma <- seq_along(gamma_start) + length(beta) + length(theta)

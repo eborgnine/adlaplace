@@ -178,7 +178,23 @@ CppAD::vector<Type>  objectiveFunctionInternal(
     for(size_t j0=0, j=startHere; j < Nhere; j++,j0++) {
       etaHere[j0] = eta[CCcol[j]];
     }
+#ifdef USEATOMICS    
+    // use the atomic formula stuff with analytical derivatives
     etaLogSum[i] = logspace_add_n(etaHere);
+#else 
+    size_t max_idx = 0;
+    for(size_t Didx = 1; Didx < etaHere.size(); ++Didx) {
+      if(etaHere[Didx] > etaHere[max_idx]) {
+        max_idx = Didx;
+      }
+    }
+    double max_value = CppAD::Value(etaHere[max_idx]);
+    Type sumexp=0.0;
+    for(size_t j = 0; j < etaHere.size(); ++j) {
+      sumexp += exp(etaHere[j] - max_value);
+    }
+    etaLogSum[i] = max_value + log(sumexp);
+#endif    
   }
 
 
@@ -448,9 +464,6 @@ Rcpp::List objectiveFunctionC(
       const double eps = 1e-9;
       int hindex = 0;
 
-// TO DO: https://cppad.readthedocs.io/latest/sparse_hessian.html
-    // https://cppad.readthedocs.io/latest/RevSparseHes.html
-    // keep sparsity pattern, get pairs of row, col, divide into equal parts
 
     #pragma omp parallel
     {    

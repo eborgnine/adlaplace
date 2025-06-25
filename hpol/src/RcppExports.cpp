@@ -10,6 +10,19 @@ Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
 Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
+// derivForLaplace
+Rcpp::List derivForLaplace(Rcpp::NumericVector parameters, Rcpp::List data, Rcpp::List config);
+RcppExport SEXP _hpolcc_derivForLaplace(SEXP parametersSEXP, SEXP dataSEXP, SEXP configSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type parameters(parametersSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type data(dataSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type config(configSEXP);
+    rcpp_result_gen = Rcpp::wrap(derivForLaplace(parameters, data, config));
+    return rcpp_result_gen;
+END_RCPP
+}
 // objectiveFunctionC
 Rcpp::List objectiveFunctionC(Rcpp::NumericVector parameters, Rcpp::List data, Rcpp::List config);
 RcppExport SEXP _hpolcc_objectiveFunctionC(SEXP parametersSEXP, SEXP dataSEXP, SEXP configSEXP) {
@@ -84,6 +97,7 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
+    {"_hpolcc_derivForLaplace", (DL_FUNC) &_hpolcc_derivForLaplace, 3},
     {"_hpolcc_objectiveFunctionC", (DL_FUNC) &_hpolcc_objectiveFunctionC, 3},
     {"_hpolcc_lgamma_forward_deriv", (DL_FUNC) &_hpolcc_lgamma_forward_deriv, 2},
     {"_hpolcc_lgamma_reverse_deriv", (DL_FUNC) &_hpolcc_lgamma_reverse_deriv, 2},
