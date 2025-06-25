@@ -5,7 +5,9 @@
 Rcpp::List derivForLaplace(
   Rcpp::NumericVector parameters, // gamma, beta, theta
   Rcpp::List data, 
-  Rcpp::List config
+  Rcpp::List config,
+  Rcpp::NumericVector U,
+  Rcpp::NumericVector W
   ) {
 
 	int num_threads = 1;
@@ -54,8 +56,20 @@ Rcpp::List derivForLaplace(
   std::vector<CppAD::ADFun<double>> fun_threads(num_threads);
   for (int i = 0; i < num_threads; ++i) fun_threads[i] = fun;
 
- std::vector<double> w(3, 0.0); 
-  w[2] = 1.0;
+// std::vector<double> w(3, 0.0); 
+//  w[2] = 1.0;
+  std::vector<double> w = Rcpp::as<std::vector<double>>(W);
+  std::vector<double> direction = Rcpp::as<std::vector<double>>(U);
+
+  fun_threads[tid].Forward(1, direction);
+
+
+  // first col is gradient
+  auto taylor3 = fun_threads[tid].Reverse(3, w);
+
+}
+#ifdef UNDEF
+
 
   // gammaParamMat = expand.grid(seq(Nbeta, Ngamma), c(seq(0, Nbeta-1), seq(Nbeta+Ngamma, len=Ntheta)))
  // combinations of gammas and thetas to compute
@@ -150,3 +164,4 @@ return Rcpp::List::create(
   Rcpp::Named("gammaPramMat")  = gammaPramMat
   );
 }
+#endif
