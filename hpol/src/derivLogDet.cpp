@@ -16,13 +16,14 @@ Rcpp::List test3(
       Rcpp::Rcout << "Nparms" << Nparams << "\n";
 
   CppAD::vector<CppAD::AD<double>> ad_params(Nparams);  
-  for (size_t D = 0; D < Nparams; D++) {
+  for (size_t D = 0; D < 2; D++) {
     ad_params[D] = X[D];  // Initialize CppAD variables
   }
     CppAD::Independent(ad_params);  // Tell CppAD these are inputs for differentiation
 
   CppAD::vector<CppAD::AD<double>> y(1,0.0);
-  for (size_t D = 0; D < Nparams; D++) {
+  for (size_t D = 0; D < 2; //Nparams; 
+    D++) {
     y[0] += ad_params[D]*ad_params[D]*ad_params[D];
   }   
 
@@ -36,7 +37,7 @@ Rcpp::List test3(
 
   y_val = fun.Forward(0, x);
           Rcpp::Rcout << "b3\n";
-  fun.Forward(1, direction);
+  auto taylor2 = fun.Forward(1, direction);
         Rcpp::Rcout << "c\n";
 
 
@@ -44,12 +45,13 @@ Rcpp::List test3(
 
         Rcpp::Rcout << "d\n";
 
-  Rcpp::NumericVector result(taylor3.size());
-  for(size_t D =0; D<result.size();++D) result[D] = taylor3[D];
-        Rcpp::Rcout << "e\n";
+  Rcpp::NumericVector result(taylor3.size()), result2(taylor2.size());
+  for(size_t D=0;D<result.size();D++) result[D] = taylor3[D];
+  for(size_t  D=0;D<result2.size();D++) result2[D] = taylor2[D];
 
   return Rcpp::List::create(
-    Rcpp::Named("taylor3") = result
+    Rcpp::Named("taylor3") = result,
+    Rcpp::Named("taylor2") = result2
   );
 
 }
