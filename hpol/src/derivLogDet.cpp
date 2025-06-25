@@ -1,13 +1,64 @@
 #include"hpol.hpp"
 #include<omp.h>
 
+
+// [[Rcpp::export]]
+Rcpp::List test3(
+  Rcpp::NumericVector X,
+  Rcpp::NumericVector U,
+  Rcpp::NumericVector W){
+
+  std::vector<double> w = Rcpp::as<std::vector<double>>(W);
+  std::vector<double> x = Rcpp::as<std::vector<double>>(X);
+  std::vector<double> direction = Rcpp::as<std::vector<double>>(U);
+  int Nparams = X.size();
+
+      Rcpp::Rcout << "Nparms" << Nparams << "\n";
+
+  CppAD::vector<CppAD::AD<double>> ad_params(Nparams);  
+  for (size_t D = 0; D < Nparams; D++) {
+    ad_params[D] = X[D];  // Initialize CppAD variables
+  }
+    CppAD::Independent(ad_params);  // Tell CppAD these are inputs for differentiation
+
+  CppAD::vector<CppAD::AD<double>> y(1,0.0);
+  for (size_t D = 0; D < Nparams; D++) {
+    y[0] += ad_params[D]*ad_params[D]*ad_params[D];
+  }   
+
+  Rcpp::Rcout << "b\n";
+
+  CppAD::ADFun<double> fun(ad_params, y);
+        Rcpp::Rcout << "b1\n";
+
+  std::vector<double> y_val(1);
+  Rcpp::Rcout << "b2\n";
+
+  y_val = fun.Forward(0, x);
+          Rcpp::Rcout << "b3\n";
+  fun.Forward(1, direction);
+        Rcpp::Rcout << "c\n";
+
+
+  auto taylor3 = fun.Reverse(3, w);
+
+        Rcpp::Rcout << "d\n";
+
+  Rcpp::NumericVector result(taylor3.size());
+  for(size_t D =0; D<result.size();++D) result[D] = taylor3[D];
+        Rcpp::Rcout << "e\n";
+
+  return Rcpp::List::create(
+    Rcpp::Named("taylor3") = result
+  );
+
+}
+
 // [[Rcpp::export]]
 Rcpp::List derivForLaplace(
   Rcpp::NumericVector parameters, // gamma, beta, theta
   Rcpp::List data, 
-  Rcpp::List config,
-  Rcpp::NumericVector U,
-  Rcpp::NumericVector W
+  Rcpp::List config
   ) {
 
 	int num_threads = 1;
@@ -56,19 +107,9 @@ Rcpp::List derivForLaplace(
   std::vector<CppAD::ADFun<double>> fun_threads(num_threads);
   for (int i = 0; i < num_threads; ++i) fun_threads[i] = fun;
 
-// std::vector<double> w(3, 0.0); 
-//  w[2] = 1.0;
-  std::vector<double> w = Rcpp::as<std::vector<double>>(W);
-  std::vector<double> direction = Rcpp::as<std::vector<double>>(U);
+ std::vector<double> w(3, 0.0); 
+  w[2] = 1.0;
 
-  fun_threads[tid].Forward(1, direction);
-
-
-  // first col is gradient
-  auto taylor3 = fun_threads[tid].Reverse(3, w);
-
-}
-#ifdef UNDEF
 
 
   // gammaParamMat = expand.grid(seq(Nbeta, Ngamma), c(seq(0, Nbeta-1), seq(Nbeta+Ngamma, len=Ntheta)))
@@ -164,4 +205,3 @@ return Rcpp::List::create(
   Rcpp::Named("gammaPramMat")  = gammaPramMat
   );
 }
-#endif
