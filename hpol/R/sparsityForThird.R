@@ -50,13 +50,14 @@ parametersGammaBig$iInParams = parametersGammaBig$i + Nbeta
 
 # quantities needs to subtarct off T_ijk from taylor coefficients
 indexForDiag = as.matrix(data.table::melt(parametersGammaBig,
-  id.vars = 'gammaInParams', value.name = 'index',
-  measure.vars = c('paramInParams','iInParams'))[,c('gammaInParams','index')])
+  id.vars = 'iInParams', value.name = 'ii',
+  measure.vars = c('paramInParams','gammaInParams'))[, c('iInParams','ii')])
 storage.mode(indexForDiag) = 'integer'
 indexForDiag = indexForDiag[!duplicated(indexForDiag), ]
+# producing T_iik, columnns are i, rows are k
 indexForDiag = Matrix::sparseMatrix(
-  j=indexForDiag[,'gammaInParams'],
-  i=indexForDiag[,'index'],
+  i=indexForDiag[,'iInParams'],
+  j=indexForDiag[,'ii'],
   index1=FALSE, dims = dim(hessian)
   )
 
@@ -66,7 +67,8 @@ indexForDiag = Matrix::sparseMatrix(
     parametersGamma = as.data.frame(parametersGamma),
     sparsity = list(i = hessianRandom@i, p=hessianRandom@p),
     full = parametersGammaBig,
-    indexForDiag = list(i=indexForDiag@i, p=indexForDiag@p)
+    indexForDiag = list(i=indexForDiag@i, p=indexForDiag@p),
+    indexForDiagMat = indexForDiag
     ))
 }
 

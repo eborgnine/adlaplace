@@ -157,7 +157,7 @@ mapOptim <- trust.optim(
 )
 
 
-parametersGamma = hpolcc:::sparsityForThird(
+parametersGamma = sparsityForThird(
   hessian = environment(wrappers$fn)$cache_env$config1$sparsity, 
     data = fitD$tmb_data)
 
@@ -175,25 +175,25 @@ resThird = hpolcc:::derivForLaplace(
   ) 
 str(resThird)
 
+resThird$forDiag[1:150]
 
+# T_iik + T_jjk + 2 T_ijk + H_ik + H_jk
 parametersGamma$full$x = resThird$result
+# TO DO: subtract off T_iik, T_jjk, H_ik, H_jk
 
+# entry i,k is T_iik
 deriv3diag = Matrix::sparseMatrix(
   i=parametersGamma$indexForDiag$i,
   p = parametersGamma$indexForDiag$p,
-  x = resThird$forDiag,
+  x = resThird$forDiag, symmetric=FALSE,
   index1=FALSE, dims = rep(length(mapOptim$solution),2))
 
 deriv3diag[1:8,1:5]
-# doesn't look right
-
-theSplit = split(parametersGamma$full, parametersGamma$full$param)
-deriv3 = lapply(theSplit, function(xx) Matrix::sparseMatrix(
-  i = xx$i, j= xx$gamma, x=xx$x, index1=FALSE, symmetric=TRUE
-  ))
-str(deriv3[[1]])
 
 ```
+
+to do: loglik.R file
+
 
 
 ```{r theResults}

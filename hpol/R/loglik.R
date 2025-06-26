@@ -1,5 +1,11 @@
 
-get_gamma_hat_and_derivative <- function(beta, theta, gamma_start, fitD) {
+get_gamma_hat_and_derivative <- function(param, gamma_start, data, config) {
+
+# maximize wrt gamma
+  # ... and a few iterations of newton to get gradient close to zero?
+  # or ssq of deriv as objective?
+# get third deriv at max (pick out param-gamma bit of hessian from taylor 3?)
+# evaluate lik, deriv of lik  
 
   # Indices setupfdsa
   Sbeta <- seq_along(beta)
