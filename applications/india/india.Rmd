@@ -157,7 +157,7 @@ mapOptim <- trust.optim(
 )
 
 
-parametersGamma = sparsityForThird(
+parametersGamma = hpolcc:::sparsityForThird(
   hessian = environment(wrappers$fn)$cache_env$config1$sparsity, 
     data = fitD$tmb_data)
 
@@ -168,6 +168,7 @@ config = c(
       names(parametersGamma)
     )]
 )
+config$verbose=TRUE
 
 resThird = hpolcc:::derivForLaplace(
   mapOptim$solution, fitD$tmb_data, config
@@ -176,7 +177,15 @@ str(resThird)
 
 
 parametersGamma$full$x = resThird$result
-parametersGamma$indexForDiag$x = resThird$forDiag
+
+deriv3diag = Matrix::sparseMatrix(
+  i=parametersGamma$indexForDiag$i,
+  p = parametersGamma$indexForDiag$p,
+  x = resThird$forDiag,
+  index1=FALSE, dims = rep(length(mapOptim$solution),2))
+
+deriv3diag[1:8,1:5]
+# doesn't look right
 
 theSplit = split(parametersGamma$full, parametersGamma$full$param)
 deriv3 = lapply(theSplit, function(xx) Matrix::sparseMatrix(

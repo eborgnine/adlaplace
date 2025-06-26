@@ -159,7 +159,8 @@ Rcpp::List derivForLaplace(
   std::vector<double> direction(Nparams, 0.0);
   direction[DgammaInParams]  = 1.0;     
   direction[DbetaThetaInParams]  = 1.0;     
-  // do forward(0 again?
+
+//  fun_threads[tid].Forward(0, x_val);
   fun_threads[tid].Forward(1, direction);
   fun_threads[tid].Forward(2, direction);
 
@@ -174,6 +175,15 @@ Rcpp::List derivForLaplace(
     result[PinThirdHere+Dthird] = taylor3[3*Drow];
   }
  } // for
+} // parallel
+
+    if (verbose ) {
+      Rcpp::Rcout << "diag parts, " << num_threads << " threads\n";
+    }
+
+  #pragma omp parallel
+    {
+  const int tid=omp_get_thread_num();
 
   // diagonal entries to subtract off
     #pragma omp for
@@ -186,15 +196,16 @@ Rcpp::List derivForLaplace(
     std::vector<double> direction(Nparams, 0.0);
     direction[Ddiag]  = 1.0;     
 
+//  fun_threads[tid].Forward(0, x_val);
   fun_threads[tid].Forward(1, direction);
   fun_threads[tid].Forward(2, direction);
 
   auto taylor3 = fun_threads[tid].Reverse(3, w);
 
     for(int Dj=0; Dj<Nhere; Dj++){
-      const int indexHere = indexForDiagP[Ddiag+Dj];
+      const int indexHere = indexForDiagP[Ddiag]+Dj;
       forDiag[indexHere] = 
-        taylor3[indexForDiagI[indexHere]];
+        taylor3[3*indexForDiagI[indexHere]];
     }
 
  } // for
