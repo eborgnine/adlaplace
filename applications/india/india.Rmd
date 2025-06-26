@@ -2,6 +2,8 @@
 #devtools::install_github("samperochkin/hpoltest")
 ```
 
+
+
 on darjeeling
 ```{r loadpackage, eval=FALSE}
 
@@ -91,9 +93,9 @@ library('hpolcc')
 
 fitD <- hpolcc::hnlm(
   formula= medical ~ #f(date, model='iid') +
-    f(sqrtPm, model='hiwp', ref_value = 8, p=2, 
-      knots = seq(0,32, by=2),
-      group_var = ecoRegion) + 
+#    f(sqrtPm, model='hiwp', ref_value = 8, p=2, 
+#      knots = seq(0,32, by=2),
+#      group_var = ecoRegion) + 
     f(tempClean, model='hiwp',ref_value = 20, p=3, 
       knots = seq(0, 45, by=2.5), 
     group_var = ecoRegion), 
@@ -113,79 +115,23 @@ if(ps::ps_system_memory()$total > 5e10) {
   fitD$config$num_threads = 4
 }
 
+ 
 
 fitD$config$maxDeriv = 2
 start_val <- c(
-  c(0.02,  0.02, 0.02),
+  rep(0.1, nrow(fitD$tmb_data$XTp)),
   runif(nrow(fitD$tmb_data$ATp), -0.01, 0.01),   # gamma
-  c( -1.5, -10, -10,  -1.5, -10, -10, -10, -5) #  log sd
-  ) 
+  rep(-2, length(fitD$theta_info$name)) #  log sd
+  )
 
 
 if(FALSE) {
 res = hpolcc:::objectiveFunctionC(
   start_val, 
   fitD$tmb_data, 
-  fitD$config[
-    setdiff(names(fitD$config), 'sparsity')
-    ])
-str(res)
-
-fitD$config$sparsity = data.frame(
-  i = res$hessian@i,
-  j = res$hessian@j
-#  p = c(0, cumsum(tabulate(
-#      factor(res$hessian@j, levels = seq(0, ncol(res$hessian)-1))
-#    )))
-  )
-fitD$config$sparsity = fitD$config$sparsity[
-  order(fitD$config$sparsity$j, fitD$config$sparsity$j), ]  
-
-res2 = hpolcc:::objectiveFunctionC(
-  start_val, 
-  fitD$tmb_data, fitD$config)
-str(res2)
-
-quantile(res$hessian - res2$hessian)
-
-Sbeta = seq(1, nrow(fitD$tmb_data$XTp))
-Stheta = seq(to=length(start_val), len = length(fitD$theta_info$name))
-Sgamma = setdiff(1:length(start_val), c(Sbeta, Stheta))
-fitD$configRandom = c(
-  fitD$config, list(
-    beta = start_val[Sbeta], 
-    theta = start_val[Stheta])
-  )
-
-startValGamma= start_val[Sgamma]
-
-fitD$configRandom$sparsity = 
-  fitD$config$sparsity[
-    fitD$config$sparsity$i %in% Sgamma & 
-    fitD$config$sparsity$j %in% Sgamma ,
-  ] - (length(Sbeta)+1)
-
-
-
-res3 = hpolcc:::objectiveFunctionC(
-  startValGamma, 
-  fitD$tmb_data, 
-  fitD$configRandom[setdiff(names(fitD$configRandom), 'sparsity')]
-  )
-
-
-
-res4 = hpolcc:::objectiveFunctionC(
-  startValGamma, 
-  fitD$tmb_data, 
-  fitD$configRandom
-  )
-
-
-res$hessian[Sgamma, Sgamma][1:4,1:4]
-res3$hessian[1:4,1:4]
-
+  fitD$config)
 }
+
 
 wrappers <- hpolcc::make_trustoptim_wrappers(
   data=fitD$tmb_data,
@@ -194,23 +140,50 @@ wrappers <- hpolcc::make_trustoptim_wrappers(
   debug=FALSE
 )
 
+#wrappers$fn(start_val)
+#testH = wrappers$hs(start_val)
 
 library('trustOptim')
 
-result <- trust.optim(
+mapOptim <- trust.optim(
   x = start_val,
   fn = wrappers$fn,
   gr = wrappers$gr,
   hs = wrappers$hs,
   method = "Sparse",
   control = list(
-    start.trust.radius = 50, maxit=500, trust.iter = 5000,
+    start.trust.radius = 50, maxit=15, trust.iter = 5000,
     preconditioner=1, report.level=4, report.freq=1)
 )
 
-saveRDS(result, file='result.rds')
 
-exp(result$solution[seq(to=length(result$solution), len=5)])
+parametersGamma = sparsityForThird(
+  hessian = environment(wrappers$fn)$cache_env$config1$sparsity, 
+    data = fitD$tmb_data)
+
+config = c(
+  parametersGamma,
+  fitD$config[setdiff(
+      names(fitD$config), 
+      names(parametersGamma)
+    )]
+)
+
+resThird = hpolcc:::derivForLaplace(
+  mapOptim$solution, fitD$tmb_data, config
+  ) 
+str(resThird)
+
+
+parametersGamma$full$x = resThird$result
+parametersGamma$indexForDiag$x = resThird$forDiag
+
+theSplit = split(parametersGamma$full, parametersGamma$full$param)
+deriv3 = lapply(theSplit, function(xx) Matrix::sparseMatrix(
+  i = xx$i, j= xx$gamma, x=xx$x, index1=FALSE, symmetric=TRUE
+  ))
+str(deriv3[[1]])
+
 ```
 
 

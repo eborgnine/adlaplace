@@ -2,6 +2,8 @@
 #include <Rcpp.h>
 
 
+
+
 // Constructor implementation
 atomic_logspace_add::atomic_logspace_add(const std::string& name)
     : CppAD::atomic_four<double>(name) {}
