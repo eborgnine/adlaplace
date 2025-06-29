@@ -159,13 +159,14 @@ mapOptim <- trust.optim(
     preconditioner=1, report.level=4, report.freq=1)
 )
 
+
   Nbeta = nrow(fitD$tmb_data$XTp)
   Ngamma = nrow(fitD$tmb_data$ATp)
 
 
-parameters = c(mapOptim$solution[1:Nbeta], 
-  mapOptim$solution[-(1:(Nbeta+Ngamma))])
-gamma_start = rep(0, Ngamma)
+  parameters = c(mapOptim$solution[1:Nbeta], 
+    mapOptim$solution[-(1:(Nbeta+Ngamma))])
+  gamma_start = rep(0, Ngamma)
 
 # likelihood
 # parameters = (beta, theta)
@@ -174,10 +175,28 @@ res = loglik(parameters, gamma_start, data=fitD$tmb_data,
     config = fitD$config)
 
 cholVariance = solve(res$cholHessian)
-Nsim = 20
-gammaSim =  res$gamma_hat + cholVariance %*% matrix(
+
+Nsim = 200
+gammaSim =  res$gamma_hat + 
+  cholVariance %*% matrix(
   rnorm(Nsim*nrow(cholVariance)),
   nrow(cholVariance), Nsim)
+
+
+# only plot the global effects
+rowsToKeep = grep("temp.*global", rownames(fitD$tmb_data$ATp))
+
+Stemp = seq(0,41,by=0.5)
+SobsTemp = na.omit(match(Stemp, round(fitD$data$tempClean, 1)))
+
+matplot(
+  Stemp,
+  crossprod(
+    fitD$tmb_data$ATp[rowsToKeep, SobsTemp], 
+    gammaSim[rowsToKeep,]),
+  type='l', col='#00000020', lty=1, xaxs='i',
+  yaxs='i'
+)
 
 ```
 
