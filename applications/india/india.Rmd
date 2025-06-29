@@ -173,6 +173,12 @@ gamma_start = rep(0, Ngamma)
 res = loglik(parameters, gamma_start, data=fitD$tmb_data, 
     config = fitD$config)
 
+cholVariance = solve(res$cholHessian)
+Nsim = 20
+gammaSim =  res$gamma_hat + cholVariance %*% matrix(
+  rnorm(Nsim*nrow(cholVariance)),
+  nrow(cholVariance), Nsim)
+
 ```
 
 

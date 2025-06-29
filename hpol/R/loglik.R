@@ -49,8 +49,7 @@ loglik <- function(
     control = control
   )
 
-  result$cholHessian = Matrix::Cholesky(
-    result$hessian, super=TRUE)
+  result$cholHessian = Matrix::chol(result$hessian)
   result$logdet = drop(Matrix::determinant(
       result$cholHessian, log=TRUE, sqrt=FALSE
     )$modulus)
