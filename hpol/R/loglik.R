@@ -40,7 +40,7 @@ loglik <- function(
     config = config2
   )
 
-  result <- trust.optim(
+  result <- trustOptim::trust.optim(
     x = gamma_start,
     fn = wrappers_gamma$fn,
     gr = wrappers_gamma$gr,
@@ -54,7 +54,7 @@ loglik <- function(
       result$cholHessian, log=TRUE, sqrt=FALSE
     )$modulus)
   result$minusLoglik = result$fval +
-    result$logdet/2 + 
+    as.numeric(result$logdet)/2 + 
     0.5 * Ngamma * 1.8378770664093454835606594728  # log 2 pi
 
   result$gamma_hat <- result$solution

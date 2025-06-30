@@ -99,7 +99,7 @@ fitD <- hpolcc::hnlm(
     f(tempClean, model='hiwp',ref_value = 20, p=3, 
       knots = seq(0, 45, by=2.5), 
     group_var = ecoRegion), 
-  data=dataMedSimple, #[dataMedSimple$ecoRegion < 7,],
+  data=dataMedSimple[dataMedSimple$ecoRegion < 10,],
   dirichelet=TRUE,
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
   for_dev=TRUE, verbose=FALSE
@@ -143,21 +143,24 @@ wrappers <- hpolcc::make_trustoptim_wrappers(
   debug=FALSE
 )
 
+# checking derivatives
+fnSub = function(xx) wrappers$fn(c(xx, start_val[-(1:length(xx))]))
 
-
-wrappers$fn(start_val)
 rbind(
-  wrappers$gr(start_val),
-  numDeriv::grad(wrappers$fn, start_val)
-)[,1:12]
-testHessian = numDeriv::jacobian(wrappers$gr, start_val)
+  wrappers$gr(start_val)[1:4],
+  numDeriv::grad(fnSub, start_val[1:4])
+)[,1:4]
+
+grSub = function(xx) wrappers$gr(c(xx, start_val[-(1:length(xx))]))[1:length(xx)]
+
+testHessian = numDeriv::jacobian(grSub, start_val[1:4])
 autoHessian = wrappers$hs(start_val)
 
-testHessian[1:3,1:7]
-autoHessian[1:3, 1:7]
+testHessian
+autoHessian[1:4, 1:4]
 
 
-  
+# map estimator  
 library('trustOptim')
 
 mapOptim <- trust.optim(
@@ -175,16 +178,20 @@ mapOptim <- trust.optim(
   Nbeta = nrow(fitD$tmb_data$XTp)
   Ngamma = nrow(fitD$tmb_data$ATp)
 
+  Ntheta = length(fitD$theta_info$name)
 
   parameters = c(
-    0, 0.01, # beta 
-    0.01, 0.0001, 0.01, 0.01, 0.001 # theta
-    )
+    0, 0.01, # beta (slope, quadratic) 
+    1, # sd global
+    0.1, # sd local
+    0.001, 0.001, # sd local slope, quad
+    0.1 # dirichelet OD
+    ) 
     config = fitD$config
     config$transform_theta = FALSE
     config$verbose=FALSE
     
-  gamma_start = mapOptim$solution[seq(Nbeta+1, len=Ngamma)]
+  gamma_start = runif(Ngamma, -0.01, 0.01) #mapOptim$solution[seq(Nbeta+1, len=Ngamma)]
 
 # likelihood
 # parameters = (beta, theta)
@@ -193,9 +200,11 @@ res = loglik(parameters,
              gamma_start, 
              data=fitD$tmb_data, 
     config = config,
-    control = list(maxit=300, report.level=4, report.freq=1))
-
-cholVariance = solve(res$cholHessian)
+    control = list(maxit=300, start.trust.radius = 100,
+      report.level=4, report.freq=1))
+ 
+cholVariance = Matrix::solve(res$cholHessian)
+quantile(sqrt(Matrix::diag(cholVariance)))
 
 Nsim = 200
 gammaSim =  res$gamma_hat + 
@@ -246,7 +255,7 @@ config = c(
 config$verbose=TRUE
 
 resThird = hpolcc:::derivForLaplace(
-  mapOptim$solution, fitD$tmb_data, config
+  start_val, fitD$tmb_data, config
   ) 
 str(resThird)
 
@@ -264,10 +273,11 @@ deriv3diag = Matrix::sparseMatrix(
   index1=FALSE, dims = rep(length(mapOptim$solution),2))
 
 deriv3diag[1:8,1:5]
+autoHessian[1:8, 1:5]
+
+
 
 ```
-
-to do: loglik.R file
 
 
 
