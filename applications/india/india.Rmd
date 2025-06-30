@@ -214,6 +214,10 @@ par(mar=c(3,3,0,0), bty='n')
 matplot(
   Stemp,
   crossprod(
+    fitD$tmb_data$XTp[, SobsTemp],
+    parameters[1:Nbeta]
+    ) + 
+  crossprod(
     fitD$tmb_data$ATp[rowsToKeep, SobsTemp], 
     gammaSim[rowsToKeep,]),
   type='l', col='#00000020', lty=1, xaxs='i',
