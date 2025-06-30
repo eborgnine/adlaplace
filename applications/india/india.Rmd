@@ -99,7 +99,7 @@ fitD <- hpolcc::hnlm(
     f(tempClean, model='hiwp',ref_value = 20, p=3, 
       knots = seq(0, 45, by=2.5), 
     group_var = ecoRegion), 
-  data=dataMedSimple[dataMedSimple$ecoRegion < 7,],
+  data=dataMedSimple, #[dataMedSimple$ecoRegion < 7,],
   dirichelet=TRUE,
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
   for_dev=TRUE, verbose=FALSE
@@ -155,7 +155,7 @@ mapOptim <- trust.optim(
   hs = wrappers$hs,
   method = "Sparse",
   control = list(
-    start.trust.radius = 50, maxit=150, trust.iter = 5000,
+    start.trust.radius = 50, maxit=500, trust.iter = 5000,
     preconditioner=1, report.level=4, report.freq=1)
 )
 
@@ -189,11 +189,17 @@ rowsToKeep = grep("temp.*global", rownames(fitD$tmb_data$ATp))
 Stemp = seq(0,41,by=0.5)
 SobsTemp = na.omit(match(Stemp, round(fitD$data$tempClean, 1)))
 
-matplot(
-  Stemp,
+theSim = 
+  crossprod(
+    fitD$tmb_data$XTp[, SobsTemp],
+    parameters[1:Nbeta]) +
   crossprod(
     fitD$tmb_data$ATp[rowsToKeep, SobsTemp], 
-    gammaSim[rowsToKeep,]),
+    gammaSim[rowsToKeep,])
+
+
+matplot(
+  Stemp, theSim, 
   type='l', col='#00000020', lty=1, xaxs='i',
   yaxs='i'
 )
