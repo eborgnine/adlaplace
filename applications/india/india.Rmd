@@ -99,7 +99,7 @@ fitD <- hpolcc::hnlm(
     f(tempClean, model='hiwp',ref_value = 20, p=3, 
       knots = seq(0, 45, by=2.5), 
     group_var = ecoRegion), 
-  data=dataMedSimple[dataMedSimple$ecoRegion < 7,],
+  data=dataMedSimple, #[dataMedSimple$ecoRegion < 7,],
   dirichelet=TRUE,
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
   for_dev=TRUE, verbose=FALSE
@@ -143,9 +143,21 @@ wrappers <- hpolcc::make_trustoptim_wrappers(
   debug=FALSE
 )
 
-#wrappers$fn(start_val)
-#testH = wrappers$hs(start_val)
 
+
+wrappers$fn(start_val)
+rbind(
+  wrappers$gr(start_val),
+  numDeriv::grad(wrappers$fn, start_val)
+)[,1:12]
+testHessian = numDeriv::jacobian(wrappers$gr, start_val)
+autoHessian = wrappers$hs(start_val)
+
+testHessian[1:3,1:7]
+autoHessian[1:3, 1:7]
+
+
+  
 library('trustOptim')
 
 mapOptim <- trust.optim(
@@ -164,15 +176,24 @@ mapOptim <- trust.optim(
   Ngamma = nrow(fitD$tmb_data$ATp)
 
 
-  parameters = c(mapOptim$solution[1:Nbeta], 
-    mapOptim$solution[-(1:(Nbeta+Ngamma))])
-  gamma_start = rep(0, Ngamma)
+  parameters = c(
+    0, 0.01, # beta 
+    0.01, 0.0001, 0.01, 0.01, 0.001 # theta
+    )
+    config = fitD$config
+    config$transform_theta = FALSE
+    config$verbose=FALSE
+    
+  gamma_start = mapOptim$solution[seq(Nbeta+1, len=Ngamma)]
 
 # likelihood
 # parameters = (beta, theta)
 # config$transform_theta = TRUE means thetas are log(sd) otherwise theta=sd
-res = loglik(parameters, gamma_start, data=fitD$tmb_data, 
-    config = fitD$config)
+res = loglik(parameters, 
+             gamma_start, 
+             data=fitD$tmb_data, 
+    config = config,
+    control = list(maxit=300, report.level=4, report.freq=1))
 
 cholVariance = solve(res$cholHessian)
 
@@ -189,6 +210,7 @@ rowsToKeep = grep("temp.*global", rownames(fitD$tmb_data$ATp))
 Stemp = seq(0,41,by=0.5)
 SobsTemp = na.omit(match(Stemp, round(fitD$data$tempClean, 1)))
 
+par(mar=c(3,3,0,0), bty='n')
 matplot(
   Stemp,
   crossprod(
