@@ -143,9 +143,21 @@ wrappers <- hpolcc::make_trustoptim_wrappers(
   debug=FALSE
 )
 
-#wrappers$fn(start_val)
-#testH = wrappers$hs(start_val)
 
+
+wrappers$fn(start_val)
+rbind(
+  wrappers$gr(start_val),
+  numDeriv::grad(wrappers$fn, start_val)
+)[,1:12]
+testHessian = numDeriv::jacobian(wrappers$gr, start_val)
+autoHessian = wrappers$hs(start_val)
+
+testHessian[1:3,1:7]
+autoHessian[1:3, 1:7]
+
+
+  
 library('trustOptim')
 
 mapOptim <- trust.optim(
@@ -155,7 +167,7 @@ mapOptim <- trust.optim(
   hs = wrappers$hs,
   method = "Sparse",
   control = list(
-    start.trust.radius = 50, maxit=500, trust.iter = 5000,
+    start.trust.radius = 50, maxit=150, trust.iter = 5000,
     preconditioner=1, report.level=4, report.freq=1)
 )
 
@@ -164,15 +176,24 @@ mapOptim <- trust.optim(
   Ngamma = nrow(fitD$tmb_data$ATp)
 
 
-  parameters = c(mapOptim$solution[1:Nbeta], 
-    mapOptim$solution[-(1:(Nbeta+Ngamma))])
-  gamma_start = rep(0, Ngamma)
+  parameters = c(
+    0, 0.01, # beta 
+    0.01, 0.0001, 0.01, 0.01, 0.001 # theta
+    )
+    config = fitD$config
+    config$transform_theta = FALSE
+    config$verbose=FALSE
+    
+  gamma_start = mapOptim$solution[seq(Nbeta+1, len=Ngamma)]
 
 # likelihood
 # parameters = (beta, theta)
 # config$transform_theta = TRUE means thetas are log(sd) otherwise theta=sd
-res = loglik(parameters, gamma_start, data=fitD$tmb_data, 
-    config = fitD$config)
+res = loglik(parameters, 
+             gamma_start, 
+             data=fitD$tmb_data, 
+    config = config,
+    control = list(maxit=300, report.level=4, report.freq=1))
 
 cholVariance = solve(res$cholHessian)
 
@@ -189,17 +210,12 @@ rowsToKeep = grep("temp.*global", rownames(fitD$tmb_data$ATp))
 Stemp = seq(0,41,by=0.5)
 SobsTemp = na.omit(match(Stemp, round(fitD$data$tempClean, 1)))
 
-theSim = 
-  crossprod(
-    fitD$tmb_data$XTp[, SobsTemp],
-    parameters[1:Nbeta]) +
+par(mar=c(3,3,0,0), bty='n')
+matplot(
+  Stemp,
   crossprod(
     fitD$tmb_data$ATp[rowsToKeep, SobsTemp], 
-    gammaSim[rowsToKeep,])
-
-
-matplot(
-  Stemp, theSim, 
+    gammaSim[rowsToKeep,]),
   type='l', col='#00000020', lty=1, xaxs='i',
   yaxs='i'
 )
