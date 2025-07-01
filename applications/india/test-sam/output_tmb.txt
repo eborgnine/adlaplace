@@ -1,0 +1,54 @@
+Loading required package: TMB
+Loading required package: Matrix
+Loading required package: RcppEigen
+iter: 1  Constructing atomic logspace_add
+Constructing atomic logspace_add
+mgc: 4.803554e-09 
+Constructing atomic logspace_add
+Optimizing tape... Done
+Matching hessian patterns... Done
+outer mgc:  0.001318495 
+iter: 1  value: 90758.17 mgc: 2187.591 ustep: 1 
+iter: 2  value: 90758.17 mgc: 0.393082 ustep: 1 
+iter: 3  value: 90758.17 mgc: 1.07049e-07 ustep: 1 
+mgc: 1.007874e-10 
+outer mgc:  27.14664 
+iter: 1  value: 90758.18 mgc: 2188.344 ustep: 1 
+iter: 2  value: 90758.18 mgc: 0.3809361 ustep: 1 
+iter: 3  value: 90758.18 mgc: 1.035185e-07 ustep: 1 
+mgc: 1.046279e-10 
+outer mgc:  27.14917 
+iter: 1  value: 90756.97 mgc: 0.01480986 ustep: 1 
+iter: 2  value: 90756.97 mgc: 7.77566e-05 ustep: 1 
+iter: 3  mgc: 1.777067e-10 
+outer mgc:  0.1899754 
+iter: 1  value: 90759.36 mgc: 0.01479506 ustep: 1 
+iter: 2  value: 90759.36 mgc: 7.779302e-05 ustep: 1 
+iter: 3  mgc: 8.838062e-11 
+outer mgc:  0.1902004 
+iter: 1  value: 90758.16 mgc: 0.3452946 ustep: 1 
+iter: 2  value: 90758.16 mgc: 1.213865e-06 ustep: 1 
+mgc: 1.150885e-10 
+outer mgc:  0.1123406 
+iter: 1  value: 90758.17 mgc: 0.3449495 ustep: 1 
+iter: 2  value: 90758.17 mgc: 1.214095e-06 ustep: 1 
+mgc: 8.713386e-11 
+outer mgc:  0.1096336 
+iter: 1  value: 90758.1 mgc: 1.228789 ustep: 1 
+mgc: 1.029392e-10 
+outer mgc:  0.001318495 
+iter: 1  value: 90758.23 mgc: 1.227561 ustep: 1 
+mgc: 8.64476e-11 
+outer mgc:  0.001318495 
+iter: 1  value: 90758.16 mgc: 0.2379676 ustep: 1 
+mgc: 2.0597e-10 
+outer mgc:  0.00131706 
+iter: 1  value: 90758.17 mgc: 0.2377298 ustep: 1 
+mgc: 6.386549e-11 
+outer mgc:  0.001319931 
+iter: 1  value: 90758.16 mgc: 0.7951635 ustep: 1 
+mgc: 1.153282e-10 
+outer mgc:  0.001318495 
+iter: 1  value: 90758.17 mgc: 0.7943688 ustep: 1 
+mgc: 6.213033e-11 
+outer mgc:  0.001318495 
