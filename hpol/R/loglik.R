@@ -109,7 +109,7 @@ result$deriv3diag = Matrix::sparseMatrix(
   i=parametersGamma$indexForDiag$i,
   p = parametersGamma$indexForDiag$p,
   x = resThird$forDiag, symmetric=FALSE,
-  index1=FALSE, dims = rep(Nfull,2
+  index1=FALSE, dims = rep(Nfull,2))
 
   # to do: third derivative
 #  ∂(ln(det(X))) = Tr(X^{−1} ∂X)
@@ -117,6 +117,8 @@ result$deriv3diag = Matrix::sparseMatrix(
 # gammaHat1 = gammaHat - Hinv G
     # d gammaHat1 d Theta = d Hinv / dTheta G + Hinv d G/dTheta
 # dHinv = -Hinv d H/dTheta Hinv
+    # d gammaHat1 d Theta =  -Hinv d H/dTheta Hinv G + Hinv d G/dTheta
+
 
     # d L / d theta = d L / d gammaHat *= dgammaHat d Theta
 
