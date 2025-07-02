@@ -2,6 +2,7 @@
 library(hpoltest)
 library(data.table)
 library(RhpcBLASctl)
+library(timeDate)
 blas_set_num_threads(5)
 
 library(ggplot2)
@@ -64,16 +65,53 @@ cc_design <- ccDesign(time_var = "date", strat_vars = "cdcode")
 fit <- hnlm(formula, data, cc_design = cc_design)
 
 
+
+
+
+# results -----------------------------------------------------------------
 fit$obj$env$last.par.best[names(fit$obj$env$last.par.best) == "beta"]
 fit$obj$env$last.par.best[names(fit$obj$env$last.par.best) == "gamma"]
 fit$obj$env$last.par.best[names(fit$obj$env$last.par.best) == "theta"]
 
-max(fit$theta_info$map)
-split(fit$theta_info$var, fit$theta_info$map)
+max(fit$theta_info$id)
+split(fit$theta_info$var, fit$theta_info$id)
+
+
+# new function
+constructEffect <- function (fit, exposure_var, group_var, group, values, ref_values, pars = NULL, probs = c(.1,.5,.9)){
+  vars <- c(as.character(fit$formula)[2], unique(sapply(fit$terms, 
+                                                        "[[", "var")), unique(unlist(sapply(fit$terms, "[[", 
+                                                                                            "group_var"))), fit$cc_design$time_var, fit$cc_design$strat_var)
+  group_var[is.na(group_var)] <- "__NONE__"
+  df <- data.frame(row.names = 1:(length(values) * length(group)))
+  for (v in vars) df[[v]] <- ifelse(is.null(ref_values[[v]]), 
+                                    0, ref_values[[v]])
+  df[[group_var]] <- unlist(rep(group, each = length(values)))
+  df[[exposure_var]] <- rep(values, times = max(1, length(group)))
+  list2env(hpoltest:::getNewXA(fit$terms, df), envir = environment())
+  if(is.null(pars)) pars <- fit$obj$env$last.par.best
+  if(!is.matrix(pars)) pars <- as.matrix(pars)
+  
+  beta <- pars[,colnames(pars) == "beta",drop=F]
+  gamma <- pars[,colnames(pars) == "gamma",drop=F]
+  
+  P <- X %*% t(beta) + A %*% t(gamma)
+  Q <- t(apply(P,1,quantile,probs=probs))
+  colnames(Q) <- paste0("q_",probs)
+  
+  df <- data.frame(variable = exposure_var, var_value = values, group = df[[group_var]])
+  cbind(df, Q)
+}
+
+
 
 # results per group
 ref_values <- list("spm25" = sqrt(15), "temp" = 10, "no2" = 10, "o3" = 20)
 knots <- list("spm25" = knots_spm25, "temp" = knots_temp, "no2" = knots_no2, "o3" = knots_o3)
+sdr <- sdreport(fit$obj, getJointPrecision=TRUE)
+mu <- fit$obj$env$last.par.best
+Sigma <- solve(sdr$jointPrecision)
+samp <- mvtnorm::rmvnorm(1e4, mu, as.matrix(Sigma))
 
 
 # HERE. WHAT TO DO WITH OVERDISPERSION TERMS!! THERE 
@@ -82,20 +120,21 @@ ress <- lapply(c("temp", "spm25", "sno2", "so3"), \(x){
   
   if(!(x %in% all_vars)) return(NULL)
   
-  res1 <- getEffect(fit,
-                    exposure_var = x, 
-                    group_var = "cdcode", group = unique(data$cdcode), 
-                    values = knots[[x]][1]:rev(knots[[x]])[1],
-                    ref_values = ref_values)
-  res2 <- getEffect(fit, 
-                    exposure_var = x, 
-                    group_var = "cdcode", group = NA, # for global effect
-                    values = knots[[x]][1]:rev(knots[[x]])[1],
-                    ref_values = ref_values)
   
+  res1 <- constructEffect(fit, exposure_var = x, 
+                          group_var = "cdcode", group = unique(data$cdcode), 
+                          values = seq(knots[[x]][1],rev(knots[[x]])[1],.1),
+                          ref_values = ref_values,
+                          pars = samp, probs = c(.1,.5,.9))
+  res2 <- constructEffect(fit, exposure_var = x, 
+                          group_var = "cdcode", group = NA, 
+                          values = seq(knots[[x]][1],rev(knots[[x]])[1],.1),
+                          ref_values = ref_values,
+                          pars = samp, probs = c(.1,.5,.9))
+
   if(x != "temp"){
     res1$var_value <- res1$var_value^2
-    res2$var_value <- res2_pm$var_value^2
+    res2$var_value <- res2$var_value^2
     res1$variable <- res2$variable <- substr(x, 2, 100)
   }
   list(res1 = res1, res2 = res2)
@@ -105,73 +144,25 @@ res1 <- lapply(ress, "[[", "res1") |> do.call(what = "rbind")
 res2 <- lapply(ress, "[[", "res2") |> do.call(what = "rbind")
 
 
+ggplot(res1, aes(x=var_value, y=q_0.5, group=as.factor(group))) +
+  theme_bw() +
+  theme(panel.grid.minor = element_blank()) +
+  geom_hline(yintercept = 0, col="gray75") +
+  geom_line(alpha=.4) +
+  # geom_ribbon(aes(ymin = q_0.1, ymax = q_0.9, fill = as.factor(group)), col=NA, alpha=.05) + 
+  geom_ribbon(aes(ymin = q_0.1, ymax = q_0.9), col=NA, alpha=.025) + 
+  geom_line(data=res2, linetype=2, colour="black") +
+  facet_wrap(~variable, scales = "free")
+
+fit$obj$env$last.par.best[names(fit$obj$env$last.par.best) == "beta"]
+fit$theta_info
+fit$obj$env$last.par.best[names(fit$obj$env$last.par.best) == "theta"]
 
 
-res1_temp <- getEffect(fit, exposure_var = "temp", 
-                       group_var = "cdcode", group = unique(data$cdcode), 
-                       values = knots_temp[1]:rev(knots_temp)[1],
-                       ref_values = ref_values)
-res2_temp <- getEffect(fit, exposure_var = "temp", 
-                       group_var = "cdcode", group = NA, # for global effect
-                       values = knots_temp[1]:rev(knots_temp)[1],
-                       ref_values = ref_values)
-
-res1_pm <- getEffect(fit, exposure_var = "spm25", 
-                     group_var = "cdcode", group = unique(data$cdcode), 
-                     values = knots_spm25[1]:rev(knots_spm25)[1],
-                     ref_values = ref_values)
-res2_pm <- getEffect(fit, exposure_var = "spm25", 
-                     group_var = "cdcode", group = NA, 
-                     values = knots_spm25[1]:rev(knots_spm25)[1],
-                     ref_values = ref_values)
-res1_pm$var_value <- res1_pm$var_value^2
-res1_pm$variable <- "pm25"
-res2_pm$var_value <- res2_pm$var_value^2
-res2_pm$variable <- "pm25"
-
-res1 <- rbind(res1_pm, res1_temp)
-res2 <- rbind(res2_pm, res2_temp)
-
-ggplot(res1, aes(x=var_value, y=effect_value)) +
+ggplot(res2, aes(x=var_value, y=q_0.5)) +
   theme_bw() +
   theme(panel.grid.minor = element_blank()) +
   geom_hline(yintercept = 0, col="gray75") +
   geom_line() +
-  geom_line(data=res2[,-4], linetype=2) +
-  facet_grid(group~variable, scales = "free_x")
-
-
-ggplot(res1, aes(x=var_value, y=effect_value)) +
-  theme_bw() +
-  theme(panel.grid.minor = element_blank()) +
-  geom_hline(yintercept = 0, col="gray75") +
-  geom_line(aes(col=group)) +
-  geom_line(data=res2[,-4], linetype=2) +
+  geom_ribbon(aes(ymin = q_0.1, ymax = q_0.9, fill = as.factor(group)), col=NA, alpha=.3) + 
   facet_wrap(~variable, scales = "free")
-
-
-
-ggs <- lapply(c("pm25", "temp"), \(x){
-  ggplot(res1[res1$variable == x,], aes(x=var_value, y=effect_value)) +
-    theme_bw() +
-    theme(panel.grid.minor = element_blank()) +
-    geom_hline(yintercept = 0, col="gray75") +
-    geom_line() +
-    geom_line(data=res2[res2$variable == x,][,-4], linetype=2) +
-    facet_grid(group~variable, scales = "free_x")
-})
-ggs[[1]]
-ggs[[2]]
-
-
-ggs <- lapply(c("pm25", "temp"), \(x){
-  ggplot(res1[res1$variable == x,], aes(x=var_value, y=effect_value, colour=group)) +
-    theme_bw() +
-    theme(panel.grid.minor = element_blank()) +
-    geom_hline(yintercept = 0, col="gray75") +
-    geom_line() +
-    geom_line(data=res2[res2$variable == x,][,-4], linetype=2, colour="black") +
-    facet_grid(~variable, scales = "free_x")
-})
-ggs[[1]]
-ggs[[2]]
