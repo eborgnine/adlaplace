@@ -80,7 +80,20 @@ dataMedSimple =
 
 
 
+```{r tmbpackage}
+library(hpoltest)
+formula <- count ~ f(date, model = 'iid')  + 
+  f(tempClean, model = 'hiwp', ref_value = 20, p=3, 
+      knots = seq(0, 45, by=2.5), 
+    group_var = ecoRegion)
+  fit <- hnlm(formula, dataMedSimple, 
+    cc_design =  ccDesign(time_var = 'date',
+    strat_vars=c("cell","ecoRegion", "yearWeek3Dow"))
+  )
+  sdr <- sdreport(fit$obj, getJointPrecision=TRUE)
+  mu <- fit$obj$env$last.par
 
+```
 
 
 ```{r fit}
@@ -155,7 +168,7 @@ autoHessian = wrappers$hs(start_val)
 testHessian
 autoHessian[1:4, 1:4]
 
-
+if(FALSE) {
 # map estimator  
 library('trustOptim')
 
@@ -169,7 +182,7 @@ mapOptim <- trust.optim(
     start.trust.radius = 50, maxit=150, trust.iter = 5000,
     preconditioner=1, report.level=4, report.freq=1)
 )
-
+}
 
   Nbeta = nrow(fitD$tmb_data$XTp)
   Ngamma = nrow(fitD$tmb_data$ATp)
@@ -264,19 +277,6 @@ testGrad
 
 resThird$forDiag[1:150]
 
-# T_iik + T_jjk + 2 T_ijk + H_ik + H_jk
-parametersGamma$full$x = resThird$result
-# TO DO: subtract off T_iik, T_jjk, H_ik, H_jk
-
-# entry i,k is T_iik
-deriv3diag = Matrix::sparseMatrix(
-  i=parametersGamma$indexForDiag$i,
-  p = parametersGamma$indexForDiag$p,
-  x = resThird$forDiag, symmetric=FALSE,
-  index1=FALSE, dims = rep(length(mapOptim$solution),2))
-
-deriv3diag[1:8,1:5]
-autoHessian[1:8, 1:5]
 
 
 
