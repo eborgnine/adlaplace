@@ -10,7 +10,7 @@
 \alias{getThetaSetup}
 \alias{addFPoly}
 \alias{addRPoly}
-\title{Helpers for the `hnlm` function}
+\title{Helpers for the \code{hnlm} function}
 \usage{
 collectTerms(formula)
 
@@ -29,15 +29,17 @@ addFPoly(term)
 addRPoly(term)
 }
 \description{
-This page provides common information for functions that handle the setup and 
+This page provides common information for functions that handle the setup and
 processing of terms used in the model.
 These functions include:
-- `collectTerms()`: Sets up the terms object, which is the core of the model.
-- `getExtra()`: Constructs additional quantities specific to an effect.
-- `getDesign()`: Constructs the design matrix for a given effect.
-- `getGammaSetup()`: Sets up the gamma parameters specific to an effect.
-- `getPrecision()`: Constructs the precision matrix for a random effect.
-- `getThetaSetup()`: Sets up theta information for a specific effect.
-- `addFPoly()`: Adds fixed polynomial effects to the model.
-- `addRPoly()`: Adds random polynomial effects to the model.
+\itemize{
+\item \code{collectTerms()}: Sets up the terms object, which is the core of the model.
+\item \code{getExtra()}: Constructs additional quantities specific to an effect.
+\item \code{getDesign()}: Constructs the design matrix for a given effect.
+\item \code{getGammaSetup()}: Sets up the gamma parameters specific to an effect.
+\item \code{getPrecision()}: Constructs the precision matrix for a random effect.
+\item \code{getThetaSetup()}: Sets up theta information for a specific effect.
+\item \code{addFPoly()}: Adds fixed polynomial effects to the model.
+\item \code{addRPoly()}: Adds random polynomial effects to the model.
+}
 }

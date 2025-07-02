@@ -1,85 +1,127 @@
+#' @export
+loglik <- function(
+  parameters, gamma_start, 
+  data, config,
+  control=list()) {
 
-get_gamma_hat_and_derivative <- function(param, gamma_start, data, config) {
 
-# maximize wrt gamma
-  # ... and a few iterations of newton to get gradient close to zero?
-  # or ssq of deriv as objective?
-# get third deriv at max (pick out param-gamma bit of hessian from taylor 3?)
-# evaluate lik, deriv of lik  
+  Nbeta = nrow(data$XTp)
+  Ngamma = length(gamma_start)
+  Sgamma0 = seq(from=Nbeta, len=Ngamma)
+  Sgamma1 = Sgamma0+1
 
-  # Indices setupfdsa
-  Sbeta <- seq_along(beta)
-  Stheta <- seq_along(theta) + length(beta)
-  Sgamma <- seq_along(gamma_start) + length(beta) + length(theta)
-  
-  # Complete parameter vector
-  param_all <- c(beta, theta, gamma_start)
 
+
+  beta = parameters[1:Nbeta]
+  theta = parameters[-(1:Nbeta)]
+
+  fullHessian = NULL
+  if('sparsity' %in% names(config)) {
+    if(any(config$sparsity$i >= Ngamma | 
+      config$sparsity$j >= Ngamma)) {
+      fullHessian = config$sparsity
+      # this is the big hessian
+      # subset to gamma-only hessian
+      inSgamma = config$sparsity$i %in% Sgamma0 &
+        config$sparsity$j %in% inSgamma
+      config$sparsity$i = config$sparsity$i[inSgamma+1]  
+      config$sparsity$j = config$sparsity$j[inSgamma+1]  
+    }
+  } 
+
+  config2 = c(
+      config[setdiff(
+        names(config), c('beta','theta')
+      )], 
+      list(
+        beta = beta,
+        theta = theta
+      ))
   # Optimize gamma keeping beta and theta fixed
   wrappers_gamma <- hpolcc::make_trustoptim_wrappers(
-    data = fitD$tmb_data,
-    config = c(fitD$config, list(
-      beta = beta,
-      theta = theta,
-      transform_theta = TRUE,
-      dirichelet = TRUE,
-      num_threads = fitD$config$num_threads,
-      sparsity = fitD$config$sparsity[
-        fitD$config$sparsity$i %in% Sgamma & 
-          fitD$config$sparsity$j %in% Sgamma, 
-      ] - (length(beta) + length(theta))
-    )),
-    debug = FALSE
+    data = data,
+    config = config2
   )
 
-  result_gamma <- trust.optim(
+  result <- trustOptim::trust.optim(
     x = gamma_start,
     fn = wrappers_gamma$fn,
     gr = wrappers_gamma$gr,
     hs = wrappers_gamma$hs,
     method = "Sparse",
-    control = list(
-      start.trust.radius = 50, maxit = 500, trust.iter = 5000,
-      preconditioner = 1, report.level = 0
-    )
+    control = control
   )
 
-  gamma_hat <- result_gamma$solution
+  result$cholHessian = Matrix::chol(result$hessian)
+  result$logdet = drop(Matrix::determinant(
+      result$cholHessian, log=TRUE, sqrt=FALSE
+    )$modulus)
+  result$minusLoglik = result$fval +
+    as.numeric(result$logdet)/2 + 
+    0.5 * Ngamma * 1.8378770664093454835606594728  # log 2 pi
 
-  # Hessian for gamma
-  res_gamma <- hpolcc:::objectiveFunctionC(
-    gamma_hat, fitD$tmb_data, wrappers_gamma$config
-  )
+  result$gamma_hat <- result$solution
 
-  H_gamma <- sparseMatrix(
-    i = res_gamma$hessian$i,
-    j = res_gamma$hessian$j,
-    x = res_gamma$hessian$x,
-    symmetric = TRUE
-  )
+  result$parameters = parameters
+  Nfull = length(result$gamma_hat) + length(result$parameters)
 
-  # Full Hessian at (beta, theta, gamma_hat)
-  res_full <- hpolcc:::objectiveFunctionC(
-    c(beta, theta, gamma_hat), fitD$tmb_data, fitD$config
-  )
+# derivatives
+if(is.null(fullHessian)) {
 
-  # Cross derivative: gamma vs (beta, theta)
-  cross_hessian_entries <- res_full$hessian[
-    res_full$hessian$i %in% Sgamma & res_full$hessian$j %in% c(Sbeta, Stheta),
-  ]
+  fullHessian <- Matrix::Matrix(1, 
+    nrow = Nfull, ncol = Nfull, 
+    sparse = TRUE)
+  fullHessian[
+    Sgamma1, Sgamma1
+  ] = result$hessian
 
-  H_gamma_beta_theta <- sparseMatrix(
-    i = match(cross_hessian_entries$i, Sgamma),
-    j = match(cross_hessian_entries$j, c(Sbeta, Stheta)),
-    x = cross_hessian_entries$x,
-    dims = c(length(Sgamma), length(Sbeta) + length(Stheta))
-  )
+}
+fullParameters = c(
+  result$parameters[1:Nbeta], 
+  result$gamma_hat,
+  result$parameters[-(1:Nbeta)])
 
-  # Compute derivative via implicit function theorem
-  gamma_hat_derivative <- -solve(H_gamma, H_gamma_beta_theta)
 
-  return(list(
-    gamma_hat = gamma_hat,
-    derivative = gamma_hat_derivative
-  ))
+parametersGamma = hpolcc::sparsityForThird(
+  hessian = fullHessian, data = data)
+
+config3 = c(
+  parametersGamma,
+  config2[setdiff(
+      names(config2), 
+      names(parametersGamma)
+    )]
+)
+#config$verbose=TRUE
+
+resThird = hpolcc::derivForLaplace(
+  fullParameters, data, config3
+  ) 
+
+  result$resThird = resThird
+
+  result$third = parametersGamma$full
+  result$third$x = resThird$result
+# TO DO: subtract off T_iik, T_jjk, H_ik, H_jk
+
+# entry i,k is T_iik
+result$deriv3diag = Matrix::sparseMatrix(
+  i=parametersGamma$indexForDiag$i,
+  p = parametersGamma$indexForDiag$p,
+  x = resThird$forDiag, symmetric=FALSE,
+  index1=FALSE, dims = rep(Nfull,2))
+
+  # to do: third derivative
+#  ∂(ln(det(X))) = Tr(X^{−1} ∂X)
+
+# gammaHat1 = gammaHat - Hinv G
+    # d gammaHat1 d Theta = d Hinv / dTheta G + Hinv d G/dTheta
+# dHinv = -Hinv d H/dTheta Hinv
+    # d gammaHat1 d Theta =  -Hinv d H/dTheta Hinv G + Hinv d G/dTheta
+
+
+    # d L / d theta = d L / d gammaHat *= dgammaHat d Theta
+
+
+  return(result)
 }

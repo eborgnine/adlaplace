@@ -2,12 +2,13 @@
 #include<omp.h>
 
 
+#define DEBUG
+
+#ifdef DEBUG
+
+//' @export
 // [[Rcpp::export]]
-Rcpp::List test3(
-  Rcpp::NumericVector X,
-  Rcpp::NumericVector U,
-  Rcpp::NumericVector V,
-  Rcpp::NumericVector W){
+Rcpp::List test3(Rcpp::NumericVector X, Rcpp::NumericVector U, Rcpp::NumericVector V, Rcpp::NumericVector W){
 
   std::vector<double> w = Rcpp::as<std::vector<double>>(W);
   std::vector<double> x = Rcpp::as<std::vector<double>>(X);
@@ -18,16 +19,17 @@ Rcpp::List test3(
       Rcpp::Rcout << "Nparms" << Nparams << "\n";
 
   CppAD::vector<CppAD::AD<double>> ad_params(Nparams);  
-  for (size_t D = 0; D < 2; D++) {
+  for (size_t D = 0; D < Nparams; D++) {
     ad_params[D] = X[D];  // Initialize CppAD variables
   }
     CppAD::Independent(ad_params);  // Tell CppAD these are inputs for differentiation
 
   CppAD::vector<CppAD::AD<double>> y(1,0.0);
-  for (size_t D = 0; D < 2; //Nparams; 
+  for (size_t D = 0; D < Nparams; //Nparams; 
     D++) {
-    y[0] += ad_params[D]*ad_params[D]*ad_params[D];
+    y[0] += ad_params[D]*(1+D);
   }   
+  y[0] = y[0]*y[0]*y[0]*y[0];
 
   Rcpp::Rcout << "b\n";
 
@@ -58,7 +60,10 @@ Rcpp::List test3(
   );
 
 }
+#endif
 
+/* function for third derivatives, of laplace approx */
+//' @export
 // [[Rcpp::export]]
 Rcpp::List derivForLaplace(
   Rcpp::NumericVector parameters, // gamma, beta, theta
@@ -143,6 +148,7 @@ Rcpp::List derivForLaplace(
     }
     omp_set_num_threads(num_threads);
 
+
 //  computing  T_iik + T_jjk + 2 T_ijk for all k.
 // i's are gammas, j's beta or theta , k is either
   #pragma omp parallel
@@ -150,7 +156,7 @@ Rcpp::List derivForLaplace(
   const int tid=omp_get_thread_num();
 
   #pragma omp for
- for(int DgammaCombo=0; DgammaCombo < NgammaCombo;   ++DgammaCombo) {
+ for(int DgammaCombo=0; DgammaCombo < NgammaCombo; ++DgammaCombo) {
 
   const int DgammaInParams = gammaInParams[DgammaCombo];
   const int DbetaThetaInParams = paramInParams[DgammaCombo];
@@ -175,15 +181,6 @@ Rcpp::List derivForLaplace(
     result[PinThirdHere+Dthird] = taylor3[3*Drow];
   }
  } // for
-} // parallel
-
-    if (verbose ) {
-      Rcpp::Rcout << "diag parts, " << num_threads << " threads\n";
-    }
-
-  #pragma omp parallel
-    {
-  const int tid=omp_get_thread_num();
 
   // diagonal entries to subtract off
   // computing T_iik,  columnns are i, rows are k
@@ -209,12 +206,40 @@ Rcpp::List derivForLaplace(
         taylor3[3*indexForDiagI[indexHere]];
   }
 
+  // To do: extract hessian for parameters - gamma
+
  } // for
 } // parallel
 
-
-return Rcpp::List::create(
+Rcpp::List resultList = Rcpp::List::create(
   Rcpp::Named("result") = result,
   Rcpp::Named("forDiag") = forDiag
   );
+
+#ifdef DEBUG
+// test      
+std::vector<double> w2(1, 1.0);
+
+        std::vector<double> u(Nparams, 0.0); 
+        u[2]=1;
+
+          fun_threads[0].Forward(0, x_val);
+          fun_threads[0].Forward(1, u);
+          std::vector<double> ddw = fun_threads[0].Reverse(2, w2);
+          Rcpp::NumericVector ddwR(ddw.begin(), ddw.end());
+
+  fun_threads[0].Forward(0, x_val);
+  fun_threads[0].Forward(1, u);
+  fun_threads[0].Forward(2, u);
+
+
+  auto taylor3 = fun_threads[0].Reverse(3, w);
+  Rcpp::NumericVector taylor3R(taylor3.begin(), taylor3.end());
+
+  resultList["ddw"] = ddwR;
+  resultList["taylor3"] = taylor3R;
+
+#endif
+
+return resultList;
 }

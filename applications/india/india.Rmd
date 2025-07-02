@@ -40,7 +40,7 @@ LDFLAGS  += -L/opt/homebrew/opt/libomp/lib -lomp
 
 library('data.table')
 # /home/patrick/Admin/globalHealth/indiaSpatial/daily.Rmd
-SstoreDir = c('/store/patrick/copernicus/agg', '~/Downloads')
+SstoreDir = c('/store/patrick/copernicus/agg', '~/Downloads/agg')
 storeDir = SstoreDir[1]
 if(!dir.exists(storeDir)) storeDir = SstoreDir[2]
 
@@ -100,24 +100,26 @@ fitD <- hpolcc::hnlm(
       knots = seq(0, 45, by=2.5), 
     group_var = ecoRegion), 
   data=dataMedSimple[dataMedSimple$ecoRegion < 7,],
-  dirichelet=TRUE,
+  dirichelet= FALSE,
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
-  for_dev=TRUE, verbose=FALSE
+  for_dev=TRUE, verbose=TRUE
   )
 
 
 
-fitD$config$verbose = TRUE
+
+
 fitD$config$transform_theta = TRUE
 if(ps::ps_system_memory()$total > 5e10) {
   fitD$config$num_threads = parallel::detectCores()
 } else {
-  fitD$config$num_threads = 4
+  fitD$config$num_threads = 8
 }
 
  
 
 fitD$config$maxDeriv = 2
+fitD$config$verobse=FALSE
 start_val <- c(
   rep(0.1, nrow(fitD$tmb_data$XTp)),
   runif(nrow(fitD$tmb_data$ATp), -0.01, 0.01),   # gamma
@@ -125,24 +127,36 @@ start_val <- c(
   )
 
 
-if(FALSE) {
-res = hpolcc:::objectiveFunctionC(
-  start_val, 
-  fitD$tmb_data, 
-  fitD$config)
-}
-
-
 wrappers <- hpolcc::make_trustoptim_wrappers(
   data=fitD$tmb_data,
   config=list(verbose=FALSE, transform_theta = TRUE, 
-    dirichelet = TRUE, num_threads = fitD$config$num_threads),
+    dirichelet = fitD$config$dirichelet, 
+    num_threads = fitD$config$num_threads),
   debug=FALSE
 )
 
-#wrappers$fn(start_val)
-#testH = wrappers$hs(start_val)
 
+
+
+# checking derivatives
+fnSub = function(xx) wrappers$fn(c(xx, start_val[-(1:length(xx))]))
+
+testGrad = numDeriv::grad(fnSub, start_val[1:4])
+rbind(
+  wrappers$gr(start_val)[1:4],
+  testGrad
+)[,1:4]
+
+grSub = function(xx) wrappers$gr(c(xx, start_val[-(1:length(xx))]))[1:length(xx)]
+
+testHessian = numDeriv::jacobian(grSub, start_val[1:4])
+autoHessian = wrappers$hs(start_val)
+
+testHessian
+autoHessian[1:4, 1:4]
+
+
+# map estimator  
 library('trustOptim')
 
 mapOptim <- trust.optim(
@@ -152,12 +166,76 @@ mapOptim <- trust.optim(
   hs = wrappers$hs,
   method = "Sparse",
   control = list(
-    start.trust.radius = 50, maxit=15, trust.iter = 5000,
+    start.trust.radius = 50, maxit=150, trust.iter = 5000,
     preconditioner=1, report.level=4, report.freq=1)
 )
 
 
-parametersGamma = sparsityForThird(
+  Nbeta = nrow(fitD$tmb_data$XTp)
+  Ngamma = nrow(fitD$tmb_data$ATp)
+
+  Ntheta = length(fitD$theta_info$name)
+
+  parameters = c(
+    0, 0.01, # beta (slope, quadratic) 
+    1, # sd global
+    0.1, # sd local
+    0.001, 0.001, # sd local slope, quad
+    0.1 # dirichelet OD
+    )[seq(1, Nbeta+Ntheta)] 
+    config = fitD$config
+    config$transform_theta = FALSE
+    config$verbose=FALSE
+    
+  gamma_start = runif(Ngamma, -0.01, 0.01) #mapOptim$solution[seq(Nbeta+1, len=Ngamma)]
+
+# likelihood
+# parameters = (beta, theta)
+# config$transform_theta = TRUE means thetas are log(sd) otherwise theta=sd
+res = loglik(parameters, 
+             gamma_start, 
+             data=fitD$tmb_data, 
+    config = config,
+    control = list(maxit=300, start.trust.radius = 100,
+      report.level=4, report.freq=1))
+ 
+cholVariance = Matrix::solve(res$cholHessian)
+quantile(sqrt(Matrix::diag(cholVariance)))
+
+Nsim = 200
+gammaSim =  res$gamma_hat + 
+  cholVariance %*% matrix(
+  rnorm(Nsim*nrow(cholVariance)),
+  nrow(cholVariance), Nsim)
+
+
+# only plot the global effects
+rowsToKeep = grep("temp.*global", rownames(fitD$tmb_data$ATp))
+
+Stemp = seq(0,41,by=0.5)
+SobsTemp = na.omit(match(Stemp, round(fitD$data$tempClean, 1)))
+
+par(mar=c(3,3,0,0), bty='n')
+matplot(
+  Stemp,
+  crossprod(
+    fitD$tmb_data$XTp[, SobsTemp],
+    parameters[1:Nbeta]
+    ) + 
+  crossprod(
+    fitD$tmb_data$ATp[rowsToKeep, SobsTemp], 
+    gammaSim[rowsToKeep,]),
+  type='l', col='#00000020', lty=1, xaxs='i',
+  yaxs='i'
+)
+
+```
+
+
+
+
+```{r third deriv stuff}
+parametersGamma = hpolcc::sparsityForThird(
   hessian = environment(wrappers$fn)$cache_env$config1$sparsity, 
     data = fitD$tmb_data)
 
@@ -171,9 +249,18 @@ config = c(
 config$verbose=TRUE
 
 resThird = hpolcc:::derivForLaplace(
-  mapOptim$solution, fitD$tmb_data, config
+  start_val, fitD$tmb_data, config
   ) 
 str(resThird)
+
+resThird$ddw = matrix(resThird$ddw, ncol=2, byrow=TRUE)
+resThird$taylor3 = matrix(resThird$taylor3, ncol=3, byrow=TRUE)
+
+head(resThird$ddw)
+head(resThird$taylor3)
+testHessian[,3]
+testGrad
+
 
 resThird$forDiag[1:150]
 
@@ -189,10 +276,11 @@ deriv3diag = Matrix::sparseMatrix(
   index1=FALSE, dims = rep(length(mapOptim$solution),2))
 
 deriv3diag[1:8,1:5]
+autoHessian[1:8, 1:5]
+
+
 
 ```
-
-to do: loglik.R file
 
 
 
