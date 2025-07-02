@@ -64,12 +64,12 @@ genHum <- function(date){
 region_effect1 <- rnorm(10,1,.1)
 region_effect2 <- rnorm(10,1,.1)
 genPmEffect <- function(pm, r1, r2){
-  r1*pm/10 + pm^(r2/2)
+  0.25*(r1*pm/10 + pm^(r2/2))
 }
 genCount <- function(hum, pm, r1=1, r2=1, od = FALSE){
   l <- length(pm)
   od <- rnorm(l, 0, ifelse(od, .1, 0))
-  rpois(l, exp(hum + genPmEffect(pm, r1, r2) + od))
+  rpois(l, exp(-log(10) + hum + genPmEffect(pm, r1, r2) + od))
 }
 
 
@@ -86,9 +86,9 @@ cc_design <- ccDesign(time_var = "date", strat_vars = "region")
 
 # sim loop ----------------------------------------------------------------
 
-res <- mclapply(1:500, \(dummy){
-
-  data <- lapply(1:3, \(i){
+#res <- mclapply(1:500, \(dummy){
+set.seed(0)
+  data <- lapply(1:10, \(i){
     data <- data.table(date = as.Date(1:1000), region = i)
     data$hum <- genHum(data$date)
     data$pm <- genPM(data$date)
@@ -105,10 +105,25 @@ res <- mclapply(1:500, \(dummy){
   formula <- as.formula(
     sprintf("count ~ f(date, model = 'iid') + hum + f(pm, model = 'hiwp', p = 2, ref_value = 10, knots = c(%s), group_var = region)",
             paste(knots_pm, collapse = ", "))
-  )  
+  ) 
   fit <- hnlm(formula, data, cc_design = cc_design)
   sdr <- sdreport(fit$obj, getJointPrecision=TRUE)
   mu <- fit$obj$env$last.par.best
+
+mu[grep("gamma", names(mu), invert=TRUE)]
+
+fit$obj$env$f(mu)
+bob = function(xx) fit$obj$env$f(c(xx, mu[-(1:length(xx))]))
+numDeriv::hessian(bob, mu[1:5])
+sdr$jointPrecision[1:5,1:5]
+
+
+  saveRDS(list(data=data, par = fit$obj$env$last.par.best, h=sdr$jointPrecision), file='simData.rds') 
+
+
+
+
+
   Sigma <- solve(sdr$jointPrecision)
   samp <- mvtnorm::rmvnorm(1e4, mu, as.matrix(Sigma))
   res1 <- constructEffect(fit, exposure_var = "pm", 
@@ -116,16 +131,20 @@ res <- mclapply(1:500, \(dummy){
                           values = seq(knots_pm[1],rev(knots_pm)[1],.01),
                           ref_values = ref_values,
                           pars = samp, probs = c(.1,.5,.9))
-  for(i in unique(res1$group)){
-    x <- genPmEffect(res1$var_value[res1$group == i], region_effect1[i], region_effect2[i])
-    k <- which(res1$var_value[res1$group == i] == ref_values$pm)
-    res1$true[res1$group == i] <- x - x[k]
-  }
-  (res1$true >= res1$q_0.1) & (res1$true <= res1$q_0.9)
-  
-}, mc.cores=10)
+  res1sub = res1[res1$group == 1, ]
+  matplot(res1sub$var_value, res1sub[,grep("q", colnames(res1sub))], type='l', 
+  lty=1, col=c('grey','black','grey'), lwd=2)
 
-saveRDS(res, "applications/synthetic/coverage.rds")
+#  for(i in unique(res1$group)){
+#    x <- genPmEffect(res1$var_value[res1$group == i], region_effect1[i], region_effect2[i])
+#    k <- which(res1$var_value[res1$group == i] == ref_values$pm)
+#    res1$true[res1$group == i] <- x - x[k]
+#  }
+#  (res1$true >= res1$q_0.1) & (res1$true <= res1$q_0.9)
+  
+#}, mc.cores=10)
+
+#saveRDS(res, "applications/synthetic/coverage.rds")
 
 
 
