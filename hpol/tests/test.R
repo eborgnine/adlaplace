@@ -16,9 +16,9 @@
 
 library('hpolcc')
 
-x = c(5,100,0,0)
-u = c(1,1,0,0)
-v = c(0,0,0,0)
+x = c(5,1,-1,0)
+u = c(0,1,0,0)
+v = c(0,1,0,0)
 w = c(0,0,1)
 
 res1 = hpolcc:::test3(x, u,v, w)
@@ -29,7 +29,7 @@ res
 
 
 
-f = function(x) sum(x[1:2]^3)
+f = function(x) sum(x*(seq(1,len=length(x))))^4
 
 f1 = round(numDeriv::grad(f, x),5)
 
@@ -39,10 +39,20 @@ f2u = round(hh %*% u, 5)
 f2v = round(hh %*% v, 5)
 
 
+
+
+
 f3f = function(x, u) {
+    eps = 0.10
     tt = array(0, rep(length(x), 3))
-    for(D in 1:length(x))
-        tt[D,D,D] = 6
+    for(D in 1:length(x)) {
+        xplus = x
+        xplus[D] = x[D] + eps
+        hhplus = numDeriv::hessian(f, xplus)
+        hdiff = (hhplus -hh)/eps
+
+        tt[D, , ] = hdiff
+    }
     result = rep(NA, length(x))
     for(D in 1:length(x))
         result[D] = drop(u %*% tt[D,,]%*% u)

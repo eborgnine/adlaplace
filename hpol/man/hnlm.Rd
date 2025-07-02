@@ -23,17 +23,17 @@ hnlm(
 
 \item{data}{A data frame containing the variables specified in the formula and any additional variables required for the model.}
 
-\item{cc_design}{An object specifying the case-crossover design, including stratification and time variables. Defaults to the output of `ccDesign()`.}
+\item{cc_design}{An object specifying the case-crossover design, including stratification and time variables. Defaults to the output of \code{ccDesign()}.}
 
-\item{weight_var}{(Optional) A character string specifying the column in the data frame used for weights. If provided, it must exist in `data`.}
+\item{weight_var}{(Optional) A character string specifying the column in the data frame used for weights. If provided, it must exist in \code{data}.}
 
-\item{tmb_parameters}{(Optional) A list of initial parameter values for the TMB optimization, including `beta`, `gamma`, and `theta`.}
+\item{tmb_parameters}{(Optional) A list of initial parameter values for the TMB optimization, including \code{beta}, \code{gamma}, and \code{theta}.}
 
-\item{optim_parameters}{(Optional) A list of   parameters passed to `nlminb`}
+\item{optim_parameters}{(Optional) A list of   parameters passed to \code{nlminb}}
 
-\item{for_dev}{Logical; if `TRUE`, the function returns intermediate objects for development purposes. Defaults to `FALSE`.}
+\item{for_dev}{Logical; if \code{TRUE}, the function returns intermediate objects for development purposes. Defaults to \code{FALSE}.}
 
-\item{verbose}{logical, if `TRUE` occasional information is printed}
+\item{verbose}{logical, if \code{TRUE} occasional information is printed}
 
 \item{dirichlet}{if TRUE, fit dirichlet-multinomial model, with time-within-strata gamma random effect, otherwise multinomial.}
 }

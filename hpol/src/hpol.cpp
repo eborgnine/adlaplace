@@ -72,8 +72,8 @@ CppAD::vector<Type>  objectiveFunctionInternal(
   Neta = dimsA[1], Nstrata = dimsC[1];
 //  const size_t NthetaFromParams = ad_params.size() - Nbeta - Ngamma;
   
-  const std::set<int> unique_map(map.begin(), map.end());
-  const size_t Ntheta = unique_map.size() + dirichelet;
+//  const std::set<int> unique_map(map.begin(), map.end());
+  const size_t Ntheta = Rcpp::max(map) + 1 + dirichelet;
   size_t startGamma;
 
   CppAD::vector<Type> beta(Nbeta), 
@@ -82,7 +82,8 @@ CppAD::vector<Type>  objectiveFunctionInternal(
 
 #ifdef DEBUG
   Rcpp::Rcout << "Ntheta " << Ntheta << " Neta " << Neta << " Nbeta " << Nbeta <<
-  " Ngamma " << Ngamma << "\n";
+  " Ngamma " << Ngamma << " Dirichelet " << dirichelet << 
+  " maxmap " << Rcpp::max(map) << "\n";
 #endif  
 
   // eta = A gamma + X beta
@@ -117,8 +118,8 @@ CppAD::vector<Type>  objectiveFunctionInternal(
     }
   } else { // theta and beta in parameters
     if(Ntheta + Ngamma + Nbeta != ad_params.size()) {
-      Rcpp::warning("parameters is the wrong size");
-      Rcpp::Rcout << "Ntheta " << Ntheta << " Neta " << Neta 
+      Rcpp::Rcout <<  "parameters is the wrong size: " <<
+      "Ntheta " << Ntheta << " Neta " << Neta 
       << " Nbeta " << Nbeta << " Ngamma " << Ngamma << 
       " parameter size " << ad_params.size() << "\n";
     }
@@ -317,7 +318,7 @@ CppAD::vector<Type>  objectiveFunctionInternal(
  map, y integer vectors 
  config: hesMax integer, maximum number of non-zero hessian elements
  */
-
+//' @export
 // [[Rcpp::export]]
 Rcpp::List objectiveFunctionC(
   Rcpp::NumericVector parameters, 

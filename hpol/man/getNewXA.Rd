@@ -7,14 +7,14 @@
 getNewXA(terms, df)
 }
 \arguments{
-\item{terms}{The output `terms` of `hlnm`.}
+\item{terms}{The output \code{terms} of \code{hlnm}.}
 
-\item{df}{A data.frame with all the necessary columns (as in the `data` input of `hlnm`).}
+\item{df}{A data.frame with all the necessary columns (as in the \code{data} input of \code{hlnm}).}
 }
 \value{
 A list containing X and A, the fixed and random effects design matrices.
 }
 \description{
-Replicates the loop in `hlnm` that construct the design matrices, without modifying `terms` 
+Replicates the loop in \code{hlnm} that construct the design matrices, without modifying \code{terms}
 and creating the other objects (i.e., the precision matrices).
 }

@@ -12,13 +12,13 @@ default parameters.}
 }
 \value{
 A list containing the stratification design parameters. The list includes:
-  \itemize{
-    \item strat_vars: character or NULL. Variables to stratify the data.
-    \item time_var: character or NULL. Time variable.
-    \item time_lag: integer. Lag used to stratify data (default is 7).
-    \item time_size: integer. Size of strata (default is 4).
-    \item scheme: character. Stratification scheme (default, and sole implemented scheme is "time stratified").
-  }
+\itemize{
+\item strat_vars: character or NULL. Variables to stratify the data.
+\item time_var: character or NULL. Time variable.
+\item time_lag: integer. Lag used to stratify data (default is 7).
+\item time_size: integer. Size of strata (default is 4).
+\item scheme: character. Stratification scheme (default, and sole implemented scheme is "time stratified").
+}
 }
 \description{
 This function creates a list of design parameters used in stratification. The default parameters can be

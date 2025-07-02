@@ -99,17 +99,16 @@ fitD <- hpolcc::hnlm(
     f(tempClean, model='hiwp',ref_value = 20, p=3, 
       knots = seq(0, 45, by=2.5), 
     group_var = ecoRegion), 
-  data=dataMedSimple[dataMedSimple$ecoRegion < 10,],
-  dirichelet=TRUE,
+  data=dataMedSimple[dataMedSimple$ecoRegion < 7,],
+  dirichelet= FALSE,
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
-  for_dev=TRUE, verbose=FALSE
+  for_dev=TRUE, verbose=TRUE
   )
 
 
 
 
 
-fitD$config$verbose = TRUE
 fitD$config$transform_theta = TRUE
 if(ps::ps_system_memory()$total > 5e10) {
   fitD$config$num_threads = parallel::detectCores()
@@ -128,27 +127,24 @@ start_val <- c(
   )
 
 
-if(FALSE) {
-res = hpolcc:::objectiveFunctionC(
-  start_val, 
-  fitD$tmb_data, 
-  fitD$config)
-}
-
-
 wrappers <- hpolcc::make_trustoptim_wrappers(
   data=fitD$tmb_data,
   config=list(verbose=FALSE, transform_theta = TRUE, 
-    dirichelet = TRUE, num_threads = fitD$config$num_threads),
+    dirichelet = fitD$config$dirichelet, 
+    num_threads = fitD$config$num_threads),
   debug=FALSE
 )
+
+
+
 
 # checking derivatives
 fnSub = function(xx) wrappers$fn(c(xx, start_val[-(1:length(xx))]))
 
+testGrad = numDeriv::grad(fnSub, start_val[1:4])
 rbind(
   wrappers$gr(start_val)[1:4],
-  numDeriv::grad(fnSub, start_val[1:4])
+  testGrad
 )[,1:4]
 
 grSub = function(xx) wrappers$gr(c(xx, start_val[-(1:length(xx))]))[1:length(xx)]
@@ -186,7 +182,7 @@ mapOptim <- trust.optim(
     0.1, # sd local
     0.001, 0.001, # sd local slope, quad
     0.1 # dirichelet OD
-    ) 
+    )[seq(1, Nbeta+Ntheta)] 
     config = fitD$config
     config$transform_theta = FALSE
     config$verbose=FALSE
@@ -237,11 +233,9 @@ matplot(
 
 
 
+
 ```{r third deriv stuff}
-
-
-
-parametersGamma = sparsityForThird(
+parametersGamma = hpolcc::sparsityForThird(
   hessian = environment(wrappers$fn)$cache_env$config1$sparsity, 
     data = fitD$tmb_data)
 
@@ -258,6 +252,15 @@ resThird = hpolcc:::derivForLaplace(
   start_val, fitD$tmb_data, config
   ) 
 str(resThird)
+
+resThird$ddw = matrix(resThird$ddw, ncol=2, byrow=TRUE)
+resThird$taylor3 = matrix(resThird$taylor3, ncol=3, byrow=TRUE)
+
+head(resThird$ddw)
+head(resThird$taylor3)
+testHessian[,3]
+testGrad
+
 
 resThird$forDiag[1:150]
 

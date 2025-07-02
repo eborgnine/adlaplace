@@ -92,12 +92,14 @@ iidTheta(theta_info, term)
 \item{x}{A numeric vector representing the data to which the model is applied.}
 
 \item{model}{A character string specifying the model of model term. Options include:
-- `"fpoly"`: Fixed polynomial effect terms.
-- `"rpoly"`: Random polynomial effect terms.
-- `"hfpoly"`: Fixed hierarchical polynomial effect terms.
-- `"hrpoly"`: Random hierarchical polynomial effect terms.
-- `"iwp"`: Integrated Wiener process terms (random).
-- `"hiwp"`: Hierarchical integrated Wiener process terms (random).}
+\itemize{
+\item \code{"fpoly"}: Fixed polynomial effect terms.
+\item \code{"rpoly"}: Random polynomial effect terms.
+\item \code{"hfpoly"}: Fixed hierarchical polynomial effect terms.
+\item \code{"hrpoly"}: Random hierarchical polynomial effect terms.
+\item \code{"iwp"}: Integrated Wiener process terms (random).
+\item \code{"hiwp"}: Hierarchical integrated Wiener process terms (random).
+}}
 
 \item{...}{Additional arguments passed to other methods or functions.}
 
@@ -115,7 +117,7 @@ iidTheta(theta_info, term)
 
 \item{group_var}{A factor or grouping variable used to define hierarchical structures (optional).}
 
-\item{include_global}{A logical value indicating whether to include a global component in hierarchical models (default: `TRUE`).}
+\item{include_global}{A logical value indicating whether to include a global component in hierarchical models (default: \code{TRUE}).}
 
 \item{hrpoly_p}{A numeric value specifying the degree for hierarchical (random effects) polynomial components to add to the model as a separate term.}
 
@@ -125,24 +127,28 @@ iidTheta(theta_info, term)
 A list or matrix, depending on the function, representing the design matrix, precision matrix, or parameter information for the specified model term.
 }
 \description{
-This suite of functions implements various models (fixed and random effects), polynomials, integrated Wiener processes, and hierarchical extensions. 
-The primary interface for these models is the `f()` function, which allows specification of model terms via the `model` argument.
+This suite of functions implements various models (fixed and random effects), polynomials, integrated Wiener processes, and hierarchical extensions.
+The primary interface for these models is the \code{f()} function, which allows specification of model terms via the \code{model} argument.
 }
 \details{
-The `f()` function serves as the primary entry point for specifying model terms. Internally, it dispatches to specific functions based on the `model` argument:
-- `"fpoly"`: Calls the `fpoly()` function to specify fixed polynomial effect terms.
-- `"rpoly"`: Calls the `rpoly()` function to specify random polynomial effect terms.
-- `"hfpoly"`: Calls the `hfpoly()` function to specify hierarchical fixed polynomial effect terms.
-- `"hrpoly"`: Calls the `hrpoly()` function to specify hierarchical random polynomial effect terms.
-- `"iwp"`: Calls the `iwp()` function to construct integrated Wiener process terms.
-- `"hiwp"`: Calls the `hiwp()` function for hierarchical integrated Wiener process terms.
+The \code{f()} function serves as the primary entry point for specifying model terms. Internally, it dispatches to specific functions based on the \code{model} argument:
+\itemize{
+\item \code{"fpoly"}: Calls the \code{fpoly()} function to specify fixed polynomial effect terms.
+\item \code{"rpoly"}: Calls the \code{rpoly()} function to specify random polynomial effect terms.
+\item \code{"hfpoly"}: Calls the \code{hfpoly()} function to specify hierarchical fixed polynomial effect terms.
+\item \code{"hrpoly"}: Calls the \code{hrpoly()} function to specify hierarchical random polynomial effect terms.
+\item \code{"iwp"}: Calls the \code{iwp()} function to construct integrated Wiener process terms.
+\item \code{"hiwp"}: Calls the \code{hiwp()} function for hierarchical integrated Wiener process terms.
+}
 
 Utility functions:
-- **Design Functions (`*Design`)**: Construct design matrices tailored to specific modeling terms.
-- **Precision Matrix Functions (`*Precision`)**: Construct precision matrices corresponding to specific modeling terms.
-- **Theta Functions (`*Theta`)**: Handle the variance parameters associated with random effects.
+\itemize{
+\item \strong{Design Functions (\verb{*Design})}: Construct design matrices tailored to specific modeling terms.
+\item \strong{Precision Matrix Functions (\verb{*Precision})}: Construct precision matrices corresponding to specific modeling terms.
+\item \strong{Theta Functions (\verb{*Theta})}: Handle the variance parameters associated with random effects.
+}
 
-These utility functions are specifically used within the `hnlm` framework and are not exported.
+These utility functions are specifically used within the \code{hnlm} framework and are not exported.
 }
 \examples{
 These were generated with chatGPT and have not been reviewed. See vignette for a human generated example.

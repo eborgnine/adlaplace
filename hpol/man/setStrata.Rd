@@ -9,11 +9,11 @@ setStrata(cc_design, data, outcome = NULL)
 \arguments{
 \item{cc_design}{A list containing the design parameters for the stratification. This includes:
 \itemize{
-  \item strat_vars: character or NULL (default). Variables with which to stratify the data.
-  \item time_var: character vector or NULL (default). Variable giving the timestamps.
-  \item time_lag: integer (default is 7). Lag used to (further) stratify the data (only used when !is.null(time_var)).
-  \item time_size: integer (default is 4). Maximum size of strata (only used when !is.null(time_var)).
-  \item scheme: character (default is "time stratified"). Scheme used to (further) stratify the data (using lag, and only when !is.null(time_var)).
+\item strat_vars: character or NULL (default). Variables with which to stratify the data.
+\item time_var: character vector or NULL (default). Variable giving the timestamps.
+\item time_lag: integer (default is 7). Lag used to (further) stratify the data (only used when !is.null(time_var)).
+\item time_size: integer (default is 4). Maximum size of strata (only used when !is.null(time_var)).
+\item scheme: character (default is "time stratified"). Scheme used to (further) stratify the data (using lag, and only when !is.null(time_var)).
 }}
 
 \item{data}{A data frame containing the data to be stratified.}
@@ -26,9 +26,9 @@ This function creates a stratification of the data based on the specified strati
 and the time-related parameters, if applicable.
 }
 \details{
-The function performs stratification based on the specified `strat_vars` and `time_var`. If a time variable is provided,
+The function performs stratification based on the specified \code{strat_vars} and \code{time_var}. If a time variable is provided,
 additional stratification is done using the time lag and size parameters. The result is a matrix where each row represents a
 group of data points corresponding to a particular stratification level, with zeroes representing empty cases.
-Note that it handles only `time stratified` for now. If ever extended, beware that some other stratification
+Note that it handles only \verb{time stratified} for now. If ever extended, beware that some other stratification
 methods create overlapping strata; this may require modifying other parts of the package.
 }
