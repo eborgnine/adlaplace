@@ -92,6 +92,7 @@ Rcpp::List derivForLaplace(
   Rcpp::List hessianRandom = config["sparsity"];
   Rcpp::IntegerVector Hrow = hessianRandom["i"]; 
   Rcpp::IntegerVector Hp = hessianRandom["p"];
+  Rcpp::NumericVector HessianOut(Hrow.size());
 
 // indices for third deriv tensor 
   Rcpp::DataFrame parametersGamma = 
@@ -189,7 +190,9 @@ Rcpp::List derivForLaplace(
     const int Pstart = indexForDiagP[i];
     const int Nhere = indexForDiagP[i+1] - Pstart;
 
-    if(Nhere == 0) continue;
+    const int HessianPstart = Hp[i];
+    const int HessianNhere = Hp[i+1] - HessianPstart;
+
 
     std::vector<double> direction(Nparams, 0.0);
     direction[i]  = 1.0;     
@@ -200,20 +203,27 @@ Rcpp::List derivForLaplace(
 
   auto taylor3 = fun_threads[tid].Reverse(3, w);
 
+  // fill in the T_iik
   for(int Dj=0; Dj<Nhere; Dj++){
       const int indexHere = Pstart+Dj;
       forDiag[indexHere] = 
         taylor3[3*indexForDiagI[indexHere]];
   }
-
-  // To do: extract hessian for parameters - gamma
-
+#ifdef UNDEF
+  // fill in Hessian
+  for(int Dj=0; Dj<HessianNhere; Dj++){
+      const int indexHere = HessianPstart+Dj;
+      HessianOut[indexHere] = 
+        taylor3[1+3*Hrow[indexHere]];
+  }
+#endif
  } // for
 } // parallel
 
 Rcpp::List resultList = Rcpp::List::create(
   Rcpp::Named("result") = result,
-  Rcpp::Named("forDiag") = forDiag
+  Rcpp::Named("forDiag") = forDiag,
+  Rcpp::Named("hessian") = HessianOut
   );
 
 #ifdef DEBUG

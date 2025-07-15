@@ -53,6 +53,7 @@ loglik <- function(
   )
 
   result$cholHessian = Matrix::chol(result$hessian)
+  result$invHessian = Matrix::solve(result$cholHessian)
   result$logdet = drop(Matrix::determinant(
       result$cholHessian, log=TRUE, sqrt=FALSE
     )$modulus)
@@ -60,8 +61,8 @@ loglik <- function(
     as.numeric(result$logdet)/2 + 
     0.5 * Ngamma * 1.8378770664093454835606594728  # log 2 pi
 
-  result$gamma_hat <- result$solution
 
+  result$gamma_hat <- result$solution
   result$parameters = parameters
   Nfull = length(result$gamma_hat) + length(result$parameters)
 
@@ -92,7 +93,7 @@ config3 = c(
       names(parametersGamma)
     )]
 )
-#config$verbose=TRUE
+config3$verbose=TRUE
 
 resThird = hpolcc::derivForLaplace(
   fullParameters, data, config3
@@ -101,8 +102,8 @@ resThird = hpolcc::derivForLaplace(
   result$resThird = resThird
 
   result$third = parametersGamma$full
-  result$third$x = resThird$result
-# TO DO: subtract off T_iik, T_jjk, H_ik, H_jk
+  result$third$taylor3 = resThird$result
+
 
 # entry i,k is T_iik
 result$deriv3diag = Matrix::sparseMatrix(
@@ -111,7 +112,22 @@ result$deriv3diag = Matrix::sparseMatrix(
   x = resThird$forDiag, symmetric=FALSE,
   index1=FALSE, dims = rep(Nfull,2))
 
-  # to do: third derivative
+#  T i, j=param, k=gamma
+#  x is T_iik + T_jjk + 2 T_ijk 
+#  subtract off T_iik, T_jjk,
+
+iijIndex = 1+result$third$iInParams + nrow(result$deriv3diag)*result$third$paramInParams
+result$third$iij = result$deriv3diag[iijIndex]
+iikIndex = 1+result$third$iInParams + nrow(result$deriv3diag)*result$third$gammaInParams
+result$third$iik = result$deriv3diag[iikIndex]
+result$third$Tijk = (result$third$taylor3 - result$third$iij - result$third$iik)/2
+
+
+Txx1 = result$third[result$third$param == 0,]
+Txx1 = Matrix::sparseMatrix(i=Txx1$gamma, j=Txx1$i, x=Txx1$Tijk, index1=FALSE, symmetric=TRUE)
+
+
+# to do: third derivative
 #  ∂(ln(det(X))) = Tr(X^{−1} ∂X)
 
 # gammaHat1 = gammaHat - Hinv G
