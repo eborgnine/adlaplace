@@ -1,9 +1,8 @@
-Rcpp::S4 make_dgTMatrix(
+Rcpp::S4 make_TMatrix(
   const Rcpp::NumericVector& x,
   const Rcpp::IntegerVector& i,
   const Rcpp::IntegerVector& j,
-  size_t N, size_t maxEntries,
-  bool isLower);
+  size_t N);
 
 
 Rcpp::IntegerVector  compute_p_vector(

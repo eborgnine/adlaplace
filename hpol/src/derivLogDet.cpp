@@ -16,7 +16,7 @@ Rcpp::List test3(Rcpp::NumericVector X, Rcpp::NumericVector U, Rcpp::NumericVect
   std::vector<double> direction2 = Rcpp::as<std::vector<double>>(V);
   int Nparams = X.size();
 
-      Rcpp::Rcout << "Nparms" << Nparams << "\n";
+  Rcpp::Rcout << "Nparms" << Nparams << "\n";
 
   CppAD::vector<CppAD::AD<double>> ad_params(Nparams);  
   for (size_t D = 0; D < Nparams; D++) {
@@ -24,40 +24,40 @@ Rcpp::List test3(Rcpp::NumericVector X, Rcpp::NumericVector U, Rcpp::NumericVect
   }
     CppAD::Independent(ad_params);  // Tell CppAD these are inputs for differentiation
 
-  CppAD::vector<CppAD::AD<double>> y(1,0.0);
+    CppAD::vector<CppAD::AD<double>> y(1,0.0);
   for (size_t D = 0; D < Nparams; //Nparams; 
     D++) {
     y[0] += ad_params[D]*(1+D);
-  }   
-  y[0] = y[0]*y[0]*y[0]*y[0];
+}   
+y[0] = y[0]*y[0]*y[0]*y[0];
 
-  Rcpp::Rcout << "b\n";
+Rcpp::Rcout << "b\n";
 
-  CppAD::ADFun<double> fun(ad_params, y);
-        Rcpp::Rcout << "b1\n";
+CppAD::ADFun<double> fun(ad_params, y);
+Rcpp::Rcout << "b1\n";
 
-  std::vector<double> y_val(1);
-  Rcpp::Rcout << "b2\n";
+std::vector<double> y_val(1);
+Rcpp::Rcout << "b2\n";
 
-  y_val = fun.Forward(0, x);
-          Rcpp::Rcout << "b3\n";
-  auto taylor1 = fun.Forward(1, direction1);
-  auto taylor2 = fun.Forward(2, direction2);
-        Rcpp::Rcout << "c\n";
+y_val = fun.Forward(0, x);
+Rcpp::Rcout << "b3\n";
+auto taylor1 = fun.Forward(1, direction1);
+auto taylor2 = fun.Forward(2, direction2);
+Rcpp::Rcout << "c\n";
 
 
-  auto taylor3 = fun.Reverse(3, w);
+auto taylor3 = fun.Reverse(3, w);
 
-        Rcpp::Rcout << "d\n";
+Rcpp::Rcout << "d\n";
 
-  Rcpp::NumericVector result(taylor3.size()), result2(taylor2.size());
-  for(size_t D=0;D<result.size();D++) result[D] = taylor3[D];
+Rcpp::NumericVector result(taylor3.size()), result2(taylor2.size());
+for(size_t D=0;D<result.size();D++) result[D] = taylor3[D];
   for(size_t  D=0;D<result2.size();D++) result2[D] = taylor2[D];
 
-  return Rcpp::List::create(
-    Rcpp::Named("taylor3") = result,
-    Rcpp::Named("taylor2") = result2
-  );
+    return Rcpp::List::create(
+      Rcpp::Named("taylor3") = result,
+      Rcpp::Named("taylor2") = result2
+      );
 
 }
 #endif
@@ -66,9 +66,9 @@ Rcpp::List test3(Rcpp::NumericVector X, Rcpp::NumericVector U, Rcpp::NumericVect
 //' @export
 // [[Rcpp::export]]
 Rcpp::List derivForLaplace(
-  Rcpp::NumericVector parameters, // gamma, beta, theta
+  Rcpp::NumericVector parameters, // beta, gamma, theta
   Rcpp::List data, 
-  Rcpp::List config
+  Rcpp::List config // sparsity$second full and random sparsity$third jk and ijk
   ) {
 
 	int num_threads = 1;
@@ -76,180 +76,184 @@ Rcpp::List derivForLaplace(
 		num_threads = Rcpp::as<int>(config["num_threads"]);
 
   bool verbose = false;
-   if (config.containsElementNamed("verbose")) {
+  if (config.containsElementNamed("verbose")) {
    verbose = Rcpp::as<bool>(config["verbose"]);
-   }
+ }
 
 
-  const Rcpp::S4 A(data["ATp"]), X(data["XTp"]);
-  const Rcpp::IntegerVector dimsX = X.slot("Dim");
-  const Rcpp::IntegerVector dimsA = A.slot("Dim");
+ const Rcpp::S4 A(data["ATp"]), X(data["XTp"]);
+ const Rcpp::IntegerVector dimsX = X.slot("Dim");
+ const Rcpp::IntegerVector dimsA = A.slot("Dim");
 
-  const int Nparams = parameters.size();
-  const int Nbeta = dimsX[0];
+ const int Nparams = parameters.size();
+ const int Nbeta = dimsX[0];
+ const int Ngamma = dimsA[0];
+ const int Ntheta = Nparams - Nbeta - Ngamma;
 
 // hessian of random effects, lower triangle only, column format
-  Rcpp::List hessianRandom = config["sparsity"];
-  Rcpp::IntegerVector Hrow = hessianRandom["i"]; 
-  Rcpp::IntegerVector Hp = hessianRandom["p"];
-  Rcpp::NumericVector HessianOut(Hrow.size());
+ Rcpp::List sparsity = config["sparsity"];
+ Rcpp::List hessianList = sparsity["second"];
+ Rcpp::List hessian = hessianList["full"];
+ Rcpp::IntegerVector Hrow = hessian["i"]; 
+ Rcpp::IntegerVector Hp = hessian["p"];
 
-// indices for third deriv tensor 
-  Rcpp::DataFrame parametersGamma = 
-    Rcpp::as<Rcpp::DataFrame>(config["parametersGamma"]);
-  Rcpp::IntegerVector PinThird = parametersGamma["PinThird"];
-  Rcpp::IntegerVector NinHessian = parametersGamma["NinHessian"];
-  Rcpp::IntegerVector PinHessian = parametersGamma["PinHessian"];
-  Rcpp::IntegerVector gammaInParams = parametersGamma["gammaInParams"];
-  Rcpp::IntegerVector paramInParams = parametersGamma["paramInParams"];
+// sparsity for third deriv
+ Rcpp::List thirdList = sparsity["third"];
+ Rcpp::List sparsityThirdIjk = thirdList["ijk"];   //  "p" "i" "j" "k"
+ Rcpp::List sparsityThirdJk = thirdList["jk"];    // "pEnd" "n"    "p"    "j"    "k" 
 
-  int NgammaCombo = parametersGamma.nrow();
-// to store the third deriv tensor
-  const int Nthird = 
-    PinThird[NgammaCombo-1] +
-      NinHessian[NgammaCombo-1];
-  Rcpp::NumericVector result(Nthird);    
+ Rcpp::IntegerVector sparsityJkJ = sparsityThirdJk["j"];
+ Rcpp::IntegerVector sparsityJkK = sparsityThirdJk["k"];
+ Rcpp::IntegerVector sparsityJkP = sparsityThirdJk["p"];
+ Rcpp::IntegerVector sparsityJkPend = sparsityThirdJk["pEnd"];
+ Rcpp::IntegerVector sparsityIjkI = sparsityThirdIjk["i"];
 
+ const int Nthird = sparsityIjkI.size();
+ const int Npairs = sparsityJkJ.size();
 
-// indices computation of entries T_iij
-  Rcpp::List indexForDiag = config["indexForDiag"];
-  Rcpp::IntegerVector indexForDiagI = indexForDiag["i"];
-  Rcpp::IntegerVector indexForDiagP = indexForDiag["p"];
-  const int Ndiag = indexForDiagP.size()-1;
-  Rcpp::NumericVector forDiag(indexForDiagI.size());
+// output
+ Rcpp::NumericVector hessianOut(Hrow.size());
+ Rcpp::NumericVector diagOut(Hrow.size());
+ Rcpp::NumericVector Tijk(Nthird);    
 
 
+#ifdef DEBUG
+ Rcpp::NumericMatrix hessianDense(Nparams, Nparams);
+ Rcpp::NumericMatrix thirdDiagDense(Nparams, Nparams);
+ Rcpp::NumericMatrix TijkDense(Nparams, Npairs);
+#endif
 
-  CppAD::vector<CppAD::AD<double>> ad_params(Nparams);  
-  for (size_t D = 0; D < Nparams; D++) {
+// set up autodiff function
+ CppAD::vector<CppAD::AD<double>> ad_params(Nparams);  
+ for (size_t D = 0; D < Nparams; D++) {
     ad_params[D] = parameters[D];  // Initialize CppAD variables
   }
   CppAD::Independent(ad_params);  // Tell CppAD these are inputs for differentiation
 
   CppAD::vector<CppAD::AD<double>> y = 
-    objectiveFunctionInternal(ad_params, data, config);
+  objectiveFunctionInternal(ad_params, data, config);  
   CppAD::ADFun<double> fun(ad_params, y);
+
   std::vector<double> x_val(Nparams);
+  std::vector<double> y_val(1);
+  std::vector<double> w{0.0, 0.0, 1.0};  
+
   for (size_t i = 0; i < Nparams; ++i) {
     x_val[i] = parameters[i];
   }
-
-  std::vector<double> y_val(1);
   y_val = fun.Forward(0, x_val);
 
-    // Replicate fun object for each thread
+  // Replicate fun object for each thread
   std::vector<CppAD::ADFun<double>> fun_threads(num_threads);
-  for (int i = 0; i < num_threads; ++i) fun_threads[i] = fun;
-
-  std::vector<double> w{0.0, 0.0, 1.0};  
-
-
-    if (verbose ) {
-      Rcpp::Rcout << "starting 3rd deriv, " << num_threads << " threads\n";
-    }
-    omp_set_num_threads(num_threads);
-
+  for (int i = 0; i < num_threads; ++i) {
+    fun_threads[i] = fun;
+  }
+  if (verbose ) {
+    Rcpp::Rcout << "starting 3rd deriv, " << num_threads << " threads\n";
+  }
+  omp_set_num_threads(num_threads);
 
 //  computing  T_iik + T_jjk + 2 T_ijk for all k.
 // i's are gammas, j's beta or theta , k is either
   #pragma omp parallel
-    {
-  const int tid=omp_get_thread_num();
+  {
+    const int tid=omp_get_thread_num();
 
-  #pragma omp for
- for(int DgammaCombo=0; DgammaCombo < NgammaCombo; ++DgammaCombo) {
+//    std::vector<double> direction(Nparams, 0.0);
 
-  const int DgammaInParams = gammaInParams[DgammaCombo];
-  const int DbetaThetaInParams = paramInParams[DgammaCombo];
-  const int Nnonzero = NinHessian[DgammaCombo];
-
-  std::vector<double> direction(Nparams, 0.0);
-  direction[DgammaInParams]  = 1.0;     
-  direction[DbetaThetaInParams]  = 1.0;     
-
-  fun_threads[tid].Forward(0, x_val);
-  fun_threads[tid].Forward(1, direction);
-  fun_threads[tid].Forward(2, direction);
-
-
-  // result is row-wise, first column is third deriv combination
-  auto taylor3 = fun_threads[tid].Reverse(3, w);
-
-  const int PinHessianHere = PinHessian[DgammaCombo];
-  const int PinThirdHere = PinThird[DgammaCombo];
-  for(int Dthird=0; Dthird < Nnonzero; Dthird++)  {
-    int Drow = Hrow[PinHessianHere + Dthird] + Nbeta;
-    result[PinThirdHere+Dthird] = taylor3[3*Drow];
-  }
- } // for
 
   // diagonal entries to subtract off
-  // computing T_iik,  columnns are i, rows are k
+  // computing T_kii and H_ki, columnns are i, rows are k
     #pragma omp for
-  for(int i=0; i < Ndiag; ++i) {
-    const int Pstart = indexForDiagP[i];
-    const int Nhere = indexForDiagP[i+1] - Pstart;
+    for(int i=0; i < Nparams; ++i) {
 
-    const int HessianPstart = Hp[i];
-    const int HessianNhere = Hp[i+1] - HessianPstart;
+      const int HessianStart = Hp[i+1];
+      const int HessianEnd = Hp[i+1];
 
 
-    std::vector<double> direction(Nparams, 0.0);
-    direction[i]  = 1.0;     
+//    std::fill(direction.begin(), direction.end(), 0.0);
+      std::vector<double> direction(Nparams, 0.0);
+      direction[i]  = 1.0;     
+
+
+      fun_threads[tid].Forward(0, x_val);
+      fun_threads[tid].Forward(1, direction);
+      fun_threads[tid].Forward(2, direction);
+
+      auto taylor3 = fun_threads[tid].Reverse(3, w);
+
+  // fill in the T_iik and Hessian
+      for(
+        int Dj=HessianStart; 
+        Dj<HessianEnd; 
+        Dj++){
+        int indexHere = 3*Hrow[Dj];
+      // second column is hessian
+      hessianOut[Dj] = taylor3[1+indexHere];
+      // first column is T_ijj/2 + H_ij
+      diagOut[Dj] = 2*(taylor3[indexHere] - hessianOut[Dj]);
+    }
+
+
+
+#ifdef DEBUG
+    // store dense
+    for(int Dj=0; Dj<Nparams; Dj++){
+      hessianDense(Dj, i) = taylor3[1+3*Dj];
+      thirdDiagDense(Dj, i) = taylor3[3*Dj];
+    }
+#endif  
+
+ } // for i diagonal bit
+
+// off diag T_ijk
+
+    #pragma omp for
+ for(int Djk=0; Djk < Npairs; ++Djk) {
+  const int Dj = sparsityJkJ[Djk];
+  const int Dk = sparsityJkK[Djk];
+
+  std::vector<double> direction(Nparams, 0.0);
+  direction[Dk]  = direction[Dj] = 1.0;     
 
   fun_threads[tid].Forward(0, x_val);
   fun_threads[tid].Forward(1, direction);
   fun_threads[tid].Forward(2, direction);
 
+  // first column is third deriv combination
+  //  T_iik + T_jjk + 2 T_ijk 
   auto taylor3 = fun_threads[tid].Reverse(3, w);
 
-  // fill in the T_iik
-  for(int Dj=0; Dj<Nhere; Dj++){
-      const int indexHere = Pstart+Dj;
-      forDiag[indexHere] = 
-        taylor3[3*indexForDiagI[indexHere]];
-  }
-#ifdef UNDEF
-  // fill in Hessian
-  for(int Dj=0; Dj<HessianNhere; Dj++){
-      const int indexHere = HessianPstart+Dj;
-      HessianOut[indexHere] = 
-        taylor3[1+3*Hrow[indexHere]];
-  }
-#endif
- } // for
-} // parallel
 
-Rcpp::List resultList = Rcpp::List::create(
-  Rcpp::Named("result") = result,
-  Rcpp::Named("forDiag") = forDiag,
-  Rcpp::Named("hessian") = HessianOut
-  );
+  for(int Di=sparsityJkP[Djk]; Di<sparsityJkPend[Djk]; Di++){
+    int indexHere = 3*sparsityIjkI[Di];
+    Tijk[Di] = taylor3[indexHere]; // /to do subttract off Tiik, Tjjk
+  }
 
 #ifdef DEBUG
-// test      
-std::vector<double> w2(1, 1.0);
+  for(int Di=0; Di<Nparams; Di++){
+    TijkDense(Di, Djk) = taylor3[3*Di];
+  }
+#endif  
 
-        std::vector<double> u(Nparams, 0.0); 
-        u[2]=1;
-
-          fun_threads[0].Forward(0, x_val);
-          fun_threads[0].Forward(1, u);
-          std::vector<double> ddw = fun_threads[0].Reverse(2, w2);
-          Rcpp::NumericVector ddwR(ddw.begin(), ddw.end());
-
-  fun_threads[0].Forward(0, x_val);
-  fun_threads[0].Forward(1, u);
-  fun_threads[0].Forward(2, u);
+ } // Djk
 
 
-  auto taylor3 = fun_threads[0].Reverse(3, w);
-  Rcpp::NumericVector taylor3R(taylor3.begin(), taylor3.end());
+} // parallel
 
-  resultList["ddw"] = ddwR;
-  resultList["taylor3"] = taylor3R;
 
-#endif
+Rcpp::List resultList = Rcpp::List::create(
+  Rcpp::Named("third") = Tijk,
+  Rcpp::Named("diag") = diagOut,
+  Rcpp::Named("hessian") = hessianOut
+#ifdef DEBUG
+  ,
+  Rcpp::Named("denseHessian") = hessianDense,
+  Rcpp::Named("denseDiag") = thirdDiagDense,
+  Rcpp::Named("denseThird") = TijkDense
+#endif  
+  );
+
 
 return resultList;
 }

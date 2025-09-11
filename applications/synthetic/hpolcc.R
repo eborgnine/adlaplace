@@ -37,20 +37,24 @@ res1 = hpolcc:::objectiveFunctionC(
  fit$config
   )
 res1$h2 = Matrix::forceSymmetric(res1$hessian)
-res1$hessian[1:5,1:5]
-xx$h[1:5,1:5]
 
 allPar = c(betaHat, gamma_start, sigmaHat)
+
 bob = function(x) {
 	par = c(x,  allPar[-(1:length(x))])
 	configHere = fit$config
 	configHere$maxDeriv = 0
 	hpolcc:::objectiveFunctionC( 
- 		c(betaHat, gamma_start, sigmaHat),
+ 		par,
  		fit$tmb_data, configHere
   )$value
 }
 bob(allPar)
+
+numDeriv::hessian(bob, allPar[1:5])
+res1$hessian[1:5,1:5]
+xx$h[1:5,1:5]
+
 
 res1$cholHessian = Matrix::chol(res1$h2)
 

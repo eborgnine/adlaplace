@@ -1,0 +1,1047 @@
+```{r setup, include=FALSE}
+#devtools::install_github("samperochkin/hpoltest")
+```
+
+
+
+on darjeeling
+```{r loadpackage, eval=FALSE}
+
+library('hpolcc', lib.loc = 
+  "/home/patrick/R/x86_64-pc-linux-gnu-library/4.5")
+
+```
+
+for new package
+Need cppad, openmp
+
+brew install cppad
+brew install openmp (?)
+
+might need 
+
+~/.R/Makevars with
+
+# Use Homebrew LLVM clang++ for OpenMP support
+CXX = /opt/homebrew/opt/llvm/bin/clang++
+CC  = /opt/homebrew/opt/llvm/bin/clang
+
+CXXFLAGS += -std=c++17 -I/opt/homebrew/include -fopenmp
+LDFLAGS  += -L/opt/homebrew/lib -lcppad_lib -fopenmp
+
+# Tell clang where to find OpenMP
+CPPFLAGS += -I/opt/homebrew/opt/libomp/include
+LDFLAGS  += -L/opt/homebrew/opt/libomp/lib -lomp
+
+
+
+```{r setup2}
+
+
+library('data.table')
+# /home/patrick/Admin/globalHealth/indiaSpatial/daily.Rmd
+SstoreDir = c('/store/patrick/copernicus/agg', '~/Downloads/agg')
+storeDir = SstoreDir[1]
+if(!dir.exists(storeDir)) storeDir = SstoreDir[2]
+
+deaths = as.data.table(readRDS( file.path(storeDir, "indiaCC.rds")))
+
+indiaEcoRegions = terra::unwrap(readRDS(file.path(storeDir, "indiaEcoRegions.rds")))
+
+
+# trransform variables
+deaths$sqrtPm = sqrt(pmin(deaths$pm,1000))
+deaths$timeIid = as.numeric(deaths$date)
+
+# table(deaths$ecoRegion, deaths$temp < -10)
+
+deaths$tempClean = pmax(deaths$temp, -5)
+
+
+deaths$dom = as.numeric(format(deaths$date, '%d'))
+deaths[deaths$dom == Hmisc::monthDays(deaths$date), 'dom'] = 31
+deaths[format(deaths$date, '%m%d') == '0101', 'dom'] = 0
+deaths$dom = relevel(factor(deaths$dom), '1')
+deaths$month = format(deaths$date, '%m')
+
+
+dataMedSimple =
+  deaths[
+    deaths$date >= as.Date('2006/1/1') &
+    format(deaths$date, '%b%d') != 'Jan01'
+    & deaths$tempClean >=0
+#    & deaths$ecoRegion %in% 2:6 #setdiff(1:20, c(1,7,19)) # regions 1, 7, 19 have some very low temperatures.
+    , ]
+save(dataMedSimple, file='.RData')
+
+```
+
+
+
+
+```{r tmbpackage, eval=FALSE}
+library(hpoltest)
+formula <- count ~ f(date, model = 'iid')  + 
+  f(tempClean, model = 'hiwp', ref_value = 20, p=3, 
+      knots = seq(0, 45, by=2.5), 
+    group_var = ecoRegion)
+  fit <- hnlm(formula, dataMedSimple, 
+    cc_design =  ccDesign(time_var = 'date',
+    strat_vars=c("cell","ecoRegion", "yearWeek3Dow"))
+  )
+  sdr <- sdreport(fit$obj, getJointPrecision=TRUE)
+  mu <- fit$obj$env$last.par
+
+```
+
+
+```{r fit}
+# R CMD INSTALL --clean --preclean hpoltest_0.0.1.tar.gz   --configure-args="--enable-openmp" --configure-vars="PKG_CPPFLAGS='-fopenmp' PKG_LIBS='-fopenmp'"
+# devtools::install_github("samperochkin/hpoltest")
+# ulimit -s unlimited 
+
+
+library('hpolcc')
+
+fitD <- hpolcc::hnlm(
+  formula= medical ~ #f(date, model='iid') +
+#    f(sqrtPm, model='hiwp', ref_value = 8, p=2, 
+#      knots = seq(0,32, by=2),
+#      group_var = ecoRegion) + 
+    f(tempClean, model='hiwp',ref_value = 20, p=3, 
+      knots = seq(0, 45, by=5), 
+    group_var = ecoRegion), 
+  data=dataMedSimple[dataMedSimple$ecoRegion < 7,],
+  dirichelet= TRUE,
+  cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
+  for_dev=TRUE, verbose=TRUE
+  )
+
+
+
+
+
+fitD$config$transform_theta = TRUE
+if(ps::ps_system_memory()$total > 5e10) {
+  fitD$config$num_threads = parallel::detectCores()
+} else {
+  fitD$config$num_threads = 4
+}
+
+
+  Nbeta = nrow(fitD$tmb_data$XTp)
+  Ngamma = nrow(fitD$tmb_data$ATp)
+
+  Ntheta = length(fitD$theta_info$name)
+
+  parameters = c(
+    0.0, 0.01, # beta (slope, quadratic) 
+    1, # sd global
+    0.1, # sd local
+    0.001, 0.001, # sd local slope, quad
+    0.1[fitD$config$dirichelet] # dirichelet OD
+    )
+
+ gamma_start = runif(Ngamma, -0.01, 0.01) #mapOptim$solution[seq(Nbeta+1, len=Ngamma)]
+
+    config = fitD$config
+    config$transform_theta = FALSE
+    config$verbose=TRUE
+
+if(TRUE) {
+    
+ 
+             data=fitD$tmb_data
+    control = list(maxit=10, start.trust.radius = 0.1,
+      report.level=4, report.freq=1)
+
+ x=c(parameters[1:Nbeta], gamma_start, parameters[-(1:Nbeta)])
+
+}
+
+
+# likelihood
+# parameters = (beta, theta)
+# config$transform_theta = TRUE means thetas are log(sd) otherwise theta=sd
+result = loglik(parameters, 
+             gamma_start, 
+             data=fitD$tmb_data, 
+    config = config,
+    control = list(maxit=30, start.trust.radius = 0.1,
+      report.level=4, report.freq=1))
+
+```
+
+
+```{r checkDerivs}
+
+
+
+fitD$config$maxDeriv = 2
+fitD$config$verobse=FALSE
+parametersFull = c(
+  result$parameters[1:nrow(fitD$tmb_data$XTp)], # beta
+  result$solution,  # gamma
+  result$parameters[-(1:nrow(fitD$tmb_data$XTp))] # theta
+  )
+
+
+wrappers <- hpolcc::make_trustoptim_wrappers(
+  data=fitD$tmb_data,
+  config=list(verbose=FALSE, transform_theta = TRUE, 
+    dirichelet = fitD$config$dirichelet, 
+    num_threads = fitD$config$num_threads),
+  debug=FALSE
+)
+
+newmat = Matrix::Matrix(0, 
+  nrow=nrow(result$extra$denseHessian), ncol=nrow(result$extra$denseHessian),
+  sparse=TRUE)
+newmat[seq(from=Nbeta+1, len=Ngamma), seq(from=Nbeta+1, len=Ngamma)] = result$hessian
+newmat[1:8,1:8]
+result$extra$denseHessian[1:8,1:8] 
+wrappers$hs(parametersFull)[1:8,1:8]
+
+thirdDiag = 2*(result$extra$denseDiag - result$extra$denseHessian)
+
+
+# thirdDiag[a,b] = T_abb
+result$extra$denseDiag[1:4, 1:9]
+thirdDiag[1:4, 1:9]
+
+
+# test third
+
+indexForThird = length(parametersFull)
+forThirdGamma1 = forThirdGamma2 = 5
+
+stepsize = 0.0001
+SforDeriv = seq(-3,3)*stepsize + parametersFull[indexForThird]
+
+Sparams = matrix(parametersFull, length(parametersFull), length(SforDeriv))
+Sparams[indexForThird,] = SforDeriv
+Sparams = as.data.frame(Sparams)
+
+hsEval = mapply(
+  wrappers$hs,
+  Sparams
+  )
+
+# 2nd deriv a v H_bb(a) 
+Shs = unlist(lapply(hsEval, function(xx) xx[forThirdGamma1, forThirdGamma2]))
+plot(SforDeriv, Shs, type='o')
+
+
+newx = seq(SforDeriv[1]+stepsize, max(SforDeriv)-stepsize, len=length(SforDeriv)-1)
+numthird = diff(Shs)/stepsize
+
+plot(newx, numthird, type='o')
+
+
+abline(h=thirdDiag[indexForThird, forThirdGamma1])
+
+
+(diff(Shs)/stepsize)/2 + approx(SforDeriv, Shs, newx)$y
+result$extra$denseDiag[indexForThird, forThirdGamma1]
+result$extra$denseDiag[forThirdGamma1, indexForThird]
+result$extra$denseDiag[indexForThird, forThirdGamma1] 
+
+
+(diff(Shs)/stepsize)/2 
+approx(SforDeriv, Shs, newx)$y
+
+result$extra$denseDiag[indexForThird, forThirdGamma1]-result$extra$denseHessian[indexForThird, forThirdGamma1] 
+
+2*(result$extra$denseDiag[indexForThird, forThirdGamma1] - result$extra$denseHessian[indexForThird, forThirdGamma1]) 
+
+
+start_val = parametersFull
+# checking derivatives
+fnSub = function(xx) wrappers$fn(c(
+  start_val[
+    seq(1, length(start_val)-length(xx))
+    ], xx
+    )
+  )
+
+StoDiff = seq(to=length(start_val), len=7)
+testGrad = numDeriv::grad(fnSub, 
+  start_val[StoDiff]
+  )
+(xx = rbind(
+  autodiff=wrappers$gr(start_val)[StoDiff],
+  num = testGrad
+))
+
+autoHessian = wrappers$hs(start_val)
+
+grSub = function(xx) wrappers$gr(
+  c(
+  start_val[
+    seq(1, length(start_val)-length(xx))
+    ], xx
+    )
+    )
+
+testHessian = numDeriv::jacobian(grSub, start_val[StoDiff])[StoDiff,]
+options(width=200)
+rbind(
+  testHessian, 
+  NA, 
+  autoHessian[StoDiff, StoDiff]
+)
+
+
+
+plot(SforDeriv, fnEval)
+
+plot(seq(SforDeriv[1]+stepsize, max(SforDeriv)-stepsize, len=length(SforDeriv)-1), 
+  diff(fnEval)/stepsize, type='o')
+(theG = wrappers$gr(parametersFull)[indexForThird])  
+abline(h=theG, lty=2)
+
+
+plot(SforDeriv[-c(1, length(SforDeriv))], 
+  diff(diff(fnEval))/stepsize^2, type='o')
+abline(h=wrappers$hs(parametersFull)[indexForThird,indexForThird], lty=2)
+
+
+
+hsEval = mapply(
+  wrappers$hs,
+  Sparams
+  )
+
+forThirdGamma1 = 1+Nbeta
+forThirdGamma2 = 1+Nbeta
+
+
+
+
+str(result$extra$third)
+
+thirdHere = result$third[
+  ( (result$third$paramInParams+1) == indexForThird),
+  ]
+
+
+diagHere = result$extra$diag[,unlist(thirdHere[1,'param'])+1 ]
+
+# Tijj + T_ikk
+diagHere = Matrix::forceSymmetric(outer(diagHere, diagHere, FUN='+'))
+
+# 2 T_{ijk} + T_ijj + T_ikk
+taylor3mat = Matrix::sparseMatrix(
+  i = thirdHere$iInParams, j = thirdHere$gammaInParams,
+  x = thirdHere$taylor3, index1=FALSE, symmetric=TRUE,
+  dims = dim(diagHere)
+  )
+
+diag_masked <- diagHere * (taylor3mat != 0)
+Tderiv = (taylor3mat - diag_masked)/2
+
+Shs = unlist(lapply(hsEval, function(xx) xx[forThirdGamma1, forThirdGamma2]))
+plot(SforDeriv, Shs, type='o')
+
+plot(seq(SforDeriv[1]+stepsize, max(SforDeriv)-stepsize, len=length(SforDeriv)-1), 
+  diff(Shs)/stepsize, type='o')
+
+abline(h=thirdDiag[forThirdGamma1,indexForThird])
+
+
+
+
+```
+
+
+```{r mapEstimator, eval=FALSE}
+if(FALSE) {
+# map estimator  
+library('trustOptim')
+
+mapOptim <- trust.optim(
+  x = start_val,
+  fn = wrappers$fn,
+  gr = wrappers$gr,
+  hs = wrappers$hs,
+  method = "Sparse",
+  control = list(
+    start.trust.radius = 50, maxit=150, trust.iter = 5000,
+    preconditioner=1, report.level=4, report.freq=1)
+)
+
+mapOptim$solution[1:Nbeta]
+exp(mapOptim$solution[-seq(1, Nbeta + Ngamma)])
+
+}
+
+
+Nsim = 200
+gammaSim =  res$gamma_hat + 
+  cholVariance %*% matrix(
+  rnorm(Nsim*nrow(cholVariance)),
+  nrow(cholVariance), Nsim)
+
+
+# only plot the global effects
+rowsToKeep = grep("temp.*global", rownames(fitD$tmb_data$ATp))
+
+Stemp = seq(0,41,by=0.5)
+SobsTemp = na.omit(match(Stemp, round(fitD$data$tempClean, 1)))
+
+par(mar=c(3,3,0,0), bty='n')
+matplot(
+  Stemp,
+  crossprod(
+    fitD$tmb_data$XTp[, SobsTemp],
+    parameters[1:Nbeta]
+    ) + 
+  crossprod(
+    fitD$tmb_data$ATp[rowsToKeep, SobsTemp], 
+    gammaSim[rowsToKeep,]),
+  type='l', col='#00000020', lty=1, xaxs='i',
+  yaxs='i'
+)
+
+```
+
+
+
+
+```{r third_deriv_stuff}
+# note wrappers$hs must have been run 
+parametersGamma = hpolcc::sparsityForThird(
+  hessian = environment(wrappers$fn)$cache_env$config1$sparsity, 
+    data = fitD$tmb_data)
+
+config = c(
+  parametersGamma,
+  fitD$config[setdiff(
+      names(fitD$config), 
+      names(parametersGamma)
+    )]
+)
+config$verbose=TRUE
+
+resThird = hpolcc:::derivForLaplace(
+  parameters=start_val, data=fitD$tmb_data, config
+  ) 
+str(resThird)
+
+resThird$ddw = matrix(resThird$ddw, ncol=2, byrow=TRUE)
+resThird$taylor3 = matrix(resThird$taylor3, ncol=3, byrow=TRUE)
+
+head(resThird$ddw)
+head(resThird$taylor3)
+testHessian[,3]
+testGrad
+
+
+resThird$forDiag[1:150]
+
+
+
+
+```
+
+
+
+```{r theResults}
+result$parameters = hpolcc::formatParameters(
+  result$solution, fitD, TRUE)
+
+result$parameters$theta
+
+# parameters are (beta, gamma, theta)
+
+randomEffects = seq(from=length(result$parameters$beta)+1,
+  length = nrow(result$parameters$gamma))
+
+result$Htilde = result$hessian[randomEffects, randomEffects]
+result$HtildeChol = Matrix::solve(Matrix::chol(result$Htilde))
+
+Nsim = 200
+simInd = matrix(rnorm(Nsim * nrow(result$Htilde)),
+ nrow(result$Htilde), Nsim)
+
+# sample from [U|Y, theta_map]
+simGamma = Matrix::crossprod(result$HtildeChol,  simInd) 
+rownames(simGamma) = rownames(fitD$tmb_data$ATp)
+
+simGamma = simGamma + unlist(result$parameters$gamma[
+  rownames(simGamma), 'value'])
+
+
+Stemp = seq(0,45,by=0.1)
+SobsTemp = na.omit(match(Stemp, round(fitD$data$tempClean, 1)))
+Spm = seq(1,1000, by=1)
+SobsPm = na.omit(match(Spm, round(fitD$data$pm)))
+
+Sobs = SobsTemp
+nameX = 'tempClean'
+
+Bmat = fitD$tmb_data$ATp[, Sobs]
+# only want the global effects
+Bmat = Bmat[grep(paste0(nameX,".*global"), rownames(Bmat)),]
+
+
+simF = crossprod(Bmat, simGamma[rownames(Bmat),]) 
+
+covHere = grep(nameX, names(result$parameters$beta), value=TRUE)
+fixedPart = drop(crossprod(fitD$tmb_data$XTp[covHere,Sobs, drop=FALSE], 
+                           result$parameters$beta[covHere]))
+
+simSum = simF + fixedPart 
+
+
+
+theX= fitD$data[[covHere[1] ]][Sobs]
+if(grepl("^sqrt", nameX)) theX = theX^2
+
+par(mar=c(3,3,0,0), bty='l')
+matplot(theX, simSum, type='l',
+  col='#00000010', lty=1, xaxs='i')
+
+
+```
+
+
+
+```{r otherstuff22, eval=FALSE}
+
+Sstart = 1:(nrow(fitD$tmb_data$XTp)+1)
+Send = seq(to = length(fitD$start_parameters), by=1, 
+  len=length(fitD$theta_info$name)+1)
+
+bob = function(xx) {
+  hpolcc:::objectiveFunctionC( 
+c(xx[Sstart], fitD$start_parameters[-c(Sstart, Send)], 
+  xx[-Sstart]),
+ fitD$tmb_data, 
+ c(
+ fitD$config[setdiff(names(fitD$config), c('verbose','maxDeriv'))], 
+  list(maxDeriv = 0, verbose=FALSE))
+  )$value
+}
+
+round(numDeriv::hessian(bob, fitD$start_parameters[c(Sstart, Send)]), 3)
+
+res$hessian[c(Sstart, Send), c(Sstart, Send)]
+
+
+
+beta = fitD$start_parameters[1:nrow(fitD$tmb_data$XTp)]
+gamma =fitD$start_parameters[seq(from=length(beta)+1, 
+  len=nrow(fitD$tmb_data$ATp)
+  )]
+theta = fitD$start_parameters[seq(from = length(beta) + length(gamma)+1,
+  to=length(fitD$start_parameters))]
+
+
+resFun = function(xx)  hpolcc:::objectiveFunctionC(xx, fitD$tmb_data, 
+  c(fitD$config[
+    setdiff(names(fitD$config), 'maxDeriv')], 
+  list(maxDeriv = 0)))$value
+
+
+resFun(fitD$start_parameters)  
+
+Matrix::determinant(res$hessian)
+
+
+
+fitD$config$verbose=FALSE
+res$grad
+theGradAgain = numDeriv::grad(resFun, fitD$start_parameters)  
+
+rbind(res$grad, theGradAgain)
+
+
+
+theHessAgain = numDeriv::hessian(resFun, fitD$start_parameters)
+
+
+```
+
+```{r originalPackage, eval=FALSE}
+# using the hpoltest original package (and TMB)
+
+fitM <- hnlm(
+  formula= y ~ f(date, model='iid') +
+    f(tempClean, model='hiwp',ref_value = 22, p=3, knots = seq(0, 42, by=2), group_var = ecoRegion), 
+  data=dataMedSimple,
+  dirichlet=FALSE,
+  cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
+  tmb_parameters = list(theta = thetaStartM),
+  optim_parameters = list(maxit = 20),
+  verbose=TRUE, optimizer='optim', intern=FALSE, inner.method = 'BFGS', 
+  inner.control = list(maxit = 500), for_dev=FALSE)
+```
+
+```{r plotFit2, fig.height=4, fig.width=4, eval=FALSE}
+simTemp =  hpoltest:::condSim(fitD, 'tempClean') 
+
+theYlim = c(0.2, 5) #exp(quantile(simTemp$y[,'GLOBAL', ], c(0.01, 0.99)))
+for(D in dimnames(simTemp$y)[[2]]) {
+matplot(simTemp$x, exp(simTemp$y[,D, ]), type='l', col='#00000010', lty=1, 
+        xaxs='i', log='y',
+        ylim =theYlim,bty='n', 
+        xlab='temperature',ylab=D)
+lines(simTemp$x, exp(simTemp$fixed_mean), col='yellow')
+lines(simTemp$x, exp(apply(simTemp$y[,D, ], 1, mean)), col='red')
+}
+```
+
+```{r plotDate, eval=FALSE}
+simDate = hpoltest:::condSim(fitD, 'date') 
+
+matplot(as.Date(simDate$x), t(apply(simDate$y, 1, quantile, c(0.025, 0.975, 0.5))), col=c('grey','grey','black'), cex=0.3, pch=16,
+        xlab='date', ylab='logrr')
+
+```
+
+
+```{r debug, eval=FALSE}
+
+xx = fitD$obj$env$last.par.best
+xx = xx[grep("gamma", names(xx))]
+names(xx) = colnames(fitD$obj$env$data$A)
+xxDate = xx[grep("date", names(xx))]
+xx = xx[grep("date", names(xx), invert=TRUE)]
+
+```
+
+
+```{r digitPreference, eval=FALSE}
+checkForDigitPreference1 = aggregate(deaths[,'medical', drop=FALSE],
+  deaths[,c('dom','month')], sum)
+checkForDigitPreference = dcast(as.data.table(checkForDigitPreference1), dom ~ month)
+image(as.numeric(checkForDigitPreference$dom),
+ as.numeric(colnames(checkForDigitPreference)[-1]),
+  as.matrix(checkForDigitPreference[,-1]))
+```
+
+```{r indiaDataAlex, eval=FALSE}
+load("/home/patrick/research/hpoltest/applications/india/combinedindianmorttempdata_meannofilter.Rdata")
+x = indianmorttempdata
+
+table(x$death_cause, x$case)
+quantile(x$final_temp)
+tempSdByStrata = tapply(x$final_temp, x$riskset, sd)
+countByStrata = tapply(x$case, x$riskset, sum)
+# nuber cases per day
+table(tapply(x$case, x$date, sum))
+
+
+tempRef = 32
+
+x$tempHigh = pmax(x$final_temp - tempRef, 0)
+x$tempLow = pmin(x$final_temp - tempRef, 0)
+
+x$tempC = x$final_temp - tempRef
+x$tempSq = (x$final_temp - tempRef)^2
+x$temp3 = (x$final_temp - tempRef)^3
+
+x$dateInt = as.integer(x$date)
+
+xSub = x[x$death_cause == 'stroke', ]
+Slow = unique(unlist(xSub[xSub$final_temp < 10, 'riskset']))
+
+Shigh = unique(unlist(xSub[xSub$final_temp >37, 'riskset']))
+
+
+
+xSub2 = xSub[! xSub$riskset %in% c(Slow, Shigh), ]
+
+library('survival')
+fitClogit = clogit(case ~ tempHigh + tempLow + strata(riskset),
+       data = x[x$death_cause == 'stroke',])
+summary(fitClogit)$coef
+
+
+#library('hpoltest')
+fitLinear <- hnlm(
+  formula = case ~  tempHigh + tempLow + f(dateInt, model='iid'),
+  cc_design = ccDesign(strat_vars = c('riskset')),
+  tmb_parameters = list(theta = 20, map = list(theta=factor(NA))),
+  data = xSub2,
+  verbose=FALSE
+  )
+
+fitLinear$est$param$est
+
+randomDate = as.Date(
+  as.integer(gsub("factor.dateInt.", "", names(fitLinear$est$random$est))),
+  as.integer(as.Date('1970/1/1')))
+  
+badDates = randomDate[order(abs(fitLinear$est$random$est), decreasing=TRUE)[1:2]]
+stuff = as.data.frame(xSub[xSub$date %in% badDates, c('riskset', 'date','final_temp','case')])
+stuff = stuff[order(stuff$date,stuff$riskset), ]
+stuff
+
+
+plot(randomDate, fitLinear$est$random$est)
+
+fitLinear2 <- hnlm(
+  formula = case ~  tempHigh + tempLow + f(dateInt, model='iid'),
+  cc_design = ccDesign(strat_vars = c('riskset')),
+  data = xSub2,
+  verbose=FALSE
+  )
+
+fitLinear$est$param$est
+fitLinear2$est$param$est
+
+
+fitQuad  <- hnlm(
+  formula = case ~  tempC + tempSq + temp3 + f(dateInt, model='iid'),
+  cc_design = ccDesign(strat_vars = c('riskset')),
+  tmb_parameters = list(theta = -5, map = list(theta=factor(NA))),
+  data = xSub2,
+  verbose=FALSE
+  )
+fitLinear$est$param$est
+fitLinear2$est$param$est
+fitQuad$est$param$est
+```
+
+```{r comparePlots, eval=FALSE}
+tempSeq = seq(10, 40)
+tempSeqC = tempSeq - tempRef
+
+plot(tempSeq,
+     tempSeqC*fitQuad$est$param$est['tempC'] + 
+     tempSeqC^2*fitQuad$est$param$est['tempSq'] +
+     tempSeqC^3*fitQuad$est$param$est['temp3'],
+     type='l'
+)
+lines(tempSeq,
+      pmin(tempSeqC, 0) * fitClogit$coef['tempLow'] + 
+      pmax(tempSeqC, 0) * fitClogit$coef['tempHigh'],
+      col='green', lwd=3, lty=1
+)
+lines(tempSeq,
+      pmin(tempSeqC, 0) * fitLinear$est$param$est['tempLow'] + 
+      pmax(tempSeqC, 0) * fitLinear$est$param$est['tempHigh'],
+      col='red', lwd=3, lty=2
+)
+lines(tempSeq,
+      pmin(tempSeqC, 0) * fitLinear2$est$param$est['tempLow'] + 
+      pmax(tempSeqC, 0) * fitLinear2$est$param$est['tempHigh'],
+      col='orange', lwd=3, lty=2
+)
+
+legend('bottomleft', bty='n', lty=1, col=c('black','red','orange','green'),
+       legend = c('cubic', 'linear no OD','linear','clogit'))
+
+```
+
+```{r fitSimple, eval=FALSE}
+tempKnots = seq(0,40, by=0.5)
+fitSimple <- hnlm(
+  formula = case ~  f(final_temp, model='iwp', ref_value = tempRef, p=4, knots = tempKnots) + 
+    f(dateInt, model='iid'),
+  cc_design = ccDesign(strat_vars = c('riskset')),
+  tmb_parameters = list(theta = c(-1,-5), map = list(theta=factor(c(NA,1)))),
+  data = xSub2,
+  verbose=FALSE
+  )
+
+fitSimple$est$param$est 
+fitQuad$est$param$est
+```
+
+
+
+
+
+
+```{r fitTemperatureAlex, include=FALSE, eval=FALSE}
+
+tempKnots = seq(-5,40,by=2.5)
+library('hpoltest')
+fitAsAlex <- hnlm(
+  case ~  f(final_temp, model='iwp', ref_value = 30, p=2, knots = tempKnots),
+  cc_design = ccDesign(strat_vars = c('riskset')),
+  data = x[x$death_cause == 'stroke',],
+  verbose=FALSE
+  )
+fitIwp3NoOd <- hnlm(
+  case ~  f(final_temp, model='iwp', ref_value = 30, p=3, knots = tempKnots),
+  cc_design = ccDesign(strat_vars = c('riskset')),
+  data = x[x$death_cause == 'stroke',],
+  verbose=FALSE
+  )
+
+fitIwp3 <- hnlm(
+  case ~  f(final_temp, model='iwp', ref_value = 30, p=3, knots = tempKnots) +
+     f(date, model='iid'),
+  cc_design = ccDesign(strat_vars = c('riskset')),
+  data = x[x$death_cause == 'stroke',],
+  optim_parameters = list(eval.max=1e4, iter.max=1e4, trace=FALSE),
+  inner.control = list(maxit = 1e4, tol10=1e-4, tol=1e-9, ustep=0.5),
+  verbose=FALSE
+  )
+fitIwp2 <- hnlm(
+  case ~  f(final_temp, model='iwp', ref_value = 30, p=2, knots = tempKnots) +
+     f(date, model='iid'),
+  cc_design = ccDesign(strat_vars = c('riskset')),
+  data = x[x$death_cause == 'stroke',],
+  verbose=FALSE
+  )
+fitAsAlex <- hnlm(
+  case ~  f(final_temp, model='iwp', ref_value = 30, p=2, knots = tempKnots),
+  cc_design = ccDesign(strat_vars = c('riskset')),
+  data = x[x$death_cause == 'stroke',],
+  verbose=FALSE
+  )
+```
+
+
+
+
+```{r moreSimlpeModels, eval=FALSE}
+  
+dataMedSimplePm = removeUnusedStrata(
+  deaths[
+    deaths$date >= as.Date('2006/1/1') &
+    format(deaths$date, '%b%d') != 'Jan01' &
+    !deaths$ecoRegion %in% c(7, 8,10), ],
+  Sstrata, outcome)
+formulaMedSimplePm <- y ~ dom + f(date, model='iid') +
+    f(sqrtPm, model='iwp',ref_value = 25, p=3, knots = pmKnots)
+
+fitPm<- hnlm(
+  formula=formulaMedSimplePm, 
+  data=dataMedSimplePm,
+#  tmb_parameters = list(theta = c(5.25,31)),
+  cc_design =  ccDesign(strat_vars = Sstrata),
+  optim_parameters = list(eval.max=1e4, iter.max=1e4, trace=1),
+  inner.control = list(maxit = 1e4, tol10=1e-4, tol=1e-9, ustep=0.5, intern=TRUE),
+  verbose=TRUE, for_dev=FALSE 
+  )
+
+#  f(sqrtPm, model='hiwp', ref_value = 7, p=2, knots = pmKnots, group_var = ecoRegion) 
+#  f(tempClean, model='hiwp',ref_value = 25, p=3, knots = tempKnots, group_var = ecoRegion)
+
+formulaCvd = cvd ~ dom + f(date, model='iid') + f(tempClean, model='hiwp',ref_value = 25, p=3, knots = tempKnots, group_var = ecoRegion)
+
+formulaMedSenior <- medical_senior ~ dom + f(date, model='iid') +
+    f(tempClean, model='hiwp',ref_value = 25, p=3, knots = tempKnots, group_var=ecoRegion)
+#  f(sqrtPm, model='hiwp', ref_value = 7, p=2, knots = pmKnots, group_var = ecoRegion) 
+
+
+formulaCvdSimple = cvd ~ dom + f(date, model='iid') + 
+  f(sqrtPm, model='hiwp', ref_value = 7, p=2, knots = pmKnots, group_var = ecoRegion) 
+#f(tempClean, model='iwp',ref_value = 25, p=3, knots = tempKnots)
+
+formulaMedSeniorSimple = medical_senior ~ dom + f(date, model='iid') + 
+  f(tempClean, model='iwp',ref_value = 25, p=3, knots = tempKnots)
+
+    dataMed = deaths[which(deaths$N_Week3_medical > 0 & deaths$date > as.Date('2009/1/1')),]
+
+        dataMedSenior = deaths[which(deaths$N_Week3_medical_senior > 0 & 
+                                   deaths$date > as.Date('2006/1/1')),]
+dataCvd = deaths[which(deaths$N_Week3_cvd > 0 & deaths$date > as.Date('2006/1/1')), ]
+
+if(FALSE) {
+
+fitMedSeniorSimple = hnlm(formulaMedSeniorSimple, dataMedSenior, cc_design, 
+                            optim_parameters = list(eval.max=1e4, iter.max=1e4, trace=1),
+  inner.control = list(maxit = 1e4, tol10=1e-4, tol=1e-9, ustep=0.5, intern=TRUE),
+                          verbose=TRUE)
+
+fitCvdSimple<- hnlm(
+  formula=formulaCvdSimple, 
+  data=dataCvd,
+#  tmb_parameters = list(theta = c(5.25,31)),
+  cc_design = cc_design,
+  optim_parameters = list(eval.max=1e4, iter.max=1e4, trace=1),
+  inner.control = list(maxit = 1e4, tol10=1e-4, tol=1e-9, ustep=0.5, intern=TRUE),
+  verbose=TRUE, for_dev=FALSE 
+  )
+saveRDS(fitCvdSimple, file.path(storeDir, 'cvdSimple.rds'))
+
+fitCvdSetup <- hnlm(
+  formula=formulaCvd, 
+  data=dataCvd,
+  cc_design = cc_design,
+  verbose=TRUE, for_dev=TRUE 
+  )
+
+fitCvdSetup$tmb_parameters$beta = fitCvdSimple$est$param$est[1:length(fitCvdSetup$tmb_parameters$beta)]
+thetaHat = fitCvdSimple$est$param$est[grep("theta", names(fitCvdSimple$est$param$est))]
+
+fitCvdSetup$tmb_parameters$theta[1:length(thetaHat)] = thetaHat
+fitCvdSetup$tmb_parameters$theta[-(1:length(thetaHat))] = 0
+fitCvdSetup$tmb_parameters$gamma[1:length(fitCvdSimple$est$random$est)] = fitCvdSimple$est$random$est
+
+  obj <- MakeADFun(data = fitCvdSetup$tmb_data,
+                   parameters = fitCvdSetup$tmb_parameters,
+#                   random = 'gamma',
+                   map = list(
+                    beta = factor(rep(NA, length(fitCvdSetup$tmb_parameters$beta))),
+                    theta=factor(rep(NA, length(fitCvdSetup$map$theta)))),
+                   intern=FALSE, type='ADFun',
+                   DLL = "hpoltest")
+
+  parCat = rep(NA, ncol(obj$env$.data$A))
+  parCat[grep("date", colnames(obj$env$.data$A))]='date'
+  parCat[grep("hrpoly", colnames(obj$env$.data$A))]='poly'
+  parCat[grep("hiwp", colnames(obj$env$.data$A))]='hiwp'
+  parCat[grep("global", colnames(obj$env$.data$A))]='global'
+
+  the19 = grep('hiwp_19', colnames(obj$env$.data$A), value=TRUE)
+
+  obj$fn(obj$par)
+    opt <- optim(
+      par = rnorm(length(obj$par), obj$par, 1e-2),
+      fn = obj$fn, 
+      gr = obj$gr,
+      method = 'BFGS',
+      control = list(
+        trace=TRUE, 
+        maxit=1e5,
+        parscale = c(date=1,global=1e-5, hiwp=1e-2, poly=1e-2)[parCat]
+    )
+  )
+
+
+            names(opt$par) = colnames(obj$env$.data$A)
+
+                opt$par1 = opt$par[grep("date", names(opt$par))]
+    opt$par2 = opt$par[!names(opt$par)%in% names(opt$par1)]
+
+    quantile(obj$gr(opt$par))
+
+        
+fitMedSenior <- hnlm( 
+  formula=formulaMedSenior, data=dataMedSenior, #[which(deaths$date > as.Date('2009/1/1')), ], 
+  cc_design = cc_design,verbose=TRUE, for_dev=FALSE,
+    optim_parameters = list(eval.max=1e4, iter.max=1e4),
+  inner.control = list(maxit = 1e4, tol10=1e-4, tol=1e-9, ustep=0.5, intern=TRUE)
+  )
+
+
+  obj <- MakeADFun(data = fitMed1$tmb_data,
+                   parameters = fitMed1$tmb_parameters[c('beta','gamma','theta')],
+                   random = 'gamma',
+                   map = fitMed1$map,
+                   intern=FALSE, type='ADFun',
+                   DLL = "hpoltest")
+  obj$fn(obj$par)
+    opt <- optim(par = obj$par, 
+      fn = obj$fn, gr = obj$gr,
+      control = list(trace=TRUE)
+  )
+saveRDS(fitMed, file.path(storeDir, 'ccMed.rds'))
+fitCvd <- hnlm(
+  formula=formulaCvd, 
+  data=dataCvd,
+  cc_design = cc_design,
+#  optim_parameters = list(eval.max=100, iter.max=5),
+  verbose=TRUE, for_dev=FALSE 
+  )
+saveRDS(fitCvd, file.path(storeDir, 'ccCvd.rds'))
+}
+fitCvd = readRDS(file.path(storeDir, 'ccCvd.rds'))
+```
+
+```{r temperatureDataFromIndia, eval=FALSE}
+deathsTemp = as.data.table(readRDS( file.path(storeDir, "indiaTemperature.rds")))
+deathsTemp$dom = as.numeric(format(deathsTemp$date, '%d'))
+deathsTemp[deathsTemp$dom == Hmisc::monthDays(deathsTemp$date), 'dom'] = 31
+deathsTemp[format(deathsTemp$date, '%m%d') == '0101', 'dom'] = 0
+deathsTemp$dom = relevel(factor(deathsTemp$dom), '1')
+deathsTemp$month = format(deathsTemp$date, '%m')
+
+
+(theEtable = sort(table(deathsTemp$ecoRegion), decreasing=TRUE))
+# 10, 17, 20 looks dodgy
+
+
+
+Sstrata = c("cell","ecoRegion", "yearWeek3Dow")
+knotsTemperature = seq(0,50, by=2.5)  
+
+outcome = 'medical'
+
+deathsTempMed = removeUnusedStrata(deathsTemp[
+  deathsTemp$date >= as.Date('2006/1/1') &
+  format(deathsTemp$date, '%b%d') != 'Jan01', ],
+  Sstrata, outcome)
+
+
+deathsTempMed$tempCut = 2*round(deathsTempMed$maxtemp/2)
+ttable1 = dcast(deathsTempMed, tempCut ~ ecoRegion, value.var=outcome, fun.aggregate=sum)
+ttable2 = dcast(deathsTempMed, tempCut ~ ecoRegion, value.var=outcome, fun.aggregate=length)
+
+matplot(ttable1[,1], as.matrix(ttable1[,-1]/ttable2[,-1])[,names(theEtable)[10+1:9]])
+merge(
+  deathsTempMed, 
+    as.data.frame(deathsTempMed)[order(deathsTempMed$y, decreasing=TRUE)[1:3], Sstrata],
+    all.x=FALSE, all.y=TRUE)
+
+deathsTempMed$tempLow = pmin(25, deathsTempMed$maxtempLag01)
+deathsTempMed$tempHigh = pmax(25, deathsTempMed$maxtempLag01)
+
+SexcludeRegions  = c(7, 10,13)
+SincludeRegions = c(1:6, 8,9)
+library(hpoltest)
+fit <- hnlm(
+  formula= y ~  dom + 
+    f(date, model='iid') +
+    f(maxtempLag01, model='hiwp',ref_value = 25, p=3, knots = knotsTemperature, group_var=ecoRegion),
+  data=deathsTempMed[deathsTempMed$ecoRegion %in% SincludeRegions,],
+  cc_design = ccDesign(strat_vars = Sstrata),
+  optimizer='optim',
+  optim_parameters = list(
+    method = 'BFGS',
+    maxit=1e5, eval.max=1e4, iter.max=1e4),
+  inner.control = list(
+    smartsearch=FALSE, 
+    maxit = 1e4, tol10=1e-4, tol=1e-9, ustep=0.5, intern=TRUE),
+  verbose=TRUE)
+
+
+
+formulaMedSeniorIwp = medical_senior ~ dom + f(date, model='iid') + 
+  f(maxtemp, model='iwp',ref_value = 25, p=3, knots = knotsTemperature)
+
+fitTempMedSeniorIwp <- hnlm(
+  formula=formulaMedSeniorIwp, 
+  data=deathsTempSeniorMed3,
+  cc_design = ccDesign(strat_vars = c("cell","ecoRegion", "yearWeek3Dow")),
+  optimizer='optim',
+  optim_parameters = list(
+    method = 'BFGS',
+    maxit=1e5, eval.max=1e4, iter.max=1e4),
+  inner.control = list(
+    maxit = 1e4, tol10=1e-4, tol=1e-9, ustep=0.5, intern=TRUE),
+  verbose=TRUE)
+
+fitTempMedIwp <- hnlm(
+  formula=formulaMedIwp, 
+  data=deathsTempMed,
+  cc_design = ccDesign(strat_vars = Sstrata),
+  optimizer='optim',
+  optim_parameters = list(
+    method = 'BFGS',
+    maxit=1e5, eval.max=1e4, iter.max=1e4),
+  inner.control = list(
+    maxit = 1e4, tol10=1e-4, tol=1e-9, ustep=0.5, intern=TRUE),
+  verbose=TRUE)
+```
+
+
+```
+# darjeeling
+# INTEL oneMKL ERROR: /usr/lib/x86_64-linux-gnu/libmkl_core.so.2: cannot open shared object file: No such file or directory.
+sudo ln -s /opt/intel/oneapi/mkl/latest/lib/libmkl_core.so.2  /usr/lib/x86_64-linux-gnu/libmkl_core.so.2
+sudo ln -s /opt/intel/oneapi/mkl/latest/lib/libmkl_gnu_thread.so.2  /usr/lib/x86_64-linux-gnu/libmkl_gnu_thread.so.2
+sudo ln -s /opt/intel/oneapi/mkl/latest/lib/libmkl_tbb_thread.so.2  /usr/lib/x86_64-linux-gnu/libmkl_tbb_thread.so.2
+sudo ln -s /opt/intel/oneapi/mkl/latest/lib/libmkl_intel_lp64.so.2 /lib/x86_64-linux-gnu/libmkl_intel_lp64.so.2
+sudo ln -s /opt/intel/oneapi/mkl/latest/lib/libmkl_intel_lp64.so.2 /lib/x86_64-linux-gnu/libmkl_intel_lp64.so.2
+sudo ln -s /opt/intel/oneapi/mkl/latest/lib/libmkl_def.so.2 /lib/x86_64-linux-gnu/libmkl_def.so.2
+sudo ln -s /opt/intel/oneapi/mkl/latest/lib/libmkl_avx512.so.2 /lib/x86_64-linux-gnu/libmkl_avx512.so.2
+```

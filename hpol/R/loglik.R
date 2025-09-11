@@ -1,46 +1,43 @@
 #' @export
 loglik <- function(
-  parameters, gamma_start, 
+  parameters, 
+  gamma_start, 
   data, config,
   control=list()) {
 
-
   Nbeta = nrow(data$XTp)
-  Ngamma = length(gamma_start)
+  Ngamma = nrow(data$ATp)
   Sgamma0 = seq(from=Nbeta, len=Ngamma)
   Sgamma1 = Sgamma0+1
-
-
 
   beta = parameters[1:Nbeta]
   theta = parameters[-(1:Nbeta)]
 
-  fullHessian = NULL
-  if('sparsity' %in% names(config)) {
-    if(any(config$sparsity$i >= Ngamma | 
-      config$sparsity$j >= Ngamma)) {
-      fullHessian = config$sparsity
-      # this is the big hessian
-      # subset to gamma-only hessian
-      inSgamma = config$sparsity$i %in% Sgamma0 &
-        config$sparsity$j %in% inSgamma
-      config$sparsity$i = config$sparsity$i[inSgamma+1]  
-      config$sparsity$j = config$sparsity$j[inSgamma+1]  
-    }
-  } 
+  if(missing(gamma_start)) gamma_start = rep(0, Ngamma)
 
-  config2 = c(
+ if(is.null(config$sparsity$third)) {
+    config$sparsity = sparsityForThird(
+      x=c(beta, gamma_start, theta),
+      data, config)
+ }
+
+
+
+
+
+  configInner = c(
       config[setdiff(
         names(config), c('beta','theta')
-      )], 
+      )],
       list(
         beta = beta,
         theta = theta
       ))
+
   # Optimize gamma keeping beta and theta fixed
   wrappers_gamma <- hpolcc::make_trustoptim_wrappers(
     data = data,
-    config = config2
+    config = configInner
   )
 
   result <- trustOptim::trust.optim(
@@ -52,11 +49,31 @@ loglik <- function(
     control = control
   )
 
+  fullParameters = c(
+  beta,
+  result$solution,
+  theta)
+
+
+
+
+# debugging
+config$verbose=TRUE
+
+
+resThird = derivForLaplace(
+  fullParameters, data, config
+  ) 
+
+
+
+
   result$cholHessian = Matrix::chol(result$hessian)
   result$invHessian = Matrix::solve(result$cholHessian)
   result$logdet = drop(Matrix::determinant(
       result$cholHessian, log=TRUE, sqrt=FALSE
     )$modulus)
+
   result$minusLoglik = result$fval +
     as.numeric(result$logdet)/2 + 
     0.5 * Ngamma * 1.8378770664093454835606594728  # log 2 pi
@@ -77,54 +94,43 @@ if(is.null(fullHessian)) {
   ] = result$hessian
 
 }
+
 fullParameters = c(
   result$parameters[1:Nbeta], 
   result$gamma_hat,
-  result$parameters[-(1:Nbeta)])
+  result$parameters[-seq(1,Nbeta)])
 
 
-parametersGamma = hpolcc::sparsityForThird(
-  hessian = fullHessian, data = data)
 
-config3 = c(
-  parametersGamma,
-  config2[setdiff(
-      names(config2), 
-      names(parametersGamma)
-    )]
-)
-config3$verbose=TRUE
+  result$extra = resThird
 
-resThird = hpolcc::derivForLaplace(
-  fullParameters, data, config3
-  ) 
-
-  result$resThird = resThird
 
   result$third = parametersGamma$full
-  result$third$taylor3 = resThird$result
+  result$third$taylor3 = as.vector(resThird$third)
 
 
-# entry i,k is T_iik
-result$deriv3diag = Matrix::sparseMatrix(
-  i=parametersGamma$indexForDiag$i,
-  p = parametersGamma$indexForDiag$p,
-  x = resThird$forDiag, symmetric=FALSE,
-  index1=FALSE, dims = rep(Nfull,2))
+
 
 #  T i, j=param, k=gamma
-#  x is T_iik + T_jjk + 2 T_ijk 
+#  taylor3 is T_iik + T_jjk + 2 T_ijk 
+
+#  diag is T_iik,
+
+
+
 #  subtract off T_iik, T_jjk,
 
-iijIndex = 1+result$third$iInParams + nrow(result$deriv3diag)*result$third$paramInParams
-result$third$iij = result$deriv3diag[iijIndex]
-iikIndex = 1+result$third$iInParams + nrow(result$deriv3diag)*result$third$gammaInParams
-result$third$iik = result$deriv3diag[iikIndex]
+
+
+# entry i,k of resThird$thirdis T_iik
+
+
+iijIndex = 1+result$third$iInParams + nrow(resThird$diag)*result$third$paramInParams
+result$third$iij = resThird$diag@x[iijIndex]
+iikIndex = 1+result$third$iInParams + nrow(resThird$diag)*result$third$gammaInParams
+result$third$iik = resThird$diag@x[iikIndex]
 result$third$Tijk = (result$third$taylor3 - result$third$iij - result$third$iik)/2
 
-
-Txx1 = result$third[result$third$param == 0,]
-Txx1 = Matrix::sparseMatrix(i=Txx1$gamma, j=Txx1$i, x=Txx1$Tijk, index1=FALSE, symmetric=TRUE)
 
 
 # to do: third derivative
@@ -138,6 +144,7 @@ Txx1 = Matrix::sparseMatrix(i=Txx1$gamma, j=Txx1$i, x=Txx1$Tijk, index1=FALSE, s
 
     # d L / d theta = d L / d gammaHat *= dgammaHat d Theta
 
+  result$wrappers = wrappers_gamma
 
   return(result)
 }

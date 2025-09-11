@@ -1,6 +1,6 @@
 #include"hpol.hpp"
 
-//#define DEBUG
+#define DEBUG
 
 #include<omp.h>
 //#include <vector>
@@ -77,7 +77,7 @@ CppAD::vector<Type>  objectiveFunctionInternal(
   size_t startGamma;
 
   CppAD::vector<Type> beta(Nbeta), 
-    gamma(Ngamma), theta(Ntheta), logTheta(Ntheta);
+  gamma(Ngamma), theta(Ntheta), logTheta(Ntheta);
   
 
 #ifdef DEBUG
@@ -238,10 +238,10 @@ CppAD::vector<Type>  objectiveFunctionInternal(
 
 // for data contribution
   Type nu = theta[theta.size()-1],
-    logSqrtNu = logTheta[theta.size()-1]/ 2,
-    oneOverSqrtNu = exp(-logSqrtNu),
-    lgammaOneOverSqrtNu = lgamma_ad(oneOverSqrtNu),
-    local_loglik = 0.0;
+  logSqrtNu = logTheta[theta.size()-1]/ 2,
+  oneOverSqrtNu = exp(-logSqrtNu),
+  lgammaOneOverSqrtNu = lgamma_ad(oneOverSqrtNu),
+  local_loglik = 0.0;
 
 
   // data contribution to loglik, loop through strata
@@ -258,7 +258,7 @@ CppAD::vector<Type>  objectiveFunctionInternal(
       Type  muBarDivSqrtNu = exp(etaMinusLogSumMu - logSqrtNu);
       if(dirichelet) {
         contrib += lgamma_ad(y[idx] + muBarDivSqrtNu) - 
-          lgamma_ad(muBarDivSqrtNu);
+        lgamma_ad(muBarDivSqrtNu);
       } else {
         contrib += y[idx] * etaMinusLogSumMu;
       }
@@ -341,14 +341,14 @@ Rcpp::List objectiveFunctionC(
 
   size_t Nparams = parameters.size();
   int NparamsI = static_cast<int>(Nparams);
-  int hesMax = NparamsI*NparamsI;
+  int hesMax = NparamsI*NparamsI/2;
   if (config.containsElementNamed("hesMax")) {
     hesMax = Rcpp::as<int>(config["hesMax"]);
   }
 
 
 
-  CppAD::vector<CppAD::AD<double>> ad_params(Nparams);  
+  CppAD::vector<CppAD::AD<double>> ad_params(Nparams);
   for (size_t D = 0; D < Nparams; D++) {
     ad_params[D] = parameters[D];  // Initialize CppAD variables
   }
@@ -364,207 +364,266 @@ Rcpp::List objectiveFunctionC(
   CppAD::ADFun<double> fun(ad_params, y);
 
   std::vector<double> x_val(Nparams);
-  for (size_t i = 0; i < Nparams; ++i) x_val[i] = parameters[i];
+  for (size_t i = 0; i < Nparams; ++i) { 
+    x_val[i] = parameters[i];
+  }
 
-    if (verbose ) {
-      Rcpp::Rcout << "forward: ";
-    }
+  if (verbose ) {
+    Rcpp::Rcout << "forward: ";
+  }
 
-    std::vector<double> y_val(1);
-    y_val = fun.Forward(0, x_val);
+  std::vector<double> y_val(1);
+  y_val = fun.Forward(0, x_val);
 
-    if (verbose ) {
-      Rcpp::Rcout << "f0 " << y_val[0] << "\n";
-    }
+  if (verbose ) {
+    Rcpp::Rcout << "f0 " << y_val[0] << "\n";
+  }
 
 
-    Rcpp::List result = Rcpp::List::create(
-      Rcpp::Named("value") = y_val[0]
-      );
+  Rcpp::List result = Rcpp::List::create(
+    Rcpp::Named("value") = y_val[0]
+    );
 
-    if(maxDeriv == 0) {
-      return result;
-    }
+  if(maxDeriv == 0) {
+    return result;
+  }
 
-    if (verbose ) {
-      Rcpp::Rcout << "grad ";
-    }
-    std::vector<double> grad = fun.Jacobian(x_val);
-    if (verbose ) {
-      Rcpp::Rcout << ".\n";
-    }
-    result["grad"] = grad;
-    if(maxDeriv == 1) {
-      return result;
-    }
+  if (verbose ) {
+    Rcpp::Rcout << "grad ";
+  }
+  std::vector<double> grad = fun.Jacobian(x_val);
+  if (verbose ) {
+    Rcpp::Rcout << ".\n";
+  }
+  result["grad"] = grad;
+  if(maxDeriv == 1) {
+    return result;
+  }
 
 // hessian
+  if (verbose ) {
+    Rcpp::Rcout << "hess " << num_threads << " threads\n";
+  }
+
+  CppAD::vector< std::set<size_t> >  sparsity(Nparams);
+  Rcpp::IntegerVector Hrow, Hcol, Hp;
+  Rcpp::NumericVector Hvalue;
+  bool haveSparsity;
+
+  Rcpp::IntegerVector Hstart(num_threads,0), Hend(num_threads,0);
+
+
+#ifdef DEBUG
+  Rcpp::NumericMatrix denseHessianOut(Nparams, Nparams);
+#endif
+
+    // if have sparsity
+  if (config.containsElementNamed("sparsity")) {
     if (verbose ) {
-      Rcpp::Rcout << "hess " << num_threads << " threads\n";
-    }
+      Rcpp::Rcout << "given sparsity pattern\n";
+    }      
+    haveSparsity=TRUE;
 
-    CppAD::vector< std::set<size_t> >  sparsity(Nparams);
-    int Nlower = 0;
-    Rcpp::IntegerVector HrowR, HcolR;
-    bool haveSparsity;
-
-    if (config.containsElementNamed("sparsity")) {
-      if (verbose ) {
-        Rcpp::Rcout << "given sparsity pattern\n";
-      }      
-      haveSparsity=TRUE;
-
-      Rcpp::List sparsityR = config["sparsity"];
-      HrowR = sparsityR["i"]; 
-      HcolR = sparsityR["j"];
-
-      auto Hp = compute_p_vector(HcolR, Nparams); 
-// Loop over columns (variables)
-      for (size_t col = 0; col < Nparams; ++col) {
-        for (int idx = Hp[col]; idx < Hp[col + 1]; ++idx) {
-          size_t row = HrowR[idx];
-          sparsity[col].insert(row);
-        // For symmetric sparsity (Hessian), also do:
-          sparsity[row].insert(col);
-        }
-      }
-
-      for (int D = 0; D < HrowR.size(); D++) {
-        if (HrowR[D] >= HcolR[D]) Nlower++;
+    Rcpp::List sparsityR, sparsityR2, sparsityR1 = config["sparsity"];
+    if (sparsityR1.containsElementNamed("second")) {
+        // list with second and third sparsity
+      sparsityR2 = sparsityR1["second"];
+      if (config.containsElementNamed("theta")) {
+        if (verbose ) {
+          Rcpp::Rcout << "sparsity only for random effects\n";
+        }   
+        sparsityR = sparsityR2["random"];
+      } else {
+        if (verbose ) {
+          Rcpp::Rcout << "full parameter sparsity\n";
+        }   
+        sparsityR = sparsityR2["full"];
       }
     } else {
-      haveSparsity = FALSE;
-      Nlower = hesMax;
+      if (verbose ) {
+        Rcpp::Rcout << "sparsity i j p provided\n";
+      }   
+      sparsityR = sparsityR1;
     }
 
-    // objects to store hessian
-    Rcpp::IntegerVector HrowL(Nlower), HcolL(Nlower); // for lower triangle (if sparse)
-    Rcpp::NumericVector Hvalue(Nlower);
+    Hrow = sparsityR["i"]; 
+    Hcol = sparsityR["j"];
+    Hp = sparsityR["p"];
+    Hvalue = Rcpp::NumericVector(Hrow.size());
 
-    if(haveSparsity) {
-      int Dentry = 0;
-      // extract lower triangle
-      for(int D = 0; D<HrowR.size(); D++){
-        if(HrowR[D] >= HcolR[D]) {
-          HrowL[Dentry] = HrowR[D];
-          HcolL[Dentry] = HcolR[D];
-          Dentry++;
-        }
+
+    // where each thread starts and ends in hessian
+    int NperThread = (Hvalue.size() + num_threads - 1) / num_threads;
+
+    if (verbose ) {
+      Rcpp::Rcout << "NperThread " << NperThread << 
+      " non-zeros " << Hvalue.size() << "\n";
+    }   
+
+
+  // start and end points for each thread
+    Hstart = NperThread * Rcpp::seq(0, num_threads - 1);
+  Hstart = Rcpp::pmin(Hstart, Hrow.size());  // clamp
+  Hend = Rcpp::pmin(Hstart + NperThread, Hrow.size());
+  
+
+
+
+      // convert to vector set
+// Loop over columns (variables)
+  for(int D=0;D<Hrow.size();++D) {
+    int Drow = Hrow[D], Dcol=Hcol[D];
+    sparsity[Drow].insert(Dcol);    
+    if(Drow != Dcol) sparsity[Dcol].insert(Drow);   
+  }
+
+
+    } else { // if don't have sparsity
+      if (verbose ) {
+        Rcpp::Rcout << "compute dense hessian hesMax " << hesMax << "\n";
       }
+      haveSparsity = FALSE;
+      Hrow = Rcpp::IntegerVector(hesMax, -1); 
+      Hcol = Rcpp::IntegerVector(hesMax, -1); 
+      Hvalue = Rcpp::NumericVector(hesMax);
+      int NperThread = Hvalue.size()/num_threads;
+      Hend = Hstart = NperThread * Rcpp::seq(0, num_threads - 1); 
     }
+    if (verbose ) {
+      Rcpp::Rcout << "\na";
+      for(int D=0;D<Hstart.size();++D) {
+        Rcpp::Rcout << Hstart[D] << " " << Hend[D] << "\n";
+      }
+    }   
 
-    
+
     omp_set_num_threads(num_threads);
     CppAD::thread_alloc::parallel_setup(num_threads, in_parallel, thread_number);
     CppAD::thread_alloc::hold_memory(true);
 
     // Replicate fun object for each thread
     std::vector<CppAD::ADFun<double>> fun_threads(num_threads);
-    for (int i = 0; i < num_threads; ++i) fun_threads[i] = fun;
+    for (int i = 0; i < num_threads; ++i) {
+      fun_threads[i] = fun;
+    }
 
-      const double eps = 1e-9;
-      int hindex = 0;
+    const double eps = 1e-9;
+//    int hindex = 0, hindex_thread=0;
+
 
 
     #pragma omp parallel
-    {    
+    {
 
 
       const int tid = thread_number();
       const int nthreads_thread = omp_get_num_threads();
-      int hindex_thread = 0, Hstart=0;
       std::vector<double> w(1, 1.0);
-      std::vector<double> thread_Hvalue;
-      std::vector<int> thread_Hrow, thread_Hcol;
-      int NperThread = Hvalue.size() / nthreads_thread;
-      if(NperThread * nthreads_thread < Hvalue.size()) {
-        NperThread += 1;
-      }
 
       // 
-      if(haveSparsity){
-        Hstart = NperThread * tid;
-        int Hend = Hstart + NperThread;
-        if(Hend > Hvalue.size()) Hend = Hvalue.size();
-        hindex_thread = Hend - Hstart;
+      if(haveSparsity) {
+        // rounding up
+        int Nelements = Hend[tid] - Hstart[tid];
+        std::vector<double> thread_Hvalue(Nelements);
+        std::vector<int> thread_Hrow(Nelements), thread_Hcol(Nelements);
+
+        for(int D=0,Dorig=Hstart[tid];D<Nelements;D++,Dorig++) {
+          thread_Hrow[D] = Hrow[Dorig];
+          thread_Hcol[D] = Hcol[Dorig];
+        }
+
+#ifdef DEBUG
+        Rcpp::Rcout << "t" << tid << "N" << Nelements <<
+        "s" << Hstart[tid] << "e" << Hend[tid] <<
+        "\n";
+#endif 
 
         CppAD::sparse_hessian_work work; 
-
-        thread_Hrow = std::vector<int>(
-          HrowL.begin() + Hstart, HrowL.begin() + Hend);
-        thread_Hcol = std::vector<int>(
-          HcolL.begin() + Hstart, HcolL.begin() + Hend);
-        thread_Hvalue.resize(hindex_thread);
-   
-#ifdef DEBUG
-      Rcpp::Rcout << "t" << tid << "n"<< thread_Hvalue.size() << "\n";
-#endif 
 
         fun_threads[tid].SparseHessian(
           x_val, w, sparsity, 
           thread_Hrow, thread_Hcol, thread_Hvalue, 
           work);
 
-      } else {
+// copy elements to result vector
+        for(
+          int DfromZero=0,DfromStart=Hstart[tid];
+          DfromZero < thread_Hvalue.size(); //DfromStart < Hend[tid]; 
+          ++DfromZero,++DfromStart
+          ) {
+          Hvalue[DfromStart] = thread_Hvalue[DfromZero];
+#ifdef DEBUG
+        denseHessianOut(thread_Hrow[DfromZero], 
+          thread_Hcol[DfromZero]) = thread_Hvalue[DfromZero];
+#endif
+
+      }
+
+      } else { // no sparsity
         // eval dense hessian, save non-zeros
-        thread_Hrow.resize(NperThread);
-        thread_Hcol.resize(NperThread);
-        thread_Hvalue.resize(NperThread);
+
+
+#ifdef DEBUG
+        Rcpp::Rcout << "t" << tid << "\n";
+#endif 
+
         std::vector<double> u(Nparams, 0.0);
 
-        for (int j = tid; j < NparamsI; j += nthreads_thread) {
+    #pragma omp for
+        for (int j = 0; j < NparamsI; j++) {
           std::fill(u.begin(), u.end(), 0.0);
           u[j] = 1.0;
           fun_threads[tid].Forward(0, x_val);
           fun_threads[tid].Forward(1, u);
           std::vector<double> ddw = fun_threads[tid].Reverse(2, w);
-          for (int irow = 0; irow < NparamsI; ++irow) {
+
+          for (int irow = j; irow < NparamsI; ++irow) {
             double dhere = ddw[2 * irow + 1];
+#ifdef DEBUG
+            denseHessianOut(irow, j) = dhere;
+#endif
             if (!CppAD::NearEqual(dhere, 0.0, eps, eps)) {
-              if (hindex_thread < thread_Hrow.size()) {
-                thread_Hrow[hindex_thread] = irow;
-                thread_Hcol[hindex_thread] = j;
-                thread_Hvalue[hindex_thread] = dhere;
-                hindex_thread++;
-              }
-            }
-          }
+              Hvalue[Hend[tid]] = dhere;
+              Hrow[Hend[tid]] = irow;
+              Hcol[Hend[tid]] = j;
+              if(Hend[tid]<hesMax) Hend[tid]++;
+            } // if dhere not zero
+          } // irow
       } // j column
     } // no sparsity pattern
 
-    #pragma omp critical
-    {
-      int out_start = haveSparsity ? Hstart : hindex;
-      for (int k = 0; k < hindex_thread; ++k) {
-        if(!haveSparsity) {
-          HrowL[out_start + k] = thread_Hrow[k];
-          HcolL[out_start + k] = thread_Hcol[k];
-        }
-        Hvalue[out_start + k] = thread_Hvalue[k];
-      }
-      hindex += hindex_thread;
-    }
-  }
-  if (verbose ) { 
-    Rcpp::Rcout << "hessian " << hindex << " entries" << std::endl;
-  }
+  } // parallel
 
+
+#ifdef UNDEF
   CppAD::thread_alloc::parallel_setup(1, nullptr, nullptr);
   CppAD::thread_alloc::hold_memory(false);
   for (int i = 1; i < num_threads; ++i)
     CppAD::thread_alloc::free_available(i);
   CppAD::thread_alloc::free_available(0);
+#endif
 
-  Rcpp::S4 hessianR = make_dgTMatrix(
-    Hvalue, HrowL, HcolL, 
-    Nparams, hindex, haveSparsity); // lower if have sparsity
+/*Rcpp::List hessianR = Rcpp::List::create(
+  Rcpp::Named("i") = Hrow,
+  Rcpp::Named("j") = Hcol,
+  Rcpp::Named("x") = Hvalue,
+  Rcpp::Named("start") = Hstart,
+  Rcpp::Named("end") = Hend
+);*/
+
+  Rcpp::S4 hessianR = make_TMatrix(
+    Hvalue, Hrow, Hcol, 
+    Nparams); 
+
   result["hessian"] = hessianR;
 
+#ifdef DEBUG
+  result["denseHessian"] = denseHessianOut;
+#endif
 
   if (verbose ) { 
     Rcpp::Rcout << " done." << std::endl;
   }
-
 
   return result;
 }

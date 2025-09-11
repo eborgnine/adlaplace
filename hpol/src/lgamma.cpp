@@ -72,58 +72,64 @@ bool atomic_lgamma_ad::forward(
     const CppAD::vector<bool>& select_x,
     size_t order_up,
     const CppAD::vector<double>& tx,
-    const CppAD::vector<double>& ty,
+    const CppAD::vector<double>& /*ty*/,
     CppAD::vector<double>& px,
     const CppAD::vector<double>& py
-  ) {
-
+) {
     std::fill(px.begin(), px.end(), 0.0);
 
-    double x0 = tx[0];
-    double deriv[4];
-    double tx1sq, tx1cubed;
+    const double x0 = tx[0];
 
+    // f^(n)(x0) for n=1..4 (deriv[0]=f', deriv[1]=f'', etc.)
+    const double f1 = R::psigamma(x0, 0); // digamma
+    const double f2 = R::psigamma(x0, 1); // trigamma
+    const double f3 = R::psigamma(x0, 2);
+    const double f4 = R::psigamma(x0, 3);
 
-    // Order 0
+    // Convenience
+    const double x1 = (order_up >= 1 ? tx[1] : 0.0);
+    const double x2 = (order_up >= 2 ? tx[2] : 0.0);
+    const double x3 = (order_up >= 3 ? tx[3] : 0.0);
+
+    // --- order 0 ---
+    // y^(0) depends only on x^(0): dy0/dx0 = f'(x0)
     if (order_up >= 0) {
-      deriv[0] = R::psigamma(x0, 0);
-      px[0] = py[0] * deriv[0];
+        px[0] += py[0] * f1;
     }
 
-    // Order 1
+    // --- order 1 ---
+    // y^(1) = f'(x0) x1  =>  ∂y1/∂x0 = f'' x1,  ∂y1/∂x1 = f'
     if (order_up >= 1) {
-      deriv[1] = R::psigamma(x0, 1);
-      px[0] += py[1] * deriv[1] * tx[1];
-      px[1] = py[1] * deriv[0];
+        px[0] += py[1] * (f2 * x1);
+        px[1] += py[1] * f1;
     }
 
-    // Order 2
+    // --- order 2 ---
+    // y^(2) = f' x2 + (1/2) f'' x1^2
+    // ∂y2/∂x0 = f'' x2 + (1/2) f''' x1^2
+    // ∂y2/∂x1 = f'' x1
+    // ∂y2/∂x2 = f'
     if (order_up >= 2) {
-      deriv[2] = R::psigamma(x0, 2);      
-      tx1sq = tx[1]*tx[1];
-      px[0] += py[2] * (deriv[2] * tx1sq + deriv[1] * tx[2]);
-      px[1] += py[2] * 2 * deriv[1] * tx[1];
-      px[2] = py[2] * deriv[0];
+        px[0] += py[2] * (f2 * x2 + 0.5 * f3 * x1 * x1);
+        px[1] += py[2] * (f2 * x1);
+        px[2] += py[2] * f1;
     }
 
-  // Order 3
+    // --- order 3 ---
+    // y^(3) = f' x3 + f'' x1 x2 + (1/6) f''' x1^3
+    // ∂y3/∂x0 = f'' x3 + f''' x1 x2 + (1/6) f'''' x1^3
+    // ∂y3/∂x1 = f'' x2 + (1/2) f''' x1^2
+    // ∂y3/∂x2 = f'' x1
+    // ∂y3/∂x3 = f'
     if (order_up >= 3) {
-        tx1cubed = tx[1]*tx1sq;
-        deriv[3] = R::psigamma(x0, 3);      
-        px[0] += py[3] * 
-          (deriv[1] * tx[3] + 
-            3 * deriv[2] * tx[1] * tx[2] + 
-            deriv[3] * tx1cubed);
-        px[1] += py[3] * (
-            3 * deriv[1] * tx[2] + 
-            3 * deriv[2] * tx1sq);
-        px[2] += py[3] * (3 * deriv[0] * tx[1]);
-        px[3] += py[3] * deriv[0];
+        px[0] += py[3] * (f2 * x3 + f3 * x1 * x2 + (1.0/6.0) * f4 * x1 * x1 * x1);
+        px[1] += py[3] * (f2 * x2 + 0.5 * f3 * x1 * x1);
+        px[2] += py[3] * (f2 * x1);
+        px[3] += py[3] * f1;
     }
+
     return true;
-  }
-
-
+}
 
 // Template function implementation
 template<class Type>

@@ -19,7 +19,7 @@ library('hpolcc')
 x = c(5,1,-1,0)
 u = c(0,1,0,0)
 v = c(0,1,0,0)
-w = c(0,0,1)
+w = 1#c(0,0,1)
 
 res1 = hpolcc:::test3(x, u,v, w)
 #res1$taylor2
@@ -43,7 +43,7 @@ f2v = round(hh %*% v, 5)
 
 
 f3f = function(x, u) {
-    eps = 0.10
+    eps = 0.01
     tt = array(0, rep(length(x), 3))
     for(D in 1:length(x)) {
         xplus = x
