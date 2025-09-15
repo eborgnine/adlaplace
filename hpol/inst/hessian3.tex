@@ -1,0 +1,31 @@
+\href{https://www.jstatsoft.org/article/view/v070i05}{TMB}
+
+page 8
+
+\[
+\begin{aligned}
+\ell(\theta) = &\log \pi[ Y|\hat U(\theta)] + ½ \log | H(\hat U(\theta), \theta) | \\
+\frac{\partial}{\theta} \ell(\theta) = & \frac{\partial}{\ell(\theta)} \log \pi[ Y|\hat U(\theta);\theta] + 
+    \frac{\partial}{\ell(\theta)} ½ \log | H(\hat U(\theta), \theta) | \\
+  \frac{\partial}{\theta} \log | H(\hat U(\theta), \theta) |   = & 
+    \text{trace}( H(\hat U(\theta), \theta))^{-1}  \frac{\partial }{\ell(\theta)} \\
+\frac{\partial}{\ell(\theta)} \hat U(\theta) = & - H(\hat U(\theta), \theta))^{-1}    
+    \frac{\partial^2}{\partial U \partial \theta} \log \pi[ Y| U;\theta] |_{U = \hat U(\theta)}
+\end{aligned}
+\]
+
+Determinant
+
+\[
+  ∂(\log(\text{det}(X))) = \text{trace}(X^{−1} ∂X)
+\]
+
+gammaHat1 = gammaHat - Hinv G
+
+d gammaHat1 d Theta = d Hinv / dTheta G + Hinv d G/dTheta
+
+dHinv = -Hinv d H/dTheta Hinv
+
+d gammaHat1 d Theta = -Hinv d H/dTheta Hinv G + Hinv d G/dTheta
+
+d L / d theta = d L / d gammaHat *= dgammaHat d Theta

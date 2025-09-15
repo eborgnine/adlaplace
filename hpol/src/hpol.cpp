@@ -1,6 +1,6 @@
 #include"hpol.hpp"
 
-#define DEBUG
+//#define DEBUG
 
 #include<omp.h>
 //#include <vector>
@@ -489,12 +489,7 @@ Rcpp::List objectiveFunctionC(
       int NperThread = Hvalue.size()/num_threads;
       Hend = Hstart = NperThread * Rcpp::seq(0, num_threads - 1); 
     }
-    if (verbose ) {
-      Rcpp::Rcout << "\na";
-      for(int D=0;D<Hstart.size();++D) {
-        Rcpp::Rcout << Hstart[D] << " " << Hend[D] << "\n";
-      }
-    }   
+
 
 
     omp_set_num_threads(num_threads);

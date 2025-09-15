@@ -12,6 +12,8 @@ loglik <- function(
 
   beta = parameters[1:Nbeta]
   theta = parameters[-(1:Nbeta)]
+  Ntheta = length(theta)
+  Nparams = Nbeta + Ngamma + Ntheta
 
   if(missing(gamma_start)) gamma_start = rep(0, Ngamma)
 
@@ -20,10 +22,6 @@ loglik <- function(
       x=c(beta, gamma_start, theta),
       data, config)
  }
-
-
-
-
 
   configInner = c(
       config[setdiff(
@@ -54,22 +52,87 @@ loglik <- function(
   result$solution,
   theta)
 
-
-
-
-# debugging
-config$verbose=TRUE
-
-
 resThird = derivForLaplace(
   fullParameters, data, config
   ) 
 
+thirdDiag = data.frame(
+  i = config$sparsity$second$parGamma$i,
+  k = config$sparsity$second$parGamma$j,
+  Tkii = resThird$diag
+)
+thirdNonDiag = config$sparsity$third$ijk[,c('i','j','k')]
+thirdNonDiag$taylor = resThird$third
+thirdNonDiag = merge(thirdNonDiag, thirdDiag, all.x=TRUE, all.y=FALSE)
+names(thirdDiag) = gsub("i", "j", names(thirdDiag))
+thirdNonDiag = merge(thirdNonDiag, thirdDiag, all.x=TRUE, all.y=FALSE)
+# taylor is   //  T_iik + T_jjk + 2 T_ijk 
+thirdNonDiag$x = (thirdNonDiag$taylor - 
+  thirdNonDiag$Tkii - thirdNonDiag$Tkjj)/2
+
+thirdDiag$i = thirdDiag$j
+names(thirdDiag) = gsub("Tk..", "x", names(thirdDiag))
+
+theCols = c('i','j','k', 'x')
+third = rbind(
+  thirdDiag[,theCols],
+  thirdNonDiag[,theCols]
+)
+thirdList1 = split(third, third$k)
+thirdList = lapply(thirdList1, function(xx, dims, Sgamma) {
+  Matrix::sparseMatrix(i=xx$i, j=xx$j, x=xx$x, symmetric=TRUE, dims=dims, index1=FALSE)[Sgamma, Sgamma]
+}, dims=c(Nparams,Nparams), Sgamma=Sgamma1)
+
+secondParGamma1 = Matrix::sparseMatrix(
+  i = pmin(config$sparsity$second$parGamma$j,config$sparsity$second$parGamma$i),
+  j = pmax(config$sparsity$second$parGamma$j,config$sparsity$second$parGamma$i),
+  x = resThird$second,
+  dims = c(Nparams, Nparams),
+  index1=FALSE, symmetric=TRUE
+)
+secondParGamma = secondParGamma1[Sgamma1,-Sgamma1]
+
+cholHessian = Matrix::chol(result$hessian)
+invHessian = Matrix::solve(cholHessian)
+
+#  Determinant
+# to do: compute in data frame.  merge and sum
+dDetW = unlist(lapply(thirdList, function(dH, Hinv, HinvGamma) {
+#      sum(Matrix::diag(Hinv %*% dH))
+      sum((Hinv * cH)@x)  
+  },  
+  Hinv=invHessian, 
+  HinvGamma = drop(invHessian %*% result$solution)))
+
+# to do: V trace part
+
+dGammapart = invHessian %*% secondParGamma
+
+# gammaHat1 = gammaHat - Hinv G
+    # d gammaHat1 d Theta = d Hinv / dTheta G + Hinv d G/dTheta
+# dHinv = -Hinv d H/dTheta Hinv
+    # d gammaHat1 d Theta =  -Hinv d H/dTheta Hinv G + Hinv d G/dTheta
+
+
+    # d L / d theta = d L / d gammaHat *= dgammaHat d Theta
+
+
+# to do: compute full hessian, check result$hessian and secondParGamma
+if(FALSE) {
+    testconfig = config
+    testconfig$maxDeriv=2
+    hessian1 = objectiveFunctionC(
+      parameters = c(beta,result$solution, theta),
+      data=data, 
+      config=testconfig)$hessian
+    hessian1[1:6,-Sgamma1]
+    secondParGamma[1:6,]
+    bob = as.matrix(result$hessian) - as.matrix(hessian1[Sgamma1, Sgamma1])
+}
 
 
 
-  result$cholHessian = Matrix::chol(result$hessian)
-  result$invHessian = Matrix::solve(result$cholHessian)
+
   result$logdet = drop(Matrix::determinant(
       result$cholHessian, log=TRUE, sqrt=FALSE
     )$modulus)
@@ -110,39 +173,6 @@ fullParameters = c(
 
 
 
-
-#  T i, j=param, k=gamma
-#  taylor3 is T_iik + T_jjk + 2 T_ijk 
-
-#  diag is T_iik,
-
-
-
-#  subtract off T_iik, T_jjk,
-
-
-
-# entry i,k of resThird$thirdis T_iik
-
-
-iijIndex = 1+result$third$iInParams + nrow(resThird$diag)*result$third$paramInParams
-result$third$iij = resThird$diag@x[iijIndex]
-iikIndex = 1+result$third$iInParams + nrow(resThird$diag)*result$third$gammaInParams
-result$third$iik = resThird$diag@x[iikIndex]
-result$third$Tijk = (result$third$taylor3 - result$third$iij - result$third$iik)/2
-
-
-
-# to do: third derivative
-#  ∂(ln(det(X))) = Tr(X^{−1} ∂X)
-
-# gammaHat1 = gammaHat - Hinv G
-    # d gammaHat1 d Theta = d Hinv / dTheta G + Hinv d G/dTheta
-# dHinv = -Hinv d H/dTheta Hinv
-    # d gammaHat1 d Theta =  -Hinv d H/dTheta Hinv G + Hinv d G/dTheta
-
-
-    # d L / d theta = d L / d gammaHat *= dgammaHat d Theta
 
   result$wrappers = wrappers_gamma
 

@@ -1,114 +1,111 @@
-### Where `U` and `V` come from
+---
+title: deriv of laplace approx
+---
 
-```cpp
-f.Forward(0 , x0);      // 0-th-order coefficients  u(0)  ←  x0
-f.Forward(1 , U);       // 1-st-order coefficients  u(1)  ←  U
-f.Forward(2 , V);       // 2-nd-order coefficients  u(2)  ←  V
-```
 
-Internally CppAD now thinks you are studying the curve
+[TMB](https://www.jstatsoft.org/article/view/v070i05) page 8
 
-$$
-x(t)=x_0 \;+\; U\,t \;+\; V\,t^{2}.
-$$
+[matrix cookbook](https://www.math.uwaterloo.ca/~hwolkowi/matrixcookbook.pdf) section 2
 
-### What `Reverse(3 , w)` returns
-
-For every independent variable $x_j$ it gives three numbers
-
+Derivatives and tensor
 $$
 \begin{aligned}
-dw[j\!*\!3+0]&=\frac{\partial W}{\partial u_j^{(0)}}\;,\\
-dw[j\!*\!3+1]&=\frac{\partial W}{\partial u_j^{(1)}}\;,\\
-dw[j\!*\!3+2]&=\frac{\partial W}{\partial u_j^{(2)}}\;,
+T_{\theta UU} =     & \frac{\partial }{\partial U} H(U, \theta)\bigg|_{U = \hat U(\theta)} =
+  \frac{\partial^3}{(\partial U )^2\partial\theta} \log \pi[ Y| U;\theta] \bigg|_{U = \hat U(\theta)} \\
+H_{UU} =     & H\left(\hat U(\theta), \theta\right) = 
+ \frac{\partial^2}{(\partial U )^2} \log \pi[ Y| U;\theta] \bigg|_{U = \hat U(\theta)}\\
+H_{U\theta} =     &  \frac{\partial^2}{\partial U \partial \theta} \log \pi[ Y| U;\theta] \bigg|_{U = \hat U(\theta)}
 \end{aligned}
 $$
 
-where
+Random effects
 
-$$
-W(u)=\sum_{k=0}^{2} w^{(k)}\;
-     \frac{1}{k!}\,\frac{\partial^{\,k}}{\partial t^{k}}
-     F\!\bigl(x(t)\bigr)\Big|_{t=0},
-\qquad
-u^{(k)}=\bigl\{u_j^{(k)}\bigr\}.
-$$
-
----
-
-## How `U` and `V` enter those formulas (scalar output)
-
-Write $f_i   =\partial_{x_i}f,\;
-      f_{ij} =\partial_{x_i x_j}^2f,\;
-      f_{ijk}=\partial_{x_i x_j x_k}^3f$ at $x_0$.
-Taylor-expand $f(x(t))$:
-
+TMB says
 $$
 \begin{aligned}
-f(x(t)) &= f_0
-        + \sum_{i}f_i   U_i\,t
-        + \frac12\Bigl[\sum_{i}f_i V_i+\sum_{ij}f_{ij}U_iU_j\Bigr] t^{2}
-        + O(t^{3}).
+\frac{\partial}{\partial  \theta} \hat U(\theta) = & - H\left(\hat U(\theta), \theta\right)^{-1}    \cdot 
+    \frac{\partial^2}{\partial U \partial \theta} \log \pi[ Y| U;\theta] \bigg|_{U = \hat U(\theta)}\\
+    = & - H_{UU}^{-1} H_{U \theta}
 \end{aligned}
 $$
 
-Hence
+Consider
 
 $$
 \begin{aligned}
-y^{(0)} &= f_0,\\
-y^{(1)} &= \sum_i f_i U_i,\\
-y^{(2)} &= \sum_i f_i V_i+\sum_{ij}f_{ij}U_iU_j.
+ U^{(1)}(\theta, U^{(0)}) = & U^{(0)} + H\left( U^{(0)}, \theta\right)^{-1}  G\left( U^{(0)}, \theta\right) \\
+ \frac{\partial}{\partial  \theta} \hat U^{(1)}(\theta, U^{(0)}) = & 
+ \frac{\partial}{\partial  \theta} \left\{H\left( U^{(0)}, \theta\right)^{-1} \right\}
+    G\left( U^{(0)}, \theta\right) + 
+  H\left( U^{(0)}, \theta\right)^{-1} H^{(0)}_{U\theta} 
+\end{aligned}
+$$
+TMB's ok since $G=0$
+
+
+TMB's log det
+
+$$
+\begin{aligned}
+  \frac{\partial}{\partial \theta_p} \log \left| H\left(\hat U(\theta), \theta\right) \right|   = & 
+    \text{trace}\left\{
+     H\left(\hat U(\theta), \theta\right)^{-1}  
+     \frac{\partial }{\partial \theta_p} H\left( U, \theta\right) \bigg|_{U = \hat U(\theta)}
+     \right\}\\
+     = &    \text{trace}\left\{
+     H_{UU}^{-1} \cdot  T_{\theta_p U U} \right\} 
 \end{aligned}
 $$
 
-Plugging these into $W(u)$ and differentiating gives
+That ignores changes in $\hat U(\theta)$.  Consider
 
-| returned component         | closed form (scalar case)                                                                                           |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| **order 0**<br>`dw[j*3+0]` | $w^{(0)}f_j + w^{(1)}\sum_k f_{jk}\,U_k +\dfrac{w^{(2)}}{2}\Bigl(f_{j k}V_k+ \sum_{k\ell}f_{jk\ell}U_kU_\ell\Bigr)$ |
-| **order 1**<br>`dw[j*3+1]` | $w^{(1)}f_j + w^{(2)}\sum_k f_{jk}\,U_k$                                                                            |
-| **order 2**<br>`dw[j*3+2]` | $\dfrac{w^{(2)}}{2}\,f_j$                                                                                           |
+$$
+\begin{aligned}
+  \frac{\partial}{\partial \theta_p} \log \left| H\left(\hat U(\theta), \theta\right) \right|  = &
+    \frac{\partial}{\partial U} 
+        \log \left| H\left(U, \theta\right) \right| \bigg|_{U = \hat U(\theta)} 
+            \frac{\partial}{\partial  \theta_p} \hat U(\theta)  + 
+  \frac{\partial}{\partial \theta_p} 
+    \log \left| H\left( U, \theta\right) \right| \bigg|_{U = \hat U(\theta)} \\
+\frac{\partial}{\partial U_i} 
+        \log \left| H\left(U, \theta\right) \right| \bigg|_{U = \hat U(\theta)} = & \text{trace}\{
+       H_{UU}^{-1} \cdot T_{UUU_i} \} \\
+         \frac{\partial}{\partial \theta_p} 
+    \log \left| H\left(U, \theta\right) \right| \bigg|_{U = \hat U(\theta)} =&
+     \text{trace}\{ H_{UU}^{-1} \cdot T_{U U \theta_p }\}\\
+       \frac{\partial}{\partial \theta_p} \log \left| H\left(\hat U(\theta), \theta\right) \right|  = & \sum_i  \text{trace}\{
+       H_{UU}^{-1} \cdot T_{UUU_i} \}  e_i H_{UU}^{-1} H_{U\theta_p} +      \text{trace}\{ H_{UU}^{-1} \cdot T_{U U \theta_p }\} \\
+    %   = & V^T H_{UU}^{-1} H_{U\theta_p} + \text{trace}\{ H_{UU}^{-1} \cdot T_{U U \theta_p }\}\\
+       V_i = & \sum_i  \text{trace}\{
+       H_{UU}^{-1} \cdot T_{UUU_i} \} \\
+       W_p = &  \text{trace}\{ H_{UU}^{-1} \cdot T_{U U \theta_p }\}\\
+\frac{\partial}{\partial \theta} \log \left| H\left(\hat U(\theta), \theta\right) \right| = &
+V H_{UU}^{-1} H_{U\theta} + W
+\end{aligned}
+$$
 
----
+Data component
+$$
+\begin{aligned}
+ \frac{\partial}{\partial \theta} \log \pi[ Y|\hat U(\theta);\theta] = &
+ \frac{\partial}{\partial U} \log \pi[ Y| U;\theta] \bigg|_{U = \hat U(\theta)} 
+ \frac{\partial}{\partial  \theta} \hat U(\theta) + 
+ \frac{\partial}{\partial \theta} \log \pi[ Y| U ;\theta] \bigg|_{U = \hat U(\theta)} \\
+= & - G_U H_{UU}^{-1} H_{U\theta} + G_\theta
+\end{aligned}
+$$
 
-### Key observations
 
-* **`U` appears wherever a first-order coefficient is needed.**
-  • If `w` selects $y^{(1)}$ or $y^{(2)}$, the $\,f_{jk}\,U_k$ and $f_{jk\ell}U_kU_\ell$ terms show up.
-  • If `U` has a non-zero component only in $x_0$, every variable $x_j$ still “sees” that $U_0$ through the mixed derivatives $f_{j0}$ or $f_{jk0}$.
+Likelihood
+$$
+\begin{aligned}
+\ell(\theta) = &\log \pi[ Y|\hat U(\theta);\theta] + 0.5 \log | H(\hat U(\theta), \theta) | \\
+\frac{\partial}{\partial \theta} \ell(\theta) = & \frac{\partial}{\partial \theta} \log \pi[ Y|\hat U(\theta);\theta] + 
+    0.5 \frac{\partial}{\partial  \theta}  \log | H\left(\hat U(\theta), \theta\right) | \\
+    = & - G_U H_{UU}^{-1} H_{U\theta} + G_\theta + V H_{UU}^{-1} H_{U\theta} + W \\
+    = & G_\theta + V H_{UU}^{-1} H_{U\theta} + W
+\end{aligned}
+$$
 
-* **`V` can influence only the `dw[ * 0 ]` row** (because $y^{(2)}$ is the only place $V$ enters).
+TMB ignores $V H_{UU}^{-1} H_{U\theta}$
 
-* **If your analytic Hessian/third-tensor is diagonal** but you still see cross-variable numbers, then at least one of:
-
-  1. The tape really is not diagonal (possibly hidden couplings in your code).
-  2. Some unintended non-zero component crept into `U` or `V`.
-  3. You mis-read the row-major layout (all three orders for $x_0$ come first).
-
----
-
-## Practical tips
-
-| want to see                   | what to do                                                                                                       |
-| ----------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| plain gradient                | set `w = {1,0,0}` and do **not** call `Forward(1, U)`/`Forward(2, V)`                                            |
-| Hessian-vector product $H\,U$ | set `w = {0,1,0}` and choose `U`; read the **order 1** block (`dw[3j+1]`)                                        |
-| third-tensor contractions     | set `w = {0,0,1}`; `dw[3j+0]` (scaled by 2) gives $f'''(\cdot)$ contracted with `U` and `V` as per formula above |
-
-Always zero-out directions you do **not** want:
-
-```cpp
-f.Forward(1 , CppAD::vector<double>(n,0.0));
-f.Forward(2 , CppAD::vector<double>(n,0.0));
-```
-
-before planting the one non-zero `U` or `V`.
-
----
-
-### Bottom line
-
-* `U` (first-order direction) and `V` (second-order direction) **become part of the point at which the third-order reverse sweep is evaluated**.
-* Even with a diagonal analytic tensor, non-zero `U` can introduce off-diagonal looking numbers in `dw[ * 0 ]` and `dw[ * 1 ]` because those formulas involve products like $f_{jk}U_k$.
-* Set `U` and `V` carefully—and interpret the row-major result blocks—to match the derivative you actually need.

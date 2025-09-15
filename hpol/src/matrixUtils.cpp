@@ -53,3 +53,44 @@ Rcpp::S4 make_TMatrix(
 
 
 }
+
+Rcpp::S4 make_CMatrix(
+  const Rcpp::NumericVector& x,
+  const Rcpp::IntegerVector& i,
+  const Rcpp::IntegerVector& p)
+{
+
+  int Ni = p.size()-1;
+  Rcpp::IntegerVector dims = Rcpp::IntegerVector::create(Ni, Ni);
+
+  Rcpp::S4 mat("dsCMatrix");
+  mat.slot("i") = i;
+  mat.slot("p") = p;
+  mat.slot("x") = x;
+  mat.slot("Dim") = dims;
+  mat.slot("uplo") =  Rcpp::wrap('L');
+  return mat;
+
+
+
+}
+
+Rcpp::S4 make_gCMatrix(
+  const Rcpp::NumericVector& x,
+  const Rcpp::IntegerVector& i,
+  const Rcpp::IntegerVector& p)
+{
+
+  int Ni = p.size()-1;
+  Rcpp::IntegerVector dims = Rcpp::IntegerVector::create(Ni, Ni);
+
+  Rcpp::S4 mat("dgCMatrix");
+  mat.slot("i") = i;
+  mat.slot("p") = p;
+  mat.slot("x") = x;
+  mat.slot("Dim") = dims;
+  return mat;
+
+}
+
+

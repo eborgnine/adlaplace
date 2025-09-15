@@ -37,49 +37,64 @@ sparsityForThird = function(x, data, config=list()) {
   Nparams = length(Sparams)
 
   if(all(class(hessian) == 'dsCMatrix')) {
+    hessianC = hessian
     hessian = as(hessian,'dsTMatrix')
+  } else {
+    hessianC = as(hessian, 'CsparseMatrix')
   }
+  # store upper and lower triangle
+  hessianC2 = as(hessianC, "generalMatrix")
+  hessianT2 = as(hessianC2, "TsparseMatrix")
 
   hessianTdf = data.frame(
-      i=c(hessian@i,hessian@j), 
-      j=c(hessian@j, hessian@i))
-  hessianTdf = hessianTdf[!duplicated(hessianTdf), ]
+      i=hessianT2@i, 
+      j=hessianT2@j)
 
 # entries of third deriv which are non-zero
 # each pair musth have non-zero 2nd deriv
-  parametersGamma1 = hessianTdf[hessianTdf$j %in% (Sparams-1), ]
+# i, j are gammas, k parameters  
+  parametersGamma1 = hessianTdf[
+#  hessianTdf$j %in% (Sparams-1) &
+    hessianTdf$i %in% (Sgamma-1), ]
   parametersGamma2 = mapply(
     function(ifrom1, jfrom1, hessian) {
-      res1 = apply(hessian[,c(ifrom1,jfrom1)]!=0, 2, which, simplify=FALSE)
-      cbind(i=ifrom1, j=jfrom1, k=do.call(intersect, res1))-1
+      res1 = apply(hessian[, c(ifrom1,jfrom1)]!=0, 2, 
+        which, simplify=FALSE)
+      inboth = do.call(intersect, res1)
+      newj = intersect(inboth, Sgamma[Sgamma < ifrom1])
+      cbind(i=rep(ifrom1,length(newj)), j=newj, 
+        k=rep(jfrom1,length(newj)))-1
     },
-    ifrom1 = hessianTdf$i+1, jfrom1 = hessianTdf$j+1, 
+    ifrom1 = parametersGamma1$i+1, jfrom1 = parametersGamma1$j+1, 
     MoreArgs = list(hessian=hessian)
   )
-  parametersGamma3 = do.call(rbind, parametersGamma2)
-  parametersGamma4 = t(apply(parametersGamma3, 1, sort, decreasing=TRUE))
-  parametersGamma5 = parametersGamma4[!duplicated(parametersGamma4), ]
-
-
-# need all three indices to be different
-  parametersGamma = parametersGamma5[
-  apply(parametersGamma5, 1, function(xx) length(unique(xx)))==3,]
-
-  colnames(parametersGamma) = c('i','j','k')
+  parametersGamma = do.call(rbind, parametersGamma2)
 
   hessianS = Matrix::forceSymmetric(hessian)
   hessianRandom = hessianS[Sgamma,Sgamma]
 
-  ijk = cbind(p=seq(from=0, len=nrow(parametersGamma)), parametersGamma)
+  ijk = cbind(p=seq(from=0, len=nrow(parametersGamma)), 
+    parametersGamma)
 
-  jk = ijk[!duplicated(ijk[,c('j','k')]), c('p','j','k') ]
-  pEnd = c(jk[-1,'p'], nrow(jk)+1)
-  jk=cbind(
+  #jk = ijk[!duplicated(ijk[,c('j','k')]), c('p','i','j','k') ]
+  ij = ijk[!duplicated(ijk[,c('i','j')]), c('p','i','j','k') ]
+
+if(FALSE) {
+  table(duplicated(ijk[,c('i','j')]))
+  table(duplicated(ijk[,c('i','k')]))
+  table(duplicated(ijk[,c('j','k')]))
+}
+
+  pEnd = c(ij[-1,'p'], nrow(ij)+1)
+  ij=cbind(
     pEnd = pEnd,
-    n = pEnd - jk[,'p'],
-    jk)
+    n = pEnd - ij[,'p'],
+    ij)
 
-  storage.mode(jk) = 'integer'
+  parGammaDiag = hessianC#[,Sparams]
+  parGammaDiag[Sparams,] = 0
+
+  storage.mode(ij) = 'integer'
   storage.mode(ijk) = 'integer'
 
 
@@ -88,11 +103,16 @@ sparsityForThird = function(x, data, config=list()) {
       full = list(i=hessianS@i, j=hessianS@j, 
         p=as(hessianS, "CsparseMatrix")@p),
       random = list(i=hessianRandom@i, j=hessianRandom@j, 
-        p=as(hessianRandom, "CsparseMatrix")@p)
+        p=as(hessianRandom, "CsparseMatrix")@p),
+      parGamma = list(
+        i=parGammaDiag@i,
+        j = rep(seq(0, len=nrow(hessian)), diff(parGammaDiag@p)), 
+        p=parGammaDiag@p,
+        Sparams = Sparams-1)
     ),
     third = list(
       ijk = as.data.frame(ijk),
-      jk = as.data.frame(jk)
+      ij = as.data.frame(ij)
     )
   )
 

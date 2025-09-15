@@ -89,6 +89,7 @@ Rcpp::List derivForLaplace(
  const int Nbeta = dimsX[0];
  const int Ngamma = dimsA[0];
  const int Ntheta = Nparams - Nbeta - Ngamma;
+ const int NbetaTheta = Nbeta + Ntheta;
 
 // hessian of random effects, lower triangle only, column format
  Rcpp::List sparsity = config["sparsity"];
@@ -97,29 +98,37 @@ Rcpp::List derivForLaplace(
  Rcpp::IntegerVector Hrow = hessian["i"]; 
  Rcpp::IntegerVector Hp = hessian["p"];
 
+ Rcpp::List diagSparsity = hessianList["parGamma"];
+ Rcpp::IntegerVector DiagRow = diagSparsity["i"]; 
+ Rcpp::IntegerVector DiagP = diagSparsity["p"];
+ Rcpp::IntegerVector Sparams = diagSparsity["Sparams"];
+
+
 // sparsity for third deriv
  Rcpp::List thirdList = sparsity["third"];
  Rcpp::List sparsityThirdIjk = thirdList["ijk"];   //  "p" "i" "j" "k"
- Rcpp::List sparsityThirdJk = thirdList["jk"];    // "pEnd" "n"    "p"    "j"    "k" 
+ Rcpp::List sparsityThirdIj = thirdList["ij"];    // "pEnd" "n"    "p"    "j"    "k" 
 
- Rcpp::IntegerVector sparsityJkJ = sparsityThirdJk["j"];
- Rcpp::IntegerVector sparsityJkK = sparsityThirdJk["k"];
- Rcpp::IntegerVector sparsityJkP = sparsityThirdJk["p"];
- Rcpp::IntegerVector sparsityJkPend = sparsityThirdJk["pEnd"];
- Rcpp::IntegerVector sparsityIjkI = sparsityThirdIjk["i"];
+ Rcpp::IntegerVector sparsityIjI = sparsityThirdIj["i"];
+ Rcpp::IntegerVector sparsityIjJ = sparsityThirdIj["j"];
+ Rcpp::IntegerVector sparsityIjP = sparsityThirdIj["p"];
+ Rcpp::IntegerVector sparsityIjPend = sparsityThirdIj["pEnd"];
+ Rcpp::IntegerVector sparsityIjkK = sparsityThirdIjk["k"];
 
- const int Nthird = sparsityIjkI.size();
- const int Npairs = sparsityJkJ.size();
+
+ const int Nthird = sparsityIjkK.size();
+ const int Npairs = sparsityIjJ.size();
 
 // output
- Rcpp::NumericVector hessianOut(Hrow.size());
- Rcpp::NumericVector diagOut(Hrow.size());
+ Rcpp::NumericVector diagOut(DiagRow.size());
+ Rcpp::NumericVector secondParGamma(DiagRow.size());
  Rcpp::NumericVector Tijk(Nthird);    
 
 
 #ifdef DEBUG
- Rcpp::NumericMatrix hessianDense(Nparams, Nparams);
- Rcpp::NumericMatrix thirdDiagDense(Nparams, Nparams);
+ Rcpp::NumericVector hessianOut(Hrow.size());
+ Rcpp::NumericMatrix hessianDense(Nparams, NbetaTheta);
+ Rcpp::NumericMatrix thirdDiagDense(Nparams, NbetaTheta);
  Rcpp::NumericMatrix TijkDense(Nparams, Npairs);
 #endif
 
@@ -149,12 +158,11 @@ Rcpp::List derivForLaplace(
     fun_threads[i] = fun;
   }
   if (verbose ) {
-    Rcpp::Rcout << "starting 3rd deriv, " << num_threads << " threads\n";
+    Rcpp::Rcout << "starting 3rd deriv, " << num_threads << " threads" <<
+    Npairs << " jk pairs " << "\n";
   }
   omp_set_num_threads(num_threads);
 
-//  computing  T_iik + T_jjk + 2 T_ijk for all k.
-// i's are gammas, j's beta or theta , k is either
   #pragma omp parallel
   {
     const int tid=omp_get_thread_num();
@@ -165,15 +173,14 @@ Rcpp::List derivForLaplace(
   // diagonal entries to subtract off
   // computing T_kii and H_ki, columnns are i, rows are k
     #pragma omp for
-    for(int i=0; i < Nparams; ++i) {
+    for(int Dk=0; Dk < Nparams; ++Dk) {
 
-      const int HessianStart = Hp[i+1];
-      const int HessianEnd = Hp[i+1];
-
+      const int diagStart = DiagP[Dk];
+      const int diagEnd = DiagP[Dk+1];
 
 //    std::fill(direction.begin(), direction.end(), 0.0);
       std::vector<double> direction(Nparams, 0.0);
-      direction[i]  = 1.0;     
+      direction[Dk]  = 1.0;     
 
 
       fun_threads[tid].Forward(0, x_val);
@@ -182,39 +189,34 @@ Rcpp::List derivForLaplace(
 
       auto taylor3 = fun_threads[tid].Reverse(3, w);
 
-  // fill in the T_iik and Hessian
-      for(
-        int Dj=HessianStart; 
-        Dj<HessianEnd; 
-        Dj++){
-        int indexHere = 3*Hrow[Dj];
-      // second column is hessian
-      hessianOut[Dj] = taylor3[1+indexHere];
-      // first column is T_ijj/2 + H_ij
-      diagOut[Dj] = 2*(taylor3[indexHere] - hessianOut[Dj]);
-    }
-
-
+  // fill in the T_kii
+      // first column is T_kii/2 + H_ki
+      for(int Di=diagStart; Di<diagEnd; Di++){
+        int indexHere = 3*DiagRow[Di];
+        double secondHere = taylor3[indexHere+1];
+        secondParGamma[Di] = secondHere;
+        diagOut[Di] = 2*(taylor3[indexHere] - secondHere);
+      }
 
 #ifdef DEBUG
     // store dense
     for(int Dj=0; Dj<Nparams; Dj++){
-      hessianDense(Dj, i) = taylor3[1+3*Dj];
-      thirdDiagDense(Dj, i) = taylor3[3*Dj];
+      thirdDiagDense(Dj, Dk) = taylor3[3*Dj];
+      hessianDense(Dj, Dk) = taylor3[3*Dj+1];
     }
 #endif  
 
- } // for i diagonal bit
+ } // for k diagonal bit
 
-// off diag T_ijk
+// off diag T_ijk, k is param
 
     #pragma omp for
- for(int Djk=0; Djk < Npairs; ++Djk) {
-  const int Dj = sparsityJkJ[Djk];
-  const int Dk = sparsityJkK[Djk];
+ for(int Dij=0; Dij < Npairs; ++Dij) {
+  const int Dj = sparsityIjJ[Dij];
+  const int Di = sparsityIjI[Dij];
 
   std::vector<double> direction(Nparams, 0.0);
-  direction[Dk]  = direction[Dj] = 1.0;     
+  direction[Di]  = direction[Dj] = 1.0;     
 
   fun_threads[tid].Forward(0, x_val);
   fun_threads[tid].Forward(1, direction);
@@ -222,17 +224,18 @@ Rcpp::List derivForLaplace(
 
   // first column is third deriv combination
   //  T_iik + T_jjk + 2 T_ijk 
+  // columns of diag are the double deriv
+  // rows of taylor3 are i
   auto taylor3 = fun_threads[tid].Reverse(3, w);
-
-
-  for(int Di=sparsityJkP[Djk]; Di<sparsityJkPend[Djk]; Di++){
-    int indexHere = 3*sparsityIjkI[Di];
-    Tijk[Di] = taylor3[indexHere]; // /to do subttract off Tiik, Tjjk
+  int DinIjkStart = sparsityIjP[Dij];
+  int DinIjkEnd = sparsityIjPend[Dij];
+  for(int DinIjk=DinIjkStart; DinIjk<DinIjkEnd; DinIjk++){
+    int Dk = sparsityIjkK[DinIjk];
+    Tijk[DinIjk] = taylor3[3*Dk];
   }
-
 #ifdef DEBUG
-  for(int Di=0; Di<Nparams; Di++){
-    TijkDense(Di, Djk) = taylor3[3*Di];
+  for(int Dk=0; Dk<Nparams; Dk++){
+    TijkDense(Dk, Dij) = taylor3[3*Dk];
   }
 #endif  
 
@@ -241,13 +244,22 @@ Rcpp::List derivForLaplace(
 
 } // parallel
 
+  if (verbose ) {
+    Rcpp::Rcout << "done\n";
+  }
+
+#ifdef DEBUG
+  Rcpp::S4 diagR = make_gCMatrix(
+    diagOut, DiagRow, DiagP); 
+#endif
 
 Rcpp::List resultList = Rcpp::List::create(
   Rcpp::Named("third") = Tijk,
   Rcpp::Named("diag") = diagOut,
-  Rcpp::Named("hessian") = hessianOut
+  Rcpp::Named("second") = secondParGamma
 #ifdef DEBUG
   ,
+  Rcpp::Named("diag2") = diagR,
   Rcpp::Named("denseHessian") = hessianDense,
   Rcpp::Named("denseDiag") = thirdDiagDense,
   Rcpp::Named("denseThird") = TijkDense
