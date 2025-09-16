@@ -3,27 +3,33 @@ loglik <- function(
   parameters, 
   gamma_start, 
   data, config,
-  control=list()) {
+  wrappers,
+  control=list(), 
+    deriv = c(0,1)
+  ) {
+
+
 
   Nbeta = nrow(data$XTp)
   Ngamma = nrow(data$ATp)
-  Sgamma0 = seq(from=Nbeta, len=Ngamma)
-  Sgamma1 = Sgamma0+1
+  Nparams = length(parameters) + Ngamma
 
-  beta = parameters[1:Nbeta]
+  beta = parameters[1:Nbeta],
   theta = parameters[-(1:Nbeta)]
-  Ntheta = length(theta)
-  Nparams = Nbeta + Ngamma + Ntheta
 
   if(missing(gamma_start)) gamma_start = rep(0, Ngamma)
 
- if(is.null(config$sparsity$third)) {
-    config$sparsity = sparsityForThird(
-      x=c(beta, gamma_start, theta),
-      data, config)
- }
 
-  configInner = c(
+  if(is.null(config$sparsity$third)) {
+    config$sparsity = sparsityForThird(
+      x=c(configInner$beta, gamma_start, configInner$theta),
+      data, config)
+  }
+
+
+  # Optimize gamma keeping beta and theta fixed
+  if(missing(wrappers)) {
+        configInner = c(
       config[setdiff(
         names(config), c('beta','theta')
       )],
@@ -32,12 +38,15 @@ loglik <- function(
         theta = theta
       ))
 
-  # Optimize gamma keeping beta and theta fixed
   wrappers_gamma <- hpolcc::make_trustoptim_wrappers(
     data = data,
     config = configInner
   )
+  } else {
+    wrappers_gamma=wrappers
+  }
 
+  # inner opt
   result <- trustOptim::trust.optim(
     x = gamma_start,
     fn = wrappers_gamma$fn,
@@ -46,79 +55,96 @@ loglik <- function(
     method = "Sparse",
     control = control
   )
+  result$cholHessian = Matrix::chol(result$hessian)
+  invHessian = result$invHessian = Matrix::solve(result$cholHessian)
 
-  fullParameters = c(
-  beta,
-  result$solution,
-  theta)
+  result$logDetHessian = drop(Matrix::determinant(
+    result$cholHessian, log=TRUE, sqrt=FALSE
+  )$modulus)
 
-resThird = derivForLaplace(
-  fullParameters, data, config
+  result$minusLoglik = result$fval +
+    as.numeric(result$logDetHessian)/2 + 
+    0.5 * Ngamma * 1.8378770664093454835606594728  # log 2 pi
+
+  if(all(deriv == 0)) {
+    return(result$minusLoglik)
+  }
+
+  fullParameters = result$parameters = c(
+    configInner$beta,
+    result$solution,
+    configInner$theta)
+
+#library('hpolcc')
+  resThird = derivForLaplace(
+    fullParameters, data, config
   ) 
 
-thirdDiag = data.frame(
-  i = config$sparsity$second$parGamma$i,
-  k = config$sparsity$second$parGamma$j,
-  Tkii = resThird$diag
-)
-thirdNonDiag = config$sparsity$third$ijk[,c('i','j','k')]
-thirdNonDiag$taylor = resThird$third
-thirdNonDiag = merge(thirdNonDiag, thirdDiag, all.x=TRUE, all.y=FALSE)
-names(thirdDiag) = gsub("i", "j", names(thirdDiag))
-thirdNonDiag = merge(thirdNonDiag, thirdDiag, all.x=TRUE, all.y=FALSE)
-# taylor is   //  T_iik + T_jjk + 2 T_ijk 
-thirdNonDiag$x = (thirdNonDiag$taylor - 
-  thirdNonDiag$Tkii - thirdNonDiag$Tkjj)/2
+  if(FALSE) { # check
+    Sgamma0 = seq(from=Nbeta, len=Ngamma)
+    Sgamma1 = Sgamma0+1
 
-thirdDiag$i = thirdDiag$j
-names(thirdDiag) = gsub("Tk..", "x", names(thirdDiag))
+    bob = Matrix::Matrix(resThird$denseHessian)
+    bob2 = Matrix::sparseMatrix(i=config$sparsity$second$parGamma$i,
+      j = config$sparsity$second$parGamma$j, x=resThird$second, index1=FALSE)
+    bob3 = Matrix::sparseMatrix(i=config$sparsity$second$parGamma$i,
+      j = config$sparsity$second$parGamma$j, x=resThird$diag, index1=FALSE)
+    range(as.matrix(bob)[Sgamma1, Sgamma1] - as.matrix(result$hessian))
+    range(as.matrix(bob2)[Sgamma1, Sgamma1] - as.matrix(result$hessian))
+  }
 
-theCols = c('i','j','k', 'x')
-third = rbind(
-  thirdDiag[,theCols],
-  thirdNonDiag[,theCols]
-)
-thirdList1 = split(third, third$k)
-thirdList = lapply(thirdList1, function(xx, dims, Sgamma) {
-  Matrix::sparseMatrix(i=xx$i, j=xx$j, x=xx$x, symmetric=TRUE, dims=dims, index1=FALSE)[Sgamma, Sgamma]
-}, dims=c(Nparams,Nparams), Sgamma=Sgamma1)
+  thirdNonDiag = config$sparsity$third$ijk[,c('i','j','k')]
+  thirdNonDiag$x = (
+    resThird$third -
+    resThird$diag[config$sparsity$third$ijk[,'indexKii']] -
+    resThird$diag[config$sparsity$third$ijk[,'indexKjj']]
+  )/2
 
-secondParGamma1 = Matrix::sparseMatrix(
-  i = pmin(config$sparsity$second$parGamma$j,config$sparsity$second$parGamma$i),
-  j = pmax(config$sparsity$second$parGamma$j,config$sparsity$second$parGamma$i),
-  x = resThird$second,
-  dims = c(Nparams, Nparams),
-  index1=FALSE, symmetric=TRUE
-)
-secondParGamma = secondParGamma1[Sgamma1,-Sgamma1]
+  thirdDiag = data.frame(
+    i = config$sparsity$second$parGamma$i,
+    j = config$sparsity$second$parGamma$i,
+    k = config$sparsity$second$parGamma$j,
+    x = resThird$diag
+  )
 
-cholHessian = Matrix::chol(result$hessian)
-invHessian = Matrix::solve(cholHessian)
+  theCols = c('i','j','k', 'x')
+  third = rbind(
+    thirdDiag[,theCols],
+    thirdNonDiag[,theCols]
+  )
 
 #  Determinant
 # to do: compute in data frame.  merge and sum
-dDetW = unlist(lapply(thirdList, function(dH, Hinv, HinvGamma) {
+  thirdList1 = split(third, third$k)
+  thirdList = lapply(thirdList1, function(xx, dims, Sgamma) {
+    Matrix::sparseMatrix(i=xx$i, j=xx$j, x=xx$x, symmetric=TRUE, dims=dims, index1=FALSE)[Sgamma, Sgamma]
+  }, dims=c(Nparams,Nparams), Sgamma=Sgamma1)
+
+  Strace = unlist(lapply(thirdList, function(Hinv, Tuux) {
 #      sum(Matrix::diag(Hinv %*% dH))
-      sum((Hinv * cH)@x)  
+    sum((Hinv * Tuux)@x)  
   },  
-  Hinv=invHessian, 
-  HinvGamma = drop(invHessian %*% result$solution)))
-
-# to do: V trace part
-
-dGammapart = invHessian %*% secondParGamma
-
-# gammaHat1 = gammaHat - Hinv G
-    # d gammaHat1 d Theta = d Hinv / dTheta G + Hinv d G/dTheta
-# dHinv = -Hinv d H/dTheta Hinv
-    # d gammaHat1 d Theta =  -Hinv d H/dTheta Hinv G + Hinv d G/dTheta
+  Hinv=invHessian))
 
 
-    # d L / d theta = d L / d gammaHat *= dgammaHat d Theta
+  secondParGamma1 = Matrix::sparseMatrix(
+    i = pmin(config$sparsity$second$parGamma$j,config$sparsity$second$parGamma$i),
+    j = pmax(config$sparsity$second$parGamma$j,config$sparsity$second$parGamma$i),
+    x = resThird$second,
+    dims = c(Nparams, Nparams),
+    index1=FALSE, symmetric=TRUE
+  )
+  secondParGamma = secondParGamma1[Sgamma1,-Sgamma1]
 
 
-# to do: compute full hessian, check result$hessian and secondParGamma
-if(FALSE) {
+  result$gradL = as.vector(Strace[Sgamma1] %*% invHessian %*% secondParGamma) + Strace[-Sgamma1]
+
+  if(all(deriv == 1)) {
+    return(result$gradL)
+  } 
+  result$wrappers = wrappers_gamma
+  
+  if(FALSE) {
     testconfig = config
     testconfig$maxDeriv=2
     hessian1 = objectiveFunctionC(
@@ -128,53 +154,7 @@ if(FALSE) {
     hessian1[1:6,-Sgamma1]
     secondParGamma[1:6,]
     bob = as.matrix(result$hessian) - as.matrix(hessian1[Sgamma1, Sgamma1])
-}
-
-
-
-
-  result$logdet = drop(Matrix::determinant(
-      result$cholHessian, log=TRUE, sqrt=FALSE
-    )$modulus)
-
-  result$minusLoglik = result$fval +
-    as.numeric(result$logdet)/2 + 
-    0.5 * Ngamma * 1.8378770664093454835606594728  # log 2 pi
-
-
-  result$gamma_hat <- result$solution
-  result$parameters = parameters
-  Nfull = length(result$gamma_hat) + length(result$parameters)
-
-# derivatives
-if(is.null(fullHessian)) {
-
-  fullHessian <- Matrix::Matrix(1, 
-    nrow = Nfull, ncol = Nfull, 
-    sparse = TRUE)
-  fullHessian[
-    Sgamma1, Sgamma1
-  ] = result$hessian
-
-}
-
-fullParameters = c(
-  result$parameters[1:Nbeta], 
-  result$gamma_hat,
-  result$parameters[-seq(1,Nbeta)])
-
-
-
-  result$extra = resThird
-
-
-  result$third = parametersGamma$full
-  result$third$taylor3 = as.vector(resThird$third)
-
-
-
-
-  result$wrappers = wrappers_gamma
+  }
 
   return(result)
 }

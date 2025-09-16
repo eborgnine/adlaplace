@@ -50,6 +50,23 @@ sparsityForThird = function(x, data, config=list()) {
       i=hessianT2@i, 
       j=hessianT2@j)
 
+    hessianS = as(Matrix::forceSymmetric(hessian), "TsparseMatrix")
+  hessianC = as(as(hessianS, "generalMatrix"), "CsparseMatrix")
+
+
+  hessianRandom = hessianS[Sgamma,Sgamma]
+
+
+  parGammaDiag = hessianC#[,Sparams]
+  parGammaDiag[Sparams,] = 0
+
+      parGamma = list(
+        i=parGammaDiag@i,
+        j = rep(seq(0, len=nrow(hessian)), diff(parGammaDiag@p)), 
+        p=parGammaDiag@p,
+        Sparams = Sparams-1)
+
+
 # entries of third deriv which are non-zero
 # each pair musth have non-zero 2nd deriv
 # i, j are gammas, k parameters  
@@ -70,8 +87,8 @@ sparsityForThird = function(x, data, config=list()) {
   )
   parametersGamma = do.call(rbind, parametersGamma2)
 
-  hessianS = Matrix::forceSymmetric(hessian)
-  hessianRandom = hessianS[Sgamma,Sgamma]
+  parametersGamma = parametersGamma[order(parametersGamma[,'k'],
+      parametersGamma[,'i'],parametersGamma[,'i']),]
 
   ijk = cbind(p=seq(from=0, len=nrow(parametersGamma)), 
     parametersGamma)
@@ -87,15 +104,29 @@ if(FALSE) {
 
   pEnd = c(ij[-1,'p'], nrow(ij)+1)
   ij=cbind(
+    ij[,c('i','j','p')],
     pEnd = pEnd,
-    n = pEnd - ij[,'p'],
-    ij)
+    n = pEnd - ij[,'p'])
 
-  parGammaDiag = hessianC#[,Sparams]
-  parGammaDiag[Sparams,] = 0
+  indexKii = match(
+    apply(ijk[,c('i','k')], 1, paste, collapse='_'),
+    paste(parGamma$i, parGamma$j, sep='_')
+  )
+  indexKjj = match(
+    apply(ijk[,c('j','k')], 1, paste, collapse='_'),
+    paste(parGamma$i, parGamma$j, sep='_')
+  )
+
+  ijk2 = cbind(
+    ijk, 
+    indexKii = indexKii,
+    indexKjj = indexKjj 
+  )
 
   storage.mode(ij) = 'integer'
-  storage.mode(ijk) = 'integer'
+  storage.mode(ijk2) = 'integer'
+
+
 
 
   sparsity = list(
@@ -104,14 +135,10 @@ if(FALSE) {
         p=as(hessianS, "CsparseMatrix")@p),
       random = list(i=hessianRandom@i, j=hessianRandom@j, 
         p=as(hessianRandom, "CsparseMatrix")@p),
-      parGamma = list(
-        i=parGammaDiag@i,
-        j = rep(seq(0, len=nrow(hessian)), diff(parGammaDiag@p)), 
-        p=parGammaDiag@p,
-        Sparams = Sparams-1)
+      parGamma = parGamma
     ),
     third = list(
-      ijk = as.data.frame(ijk),
+      ijk = as.data.frame(ijk2),
       ij = as.data.frame(ij)
     )
   )
