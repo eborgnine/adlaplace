@@ -2,7 +2,7 @@
 #include<omp.h>
 
 
-//#define DEBUG
+#define DEBUG
 
 
 //' @export
@@ -195,7 +195,8 @@ Rcpp::List derivForLaplace(
         int indexHere = 3*DiagRow[Di];
         double secondHere = taylor3[indexHere+1];
         secondParGamma[Di] = secondHere;
-        diagOut[Di] = 2*(taylor3[indexHere] - secondHere);
+//        diagOut[Di] = 2*(taylor3[indexHere] - secondHere);
+        diagOut[Di] = taylor3[indexHere];
       }
 
       if(Dk == 0) { // store gradient

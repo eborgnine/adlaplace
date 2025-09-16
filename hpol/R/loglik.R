@@ -78,39 +78,119 @@ loglik <- function(
     fullParameters, data, config
   ) 
 
-  if(FALSE) { # check
+  if(FALSE) { # check hessian
     Sgamma0 = seq(from=Nbeta, len=Ngamma)
     Sgamma1 = Sgamma0+1
 
-   # bob = Matrix::Matrix(resThird$denseHessian)
+    bob = Matrix::Matrix(resThird$denseHessian)
     bob2 = Matrix::sparseMatrix(i=config$sparsity$second$parGamma$i,
       j = config$sparsity$second$parGamma$j, x=resThird$second, index1=FALSE)
     bob3 = Matrix::sparseMatrix(i=config$sparsity$second$parGamma$i,
       j = config$sparsity$second$parGamma$j, x=resThird$diag, index1=FALSE)
-   # range(as.matrix(bob)[Sgamma1, Sgamma1] - as.matrix(result$hessian))
+
+      hessianFull = Matrix::sparseMatrix(
+    i = config$sparsity$second$parGamma$i,
+    j = config$sparsity$second$parGamma$j,
+    x = resThird$second, index1=0, dims = c(Nparams, Nparams)
+  )
+    range(as.matrix(hessianFull)[Sgamma1,Sgamma1] - as.matrix(result$hessian))
+    range(as.matrix(bob)[Sgamma1, Sgamma1] - as.matrix(result$hessian))
     range(as.matrix(bob2)[Sgamma1, Sgamma1] - as.matrix(result$hessian))
+    range((as.matrix(hessianFull) - as.matrix(resThird$denseHessian))[Sgamma1,Sgamma1])
   }
+
+  thirdDiag = data.frame(
+    i = config$sparsity$second$parGamma$j,
+    j = config$sparsity$second$parGamma$j,
+    k = config$sparsity$second$parGamma$i,
+    x = 2*(resThird$diag - resThird$second)
+  )
 
 
   thirdNonDiag = config$sparsity$third$ijk[,c('i','j','k')]
   thirdNonDiag$x = (
     resThird$third -
-    resThird$diag[config$sparsity$third$ijk[,'indexKii']] -
-    resThird$diag[config$sparsity$third$ijk[,'indexKjj']]
+    thirdDiag$x[config$sparsity$third$ijk[,'indexKii']] -
+    thirdDiag$x[config$sparsity$third$ijk[,'indexKjj']]
   )/2
 
-  thirdDiag = data.frame(
-    i = config$sparsity$second$parGamma$i,
-    j = config$sparsity$second$parGamma$i,
-    k = config$sparsity$second$parGamma$j,
-    x = resThird$diag
-  )
+
 
   theCols = c('i','j','k', 'x')
   third = rbind(
     thirdDiag[,theCols],
     thirdNonDiag[,theCols]
   )
+
+
+if(FALSE) {
+  # check third deriv
+  step = 0.0001;Dgamma=4
+  Dorig = Dgamma + length(beta)
+
+  gamma2 = result$solution
+  gamma2[Dgamma] = result$solution[Dgamma]+step
+  hessian2 = wrappers_gamma$hs(gamma2)
+  D3 = (as.matrix(hessian2) - as.matrix(result$hessian))/step
+
+  anyD = apply(third[,c('i','j','k')] == (Dorig-1), 1, any)
+  autoD = third[anyD, ]
+
+  autoD2 = as.data.frame(
+    t(apply(autoD[,c('i','j','k')], 1, function(xx) sort(c(xx[xx != (Dorig-1)], rep((Dorig-1), 2))[1:2])))
+  )
+  autoD2$x = autoD$x
+
+
+  autoDM = Matrix::sparseMatrix(i=autoD2$V1, j=autoD2$V2, x=autoD2$x, 
+    symmetric=TRUE, dims = c(Nparams, Nparams), index1=FALSE)
+
+  autoD2[autoD2$V1 == autoD2$V2, ][1:6,]
+  thirdDiag[thirdDiag$k == (Dorig-1), ][1:6,]
+  Matrix::diag(autoDM)[1:8]
+
+
+bobDiag = Matrix::sparseMatrix(
+  i=thirdDiag$i, j=thirdDiag$k, x=thirdDiag$x,
+  index1=FALSE, dims = c(Nparams, Nparams)
+)
+
+  bobDiag[Dorig, Sgamma1][1:12]  
+
+  Matrix::diag(autoDM)[1:8]
+  autoDM[1:5,1:5]
+  D3[1:5,1:5]
+  # D3[1,1] is T_133
+
+
+denseTkii = 2*(resThird$denseDiag - resThird$denseHessian)
+
+
+range(as.matrix(bobDiag) - denseTkii)
+
+thirdDiag[thirdDiag$k == 5,][1:8,]
+
+(  bob = rbind(
+    numer=diag(D3),
+    hes=resThird$denseHessian[Dorig,Sgamma1],
+    denseDiag = resThird$denseDiag[Dorig,Sgamma1],
+    tdensediag=resThird$denseDiag[Sgamma1,Dorig],
+    autod1=bobDiag[ Sgamma1, Dorig],
+    autod2 = Matrix::diag(autoDM)[Sgamma1]
+  )[,1:9])
+# should be denseDiag
+(bob[1,]/2 + bob[2,])[1:5]
+
+
+thirdDiag[thirdDiag$i == Dorig,][1:5,]
+resThird$denseDiag[1:10,Dorig]
+
+
+thirdDiag[which.min(abs(thirdDiag$x - denseTkii[2,5])), ]
+
+
+#  (D3/as.matrix(autoD))[1:5,1:5]
+}
 
 #  Determinant
 # to do: compute in data frame.  merge and sum

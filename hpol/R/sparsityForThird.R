@@ -60,11 +60,21 @@ sparsityForThird = function(x, data, config=list()) {
   parGammaDiag = hessianC#[,Sparams]
   parGammaDiag[Sparams,] = 0
 
+
+
       parGamma = list(
         i=parGammaDiag@i,
         j = rep(seq(0, len=nrow(hessian)), diff(parGammaDiag@p)), 
         p=parGammaDiag@p,
         Sparams = Sparams-1)
+
+  pastedParGamma = paste(parGamma$i, parGamma$j, sep='_')
+  indexHessian1 = match(pastedParGamma,
+    paste(hessianS@i, hessianS@j, sep='_'))
+  indexHessian2 = match(pastedParGamma,
+    paste(hessianS@j, hessianS@i, sep='_'))
+  parGamma$indexHessian = pmax(indexHessian1, indexHessian2, na.rm=TRUE)
+
 
 
 # entries of third deriv which are non-zero
@@ -87,14 +97,25 @@ sparsityForThird = function(x, data, config=list()) {
   )
   parametersGamma = do.call(rbind, parametersGamma2)
 
-  parametersGamma = parametersGamma[order(parametersGamma[,'k'],
-      parametersGamma[,'i'],parametersGamma[,'i']),]
+  # keep only those with three different entries
+  parametersGamma = parametersGamma[apply(parametersGamma, 1, 
+    function(xx) length(unique(xx)) == 3), ]
 
-  ijk = cbind(p=seq(from=0, len=nrow(parametersGamma)), 
-    parametersGamma)
+  # remove duplicates
+  parametersGamma = t(apply(parametersGamma, 1, sort))
+  parametersGamma = parametersGamma[!duplicated(parametersGamma), ]
+  colnames(parametersGamma) = c('i','j','k')
 
+  parametersGamma = parametersGamma[order(parametersGamma[,'i'],
+      parametersGamma[,'j'],parametersGamma[,'k']),]
+
+  ijk = parametersGamma
+  
   #jk = ijk[!duplicated(ijk[,c('j','k')]), c('p','i','j','k') ]
-  ij = ijk[!duplicated(ijk[,c('i','j')]), c('p','i','j','k') ]
+  ij = cbind(
+    p=seq(from=0, len=nrow(parametersGamma)), 
+    parametersGamma
+  )[!duplicated(parametersGamma[,c('i','j')]), c('p','i','j','k') ]
 
 if(FALSE) {
   table(duplicated(ijk[,c('i','j')]))
@@ -108,14 +129,26 @@ if(FALSE) {
     pEnd = pEnd,
     n = pEnd - ij[,'p'])
 
-  indexKii = match(
+  indexKii1 = match(
     apply(ijk[,c('i','k')], 1, paste, collapse='_'),
     paste(parGamma$i, parGamma$j, sep='_')
   )
-  indexKjj = match(
+  indexKii2 = match(
+    apply(ijk[,c('i','k')], 1, paste, collapse='_'),
+    paste(parGamma$j, parGamma$i, sep='_')
+  )
+  indexKii = pmin(indexKii1, indexKii2, na.rm=TRUE)
+
+  indexKjj1 = match(
     apply(ijk[,c('j','k')], 1, paste, collapse='_'),
     paste(parGamma$i, parGamma$j, sep='_')
   )
+  indexKjj2 = match(
+    apply(ijk[,c('j','k')], 1, paste, collapse='_'),
+    paste(parGamma$j, parGamma$i, sep='_')
+  )
+  indexKjj = pmin(indexKjj1, indexKjj2, na.rm=TRUE)
+
 
   ijk2 = cbind(
     ijk, 
