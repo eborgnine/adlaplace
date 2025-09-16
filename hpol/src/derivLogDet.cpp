@@ -4,7 +4,6 @@
 
 //#define DEBUG
 
-#ifdef DEBUG
 
 //' @export
 // [[Rcpp::export]]
@@ -60,7 +59,7 @@ for(size_t D=0;D<result.size();D++) result[D] = taylor3[D];
       );
 
 }
-#endif
+
 
 /* function for third derivatives, of laplace approx */
 //' @export
@@ -124,6 +123,7 @@ Rcpp::List derivForLaplace(
  Rcpp::NumericVector diagOut(DiagRow.size());
  Rcpp::NumericVector secondParGamma(DiagRow.size());
  Rcpp::NumericVector Tijk(Nthird);    
+ Rcpp::NumericVector gradient(Nparams);
 
 
 #ifdef DEBUG
@@ -198,6 +198,11 @@ Rcpp::List derivForLaplace(
         diagOut[Di] = 2*(taylor3[indexHere] - secondHere);
       }
 
+      if(Dk == 0) { // store gradient
+         for(int Di=0;Di < Nparams;Di++){
+            gradient[Di] = taylor3[3*Di + 2];
+         }         
+      }
 #ifdef DEBUG
     // store dense
     for(int Dj=0; Dj<Nparams; Dj++){
@@ -261,7 +266,8 @@ if (verbose ) {
 Rcpp::List resultList = Rcpp::List::create(
   Rcpp::Named("third") = Tijk,
   Rcpp::Named("diag") = diagOut,
-  Rcpp::Named("second") = secondParGamma
+  Rcpp::Named("second") = secondParGamma,
+  Rcpp::Named("first") = gradient
 #ifdef DEBUG
   ,
   Rcpp::Named("denseHessian") = hessianDense,

@@ -146,7 +146,7 @@ if(ps::ps_system_memory()$total > 5e10) {
 
     config = fitD$config
     config$transform_theta = FALSE
-    config$verbose=TRUE
+    config$verbose=FALSE
 
 if(FALSE) {
     
@@ -172,6 +172,29 @@ result = loglik(parameters,
 
 result$minusLogLik
 result$gradL
+
+step = 0.001
+result2 = loglik(
+  parameters + c(step, rep(0, length(parameters)-1)),
+  config = result$config,
+  gamma_start = result$solution,
+  data = fitD$tmb_data,
+    control = list(maxit=100, start.trust.radius = 0.1,
+      report.level=4, report.freq=1)
+  )
+
+(dpart = c(result$fval, result2$fval))
+diff(dpart)/step
+result$extra$grad[1]
+
+(ldet=c(result$logDetHessian, result2$logDetHessian))
+diff(ldet)/step
+result$extra$d1[1]
+result$extra$d2[1]
+
+(llik=c(result$minusLogLik, result2$minusLogLik))
+diff(llik)/step
+result$gradL[1]
 
 ```
 

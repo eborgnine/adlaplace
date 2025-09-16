@@ -8,8 +8,6 @@ loglik <- function(
     deriv = c(0,1)
   ) {
 
-
-
   Nbeta = nrow(data$XTp)
   Ngamma = nrow(data$ATp)
   Nparams = length(parameters) + Ngamma
@@ -84,14 +82,15 @@ loglik <- function(
     Sgamma0 = seq(from=Nbeta, len=Ngamma)
     Sgamma1 = Sgamma0+1
 
-    bob = Matrix::Matrix(resThird$denseHessian)
+   # bob = Matrix::Matrix(resThird$denseHessian)
     bob2 = Matrix::sparseMatrix(i=config$sparsity$second$parGamma$i,
       j = config$sparsity$second$parGamma$j, x=resThird$second, index1=FALSE)
     bob3 = Matrix::sparseMatrix(i=config$sparsity$second$parGamma$i,
       j = config$sparsity$second$parGamma$j, x=resThird$diag, index1=FALSE)
-    range(as.matrix(bob)[Sgamma1, Sgamma1] - as.matrix(result$hessian))
+   # range(as.matrix(bob)[Sgamma1, Sgamma1] - as.matrix(result$hessian))
     range(as.matrix(bob2)[Sgamma1, Sgamma1] - as.matrix(result$hessian))
   }
+
 
   thirdNonDiag = config$sparsity$third$ijk[,c('i','j','k')]
   thirdNonDiag$x = (
@@ -136,13 +135,20 @@ loglik <- function(
   )
   secondParGamma = secondParGamma1[Sgamma1,-Sgamma1]
 
+  result$extra = list(
+    grad = resThird$first[-Sgamma1],
+    d1 = as.vector(Strace[Sgamma1] %*% invHessian %*% secondParGamma),
+    d2 = Strace[-Sgamma1]
+  )
 
-  result$gradL = as.vector(Strace[Sgamma1] %*% invHessian %*% secondParGamma) + Strace[-Sgamma1]
+  result$gradL = result$extra$d1 + result$extra$d2 +result$extra$grad
 
   if(all(deriv == 1)) {
     return(result$gradL)
   } 
   result$wrappers = wrappers_gamma
+  result$config = config
+  result$first = resThird$first
 
   if(FALSE) {
     testconfig = config
