@@ -158,7 +158,7 @@ bobDiag = Matrix::sparseMatrix(
   bobDiag[Dorig, Sgamma1][1:12]  
 
   Matrix::diag(autoDM)[1:8]
-  autoDM[1:5,1:5]
+  autoDM[Sgamma1, Sgamma1][1:5,1:5]
   D3[1:5,1:5]
   # D3[1,1] is T_133
 
@@ -190,14 +190,19 @@ thirdDiag[which.min(abs(thirdDiag$x - denseTkii[2,5])), ]
 
 
 #  (D3/as.matrix(autoD))[1:5,1:5]
-}
+} # end testing
 
 #  Determinant
 # to do: compute in data frame.  merge and sum
-  thirdList1 = split(third, third$k)
-  thirdList = lapply(thirdList1, function(xx, dims, Sgamma) {
-    Matrix::sparseMatrix(i=xx$i, j=xx$j, x=xx$x, symmetric=TRUE, dims=dims, index1=FALSE)[Sgamma, Sgamma]
-  }, dims=c(Nparams,Nparams), Sgamma=Sgamma1)
+  thirdList1 = mapply(function(k, third, N, Sgamma) {
+    thirdHere = third[apply(third[,c('i','j','k')] == k, 1, any), ]
+    newxy = t(apply(thirdHere[,c('i','j','k')], 1, function(xx) sort(c(xx[xx!=k], rep(k,2))[1:2] ) ))
+   try( Matrix::sparseMatrix(i=newxy[,1], j=newxy[,2], x=thirdHere[,'x'],
+      dims = rep(N, 2), symmetric=TRUE, index1=FALSE)[Sgamma, Sgamma])
+  },
+  k = seq(from=0, len=Nparams), MoreArgs = list(third=third, N=Nparams, Sgamma = Sgamma1)
+  )
+
 
   Strace = unlist(lapply(thirdList, function(Hinv, Tuux) {
 #      sum(Matrix::diag(Hinv %*% dH))

@@ -163,6 +163,8 @@ if(FALSE) {
 # likelihood
 # parameters = (beta, theta)
 # config$transform_theta = TRUE means thetas are log(sd) otherwise theta=sd
+
+library('hpolcc')
 result = loglik(parameters, 
              gamma_start, 
              data=fitD$tmb_data, 
