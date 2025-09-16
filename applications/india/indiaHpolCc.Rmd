@@ -148,7 +148,7 @@ if(ps::ps_system_memory()$total > 5e10) {
     config$transform_theta = FALSE
     config$verbose=TRUE
 
-if(TRUE) {
+if(FALSE) {
     
  
              data=fitD$tmb_data
@@ -167,8 +167,11 @@ result = loglik(parameters,
              gamma_start, 
              data=fitD$tmb_data, 
     config = config,
-    control = list(maxit=30, start.trust.radius = 0.1,
+    control = list(maxit=100, start.trust.radius = 0.1,
       report.level=4, report.freq=1))
+
+result$minusLogLik
+result$gradL
 
 ```
 

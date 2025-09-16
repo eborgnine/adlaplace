@@ -2,7 +2,7 @@
 #include<omp.h>
 
 
-#define DEBUG
+//#define DEBUG
 
 #ifdef DEBUG
 

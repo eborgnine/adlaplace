@@ -14,7 +14,7 @@ loglik <- function(
   Ngamma = nrow(data$ATp)
   Nparams = length(parameters) + Ngamma
 
-  beta = parameters[1:Nbeta],
+  beta = parameters[1:Nbeta]
   theta = parameters[-(1:Nbeta)]
 
   if(missing(gamma_start)) gamma_start = rep(0, Ngamma)
@@ -62,12 +62,12 @@ loglik <- function(
     result$cholHessian, log=TRUE, sqrt=FALSE
   )$modulus)
 
-  result$minusLoglik = result$fval +
+  result$minusLogLik = result$fval +
     as.numeric(result$logDetHessian)/2 + 
     0.5 * Ngamma * 1.8378770664093454835606594728  # log 2 pi
 
   if(all(deriv == 0)) {
-    return(result$minusLoglik)
+    return(result$minusLogLik)
   }
 
   fullParameters = result$parameters = c(
@@ -143,7 +143,7 @@ loglik <- function(
     return(result$gradL)
   } 
   result$wrappers = wrappers_gamma
-  
+
   if(FALSE) {
     testconfig = config
     testconfig$maxDeriv=2
