@@ -1,6 +1,6 @@
 #include"hpol.hpp"
 
-#define DEBUG
+//#define DEBUG
 
 #include<omp.h>
 //#include <vector>
@@ -103,9 +103,6 @@ CppAD::vector<Type>  objectiveFunctionInternal(
         for(size_t D=0;D<Ntheta;D++) {
           theta[D] = thetaOrig[D];
           logTheta[D] = log(theta[D]);      
-#ifdef DEBUG
-  Rcpp::Rcout << "D " << D << " theta " << theta[D] << " logtheta " << logTheta[D] << "\n";
-#endif          
         }
       }
     } else {
@@ -145,6 +142,12 @@ CppAD::vector<Type>  objectiveFunctionInternal(
     }
 
   } // end theta and beta in parameters
+
+#ifdef DEBUG
+  for(size_t D=0;D<theta.size();D++) {
+    Rcpp::Rcout << "D " << D << " theta " << theta[D] << " logtheta " << logTheta[D] << "\n";
+  }
+#endif          
 
 
   // gamma and eta
@@ -245,6 +248,12 @@ CppAD::vector<Type>  objectiveFunctionInternal(
   oneOverSqrtNu = exp(-logSqrtNu),
   lgammaOneOverSqrtNu = lgamma_ad(oneOverSqrtNu),
   local_loglik = 0.0;
+
+#ifdef DEBUG
+  Rcpp::Rcout << "nu " << nu << " logSqrtNU " << logSqrtNu << 
+  " oneOverSqrtNu " << oneOverSqrtNu << " lgammaOneOverSqrtNu " <<
+  lgammaOneOverSqrtNu << std::endl;
+#endif    
 
 
   // data contribution to loglik, loop through strata

@@ -205,10 +205,10 @@ library('hpolcc')
 
   parameters = c(
     0.0, 0.01, # beta (slope, quadratic) 
+    rep(0, nrow(fitD$tmb_data$ATp)),
     log(1), # sd global
     log(0.1), # sd local
     log(0.001), log(0.001), # sd local slope, quad
-    rep(0, nrow(fitD$tmb_data$ATp)),
     log(0.1)[fitD$config$dirichelet] # dirichelet OD
     )
 
