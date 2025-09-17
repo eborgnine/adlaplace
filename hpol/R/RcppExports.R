@@ -11,6 +11,7 @@ derivForLaplace <- function(parameters, data, config) {
     .Call('_hpolcc_derivForLaplace', PACKAGE = 'hpolcc', parameters, data, config)
 }
 
+#' @export
 objectiveFunctionNoDiff <- function(parameters, data, config) {
     .Call('_hpolcc_objectiveFunctionNoDiff', PACKAGE = 'hpolcc', parameters, data, config)
 }

@@ -165,7 +165,7 @@ Rcpp::List derivForLaplace(
   #pragma omp parallel
   {
     const int tid=omp_get_thread_num();
-      fun_threads[tid].Forward(0, x_val);
+    fun_threads[tid].Forward(0, x_val);
 
 //    std::vector<double> direction(Nparams, 0.0);
 
@@ -176,35 +176,35 @@ Rcpp::List derivForLaplace(
     for(int Dk=0; Dk < Nparams; 
       ++Dk) {
 
-      const int diagStart = DiagP[Dk];
-      const int diagEnd = DiagP[Dk+1];
+    const int diagStart = DiagP[Dk];
+    const int diagEnd = DiagP[Dk+1];
 
 //    std::fill(direction.begin(), direction.end(), 0.0);
-      std::vector<double> direction(Nparams, 0.0);
-      direction[Dk]  = 1.0;     
+    std::vector<double> direction(Nparams, 0.0);
+    direction[Dk]  = 1.0;     
 
 
 //      fun_threads[tid].Forward(0, x_val);
-      fun_threads[tid].Forward(1, direction);
-      fun_threads[tid].Forward(2, direction);
+    fun_threads[tid].Forward(1, direction);
+    fun_threads[tid].Forward(2, direction);
 
-      auto taylor3 = fun_threads[tid].Reverse(3, w);
+    auto taylor3 = fun_threads[tid].Reverse(3, w);
 
   // fill in the T_kii
       // first column is T_kii/2 + H_ki
-      for(int Di=diagStart; Di<diagEnd; Di++){
-        int indexHere = 3*DiagRow[Di];
-        double secondHere = taylor3[indexHere+1];
-        secondParGamma[Di] = secondHere;
+    for(int Di=diagStart; Di<diagEnd; Di++){
+      int indexHere = 3*DiagRow[Di];
+      double secondHere = taylor3[indexHere+1];
+      secondParGamma[Di] = secondHere;
 //        diagOut[Di] = 2*(taylor3[indexHere] - secondHere);
-        diagOut[Di] = taylor3[indexHere];
-      }
+      diagOut[Di] = taylor3[indexHere];
+    }
 
       if(Dk == 0) { // store gradient
-         for(int Di=0;Di < Nparams;Di++){
-            gradient[Di] = taylor3[3*Di + 2];
-         }         
-      }
+       for(int Di=0;Di < Nparams;Di++){
+        gradient[Di] = taylor3[3*Di + 2];
+      }         
+    }
 #ifdef DEBUG
     // store dense
     for(int Dj=0; Dj<Nparams; Dj++){
@@ -216,43 +216,43 @@ Rcpp::List derivForLaplace(
  } // for k diagonal bit
 
 #ifdef DEBUG
-if (verbose ) {
-    Rcpp::Rcout << "t" << tid;
-  }  
+ if (verbose ) {
+  Rcpp::Rcout << "t" << tid;
+}  
 #endif
 
 // off diag T_ijk, k is param
 
     #pragma omp for
- for(int Dpair=0; Dpair < Npairs; 
+for(int Dpair=0; Dpair < Npairs; 
   ++Dpair) {
   const int Dj = sparsityIjJ[Dpair];
-  const int Di = sparsityIjI[Dpair];
+const int Di = sparsityIjI[Dpair];
 
-  std::vector<double> direction(Nparams, 0.0);
-  direction[Di]  = direction[Dj] = 1.0;     
+std::vector<double> direction(Nparams, 0.0);
+direction[Di]  = direction[Dj] = 1.0;     
 
 //  fun_threads[tid].Forward(0, x_val);
-  fun_threads[tid].Forward(1, direction);
-  fun_threads[tid].Forward(2, direction);
+fun_threads[tid].Forward(1, direction);
+fun_threads[tid].Forward(2, direction);
 
   // first column is third deriv combination
   //  T_iik + T_jjk + 2 T_ijk 
   // columns of diag are the double deriv
   // rows of taylor3 are i
-  auto taylor3 = fun_threads[tid].Reverse(3, w);
+auto taylor3 = fun_threads[tid].Reverse(3, w);
 
-  int DinIjkStart = sparsityIjP[Dpair];
-  int DinIjkEnd = sparsityIjPend[Dpair];
-  for(int DinIjk=DinIjkStart; DinIjk<DinIjkEnd; 
-    DinIjk++){
-    int Dk = sparsityIjkK[DinIjk];
-    Tijk[DinIjk] = taylor3[3*Dk];
-  }
+int DinIjkStart = sparsityIjP[Dpair];
+int DinIjkEnd = sparsityIjPend[Dpair];
+for(int DinIjk=DinIjkStart; DinIjk<DinIjkEnd; 
+  DinIjk++){
+  int Dk = sparsityIjkK[DinIjk];
+Tijk[DinIjk] = taylor3[3*Dk];
+}
 #ifdef DEBUG
-  for(int Dk=0; Dk<Nparams; Dk++){
-    TijkDense(Dpair, Dk) = taylor3[3*Dk];
-  }
+for(int Dk=0; Dk<Nparams; Dk++){
+  TijkDense(Dpair, Dk) = taylor3[3*Dk];
+}
 #endif
 
  } // Djk
@@ -260,9 +260,9 @@ if (verbose ) {
 
 } // parallel
 
-  if (verbose ) {
-    Rcpp::Rcout << "done\n";
-  }
+if (verbose ) {
+  Rcpp::Rcout << "done\n";
+}
 
 
 Rcpp::List resultList = Rcpp::List::create(

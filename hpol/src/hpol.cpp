@@ -1,6 +1,6 @@
 #include"hpol.hpp"
 
-// #define DEBUG
+//#define DEBUG
 
 #include<omp.h>
 
@@ -17,6 +17,10 @@ using Rcpp::IntegerVector; using Rcpp::NumericVector; using Rcpp::LogicalVector;
 inline bool get_bool(const List& cfg, const char* key, bool def=false) {
   return cfg.containsElementNamed(key) ? Rcpp::as<bool>(cfg[key]) : def;
 }
+// helper to fetch int from R list with default
+inline int get_int(const Rcpp::List& cfg, const char* key, int def = 1) {
+  return cfg.containsElementNamed(key) ? Rcpp::as<int>(cfg[key]) : def;
+}
 
 // ----- a lightweight view of a dgCMatrix (no copies; just SEXP handles) -----
 // Lightweight view for Matrix::*gCMatrix (column-compressed)
@@ -29,9 +33,9 @@ struct DgCView {
   bool has_x;               // true if numeric/logical 'x' present
 
   explicit DgCView(const Rcpp::S4& obj)
-    : i(obj.slot("i")),
-      p(obj.slot("p")),
-      Dim(obj.slot("Dim"))
+  : i(obj.slot("i")),
+  p(obj.slot("p")),
+  Dim(obj.slot("Dim"))
   {
     // ngCMatrix has no 'x' slot; others do (dgCMatrix: numeric, lgCMatrix: logical)
     if (obj.inherits("ngCMatrix")) {
@@ -62,10 +66,10 @@ struct DgTView {
   Rcpp::IntegerVector Dim;  // c(nrow, ncol)
 
   explicit DgTView(const Rcpp::S4& obj)
-    : i(obj.slot("i")),
-      j(obj.slot("j")),
-      x(obj.slot("x")),
-      Dim(obj.slot("Dim"))
+  : i(obj.slot("i")),
+  j(obj.slot("j")),
+  x(obj.slot("x")),
+  Dim(obj.slot("Dim"))
   {
     // (optional) assert type:
     // if (!obj.inherits("dsTMatrix")) Rcpp::stop("Expected dsTMatrix");
@@ -116,7 +120,7 @@ struct Data {
 
 // ----- config bundle -----
 struct Config {
-  Rcpp::List list;             // keep original if you want to inspect later
+  Rcpp::List list;             
   bool verbose;
   bool dirichlet;
   bool transform_theta;
@@ -124,14 +128,16 @@ struct Config {
   // optional numeric vectors (may be length 0)
   Rcpp::NumericVector beta;
   Rcpp::NumericVector theta;
+  int num_threads;
 
   explicit Config(const Rcpp::List& cfg)
-    : list(cfg),
-      verbose(get_bool(cfg, "verbose", false)),
-      dirichlet(get_bool(cfg, "dirichlet", false)),
-      transform_theta(get_bool(cfg, "transform_theta", false)),
-      beta(cfg.containsElementNamed("beta") ? cfg["beta"] : Rcpp::NumericVector()),
-      theta(cfg.containsElementNamed("theta") ? cfg["theta"] : Rcpp::NumericVector())
+  : list(cfg),
+  verbose(get_bool(cfg, "verbose", false)),
+  dirichlet(get_bool(cfg, "dirichlet", false)),
+  transform_theta(get_bool(cfg, "transform_theta", false)),
+  beta(cfg.containsElementNamed("beta") ? cfg["beta"] : Rcpp::NumericVector()),
+  theta(cfg.containsElementNamed("theta") ? cfg["theta"] : Rcpp::NumericVector()),
+  num_threads(get_int(cfg, "num_threads", 1))           // <-- int, default 1
   {}
 };
 
@@ -145,8 +151,8 @@ struct PackedParams {
 };
 
 inline Rcpp::NumericVector get_numvec_or_warn(const Rcpp::List& cfg,
-                                              const char* key,
-                                              const char* what) {
+  const char* key,
+  const char* what) {
   if (!cfg.containsElementNamed(key)) {
     Rcpp::warning("%s missing from config", what);
     return Rcpp::NumericVector();
@@ -156,12 +162,12 @@ inline Rcpp::NumericVector get_numvec_or_warn(const Rcpp::List& cfg,
 
 template<class Type>
 inline void fill_from_numvec(CppAD::vector<Type>& dst,
-                             const Rcpp::NumericVector& src,
-                             const char* what) {
+ const Rcpp::NumericVector& src,
+ const char* what) {
   if (src.size() == 0) return; // was missing; keep dst as initialized
   if (static_cast<size_t>(src.size()) != dst.size()) {
     Rcpp::stop("%s has wrong length: expected %zu, got %d",
-               what, dst.size(), src.size());
+     what, dst.size(), src.size());
   }
   for (size_t i = 0; i < dst.size(); ++i) dst[i] = Type(src[i]);
 }
@@ -170,8 +176,8 @@ inline void fill_from_numvec(CppAD::vector<Type>& dst,
 template<class Type>
 PackedParams<Type>
 unpack_params(const CppAD::vector<Type>& ad_params,
-              const Data& data,
-              const Config& cfg)
+  const Data& data,
+  const Config& cfg)
 {
   using CppAD::exp;
   using CppAD::log;
@@ -179,7 +185,7 @@ unpack_params(const CppAD::vector<Type>& ad_params,
   const size_t Nbeta  = data.Nbeta;
   const size_t Ngamma = data.Ngamma;
   const size_t Ntheta_base =
-      (data.map.size() > 0 ? static_cast<size_t>(Rcpp::max(data.map)) + 1 : 0u);
+  (data.map.size() > 0 ? static_cast<size_t>(Rcpp::max(data.map)) + 1 : 0u);
   const size_t Ntheta = Ntheta_base + (cfg.dirichlet ? 1u : 0u);
 
   PackedParams<Type> out;
@@ -199,14 +205,14 @@ unpack_params(const CppAD::vector<Type>& ad_params,
     // beta from cfg (must be present and correct length)
     if (static_cast<size_t>(cfg.beta.size()) != Nbeta)
       Rcpp::stop("beta has wrong length: expected %zu, got %d",
-                 Nbeta, cfg.beta.size());
+       Nbeta, cfg.beta.size());
     for (size_t i = 0; i < Nbeta; ++i)
       out.beta[i] = static_cast<Type>(cfg.beta[i]);
 
     // theta/logTheta from cfg (must be present and correct length)
     if (static_cast<size_t>(cfg.theta.size()) != Ntheta)
       Rcpp::stop("theta has wrong length: expected %zu, got %d",
-                 Ntheta, cfg.theta.size());
+       Ntheta, cfg.theta.size());
 
     if (cfg.transform_theta) {
       // cfg.theta contains log-theta
@@ -226,7 +232,7 @@ unpack_params(const CppAD::vector<Type>& ad_params,
     const size_t expected = Nbeta + Ngamma + Ntheta;
     if (n != expected) {
       Rcpp::stop("parameters has wrong size: expected %zu (Nbeta+Ngamma+Ntheta), got %zu",
-                 expected, n);
+       expected, n);
     }
 
     // beta
@@ -287,16 +293,13 @@ CppAD::vector<Type>  objectiveFunctionInternal(
   CppAD::vector<Type> etaLogSum(data.Nstrata);
   CppAD::vector<Type> gammaScaled(data.Ngamma);
 
-  Type randomContributionDiag = 0.0; 
-  Type offdiagQ = 0.0;
-  Type loglik = 0.0;
   CppAD::vector<Type> minusLogDens(1,0);
 
 
   Type nu = latent.theta[latent.theta.size()-1],
-    logSqrtNu = latent.logTheta[latent.theta.size()-1]/ 2,
-    oneOverSqrtNu = exp(-logSqrtNu),
-    lgammaOneOverSqrtNu = lgamma_ad(oneOverSqrtNu);
+  logSqrtNu = latent.logTheta[latent.theta.size()-1]/ 2,
+  oneOverSqrtNu = exp(-logSqrtNu),
+  lgammaOneOverSqrtNu = lgamma_ad(oneOverSqrtNu);
 
 
 #ifdef DEBUG
@@ -305,25 +308,74 @@ CppAD::vector<Type>  objectiveFunctionInternal(
   lgammaOneOverSqrtNu << std::endl;
 #endif    
 
+  size_t num_threads;
+  if constexpr (std::is_same<Type, double>::value) {
+        // ordinary numeric run → use requested number of threads
+    num_threads=cfg.num_threads;
+  } else if constexpr (std::is_same<Type, CppAD::AD<double>>::value) {
+        // AD recording → force serial execution
+    num_threads =1;
+  }
+  omp_set_num_threads(num_threads);
 
-{ // might parallellize this
 
+  CppAD::vector<Type> randomContributionDiag(num_threads);
+  CppAD::vector<Type>  offdiagQ(num_threads);
+  CppAD::vector<Type>  loglik(num_threads);
+
+for (int t = 0; t < num_threads; ++t) {
+  randomContributionDiag[t] = Type(0);
+  offdiagQ[t]               = Type(0);
+  loglik[t]                 = Type(0);
+}
+
+      #pragma omp parallel
+{ 
+    const int tid=omp_get_thread_num();
 #ifdef DEBUG
   Rcpp::Rcout << "Q diag" << std::endl;
 #endif  
+
+
+  // eta = X * beta + A * gamma   
+    #pragma omp for nowait
+  for (size_t Deta = 0; Deta < data.Neta; ++Deta) {
+    const int p0x = data.X.p[Deta];
+    const int p1x = data.X.p[Deta + 1];
+    const int p0a = data.A.p[Deta];
+    const int p1a = data.A.p[Deta + 1];    
+    eta[Deta]=Type(0);
+
+  // X contribution: columns are eta indices  
+    for (int k = p0x; k < p1x; ++k) {
+      const int    r = data.X.i[k];          // beta row index
+      const Type   v = Type(data.X.x[k]);    // value
+      eta[Deta]   += v * latent.beta[r];
+    }
+
+  // A contribution
+    for (int k = p0a; k < p1a; ++k) {
+      const int    r = data.A.i[k];          // gamma row index
+      const Type   v = Type(data.A.x[k]);    // value
+      eta[Deta]   += v * latent.gamma[r];
+    }
+  }
 
   // log(|Q|) + 0.5 * gamma^T Q gamma
 
   
   // diagonals
+  #pragma omp for 
   for(size_t D=0;D<data.Ngamma;D++) {
     size_t mapHere = data.map[D];
 
     gammaScaled[D] = latent.gamma[D] / latent.theta[mapHere];
-    randomContributionDiag += latent.logTheta[mapHere] +
-    0.5*gammaScaled[D]*gammaScaled[D]*data.Qdiag[D];
+    randomContributionDiag[tid] += latent.logTheta[mapHere] +
+      0.5*gammaScaled[D]*gammaScaled[D]*data.Qdiag[D];
   }
 
+// need to make sure all gammaScaled and etas are created before moving on
+#pragma omp barrier
 
 
 #ifdef DEBUG
@@ -331,33 +383,10 @@ CppAD::vector<Type>  objectiveFunctionInternal(
 #endif    
 
     // Q offdiag    
+      #pragma omp for nowait
   for(size_t D = 0; D < data.Nq; D++) {
-    offdiagQ += gammaScaled[data.QsansDiag.i[D]] * gammaScaled[data.QsansDiag.j[D]] * data.QsansDiag.x[D];
+    offdiagQ[tid] += gammaScaled[data.QsansDiag.i[D]] * gammaScaled[data.QsansDiag.j[D]] * data.QsansDiag.x[D];
   }
-
-
-
-  // eta = X * beta + A * gamma   
-
-  for (size_t Deta = 0; Deta < data.Neta; ++Deta) {
-    const int p0 = data.X.p[Deta];
-    const int p1 = data.X.p[Deta + 1];
-
-  // X contribution: columns are eta indices  
-    for (int k = p0; k < p1; ++k) {
-      const int    r = data.X.i[k];          // beta row index
-      const Type   v = Type(data.X.x[k]);    // value
-      eta[Deta]   += v * latent.beta[r];
-    }
-
-  // A contribution
-    for (int k = p0; k < p1; ++k) {
-      const int    r = data.A.i[k];          // gamma row index
-      const Type   v = Type(data.A.x[k]);    // value
-      eta[Deta]   += v * latent.gamma[r];
-    }
-  }
-
 
 
 #ifdef DEBUG
@@ -365,10 +394,12 @@ CppAD::vector<Type>  objectiveFunctionInternal(
 #endif
   // calculate log(sum(exp(eta_i))) within strata
 
+    #pragma omp for nowait
   for (size_t i = 0; i < data.Nstrata; i++) {
     size_t startHere = data.CC.p[i], Nhere = data.CC.p[i+1];
     size_t NinStrata = Nhere - startHere;
     CppAD::vector<Type> etaHere(NinStrata);
+
 
     // loop through row i of CCmatrix
     // this is j=startHere
@@ -433,36 +464,52 @@ CppAD::vector<Type>  objectiveFunctionInternal(
     contrib += lgamma(sumY + 1);
 #endif
 
-    loglik += contrib;
+    loglik[tid] += contrib;
   } // loop through strata
 
 } //parellel block
 
+  Type randomContributionDiagS = Type(0);
+  Type  offdiagQS= Type(0);
+  Type  loglikS = Type(0);
+
+
+
+for (int t = 0; t < num_threads; ++t) {
 #ifdef DEBUG
-  Rcpp::Rcout << "logLik " << loglik << " offdiag " << local_offdiagQ <<
-  " diag " << randomContributionDiag << std::endl;
+Rcpp::Rcout << "thread " << t << "logLik " << loglik[t] << " offdiag " << offdiagQ[t] <<
+  " diag " << randomContributionDiag[t] << std::endl;
+#endif 
+  randomContributionDiagS += randomContributionDiag[t];
+  offdiagQS += offdiagQ[t];
+  loglikS += loglik[t];
+}
+
+#ifdef DEBUG
+Rcpp::Rcout << "logLik " << loglikS << " offdiag " << offdiagQS <<
+" diag " << randomContributionDiagS << std::endl;
 #endif 
 
 
-  minusLogDens[0] =  - loglik + offdiagQ  + randomContributionDiag;
+minusLogDens[0] =  - loglikS + offdiagQS  + randomContributionDiagS;
 //  etaLogSum[0]  + etaLogSum[1]
 
 
 //    Rcpp::Rcout << " " << etaLogSum[0] << " " << etaLogSum[1] << "\n";
 
 #ifdef EVALCONSTANTS
-  minusLogDens[0] += Ngamma * HALFLOGTWOPI;
+minusLogDens[0] += Ngamma * HALFLOGTWOPI;
 //  minusLogDens -= 0.5*logdet(Q);
-  if (config.containsElementNamed("halfLogDetQ")) {
-    minusLogDens[0] -= Rcpp::as<double>(config["halfLogDetQ"]);
-  }
+if (config.containsElementNamed("halfLogDetQ")) {
+  minusLogDens[0] -= Rcpp::as<double>(config["halfLogDetQ"]);
+}
 #endif
 
 #ifdef DEBUG
-  Rcpp::Rcout << "all done " << minusLogDens[0] << std::endl;
+Rcpp::Rcout << "all done " << minusLogDens[0] << std::endl;
 #endif 
 
-  return minusLogDens;
+return minusLogDens;
 }
 
 
@@ -473,6 +520,7 @@ CppAD::vector<Type>  objectiveFunctionInternal(
  config: hesMax integer, maximum number of non-zero hessian elements
  */
 
+//' @export
 // [[Rcpp::export]]
 double objectiveFunctionNoDiff(
   Rcpp::NumericVector parameters, 

@@ -68,7 +68,11 @@ loglik <- function(
     return(result$minusLogLik)
   }
 
-  fullParameters = result$parameters = c(
+  result$parameters = c(
+    configInner$beta,
+    configInner$theta)
+
+  fullParameters = c(
     configInner$beta,
     result$solution,
     configInner$theta)
@@ -78,26 +82,6 @@ loglik <- function(
     fullParameters, data, config
   ) 
 
-  if(FALSE) { # check hessian
-    Sgamma0 = seq(from=Nbeta, len=Ngamma)
-    Sgamma1 = Sgamma0+1
-
-    bob = Matrix::Matrix(resThird$denseHessian)
-    bob2 = Matrix::sparseMatrix(i=config$sparsity$second$parGamma$i,
-      j = config$sparsity$second$parGamma$j, x=resThird$second, index1=FALSE)
-    bob3 = Matrix::sparseMatrix(i=config$sparsity$second$parGamma$i,
-      j = config$sparsity$second$parGamma$j, x=resThird$diag, index1=FALSE)
-
-      hessianFull = Matrix::sparseMatrix(
-    i = config$sparsity$second$parGamma$i,
-    j = config$sparsity$second$parGamma$j,
-    x = resThird$second, index1=0, dims = c(Nparams, Nparams)
-  )
-    range(as.matrix(hessianFull)[Sgamma1,Sgamma1] - as.matrix(result$hessian))
-    range(as.matrix(bob)[Sgamma1, Sgamma1] - as.matrix(result$hessian))
-    range(as.matrix(bob2)[Sgamma1, Sgamma1] - as.matrix(result$hessian))
-    range((as.matrix(hessianFull) - as.matrix(resThird$denseHessian))[Sgamma1,Sgamma1])
-  }
 
   thirdDiag = data.frame(
     i = config$sparsity$second$parGamma$j,
@@ -122,8 +106,49 @@ loglik <- function(
     thirdNonDiag[,theCols]
   )
 
+  thirdList = mapply(function(k, third, N, Sgamma) {
+    thirdHere = third[apply(third[,c('i','j','k')] == k, 1, any), ]
+    if(!nrow(thirdHere)) return(NULL)
+    newxy = t(apply(thirdHere[,c('i','j','k')], 1, function(xx) sort(c(xx[xx!=k], rep(k,2))[1:2] ) ))
+    Matrix::sparseMatrix(i=newxy[,1], j=newxy[,2], x=thirdHere[,'x'],
+      dims = rep(N, 2), symmetric=TRUE, index1=FALSE)#[Sgamma, Sgamma]
+  },
+  k = seq(from=0, len=Nparams), MoreArgs = list(third=third, N=Nparams, Sgamma = Sgamma1)
+  )
+
+
+  if(FALSE) { # check hessian
+    Sgamma0 = seq(from=Nbeta, len=Ngamma)
+    Sgamma1 = Sgamma0+1
+
+    bob = Matrix::Matrix(resThird$denseHessian)
+    bob2 = Matrix::sparseMatrix(i=config$sparsity$second$parGamma$i,
+      j = config$sparsity$second$parGamma$j, x=resThird$second, index1=FALSE)
+    bob3 = Matrix::sparseMatrix(i=config$sparsity$second$parGamma$i,
+      j = config$sparsity$second$parGamma$j, x=resThird$diag, index1=FALSE)
+
+      hessianFull = Matrix::sparseMatrix(
+    i = config$sparsity$second$parGamma$i,
+    j = config$sparsity$second$parGamma$j,
+    x = resThird$second, index1=0, dims = c(Nparams, Nparams)
+  )
+    range(as.matrix(hessianFull)[Sgamma1,Sgamma1] - as.matrix(result$hessian))
+    range(as.matrix(bob)[Sgamma1, Sgamma1] - as.matrix(result$hessian))
+    range(as.matrix(bob2)[Sgamma1, Sgamma1] - as.matrix(result$hessian))
+    range((as.matrix(hessianFull) - as.matrix(resThird$denseHessian))[Sgamma1,Sgamma1])
+  }
+
 
 if(FALSE) {
+
+  denseThirdIndex = Matrix::sparseMatrix(
+    i = config$sparsity$third$ijk$i, 
+    j=config$sparsity$third$ijk$j,
+    x=(config$sparsity$third$ijk$k),
+  index1=FALSE)
+
+  resThird$denseThird
+
   # check third deriv
   step = 0.0001;Dgamma=4
   Dorig = Dgamma + length(beta)
@@ -170,6 +195,7 @@ range(as.matrix(bobDiag) - denseTkii)
 
 thirdDiag[thirdDiag$k == 5,][1:8,]
 
+# checking diagonals
 (  bob = rbind(
     numer=diag(D3),
     hes=resThird$denseHessian[Dorig,Sgamma1],
@@ -189,26 +215,24 @@ resThird$denseDiag[1:10,Dorig]
 thirdDiag[which.min(abs(thirdDiag$x - denseTkii[2,5])), ]
 
 
+bob = thirdList[[Dorig]]
+bob2 = bob[Sgamma1, Sgamma1]
+bob2[1:12,1:10]
+D3[1:12,1:10]
+
 #  (D3/as.matrix(autoD))[1:5,1:5]
 } # end testing
 
 #  Determinant
 # to do: compute in data frame.  merge and sum
-  thirdList = mapply(function(k, third, N, Sgamma) {
-    thirdHere = third[apply(third[,c('i','j','k')] == k, 1, any), ]
-    newxy = t(apply(thirdHere[,c('i','j','k')], 1, function(xx) sort(c(xx[xx!=k], rep(k,2))[1:2] ) ))
-   try( Matrix::sparseMatrix(i=newxy[,1], j=newxy[,2], x=thirdHere[,'x'],
-      dims = rep(N, 2), symmetric=TRUE, index1=FALSE)[Sgamma, Sgamma])
-  },
-  k = seq(from=0, len=Nparams), MoreArgs = list(third=third, N=Nparams, Sgamma = Sgamma1)
-  )
 
 
-  Strace = unlist(lapply(thirdList, function(Hinv, Tuux) {
+  Strace = unlist(lapply(thirdList, function(Hinv, Tuux, Sgamma) {
 #      sum(Matrix::diag(Hinv %*% dH))
-    sum((Hinv * Tuux)@x)  
+    if(is.null(Tuux)) return(0)
+    sum((Hinv * Tuux[Sgamma,Sgamma])@x)  
   },  
-  Hinv=invHessian))
+  Hinv=invHessian, Sgamma = Sgamma1))
 
 
   secondParGamma1 = Matrix::sparseMatrix(

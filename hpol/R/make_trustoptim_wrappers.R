@@ -2,6 +2,7 @@
 make_trustoptim_wrappers <- function(data, 
   config = list(dirichelet=TRUE), 
   obj_fn = objectiveFunctionC,
+  obj_fn_noad = objectiveFunctionNoDiff,
   debug=FALSE) {
   # Create environment to store the last evaluated x and result
   cache_env <- new.env()
@@ -12,13 +13,12 @@ make_trustoptim_wrappers <- function(data,
   get_result <- function(x, maxDeriv) {
     result <- obj_fn(x, cache_env$data, 
       c(cache_env$config1, list(maxDeriv = unname(maxDeriv))))
-
-
     return(result)
   }
   
   fn_wrapper <- function(x, ...) {
-    get_result(x, maxDeriv=0)$value
+#   get_result(x, maxDeriv=0)$value
+    objectiveFunctionNoDiff(x, cache_env$data, cache_env$config1)
   }
   gr_wrapper <- function(x, ...) {
     get_result(x,  maxDeriv=1)$grad

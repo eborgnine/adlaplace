@@ -19,103 +19,90 @@ sparsityForThird = function(x, data, config=list()) {
     if(is.matrix(x)) hessian = Matrix::Matrix(x)
   }
 
-  Nbeta = nrow(data$XTp)
-  Ngamma = nrow(data$ATp)
-  Sgamma = seq(from=Nbeta+1, len=Ngamma)
+if(is.data.frame(hessian)) {
+  hessian = Matrix::sparseMatrix(
+    i=hessian$i, j=hessian$j, 
+    index1=FALSE, symmetric=TRUE)
+} 
 
 
-  if(is.data.frame(hessian)) {
-    hessian = Matrix::sparseMatrix(
-      i=hessian$i, j=hessian$j, 
-      index1=FALSE, symmetric=TRUE)
-  } 
+Nbeta = nrow(data$XTp)
+Ngamma = nrow(data$ATp)
+Sgamma = seq(from=Nbeta+1, len=Ngamma)
+Sgamma0 = Sgamma -1
 
-  if(nrow(hessian) <= Ngamma ) 
-    warning("hessian must be from the full set of parameters and random effects")
 
-  Sparams = setdiff(1:nrow(hessian), Sgamma)
-  Nparams = length(Sparams)
 
-  if(all(class(hessian) == 'dsCMatrix')) {
-    hessianC = hessian
-    hessian = as(hessian,'dsTMatrix')
-  } else {
-    hessianC = as(hessian, 'CsparseMatrix')
-  }
+if(nrow(hessian) <= Ngamma ) 
+  warning("hessian must be from the full set of parameters and random effects")
+
+Ntotal = nrow(hessian)
+Sparams = setdiff(1:Ntotal, Sgamma)
+Sparams0 = Sparams-1
+Nparams = length(Sparams)
+
+hessianT = as(hessian,'dsTMatrix')
+hessianC = as(hessian, 'CsparseMatrix')
+
   # store upper and lower triangle
-  hessianC2 = as(hessianC, "generalMatrix")
-  hessianT2 = as(hessianC2, "TsparseMatrix")
+hessianC2 = as(hessianC, "generalMatrix")
+hessianT2 = as(hessianT, "generalMatrix")
 
-  hessianTdf = data.frame(
-      i=hessianT2@i, 
-      j=hessianT2@j)
+hessianTdf = data.frame(
+  i=hessianT2@i, 
+  j=hessianT2@j)
 
-    hessianS = as(Matrix::forceSymmetric(hessian), "TsparseMatrix")
-  hessianC = as(as(hessianS, "generalMatrix"), "CsparseMatrix")
-
-
-  hessianRandom = hessianS[Sgamma,Sgamma]
+#  hessianS = as(Matrix::forceSymmetric(hessian), "TsparseMatrix")
 
 
-  parGammaDiag = hessianC#[,Sparams]
-  parGammaDiag[Sparams,] = 0
+hessianRandom = hessianT[Sgamma,Sgamma]
 
+parGammaDiag = hessianC
+#parGammaDiag[Sparams,] = 0
 
+parGamma = list(
+  i=parGammaDiag@i,
+  j = rep(seq(0, len=nrow(hessian)), diff(parGammaDiag@p)), 
+  p=parGammaDiag@p,
+  Sparams = Sparams0)
 
-      parGamma = list(
-        i=parGammaDiag@i,
-        j = rep(seq(0, len=nrow(hessian)), diff(parGammaDiag@p)), 
-        p=parGammaDiag@p,
-        Sparams = Sparams-1)
-
-  pastedParGamma = paste(parGamma$i, parGamma$j, sep='_')
-  indexHessian1 = match(pastedParGamma,
-    paste(hessianS@i, hessianS@j, sep='_'))
-  indexHessian2 = match(pastedParGamma,
-    paste(hessianS@j, hessianS@i, sep='_'))
-  parGamma$indexHessian = pmax(indexHessian1, indexHessian2, na.rm=TRUE)
-
+pastedParGamma = paste(parGamma$i, parGamma$j, sep='_')
+indexHessian1 = match(pastedParGamma,
+  paste(hessianTdf$i, hessianTdf$j, sep='_'))
+indexHessian2 = match(pastedParGamma,
+  paste(hessianTdf$j, hessianTdf$j, sep='_'))
+parGamma$indexHessian = pmax(indexHessian1, indexHessian2, na.rm=TRUE)
 
 
 # entries of third deriv which are non-zero
-# each pair musth have non-zero 2nd deriv
-# i, j are gammas, k parameters  
-  parametersGamma1 = hessianTdf[
-#  hessianTdf$j %in% (Sparams-1) &
-    hessianTdf$i %in% (Sgamma-1), ]
-  parametersGamma2 = mapply(
-    function(ifrom1, jfrom1, hessian) {
-      res1 = apply(hessian[, c(ifrom1,jfrom1)]!=0, 2, 
-        which, simplify=FALSE)
-      inboth = do.call(intersect, res1)
-      newj = intersect(inboth, Sgamma[Sgamma < ifrom1])
-      cbind(i=rep(ifrom1,length(newj)), j=newj, 
-        k=rep(jfrom1,length(newj)))-1
-    },
-    ifrom1 = parametersGamma1$i+1, jfrom1 = parametersGamma1$j+1, 
-    MoreArgs = list(hessian=hessian)
-  )
-  parametersGamma = do.call(rbind, parametersGamma2)
+# for each T_ijk, H_ik H_jk H_ij nonzero
+# for each ij pair, find H[,j] > 0 & H[,j] >0
 
-  # keep only those with three different entries
-  parametersGamma = parametersGamma[apply(parametersGamma, 1, 
-    function(xx) length(unique(xx)) == 3), ]
+forTriples = cbind(hessianT@i, hessianT@j)
+forTriples = forTriples[forTriples[,1] !=  forTriples[,2], ]
+# dont want both as parameters
 
-  # remove duplicates
-  parametersGamma = t(apply(parametersGamma, 1, sort))
-  parametersGamma = parametersGamma[!duplicated(parametersGamma), ]
-  colnames(parametersGamma) = c('i','j','k')
 
-  parametersGamma = parametersGamma[order(parametersGamma[,'i'],
-      parametersGamma[,'j'],parametersGamma[,'k']),]
+forTriples1= forTriples+1
 
-  ijk = parametersGamma
-  
-  #jk = ijk[!duplicated(ijk[,c('j','k')]), c('p','i','j','k') ]
-  ij = cbind(
-    p=seq(from=0, len=nrow(parametersGamma)), 
-    parametersGamma
-  )[!duplicated(parametersGamma[,c('i','j')]), c('p','i','j','k') ]
+theK = apply(forTriples1, 1, function(xx, hessianC) {
+  possibleK = which( (hessianC[,xx[1]] != 0) & (hessianC[,xx[2]] != 0))
+  possibleK [ (possibleK < min(xx))]
+}, hessianC = hessianC)
+NperRow = unlist(lapply(theK, length))
+
+Snk = rep(1:nrow(forTriples), NperRow)
+
+ijk1 = cbind(
+  forTriples1[Snk, ],
+  unlist(theK)
+) 
+colnames(ijk1) = c('i','j','k')
+
+ijk = ijk1-1
+
+ijk = ijk[order(ijk[,'i'],ijk[,'j'],ijk[,'k']),]
+
 
 if(FALSE) {
   table(duplicated(ijk[,c('i','j')]))
@@ -123,61 +110,83 @@ if(FALSE) {
   table(duplicated(ijk[,c('j','k')]))
 }
 
-  pEnd = c(ij[-1,'p'], nrow(ij)+1)
-  ij=cbind(
-    ij[,c('i','j','p')],
-    pEnd = pEnd,
-    n = pEnd - ij[,'p'])
+indexKii1 = match(
+  apply(ijk[,c('i','k')], 1, paste, collapse='_'),
+  paste(parGamma$i, parGamma$j, sep='_')
+)
+indexKii2 = match(
+  apply(ijk[,c('i','k')], 1, paste, collapse='_'),
+  paste(parGamma$j, parGamma$i, sep='_')
+)
+indexKii = pmin(indexKii1, indexKii2, na.rm=TRUE)
 
-  indexKii1 = match(
-    apply(ijk[,c('i','k')], 1, paste, collapse='_'),
-    paste(parGamma$i, parGamma$j, sep='_')
+if(FALSE) {
+  cbind(ijk, indexKii)[seq(-2,2) + min(which(is.na(indexKii))), ]
+}
+
+indexKjj1 = match(
+  apply(ijk[,c('j','k')], 1, paste, collapse='_'),
+  paste(parGamma$i, parGamma$j, sep='_')
+)
+indexKjj2 = match(
+  apply(ijk[,c('j','k')], 1, paste, collapse='_'),
+  paste(parGamma$j, parGamma$i, sep='_')
+)
+indexKjj = pmin(indexKjj1, indexKjj2, na.rm=TRUE)
+
+if(FALSE) {
+  cbind(ijk, indexKjj)[1:12,][seq(-2,2) + min(which(is.na(indexKjj))), ]
+}
+
+
+ijkp = cbind(
+  ijk,
+  p=seq(from=0, len=nrow(ijk)),
+  indexKii = indexKii-1,
+  indexKjj = indexKjj-1 
+)
+
+# apply(ijkp, 2, function(xx) sum(is.na(xx)))
+
+ij = ijkp[!duplicated(ijkp[,c('i','j')]), c('i','j','p')]
+
+#jk = ijkp[!duplicated(ijkp[,c('j','k')]), setdiff(colnames(ijkp), 'i')]
+
+
+pEnd = c(ij[-1,'p'], nrow(ijk))
+ij=cbind(
+  ij[,c('i','j','p')],
+  pEnd = pEnd,
+  n = pEnd - ij[,'p'])
+
+#quantile(ij[,'n'])  
+
+
+
+
+
+storage.mode(ij) = 'integer'
+storage.mode(ijkp) = 'integer'
+
+
+
+
+sparsity = list(
+  second = list(
+    full = list(i=hessianT@i, j=hessianT@j, 
+      p=hessianC@p),
+    random = list(i=hessianRandom@i, j=hessianRandom@j, 
+      p=as(hessianRandom, "CsparseMatrix")@p),
+    parGamma = parGamma
+  ),
+  third = list(
+    ijk = as.data.frame(ijkp),
+    ij = as.data.frame(ij)
   )
-  indexKii2 = match(
-    apply(ijk[,c('i','k')], 1, paste, collapse='_'),
-    paste(parGamma$j, parGamma$i, sep='_')
-  )
-  indexKii = pmin(indexKii1, indexKii2, na.rm=TRUE)
-
-  indexKjj1 = match(
-    apply(ijk[,c('j','k')], 1, paste, collapse='_'),
-    paste(parGamma$i, parGamma$j, sep='_')
-  )
-  indexKjj2 = match(
-    apply(ijk[,c('j','k')], 1, paste, collapse='_'),
-    paste(parGamma$j, parGamma$i, sep='_')
-  )
-  indexKjj = pmin(indexKjj1, indexKjj2, na.rm=TRUE)
+)
 
 
-  ijk2 = cbind(
-    ijk, 
-    indexKii = indexKii,
-    indexKjj = indexKjj 
-  )
-
-  storage.mode(ij) = 'integer'
-  storage.mode(ijk2) = 'integer'
-
-
-
-
-  sparsity = list(
-    second = list(
-      full = list(i=hessianS@i, j=hessianS@j, 
-        p=as(hessianS, "CsparseMatrix")@p),
-      random = list(i=hessianRandom@i, j=hessianRandom@j, 
-        p=as(hessianRandom, "CsparseMatrix")@p),
-      parGamma = parGamma
-    ),
-    third = list(
-      ijk = as.data.frame(ijk2),
-      ij = as.data.frame(ij)
-    )
-  )
-
-
-  return(sparsity)
+return(sparsity)
 }
 
 

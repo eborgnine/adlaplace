@@ -147,12 +147,6 @@ if(ps::ps_system_memory()$total > 5e10) {
     config = fitD$config
     config$verbose=FALSE
 
-if(FALSE) {
- 
- 
- x=
-
-}
 
 
 # likelihood
@@ -160,6 +154,8 @@ if(FALSE) {
 # config$transform_theta = TRUE means thetas are log(sd) otherwise theta=sd
 
 library('hpolcc')
+
+
 result = loglik(parameters, 
              gamma_start, 
              data=fitD$tmb_data, 
@@ -167,27 +163,13 @@ result = loglik(parameters,
     control = list(maxit=100, start.trust.radius = 0.1,
       report.level=4, report.freq=1))
 
-configxx = config
-configxx$maxDeriv = 0
-
-objectiveFunctionC(
-  c(parameters[1:Nbeta], result$solution, parameters[-(1:Nbeta)]),
-  fitD$tmb_data,
-  configxx
-  )
-
-objectiveFunctionNoDiff(
-  c(parameters[1:Nbeta], result$solution, parameters[-(1:Nbeta)]),
-    fitD$tmb_data,
-  configxx
-  )
 
 result$minusLogLik
 result$gradL
 
 step = 0.001
 result2 = loglik(
-  parameters + c(step, rep(0, length(parameters)-1)),
+  parameters = result$parameters + c(step, rep(0, length(result$parameters)-1)),
   config = result$config,
   gamma_start = result$solution,
   data = fitD$tmb_data,
@@ -197,7 +179,9 @@ result2 = loglik(
 
 (dpart = c(result$fval, result2$fval))
 diff(dpart)/step
-result$extra$grad[1]
+result$extra$gradL[1]
+
+as.data.frame(result$extra)
 
 (ldet=c(result$logDetHessian, result2$logDetHessian))
 diff(ldet)/step
