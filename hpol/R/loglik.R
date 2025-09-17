@@ -194,7 +194,7 @@ thirdDiag[which.min(abs(thirdDiag$x - denseTkii[2,5])), ]
 
 #  Determinant
 # to do: compute in data frame.  merge and sum
-  thirdList1 = mapply(function(k, third, N, Sgamma) {
+  thirdList = mapply(function(k, third, N, Sgamma) {
     thirdHere = third[apply(third[,c('i','j','k')] == k, 1, any), ]
     newxy = t(apply(thirdHere[,c('i','j','k')], 1, function(xx) sort(c(xx[xx!=k], rep(k,2))[1:2] ) ))
    try( Matrix::sparseMatrix(i=newxy[,1], j=newxy[,2], x=thirdHere[,'x'],

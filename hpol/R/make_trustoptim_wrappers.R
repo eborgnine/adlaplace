@@ -1,8 +1,8 @@
 #' @export
 make_trustoptim_wrappers <- function(data, 
-    config = list(dirichelet=TRUE), 
-    obj_fn = objectiveFunctionC,
-    debug=FALSE) {
+  config = list(dirichelet=TRUE), 
+  obj_fn = objectiveFunctionC,
+  debug=FALSE) {
   # Create environment to store the last evaluated x and result
   cache_env <- new.env()
   cache_env$data = data
@@ -10,11 +10,11 @@ make_trustoptim_wrappers <- function(data,
   if(is.null(config$debugfile)) cache_env$debugfile = 'hpoldebug.rds'
 
   get_result <- function(x, maxDeriv) {
-      result <- obj_fn(x, cache_env$data, 
-        c(cache_env$config1, list(maxDeriv = unname(maxDeriv))))
+    result <- obj_fn(x, cache_env$data, 
+      c(cache_env$config1, list(maxDeriv = unname(maxDeriv))))
 
 
-      return(result)
+    return(result)
   }
   
   fn_wrapper <- function(x, ...) {
@@ -24,21 +24,30 @@ make_trustoptim_wrappers <- function(data,
     get_result(x,  maxDeriv=1)$grad
   }
   hs_wrapper <- function(x, ...) {
-    result = get_result(x,  maxDeriv=2)$hessian
-    if(debug) saveRDS(c(result, list(x=x)), file=cache_env$debugfile)  
+    result = get_result(x,  maxDeriv=2)
+    if(identical(cache_env$config1$debug, TRUE)) { 
+      saveRDS(c(result, list(x=x)), file=cache_env$config1$debugfile)  
+    }
+    result = result$hessian
 
     if(is.null(cache_env$config1$sparsity)) {
       # save the sparsity pattern
-      hess2 = as(as(result, 'TsparseMatrix'), 'generalMatrix')
-      sparsity = data.frame(
-        i=result@i, j=result@j
+      sparsity = list(
+        second=list(
+          list(
+            i=result@i, j=result@j,
+            p=as(result, "CsparseMatrix")@p)
+        )
       )
-      reordered = order( sparsity$j,  sparsity$i)
-      cache_env$config1$sparsity = sparsity[reordered,]
-    }
-
-    as(as(result, 'CsparseMatrix'),'generalMatrix')
-
-  }
-  list(fn = fn_wrapper, gr = gr_wrapper, hs = hs_wrapper)
+    names(sparsity$second) = c("full", "random")[1+(
+      length(x) == nrow(cache_env$data$ATp)
+    )]
+    cache_env$config1$sparsity = sparsity
 }
+  # trustoptim needs general matrix
+  as(as(result, 'CsparseMatrix'),'generalMatrix')
+
+}
+list(fn = fn_wrapper, gr = gr_wrapper, hs = hs_wrapper)
+}
+

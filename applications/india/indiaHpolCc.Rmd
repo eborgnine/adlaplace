@@ -121,7 +121,7 @@ fitD <- hpolcc::hnlm(
 
 
 
-fitD$config$transform_theta = TRUE
+fitD$config$transform_theta = FALSE
 if(ps::ps_system_memory()$total > 5e10) {
   fitD$config$num_threads = parallel::detectCores()
 } else {
@@ -152,7 +152,7 @@ if(FALSE) {
     
  
              data=fitD$tmb_data
-    control = list(maxit=10, start.trust.radius = 0.1,
+    control = list(maxit=100, start.trust.radius = 0.1,
       report.level=4, report.freq=1)
 
  x=c(parameters[1:Nbeta], gamma_start, parameters[-(1:Nbeta)])
@@ -199,6 +199,31 @@ diff(llik)/step
 result$gradL[1]
 
 ```
+
+```{r map}
+library('hpolcc')
+
+  parameters = c(
+    0.0, 0.01, # beta (slope, quadratic) 
+    log(1), # sd global
+    log(0.1), # sd local
+    log(0.001), log(0.001), # sd local slope, quad
+    rep(0, nrow(fitD$tmb_data$ATp)),
+    log(0.1)[fitD$config$dirichelet] # dirichelet OD
+    )
+
+map = map_estimator(
+  parameters, 
+  data = fitD$tmb_data,
+  config = list(verbose=FALSE, transform_theta=TRUE, dirichelet=TRUE, num_threads=4),
+    control = list(
+      maxit=1000, start.trust.radius = 0.1,trust.iter= 1e5,
+      report.level=4, report.freq=1)
+  )
+map$map$parameters  
+```
+
+
 
 
 ```{r checkDerivs}

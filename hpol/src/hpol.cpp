@@ -1,6 +1,6 @@
 #include"hpol.hpp"
 
-//#define DEBUG
+#define DEBUG
 
 #include<omp.h>
 //#include <vector>
@@ -103,6 +103,9 @@ CppAD::vector<Type>  objectiveFunctionInternal(
         for(size_t D=0;D<Ntheta;D++) {
           theta[D] = thetaOrig[D];
           logTheta[D] = log(theta[D]);      
+#ifdef DEBUG
+  Rcpp::Rcout << "D " << D << " theta " << theta[D] << " logtheta " << logTheta[D] << "\n";
+#endif          
         }
       }
     } else {
@@ -359,7 +362,7 @@ Rcpp::List objectiveFunctionC(
   }
   CppAD::vector<CppAD::AD<double>> y = objectiveFunctionInternal(ad_params, data, config);
   if (verbose ) {
-    Rcpp::Rcout << " " << y[0] << "\n";
+    Rcpp::Rcout << "y " << y[0] << "\n";
   }
   CppAD::ADFun<double> fun(ad_params, y);
 
