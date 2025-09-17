@@ -140,6 +140,9 @@ Type lgamma_ad(Type x) {
     return yout[0];
 }
 
+
 // Explicit instantiations
 //template double lgamma_ad<double>(double);
 template CppAD::AD<double> lgamma_ad<CppAD::AD<double>>(CppAD::AD<double>);
+
+

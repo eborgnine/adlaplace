@@ -1,9 +1,8 @@
 #include"hpol.hpp"
 
-//#define DEBUG
+// #define DEBUG
 
 #include<omp.h>
-//#include <vector>
 
 
 // ---- CppAD parallel hooks ----
@@ -11,179 +10,370 @@ bool in_parallel() { return omp_in_parallel() != 0; }
 size_t thread_number() { return static_cast<size_t>(omp_get_thread_num()); }
 
 
+using Rcpp::List; using Rcpp::S4;
+using Rcpp::IntegerVector; using Rcpp::NumericVector; using Rcpp::LogicalVector;
+
+// ----- safe getters -----
+inline bool get_bool(const List& cfg, const char* key, bool def=false) {
+  return cfg.containsElementNamed(key) ? Rcpp::as<bool>(cfg[key]) : def;
+}
+
+// ----- a lightweight view of a dgCMatrix (no copies; just SEXP handles) -----
+// Lightweight view for Matrix::*gCMatrix (column-compressed)
+// Works for dgCMatrix (numeric x) and ngCMatrix (no x: pattern-only).
+struct DgCView {
+  Rcpp::IntegerVector i;    // row indices (0-based)
+  Rcpp::IntegerVector p;    // column pointers (length ncol+1)
+  Rcpp::NumericVector x;    // may be length 0 for ngCMatrix
+  Rcpp::IntegerVector Dim;  // c(nrow, ncol)
+  bool has_x;               // true if numeric/logical 'x' present
+
+  explicit DgCView(const Rcpp::S4& obj)
+    : i(obj.slot("i")),
+      p(obj.slot("p")),
+      Dim(obj.slot("Dim"))
+  {
+    // ngCMatrix has no 'x' slot; others do (dgCMatrix: numeric, lgCMatrix: logical)
+    if (obj.inherits("ngCMatrix")) {
+      x = Rcpp::NumericVector();   // empty
+      has_x = false;
+    } else {
+      // coerce any existing x (numeric/logical) to NumericVector
+      x = Rcpp::as<Rcpp::NumericVector>(obj.slot("x"));
+      has_x = true;
+    }
+  }
+
+  inline int nrow() const { return Dim[0]; }
+  inline int ncol() const { return Dim[1]; }
+  inline R_xlen_t nnz() const { return i.size(); } // structural nnz
+
+  // Get numeric value for kth stored nonzero; returns 1 for pattern matrices.
+  template <class T = double>
+  inline T value(R_xlen_t k) const {
+    return has_x ? static_cast<T>(x[k]) : static_cast<T>(1);
+  }
+};
+// Lightweight view for Matrix::dsTMatrix (symmetric triplet), no uplo logic.
+struct DgTView {
+  Rcpp::IntegerVector i;    // row indices (0-based), as-is
+  Rcpp::IntegerVector j;    // col indices (0-based), as-is
+  Rcpp::NumericVector x;    // nonzeros, as-is
+  Rcpp::IntegerVector Dim;  // c(nrow, ncol)
+
+  explicit DgTView(const Rcpp::S4& obj)
+    : i(obj.slot("i")),
+      j(obj.slot("j")),
+      x(obj.slot("x")),
+      Dim(obj.slot("Dim"))
+  {
+    // (optional) assert type:
+    // if (!obj.inherits("dsTMatrix")) Rcpp::stop("Expected dsTMatrix");
+  }
+
+  inline int nrow() const { return Dim[0]; }
+  inline int ncol() const { return Dim[1]; }
+  inline R_xlen_t nnz() const { return x.size(); }
+};
+
+
+
+// ----- all data bundled as a structure
+struct Data {
+  // transposed matrices from your comment
+  DgTView QsansDiag;   // dgCMatrix (off-diagonals in x; diag kept separately)
+  DgCView A;           // ATp
+  DgCView X;           // XTp
+  DgCView CC;          // cc_matrixTp
+
+  // scalars/vectors
+  NumericVector Qdiag;     // diagonals of Q
+  IntegerVector map;       // theta->gamma map
+  IntegerVector y;         // response
+
+  // convenience sizes (read-only)
+  const size_t Nq;         // = QsansDiag.nnz()
+  const size_t Nbeta;      // = X.nrow()   (remember X is transposed)
+  const size_t Ngamma;     // = A.nrow()
+  const size_t Neta;       // = A.ncol()
+  const size_t Nstrata;    // = CC.ncol()
+
+  explicit Data(const List& data)
+  : QsansDiag( S4(data["QsansDiag"]) )
+  , A(         S4(data["ATp"]) )
+  , X(         S4(data["XTp"]) )
+  , CC(        S4(data["cc_matrixTp"]) )
+  , Qdiag(     data["Qdiag"] )
+  , map(       data["map"] )
+  , y(         data["y"] )
+  , Nq(        QsansDiag.nnz() )
+  , Nbeta(     static_cast<size_t>(X.nrow()) )
+  , Ngamma(    static_cast<size_t>(A.nrow()) )
+  , Neta(      static_cast<size_t>(A.ncol()) )
+  , Nstrata(   static_cast<size_t>(CC.ncol()) )
+  {}
+};
+
+// ----- config bundle -----
+struct Config {
+  Rcpp::List list;             // keep original if you want to inspect later
+  bool verbose;
+  bool dirichlet;
+  bool transform_theta;
+
+  // optional numeric vectors (may be length 0)
+  Rcpp::NumericVector beta;
+  Rcpp::NumericVector theta;
+
+  explicit Config(const Rcpp::List& cfg)
+    : list(cfg),
+      verbose(get_bool(cfg, "verbose", false)),
+      dirichlet(get_bool(cfg, "dirichlet", false)),
+      transform_theta(get_bool(cfg, "transform_theta", false)),
+      beta(cfg.containsElementNamed("beta") ? cfg["beta"] : Rcpp::NumericVector()),
+      theta(cfg.containsElementNamed("theta") ? cfg["theta"] : Rcpp::NumericVector())
+  {}
+};
+
+template<class Type>
+struct PackedParams {
+  CppAD::vector<Type> beta;     // size Nbeta
+  CppAD::vector<Type> gamma;    // size Ngamma
+  CppAD::vector<Type> theta;    // size Ntheta (on natural scale)
+  CppAD::vector<Type> logTheta; // size Ntheta (log scale)
+  size_t startGamma = 0;        // index into ad_params where gamma starts (if sourced there)
+};
+
+inline Rcpp::NumericVector get_numvec_or_warn(const Rcpp::List& cfg,
+                                              const char* key,
+                                              const char* what) {
+  if (!cfg.containsElementNamed(key)) {
+    Rcpp::warning("%s missing from config", what);
+    return Rcpp::NumericVector();
+  }
+  return Rcpp::as<Rcpp::NumericVector>(cfg[key]);
+}
+
+template<class Type>
+inline void fill_from_numvec(CppAD::vector<Type>& dst,
+                             const Rcpp::NumericVector& src,
+                             const char* what) {
+  if (src.size() == 0) return; // was missing; keep dst as initialized
+  if (static_cast<size_t>(src.size()) != dst.size()) {
+    Rcpp::stop("%s has wrong length: expected %zu, got %d",
+               what, dst.size(), src.size());
+  }
+  for (size_t i = 0; i < dst.size(); ++i) dst[i] = Type(src[i]);
+}
+
+
+template<class Type>
+PackedParams<Type>
+unpack_params(const CppAD::vector<Type>& ad_params,
+              const Data& data,
+              const Config& cfg)
+{
+  using CppAD::exp;
+  using CppAD::log;
+
+  const size_t Nbeta  = data.Nbeta;
+  const size_t Ngamma = data.Ngamma;
+  const size_t Ntheta_base =
+      (data.map.size() > 0 ? static_cast<size_t>(Rcpp::max(data.map)) + 1 : 0u);
+  const size_t Ntheta = Ntheta_base + (cfg.dirichlet ? 1u : 0u);
+
+  PackedParams<Type> out;
+  out.beta     = CppAD::vector<Type>(Nbeta);
+  out.gamma    = CppAD::vector<Type>(Ngamma);
+  out.theta    = CppAD::vector<Type>(Ntheta);
+  out.logTheta = CppAD::vector<Type>(Ntheta);
+  out.startGamma = 0;
+
+  const size_t n = ad_params.size();
+
+  if (n == Ngamma) {
+    // gamma only in ad_params; beta and theta must come from cfg
+    for (size_t i = 0; i < Ngamma; ++i)
+      out.gamma[i] = ad_params[i];
+
+    // beta from cfg (must be present and correct length)
+    if (static_cast<size_t>(cfg.beta.size()) != Nbeta)
+      Rcpp::stop("beta has wrong length: expected %zu, got %d",
+                 Nbeta, cfg.beta.size());
+    for (size_t i = 0; i < Nbeta; ++i)
+      out.beta[i] = static_cast<Type>(cfg.beta[i]);
+
+    // theta/logTheta from cfg (must be present and correct length)
+    if (static_cast<size_t>(cfg.theta.size()) != Ntheta)
+      Rcpp::stop("theta has wrong length: expected %zu, got %d",
+                 Ntheta, cfg.theta.size());
+
+    if (cfg.transform_theta) {
+      // cfg.theta contains log-theta
+      for (size_t i = 0; i < Ntheta; ++i) {
+        out.logTheta[i] = static_cast<Type>(cfg.theta[i]);
+        out.theta[i]    = exp(out.logTheta[i]);
+      }
+    } else {
+      // cfg.theta contains natural theta
+      for (size_t i = 0; i < Ntheta; ++i) {
+        out.theta[i]    = static_cast<Type>(cfg.theta[i]);
+        out.logTheta[i] = log(out.theta[i]);
+      }
+    }
+  } else {
+    // Everything in ad_params: [beta | gamma | theta-or-logtheta]
+    const size_t expected = Nbeta + Ngamma + Ntheta;
+    if (n != expected) {
+      Rcpp::stop("parameters has wrong size: expected %zu (Nbeta+Ngamma+Ntheta), got %zu",
+                 expected, n);
+    }
+
+    // beta
+    for (size_t i = 0; i < Nbeta; ++i)
+      out.beta[i] = ad_params[i];
+
+    // gamma
+    out.startGamma = Nbeta;
+    for (size_t i = 0; i < Ngamma; ++i)
+      out.gamma[i] = ad_params[out.startGamma + i];
+
+    // theta or log-theta
+    const size_t startTheta = Nbeta + Ngamma;
+    if (cfg.transform_theta) {
+      // ad_params contains log-theta
+      for (size_t i = 0; i < Ntheta; ++i) {
+        out.logTheta[i] = ad_params[startTheta + i];
+        out.theta[i]    = exp(out.logTheta[i]);
+      }
+    } else {
+      // ad_params contains natural theta
+      for (size_t i = 0; i < Ntheta; ++i) {
+        out.theta[i]    = ad_params[startTheta + i];
+        out.logTheta[i] = log(out.theta[i]);
+      }
+    }
+  }
+
+  return out;
+}
+
+
+
+
 
 template<class Type>
 CppAD::vector<Type>  objectiveFunctionInternal(
-  CppAD::vector<Type> ad_params, 
-  Rcpp::List data, 
-  Rcpp::List config 
+  CppAD::vector<Type> params_input, 
+  Rcpp::List dataList, 
+  Rcpp::List configList 
   ) {
 
 #ifdef DEBUG
   Rcpp::Rcout << "in objfun\n";
 #endif  
 
+  Data   data(dataList);
+  Config cfg(configList);
 
-  /*  bool verbose = false;
-   if (config.containsElementNamed("verbose")) {
-   verbose = Rcpp::as<bool>(config["verbose"]);
-   }*/
-
-  bool dirichelet = false;
-  if (config.containsElementNamed("dirichelet")) {
-    dirichelet = Rcpp::as<bool>(config["dirichelet"]);
-  }
-  bool transform_theta = false; // theta is logged
-  if (config.containsElementNamed("transform_theta")) {
-    transform_theta = Rcpp::as<bool>(config["transform_theta"]);
-  }
-
-  // S4 objects from data
-  const Rcpp::S4 QsansDiag(data["QsansDiag"]), A(data["ATp"]),
-  X(data["XTp"]), CC(data["cc_matrixTp"]);
-  // matrices are transposed, of class dgCMatrix
-  
-  // row, column indices in matrices
-  const Rcpp::IntegerVector 
-  Qrow(QsansDiag.slot("i")), Qcol(QsansDiag.slot("j")),
-  Xi(X.slot("i")), Xp(X.slot("p")), 
-  Ai(A.slot("i")), Ap(A.slot("p")), 
-  CCcol(CC.slot("i")), CCp(CC.slot("p"));
-  // data in matrices
-  const Rcpp::NumericVector	Qdata =QsansDiag.slot("x"),
-  Adata =A.slot("x"), Xdata =X.slot("x");
-  
-  // number of nonzeros on off-diagonals
-  const size_t Nq = Qdata.size();
-  
-  // Q off diagonals
-  // separate diagonals and off-diagonals
-  const Rcpp::NumericVector	Qdiag(data["Qdiag"]);
-  
-  // map thetas to gammas, y
-  const Rcpp::IntegerVector map(data["map"]), y(data["y"]);
-  
-  // dimensions
-  const Rcpp::IntegerVector dimsX = X.slot("Dim"), dimsA = A.slot("Dim"),
-  dimsC = CC.slot("Dim");
-  
-  // recall X, A, CC transposed
-  const size_t Nbeta =dimsX[0], Ngamma = dimsA[0], 
-  Neta = dimsA[1], Nstrata = dimsC[1];
-//  const size_t NthetaFromParams = ad_params.size() - Nbeta - Ngamma;
-  
-//  const std::set<int> unique_map(map.begin(), map.end());
-  const size_t Ntheta = Rcpp::max(map) + 1 + dirichelet;
-  size_t startGamma;
-
-  CppAD::vector<Type> beta(Nbeta), 
-  gamma(Ngamma), theta(Ntheta), logTheta(Ntheta);
-  
+  auto latent = unpack_params<Type>(params_input, data, cfg);
 
 #ifdef DEBUG
-  Rcpp::Rcout << "Ntheta " << Ntheta << " Neta " << Neta << " Nbeta " << Nbeta <<
-  " Ngamma " << Ngamma << " Dirichelet " << dirichelet << 
-  " maxmap " << Rcpp::max(map) << "\n";
+  Rcpp::Rcout << "data unpacked, create etas\n";
+#endif
+
+
+  CppAD::vector<Type> eta(data.Neta, Type(0));
+  CppAD::vector<Type> etaLogSum(data.Nstrata);
+  CppAD::vector<Type> gammaScaled(data.Ngamma);
+
+  Type randomContributionDiag = 0.0; 
+  Type offdiagQ = 0.0;
+  Type loglik = 0.0;
+  CppAD::vector<Type> minusLogDens(1,0);
+
+
+  Type nu = latent.theta[latent.theta.size()-1],
+    logSqrtNu = latent.logTheta[latent.theta.size()-1]/ 2,
+    oneOverSqrtNu = exp(-logSqrtNu),
+    lgammaOneOverSqrtNu = lgamma_ad(oneOverSqrtNu);
+
+
+#ifdef DEBUG
+  Rcpp::Rcout << "nu " << nu << " logSqrtNU " << logSqrtNu << 
+  " oneOverSqrtNu " << oneOverSqrtNu << " lgammaOneOverSqrtNu " <<
+  lgammaOneOverSqrtNu << std::endl;
+#endif    
+
+
+{ // might parallellize this
+
+#ifdef DEBUG
+  Rcpp::Rcout << "Q diag" << std::endl;
 #endif  
 
-  // eta = A gamma + X beta
+  // log(|Q|) + 0.5 * gamma^T Q gamma
 
-  if(ad_params.size() == Ngamma) { 
-  // beta and theta are supplied in config
-    startGamma = 0;
-    if (config.containsElementNamed("theta")) {
-      Rcpp::NumericVector thetaOrig = config["theta"];
+  
+  // diagonals
+  for(size_t D=0;D<data.Ngamma;D++) {
+    size_t mapHere = data.map[D];
 
-      if(transform_theta) {
-        for(size_t D=0;D<Ntheta;D++) {
-          logTheta[D] = thetaOrig[D];
-          theta[D] = exp(logTheta[D]);      
-        }
-      } else {
-        for(size_t D=0;D<Ntheta;D++) {
-          theta[D] = thetaOrig[D];
-          logTheta[D] = log(theta[D]);      
-        }
-      }
-    } else {
-      Rcpp::warning("theta missing from config");
-    }
+    gammaScaled[D] = latent.gamma[D] / latent.theta[mapHere];
+    randomContributionDiag += latent.logTheta[mapHere] +
+    0.5*gammaScaled[D]*gammaScaled[D]*data.Qdiag[D];
+  }
 
-    if (config.containsElementNamed("beta")) {
-      Rcpp::NumericVector betaOrig = config["beta"];
-      for(size_t D=0; D<Nbeta; D++)
-        beta[D] = betaOrig[D];
-    } else {
-      Rcpp::warning("beta missing from config");    
-    }
-  } else { // theta and beta in parameters
-    if(Ntheta + Ngamma + Nbeta != ad_params.size()) {
-      Rcpp::Rcout <<  "parameters is the wrong size: " <<
-      "Ntheta " << Ntheta << " Neta " << Neta 
-      << " Nbeta " << Nbeta << " Ngamma " << Ngamma << 
-      " parameter size " << ad_params.size() << "\n";
-    }
 
-    startGamma = Nbeta;
-    for(size_t D=0;D<Nbeta;D++) {
-      beta[D] = ad_params[D];
-    }
-    size_t startTheta = Nbeta + Ngamma;
-    if(transform_theta) {
-      for(size_t D=0;D<Ntheta;D++) {
-        logTheta[D] = ad_params[startTheta+D];
-        theta[D] = exp(logTheta[D]);      
-      }
-    } else {
-      for(size_t D=0;D<Ntheta;D++) {
-        theta[D] = ad_params[startTheta+D];
-        logTheta[D] = log(theta[D]);      
-      }
-    }
-
-  } // end theta and beta in parameters
 
 #ifdef DEBUG
-  for(size_t D=0;D<theta.size();D++) {
-    Rcpp::Rcout << "D " << D << " theta " << theta[D] << " logtheta " << logTheta[D] << "\n";
-  }
-#endif          
+  Rcpp::Rcout << "Q offdiag " << data.Nq << std::endl;
+#endif    
 
-
-  // gamma and eta
-  for(size_t D=0;D<Ngamma;D++) {
-    gamma[D] = ad_params[startGamma+D];
+    // Q offdiag    
+  for(size_t D = 0; D < data.Nq; D++) {
+    offdiagQ += gammaScaled[data.QsansDiag.i[D]] * gammaScaled[data.QsansDiag.j[D]] * data.QsansDiag.x[D];
   }
 
-  CppAD::vector<Type> eta(Neta, 0.0);
-  
-  for(size_t Deta=0; Deta < Neta; Deta++) {
-    size_t endX = Xp[Deta+1];
-    for(size_t Dbeta=Xp[Deta]; Dbeta < endX; Dbeta++) {
-      eta[Deta] += Xdata[Dbeta] * beta[Xi[Dbeta]];
+
+
+  // eta = X * beta + A * gamma   
+
+  for (size_t Deta = 0; Deta < data.Neta; ++Deta) {
+    const int p0 = data.X.p[Deta];
+    const int p1 = data.X.p[Deta + 1];
+
+  // X contribution: columns are eta indices  
+    for (int k = p0; k < p1; ++k) {
+      const int    r = data.X.i[k];          // beta row index
+      const Type   v = Type(data.X.x[k]);    // value
+      eta[Deta]   += v * latent.beta[r];
     }
-    size_t endA = Ap[Deta+1];
-    for(size_t Dgamma=Ap[Deta]; Dgamma < endA; Dgamma++) {
-      eta[Deta] += Adata[Dgamma] * gamma[Ai[Dgamma]];
+
+  // A contribution
+    for (int k = p0; k < p1; ++k) {
+      const int    r = data.A.i[k];          // gamma row index
+      const Type   v = Type(data.A.x[k]);    // value
+      eta[Deta]   += v * latent.gamma[r];
     }
   }
+
 
 
 #ifdef DEBUG
   Rcpp::Rcout << "sum log etas\n";
 #endif
   // calculate log(sum(exp(eta_i))) within strata
-  CppAD::vector<Type> etaLogSum(Nstrata);
 
-  for (size_t i = 0; i < Nstrata; i++) {
-    size_t startHere = CCp[i], Nhere = CCp[i+1];
+  for (size_t i = 0; i < data.Nstrata; i++) {
+    size_t startHere = data.CC.p[i], Nhere = data.CC.p[i+1];
     size_t NinStrata = Nhere - startHere;
     CppAD::vector<Type> etaHere(NinStrata);
 
     // loop through row i of CCmatrix
     // this is j=startHere
     for(size_t j0=0, j=startHere; j < Nhere; j++,j0++) {
-      etaHere[j0] = eta[CCcol[j]];
+      etaHere[j0] = eta[data.CC.i[j]];
     }
 #ifdef USEATOMICS    
     // use the atomic formula stuff with analytical derivatives
@@ -195,113 +385,68 @@ CppAD::vector<Type>  objectiveFunctionInternal(
         max_idx = Didx;
       }
     }
-    double max_value = CppAD::Value(etaHere[max_idx]);
+//    double max_value = CppAD::Value(etaHere[max_idx]);
+    double max_value;
+    if constexpr (std::is_same<Type, double>::value) {
+      max_value = etaHere[max_idx];
+    }  else {
+      max_value = CppAD::Value(etaHere[max_idx]);
+    } 
+
     Type sumexp=0.0;
     for(size_t j = 0; j < etaHere.size(); ++j) {
       sumexp += exp(etaHere[j] - max_value);
     }
     etaLogSum[i] = max_value + log(sumexp);
 #endif    
-  }
 
 
 
-
-#ifdef DEBUG
-  Rcpp::Rcout << "Q diag" << std::endl;
-#endif  
-
-  // log(|Q|) + 0.5 * gamma^T Q gamma
-  CppAD::vector<Type> gammaScaled(Ngamma);
-  Type randomContributionDiag = 0.0; 
-  
-  // diagonals
-  for(size_t D=0;D<Ngamma;D++) {
-    size_t mapHere = map[D];
-
-    gammaScaled[D] = gamma[D] / theta[mapHere];
-    randomContributionDiag += logTheta[mapHere] +
-    0.5*gammaScaled[D]*gammaScaled[D]*Qdiag[D];
-  }
-
-
-
-#ifdef DEBUG
-  Rcpp::Rcout << "Q offdiag " << Nq << std::endl;
-#endif    
-
-  Type local_offdiagQ = 0.0;
-
-    // Q offdiag    
-  for(size_t D = 0; D < Nq; D++) {
-    local_offdiagQ += gammaScaled[Qrow[D]] * gammaScaled[Qcol[D]] * Qdata[D];
-  }
-
-
-#ifdef DEBUG
-  Rcpp::Rcout << "data" << std::endl;
-#endif    
 
 // for data contribution
-  Type nu = theta[theta.size()-1],
-  logSqrtNu = logTheta[theta.size()-1]/ 2,
-  oneOverSqrtNu = exp(-logSqrtNu),
-  lgammaOneOverSqrtNu = lgamma_ad(oneOverSqrtNu),
-  local_loglik = 0.0;
-
-#ifdef DEBUG
-  Rcpp::Rcout << "nu " << nu << " logSqrtNU " << logSqrtNu << 
-  " oneOverSqrtNu " << oneOverSqrtNu << " lgammaOneOverSqrtNu " <<
-  lgammaOneOverSqrtNu << std::endl;
-#endif    
-
-
-  // data contribution to loglik, loop through strata
-  for (size_t i = 0; i < Nstrata; i++) {
 
     Type  contrib = 0.0;
-    size_t startHere = CCp[i], Nhere = CCp[i+1];
     int sumY = 0;
 
     for(size_t j=startHere; j < Nhere; j++) {
-      size_t idx = CCcol[j];
-      sumY += y[idx];     
+      size_t idx = data.CC.i[j];
+      sumY += data.y[idx];     
       Type etaMinusLogSumMu = eta[idx] - etaLogSum[i];
       Type  muBarDivSqrtNu = exp(etaMinusLogSumMu - logSqrtNu);
-      if(dirichelet) {
-        contrib += lgamma_ad(y[idx] + muBarDivSqrtNu) - 
+      if(cfg.dirichlet) {
+        contrib += lgamma_ad(data.y[idx] + muBarDivSqrtNu) - 
         lgamma_ad(muBarDivSqrtNu);
       } else {
-        contrib += y[idx] * etaMinusLogSumMu;
+        contrib += data.y[idx] * etaMinusLogSumMu;
       }
 
       
 #ifdef EVALCONSTANTS
-      contrib -= lgamma(y[idx] + 1);
+      contrib -= lgamma(data.y[idx] + 1);
 #endif
     } // j obs in strata
 
-    if(dirichelet) {
+    if(cfg.dirichlet) {
       contrib += lgammaOneOverSqrtNu - lgamma_ad(oneOverSqrtNu + sumY);
     }
 #ifdef EVALCONSTANTS
     contrib += lgamma(sumY + 1);
 #endif
 
-    local_loglik += contrib;
+    loglik += contrib;
   } // loop through strata
 
+} //parellel block
 
 #ifdef DEBUG
-  Rcpp::Rcout << "logLik " << local_loglik << " offdiag " << local_offdiagQ <<
+  Rcpp::Rcout << "logLik " << loglik << " offdiag " << local_offdiagQ <<
   " diag " << randomContributionDiag << std::endl;
 #endif 
 
-  CppAD::vector<Type> minusLogDens(1,0);
-  minusLogDens[0] =
+
+  minusLogDens[0] =  - loglik + offdiagQ  + randomContributionDiag;
 //  etaLogSum[0]  + etaLogSum[1]
-  - local_loglik + local_offdiagQ  + randomContributionDiag
-  ;
+
 
 //    Rcpp::Rcout << " " << etaLogSum[0] << " " << etaLogSum[1] << "\n";
 
@@ -317,10 +462,7 @@ CppAD::vector<Type>  objectiveFunctionInternal(
   Rcpp::Rcout << "all done " << minusLogDens[0] << std::endl;
 #endif 
 
-
-
   return minusLogDens;
-
 }
 
 
@@ -330,6 +472,23 @@ CppAD::vector<Type>  objectiveFunctionInternal(
  map, y integer vectors 
  config: hesMax integer, maximum number of non-zero hessian elements
  */
+
+// [[Rcpp::export]]
+double objectiveFunctionNoDiff(
+  Rcpp::NumericVector parameters, 
+  Rcpp::List data, 
+  Rcpp::List config
+  ) {
+
+  size_t Nparams = parameters.size();
+  CppAD::vector<double> parametersC(Nparams);
+  for (size_t D = 0; D < Nparams; D++) {
+    parametersC[D] = parameters[D];  // Initialize CppAD variables
+  }
+  auto result = objectiveFunctionInternal<double>(parametersC, data, config);
+  return result[0];
+}
+
 //' @export
 // [[Rcpp::export]]
 Rcpp::List objectiveFunctionC(

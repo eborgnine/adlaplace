@@ -112,7 +112,7 @@ fitD <- hpolcc::hnlm(
       knots = seq(0, 45, by=5), 
     group_var = ecoRegion), 
   data=dataMedSimple[dataMedSimple$ecoRegion < 7,],
-  dirichelet= TRUE,
+  dirichlet= TRUE,
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
   for_dev=TRUE, verbose=TRUE
   )
@@ -121,7 +121,7 @@ fitD <- hpolcc::hnlm(
 
 
 
-fitD$config$transform_theta = FALSE
+fitD$config$transform_theta = TRUE
 if(ps::ps_system_memory()$total > 5e10) {
   fitD$config$num_threads = parallel::detectCores()
 } else {
@@ -136,26 +136,21 @@ if(ps::ps_system_memory()$total > 5e10) {
 
   parameters = c(
     0.0, 0.01, # beta (slope, quadratic) 
-    1, # sd global
-    0.1, # sd local
-    0.001, 0.001, # sd local slope, quad
-    0.1[fitD$config$dirichelet] # dirichelet OD
+    log(1), # sd global
+    log(0.1), # sd local
+    log(0.001), log(0.001), # sd local slope, quad
+    log(0.1)[fitD$config$dirichlet] # dirichelet OD
     )
 
  gamma_start = runif(Ngamma, -0.01, 0.01) #mapOptim$solution[seq(Nbeta+1, len=Ngamma)]
 
     config = fitD$config
-    config$transform_theta = FALSE
     config$verbose=FALSE
 
 if(FALSE) {
-    
  
-             data=fitD$tmb_data
-    control = list(maxit=100, start.trust.radius = 0.1,
-      report.level=4, report.freq=1)
-
- x=c(parameters[1:Nbeta], gamma_start, parameters[-(1:Nbeta)])
+ 
+ x=
 
 }
 
@@ -171,6 +166,21 @@ result = loglik(parameters,
     config = config,
     control = list(maxit=100, start.trust.radius = 0.1,
       report.level=4, report.freq=1))
+
+configxx = config
+configxx$maxDeriv = 0
+
+objectiveFunctionC(
+  c(parameters[1:Nbeta], result$solution, parameters[-(1:Nbeta)]),
+  fitD$tmb_data,
+  configxx
+  )
+
+objectiveFunctionNoDiff(
+  c(parameters[1:Nbeta], result$solution, parameters[-(1:Nbeta)]),
+    fitD$tmb_data,
+  configxx
+  )
 
 result$minusLogLik
 result$gradL
@@ -226,208 +236,7 @@ map$map$parameters
 
 
 
-```{r checkDerivs}
-
-
-
-fitD$config$maxDeriv = 2
-fitD$config$verobse=FALSE
-parametersFull = c(
-  result$parameters[1:nrow(fitD$tmb_data$XTp)], # beta
-  result$solution,  # gamma
-  result$parameters[-(1:nrow(fitD$tmb_data$XTp))] # theta
-  )
-
-
-wrappers <- hpolcc::make_trustoptim_wrappers(
-  data=fitD$tmb_data,
-  config=list(verbose=FALSE, transform_theta = TRUE, 
-    dirichelet = fitD$config$dirichelet, 
-    num_threads = fitD$config$num_threads),
-  debug=FALSE
-)
-
-newmat = Matrix::Matrix(0, 
-  nrow=nrow(result$extra$denseHessian), ncol=nrow(result$extra$denseHessian),
-  sparse=TRUE)
-newmat[seq(from=Nbeta+1, len=Ngamma), seq(from=Nbeta+1, len=Ngamma)] = result$hessian
-newmat[1:8,1:8]
-result$extra$denseHessian[1:8,1:8] 
-wrappers$hs(parametersFull)[1:8,1:8]
-
-thirdDiag = 2*(result$extra$denseDiag - result$extra$denseHessian)
-
-
-# thirdDiag[a,b] = T_abb
-result$extra$denseDiag[1:4, 1:9]
-thirdDiag[1:4, 1:9]
-
-
-# test third
-
-indexForThird = length(parametersFull)
-forThirdGamma1 = forThirdGamma2 = 5
-
-stepsize = 0.0001
-SforDeriv = seq(-3,3)*stepsize + parametersFull[indexForThird]
-
-Sparams = matrix(parametersFull, length(parametersFull), length(SforDeriv))
-Sparams[indexForThird,] = SforDeriv
-Sparams = as.data.frame(Sparams)
-
-hsEval = mapply(
-  wrappers$hs,
-  Sparams
-  )
-
-# 2nd deriv a v H_bb(a) 
-Shs = unlist(lapply(hsEval, function(xx) xx[forThirdGamma1, forThirdGamma2]))
-plot(SforDeriv, Shs, type='o')
-
-
-newx = seq(SforDeriv[1]+stepsize, max(SforDeriv)-stepsize, len=length(SforDeriv)-1)
-numthird = diff(Shs)/stepsize
-
-plot(newx, numthird, type='o')
-
-
-abline(h=thirdDiag[indexForThird, forThirdGamma1])
-
-
-(diff(Shs)/stepsize)/2 + approx(SforDeriv, Shs, newx)$y
-result$extra$denseDiag[indexForThird, forThirdGamma1]
-result$extra$denseDiag[forThirdGamma1, indexForThird]
-result$extra$denseDiag[indexForThird, forThirdGamma1] 
-
-
-(diff(Shs)/stepsize)/2 
-approx(SforDeriv, Shs, newx)$y
-
-result$extra$denseDiag[indexForThird, forThirdGamma1]-result$extra$denseHessian[indexForThird, forThirdGamma1] 
-
-2*(result$extra$denseDiag[indexForThird, forThirdGamma1] - result$extra$denseHessian[indexForThird, forThirdGamma1]) 
-
-
-start_val = parametersFull
-# checking derivatives
-fnSub = function(xx) wrappers$fn(c(
-  start_val[
-    seq(1, length(start_val)-length(xx))
-    ], xx
-    )
-  )
-
-StoDiff = seq(to=length(start_val), len=7)
-testGrad = numDeriv::grad(fnSub, 
-  start_val[StoDiff]
-  )
-(xx = rbind(
-  autodiff=wrappers$gr(start_val)[StoDiff],
-  num = testGrad
-))
-
-autoHessian = wrappers$hs(start_val)
-
-grSub = function(xx) wrappers$gr(
-  c(
-  start_val[
-    seq(1, length(start_val)-length(xx))
-    ], xx
-    )
-    )
-
-testHessian = numDeriv::jacobian(grSub, start_val[StoDiff])[StoDiff,]
-options(width=200)
-rbind(
-  testHessian, 
-  NA, 
-  autoHessian[StoDiff, StoDiff]
-)
-
-
-
-plot(SforDeriv, fnEval)
-
-plot(seq(SforDeriv[1]+stepsize, max(SforDeriv)-stepsize, len=length(SforDeriv)-1), 
-  diff(fnEval)/stepsize, type='o')
-(theG = wrappers$gr(parametersFull)[indexForThird])  
-abline(h=theG, lty=2)
-
-
-plot(SforDeriv[-c(1, length(SforDeriv))], 
-  diff(diff(fnEval))/stepsize^2, type='o')
-abline(h=wrappers$hs(parametersFull)[indexForThird,indexForThird], lty=2)
-
-
-
-hsEval = mapply(
-  wrappers$hs,
-  Sparams
-  )
-
-forThirdGamma1 = 1+Nbeta
-forThirdGamma2 = 1+Nbeta
-
-
-
-
-str(result$extra$third)
-
-thirdHere = result$third[
-  ( (result$third$paramInParams+1) == indexForThird),
-  ]
-
-
-diagHere = result$extra$diag[,unlist(thirdHere[1,'param'])+1 ]
-
-# Tijj + T_ikk
-diagHere = Matrix::forceSymmetric(outer(diagHere, diagHere, FUN='+'))
-
-# 2 T_{ijk} + T_ijj + T_ikk
-taylor3mat = Matrix::sparseMatrix(
-  i = thirdHere$iInParams, j = thirdHere$gammaInParams,
-  x = thirdHere$taylor3, index1=FALSE, symmetric=TRUE,
-  dims = dim(diagHere)
-  )
-
-diag_masked <- diagHere * (taylor3mat != 0)
-Tderiv = (taylor3mat - diag_masked)/2
-
-Shs = unlist(lapply(hsEval, function(xx) xx[forThirdGamma1, forThirdGamma2]))
-plot(SforDeriv, Shs, type='o')
-
-plot(seq(SforDeriv[1]+stepsize, max(SforDeriv)-stepsize, len=length(SforDeriv)-1), 
-  diff(Shs)/stepsize, type='o')
-
-abline(h=thirdDiag[forThirdGamma1,indexForThird])
-
-
-
-
-```
-
-
-```{r mapEstimator, eval=FALSE}
-if(FALSE) {
-# map estimator  
-library('trustOptim')
-
-mapOptim <- trust.optim(
-  x = start_val,
-  fn = wrappers$fn,
-  gr = wrappers$gr,
-  hs = wrappers$hs,
-  method = "Sparse",
-  control = list(
-    start.trust.radius = 50, maxit=150, trust.iter = 5000,
-    preconditioner=1, report.level=4, report.freq=1)
-)
-
-mapOptim$solution[1:Nbeta]
-exp(mapOptim$solution[-seq(1, Nbeta + Ngamma)])
-
-}
-
+```{r doSomeSim, eval=FALSE}
 
 Nsim = 200
 gammaSim =  res$gamma_hat + 
@@ -455,45 +264,6 @@ matplot(
   type='l', col='#00000020', lty=1, xaxs='i',
   yaxs='i'
 )
-
-```
-
-
-
-
-```{r third_deriv_stuff}
-# note wrappers$hs must have been run 
-parametersGamma = hpolcc::sparsityForThird(
-  hessian = environment(wrappers$fn)$cache_env$config1$sparsity, 
-    data = fitD$tmb_data)
-
-config = c(
-  parametersGamma,
-  fitD$config[setdiff(
-      names(fitD$config), 
-      names(parametersGamma)
-    )]
-)
-config$verbose=TRUE
-
-resThird = hpolcc:::derivForLaplace(
-  parameters=start_val, data=fitD$tmb_data, config
-  ) 
-str(resThird)
-
-resThird$ddw = matrix(resThird$ddw, ncol=2, byrow=TRUE)
-resThird$taylor3 = matrix(resThird$taylor3, ncol=3, byrow=TRUE)
-
-head(resThird$ddw)
-head(resThird$taylor3)
-testHessian[,3]
-testGrad
-
-
-resThird$forDiag[1:150]
-
-
-
 
 ```
 

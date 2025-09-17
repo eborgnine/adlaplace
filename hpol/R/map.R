@@ -49,5 +49,8 @@ map_estimator = function(
 		)]
 	)
 
+	if(identical(config$transform_theta, TRUE)) {
+		result$map$parameters$theta = exp(result$map$parameters$theta)
+	}
 	result
 }

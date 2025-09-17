@@ -165,6 +165,7 @@ Rcpp::List derivForLaplace(
   #pragma omp parallel
   {
     const int tid=omp_get_thread_num();
+      fun_threads[tid].Forward(0, x_val);
 
 //    std::vector<double> direction(Nparams, 0.0);
 
@@ -183,7 +184,7 @@ Rcpp::List derivForLaplace(
       direction[Dk]  = 1.0;     
 
 
-      fun_threads[tid].Forward(0, x_val);
+//      fun_threads[tid].Forward(0, x_val);
       fun_threads[tid].Forward(1, direction);
       fun_threads[tid].Forward(2, direction);
 
@@ -231,7 +232,7 @@ if (verbose ) {
   std::vector<double> direction(Nparams, 0.0);
   direction[Di]  = direction[Dj] = 1.0;     
 
-  fun_threads[tid].Forward(0, x_val);
+//  fun_threads[tid].Forward(0, x_val);
   fun_threads[tid].Forward(1, direction);
   fun_threads[tid].Forward(2, direction);
 

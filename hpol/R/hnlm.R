@@ -27,7 +27,7 @@ hnlm <- function(formula,
                  data,
                  cc_design = ccDesign(),
                  weight_var,
-                 dirichelet = FALSE,
+                 dirichlet = FALSE,
                  tmb_parameters = NULL,
                  optim_parameters = list(eval.max = 2000, iter.max = 2000),
                  optimizer = c('nlminb', 'optim'),
@@ -171,7 +171,7 @@ hnlm <- function(formula,
   theta_info$model = c(theta_info$model, '')
   theta_info$psd_scale = exp(theta_info$psd_scale_log)
 
-  if (dirichelet) {
+  if (dirichlet) {
     theta_info$map = c(theta_info$map, max(theta_info$map) + 1)
     dirichletStart = 0.01
     theta_info$init <- c(theta_info$init, dirichletStart)
@@ -212,7 +212,7 @@ hnlm <- function(formula,
     cc_matrix = cc_matrix
   )
   
-  config = list(verbose = verbose,  dirichelet = as.integer(dirichelet))
+  config = list(verbose = verbose,  dirichlet = as.integer(dirichlet))
   
   tmb_data = formatHpolData(tmb_data)
   

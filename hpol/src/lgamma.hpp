@@ -46,9 +46,8 @@ template<class Type>
 Type lgamma_ad(Type x);
 
 
-// Template function declaration: works for double, AD<double>, AD<AD<double>>, etc.
-template<class Type>
-Type lgamma_ad(Type x);
-
+inline double lgamma_ad(double x) {
+  return std::lgamma(x);
+}
 
 #endif
