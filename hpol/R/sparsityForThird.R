@@ -39,14 +39,13 @@ if(nrow(hessian) <= Ngamma )
 Ntotal = nrow(hessian)
 Sparams = setdiff(1:Ntotal, Sgamma)
 Sparams0 = Sparams-1
-Nparams = length(Sparams)
 
-hessianT = as(hessian,'dsTMatrix')
 hessianC = as(hessian, 'CsparseMatrix')
+hessianT = as(hessianC,'TsparseMatrix')
 
   # store upper and lower triangle
 hessianC2 = as(hessianC, "generalMatrix")
-hessianT2 = as(hessianT, "generalMatrix")
+hessianT2 = as(hessianC2, "TsparseMatrix")
 
 hessianTdf = data.frame(
   i=hessianT2@i, 
@@ -57,21 +56,8 @@ hessianTdf = data.frame(
 
 hessianRandom = hessianT[Sgamma,Sgamma]
 
-parGammaDiag = hessianC
-#parGammaDiag[Sparams,] = 0
 
-parGamma = list(
-  i=parGammaDiag@i,
-  j = rep(seq(0, len=nrow(hessian)), diff(parGammaDiag@p)), 
-  p=parGammaDiag@p,
-  Sparams = Sparams0)
 
-pastedParGamma = paste(parGamma$i, parGamma$j, sep='_')
-indexHessian1 = match(pastedParGamma,
-  paste(hessianTdf$i, hessianTdf$j, sep='_'))
-indexHessian2 = match(pastedParGamma,
-  paste(hessianTdf$j, hessianTdf$j, sep='_'))
-parGamma$indexHessian = pmax(indexHessian1, indexHessian2, na.rm=TRUE)
 
 
 # entries of third deriv which are non-zero
@@ -80,8 +66,6 @@ parGamma$indexHessian = pmax(indexHessian1, indexHessian2, na.rm=TRUE)
 
 forTriples = cbind(hessianT@i, hessianT@j)
 forTriples = forTriples[forTriples[,1] !=  forTriples[,2], ]
-# dont want both as parameters
-
 
 forTriples1= forTriples+1
 
@@ -93,11 +77,27 @@ NperRow = unlist(lapply(theK, length))
 
 Snk = rep(1:nrow(forTriples), NperRow)
 
+
 ijk1 = cbind(
   forTriples1[Snk, ],
   unlist(theK)
 ) 
+
+# for debugging, all hessian entries
+ijk1 = cbind(
+  forTriples[rep(1:nrow(forTriples1), nrow(hessianT)), ],
+  rep(1:nrow(hessianT), each=nrow(forTriples1))
+)
 colnames(ijk1) = c('i','j','k')
+
+# get rid of tripples where all are parameters
+NinParams = apply(ijk1[,c('i','j','k')],1, function(xx) sum(xx %in% (Sparams-1)))
+ijk1 = ijk1[NinParams < 3, ]
+
+# get rid of tripples there is a pair
+Nunique = apply(ijk1[,c('i','j','k')],1, function(xx) length(unique(xx)))
+ijk1 = ijk1[Nunique ==  3, ]
+
 
 ijk = ijk1-1
 
@@ -110,41 +110,22 @@ if(FALSE) {
   table(duplicated(ijk[,c('j','k')]))
 }
 
-indexKii1 = match(
-  apply(ijk[,c('i','k')], 1, paste, collapse='_'),
-  paste(parGamma$i, parGamma$j, sep='_')
-)
-indexKii2 = match(
-  apply(ijk[,c('i','k')], 1, paste, collapse='_'),
-  paste(parGamma$j, parGamma$i, sep='_')
-)
-indexKii = pmin(indexKii1, indexKii2, na.rm=TRUE)
 
-if(FALSE) {
-  cbind(ijk, indexKii)[seq(-2,2) + min(which(is.na(indexKii))), ]
-}
-
-indexKjj1 = match(
-  apply(ijk[,c('j','k')], 1, paste, collapse='_'),
-  paste(parGamma$i, parGamma$j, sep='_')
+nonsymmetric = list(
+  i=hessianT2@i,
+  j=hessianT2@j, 
+  p=hessianC2@p
 )
-indexKjj2 = match(
-  apply(ijk[,c('j','k')], 1, paste, collapse='_'),
-  paste(parGamma$j, parGamma$i, sep='_')
-)
-indexKjj = pmin(indexKjj1, indexKjj2, na.rm=TRUE)
 
-if(FALSE) {
-  cbind(ijk, indexKjj)[1:12,][seq(-2,2) + min(which(is.na(indexKjj))), ]
-}
-
+nsJi = paste(nonsymmetric$j, nonsymmetric$i, sep="_")
 
 ijkp = cbind(
   ijk,
   p=seq(from=0, len=nrow(ijk)),
-  indexKii = indexKii-1,
-  indexKjj = indexKjj-1 
+  diagIk1 = match(apply(ijk[,c('i','k')], 1, paste, collapse='_'),nsJi),
+  diagJk1 = match(apply(ijk[,c('j','k')], 1, paste, collapse='_'),nsJi)  
 )
+
 
 # apply(ijkp, 2, function(xx) sum(is.na(xx)))
 
@@ -177,7 +158,7 @@ sparsity = list(
       p=hessianC@p),
     random = list(i=hessianRandom@i, j=hessianRandom@j, 
       p=as(hessianRandom, "CsparseMatrix")@p),
-    parGamma = parGamma
+    nonSymmetric = nonsymmetric
   ),
   third = list(
     ijk = as.data.frame(ijkp),

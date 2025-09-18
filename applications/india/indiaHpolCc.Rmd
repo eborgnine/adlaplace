@@ -72,8 +72,8 @@ dataMedSimple =
     & deaths$tempClean >=0
 #    & deaths$ecoRegion %in% 2:6 #setdiff(1:20, c(1,7,19)) # regions 1, 7, 19 have some very low temperatures.
     , ]
-save(dataMedSimple, file='.RData')
-
+save(dataMedSimple, file='dataMedSimple.RData')
+# load("dataMedSimple.RData")
 ```
 
 
@@ -155,6 +155,8 @@ if(ps::ps_system_memory()$total > 5e10) {
 
 library('hpolcc')
 
+config$verbose=FALSE
+config$num_threads = 4
 
 result = loglik(parameters, 
              gamma_start, 
@@ -169,24 +171,78 @@ result$gradL
 
 step = 0.001
 result2 = loglik(
-  parameters = result$parameters + c(step, rep(0, length(result$parameters)-1)),
+  parameters = result$parameters + step * (1:length(parameters) == 7),
   config = result$config,
   gamma_start = result$solution,
   data = fitD$tmb_data,
     control = list(maxit=100, start.trust.radius = 0.1,
       report.level=4, report.freq=1)
   )
+diffH = (result2$third$denseHessian - result$third$denseHessian)/step
+diffHad = result$third$thirdList[[82]][Sgamma1,Sgamma1]
+diffH[1:9,1:9]
+diffHad[1:9,1:9]
+
+
+Sindex = 2+1:6
+
+result$hessian[Sindex,Sindex]
+result$third$denseHessian[Sindex,Sindex]
+
+  # taylor is   T_iik/2 + T_jjk/2 +  T_ijk 
+Tiik= Matrix::diag(diffH)
+taylor2 = Tiik/2 + result$third$denseHessian[,82]
+toAdd = outer(diagT, diagT, FUN="+")
+taylor = diffH + toAdd/2
+
+
+denseTaylor = Matrix::sparseMatrix(
+  i=result$config$sparsity$third$ij$i,
+  j=result$config$sparsity$third$ij$j,
+  x=result$third$denseThird[,82],
+  index1=0, dims=dim(result$third$denseHessian), symmetric=TRUE)
+
+ result$third$denseDiag[82, 1:5]
+ result$third$denseDiag[1:5, 82]
+ taylor2[1:5]
+
+range( (taylor2 -  result$third$denseDiag[82,])/taylor2, na.rm=TRUE)
+
+plot(abs(taylor2), abs(result$third$denseDiag[82,]), log='xy');abline(c(0,1))
+
+denseThirdDiag = 2*(result$third$denseDiag[82,] - result$third$denseHessian[,82])
+
+
+plot(abs(denseThirdDiag), abs(Tiik), log='xy');abline(c(0,1))
+
+
+plot(abs(as.vector(taylor)), abs(as.vector(denseTaylor)), log='xy');abline(c(0,1))
+
+# should be the same as taylor
+
+denseTaylor[Sindex,Sindex]
+taylor[Sindex,Sindex]
+diffH[Sindex,Sindex]
+result$third$denseHessian[Sindex,Sindex]
+
+TijkAd = denseTaylor - outer(denseThirdDiag, denseThirdDiag, FUN='+')
+
+TijkAd[Sindex,Sindex]
+diffH[Sindex,Sindex]
 
 (dpart = c(result$fval, result2$fval))
 diff(dpart)/step
-result$extra$gradL[1]
-
-as.data.frame(result$extra)
-
 (ldet=c(result$logDetHessian, result2$logDetHessian))
 diff(ldet)/step
-result$extra$d1[1]
-result$extra$d2[1]
+sum(Matrix::diag(solve(result$third$denseHessian)%*% diffH))
+sum(Matrix::diag(solve(result$hessian)%*% thirdList[[82]][Sgamma1,Sgamma1]))
+
+
+cbind(result$extra, result2$extra)
+
+
+
+
 
 (llik=c(result$minusLogLik, result2$minusLogLik))
 diff(llik)/step

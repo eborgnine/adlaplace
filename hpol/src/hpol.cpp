@@ -1,6 +1,7 @@
 #include"hpol.hpp"
 
 //#define DEBUG
+#define DENSE
 
 #include<omp.h>
 
@@ -275,18 +276,12 @@ CppAD::vector<Type>  objectiveFunctionInternal(
   Rcpp::List configList 
   ) {
 
-#ifdef DEBUG
-  Rcpp::Rcout << "in objfun\n";
-#endif  
 
   Data   data(dataList);
   Config cfg(configList);
 
   auto latent = unpack_params<Type>(params_input, data, cfg);
 
-#ifdef DEBUG
-  Rcpp::Rcout << "data unpacked, create etas\n";
-#endif
 
 
   CppAD::vector<Type> eta(data.Neta, Type(0));
@@ -297,7 +292,7 @@ CppAD::vector<Type>  objectiveFunctionInternal(
 
 
   Type nu = latent.theta[latent.theta.size()-1],
-  logSqrtNu = latent.logTheta[latent.theta.size()-1]/ 2,
+  logSqrtNu = nu/ 2,
   oneOverSqrtNu = exp(-logSqrtNu),
   lgammaOneOverSqrtNu = lgamma_ad(oneOverSqrtNu);
 
@@ -332,9 +327,6 @@ for (int t = 0; t < num_threads; ++t) {
       #pragma omp parallel
 { 
     const int tid=omp_get_thread_num();
-#ifdef DEBUG
-  Rcpp::Rcout << "Q diag" << std::endl;
-#endif  
 
 
   // eta = X * beta + A * gamma   
@@ -632,7 +624,7 @@ Rcpp::List objectiveFunctionC(
   Rcpp::IntegerVector Hstart(num_threads,0), Hend(num_threads,0);
 
 
-#ifdef DEBUG
+#ifdef DENSE
   Rcpp::NumericMatrix denseHessianOut(Nparams, Nparams);
 #endif
 
@@ -731,7 +723,6 @@ Rcpp::List objectiveFunctionC(
 
 
       const int tid = thread_number();
-      const int nthreads_thread = omp_get_num_threads();
       std::vector<double> w(1, 1.0);
 
       // 
@@ -766,7 +757,7 @@ Rcpp::List objectiveFunctionC(
           ++DfromZero,++DfromStart
           ) {
           Hvalue[DfromStart] = thread_Hvalue[DfromZero];
-#ifdef DEBUG
+#ifdef DENSE
         denseHessianOut(thread_Hrow[DfromZero], 
           thread_Hcol[DfromZero]) = thread_Hvalue[DfromZero];
 #endif
@@ -793,7 +784,7 @@ Rcpp::List objectiveFunctionC(
 
           for (int irow = j; irow < NparamsI; ++irow) {
             double dhere = ddw[2 * irow + 1];
-#ifdef DEBUG
+#ifdef DENSE
             denseHessianOut(irow, j) = dhere;
 #endif
             if (!CppAD::NearEqual(dhere, 0.0, eps, eps)) {
@@ -831,7 +822,7 @@ Rcpp::List objectiveFunctionC(
 
   result["hessian"] = hessianR;
 
-#ifdef DEBUG
+#ifdef DENSE
   result["denseHessian"] = denseHessianOut;
 #endif
 

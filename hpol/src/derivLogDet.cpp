@@ -97,10 +97,9 @@ Rcpp::List derivForLaplace(
  Rcpp::IntegerVector Hrow = hessian["i"]; 
  Rcpp::IntegerVector Hp = hessian["p"];
 
- Rcpp::List diagSparsity = hessianList["parGamma"];
+ Rcpp::List diagSparsity = hessianList["nonSymmetric"];
  Rcpp::IntegerVector DiagRow = diagSparsity["i"]; 
  Rcpp::IntegerVector DiagP = diagSparsity["p"];
- Rcpp::IntegerVector Sparams = diagSparsity["Sparams"];
 
 
 // sparsity for third deriv
@@ -237,7 +236,7 @@ fun_threads[tid].Forward(1, direction);
 fun_threads[tid].Forward(2, direction);
 
   // first column is third deriv combination
-  //  T_iik + T_jjk + 2 T_ijk 
+  //  T_iik/2 + T_jjk/2 + T_ijk 
   // columns of diag are the double deriv
   // rows of taylor3 are i
 auto taylor3 = fun_threads[tid].Reverse(3, w);
