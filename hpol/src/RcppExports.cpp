@@ -24,16 +24,43 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
-// derivForLaplace
-Rcpp::List derivForLaplace(Rcpp::NumericVector parameters, Rcpp::List data, Rcpp::List config);
-RcppExport SEXP _hpolcc_derivForLaplace(SEXP parametersSEXP, SEXP dataSEXP, SEXP configSEXP) {
+// thirdDiagonals
+Rcpp::List thirdDiagonals(Rcpp::NumericVector parameters, Rcpp::List data, Rcpp::List config);
+RcppExport SEXP _hpolcc_thirdDiagonals(SEXP parametersSEXP, SEXP dataSEXP, SEXP configSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< Rcpp::NumericVector >::type parameters(parametersSEXP);
     Rcpp::traits::input_parameter< Rcpp::List >::type data(dataSEXP);
     Rcpp::traits::input_parameter< Rcpp::List >::type config(configSEXP);
-    rcpp_result_gen = Rcpp::wrap(derivForLaplace(parameters, data, config));
+    rcpp_result_gen = Rcpp::wrap(thirdDiagonals(parameters, data, config));
+    return rcpp_result_gen;
+END_RCPP
+}
+// thirdNonDiagonalsSparsity
+Rcpp::LogicalMatrix thirdNonDiagonalsSparsity(Rcpp::NumericVector parameters, Rcpp::List data, Rcpp::List config, Rcpp::IntegerMatrix pairs);
+RcppExport SEXP _hpolcc_thirdNonDiagonalsSparsity(SEXP parametersSEXP, SEXP dataSEXP, SEXP configSEXP, SEXP pairsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type parameters(parametersSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type data(dataSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type config(configSEXP);
+    Rcpp::traits::input_parameter< Rcpp::IntegerMatrix >::type pairs(pairsSEXP);
+    rcpp_result_gen = Rcpp::wrap(thirdNonDiagonalsSparsity(parameters, data, config, pairs));
+    return rcpp_result_gen;
+END_RCPP
+}
+// thirdOffDiagonals
+Rcpp::NumericMatrix thirdOffDiagonals(Rcpp::NumericVector parameters, Rcpp::List data, Rcpp::List config);
+RcppExport SEXP _hpolcc_thirdOffDiagonals(SEXP parametersSEXP, SEXP dataSEXP, SEXP configSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type parameters(parametersSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type data(dataSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type config(configSEXP);
+    rcpp_result_gen = Rcpp::wrap(thirdOffDiagonals(parameters, data, config));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -125,7 +152,9 @@ END_RCPP
 
 static const R_CallMethodDef CallEntries[] = {
     {"_hpolcc_test3", (DL_FUNC) &_hpolcc_test3, 4},
-    {"_hpolcc_derivForLaplace", (DL_FUNC) &_hpolcc_derivForLaplace, 3},
+    {"_hpolcc_thirdDiagonals", (DL_FUNC) &_hpolcc_thirdDiagonals, 3},
+    {"_hpolcc_thirdNonDiagonalsSparsity", (DL_FUNC) &_hpolcc_thirdNonDiagonalsSparsity, 4},
+    {"_hpolcc_thirdOffDiagonals", (DL_FUNC) &_hpolcc_thirdOffDiagonals, 3},
     {"_hpolcc_objectiveFunctionNoDiff", (DL_FUNC) &_hpolcc_objectiveFunctionNoDiff, 3},
     {"_hpolcc_objectiveFunctionC", (DL_FUNC) &_hpolcc_objectiveFunctionC, 3},
     {"_hpolcc_lgamma_forward_deriv", (DL_FUNC) &_hpolcc_lgamma_forward_deriv, 2},

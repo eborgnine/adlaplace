@@ -7,8 +7,18 @@ test3 <- function(X, U, V, W) {
 }
 
 #' @export
-derivForLaplace <- function(parameters, data, config) {
-    .Call('_hpolcc_derivForLaplace', PACKAGE = 'hpolcc', parameters, data, config)
+thirdDiagonals <- function(parameters, data, config) {
+    .Call('_hpolcc_thirdDiagonals', PACKAGE = 'hpolcc', parameters, data, config)
+}
+
+#' @export
+thirdNonDiagonalsSparsity <- function(parameters, data, config, pairs) {
+    .Call('_hpolcc_thirdNonDiagonalsSparsity', PACKAGE = 'hpolcc', parameters, data, config, pairs)
+}
+
+#' @export
+thirdOffDiagonals <- function(parameters, data, config) {
+    .Call('_hpolcc_thirdOffDiagonals', PACKAGE = 'hpolcc', parameters, data, config)
 }
 
 #' @export

@@ -2,6 +2,8 @@
 
 //#define DEBUG
 #define DENSE
+// least squares likelihood
+//#define TEST
 
 #include<omp.h>
 
@@ -268,7 +270,6 @@ unpack_params(const CppAD::vector<Type>& ad_params,
 
 
 
-
 template<class Type>
 CppAD::vector<Type>  objectiveFunctionInternal(
   CppAD::vector<Type> params_input, 
@@ -281,7 +282,7 @@ CppAD::vector<Type>  objectiveFunctionInternal(
   Config cfg(configList);
 
   auto latent = unpack_params<Type>(params_input, data, cfg);
-
+  // elements beta, gamma, theta, logtheta
 
 
   CppAD::vector<Type> eta(data.Neta, Type(0));
@@ -436,13 +437,16 @@ for (int t = 0; t < num_threads; ++t) {
       sumY += data.y[idx];     
       Type etaMinusLogSumMu = eta[idx] - etaLogSum[i];
       Type  muBarDivSqrtNu = exp(etaMinusLogSumMu - logSqrtNu);
+#ifdef TEST
+      contrib -= (data.y[idx] - eta[idx])*(data.y[idx] - eta[idx])/(nu*nu);
+#else      
       if(cfg.dirichlet) {
         contrib += lgamma_ad(data.y[idx] + muBarDivSqrtNu) - 
         lgamma_ad(muBarDivSqrtNu);
       } else {
         contrib += data.y[idx] * etaMinusLogSumMu;
       }
-
+#endif
       
 #ifdef EVALCONSTANTS
       contrib -= lgamma(data.y[idx] + 1);
@@ -713,7 +717,7 @@ Rcpp::List objectiveFunctionC(
       fun_threads[i] = fun;
     }
 
-    const double eps = 1e-9;
+    const double eps = 1e-12;
 //    int hindex = 0, hindex_thread=0;
 
 

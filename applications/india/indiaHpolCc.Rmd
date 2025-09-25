@@ -117,23 +117,6 @@ fitD <- hpolcc::hnlm(
   for_dev=TRUE, verbose=TRUE
   )
 
-
-
-
-
-fitD$config$transform_theta = TRUE
-if(ps::ps_system_memory()$total > 5e10) {
-  fitD$config$num_threads = parallel::detectCores()
-} else {
-  fitD$config$num_threads = 4
-}
-
-
-  Nbeta = nrow(fitD$tmb_data$XTp)
-  Ngamma = nrow(fitD$tmb_data$ATp)
-
-  Ntheta = length(fitD$theta_info$name)
-
   parameters = c(
     0.0, 0.01, # beta (slope, quadratic) 
     log(1), # sd global
@@ -142,42 +125,294 @@ if(ps::ps_system_memory()$total > 5e10) {
     log(0.1)[fitD$config$dirichlet] # dirichelet OD
     )
 
+
+fitD$config$transform_theta = TRUE
+if(ps::ps_system_memory()$total > 5e10) {
+  fitD$config$num_threads = parallel::detectCores()
+} else {
+  fitD$config$num_threads = 8
+}
+
+
+  Nbeta = nrow(fitD$tmb_data$XTp)
+  Ngamma = nrow(fitD$tmb_data$ATp)
+
+  Ntheta = length(fitD$theta_info$name)
+
+
  gamma_start = runif(Ngamma, -0.01, 0.01) #mapOptim$solution[seq(Nbeta+1, len=Ngamma)]
 
     config = fitD$config
     config$verbose=FALSE
-
+    config$dense = FALSE
 
 
 # likelihood
-# parameters = (beta, theta)
+# parameters = (beta, theta)R
 # config$transform_theta = TRUE means thetas are log(sd) otherwise theta=sd
 
 library('hpolcc')
 
-config$verbose=FALSE
-config$num_threads = 4
+
+if(exists("result")) gamma_start = result$solution
+
+paramsAll = c(parameters[1:Nbeta], gamma_start, parameters[-(1:Nbeta)])
+if(FALSE) {
+  config$sparsity = sparsityForThird(paramsAll, data=fitD$tmb_data, config)
+  saveRDS(config$sparsity, "sparsity.rds")
+} else {
+  config$sparsity = readRDS("sparsity.rds")
+}
 
 result = loglik(parameters, 
              gamma_start, 
              data=fitD$tmb_data, 
     config = config,
-    control = list(maxit=100, start.trust.radius = 0.1,
+    control = list(maxit=1000, start.trust.radius = 0.1,
       report.level=4, report.freq=1))
 
 
-result$minusLogLik
-result$gradL
+result$extra
+```
+```{r checkDeriv}
+order(apply(abs(resThirdDiag$diag[1:70,1:70]), 1, max), decreasing=TRUE)[1:6]
+order(apply(abs(resThirdDiag$diag), 2, max), decreasing=TRUE)[1:6]
+resThirdDiag$diag[,34]
 
-step = 0.001
-result2 = loglik(
-  parameters = result$parameters + step * (1:length(parameters) == 7),
+  Dpar = 3
+  Sp1 = seq(-0.0005, 0.0005, len=11)+result$fullParameters[Dpar]
+
+  bob =  mapply(function(xx) {
+    parameters2 = result$fullParameters
+    parameters2[Dpar] = xx
+    hpolcc:::objectiveFunctionC( 
+      parameters2,
+   fitD$tmb_data, 
+   c(
+   fitD$config[setdiff(names(fitD$config), c('verbose','maxDeriv'))], 
+    list(maxDeriv = 2, verbose=FALSE))
+    )
+    }, xx =Sp1, SIMPLIFY=FALSE)
+
+  bob0 = unlist(lapply(bob, function(xx) xx$value))
+  plot(Sp1, bob0)
+
+bob1 = unlist(lapply(bob, function(xx) xx$grad[Dpar]))
+plot(Sp1, bob1, type='l')
+points(
+  Sp1[-1] - diff(Sp1)/2, 
+  diff(bob0)/diff(Sp1))
+abline(h=resThirdDiag$first[Dpar,1])
+
+bob2 = unlist(lapply(bob, function(xx) xx$hessian[Dpar,Dpar]))
+plot(Sp1, bob2, type='l')
+points(
+  Sp1[-1] - diff(Sp1)/2, 
+  diff(bob1)/diff(Sp1))
+abline(h=resThirdDiag$second[Dpar,Dpar], col='red', lty=2)
+
+plot(
+  Sp1[-1] - diff(Sp1)/2, 
+  diff(bob2)/diff(Sp1)) 
+abline(h=2*resThirdDiag$diag[Dpar,Dpar], col='red', lty=2)
+
+
+Dpar2 = 4
+bob2 = unlist(lapply(bob, function(xx) xx$hessian[Dpar,Dpar2]))
+bob1 = unlist(lapply(bob, function(xx) xx$grad[Dpar2]))
+plot(Sp1, bob2, type='l', ylim = range(c(bob2, bob2[1]+ c(-1, 1))))
+points(
+  Sp1[-1] - diff(Sp1)/2, 
+  diff(bob1)/diff(Sp1))
+abline(h=resThirdDiag$second[Dpar2,Dpar], col='red', lty=2)
+
+plot(
+  Sp1[-1] - diff(Sp1)/2, 
+  diff(bob2)/diff(Sp1))
+abline(h=2*resThirdDiag$diag[Dpar2,Dpar], col='red', lty=2)
+
+Dpar3 = 78
+bob2 = unlist(lapply(bob, function(xx) xx$hessian[Dpar,Dpar3]))
+plot(
+  Sp1[-1] - diff(Sp1)/2, 
+  diff(bob2)/diff(Sp1))
+abline(h=2*resThirdDiag$diag[Dpar3,Dpar], col='red', lty=2)
+
+
+
+bob2 = unlist(lapply(bob, function(xx) xx$hessian[Dpar3,Dpar2]))
+plot(Sp1, bob2)
+
+
+tijk = data.frame(
+  x=Sp1[-1] - diff(Sp1)/2, 
+  y=diff(bob2)/diff(Sp1)
+  )
+plot(tijk)
+abline(h=thirdList[[Dpar]][Dpar2, Dpar3], col='red', lwd=3)
+abline(h=thirdList[[Dpar2]][Dpar, Dpar3], col='blue', lty=3, lwd=3)
+abline(h=thirdList[[Dpar3]][Dpar2, Dpar], col='orange')
+
+
+Sdet = unlist(lapply(bob, function(xx) Matrix::determinant(Matrix::forceSymmetric(xx$hessian[Sgamma1, Sgamma1]),
+    log = TRUE, sqrt=FALSE)$modulus))
+plot(Sp1, Sdet)
+
+
+Sthird = list()
+for(Dthird in seq(1, length(bob)-1)) {
+  Sthird[[Dthird]] = (bob[[Dthird+1]]$denseHessian - bob[[Dthird]]$denseHessian)/(diff(Sp1)[Dthird])
+}
+
+Sthird[[5]][1:4,1:4]
+thirdList[[Dpar3]][1:4,1:4]
+
+
+bob2 = (Sthird[[5]] - thirdList[[Dpar]]
+
+
+lapply(bob, function(xx) xx$hessian[c(Dpar, Dpar2, Dpar3),c(Dpar, Dpar2, Dpar3)]    )
+plot(
+  Sp1[-1] - diff(Sp1)/2, 
+  diff(Sdet)/diff(Sp1),
+  ylim = range(outer(diff(Sdet)/diff(Sp1),c(0.5, 2))))
+abline(h=sum(Matrix::diag(invHessianRandom %*% Sthird[[5]][Sgamma1, Sgamma1])))
+
+thirdNonDiag[apply(thirdNonDiag[,c('i','j','k')], 1, 
+  function(xx) all(sort(xx) == (sort(c(Dpar, Dpar2, Dpar3)-1)))), ]
+
+resThirdDiag$second[c(Dpar, Dpar2, Dpar3),c(Dpar, Dpar2, Dpar3)]
+
+```
+
+```{r stuff}
+Sgamma = seq(from=Nbeta+1, len=Ngamma)
+Sparams = setdiff(1:length(result$fullParameters), Sgamma)
+Sk = 1:length(Sparams)
+
+step = 0.0001
+result2 = list()
+for(Dk in Sk) {
+result2 = c(result2, list(loglik(
+  parameters = result$parameters + step * (1:length(parameters) == Dk),
   config = result$config,
   gamma_start = result$solution,
   data = fitD$tmb_data,
     control = list(maxit=100, start.trust.radius = 0.1,
       report.level=4, report.freq=1)
+  )))
+}
+
+
+# numeric differentiation of hessians to get third deriv
+diffH = lapply(result2, function(xx) {
+  (xx$fullHessian - result$fullHessian)/step 
+  })
+
+unlist(lapply(diffH, function(Hinv, Tuux, Sgamma1) {
+      sum(Matrix::diag(Hinv %*% Tuux[Sgamma1,Sgamma1]))
+  },  
+  Hinv=invHessianRandom, Sgamma1 = Sgamma1))
+
+# check diagonals
+thirdDiagDiff = do.call(cbind, lapply(diffH, function(xx) {
+    Matrix::diag(xx)
+  })) # T_iik, columns are k
+
+thirdDiagDiff[1:9,]
+resThirdDiag$diag[1:9, Sparams]
+
+
+
+
+diffTaylorDiag = 0.5*diffTaylorDiag1 + result$dense$hessian[,Sparams]
+diffTaylorDiag[1:12,]
+
+# in derivLogDet.cpp, columns are i.  transpose
+t(result$dense$diagTaylor)[1:12,Sparams]
+
+
+# 3rd parameter, 78 in full hessian
+Dk = 79;Dk0 = Dk-1;Dpar = which(Sparams == Dk)
+
+Tarray[1,2,Dpar]
+Tarray[Dk,2,1]
+Tarray[2,Dk,1]
+Tarray[1,Dk,2]
+
+
+# should have 
+bob=cbind(
+  (result2[[1]]$dense$hessian - result$dense$hessian)[,Dk],
+  (result2[[Dpar]]$dense$hessian - result$dense$hessian)[,1]
+)
+
+
+
+Dik = which(apply(
+  as.matrix(result$config$sparsity$third$ijk[,c('i','j','k')])==Dk0,
+  1, any))
+
+newijk = do.call(rbind,apply(
+  result$config$sparsity$third$ijk[Dik,c('i','j','k')], 
+  1,
+  function(xx) sort(setdiff(xx, Dk0)),
+  simplify=FALSE
+  ))
+newijk = newijk[order(newijk[,1], newijk[,2]),]  
+bob = Matrix::sparseMatrix(
+  i = newijk[,1],
+  j=newijk[,2],
+  x=result$third$third[Dik],
+  dims = rep(Nparams, 2),
+  index1=FALSE
   )
+bob2 = (bob + Matrix::t(bob))
+diffH[[which(Sparams == Dk)]][1:5,1:5]
+
+
+result$dense$hessian[1:5, 75:82]
+result2[[3]]$dense$hessian[1:5, 75:82]
+diffH[[3]][1:5, 75:82]
+result$third$thirdList[[78]][1:5, 75:82]
+
+theDiff = diffH[[1]] - as.matrix(result$dense$third[[1]])
+
+(t(theDiag)/2 + result$dense$hessian[-Sgamma1,])[,1:5]
+result$dense$diagTaylor[-Sgamma1, 1:5]
+
+
+theDiag[1:5,]
+result$dense$diag[1:5, -Sgamma1]
+
+
+quantile(theDiff[Sgamma1,Sgamma1])
+
+Strace = unlist(lapply(diffH, function(Hinv, Tuux, Sgamma) {
+      sum(Matrix::diag(Hinv %*% Tuux[Sgamma,Sgamma]))
+  },  
+  Hinv=result$dense$invHessianRandom, Sgamma = Sgamma1))
+
+rbind(
+  num=Strace, 
+  dense=result$dense$trace[-Sgamma1],
+unlist(lapply(result2, function(xx) xx$dense$logDet- result$dense$logDet))/step
+)
+
+bob1 = diffH[[1]][Sgamma1,Sgamma1]
+bob2 = result$dense$third[[1]][Sgamma1, Sgamma1]
+
+# strange one is
+c(0,0,4)
+
+llik=rbind(result$minusLogLik, unlist(lapply(result2, function(xx) xx$minusLogLik)))
+rbind(
+  num=apply(llik, 2, diff)/step,
+  sparse=result$gradL, 
+  dense=result$dense$extra$grad)
+
+
+
 diffH = (result2$third$denseHessian - result$third$denseHessian)/step
 diffHad = result$third$thirdList[[82]][Sgamma1,Sgamma1]
 diffH[1:9,1:9]
@@ -244,8 +479,6 @@ cbind(result$extra, result2$extra)
 
 
 
-(llik=c(result$minusLogLik, result2$minusLogLik))
-diff(llik)/step
 result$gradL[1]
 
 ```

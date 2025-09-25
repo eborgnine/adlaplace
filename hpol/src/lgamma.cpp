@@ -27,45 +27,46 @@ bool atomic_lgamma_ad::forward(
     size_t order_up,
     const CppAD::vector<double>& tx,
     CppAD::vector<double>& ty
-  ) {
-//    size_t n_order = order_up + 1;
-//    assert(tx.size() >= n_order);
-//    assert(ty.size() >= n_order);
+) {
+  // tx[k] = x^(k), ty[k] = y^(k), n = m = 1
+  const double x0 = tx[0];
 
-    double deriv[4], tx1mult;
+  // f^(n)(x0): f1=digamma, f2=trigamma, f3=polygamma(2), f4=polygamma(3)
+  const double f1 = (order_up >= 1 ? R::psigamma(x0, 0) : 0.0);
+  const double f2 = (order_up >= 2 ? R::psigamma(x0, 1) : 0.0);
+  const double f3 = (order_up >= 3 ? R::psigamma(x0, 2) : 0.0);
+  const double f4 = (order_up >= 4 ? R::psigamma(x0, 3) : 0.0);
 
-    // Zero order (function value)
-    if (order_low <= 0) {
-      ty[0] = std::lgamma(tx[0]);
-    }
-
-    if (order_up >= 1) { // 1st
-      deriv[0] = R::psigamma(tx[0], 0); // digamma
-      ty[1] = deriv[0] * tx[1];
-    }
-
-    if (order_up >= 2) { // 2nd
-      deriv[1] = R::psigamma(tx[0], 1); // trigamma
-      tx1mult = tx[1] * tx[1];
-      ty[2] = deriv[0] * tx[2] + deriv[1] * tx1mult;
-    }
-    if (order_up >= 3) { // 3rd
-      deriv[2] = R::psigamma(tx[0], 2); 
-      tx1mult *= tx[1];
-      ty[3] = deriv[0] * tx[3] + 3*deriv[1] * tx[1] * tx[2] +
-        deriv[2] * tx1mult;
-    }
+  if (order_low <= 0) {
+    ty[0] = std::lgamma(x0);
+  }
+  if (order_up >= 1 && order_low <= 1) {
+    const double x1 = tx[1];
+    ty[1] = f1 * x1;
+  }
+  if (order_up >= 2) {
+    const double x1 = tx[1];
+    const double x2 = tx[2];
+    ty[2] = f1 * x2 + 0.5 * f2 * (x1 * x1);                  // <-- 1/2
+  }
+  if (order_up >= 3) {
+    const double x1 = tx[1];
+    const double x2 = tx[2];
+    const double x3 = tx[3];
+    ty[3] = f1 * x3 + f2 * (x1 * x2) + (1.0/6.0) * f3 * (x1 * x1 * x1); // <-- 1, 1/6
+  }
   if (order_up >= 4) {
-    deriv[3] = R::psigamma(tx[0], 3); // pentagamma
-    tx1mult *= tx[1]; 
-    ty[4] = deriv[0] * tx[4]
-          + 4 * deriv[1] * tx[1] * tx[3]
-          + 3 * deriv[1] * tx[2] * tx[2]
-          + 6 * deriv[2] * tx[1] * tx[1] * tx[2]
-          + deriv[3] * tx1mult;
+    const double x1 = tx[1];
+    const double x2 = tx[2];
+    const double x3 = tx[3];
+    const double x4 = tx[4];
+    ty[4] = f1 * x4
+          + f2 * ( x1 * x3 + 0.5 * (x2 * x2) )               // <-- + 1/2 x2^2
+          + f3 * ( 0.5 * (x1 * x1 * x2) )                    // <-- 1/2
+          + (1.0/24.0) * f4 * (x1 * x1 * x1 * x1);           // <-- 1/24
   }
-    return true;
-  }
+  return true;
+}
 
  bool atomic_lgamma_ad::reverse(
     size_t call_id,
