@@ -87,6 +87,22 @@ loglik <- function(
     resThirdDiag = thirdDiagonals(
       result$fullParameters, data, configDiag
     ) 
+
+if(FALSE) {
+    Sparams = c(seq(0, len=Nbeta), seq(to=Nparams-1, len=Ntheta))
+    pairs1 = expand.grid(i=Sparams, j=seq(from=Nbeta, len=Ngamma), p=0, pEnd=0)
+    resThirdOffDiag1 = thirdOffDiagonals(
+      result$fullParameters, data, 
+      config = list(verbose=TRUE, dirichlet=FALSE, transform_theta=TRUE, num_threads=8, dense=TRUE, 
+        sparsity = list(third=list(pairs=pairs1)))
+    ) 
+    thirdOffDiag1 = pairs1[rep(1:nrow(pairs1), nrow(resThirdOffDiag1)),c('i','j')]
+    thirdOffDiag1$k = rep(1:nrow(resThirdOffDiag1), each=nrow(pairs1))
+    thirdOffDiag1$taylor3 = as.vector(resThirdOffDiag1)
+    thirdNonDiag = thirdOffDiag1
+
+}
+
     resThirdOffDiag = thirdOffDiagonals(
       result$fullParameters, data, config
     ) 
@@ -95,8 +111,8 @@ loglik <- function(
           # T_iik, doubles are columns of resThirdDiag$diag
       fullHessian = Matrix::Matrix(resThirdDiag$second)
       thirdDiag = data.frame(
-        k = rep(seq(0, len=ncol(resThirdDiag$diag)), each=nrow(resThirdDiag$diag)),
-        i = rep(seq(0, len=nrow(resThirdDiag$diag)), ncol(resThirdDiag$diag)),
+        i = rep(seq(0, len=nrow(resThirdDiag$diag)), each=ncol(resThirdDiag$diag)),
+        k = rep(seq(0, len=ncol(resThirdDiag$diag)), nrow(resThirdDiag$diag)),
         x = 2*as.vector(resThirdDiag$diag)
       )
       thirdDiag$j = thirdDiag$i
@@ -120,7 +136,7 @@ loglik <- function(
     if(identical(config$dense, TRUE)) {
 
       thirdNonDiag = config$sparsity$third$pairs[
-        rep(1:nrow(config$sparsity$third$pairs), nrow(resThirdOffDiag)),c('i','j')]
+        rep(1:nrow(config$sparsity$third$pairs), each=nrow(resThirdOffDiag)),c('i','j')]
       thirdNonDiag$k = rep(seq(0, len=nrow(resThirdOffDiag)), ncol(resThirdOffDiag))
       thirdNonDiag$taylor3 = as.vector(resThirdOffDiag)
     } else {
@@ -138,8 +154,10 @@ loglik <- function(
     thirdNonDiag$Tiik = thirdDiag[matchIik, 'x']
     thirdNonDiag$Tjjk = thirdDiag[matchJjk, 'x']
 
-    thirdNonDiag$x = thirdNonDiag$taylor3 - 0.375*(
-      thirdNonDiag$Tiik  + thirdNonDiag$Tjjk)
+    thirdNonDiag$x = thirdNonDiag$taylor3 - 
+      0.5*( 
+        thirdNonDiag$Tiik  + thirdNonDiag$Tjjk
+      )
 
 
     theCols = c('i','j','k', 'x')
@@ -152,7 +170,10 @@ loglik <- function(
       function(k, third, N) {
         thirdHere = third[apply(third[,c('i','j','k')] == k, 1, any), ]
         if(!nrow(thirdHere)) return(NULL)
-          newxy = t(apply(thirdHere[,c('i','j','k')], 1, function(xx) sort(c(xx[xx!=k], rep(k,2))[1:2] ) ))
+        newxy = t(apply(thirdHere[,c('i','j','k')], 1, function(xx) sort(c(xx[xx!=k], rep(k,2))[1:2] ) ))
+
+        thirdAgg = aggregate(thirdHere[,'x', drop=FALSE], as.data.frame(newxy), mean)
+
         try(Matrix::sparseMatrix(i=newxy[,1], j=newxy[,2], x=thirdHere[,'x'],
           dims = rep(N, 2), symmetric=TRUE, index1=FALSE))
       },
@@ -194,7 +215,7 @@ loglik <- function(
     GHH =  Matrix::drop(resThirdDiag$first[Sgamma1] %*% HuuHutheta) 
   )
 
-  result$extra$grad = result$extra$theta + result$extra$W + result$extra$VHH
+  result$extra$grad = result$extra$theta + result$extra$W# + result$extra$VHH
   result$gradL = result$extra$grad
 
   if(all(deriv == 1)) {

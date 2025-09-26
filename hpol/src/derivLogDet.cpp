@@ -314,13 +314,13 @@ Rcpp::NumericMatrix thirdOffDiagonals(
 
  Rcpp::IntegerVector sparsityIjI = pairs["i"];
  Rcpp::IntegerVector sparsityIjJ = pairs["j"];
- Rcpp::IntegerVector sparsityIjP = pairs["p"];
- Rcpp::IntegerVector sparsityIjPend = pairs["pEnd"];
+ const int Npairs = sparsityIjJ.size();
 
+ // only used for sprse
+ Rcpp::IntegerVector sparsityIjP, sparsityIjPend;
  Rcpp::List sparsityThirdIjk;// = thirdList["ijk"];   
  Rcpp::IntegerVector sparsityIjkK;// = sparsityThirdIjk["k"];
 
- const int Npairs = sparsityIjJ.size();
 
 // output
  Rcpp::NumericMatrix Tijk;
@@ -329,6 +329,8 @@ Rcpp::NumericMatrix thirdOffDiagonals(
     Tijk = Rcpp::NumericMatrix(Nparams, Npairs);
   } else {
     sparsityThirdIjk = thirdList["ijk"]; 
+    sparsityIjP = pairs["p"];
+    sparsityIjPend = pairs["pEnd"];
     sparsityIjkK = sparsityThirdIjk["k"];
     Tijk = Rcpp::NumericMatrix(sparsityIjkK.size(), 1L);
   }

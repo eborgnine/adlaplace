@@ -112,7 +112,7 @@ fitD <- hpolcc::hnlm(
       knots = seq(0, 45, by=5), 
     group_var = ecoRegion), 
   data=dataMedSimple[dataMedSimple$ecoRegion < 7,],
-  dirichlet= TRUE,
+  dirichlet= FALSE,
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
   for_dev=TRUE, verbose=TRUE
   )
@@ -144,7 +144,7 @@ if(ps::ps_system_memory()$total > 5e10) {
 
     config = fitD$config
     config$verbose=FALSE
-    config$dense = FALSE
+    config$dense = TRUE
 
 
 # likelihood
@@ -174,12 +174,13 @@ result = loglik(parameters,
 
 result$extra
 ```
+
 ```{r checkDeriv}
 order(apply(abs(resThirdDiag$diag[1:70,1:70]), 1, max), decreasing=TRUE)[1:6]
 order(apply(abs(resThirdDiag$diag), 2, max), decreasing=TRUE)[1:6]
 resThirdDiag$diag[,34]
 
-  Dpar = 3
+  Dpar = 2
   Sp1 = seq(-0.0005, 0.0005, len=11)+result$fullParameters[Dpar]
 
   bob =  mapply(function(xx) {
@@ -226,12 +227,13 @@ points(
   diff(bob1)/diff(Sp1))
 abline(h=resThirdDiag$second[Dpar2,Dpar], col='red', lty=2)
 
+
 plot(
   Sp1[-1] - diff(Sp1)/2, 
   diff(bob2)/diff(Sp1))
 abline(h=2*resThirdDiag$diag[Dpar2,Dpar], col='red', lty=2)
 
-Dpar3 = 78
+Dpar3 = 5
 bob2 = unlist(lapply(bob, function(xx) xx$hessian[Dpar,Dpar3]))
 plot(
   Sp1[-1] - diff(Sp1)/2, 
@@ -243,12 +245,27 @@ abline(h=2*resThirdDiag$diag[Dpar3,Dpar], col='red', lty=2)
 bob2 = unlist(lapply(bob, function(xx) xx$hessian[Dpar3,Dpar2]))
 plot(Sp1, bob2)
 
+stuff = thirdNonDiag[thirdNonDiag$i == (Dpar-1) & thirdNonDiag$k %in% Sgamma0, ]
+parhere = c(Dpar2, Dpar3)-1
+parhere2 = c(Dpar, Dpar2, Dpar3)-1
+
+stuff[stuff$k %in% parhere & stuff$j %in% parhere,]
+thirdDiag[thirdDiag$k %in% parhere2 & thirdDiag$i %in% parhere2, ]
+
 
 tijk = data.frame(
   x=Sp1[-1] - diff(Sp1)/2, 
   y=diff(bob2)/diff(Sp1)
   )
-plot(tijk)
+plot(tijk, ylim = range(outer(tijk$y, c(-10,10), "+")))
+
+abline(h=stuff[apply(
+  stuff[,c('i','j','k')],
+  1, 
+  function(xx) all(xx %in% parhere2)
+  ), 'x']
+  )
+
 abline(h=thirdList[[Dpar]][Dpar2, Dpar3], col='red', lwd=3)
 abline(h=thirdList[[Dpar2]][Dpar, Dpar3], col='blue', lty=3, lwd=3)
 abline(h=thirdList[[Dpar3]][Dpar2, Dpar], col='orange')
@@ -258,6 +275,15 @@ Sdet = unlist(lapply(bob, function(xx) Matrix::determinant(Matrix::forceSymmetri
     log = TRUE, sqrt=FALSE)$modulus))
 plot(Sp1, Sdet)
 
+Slik = unlist(lapply(bob, function(xx) xx$value)) + Sdet/2
+plot(Sp1, Slik)
+
+
+plot(
+  Sp1[-1] - diff(Sp1)/2, 
+  diff(Slik)/diff(Sp1))
+
+abline(h=sum(result$extra[Dpar,c('theta','VHH')]))
 
 Sthird = list()
 for(Dthird in seq(1, length(bob)-1)) {
@@ -265,7 +291,8 @@ for(Dthird in seq(1, length(bob)-1)) {
 }
 
 Sthird[[5]][1:4,1:4]
-thirdList[[Dpar3]][1:4,1:4]
+
+thirdList[[Dpar]][2:5,3:5]
 
 
 bob2 = (Sthird[[5]] - thirdList[[Dpar]]
@@ -278,8 +305,8 @@ plot(
   ylim = range(outer(diff(Sdet)/diff(Sp1),c(0.5, 2))))
 abline(h=sum(Matrix::diag(invHessianRandom %*% Sthird[[5]][Sgamma1, Sgamma1])))
 
-thirdNonDiag[apply(thirdNonDiag[,c('i','j','k')], 1, 
-  function(xx) all(sort(xx) == (sort(c(Dpar, Dpar2, Dpar3)-1)))), ]
+(stuff = thirdNonDiag[apply(thirdNonDiag[,c('i','j','k')], 1, 
+  function(xx) all(sort(xx) == (sort(c(Dpar, Dpar2, Dpar3)-1)))), ])
 
 resThirdDiag$second[c(Dpar, Dpar2, Dpar3),c(Dpar, Dpar2, Dpar3)]
 

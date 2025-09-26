@@ -3,7 +3,7 @@
 //#define DEBUG
 #define DENSE
 // least squares likelihood
-//#define TEST
+#define TEST
 
 #include<omp.h>
 
