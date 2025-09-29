@@ -18,8 +18,8 @@ library('hpolcc')
 
 x = c(5,1,-1,0)
 u = c(0,1,0,0)
-v = c(0,1,0,0)
-w = 1#c(0,0,1)
+v = c(0,0,1,0)
+w = c(1,2,3)
 
 res1 = hpolcc:::test3(x, u,v, w)
 #res1$taylor2

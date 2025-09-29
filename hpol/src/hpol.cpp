@@ -1,9 +1,7 @@
 #include"hpol.hpp"
 
 //#define DEBUG
-#define DENSE
-// least squares likelihood
-#define TEST
+
 
 #include<omp.h>
 
@@ -301,7 +299,10 @@ CppAD::vector<Type>  objectiveFunctionInternal(
 #ifdef DEBUG
   Rcpp::Rcout << "nu " << nu << " logSqrtNU " << logSqrtNu << 
   " oneOverSqrtNu " << oneOverSqrtNu << " lgammaOneOverSqrtNu " <<
-  lgammaOneOverSqrtNu << std::endl;
+  lgammaOneOverSqrtNu << std::endl << "theta ";
+  for(int Dtheta =0;Dtheta < latent.theta.size();++Dtheta) {
+    Rcpp::Rcout << Dtheta << " " << latent.theta[Dtheta] << " " << latent.logTheta[Dtheta] << std::endl;
+  }
 #endif    
 
   size_t num_threads;
@@ -319,16 +320,14 @@ CppAD::vector<Type>  objectiveFunctionInternal(
   CppAD::vector<Type>  offdiagQ(num_threads);
   CppAD::vector<Type>  loglik(num_threads);
 
-for (int t = 0; t < num_threads; ++t) {
-  randomContributionDiag[t] = Type(0);
-  offdiagQ[t]               = Type(0);
-  loglik[t]                 = Type(0);
-}
 
       #pragma omp parallel
 { 
     const int tid=omp_get_thread_num();
 
+  randomContributionDiag[tid] = Type(0);
+  offdiagQ[tid]               = Type(0);
+  loglik[tid]                 = Type(0);
 
   // eta = X * beta + A * gamma   
     #pragma omp for nowait
