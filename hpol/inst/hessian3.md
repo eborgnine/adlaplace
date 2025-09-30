@@ -18,6 +18,14 @@ H_{U\theta} =     &  \frac{\partial^2}{\partial U \partial \theta} \log \pi[ Y| 
 \end{aligned}
 $$
 
+
+$$
+\begin{aligned}
+\partial \log |X| = & \text{Tr}(X^{-1} \partial X) \\
+\partial \log |H_{UU}[\hat U(\theta), \theta]  / \partial \theta = & 
+\end{aligned}
+$$
+
 Random effects
 
 TMB says
@@ -41,6 +49,26 @@ $$
 \end{aligned}
 $$
 TMB's ok since $G=0$
+
+
+Hessian
+
+
+$$
+\begin{aligned}
+  \frac{\partial}{\partial \theta_p}  H_{ij}\left(\hat U(\theta), \theta\right) \   = & 
+     \frac{\partial}{\partial \theta_p} H_{ij}(U, \theta)|_{U = \hat U(\theta)} +
+      \frac{\partial}{\partial U} H_{ij}(U, \theta)|_{U = \hat U(\theta)} \frac{\partial}{\partial \theta_p}
+      \hat U(\theta) \\
+      = &   \frac{\partial}{\partial \theta_p} H_{ij}(U, \theta)|_{U = \hat U(\theta)} +
+      \sum_k \frac{\partial}{\partial U_k} H_{ij}(U, \theta)|_{U = \hat U(\theta)} \frac{\partial}{\partial \theta_p}
+      \hat U_k(\theta) \\
+\frac{\partial}{\partial \theta_p}  H\left(\hat U(\theta), \theta\right) \   = & 
+\frac{\partial}{\partial \theta_p} H(U, \theta)|_{U = \hat U(\theta)} +
+      \sum_k \frac{\partial}{\partial U_k} H(U, \theta)|_{U = \hat U(\theta)} \frac{\partial}{\partial \theta_p}
+      \hat U_k(\theta) 
+\end{aligned}
+$$
 
 
 TMB's log det
@@ -76,7 +104,7 @@ $$
        \frac{\partial}{\partial \theta_p} \log \left| H\left(\hat U(\theta), \theta\right) \right|  = & \sum_i  \text{trace}\{
        H_{UU}^{-1} \cdot T_{UUU_i} \}  e_i H_{UU}^{-1} H_{U\theta_p} +      \text{trace}\{ H_{UU}^{-1} \cdot T_{U U \theta_p }\} \\
     %   = & V^T H_{UU}^{-1} H_{U\theta_p} + \text{trace}\{ H_{UU}^{-1} \cdot T_{U U \theta_p }\}\\
-       V_i = & \sum_i  \text{trace}\{
+       V_i = &   \text{trace}\{
        H_{UU}^{-1} \cdot T_{UUU_i} \} \\
        W_p = &  \text{trace}\{ H_{UU}^{-1} \cdot T_{U U \theta_p }\}\\
 \frac{\partial}{\partial \theta} \log \left| H\left(\hat U(\theta), \theta\right) \right| = &

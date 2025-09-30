@@ -30,6 +30,8 @@ loglik <- function(
   Ngamma = nrow(data$ATp)
   Nparams = length(parameters) + Ngamma
 
+  Sgamma1 = seq(Nbeta+1, len=Ngamma)
+
   beta = parameters[1:Nbeta]
   theta = parameters[-(1:Nbeta)]
   if(missing(gamma_start)) {
@@ -39,7 +41,7 @@ loglik <- function(
 #library('hpolcc')
   if(is.null(config$sparsity$third)) {
     config$sparsity = sparsityForThird(
-      x=c(configInner$beta, gamma_start, configInner$theta),
+      x=c(beta, gamma_start, theta),
       data, config)
   }
 
@@ -100,74 +102,10 @@ loglik <- function(
     return(result$minusLogLik)
   }
 
-   # computing T_kii and H_ki, columnns are i, rows are k 
-  resThirdDiag = thirdDiagonals(
-    result$fullParameters, data, config
-  ) 
+  thirdRes = thirdDeriv(result$fullParameters, data, config)
+  thirdList = thirdRes$thirdList
+  fullHessian = thirdRes$fullHessian
 
-  resThirdOffDiag = thirdOffDiagonals(
-    result$fullParameters, data, config
-  ) 
-
-  if(identical(config$dense, TRUE)) {
-          # T_iik, doubles are columns of resThirdDiag$diag
-    fullHessian = Matrix::Matrix(resThirdDiag$second)
-    thirdDiag = data.frame(
-      i = rep(seq(0, len=nrow(resThirdDiag$diag)), each=ncol(resThirdDiag$diag)),
-      k = rep(seq(0, len=ncol(resThirdDiag$diag)), nrow(resThirdDiag$diag)),
-      x = 2*as.vector(resThirdDiag$diag)
-    )
-    thirdDiag$j = thirdDiag$i
-
-    thirdNonDiag = config$sparsity$third$pairs[
-    rep(1:nrow(config$sparsity$third$pairs), each=nrow(resThirdOffDiag)),c('i','j')]
-    thirdNonDiag$k = rep(seq(0, len=nrow(resThirdOffDiag)), ncol(resThirdOffDiag))
-    thirdNonDiag$taylor3 = as.vector(resThirdOffDiag)
-    thirdNonDiag = thirdNonDiag[apply(thirdNonDiag[,c('i','j','k')], 1, lengthUnique)==3, ]
-  } else {
-    thirdDiag = data.frame(
-      i = config$sparsity$second$nonSymmetric$i,
-      j = config$sparsity$second$nonSymmetric$i,
-      k = config$sparsity$second$nonSymmetric$j,
-      x = 2*(resThirdDiag$diag)
-    )
-    fullHessian = Matrix::forceSymmetric(
-      Matrix::sparseMatrix(
-        j = config$sparsity$second$nonSymmetric$j,
-        i = config$sparsity$second$nonSymmetric$i,
-        x = drop(resThirdDiag$second),
-        dims = rep(length(resThirdDiag$first), 2), index1=FALSE
-      ))
-
-    thirdNonDiag = config$sparsity$third$ijk[,c('i','j','k')]
-    thirdNonDiag$taylor3 = drop(resThirdOffDiag)
-  }
-
-  # 3rd taylor is   T_iik/2 + T_jjk/2 + T_ijk
-  # pairs are i and j
-  thirdDiag$ik = apply(thirdDiag[,c('i','k')],1,paste,collapse='_')
-  thirdNonDiag$ik = apply(thirdNonDiag[,c('i','k')],1,paste,collapse='_')
-  thirdNonDiag$jk = apply(thirdNonDiag[,c('j','k')],1,paste,collapse='_')
-  matchIik = match(thirdNonDiag$ik, thirdDiag$ik)
-  matchJjk = match(thirdNonDiag$jk, thirdDiag$ik)
-  thirdNonDiag$Tiik = thirdDiag[matchIik, 'x']
-  thirdNonDiag$Tjjk = thirdDiag[matchJjk, 'x']
-
-  thirdNonDiag$x =       
-  thirdNonDiag$taylor3 - 0.5*(thirdNonDiag$Tiik  + thirdNonDiag$Tjjk)
-  
-
-
-  theCols = c('i','j','k', 'x')
-  third = rbind(
-    thirdDiag[,theCols],
-    thirdNonDiag[,theCols]
-  )
-
-  thirdList = mapply(thirdTensor,
-    k = seq(from=0, len=nrow(fullHessian)), 
-    MoreArgs = list(third=third, N=nrow(fullHessian))
-  )
 
   cholHessianRandom = Matrix::Cholesky(fullHessian[Sgamma1, Sgamma1])
   invHessianRandom = Matrix::solve(cholHessianRandom)
@@ -175,10 +113,9 @@ loglik <- function(
     cholHessianRandom, log=TRUE, sqrt=FALSE
   )$modulus)
 
-  result$minusLogLik = 
-  result$fval +
-  as.numeric(result$logDetHessian)/2 + 
-  0.5 * Ngamma * 1.8378770664093454835606594728  # log 2 pi
+  result$minusLogLik = result$fval +
+    as.numeric(result$logDetHessian)/2 + 
+      0.5 * Ngamma * 1.8378770664093454835606594728  # log 2 pi
 
 
   Strace = unlist(
@@ -196,10 +133,10 @@ loglik <- function(
 
   result$extra = data.frame(
     param = Sparams,
-    theta = resThirdDiag$first[-Sgamma1,1],
+    theta = thirdRes$first[-Sgamma1],
     W = StraceW,
     VHH = VHH,
-    GHH =  Matrix::drop(resThirdDiag$first[Sgamma1] %*% HuuHutheta) 
+    GHH =  Matrix::drop(thirdRes$first[Sgamma1] %*% HuuHutheta) 
   )
   result$extra$grad = apply(result$extra[,c('theta','W','VHH','GHH')], 1, sum)
 
@@ -210,12 +147,10 @@ loglik <- function(
   result$gradL = result$extra$grad
   result$wrappers = wrappers_gamma
   result$config = config
-  result$first = resThirdDiag$first[,1]
+  result$first = thirdRes$first
   result$fullHessian = fullHessian
 
   result$third = thirdList
-  result$diag = resThirdDiag
-  result$nonDiag = thirdNonDiag
 
   return(result)
 }

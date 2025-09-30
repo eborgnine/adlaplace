@@ -322,24 +322,24 @@ CppAD::vector<Type>  objectiveFunctionInternal(
 
 
       #pragma omp parallel
-{ 
+  { 
     const int tid=omp_get_thread_num();
 
-  randomContributionDiag[tid] = Type(0);
-  offdiagQ[tid]               = Type(0);
-  loglik[tid]                 = Type(0);
+    randomContributionDiag[tid] = Type(0);
+    offdiagQ[tid]               = Type(0);
+    loglik[tid]                 = Type(0);
 
   // eta = X * beta + A * gamma   
     #pragma omp for nowait
-  for (size_t Deta = 0; Deta < data.Neta; ++Deta) {
-    const int p0x = data.X.p[Deta];
-    const int p1x = data.X.p[Deta + 1];
-    const int p0a = data.A.p[Deta];
-    const int p1a = data.A.p[Deta + 1];    
-    eta[Deta]=Type(0);
+    for (size_t Deta = 0; Deta < data.Neta; ++Deta) {
+      const int p0x = data.X.p[Deta];
+      const int p1x = data.X.p[Deta + 1];
+      const int p0a = data.A.p[Deta];
+      const int p1a = data.A.p[Deta + 1];    
+      eta[Deta]=Type(0);
 
   // X contribution: columns are eta indices  
-    for (int k = p0x; k < p1x; ++k) {
+      for (int k = p0x; k < p1x; ++k) {
       const int    r = data.X.i[k];          // beta row index
       const Type   v = Type(data.X.x[k]);    // value
       eta[Deta]   += v * latent.beta[r];
@@ -363,7 +363,7 @@ CppAD::vector<Type>  objectiveFunctionInternal(
 
     gammaScaled[D] = latent.gamma[D] / latent.theta[mapHere];
     randomContributionDiag[tid] += latent.logTheta[mapHere] +
-      0.5*gammaScaled[D]*gammaScaled[D]*data.Qdiag[D];
+    0.5*gammaScaled[D]*gammaScaled[D]*data.Qdiag[D];
   }
 
 // need to make sure all gammaScaled and etas are created before moving on
@@ -464,15 +464,15 @@ CppAD::vector<Type>  objectiveFunctionInternal(
 
 } //parellel block
 
-  Type randomContributionDiagS = Type(0);
-  Type  offdiagQS= Type(0);
-  Type  loglikS = Type(0);
+Type randomContributionDiagS = Type(0);
+Type  offdiagQS= Type(0);
+Type  loglikS = Type(0);
 
 
 
 for (int t = 0; t < num_threads; ++t) {
 #ifdef DEBUG
-Rcpp::Rcout << "thread " << t << "logLik " << loglik[t] << " offdiag " << offdiagQ[t] <<
+  Rcpp::Rcout << "thread " << t << "logLik " << loglik[t] << " offdiag " << offdiagQ[t] <<
   " diag " << randomContributionDiag[t] << std::endl;
 #endif 
   randomContributionDiagS += randomContributionDiag[t];
@@ -543,6 +543,10 @@ Rcpp::List objectiveFunctionC(
   bool verbose = false;
   if (config.containsElementNamed("verbose")) {
     verbose = Rcpp::as<bool>(config["verbose"]);
+  }
+  bool dense = false;
+  if (config.containsElementNamed("dense")) {
+    dense = Rcpp::as<bool>(config["dense"]);
   }
   size_t maxDeriv = 2;
   if (config.containsElementNamed("maxDeriv")) {
@@ -626,10 +630,10 @@ Rcpp::List objectiveFunctionC(
 
   Rcpp::IntegerVector Hstart(num_threads,0), Hend(num_threads,0);
 
-
-#ifdef DENSE
-  Rcpp::NumericMatrix denseHessianOut(Nparams, Nparams);
-#endif
+  Rcpp::NumericMatrix denseHessianOut;
+  if(dense) {
+    denseHessianOut = Rcpp::NumericMatrix(Nparams, Nparams);
+  }
 
     // if have sparsity
   if (config.containsElementNamed("sparsity")) {
@@ -760,10 +764,12 @@ Rcpp::List objectiveFunctionC(
           ++DfromZero,++DfromStart
           ) {
           Hvalue[DfromStart] = thread_Hvalue[DfromZero];
-#ifdef DENSE
-        denseHessianOut(thread_Hrow[DfromZero], 
-          thread_Hcol[DfromZero]) = thread_Hvalue[DfromZero];
-#endif
+        if(dense) {
+          denseHessianOut(thread_Hrow[DfromZero], 
+            thread_Hcol[DfromZero]) = 
+          denseHessianOut(thread_Hcol[DfromZero], 
+            thread_Hrow[DfromZero]) = thread_Hvalue[DfromZero];
+        }
 
       }
 
@@ -787,9 +793,9 @@ Rcpp::List objectiveFunctionC(
 
           for (int irow = j; irow < NparamsI; ++irow) {
             double dhere = ddw[2 * irow + 1];
-#ifdef DENSE
-            denseHessianOut(irow, j) = dhere;
-#endif
+            if(dense) {
+              denseHessianOut(irow, j) = dhere;
+            }
             if (!CppAD::NearEqual(dhere, 0.0, eps, eps)) {
               Hvalue[Hend[tid]] = dhere;
               Hrow[Hend[tid]] = irow;
@@ -825,9 +831,10 @@ Rcpp::List objectiveFunctionC(
 
   result["hessian"] = hessianR;
 
-#ifdef DENSE
+if(dense) {
   result["denseHessian"] = denseHessianOut;
-#endif
+}
+
 
   if (verbose ) { 
     Rcpp::Rcout << " done." << std::endl;

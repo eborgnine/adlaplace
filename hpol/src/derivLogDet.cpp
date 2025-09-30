@@ -94,7 +94,7 @@ Rcpp::List thirdDiagonals(
  Rcpp::List sparsity, hessianList, hessian, diagSparsity;
  Rcpp::IntegerVector Hrow, Hp,  DiagRow, DiagP;
 
- Rcpp::NumericVector gradientOut = Rcpp::NumericMatrix(Nparams);
+ Rcpp::NumericVector gradientOut(Nparams);
 
 
  if(dense){
@@ -333,11 +333,7 @@ Rcpp::NumericMatrix thirdOffDiagonals(
  Rcpp::NumericMatrix outF2(Nparams, Npairs);
 
  if(dense){
-#ifdef DEBUG
     Tijk = Rcpp::NumericMatrix(Nparams, Npairs);
-#else
-    Tijk = Rcpp::NumericMatrix(3*Nparams, Npairs);
-#endif    
     if (verbose ) Rcpp::Rcout << "Nparams " << Nparams << " Npairs " << Npairs << "\n";
   } else {
     sparsityThirdIjk = thirdList["ijk"]; 
@@ -392,8 +388,7 @@ if (verbose ) Rcpp::Rcout << "objects allocated\n";
 
   std::fill(direction1.begin(), direction1.end(), 0.0);
 
-  direction1[Di]  = 1.0;
-  direction1[Dj] = 1.0;     
+  direction1[Di] = direction1[Dj] = 1.0;     
 
   fun_threads[tid].Forward(0, x_val);
   fun_threads[tid].Forward(1, direction1);
@@ -408,7 +403,7 @@ if (verbose ) Rcpp::Rcout << "objects allocated\n";
 
   if(dense) {
     for(int Dk=0; Dk<Nparams; Dk++){
-      Tijk(Dk, Dpair) = taylor3[Dk];
+      Tijk(Dpair, Dk) = Tijk(Dk, Dpair) = taylor3[3*Dk];
     }
   } else { // sparse
     int DinIjkStart = sparsityIjP[Dpair];
