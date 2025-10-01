@@ -1,6 +1,12 @@
 #' @export
 thirdDeriv = function(x, data, config) {
 
+  Nbeta = nrow(data$XTp)
+  Ngamma = nrow(data$ATp)
+  Nparameters = length(x)
+  Sgamma0 = seq(Nbeta, len=Ngamma)
+  Sgamma1 = Sgamma0+1
+
    # computing T_kii and H_ki, columnns are i, rows are k 
   resThirdDiag = thirdDiagonals(
     x, data, config
@@ -68,13 +74,34 @@ thirdDeriv = function(x, data, config) {
     thirdNonDiag[,theCols]
   )
 #third[apply(third[,c('i','j','k')], 1, function(xx) all(xx %in% (c(2,3,4)-1))),]       
+  cholHessianRandom = Matrix::Cholesky(fullHessian[Sgamma1, Sgamma1])
+  invHessianRandom = Matrix::solve(cholHessianRandom)
+  dUhatDtheta = invHessianRandom %*% fullHessian[Sgamma1, -Sgamma1] 
 
-  thirdList = mapply(
-    thirdTensor,
-    k = seq(from=0, len=length(x)), 
-    MoreArgs = list(third=third, N=length(x))
-  )
+# to do: the part with T..p Hinv G
 
-list(fullHessian=fullHessian, thirdList =thirdList, first = resThirdDiag$first)
+  allPairs = third[!duplicated(third[,c('i','j')]), c('i','j')]
+  pairsGamma = allPairs[allPairs$i %in% Sgamma0 & allPairs$j %in% Sgamma0, ]
+  pairsString = apply(pairsGamma, 1, paste, collapse='_')
+  isDiag = pairsGamma[,'i'] == pairsGamma[,'j']
+
+  invHessianRandomT = as(invHessianRandom, "TsparseMatrix")
+  pairsInvHessian = paste(Sgamma0[1+invHessianRandomT@i],Sgamma0[1+invHessianRandomT@j], sep='_')
+  invHessianPairs = invHessianRandomT@x[match(pairsString, pairsInvHessian)]
+  invHessianPairs[is.na(invHessianPairs)] = 0
+
+  dHlist = parallel::mcmapply(
+  	getTijdotDu, 
+  	pair = as.list(as.data.frame(t(pairsGamma))), 
+  	MoreArgs = list(third = third, Sgamma1 = Sgamma1, dUhat = dUhatDtheta, Nparameters = Nparameters),
+	mc.cores = c(config$num_threads, 1)[1], SIMPLIFY=FALSE)
+
+  dH = do.call(rbind, dHlist)
+  dDet = apply(dH * invHessianPairs * (isDiag+1), 2, sum)
+
+
+
+
+list(fullHessian=fullHessian, thirdList =thirdList, first = resThirdDiag$first, dUhat = dUhatDtheta, dH = dH, dDet = dDet)
 
 }

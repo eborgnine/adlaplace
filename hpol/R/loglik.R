@@ -1,20 +1,4 @@
 
-firsTwoElements = function(xx, k) sort(c(xx[xx!=k], rep(k,2))[1:2] )
-
-thirdTensor = function(k, third, N) {
-      thirdHere = third[apply(third[,c('i','j','k')] == k, 1, any), ]
-      if(!nrow(thirdHere)) return(NULL)
-        newxy = t(apply(thirdHere[,c('i','j','k')], 1,  firsTwoElements, k=k))
-      try(Matrix::sparseMatrix(i=newxy[,1], j=newxy[,2], x=thirdHere[,'x'],
-        dims = rep(N, 2), symmetric=TRUE, index1=FALSE))
-    }
-
-sumTrace = function(Hinv, Tuux, Sgamma1) {
-#      sum(Matrix::diag(Hinv %*% Tuux[Sgamma1,Sgamma1]))
-    sum(as(Hinv * Tuux[Sgamma1,Sgamma1], "generalMatrix")@x)  
-  }    
-
-lengthUnique = function(xx) length(unique(xx))
 
 #' @export
 loglik <- function(
@@ -149,6 +133,9 @@ loglik <- function(
   result$config = config
   result$first = thirdRes$first
   result$fullHessian = fullHessian
+  result$dUhat = thirdRes$dUhat
+  result$dH = thirdRes$dH
+  result$dDet = thirdRes$dDet
 
   result$third = thirdList
 
