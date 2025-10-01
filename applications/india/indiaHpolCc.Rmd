@@ -188,7 +188,7 @@ points(
   diff(unlist(lapply(bobH, function(xx) xx$value)))/diff(Sp1L))
 
 
-DparL2 = 3
+DparL2 = 9;DparL3 = 3 # this one is very different
 
 plot(Sp1L, unlist(lapply(bobH, function(xx) xx$denseHessian[DparL, DparL2])), col='red', type='o', lwd=4, pch=16)
 points(
@@ -215,7 +215,7 @@ dUhatAd = do.call(cbind,lapply(bobL, function(xx) {
   }))
 
 
-Dgamma=3
+Dgamma=7
 plot(Sp1L, dUhatAd[Dgamma,], col='red', type='o', lwd=4, pch=16)
 points(
   Sp1L[-1] - diff(Sp1L)/2,
@@ -236,35 +236,65 @@ for(Dgamma in 1:length(Sgamma1)) {
   incHere =  There * dUhatAd[Dgamma,Dx]
   DHad[[Dx]] = DHad[[Dx]] + incHere
 }
-DHad[[Dx]] = DHad[[Dx ]] +  DHadTheta[[Dx]] 
+DHad[[Dx]] = DHad[[Dx]] +  DHadTheta[[Dx]] 
 }
 
-DparL2 = 3;DparL3 = 3
+
+
+stuff = DHtheta[[2]] - (DHadTheta[[2]]+DHadTheta[[3]])/2
+options(width=140)
+DHtheta[[2]][1:8,1:8]
+DHadTheta[[2]][1:8,1:8]
+DHadTheta[[3]][1:8,1:8]
+stuff[1:8,1:8]
+
+
+DparL2 = 9;DparL3 = 3 # this one is very different
 
 bobH[[1]]$denseHessian[DparL2, DparL3]
-bobH[[1]]$denseHessian[DparL3, DparL2]
+bobH[[2]]$denseHessian[DparL3, DparL2]
+bobT[[3]]$third[[DparL]][DparL2, DparL3]
+bobT[[3]]$third[[DparL3]][DparL2, DparL]
+bobT[[3]]$third[[DparL2]][DparL, DparL3]
 
 # U constant v remaxed hessian
-plot(Sp1L, unlist(lapply(bobH, function(xx) xx$denseHessian[DparL, DparL2])), col='red', type='o', lwd=4, pch=16)
-lines(Sp1L, unlist(lapply(bobL, function(xx) xx$fullHessian[DparL, DparL2])), col='blue')
-lines(Sp1L, unlist(lapply(bobT, function(xx) xx$fullHessian[DparL, DparL2])), col='green')
+plot(Sp1L, unlist(lapply(bobH, function(xx) xx$denseHessian[DparL2, DparL])), col='red', type='o', lwd=4, pch=16)
+#lines(Sp1L, unlist(lapply(bobL, function(xx) xx$fullHessian[DparL2, DparL3])), col='blue')
+lines(Sp1L, unlist(lapply(bobT, function(xx) xx$fullHessian[DparL2, DparL])), col='green')
 points(
   Sp1L[-1] - diff(Sp1L)/2,
   diff(unlist(lapply(bobT, function(xx) xx$first[DparL2])))/diff(Sp1L), 
   col='blue')
 
+# U constant v remaxed hessian
+plot(Sp1L, unlist(lapply(bobH, function(xx) xx$denseHessian[DparL3, DparL])), col='red', type='o', lwd=4, pch=16)
+#lines(Sp1L, unlist(lapply(bobL, function(xx) xx$fullHessian[DparL2, DparL3])), col='blue')
+lines(Sp1L, unlist(lapply(bobT, function(xx) xx$fullHessian[DparL3, DparL])), col='green')
+points(
+  Sp1L[-1] - diff(Sp1L)/2,
+  diff(unlist(lapply(bobT, function(xx) xx$first[DparL3])))/diff(Sp1L), 
+  col='blue')
+
+
+
 
 # deriv of u constant hessian
+plot(Sp1L, unlist(lapply(bobT, function(xx) xx$fullHessian[DparL2, DparL3])), pch=4, col='blue')
+
+
+
+plot(Sp1L, unlist(lapply(bobT, function(xx) xx$thirdList[[DparL]][DparL2, DparL3])), pch=4, col='blue')
+
+
 plot(
   Sp1L[-1] - diff(Sp1L)/2,
   diff(unlist(lapply(bobH, function(xx) xx$denseHessian[DparL2, DparL3])))/diff(Sp1L), 
-  col='red', type='o', lwd=4, pch=16, xlim = range(Sp1L)
+  col='red', type='o', lwd=4, pch=16
 )
 points(
   Sp1L[-1] - diff(Sp1L)/2,
   diff(unlist(lapply(bobT, function(xx) xx$fullHessian[DparL2, DparL3])))/diff(Sp1L), 
   col='blue')
-points(Sp1L, unlist(lapply(bobT, function(xx) xx$thirdList[[DparL]][DparL2, DparL3])), pch=4, col='blue')
 
 
  unlist(lapply(bobT, function(xx) xx$thirdList[[DparL]][DparL2, DparL3]))
@@ -283,13 +313,13 @@ lwd=c(3:1), col=3:1)
 # hessian wrt theta, u remax
 plot(Sp1L, unlist(lapply(bobL, function(xx) xx$fullHessian[DparL2, DparL3])), col='blue')
 
-plot(
+plot(Sp1L, unlist(lapply(DHad, function(xx) xx[which(Sgamma1 ==DparL2), which(Sgamma1==DparL3)])), 
+  col='red', pch=16)
+points(
   Sp1L[-1] - diff(Sp1L)/2,
   diff(unlist(lapply(bobL, function(xx) xx$fullHessian[DparL2, DparL3])))/diff(Sp1L), 
-  col='blue', xlim = range(Sp1L), ylim = c(192, 197)*1e4
+  col='blue'
 )
-points(Sp1L, unlist(lapply(DHad, function(xx) xx[which(Sgamma1 ==DparL2), which(Sgamma1==DparL3)])), 
-  col='red', pch=16)
 
 
 plot(Sp1L, unlist(lapply(DHadTheta, function(xx) xx[DparL2, DparL23])), type='o', col='red', pch=16,
@@ -339,13 +369,13 @@ sum(Matrix::diag(
   ))
   
 
-abline(h=result$extra[Dpar,'grad'])
+abline(h=result$extra[DparL,'grad'])
 
 
 plot(
   Sp1L[-1] + diff(Sp1L)/2,
   diff(bob1)/diff(Sp1L))
-abline(h=apply(result$extra[Dpar,c("W", "VHH")],1, sum))
+abline(h=apply(result$extra[DparL,c("W", "VHH")],1, sum))
 
 
 theT1 = result$third[[DparL]]
@@ -400,6 +430,21 @@ bob3 = thirdOffDiagonals(
     ) 
 
   Dpar = 2
+Dpar2=3;Dpar3 = 9
+Shere = c( Dpar-1 ,Dpar2-1, Dpar3-1)    
+
+pairs3 = pairs1[which(apply(pairs1[,c('i','j')], 1, function(xx) all(xx %in% Shere))),]
+config3 = config1
+config3$verbose=TRUE
+config3$sparsity = list(third=list(pairs=pairs3))
+
+stuff = thirdOffDiagonals(
+      result$fullParameters, fitD$tmb_data, config3
+    ) 
+pairs3a = cbind(pairs3[,c('i','j')], t(stuff))
+pairs3b = reshape2::melt(pairs3a, id.vars=c('i','j'), value.name='taylor3', variable.name='k')
+pairs3b = pairs3b[(as.numeric(as.character(pairs3b$k))-1) %in% Shere, ]
+pairs3b$taylor3
 
   Sp1 = seq(-0.0002, 0.0002, len=11)+result$fullParameters[Dpar]
 
@@ -421,7 +466,7 @@ bob[[5]]$hessian[1:5,1:5]
 bob0 = unlist(lapply(bob, function(xx) xx$value))
 bob1 = unlist(lapply(bob, function(xx) xx$grad[Dpar]))
 
-Dpar2=3;Dpar3 = 4
+
 bob1a = unlist(lapply(bob, function(xx) xx$grad[Dpar2]))
 bob1b = unlist(lapply(bob, function(xx) xx$grad[Dpar3]))
 bob2 = unlist(lapply(bob, function(xx) xx$hessian[Dpar,Dpar]))
@@ -436,7 +481,6 @@ for(D in 1:(length(bob)-1)) {
 
 
 
-Shere = c( Dpar-1 ,Dpar2-1, Dpar3-1)    
 pairsHere = which(apply(pairs1[,c('i','j')], 1, function(xx) all(xx %in% Shere)))
 
 Sk = apply(pairs1[pairsHere, c('i','j')], 1, function(xx) setdiff(Shere, xx))
@@ -457,7 +501,15 @@ pairsHere2$taylorReconstruct = (pairsHere2$Tjjk + pairsHere2$Tiik)/2
 
 pairsHere2
 
-Shere
+pairsHere2[apply(pairsHere2[,c('i','j','k')], 1, function(xx) all(xx %in% Shere)), ]
+
+config3 = config1
+config3$sparsity$third$pairs = pairsHere2
+bob3 = thirdOffDiagonals(
+      result$fullParameters, fitD$tmb_data, config3
+    ) 
+
+
 Shere1 = Shere+1
 2*bobD$diag[Shere+1, Shere+1]
 bobD$second[Shere+1, Shere+1]

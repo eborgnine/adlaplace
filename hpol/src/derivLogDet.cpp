@@ -329,8 +329,8 @@ Rcpp::NumericMatrix thirdOffDiagonals(
 
 // output
  Rcpp::NumericMatrix Tijk;
- Rcpp::NumericMatrix outF1(Nparams, Npairs);
- Rcpp::NumericMatrix outF2(Nparams, Npairs);
+// Rcpp::NumericMatrix outF1(Nparams, Npairs);
+// Rcpp::NumericMatrix outF2(Nparams, Npairs);
 
  if(dense){
     Tijk = Rcpp::NumericMatrix(Nparams, Npairs);
@@ -402,8 +402,9 @@ if (verbose ) Rcpp::Rcout << "objects allocated\n";
   // rows of taylor3 are i
 
   if(dense) {
-    for(int Dk=0; Dk<Nparams; Dk++){
-      Tijk(Dpair, Dk) = Tijk(Dk, Dpair) = taylor3[3*Dk];
+    for(int Dk=0; Dk<Nparams; 
+      Dk++){
+      Tijk(Dk, Dpair) = taylor3[3*Dk];
     }
   } else { // sparse
     int DinIjkStart = sparsityIjP[Dpair];
