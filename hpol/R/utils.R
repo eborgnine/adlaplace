@@ -4,13 +4,14 @@ lengthUnique = function(xx) {
 }
 
 
-firsTwoElements = function(xx, k) sort(c(xx[xx!=k], rep(k,2))[1:2] )
+firstTwoElements = function(xx, k) sort(c(xx[xx!=k], rep(k,2))[1:2] )
 
 thirdTensor = function(k, third, N) {
 	thirdHere = third[apply(third[,c('i','j','k')] == k, 1, any), ]
 	if(!nrow(thirdHere)) return(NULL)
-		newxy = t(apply(thirdHere[,c('i','j','k')], 1,  firsTwoElements, k=k))
-	try(Matrix::sparseMatrix(i=newxy[,1], j=newxy[,2], x=thirdHere[,'x'],
+		newxy = t(apply(thirdHere[,c('i','j','k')], 1,  firstTwoElements, k=k))
+	notDup = !duplicated(newxy)
+	try(Matrix::sparseMatrix(i=newxy[notDup,1], j=newxy[notDup,2], x=thirdHere[notDup,'x'],
 		dims = rep(N, 2), symmetric=TRUE, index1=FALSE))
 }
 
@@ -40,8 +41,10 @@ Tijdot = function(x, pair) {
 	cbind(x[, setdiff(names(x), c('i','j','k')), drop=FALSE], k=newk)
 }
 
-getTijdotDu = function(pair, third, Sgamma1, dUhat, Nparameters) {
+getDh = function(pair, third, Sgamma1, dUhat, Nparameters) {
 	thirdHere = Tijdot(third, pair)
+	thirdHere = thirdHere[order(thirdHere$k), ]
+	thirdHere = thirdHere[!duplicated(thirdHere$k), ]
 	thirdHere = Matrix::sparseVector(thirdHere$x, thirdHere$k+1, length = Nparameters)
 	as.vector(crossprod(dUhat, thirdHere[Sgamma1]) + thirdHere[-Sgamma1])
 }

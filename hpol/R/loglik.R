@@ -69,10 +69,10 @@ loglik <- function(
     result$solution,
     configInner$theta)
 
-  if(all(deriv == 0)) {
+  if(identical(deriv, 0)) {
 
     result$cholHessian = Matrix::chol(result$hessian)
-    invHessian = result$invHessian = Matrix::solve(result$cholHessian)
+    result$invHessian = Matrix::solve(result$cholHessian)
 
     result$logDetHessian = drop(Matrix::determinant(
       result$cholHessian, log=TRUE, sqrt=FALSE
@@ -86,58 +86,26 @@ loglik <- function(
     return(result$minusLogLik)
   }
 
-  thirdRes = thirdDeriv(result$fullParameters, data, config)
-  thirdList = thirdRes$thirdList
-  fullHessian = thirdRes$fullHessian
+  thirdRes = thirdDeriv(x=result$fullParameters, data, config)
 
-
-  cholHessianRandom = Matrix::Cholesky(fullHessian[Sgamma1, Sgamma1])
-  invHessianRandom = Matrix::solve(cholHessianRandom)
-  result$logDetHessian = drop(Matrix::determinant(
-    cholHessianRandom, log=TRUE, sqrt=FALSE
-  )$modulus)
-
-  result$minusLogLik = result$fval +
-    as.numeric(result$logDetHessian)/2 + 
-      0.5 * Ngamma * 1.8378770664093454835606594728  # log 2 pi
-
-
-  Strace = unlist(
-    lapply(thirdList, sumTrace,  
-      Hinv=invHessianRandom, Sgamma1 = Sgamma1
-    )
-  )
-
-  Sparams = setdiff(1:nrow(fullHessian), Sgamma1)
-
-  StraceW = Strace[Sparams]
-  StraceV = Strace[Sgamma1]
-  HuuHutheta = invHessianRandom %*% fullHessian[Sgamma1, Sparams]
-  VHH = Matrix::drop(StraceV %*% HuuHutheta)
-
-  result$extra = data.frame(
-    param = Sparams,
+  result$deriv = data.frame(
     theta = thirdRes$first[-Sgamma1],
-    W = StraceW,
-    VHH = VHH,
-    GHH =  Matrix::drop(thirdRes$first[Sgamma1] %*% HuuHutheta) 
+    det = thirdRes$dDet,
+    U = - as.vector(thirdRes$first[Sgamma1] %*% (thirdRes$invHessianRandom %*% thirdRes$fullHessian[Sgamma1, -Sgamma1]))
   )
-  result$extra$grad = apply(result$extra[,c('theta','W','VHH','GHH')], 1, sum)
+  result$dLogLik =result$deriv$dL = result$deriv$theta + result$deriv$det + result$deriv$U
 
-  if(all(deriv == 1)) {
-    return(result$extra$grad)
-  } 
+   if(identical(deriv, 1)) {
+    return(result$dLogLik)
+  }
 
-  result$gradL = result$extra$grad
+  result$extra = thirdRes
   result$wrappers = wrappers_gamma
   result$config = config
-  result$first = thirdRes$first
-  result$fullHessian = fullHessian
-  result$dUhat = thirdRes$dUhat
-  result$dH = thirdRes$dH
-  result$dDet = thirdRes$dDet
 
-  result$third = thirdList
+  result$minusLogLik = result$fval +
+    as.numeric(result$extra$logDetHessian)/2 + 
+      0.5 * Ngamma * 1.8378770664093454835606594728  # log 2 pi
 
   return(result)
 }

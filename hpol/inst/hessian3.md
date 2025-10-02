@@ -46,10 +46,10 @@ $$
  \frac{\partial}{\partial  \theta} \left\{H\left( U^{(0)}, \theta\right)^{-1} \right\}
     G\left( U^{(0)}, \theta\right) + 
   H\left( U^{(0)}, \theta\right)^{-1} H^{(0)}_{U\theta} \\
- \frac{\partial}{\partial  \theta_p} \hat U^{(1)}(\theta, U^{(0)})   = &  H^{-1}  T_{\cdot \cdot p} H^{-1} 
+ \frac{\partial}{\partial  \theta_p} \hat U^{(1)}(\theta, U^{(0)})   = & - H^{-1}  T_{\cdot \cdot p} H^{-1} 
     G\left( U^{(0)}, \theta_p\right) + 
   H^{-1} H_{U\theta_p} \\
-  = &  H^{-1} \left[ T_{\cdot \cdot p}  H^{-1} 
+  = & - H^{-1} \left[ T_{\cdot \cdot p}  H^{-1} 
     G\left( U^{(0)}, \theta_p\right)  + H_{U\theta_p} \right]
 \end{aligned}
 $$
