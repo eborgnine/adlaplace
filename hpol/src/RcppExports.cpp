@@ -25,68 +25,81 @@ BEGIN_RCPP
 END_RCPP
 }
 // thirdDiagonals
-Rcpp::List thirdDiagonals(Rcpp::NumericVector parameters, Rcpp::List data, Rcpp::List config);
-RcppExport SEXP _hpolcc_thirdDiagonals(SEXP parametersSEXP, SEXP dataSEXP, SEXP configSEXP) {
+Rcpp::List thirdDiagonals(Rcpp::NumericVector parameters, Rcpp::List dataList, Rcpp::List configList);
+RcppExport SEXP _hpolcc_thirdDiagonals(SEXP parametersSEXP, SEXP dataListSEXP, SEXP configListSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< Rcpp::NumericVector >::type parameters(parametersSEXP);
-    Rcpp::traits::input_parameter< Rcpp::List >::type data(dataSEXP);
-    Rcpp::traits::input_parameter< Rcpp::List >::type config(configSEXP);
-    rcpp_result_gen = Rcpp::wrap(thirdDiagonals(parameters, data, config));
+    Rcpp::traits::input_parameter< Rcpp::List >::type dataList(dataListSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type configList(configListSEXP);
+    rcpp_result_gen = Rcpp::wrap(thirdDiagonals(parameters, dataList, configList));
     return rcpp_result_gen;
 END_RCPP
 }
 // thirdNonDiagonalsSparsity
-Rcpp::LogicalMatrix thirdNonDiagonalsSparsity(Rcpp::NumericVector parameters, Rcpp::List data, Rcpp::List config, Rcpp::IntegerMatrix pairs);
-RcppExport SEXP _hpolcc_thirdNonDiagonalsSparsity(SEXP parametersSEXP, SEXP dataSEXP, SEXP configSEXP, SEXP pairsSEXP) {
+Rcpp::LogicalMatrix thirdNonDiagonalsSparsity(Rcpp::NumericVector parameters, Rcpp::List dataList, Rcpp::List configList, Rcpp::IntegerMatrix pairs);
+RcppExport SEXP _hpolcc_thirdNonDiagonalsSparsity(SEXP parametersSEXP, SEXP dataListSEXP, SEXP configListSEXP, SEXP pairsSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< Rcpp::NumericVector >::type parameters(parametersSEXP);
-    Rcpp::traits::input_parameter< Rcpp::List >::type data(dataSEXP);
-    Rcpp::traits::input_parameter< Rcpp::List >::type config(configSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type dataList(dataListSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type configList(configListSEXP);
     Rcpp::traits::input_parameter< Rcpp::IntegerMatrix >::type pairs(pairsSEXP);
-    rcpp_result_gen = Rcpp::wrap(thirdNonDiagonalsSparsity(parameters, data, config, pairs));
+    rcpp_result_gen = Rcpp::wrap(thirdNonDiagonalsSparsity(parameters, dataList, configList, pairs));
     return rcpp_result_gen;
 END_RCPP
 }
 // thirdOffDiagonals
-Rcpp::NumericMatrix thirdOffDiagonals(Rcpp::NumericVector parameters, Rcpp::List data, Rcpp::List config);
-RcppExport SEXP _hpolcc_thirdOffDiagonals(SEXP parametersSEXP, SEXP dataSEXP, SEXP configSEXP) {
+Rcpp::NumericMatrix thirdOffDiagonals(Rcpp::NumericVector parameters, Rcpp::List dataList, Rcpp::List configList);
+RcppExport SEXP _hpolcc_thirdOffDiagonals(SEXP parametersSEXP, SEXP dataListSEXP, SEXP configListSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< Rcpp::NumericVector >::type parameters(parametersSEXP);
-    Rcpp::traits::input_parameter< Rcpp::List >::type data(dataSEXP);
-    Rcpp::traits::input_parameter< Rcpp::List >::type config(configSEXP);
-    rcpp_result_gen = Rcpp::wrap(thirdOffDiagonals(parameters, data, config));
+    Rcpp::traits::input_parameter< Rcpp::List >::type dataList(dataListSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type configList(configListSEXP);
+    rcpp_result_gen = Rcpp::wrap(thirdOffDiagonals(parameters, dataList, configList));
     return rcpp_result_gen;
 END_RCPP
 }
 // objectiveFunctionNoDiff
-double objectiveFunctionNoDiff(Rcpp::NumericVector parameters, Rcpp::List data, Rcpp::List config);
-RcppExport SEXP _hpolcc_objectiveFunctionNoDiff(SEXP parametersSEXP, SEXP dataSEXP, SEXP configSEXP) {
+double objectiveFunctionNoDiff(Rcpp::NumericVector parameters, Rcpp::List dataList, Rcpp::List configList);
+RcppExport SEXP _hpolcc_objectiveFunctionNoDiff(SEXP parametersSEXP, SEXP dataListSEXP, SEXP configListSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< Rcpp::NumericVector >::type parameters(parametersSEXP);
-    Rcpp::traits::input_parameter< Rcpp::List >::type data(dataSEXP);
-    Rcpp::traits::input_parameter< Rcpp::List >::type config(configSEXP);
-    rcpp_result_gen = Rcpp::wrap(objectiveFunctionNoDiff(parameters, data, config));
+    Rcpp::traits::input_parameter< Rcpp::List >::type dataList(dataListSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type configList(configListSEXP);
+    rcpp_result_gen = Rcpp::wrap(objectiveFunctionNoDiff(parameters, dataList, configList));
+    return rcpp_result_gen;
+END_RCPP
+}
+// objectiveFunctionGrad
+Rcpp::List objectiveFunctionGrad(Rcpp::NumericVector parameters, Rcpp::List dataList, Rcpp::List configList);
+RcppExport SEXP _hpolcc_objectiveFunctionGrad(SEXP parametersSEXP, SEXP dataListSEXP, SEXP configListSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type parameters(parametersSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type dataList(dataListSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type configList(configListSEXP);
+    rcpp_result_gen = Rcpp::wrap(objectiveFunctionGrad(parameters, dataList, configList));
     return rcpp_result_gen;
 END_RCPP
 }
 // objectiveFunctionC
-Rcpp::List objectiveFunctionC(Rcpp::NumericVector parameters, Rcpp::List data, Rcpp::List config);
-RcppExport SEXP _hpolcc_objectiveFunctionC(SEXP parametersSEXP, SEXP dataSEXP, SEXP configSEXP) {
+Rcpp::List objectiveFunctionC(Rcpp::NumericVector parameters, Rcpp::List dataList, Rcpp::List configList);
+RcppExport SEXP _hpolcc_objectiveFunctionC(SEXP parametersSEXP, SEXP dataListSEXP, SEXP configListSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< Rcpp::NumericVector >::type parameters(parametersSEXP);
-    Rcpp::traits::input_parameter< Rcpp::List >::type data(dataSEXP);
-    Rcpp::traits::input_parameter< Rcpp::List >::type config(configSEXP);
-    rcpp_result_gen = Rcpp::wrap(objectiveFunctionC(parameters, data, config));
+    Rcpp::traits::input_parameter< Rcpp::List >::type dataList(dataListSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type configList(configListSEXP);
+    rcpp_result_gen = Rcpp::wrap(objectiveFunctionC(parameters, dataList, configList));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -156,6 +169,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_hpolcc_thirdNonDiagonalsSparsity", (DL_FUNC) &_hpolcc_thirdNonDiagonalsSparsity, 4},
     {"_hpolcc_thirdOffDiagonals", (DL_FUNC) &_hpolcc_thirdOffDiagonals, 3},
     {"_hpolcc_objectiveFunctionNoDiff", (DL_FUNC) &_hpolcc_objectiveFunctionNoDiff, 3},
+    {"_hpolcc_objectiveFunctionGrad", (DL_FUNC) &_hpolcc_objectiveFunctionGrad, 3},
     {"_hpolcc_objectiveFunctionC", (DL_FUNC) &_hpolcc_objectiveFunctionC, 3},
     {"_hpolcc_lgamma_forward_deriv", (DL_FUNC) &_hpolcc_lgamma_forward_deriv, 2},
     {"_hpolcc_lgamma_reverse_deriv", (DL_FUNC) &_hpolcc_lgamma_reverse_deriv, 2},

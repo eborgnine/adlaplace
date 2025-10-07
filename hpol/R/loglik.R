@@ -1,3 +1,23 @@
+#' @export
+wrappers_outer = list( 
+  fn = function(x, data, config, control, cache) {
+    result=logLik(x,
+      gamma_start = get("gamma_start", envir=cache), 
+      data=data, config=config, control=control, 
+      deriv=0)
+      assign("gamma_start", result$solution, envir=cache)
+      result$minusLogLik
+    },
+  gr = function(x, data, config, control, cache) {
+  config$maxDeriv = 1
+  result= logLik(x,
+        gamma_start = get("gamma_start", envir=cache), 
+        data=data, cconfig=config, deriv=1)
+  assign("gamma_start", result$solution, envir=cache)
+  result$grad
+}
+ 
+ )
 
 
 #' @export
@@ -5,7 +25,6 @@ loglik <- function(
   parameters, 
   gamma_start, 
   data, config,
-  wrappers,
   control=list(), 
   deriv = c(0,1)
 ) {
@@ -24,14 +43,12 @@ loglik <- function(
 
 #library('hpolcc')
   if(is.null(config$sparsity$third)) {
-    config$sparsity = sparsityForThird(
+    config$sparsity = sparsity_pattern(
       x=c(beta, gamma_start, theta),
       data, config)
   }
 
 
-  # Optimize gamma keeping beta and theta fixed
-  if(missing(wrappers)) {
     configInner = c(
       config[setdiff(
         names(config), c('beta','theta')
@@ -41,14 +58,6 @@ loglik <- function(
         theta = theta
       ))
 
-    wrappers_gamma <- hpolcc::make_trustoptim_wrappers(
-      data = data,
-      config = configInner
-    )
-      # wrappers_gamma$fn(gamma_start)
-  } else {
-    wrappers_gamma=wrappers
-  }
 
   # inner opt
   result <- trustOptim::trust.optim(
@@ -57,17 +66,18 @@ loglik <- function(
     gr = wrappers_gamma$gr,
     hs = wrappers_gamma$hs,
     method = "Sparse",
-    control = control
+    control = control,
+    data=data, config = configInner
   )
 
   result$parameters = c(
-    configInner$beta,
-    configInner$theta)
+    beta,
+    theta)
 
   result$fullParameters = c(
-    configInner$beta,
+    beta,
     result$solution,
-    configInner$theta)
+    theta)
 
   if(identical(deriv, 0)) {
 
@@ -78,12 +88,11 @@ loglik <- function(
       result$cholHessian, log=TRUE, sqrt=FALSE
     )$modulus)
 
-    result$minusLogLik = 
-    result$fval +
-    as.numeric(result$logDetHessian)/2 + 
-    0.5 * Ngamma * 1.8378770664093454835606594728  # log 2 pi
+    result$minusLogLik = result$fval +
+      as.numeric(result$logDetHessian)/2 + 
+      0.5 * Ngamma * 1.8378770664093454835606594728  # log 2 pi
 
-    return(result$minusLogLik)
+    return(result[c('minusLogLik','solution')])
   }
 
   thirdRes = thirdDeriv(x=result$fullParameters, data, config)
@@ -95,17 +104,17 @@ loglik <- function(
   )
   result$dLogLik =result$deriv$dL = result$deriv$theta + result$deriv$det + result$deriv$U
 
+  result$minusLogLik = result$fval +
+    as.numeric(result$extra$logDetHessian)/2 + 
+      0.5 * Ngamma * 1.8378770664093454835606594728  # log 2 pi
+
    if(identical(deriv, 1)) {
-    return(result$dLogLik)
+    return(result[c('minusLogLik','dLogLik','solution')])
   }
 
   result$extra = thirdRes
   result$wrappers = wrappers_gamma
   result$config = config
-
-  result$minusLogLik = result$fval +
-    as.numeric(result$extra$logDetHessian)/2 + 
-      0.5 * Ngamma * 1.8378770664093454835606594728  # log 2 pi
 
   return(result)
 }

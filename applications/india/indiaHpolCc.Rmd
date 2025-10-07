@@ -95,7 +95,7 @@ fitD <- hpolcc::hnlm(
       knots = seq(0, 45, by=5), 
     group_var = ecoRegion), 
   data=dataMedSimple[dataMedSimple$ecoRegion < 7,],
-  dirichlet= FALSE,
+  dirichlet= TRUE,
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
   for_dev=TRUE, verbose=FALSE
   )
@@ -119,28 +119,98 @@ fitD$config$transform_theta = TRUE
   Ntheta = length(fitD$theta_info$name)
 
 
- gamma_start = runif(Ngamma, -0.01, 0.01) #mapOptim$solution[seq(Nbeta+1, len=Ngamma)]
 
+ gamma_start = seq(-0.01, 0.01, len=Ngamma) #mapOptim$solution[seq(Nbeta+1, len=Ngamma)]
     config = fitD$config
-    config$dense = TRUE
     config$transform_theta = TRUE
+
 
 # likelihood
 # parameters = (beta, theta)R
 # config$transform_theta = TRUE means thetas are log(sd) otherwise theta=sd
 
-if(exists("result")) gamma_start = result$solution
 
 library('hpolcc')
+  config$verbose=TRUE
+    configS = configD = config
+    configS$dense = FALSE
+configS$num_threads = 8
 
-result = loglik(parameters, 
+c(
+  objectiveFunctionNoDiff(c(parameters[1:Nbeta], gamma_start, parameters[-(1:Nbeta)]), fitD$tmb_data, 
+  c(configS[setdiff(names(configS), 'num_threads')], list(num_threads=1))),
+objectiveFunctionNoDiff(c(parameters[1:Nbeta], gamma_start, parameters[-(1:Nbeta)]), fitD$tmb_data, 
+  c(configS[setdiff(names(configS), 'num_threads')], list(num_threads=8))))
+# --98231.56
+
+#for(D in 1:1000) 
+objectiveFunctionGrad(c(parameters[1:Nbeta], gamma_start, parameters[-(1:Nbeta)]), fitD$tmb_data, 
+  c(configS[setdiff(names(configS), 'num_threads')], list(num_threads=1)))
+#for(D in 1:1000) 
+objectiveFunctionGrad(c(parameters[1:Nbeta], gamma_start, parameters[-(1:Nbeta)]), fitD$tmb_data, 
+  c(configS[setdiff(names(configS), 'num_threads')], list(num_threads=2)))
+
+
+configS$maxDeriv=0
+hpolcc:::objectiveFunctionC(c(parameters[1:Nbeta], gamma_start, parameters[-(1:Nbeta)]), 
+  fitD$tmb_data, configS)
+
+
+resultS1 <- loglik(parameters, 
              gamma_start, 
              data=fitD$tmb_data, 
-    config = config,
+    config = configS,
       control=list(maxit=1000, start.trust.radius = 0.1, prec=1e-12, stop.trust.radius = 1e-12,
         cg.tol = 1e-12,
-      report.level=4, report.freq=1)
+      report.level=3, report.freq=1)
       )
+
+outer_cache_env <- new.env()
+outer_cache_env$data = data
+outer_cache_env$control=list(maxit=1000, start.trust.radius = 0.1, prec=1e-12, stop.trust.radius = 1e-12,
+        cg.tol = 1e-12,
+      report.level=3, report.freq=1)
+
+outer_cache_env$gamma_start = resultS$solution
+outer_cache_env$config = resultS1$config
+outer_cache_env$wrappers_gamma = resultS1$wrappers
+
+get_outer_result = function(x, deriv) {
+
+  res = hpolcc::loglik(x, 
+    gamma_start = gamma_start, 
+    data= data, config=config,
+    control= control, deriv = deriv)
+
+  outer_cache_env$gamma_start <- res$solution
+  res[c('minusLogLik','deriv')]
+}
+
+
+environment(get_outer_result) = outer_cache_env
+assign("get_outer_result", get_outer_result, envir = outer_cache_env)  # optional, for clarity
+
+wrappers_env = new.env()
+wrappers_env$get_outer_result = get_outer_result
+
+wrappers_outer = list(
+  value = function(x) {
+    get_outer_result(x,deriv=0)$minusLogLik
+    },
+  grad = function(x) {
+    get_outer_result(x,deriv=1)$deriv
+  }
+  )
+
+environment(wrappers_outer$value) = outer_cache_env
+environment(wrappers_outer$grad) = outer_cache_env
+
+wrappers_outer$value(parameters)
+
+
+
+
+
 ```
 
 
@@ -148,9 +218,10 @@ result = loglik(parameters,
 
 
 
+
 ```{r checkDeriv}
-  DparL = 2
-  Sp1L = seq(-0.0001, 0.0001, len=5)+result$parameters[DparL]
+  DparL = 7
+  Sp1L = seq(-0.001, 0.001, len=5)+result$parameters[DparL]
 
   bobL =  mapply(function(xx) {
     parameters2 = result$parameters

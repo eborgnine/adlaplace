@@ -1,5 +1,7 @@
 #' @export
-sparsityForThird = function(x, data, config=list()) {
+sparsity_pattern = function(x, data, config=list()) {
+
+#library('hpolcc')
 
   if(identical(config$dense, "TRUE")) {
     type = 'compute'
@@ -12,6 +14,8 @@ sparsityForThird = function(x, data, config=list()) {
   resThirdDiag = thirdDiagonals(
     x, data, configForDiag
   ) 
+
+  
   hessian = as(
     Matrix::forceSymmetric(Matrix::Matrix(resThirdDiag$second, sparse=TRUE)),
     'TsparseMatrix')  
@@ -46,7 +50,7 @@ sparsityForThird = function(x, data, config=list()) {
       i=pairs[ijk2@i+1, 'i'], 
       j=pairs[ijk2@i+1, 'j'], 
       k=ijk2@j)
-  }
+  } # else dense
 
 ijk1 = t(apply(ijk1, 1, sort))
 ijk1 = ijk1[!duplicated(ijk1), ]

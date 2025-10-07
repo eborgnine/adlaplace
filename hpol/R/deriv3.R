@@ -26,7 +26,6 @@ thirdDeriv = function(x, data, config) {
       k = rep(seq(0, len=ncol(resThirdDiag$diag)), nrow(resThirdDiag$diag)),
       x = 2*as.vector(resThirdDiag$diag)
     )
-    thirdDiag$j = thirdDiag$i
 
     thirdNonDiag = config$sparsity$third$pairs[
     	rep(1:nrow(config$sparsity$third$pairs), each=nrow(resThirdOffDiag)),
@@ -37,24 +36,26 @@ thirdDeriv = function(x, data, config) {
     	apply(
     		thirdNonDiag[,c('i','j','k')], 1, lengthUnique
     	)==3, ]
-  } else {
-    thirdDiag = data.frame(
-      i = config$sparsity$second$nonSymmetric$i,
-      j = config$sparsity$second$nonSymmetric$i,
-      k = config$sparsity$second$nonSymmetric$j,
-      x = 2*(resThirdDiag$diag)
-    )
+  } else { # sparse
     fullHessian = Matrix::forceSymmetric(
       Matrix::sparseMatrix(
-        j = config$sparsity$second$nonSymmetric$j,
         i = config$sparsity$second$nonSymmetric$i,
+        j = config$sparsity$second$nonSymmetric$j,
         x = drop(resThirdDiag$second),
         dims = rep(length(resThirdDiag$first), 2), index1=FALSE
       ))
 
+    thirdDiag = data.frame(
+      i = config$sparsity$second$nonSymmetric$j,
+      k = config$sparsity$second$nonSymmetric$i,
+      x = 2*as.vector(resThirdDiag$diag)
+    )
+
     thirdNonDiag = config$sparsity$third$ijk[,c('i','j','k')]
     thirdNonDiag$taylor3 = drop(resThirdOffDiag)
   }
+    thirdDiag$j = thirdDiag$i
+
 
   # 3rd taylor is   T_iik/2 + T_jjk/2 + T_ijk
   # pairs are i and j
@@ -80,18 +81,20 @@ thirdDeriv = function(x, data, config) {
     thirdNonDiag[abs(thirdNonDiag$x) > 1e-20,theCols]
   )
   third = third[order(third[,'i'], third[,'j'], third[,'k']),]
+
+  # to do: don't cmpute third list, cmpute dHlist without it.
+
+   
+  cholHessianRandom = Matrix::Cholesky(fullHessian[Sgamma1, Sgamma1])
+  invHessianRandom = Matrix::solve(cholHessianRandom)
+  dUhat = - invHessianRandom %*% fullHessian[Sgamma1, -Sgamma1] 
+
+
   thirdList = mapply(
   	thirdTensor,
   	k=seq(from=0, len=Nparameters),
   	MoreArgs = list(third=third, N=Nparameters)
   )
-
-
-
-#third[apply(third[,c('i','j','k')], 1, function(xx) all(xx %in% (c(2,3,4)-1))),]       
-  cholHessianRandom = Matrix::Cholesky(fullHessian[Sgamma1, Sgamma1])
-  invHessianRandom = Matrix::solve(cholHessianRandom)
-  dUhat = - invHessianRandom %*% fullHessian[Sgamma1, -Sgamma1] 
 
   dHlist = mapply(
   	function(Tijk, dUp, Sgamma1) {
@@ -103,6 +106,33 @@ thirdDeriv = function(x, data, config) {
   	MoreArgs = list(Sgamma1=Sgamma1)
   )
 
+  TijpAdd = mapply(function(Tijk, Sgamma1) {
+	There = as(Tijk[Sgamma1,Sgamma1], 'TsparseMatrix')
+	cbind(i=There@i, j=There@j, x=There@x)
+  }, Tijk = thirdList[-Sgamma1], MoreArgs = list(Sgamma1=Sgamma1))
+  names(TijpAdd) = paste0("p", SbetaTheta0)
+
+
+# try to do without thirdList
+  if(FALSE) {
+  dHlist = mapply(
+  	function(Dgamma, dUp, third, Sgamma1,  Nparameters) {
+  		Tijk = thirdTensor(k=Dgamma, third=third, N=Nparameters)
+  		There = as(Tijk[Sgamma1,Sgamma1], 'TsparseMatrix')
+  		cbind(j=There@i, i=There@j, outer(There@x, dUp))
+  	},
+  	Dgamma = Sgamma0,
+  	dUp = as.list(as.data.frame(t(as.matrix(dUhat)))),
+  	MoreArgs = list(Sgamma1=Sgamma1, third = third, Nparameters=Nparameters)
+  )
+  TijpAdd = mapply(function(Dpar, third, Sgamma1,  Nparameters) {
+  	Tijk = thirdTensor(k=Dpar, third=third, N=Nparameters)  	
+	There = as(Tijk[Sgamma1,Sgamma1], 'TsparseMatrix')
+	cbind(i=There@i, j=There@j, x=There@x)
+  }, Dpar = SbetaTheta0, MoreArgs = list(third=third, Sgamma1=Sgamma1, Nparameters=Nparameters))
+  names(TijpAdd) = paste0("p", SbetaTheta0)
+
+}
 
 
   dHlong = as.data.frame(do.call(rbind, dHlist))
@@ -115,11 +145,6 @@ thirdDeriv = function(x, data, config) {
 #  dHlong$k = rep(1:length(dHlist), unlist(lapply(dHlist, nrow)))
 
 
-  TijpAdd = mapply(function(Tijk, Sgamma1) {
-	There = as(Tijk[Sgamma1,Sgamma1], 'TsparseMatrix')
-	cbind(i=There@i, j=There@j, x=There@x)
-  }, Tijk = thirdList[-Sgamma1], MoreArgs = list(Sgamma1=Sgamma1))
-  names(TijpAdd) = paste0("p", SbetaTheta0)
   
   dH = mapply(function(TU, ij, Tijp, dims) {
   	toAgg = rbind(cbind(ij, x=TU), Tijp)

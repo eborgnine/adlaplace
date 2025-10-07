@@ -7,28 +7,33 @@ test3 <- function(X, U, V, W) {
 }
 
 #' @export
-thirdDiagonals <- function(parameters, data, config) {
-    .Call('_hpolcc_thirdDiagonals', PACKAGE = 'hpolcc', parameters, data, config)
+thirdDiagonals <- function(parameters, dataList, configList) {
+    .Call('_hpolcc_thirdDiagonals', PACKAGE = 'hpolcc', parameters, dataList, configList)
 }
 
 #' @export
-thirdNonDiagonalsSparsity <- function(parameters, data, config, pairs) {
-    .Call('_hpolcc_thirdNonDiagonalsSparsity', PACKAGE = 'hpolcc', parameters, data, config, pairs)
+thirdNonDiagonalsSparsity <- function(parameters, dataList, configList, pairs) {
+    .Call('_hpolcc_thirdNonDiagonalsSparsity', PACKAGE = 'hpolcc', parameters, dataList, configList, pairs)
 }
 
 #' @export
-thirdOffDiagonals <- function(parameters, data, config) {
-    .Call('_hpolcc_thirdOffDiagonals', PACKAGE = 'hpolcc', parameters, data, config)
+thirdOffDiagonals <- function(parameters, dataList, configList) {
+    .Call('_hpolcc_thirdOffDiagonals', PACKAGE = 'hpolcc', parameters, dataList, configList)
 }
 
 #' @export
-objectiveFunctionNoDiff <- function(parameters, data, config) {
-    .Call('_hpolcc_objectiveFunctionNoDiff', PACKAGE = 'hpolcc', parameters, data, config)
+objectiveFunctionNoDiff <- function(parameters, dataList, configList) {
+    .Call('_hpolcc_objectiveFunctionNoDiff', PACKAGE = 'hpolcc', parameters, dataList, configList)
 }
 
 #' @export
-objectiveFunctionC <- function(parameters, data, config) {
-    .Call('_hpolcc_objectiveFunctionC', PACKAGE = 'hpolcc', parameters, data, config)
+objectiveFunctionGrad <- function(parameters, dataList, configList) {
+    .Call('_hpolcc_objectiveFunctionGrad', PACKAGE = 'hpolcc', parameters, dataList, configList)
+}
+
+#' @export
+objectiveFunctionC <- function(parameters, dataList, configList) {
+    .Call('_hpolcc_objectiveFunctionC', PACKAGE = 'hpolcc', parameters, dataList, configList)
 }
 
 lgamma_forward_deriv <- function(x, order) {

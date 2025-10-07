@@ -1,9 +1,27 @@
 #' @export
+wrappers_gamma = list( 
+  fn = function(x, data, config) {
+    objectiveFunctionNoDiff(x, data, 
+      config =configInner)
+  },
+  gr = function(x, data, config) {
+  config$maxDeriv = 1
+  objectiveFunctionC(x, data, config)$grad
+  },
+  hs = function(x, data, config) {
+  config$maxDeriv = 2
+  result = objectiveFunctionC(x, data, config)$hessian
+  as(as(result, 'CsparseMatrix'),'generalMatrix')
+}
+)
+
+#' @export
 make_trustoptim_wrappers <- function(data, 
   config = list(dirichelet=TRUE), 
   obj_fn = objectiveFunctionC,
   obj_fn_noad = objectiveFunctionNoDiff,
   debug=FALSE) {
+  
   # Create environment to store the last evaluated x and result
   cache_env <- new.env()
   cache_env$data = data

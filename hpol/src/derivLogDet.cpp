@@ -1,8 +1,7 @@
 #include"hpol.hpp"
 #include<omp.h>
 
-
-//#define DEBUG
+#define DEBUG
 
 
 
@@ -68,69 +67,70 @@ for(size_t D=0;D<result.size();D++) result[D] = taylor3[D];
 // [[Rcpp::export]]
 Rcpp::List thirdDiagonals(
   Rcpp::NumericVector parameters, // beta, gamma, theta
-  Rcpp::List data, 
-  Rcpp::List config // sparsity$second full and random sparsity$third jk and ijk
+  Rcpp::List dataList, 
+  Rcpp::List configList // sparsity$second full and random sparsity$third jk and ijk
   ) {
 
-	int num_threads = 1;
-	if (config.containsElementNamed("num_threads"))
-		num_threads = Rcpp::as<int>(config["num_threads"]);
+  Data   data(dataList);
+  Config config(configList);
 
-  bool verbose = false;
-  if (config.containsElementNamed("verbose")) {
-   verbose = Rcpp::as<bool>(config["verbose"]);
- }
- bool dense = false;
- if (config.containsElementNamed("dense")) {
-   dense = Rcpp::as<bool>(config["dense"]);
- }
-
-
- const int Nparams = parameters.size();
+  const int Nparams = parameters.size();
 
 // output
 // Rcpp::NumericVector gradient(Nparams);
- Rcpp::NumericMatrix hessianOut, thirdDiagOut;
- Rcpp::List sparsity, hessianList, hessian, diagSparsity;
- Rcpp::IntegerVector Hrow, Hp,  DiagRow, DiagP;
+  Rcpp::NumericMatrix hessianOut, thirdDiagOut;
+  Rcpp::List hessianList, hessian, diagSparsity;
+  Rcpp::IntegerVector Hrow, Hp,  DiagRow, DiagP;
+  Rcpp::List sparsity = config.sparsity; 
 
- Rcpp::NumericVector gradientOut(Nparams);
+  bool dense = config.dense;
+  if(!sparsity.size()) {
+    if(!dense) {
+      Rcpp::warning("no sparsity provided, switching to dense");
+      dense = true;
+    }
+  }
 
+  Rcpp::NumericVector gradientOut(Nparams);
 
- if(dense){
-  hessianOut = Rcpp::NumericMatrix(Nparams, Nparams);
-  thirdDiagOut = Rcpp::NumericMatrix(Nparams, Nparams);
-} else {
+  if (config.verbose ) Rcpp::Rcout << "..\n";
+  if(dense){
+    hessianOut = Rcpp::NumericMatrix(Nparams, Nparams);
+    thirdDiagOut = Rcpp::NumericMatrix(Nparams, Nparams);
+  } else {
 // hessian of random effects, lower triangle only, column format
-  sparsity = config["sparsity"];
-  hessianList = sparsity["second"];
-  hessian = hessianList["full"];
-  diagSparsity = hessianList["nonSymmetric"];
+    hessianList = sparsity["second"];
+    hessian = hessianList["full"];
+    diagSparsity = hessianList["nonSymmetric"];
+    Hrow = hessian["i"]; 
+    Hp = hessian["p"];
+    DiagRow = diagSparsity["i"]; 
+    DiagP = diagSparsity["p"];
 
-  Hrow = hessian["i"]; 
-  Hp = hessian["p"];
-  DiagRow = diagSparsity["i"]; 
-  DiagP = diagSparsity["p"];
-  
-  hessianOut = Rcpp::NumericMatrix(DiagRow.size(), 1);
-  thirdDiagOut = Rcpp::NumericMatrix(DiagRow.size(), 1);
-}
+    hessianOut = Rcpp::NumericMatrix(DiagRow.size(), 1);
+    thirdDiagOut = Rcpp::NumericMatrix(DiagRow.size(), 1);
+  }
 
-if (verbose ) Rcpp::Rcout << "objects allocated\n";
+  if (config.verbose ) Rcpp::Rcout << "objects allocated\n";
 
 // set up autodiff function
-CppAD::vector<CppAD::AD<double>> ad_params(Nparams);  
-for (size_t D = 0; D < Nparams; D++) {
+  CppAD::vector<CppAD::AD<double>> ad_params(Nparams);  
+  for (size_t D = 0; D < Nparams; D++) {
     ad_params[D] = parameters[D];  // Initialize CppAD variables
   }
   CppAD::Independent(ad_params);  // Tell CppAD these are inputs for differentiation
 
+
+  if (config.verbose ) Rcpp::Rcout << "eval.";
   CppAD::vector<CppAD::AD<double>> y = objectiveFunctionInternal(ad_params, data, config);  
+  if (config.verbose ) Rcpp::Rcout << "done\n";
+
   CppAD::ADFun<double> fun(ad_params, y);
 
   std::vector<double> x_val(Nparams);
   std::vector<double> y_val(1);
   std::vector<double> w{0.0, 0.0, 1.0};  
+
 
   for (size_t i = 0; i < Nparams; ++i) {
     x_val[i] = parameters[i];
@@ -138,12 +138,14 @@ for (size_t D = 0; D < Nparams; D++) {
   y_val = fun.Forward(0, x_val);
 
   // Replicate fun object for each thread
-  std::vector<CppAD::ADFun<double>> fun_threads(num_threads);
-  for (int i = 0; i < num_threads; ++i) {
+  std::vector<CppAD::ADFun<double>> fun_threads(config.num_threads);
+  for (int i = 0; i < config.num_threads; ++i) {
     fun_threads[i] = fun;
   }
 
-  omp_set_num_threads(num_threads);
+  omp_set_num_threads(config.num_threads);
+
+  if (config.verbose ) Rcpp::Rcout << "starting parallel " << config.num_threads << " threads\n";
 
   #pragma omp parallel
   {
@@ -163,14 +165,18 @@ for (size_t D = 0; D < Nparams; D++) {
       fun_threads[tid].Forward(2, directionZeros);
 
       auto taylor3 = fun_threads[tid].Reverse(3, w);
+      if (config.verbose ) Rcpp::Rcout << tid << "." << Dk << "\n";
 
-    if(dense) {
+      if(dense) {
     // store dense
-      for(int Dj=0; Dj<Nparams; Dj++){
-        int indexHere = 3*Dj;
-        hessianOut(Dj, Dk) = taylor3[indexHere+1];
-        thirdDiagOut(Dj, Dk) = taylor3[indexHere];
-      }
+        for(int Dj=0; Dj<Nparams; 
+          Dj++){
+          int indexHere = 3*Dj;
+          hessianOut(Dj, Dk) = taylor3[indexHere+1];
+          thirdDiagOut(Dj, Dk) = taylor3[indexHere];
+        }
+
+          if (config.verbose ) Rcpp::Rcout << tid << "," << Dk << "\n";
     } else { // not dense
 
       // fill in the T_kii
@@ -185,20 +191,20 @@ for (size_t D = 0; D < Nparams; D++) {
       } // Di
     } // else is sparse
 
-  if(Dk == 0) {
+    if(Dk == 0) {
       for(int Dj=0; Dj<Nparams; Dj++){
         int indexHere = 3*Dj;
         gradientOut[Dj] = taylor3[indexHere+2];
+      }
     }
-  }
   } // for k diagonal bit
 #ifdef DEBUG
- if (verbose ) Rcpp::Rcout << "t" << tid;
+  if (config.verbose ) Rcpp::Rcout << "t" << tid;
 #endif
 
 } // parallel
 
-if (verbose ) {
+if (config.verbose ) {
   Rcpp::Rcout << "done\n";
 }
 
@@ -219,14 +225,14 @@ return resultList;
 // [[Rcpp::export]]
 Rcpp::LogicalMatrix thirdNonDiagonalsSparsity(
   Rcpp::NumericVector parameters, // beta, gamma, theta
-  Rcpp::List data, 
-  Rcpp::List config,
+  Rcpp::List dataList, 
+  Rcpp::List configList,
   Rcpp::IntegerMatrix pairs
   ) {
 
-  int num_threads = 1;
-  if (config.containsElementNamed("num_threads"))
-    num_threads = Rcpp::as<int>(config["num_threads"]);
+  Data   data(dataList);
+  Config config(configList);
+
 
   const int Npairs = pairs.nrow();
   const int Nparams = parameters.size();
@@ -245,8 +251,8 @@ Rcpp::LogicalMatrix thirdNonDiagonalsSparsity(
   std::vector<double> x_val(Nparams);
   std::vector<double> y_val(1);
 
-  std::vector<CppAD::ADFun<double>> fun_threads(num_threads);
-  for (size_t i = 0; i < num_threads; ++i) {
+  std::vector<CppAD::ADFun<double>> fun_threads(config.num_threads);
+  for (size_t i = 0; i < config.num_threads; ++i) {
     fun_threads[i] = fun;
   }
 
@@ -255,35 +261,35 @@ Rcpp::LogicalMatrix thirdNonDiagonalsSparsity(
   }
 
 
-    const std::vector<double> direction2(Nparams, 0.0);
-    const std::vector<double> w{0.0, 0.0, 1.0};  
+  const std::vector<double> direction2(Nparams, 0.0);
+  const std::vector<double> w{0.0, 0.0, 1.0};  
 
-    omp_set_num_threads(num_threads);
+  omp_set_num_threads(config.num_threads);
   #pragma omp parallel
   {
     const int tid=omp_get_thread_num();
     fun_threads[tid].Forward(0, x_val);
 
       #pragma omp for
-  for(size_t Dpair=0;Dpair<Npairs;Dpair++) {
+    for(size_t Dpair=0;Dpair<Npairs;Dpair++) {
 
-  std::vector<double> direction1(Nparams, 0.0);
-  direction1[pairs(Dpair,0)]  = direction1[pairs(Dpair, 1)] = 1.0;     
+      std::vector<double> direction1(Nparams, 0.0);
+      direction1[pairs(Dpair,0)]  = direction1[pairs(Dpair, 1)] = 1.0;     
 
 //  fun_threads[tid].Forward(0, x_val);
-  fun_threads[tid].Forward(1, direction1);
-  fun_threads[tid].Forward(2, direction2);
-  auto taylor3 = fun_threads[tid].Reverse(3, w);
+      fun_threads[tid].Forward(1, direction1);
+      fun_threads[tid].Forward(2, direction2);
+      auto taylor3 = fun_threads[tid].Reverse(3, w);
       for(size_t Dk = 0;Dk < Nparams;Dk++) {
         if (!CppAD::NearEqual(taylor3[3*Dk], 0.0, 1e-12, 1e-12)) {
-        result(Dpair, Dk) = 1L;
-      } else {
-        result(Dpair, Dk) = 0L;
-      }
+          result(Dpair, Dk) = 1L;
+        } else {
+          result(Dpair, Dk) = 0L;
+        }
     } // Dk
   }
 } // parallel
-  return result;
+return result;
 
 }
 
@@ -292,37 +298,28 @@ Rcpp::LogicalMatrix thirdNonDiagonalsSparsity(
 // [[Rcpp::export]]
 Rcpp::NumericMatrix thirdOffDiagonals(
   Rcpp::NumericVector parameters, // beta, gamma, theta
-  Rcpp::List data, 
-  Rcpp::List config) {
+  Rcpp::List dataList, 
+  Rcpp::List configList) {
 
-  int num_threads = 1;
-  if (config.containsElementNamed("num_threads"))
-    num_threads = Rcpp::as<int>(config["num_threads"]);
+  Data   data(dataList);
+  Config config(configList);
 
-  bool verbose = false;
-  if (config.containsElementNamed("verbose")) {
-   verbose = Rcpp::as<bool>(config["verbose"]);
- }
- bool dense = false;
- if (config.containsElementNamed("dense")) {
-   dense = Rcpp::as<bool>(config["dense"]);
- }
 
- const int Nparams = parameters.size();
+  const int Nparams = parameters.size();
 
 // hessian of random effects, lower triangle only, column format
 
 // sparsity for third deriv
- Rcpp::List sparsity = config["sparsity"];
- Rcpp::List thirdList = sparsity["third"];
- Rcpp::List pairs = thirdList["pairs"];     
+  Rcpp::List sparsity = config.sparsity;
+  Rcpp::List thirdList = sparsity["third"];
+  Rcpp::List pairs = thirdList["pairs"];     
 
- Rcpp::IntegerVector sparsityIjI = pairs["i"];
- Rcpp::IntegerVector sparsityIjJ = pairs["j"];
- const int Npairs = sparsityIjJ.size();
+  Rcpp::IntegerVector sparsityIjI = pairs["i"];
+  Rcpp::IntegerVector sparsityIjJ = pairs["j"];
+  const int Npairs = sparsityIjJ.size();
 
  // only used for sparse
- Rcpp::IntegerVector sparsityIjP, sparsityIjPend;
+  Rcpp::IntegerVector sparsityIjP, sparsityIjPend;
  Rcpp::List sparsityThirdIjk;// = thirdList["ijk"];   
  Rcpp::IntegerVector sparsityIjkK;// = sparsityThirdIjk["k"];
 
@@ -332,25 +329,26 @@ Rcpp::NumericMatrix thirdOffDiagonals(
 // Rcpp::NumericMatrix outF1(Nparams, Npairs);
 // Rcpp::NumericMatrix outF2(Nparams, Npairs);
 
- if(dense){
-    Tijk = Rcpp::NumericMatrix(Nparams, Npairs);
-    if (verbose ) Rcpp::Rcout << "Nparams " << Nparams << " Npairs " << Npairs << "\n";
-  } else {
-    sparsityThirdIjk = thirdList["ijk"]; 
-    sparsityIjP = pairs["p"];
-    sparsityIjPend = pairs["pEnd"];
-    sparsityIjkK = sparsityThirdIjk["k"];
-    Tijk = Rcpp::NumericMatrix(sparsityIjkK.size(), 1L);
-  }
+ if(config.dense){
+  Tijk = Rcpp::NumericMatrix(Nparams, Npairs);
+  if (config.verbose ) Rcpp::Rcout << "Nparams " << Nparams << " Npairs " << Npairs << "\n";
+} else {
+  sparsityThirdIjk = thirdList["ijk"]; 
+  sparsityIjP = pairs["p"];
+  sparsityIjPend = pairs["pEnd"];
+  sparsityIjkK = sparsityThirdIjk["k"];
+  Tijk = Rcpp::NumericMatrix(sparsityIjkK.size(), 1L);
+}
 
-if (verbose ) Rcpp::Rcout << "objects allocated\n";
+if (config.verbose ) Rcpp::Rcout << "objects allocated\n";
 
 // set up autodiff function
-  CppAD::vector<CppAD::AD<double>> ad_params(Nparams);  
-  for (size_t D = 0; D < Nparams; D++) {
+CppAD::vector<CppAD::AD<double>> ad_params(Nparams);  
+for (size_t D = 0; D < Nparams; D++) {
     ad_params[D] = parameters[D];  // Initialize CppAD variables
   }
   CppAD::Independent(ad_params);  // Tell CppAD these are inputs for differentiation
+
   CppAD::vector<CppAD::AD<double>> y = objectiveFunctionInternal(ad_params, data, config);  
   CppAD::ADFun<double> fun(ad_params, y);
   std::vector<double> x_val(Nparams), y_val(1);  
@@ -360,16 +358,16 @@ if (verbose ) Rcpp::Rcout << "objects allocated\n";
   fun.Forward(0, x_val);
 
   // Replicate fun object for each thread
-  std::vector<CppAD::ADFun<double>> fun_threads(num_threads);
-  for (int i = 0; i < num_threads; ++i) {
+  std::vector<CppAD::ADFun<double>> fun_threads(config.num_threads);
+  for (int i = 0; i < config.num_threads; ++i) {
     fun_threads[i] = fun;
   }
-  if (verbose ) {
-    Rcpp::Rcout << "starting 3rd deriv, " << num_threads << " threads " <<
+  if (config.verbose ) {
+    Rcpp::Rcout << "starting 3rd deriv, " << config.num_threads << " threads " <<
     Npairs << " jk pairs " << Nparams << " parameters " << "\n";
   }
 
-  omp_set_num_threads(num_threads);
+  omp_set_num_threads(config.num_threads);
   const std::vector<double>  w{0.0, 0.0, 1.0};  
   const std::vector<double> direction2(Nparams, 0.0);
   
@@ -381,46 +379,46 @@ if (verbose ) Rcpp::Rcout << "objects allocated\n";
 
 // off diag T_ijk, pair is ij
   #pragma omp for
- for(int Dpair=0; Dpair < Npairs; ++Dpair) {
+    for(int Dpair=0; Dpair < Npairs; ++Dpair) {
 
-  const int Di = sparsityIjI[Dpair];
-  const int Dj = sparsityIjJ[Dpair];
+      const int Di = sparsityIjI[Dpair];
+      const int Dj = sparsityIjJ[Dpair];
 
-  std::fill(direction1.begin(), direction1.end(), 0.0);
+      std::fill(direction1.begin(), direction1.end(), 0.0);
 
-  direction1[Di] = direction1[Dj] = 1.0;     
+      direction1[Di] = direction1[Dj] = 1.0;     
 
-  fun_threads[tid].Forward(0, x_val);
-  fun_threads[tid].Forward(1, direction1);
-  fun_threads[tid].Forward(2, direction2);
+      fun_threads[tid].Forward(0, x_val);
+      fun_threads[tid].Forward(1, direction1);
+      fun_threads[tid].Forward(2, direction2);
 
-  auto taylor3 = fun_threads[tid].Reverse(3, w);  
+      auto taylor3 = fun_threads[tid].Reverse(3, w);  
 
   // first column is third deriv combination
   //  T_iik/2 + T_jjk/2 + T_ijk 
   // columns of diag are the double deriv
   // rows of taylor3 are i
 
-  if(dense) {
-    for(int Dk=0; Dk<Nparams; 
-      Dk++){
-      Tijk(Dk, Dpair) = taylor3[3*Dk];
-    }
+      if(config.dense) {
+        for(int Dk=0; Dk<Nparams; 
+          Dk++){
+          Tijk(Dk, Dpair) = taylor3[3*Dk];
+      }
   } else { // sparse
     int DinIjkStart = sparsityIjP[Dpair];
     int DinIjkEnd = sparsityIjPend[Dpair];
     for(int DinIjk=DinIjkStart; 
       DinIjk<DinIjkEnd; DinIjk++
       ){
-        int Dk = sparsityIjkK[DinIjk];
-        Tijk[DinIjk] = taylor3[3*Dk];
-    }
+      int Dk = sparsityIjkK[DinIjk];
+    Tijk[DinIjk] = taylor3[3*Dk];
+  }
   } // end sparse
  } // Dk
 
 } // parallel
 
-if (verbose ) {
+if (config.verbose ) {
   Rcpp::Rcout << "done\n";
 }
 
