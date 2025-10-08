@@ -11,6 +11,7 @@ sparsity_pattern = function(x, data, config=list()) {
 
   configForDiag = config[setdiff(names(config), c("dense","sparsity"))]
   configForDiag$dense=TRUE
+
   resThirdDiag = thirdDiagonals(
     x, data, configForDiag
   ) 
@@ -19,6 +20,9 @@ sparsity_pattern = function(x, data, config=list()) {
   hessian = as(
     Matrix::forceSymmetric(Matrix::Matrix(resThirdDiag$second, sparse=TRUE)),
     'TsparseMatrix')  
+
+
+
   hessianUL = as(hessian, 'generalMatrix')
 
   hessianIJ = data.frame(i = hessianUL@i, j=hessianUL@j)
@@ -26,9 +30,10 @@ sparsity_pattern = function(x, data, config=list()) {
 
     pairs = hessianIJ[!duplicated(hessianIJ[,c('i','j')]), ]
     pairs = pairs[order(pairs$j, pairs$i), ]
+
+
+
     pairs = as.matrix(pairs)
-
-
   if(type[1] == 'hessian') {
     # find sparsity pattern based on the hessian
 
@@ -141,8 +146,55 @@ nonsymmetric = list(
 )
 nonsymmetric$ij = paste(nonsymmetric$i, nonsymmetric$j, sep="_")
 
+    # find optimal indieces for evaluating hessian
+pairsRandom = data.frame(i=hessianRandom@i, j=hessianRandom@j)
+    pairsHessian = pairsRandom[pairsRandom$j > pairsRandom$i, ]
+    pairsHessian$pair = pairsHessian$other = NA
+    Nna=1;Niter = 0
+    Sdim = c('i','j')
+    while(Nna > 0 & Niter < nrow(pairsHessian)) {
+      theNA = which(is.na(pairsHessian$pair))
+      theTable = table(unlist(pairsHessian[theNA, Sdim]))
+      biggestPair = as.integer(names(theTable)[which.max(theTable)])
+      matchI = intersect(which(pairsHessian$i == biggestPair), theNA)      
+      matchJ = intersect(which(pairsHessian$j == biggestPair), theNA)      
+      pairsHessian[matchI, 'other'] = pairsHessian[matchI, 'j']
+      pairsHessian[matchJ, 'other'] = pairsHessian[matchJ, 'i']
+      pairsHessian[c(matchI, matchJ),'pair'] = biggestPair
+
+      Niter = Niter +1
+      Nna = sum(is.na(pairsHessian$pair))
+   }
+
+pairsHessian2 = as.data.frame(pairsHessian)[,c('pair','other')]
+names(pairsHessian2) = c('j','i')
+
+tableJ = as.data.frame(table(pairsHessian2$j))
+isOnes = pairsHessian2$j %in% as.integer(as.character(tableJ[tableJ$Freq == 1, 'Var1']))
+jOnes = pairsHessian2[isOnes,,drop=FALSE]
+pairsHessian2 = pairsHessian2[!isOnes, ,drop=FALSE]
+
+uniqueJ = unique(pairsHessian2[,'j'])
+pairsHessian2 = rbind(pairsHessian2, data.frame(j=uniqueJ, i=uniqueJ))
+pairsHessian2 = pairsHessian2[order(pairsHessian2$j, pairsHessian2$i), ]
+
+pairsHessian2 = as.list(pairsHessian2[order(pairsHessian2$j, pairsHessian2$i), c('i','j')])
+theTable = table(pairsHessian2$j)
+pairsHessian2$p = cumsum(c(0, theTable))
+pairsHessian2$j = as.integer(names(theTable))
+pairsHessian2$jLong = rep(pairsHessian2$j , diff(pairsHessian2$p))
+
+pairsHessian2 <- lapply(pairsHessian2, as.integer)
+
+pairsHessian2$onesJ = jOnes$j
+pairsHessian2$onesI = jOnes$i
+
+pairsHessian2$SjNotPair = setdiff(seq(0, len=Ngamma),unlist(pairsHessian2[c('i','j')]))
+pairsHessian2$SjNotPairOrDiag = setdiff(pairsHessian2$SjNotPair, unlist(pairsHessian2[c('onesI', 'onesJ')]))
+pairsHessian2$SiNotJ = sort(setdiff(pairsHessian2$i, c(pairsHessian2$j, pairsHessian2$onesJ)))
 
 sparsity = list(
+  random = pairsHessian2, 
   second = list(
     full = list(i=hessianT@i, j=hessianT@j, 
       p=hessianC@p),

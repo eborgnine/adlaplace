@@ -68,7 +68,7 @@ CppAD::vector<GammaT> compute_eta_for_stratum(size_t Dstrata,
       accGamma += data.A.x[t] * gamma[data.A.i[t]];
     }
 
-    etaHere[j] = gamma[0];//GammaT(accBeta) + accGamma;
+    etaHere[j] = GammaT(accBeta) + accGamma;
   }
   return(etaHere);
 }

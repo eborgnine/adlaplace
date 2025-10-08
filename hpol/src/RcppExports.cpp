@@ -78,7 +78,7 @@ BEGIN_RCPP
 END_RCPP
 }
 // objectiveFunctionGrad
-Rcpp::List objectiveFunctionGrad(Rcpp::NumericVector parameters, Rcpp::List dataList, Rcpp::List configList);
+Rcpp::NumericVector objectiveFunctionGrad(Rcpp::NumericVector parameters, Rcpp::List dataList, Rcpp::List configList);
 RcppExport SEXP _hpolcc_objectiveFunctionGrad(SEXP parametersSEXP, SEXP dataListSEXP, SEXP configListSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
@@ -87,6 +87,32 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< Rcpp::List >::type dataList(dataListSEXP);
     Rcpp::traits::input_parameter< Rcpp::List >::type configList(configListSEXP);
     rcpp_result_gen = Rcpp::wrap(objectiveFunctionGrad(parameters, dataList, configList));
+    return rcpp_result_gen;
+END_RCPP
+}
+// objectiveFunctionHessian
+Rcpp::List objectiveFunctionHessian(Rcpp::NumericVector parameters, Rcpp::List dataList, Rcpp::List configList);
+RcppExport SEXP _hpolcc_objectiveFunctionHessian(SEXP parametersSEXP, SEXP dataListSEXP, SEXP configListSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type parameters(parametersSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type dataList(dataListSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type configList(configListSEXP);
+    rcpp_result_gen = Rcpp::wrap(objectiveFunctionHessian(parameters, dataList, configList));
+    return rcpp_result_gen;
+END_RCPP
+}
+// objectiveFunctionHessian2
+Rcpp::List objectiveFunctionHessian2(Rcpp::NumericVector parameters, Rcpp::List dataList, Rcpp::List configList);
+RcppExport SEXP _hpolcc_objectiveFunctionHessian2(SEXP parametersSEXP, SEXP dataListSEXP, SEXP configListSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type parameters(parametersSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type dataList(dataListSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type configList(configListSEXP);
+    rcpp_result_gen = Rcpp::wrap(objectiveFunctionHessian2(parameters, dataList, configList));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -170,6 +196,8 @@ static const R_CallMethodDef CallEntries[] = {
     {"_hpolcc_thirdOffDiagonals", (DL_FUNC) &_hpolcc_thirdOffDiagonals, 3},
     {"_hpolcc_objectiveFunctionNoDiff", (DL_FUNC) &_hpolcc_objectiveFunctionNoDiff, 3},
     {"_hpolcc_objectiveFunctionGrad", (DL_FUNC) &_hpolcc_objectiveFunctionGrad, 3},
+    {"_hpolcc_objectiveFunctionHessian", (DL_FUNC) &_hpolcc_objectiveFunctionHessian, 3},
+    {"_hpolcc_objectiveFunctionHessian2", (DL_FUNC) &_hpolcc_objectiveFunctionHessian2, 3},
     {"_hpolcc_objectiveFunctionC", (DL_FUNC) &_hpolcc_objectiveFunctionC, 3},
     {"_hpolcc_lgamma_forward_deriv", (DL_FUNC) &_hpolcc_lgamma_forward_deriv, 2},
     {"_hpolcc_lgamma_reverse_deriv", (DL_FUNC) &_hpolcc_lgamma_reverse_deriv, 2},

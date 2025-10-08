@@ -32,6 +32,16 @@ objectiveFunctionGrad <- function(parameters, dataList, configList) {
 }
 
 #' @export
+objectiveFunctionHessian <- function(parameters, dataList, configList) {
+    .Call('_hpolcc_objectiveFunctionHessian', PACKAGE = 'hpolcc', parameters, dataList, configList)
+}
+
+#' @export
+objectiveFunctionHessian2 <- function(parameters, dataList, configList) {
+    .Call('_hpolcc_objectiveFunctionHessian2', PACKAGE = 'hpolcc', parameters, dataList, configList)
+}
+
+#' @export
 objectiveFunctionC <- function(parameters, dataList, configList) {
     .Call('_hpolcc_objectiveFunctionC', PACKAGE = 'hpolcc', parameters, dataList, configList)
 }

@@ -129,28 +129,112 @@ fitD$config$transform_theta = TRUE
 # parameters = (beta, theta)R
 # config$transform_theta = TRUE means thetas are log(sd) otherwise theta=sd
 
+# test when beta and theta in config
+
 
 library('hpolcc')
-  config$verbose=TRUE
+
+config$beta = parameters[1:Nbeta]
+config$theta = parameters[-(1:Nbeta)]
+x=c(parameters[1:Nbeta], gamma_start, parameters[-(1:Nbeta)])
+
+config$verbose=FALSE
     configS = configD = config
     configS$dense = FALSE
-configS$num_threads = 8
+configS$num_threads = 10
 
-c(
-  objectiveFunctionNoDiff(c(parameters[1:Nbeta], gamma_start, parameters[-(1:Nbeta)]), fitD$tmb_data, 
-  c(configS[setdiff(names(configS), 'num_threads')], list(num_threads=1))),
-objectiveFunctionNoDiff(c(parameters[1:Nbeta], gamma_start, parameters[-(1:Nbeta)]), fitD$tmb_data, 
-  c(configS[setdiff(names(configS), 'num_threads')], list(num_threads=8))))
-# --98231.56
+configS$sparsity = sparsity_pattern(
+      x, fitD$tmb_data, configS)
 
-#for(D in 1:1000) 
-objectiveFunctionGrad(c(parameters[1:Nbeta], gamma_start, parameters[-(1:Nbeta)]), fitD$tmb_data, 
-  c(configS[setdiff(names(configS), 'num_threads')], list(num_threads=1)))
-#for(D in 1:1000) 
-objectiveFunctionGrad(c(parameters[1:Nbeta], gamma_start, parameters[-(1:Nbeta)]), fitD$tmb_data, 
-  c(configS[setdiff(names(configS), 'num_threads')], list(num_threads=2)))
+configS$verbose = FALSE
+configS$dense = FALSE
+
+      control=list(maxit=1000, start.trust.radius = 1, prec=1e-9, stop.trust.radius = 1e-15,
+        cg.tol = 1e-9,
+      report.level=3, report.freq=1)
+config = configS
+config$strataPerIter = 100
+
+system.time(bob <- objectiveFunctionHessian(gamma_start, fitD$tmb_data, 
+  c(configS[setdiff(names(configS), 'num_threads')], list(num_threads=10))))
+bob$colSumM = matrix(bob$colSum, nrow=2)  
+str(bob)
+
+# in pairs or did diagonal with forward2
+hesDfPairs = data.frame(
+  j = configS$sparsity$random$jLong,
+  i = configS$sparsity$random$i,
+  x = bob$off_diag)
+hesDfDiag = data.frame(
+  j = c(configS$sparsity$random$SjNotPairOrDiag, configS$sparsity$random$onesJ),
+  x = c(bob$colSum[1+2*configS$sparsity$random$SjNotPairOrDiag], bob$diag)
+  )
+hesDfDiag$i = hesDfDiag$j
+
+hesDfAll1 = rbind(hesDfPairs, hesDfDiag[,names(hesDfPairs)])
+
+hessianR1 = Matrix::sparseMatrix(
+  i = pmax(hesDfAll1$i, hesDfAll1$j),
+  j = pmin(hesDfAll1$i, hesDfAll1$j),
+  x = hesDfAll1$x,
+  index1=FALSE, symmetric=TRUE,
+  dims = c(Ngamma, Ngamma)
+  )
+
+# elements with one necessary off-diagonal, the diagonal j was computed with forward 2
+hesDfOnes = data.frame(
+  j = configS$sparsity$random$onesJ,
+  i = configS$sparsity$random$onesI,  # M[1, 1+configS$sparsity$random$onesJ] 
+  x= bob$colSum[1+2*configS$sparsity$random$onesJ]- apply(hessianR1[, 1+configS$sparsity$random$onesJ], 2, sum)
+  )
+
+hesDfAll2 = rbind(hesDfAll1, hesDfOnes[,names(hesDfAll1)])
+hessianR2 = Matrix::sparseMatrix(
+  i = pmax(hesDfAll2$i, hesDfAll2$j),
+  j = pmin(hesDfAll2$i, hesDfAll2$j),
+  x = hesDfAll2$x,
+  index1=FALSE, symmetric=TRUE
+  )
+
+# needed one more off-diagonal but diagonal wasn't computed.  
+hesDfInotJ = data.frame(
+  i = configS$sparsity$random$SiNotJ, j=configS$sparsity$random$SiNotJ,
+  x = bob$colSum[1+2*configS$sparsity$random$SiNotJ] - apply(hessianR2[, 1+configS$sparsity$random$SiNotJ], 2, sum)
+  )
+
+hesDfAll = rbind(hesDfAll2, hesDfInotJ[,names(hesDfAll2)])
+hessianR = Matrix::sparseMatrix(
+  i = pmax(hesDfAll$i, hesDfAll$j), 
+  j = pmin(hesDfAll$i, hesDfAll$j),
+  x = hesDfAll$x,
+  index1=FALSE, symmetric=TRUE
+  )
 
 
+
+system.time(resThirdDiag <- thirdDiagonals(
+    x, fitD$tmb_data, c(configS[setdiff(names(configS), 'dense')], list(dense=TRUE))
+  ) 
+  )
+Sgamma1 = seq(Nbeta+1, len=Ngamma)
+hessian3 = as(
+    Matrix::forceSymmetric(Matrix::Matrix(resThirdDiag$second, sparse=TRUE)),
+    'TsparseMatrix')[Sgamma1, Sgamma1]
+
+range((hessiandiff <- abs(hessian3 - hessianR)))
+
+```
+
+
+
+
+
+
+
+
+
+
+```{r someoldstuff}
 configS$maxDeriv=0
 hpolcc:::objectiveFunctionC(c(parameters[1:Nbeta], gamma_start, parameters[-(1:Nbeta)]), 
   fitD$tmb_data, configS)

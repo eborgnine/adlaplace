@@ -21,6 +21,9 @@ inline constexpr double LOGTWOPI      = 1.8378770664093454836;
 inline constexpr double HALFLOGTWOPI  = 0.9189385332046727;
 
 
+static bool   in_parallel_wrapper()            { return omp_in_parallel() != 0; }
+static size_t thread_num_wrapper()             { return static_cast<size_t>(omp_get_thread_num()); }
+
 // ----- safe getters -----
 inline bool get_bool(const Rcpp::List& cfg, const char* key, bool def=false) {
   return cfg.containsElementNamed(key) ? Rcpp::as<bool>(cfg[key]) : def;
@@ -38,6 +41,12 @@ inline std::vector<double> get_numvec_copy(const Rcpp::List& cfg, const char* ke
   Rcpp::NumericVector v = cfg[key];
   return std::vector<double>(v.begin(), v.end());
 }
+inline std::vector<int> get_intvec_copy(const Rcpp::List& cfg, const char* key) {
+  if (!cfg.containsElementNamed(key)) return {};
+  Rcpp::IntegerVector v = cfg[key];
+  return std::vector<int>(v.begin(), v.end());
+}
+
 // ----- a lightweight view of a dgCMatrix (no copies; just SEXP handles) -----
 // Lightweight view for Matrix::*gCMatrix (column-compressed)
 // Works for dgCMatrix (numeric x) and ngCMatrix (no x: pattern-only).
@@ -97,7 +106,7 @@ struct DgTView {
 };
 
 
-struct DataR {
+struct Data {
   // existing
   DgTView QsansDiag;   // if this is actually dsTMatrix, use DgTView instead
   DgCView A;
@@ -124,7 +133,7 @@ struct DataR {
   size_t X_ncol = 0;
   size_t A_ncol = 0;
 
-  explicit DataR(const Rcpp::List& data)
+  explicit Data(const Rcpp::List& data)
   : QsansDiag( DgTView(Rcpp::S4(data["QsansDiag"])) )  
     , A(         DgCView(Rcpp::S4(data["ATp"])) )
     , X(         DgCView(Rcpp::S4(data["XTp"])) )
@@ -174,7 +183,7 @@ struct DataR {
 };
 
 
-// Thread-safe, R-free copies of your inputs
+// Thread-safe, R-free copies of your inputs.  switch to DataNoR if threadsafe memory is a concern.
 struct CscMatrix {
   // column-compressed sparse matrix (like Matrix::dgCMatrix / ngCMatrix)
   std::vector<int>    i;     // row indices (length = nnz)
@@ -195,7 +204,7 @@ struct TripletMatrix {
   inline size_t nnz() const { return x.size(); }
 };
 
-struct Data {
+struct DataNoR {
   // Sparse matrices (owned, plain vectors)
   TripletMatrix QsansDiag;  // (off-diagonal part; you treat it like dsT)
   CscMatrix     A;          // rows = Ngamma, cols = Neta
@@ -265,7 +274,7 @@ struct Data {
   }
 
   // ---------- main constructor from the original R list ----------
-  explicit Data(const Rcpp::List& data)
+  explicit DataNoR(const Rcpp::List& data)
   : QsansDiag(copy_dst( Rcpp::S4(data["QsansDiag"]) ))
   , A(        copy_dgc( Rcpp::S4(data["ATp"])      ))
   , X(        copy_dgc( Rcpp::S4(data["XTp"])      ))
@@ -341,6 +350,7 @@ struct Config {
   std::vector<double>beta;
   std::vector<double> theta;
   int num_threads=1;
+  int strataPerIter = 1;
   int maxDeriv=0;
   bool dense=0;
   Rcpp::List sparsity;
@@ -353,7 +363,8 @@ struct Config {
   transform_theta(get_bool(cfg, "transform_theta", false)),
   beta(get_numvec_copy(cfg, "beta")),
   theta(get_numvec_copy(cfg, "theta")),
-  num_threads(get_int(cfg, "num_threads", 1)),          // <-- int, default 1
+  num_threads(get_int(cfg, "num_threads", 1)),           
+  strataPerIter(get_int(cfg, "strataPerIter", 1)),        
   maxDeriv(get_int(cfg, "maxDeriv", 0)),
   dense(get_bool(cfg, "dense", 0)),
   sparsity(cfg.containsElementNamed("sparsity") ? cfg["sparsity"] : Rcpp::List()),
@@ -386,15 +397,13 @@ unpack_params(const CppAD::vector<Type>& params,
 
 std::size_t Ntheta_base = 0u;
 
-if (!data.map.empty()) {
     int max_val = data.map[0];
-    for (std::size_t i = 1; i < data.map.size(); ++i) {
+    for (std::size_t i = 1; i < data.map.length(); ++i) {
         if (data.map[i] > max_val) {
             max_val = data.map[i];
         }
     }
     Ntheta_base = static_cast<std::size_t>(max_val) + 1;
-}
 
 
   PackedParams<Type> out;

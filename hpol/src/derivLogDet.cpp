@@ -1,7 +1,7 @@
 #include"hpol.hpp"
 #include<omp.h>
 
-#define DEBUG
+//#define DEBUG
 
 
 
@@ -83,17 +83,18 @@ Rcpp::List thirdDiagonals(
   Rcpp::IntegerVector Hrow, Hp,  DiagRow, DiagP;
   Rcpp::List sparsity = config.sparsity; 
 
+  const std::vector<double> x_val(parameters.begin(), parameters.end());
+
   bool dense = config.dense;
   if(!sparsity.size()) {
     if(!dense) {
-      Rcpp::warning("no sparsity provided, switching to dense");
+      Rcpp::warning("no sparsity provided, switching to dense\n");
       dense = true;
     }
   }
 
   Rcpp::NumericVector gradientOut(Nparams);
 
-  if (config.verbose ) Rcpp::Rcout << "..\n";
   if(dense){
     hessianOut = Rcpp::NumericMatrix(Nparams, Nparams);
     thirdDiagOut = Rcpp::NumericMatrix(Nparams, Nparams);
@@ -113,45 +114,43 @@ Rcpp::List thirdDiagonals(
 
   if (config.verbose ) Rcpp::Rcout << "objects allocated\n";
 
-// set up autodiff function
-  CppAD::vector<CppAD::AD<double>> ad_params(Nparams);  
-  for (size_t D = 0; D < Nparams; D++) {
-    ad_params[D] = parameters[D];  // Initialize CppAD variables
-  }
-  CppAD::Independent(ad_params);  // Tell CppAD these are inputs for differentiation
+//
 
-
-  if (config.verbose ) Rcpp::Rcout << "eval.";
-  CppAD::vector<CppAD::AD<double>> y = objectiveFunctionInternal(ad_params, data, config);  
-  if (config.verbose ) Rcpp::Rcout << "done\n";
-
-  CppAD::ADFun<double> fun(ad_params, y);
-
-  std::vector<double> x_val(Nparams);
-  std::vector<double> y_val(1);
-  std::vector<double> w{0.0, 0.0, 1.0};  
-
-
-  for (size_t i = 0; i < Nparams; ++i) {
-    x_val[i] = parameters[i];
-  }
-  y_val = fun.Forward(0, x_val);
-
-  // Replicate fun object for each thread
-  std::vector<CppAD::ADFun<double>> fun_threads(config.num_threads);
-  for (int i = 0; i < config.num_threads; ++i) {
-    fun_threads[i] = fun;
-  }
 
   omp_set_num_threads(config.num_threads);
+  CppAD::thread_alloc::parallel_setup(
+    config.num_threads,
+    [](){ return in_parallel_wrapper(); },
+    [](){ return static_cast<size_t>(thread_num_wrapper()); }
+    );
+
 
   if (config.verbose ) Rcpp::Rcout << "starting parallel " << config.num_threads << " threads\n";
 
   #pragma omp parallel
   {
-    const int tid=omp_get_thread_num();
-    fun_threads[tid].Forward(0, x_val);
-    std::vector<double> direction(Nparams, 0.0), directionZeros(Nparams, 0.0);
+ // set up autodiff function
+
+        const int tid=omp_get_thread_num();
+
+
+  std::vector<double> y_val(1);
+  std::vector<double> w{0.0, 0.0, 1.0};  
+  std::vector<double> direction(Nparams, 0.0), directionZeros(Nparams, 0.0);
+
+
+  CppAD::vector<CppAD::AD<double>> ad_params(Nparams);  
+  for (size_t D = 0; D < Nparams; D++) {
+    ad_params[D] = x_val[D];  // Initialize CppAD variables
+  }
+  CppAD::Independent(ad_params);  // Tell CppAD these are inputs for differentiation
+
+  CppAD::vector<CppAD::AD<double>> y = objectiveFunctionInternal(ad_params, data, config);  
+
+  CppAD::ADFun<double> fun(ad_params, y);
+
+  y_val = fun.Forward(0, x_val);
+
 
   // diagonal entries to subtract off
   // computing T_kii and H_ki, columnns are i, rows are k
@@ -161,11 +160,10 @@ Rcpp::List thirdDiagonals(
       std::fill(direction.begin(), direction.end(), 0.0);
       direction[Dk]  = 1.0;     
 
-      fun_threads[tid].Forward(1, direction);
-      fun_threads[tid].Forward(2, directionZeros);
+      fun.Forward(1, direction);
+      fun.Forward(2, directionZeros);
 
-      auto taylor3 = fun_threads[tid].Reverse(3, w);
-      if (config.verbose ) Rcpp::Rcout << tid << "." << Dk << "\n";
+      auto taylor3 = fun.Reverse(3, w);
 
       if(dense) {
     // store dense
@@ -176,7 +174,6 @@ Rcpp::List thirdDiagonals(
           thirdDiagOut(Dj, Dk) = taylor3[indexHere];
         }
 
-          if (config.verbose ) Rcpp::Rcout << tid << "," << Dk << "\n";
     } else { // not dense
 
       // fill in the T_kii
@@ -198,9 +195,6 @@ Rcpp::List thirdDiagonals(
       }
     }
   } // for k diagonal bit
-#ifdef DEBUG
-  if (config.verbose ) Rcpp::Rcout << "t" << tid;
-#endif
 
 } // parallel
 

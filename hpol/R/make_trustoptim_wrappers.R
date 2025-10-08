@@ -1,27 +1,73 @@
+
+hessianGamma = function(x, data, config) {
+  res = objectiveFunctionHessian(x, data, config)
+
+  hesDfPairs = data.frame(
+    j = config$sparsity$random$jLong,
+    i = config$sparsity$random$i,
+    x = res$off_diag)
+  hesDfDiag = data.frame(
+    j = c(config$sparsity$random$SjNotPairOrDiag, config$sparsity$random$onesJ),
+    x = c(res$colSum[1+2*config$sparsity$random$SjNotPairOrDiag], res$diag)
+  )
+  hesDfDiag$i = hesDfDiag$j
+
+  hesDfAll1 = rbind(hesDfPairs, hesDfDiag[,names(hesDfPairs)])
+
+  Ngamma = length(x)
+  hessianR1 = Matrix::sparseMatrix(
+    i = pmax(hesDfAll1$i, hesDfAll1$j),
+    j = pmin(hesDfAll1$i, hesDfAll1$j),
+    x = hesDfAll1$x,
+    index1=FALSE, symmetric=TRUE,
+    dims = c(Ngamma, Ngamma)
+  )
+
+# elements with one necessary off-diagonal, the diagonal j was computed with forward 2
+  hesDfOnes = data.frame(
+    j = config$sparsity$random$onesJ,
+    i = config$sparsity$random$onesI,   
+    x= res$colSum[1+2*config$sparsity$random$onesJ]- apply(hessianR1[, 1+config$sparsity$random$onesJ], 2, sum)
+  )
+
+  hesDfAll2 = rbind(hesDfAll1, hesDfOnes[,names(hesDfAll1)])
+  hessianR2 = Matrix::sparseMatrix(
+    i = pmax(hesDfAll2$i, hesDfAll2$j),
+    j = pmin(hesDfAll2$i, hesDfAll2$j),
+    x = hesDfAll2$x,
+    index1=FALSE, symmetric=TRUE
+  )
+
+# needed one more off-diagonal but diagonal wasn't computed.  
+  hesDfInotJ = data.frame(
+    i = config$sparsity$random$SiNotJ, j=config$sparsity$random$SiNotJ,
+    x = res$colSum[1+2*config$sparsity$random$SiNotJ] - apply(hessianR2[, 1+config$sparsity$random$SiNotJ], 2, sum)
+  )
+
+  hesDfAll = rbind(hesDfAll2, hesDfInotJ[,names(hesDfAll2)])
+  hessianR = Matrix::sparseMatrix(
+    i = pmax(hesDfAll$i, hesDfAll$j), 
+    j = pmin(hesDfAll$i, hesDfAll$j),
+    x = hesDfAll$x,
+    index1=FALSE, symmetric=TRUE
+  )
+  as(as(hessianR, 'CsparseMatrix'),'generalMatrix')
+}
+
 #' @export
 wrappers_gamma = list( 
-  fn = function(x, data, config) {
-    objectiveFunctionNoDiff(x, data, 
-      config =configInner)
-  },
-  gr = function(x, data, config) {
-  config$maxDeriv = 1
-  objectiveFunctionC(x, data, config)$grad
-  },
-  hs = function(x, data, config) {
-  config$maxDeriv = 2
-  result = objectiveFunctionC(x, data, config)$hessian
-  as(as(result, 'CsparseMatrix'),'generalMatrix')
-}
+  fn = objectiveFunctionNoDiff,
+  gr = objectiveFunctionGrad,
+  hs = hessianGamma
 )
 
 #' @export
-make_trustoptim_wrappers <- function(data, 
+make_trustoptim_wrappers_old <- function(data, 
   config = list(dirichelet=TRUE), 
   obj_fn = objectiveFunctionC,
   obj_fn_noad = objectiveFunctionNoDiff,
   debug=FALSE) {
-  
+
   # Create environment to store the last evaluated x and result
   cache_env <- new.env()
   cache_env$data = data
@@ -57,15 +103,15 @@ make_trustoptim_wrappers <- function(data,
             p=as(result, "CsparseMatrix")@p)
         )
       )
-    names(sparsity$second) = c("full", "random")[1+(
-      length(x) == nrow(cache_env$data$ATp)
-    )]
-    cache_env$config1$sparsity = sparsity
-}
+      names(sparsity$second) = c("full", "random")[1+(
+        length(x) == nrow(cache_env$data$ATp)
+      )]
+      cache_env$config1$sparsity = sparsity
+    }
   # trustoptim needs general matrix
-  as(as(result, 'CsparseMatrix'),'generalMatrix')
+    as(as(result, 'CsparseMatrix'),'generalMatrix')
 
-}
-list(fn = fn_wrapper, gr = gr_wrapper, hs = hs_wrapper)
+  }
+  list(fn = fn_wrapper, gr = gr_wrapper, hs = hs_wrapper)
 }
 
