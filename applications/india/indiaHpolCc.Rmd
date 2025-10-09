@@ -166,6 +166,11 @@ resultS1 <- loglik(parameters,
 
 ```{r someoldstuff}
 
+      control=list(maxit=1000, start.trust.radius = 1, prec=1e-9, stop.trust.radius = 1e-15,
+        cg.tol = 1e-9,
+      report.level=4, report.freq=1)
+controlInner = control
+controlInner$report.freq=10
 
 mle =   # inner opt
     trustOptim::trust.optim(
@@ -174,7 +179,7 @@ mle =   # inner opt
     gr = wrappers_outer$gr,
     method = 'BFGS',
     control = control,
-    data=fitD$tmb_data, config = config, cache =  new.env(), controlInner = control
+    data=fitD$tmb_data, config = config, cache =  new.env(), controlInner = controlInner
   )
 
 

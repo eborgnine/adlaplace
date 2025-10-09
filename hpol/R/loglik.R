@@ -1,19 +1,22 @@
 #' @export
 wrappers_outer = list( 
   fn = function(x, data, config, controlInner, cache) {
+    print(get("gamma_start", envir=cache)[1:4])
     result=loglik(x,
       gamma_start = get("gamma_start", envir=cache), 
       data=data, config=config, control=controlInner, 
       deriv=0)
       assign("gamma_start", result$solution, envir=cache)
+      print(get("gamma_start", envir=cache)[1:4])
       result$minusLogLik
     },
   gr = function(x, data, config, controlInner, cache) {
-  config$maxDeriv = 1
+    print(get("gamma_start", envir=cache)[1:4])
   result= loglik(x,
         gamma_start = get("gamma_start", envir=cache), 
-        data=data, config=config, control=controlInner, deriv=1)
+        data=data, config=config, control=controlInner)
   assign("gamma_start", result$solution, envir=cache)
+  print(get("gamma_start", envir=cache)[1:4])
   result$deriv$dL
 }
  
@@ -109,11 +112,10 @@ loglik <- function(
       0.5 * Ngamma * 1.8378770664093454835606594728  # log 2 pi
 
    if(identical(deriv, 1)) {
-    return(result[c('minusLogLik','dLogLik','solution')])
+    return(result['deriv'])
   }
 
   result$extra = thirdRes
-  result$wrappers = wrappers_gamma
   result$config = config
 
   return(result)
