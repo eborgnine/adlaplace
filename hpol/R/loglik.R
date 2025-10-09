@@ -1,20 +1,20 @@
 #' @export
 wrappers_outer = list( 
-  fn = function(x, data, config, control, cache) {
-    result=logLik(x,
+  fn = function(x, data, config, controlInner, cache) {
+    result=loglik(x,
       gamma_start = get("gamma_start", envir=cache), 
-      data=data, config=config, control=control, 
+      data=data, config=config, control=controlInner, 
       deriv=0)
       assign("gamma_start", result$solution, envir=cache)
       result$minusLogLik
     },
-  gr = function(x, data, config, control, cache) {
+  gr = function(x, data, config, controlInner, cache) {
   config$maxDeriv = 1
-  result= logLik(x,
+  result= loglik(x,
         gamma_start = get("gamma_start", envir=cache), 
-        data=data, cconfig=config, deriv=1)
+        data=data, config=config, control=controlInner, deriv=1)
   assign("gamma_start", result$solution, envir=cache)
-  result$grad
+  result$deriv$dL
 }
  
  )

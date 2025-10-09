@@ -103,19 +103,6 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
-// objectiveFunctionHessian2
-Rcpp::List objectiveFunctionHessian2(Rcpp::NumericVector parameters, Rcpp::List dataList, Rcpp::List configList);
-RcppExport SEXP _hpolcc_objectiveFunctionHessian2(SEXP parametersSEXP, SEXP dataListSEXP, SEXP configListSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type parameters(parametersSEXP);
-    Rcpp::traits::input_parameter< Rcpp::List >::type dataList(dataListSEXP);
-    Rcpp::traits::input_parameter< Rcpp::List >::type configList(configListSEXP);
-    rcpp_result_gen = Rcpp::wrap(objectiveFunctionHessian2(parameters, dataList, configList));
-    return rcpp_result_gen;
-END_RCPP
-}
 // objectiveFunctionC
 Rcpp::List objectiveFunctionC(Rcpp::NumericVector parameters, Rcpp::List dataList, Rcpp::List configList);
 RcppExport SEXP _hpolcc_objectiveFunctionC(SEXP parametersSEXP, SEXP dataListSEXP, SEXP configListSEXP) {
@@ -129,65 +116,6 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
-// lgamma_forward_deriv
-double lgamma_forward_deriv(double x, int order);
-RcppExport SEXP _hpolcc_lgamma_forward_deriv(SEXP xSEXP, SEXP orderSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< double >::type x(xSEXP);
-    Rcpp::traits::input_parameter< int >::type order(orderSEXP);
-    rcpp_result_gen = Rcpp::wrap(lgamma_forward_deriv(x, order));
-    return rcpp_result_gen;
-END_RCPP
-}
-// lgamma_reverse_deriv
-double lgamma_reverse_deriv(double x, int order);
-RcppExport SEXP _hpolcc_lgamma_reverse_deriv(SEXP xSEXP, SEXP orderSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< double >::type x(xSEXP);
-    Rcpp::traits::input_parameter< int >::type order(orderSEXP);
-    rcpp_result_gen = Rcpp::wrap(lgamma_reverse_deriv(x, order));
-    return rcpp_result_gen;
-END_RCPP
-}
-// logspaceadd_forward_deriv
-Rcpp::NumericMatrix logspaceadd_forward_deriv(Rcpp::NumericVector x, int order);
-RcppExport SEXP _hpolcc_logspaceadd_forward_deriv(SEXP xSEXP, SEXP orderSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type x(xSEXP);
-    Rcpp::traits::input_parameter< int >::type order(orderSEXP);
-    rcpp_result_gen = Rcpp::wrap(logspaceadd_forward_deriv(x, order));
-    return rcpp_result_gen;
-END_RCPP
-}
-// logspaceadd_inbuilt_deriv
-Rcpp::NumericVector logspaceadd_inbuilt_deriv(Rcpp::NumericVector x, int order);
-RcppExport SEXP _hpolcc_logspaceadd_inbuilt_deriv(SEXP xSEXP, SEXP orderSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type x(xSEXP);
-    Rcpp::traits::input_parameter< int >::type order(orderSEXP);
-    rcpp_result_gen = Rcpp::wrap(logspaceadd_inbuilt_deriv(x, order));
-    return rcpp_result_gen;
-END_RCPP
-}
-// testAddGammaR
-Rcpp::List testAddGammaR(Rcpp::NumericVector parameters);
-RcppExport SEXP _hpolcc_testAddGammaR(SEXP parametersSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type parameters(parametersSEXP);
-    rcpp_result_gen = Rcpp::wrap(testAddGammaR(parameters));
-    return rcpp_result_gen;
-END_RCPP
-}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_hpolcc_test3", (DL_FUNC) &_hpolcc_test3, 4},
@@ -197,13 +125,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_hpolcc_objectiveFunctionNoDiff", (DL_FUNC) &_hpolcc_objectiveFunctionNoDiff, 3},
     {"_hpolcc_objectiveFunctionGrad", (DL_FUNC) &_hpolcc_objectiveFunctionGrad, 3},
     {"_hpolcc_objectiveFunctionHessian", (DL_FUNC) &_hpolcc_objectiveFunctionHessian, 3},
-    {"_hpolcc_objectiveFunctionHessian2", (DL_FUNC) &_hpolcc_objectiveFunctionHessian2, 3},
     {"_hpolcc_objectiveFunctionC", (DL_FUNC) &_hpolcc_objectiveFunctionC, 3},
-    {"_hpolcc_lgamma_forward_deriv", (DL_FUNC) &_hpolcc_lgamma_forward_deriv, 2},
-    {"_hpolcc_lgamma_reverse_deriv", (DL_FUNC) &_hpolcc_lgamma_reverse_deriv, 2},
-    {"_hpolcc_logspaceadd_forward_deriv", (DL_FUNC) &_hpolcc_logspaceadd_forward_deriv, 2},
-    {"_hpolcc_logspaceadd_inbuilt_deriv", (DL_FUNC) &_hpolcc_logspaceadd_inbuilt_deriv, 2},
-    {"_hpolcc_testAddGammaR", (DL_FUNC) &_hpolcc_testAddGammaR, 1},
     {NULL, NULL, 0}
 };
 

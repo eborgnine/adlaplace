@@ -1,81 +1,14 @@
+
 #include"hpol.hpp"
 #include"loglikHelpers.hpp"
+
+
+
 
 // #define DEBUG
 
 #include<omp.h>
-#include <set>
 
-
-template<class Type> CppAD::vector<Type> loglikOneStrata(
-const int Dstrata,
-const CppAD::vector<Type>& gamma,
-const PackedParams<double>& parameters, // gamma is ignored
-const Data& data, 
-const Config& cfg
-){
-
-  CppAD::vector<Type> result(1);
-
-  CppAD::vector<Type> etaHere = compute_eta_for_stratum<Type, double>(
-    Dstrata, data, gamma, parameters.beta);
-
-  auto contrib = accumulate_contrib_for_stratum<Type, double>(
-    Dstrata, data, etaHere, parameters, cfg
-    );
-
-  result[0]= contrib;
-  return(result);
-}
-
-
-// Compute scaled gamma values and accumulate log-likelihood contribution
-template <class TypeGamma, class TypeTheta>
-CppAD::vector<TypeGamma>  loglikQ(
-    const CppAD::vector<TypeGamma>& gamma,  
-    const PackedParams<TypeTheta>& latent,
-    const Data& data
-) {
-
-    CppAD::vector<TypeGamma> gammaScaled(data.Ngamma);
-    CppAD::vector<TypeGamma> result(1);
-    result[0] = TypeGamma(0);
-
-    for (size_t D = 0; D < data.Ngamma; ++D) {
-        size_t mapHere = data.map[D];
-
-        gammaScaled[D] = gamma[D] / latent.theta[mapHere];
-
-        result[0] += TypeGamma(latent.logTheta[mapHere])
-                      + TypeGamma(0.5* data.Qdiag[D]) * gammaScaled[D] * gammaScaled[D] ;
-    }
-
-      // Q offdiag    
-    for(size_t D = 0; D < data.Nq; D++) {
-        result[0] += gammaScaled[data.QsansDiag.i[D]] * gammaScaled[data.QsansDiag.j[D]] 
-          * TypeGamma(data.QsansDiag.x[D]);
-    }
-
-    return(result);
-}
-
-template<class Type> CppAD::vector<Type> loglikNStrata(
-const int Dstrata,
-const int Niter,
-const CppAD::vector<Type>& gamma,
-const PackedParams<double>& parameters, // gamma is ignored
-const Data& data, 
-const Config& cfg
-){
-  const size_t end = data.Nstrata < (Dstrata+Niter) ? data.Nstrata : (Dstrata+Niter);
-  CppAD::vector<Type> result(1);
-  result[0] = Type(0);
-
-  for(size_t Diter=Dstrata; Diter < end; ++Diter ) {
-    result[0] += loglikOneStrata(Dstrata, gamma, parameters, data, cfg)[0];
-  }
-  return(result);
-}
 
 
 //' @export
@@ -92,6 +25,7 @@ double objectiveFunctionNoDiff(
   auto latent = unpack_params(parameters, data, cfg);
 
   std::vector<double> loglik(cfg.num_threads);
+  std::vector<double> Qpart(cfg.num_threads);
   CppAD::vector<double> gammaScaled(data.Ngamma);
 
 
@@ -101,12 +35,11 @@ double objectiveFunctionNoDiff(
   { 
 
     const int tid=omp_get_thread_num();
-    loglik[tid] = double(0.0);
+    double loglikT = double(0.0), QpartT=double(0.0);
 
     #pragma omp for nowait
     for (size_t Dstrata = 0; Dstrata < data.Nstrata; Dstrata++) {
-
-      loglik[tid] += loglikOneStrata<double>(
+      loglikT += loglikOneStrata<double>(
         Dstrata,
         latent.gamma,
         latent,
@@ -121,21 +54,30 @@ double objectiveFunctionNoDiff(
         size_t mapHere = data.map[D];
 
         gammaScaled[D] = latent.gamma[D] / latent.theta[mapHere];
-        loglik[tid] += latent.logTheta[mapHere] +
-          0.5*gammaScaled[D]*gammaScaled[D]*data.Qdiag[D];
+        QpartT += latent.logTheta[mapHere] +
+        0.5*gammaScaled[D]*gammaScaled[D]*data.Qdiag[D];
       }
+      loglik[tid] = loglikT;      
+      Qpart[tid] = QpartT;
   } // end parallel block
 
 
-  double result=0.0;
+  double resultL=0.0, resultQ = 0.0;
   for(size_t D=0;D<loglik.size();D++) {
-    result += loglik[D];
+    resultL += loglik[D];
+    resultQ += Qpart[D];
   }
+  double result = -resultL + resultQ;
+
+
+
 
   // Q offdiag    
-      for(size_t D = 0; D < data.Nq; D++) {
-        result += gammaScaled[data.QsansDiag.i[D]] * gammaScaled[data.QsansDiag.j[D]] * data.QsansDiag.x[D];
-    }
+  for(size_t D = 0; D < data.Nq; D++) {
+    result += gammaScaled[data.QsansDiag.i[D]] * gammaScaled[data.QsansDiag.j[D]] * data.QsansDiag.x[D];
+  }
+  if (cfg.verbose ) Rcpp::Rcout << "L " << resultL << " Q " << resultQ << 
+    " total " << result << "\n";
 
   return result;
 }
@@ -155,11 +97,12 @@ Rcpp::NumericVector objectiveFunctionGrad(
   const PackedParams<double> parameters_extra = unpack_params(parameters, data, cfg);
 
   CppAD::vector<CppAD::vector<double>>  grad_local(cfg.num_threads);
+
   for(size_t D=0;D<cfg.num_threads;D++) {
     grad_local[D].resize(parameters_extra.Ngamma);
   }
 
-  if(cfg.verbose) Rcpp::Rcout << "Ngamma " << parameters_extra.Ngamma << " starting parallel " << cfg.num_threads << " threads\n";
+  if(cfg.verbose) Rcpp::Rcout << "Ngamma " << parameters_extra.Ngamma << " Nstrata " << data.Nstrata << " starting parallel " << cfg.num_threads << " threads\n";
 
   omp_set_num_threads(cfg.num_threads);
 
@@ -170,14 +113,15 @@ Rcpp::NumericVector objectiveFunctionGrad(
     );
 
       #pragma omp parallel
-  { 
+  {
 
     const int tid=omp_get_thread_num();
 
     CppAD::vector<CppAD::AD<double>> ad_paramsT(parameters_extra.Ngamma);
     CppAD::vector<double> x_valT(parameters_extra.Ngamma);
     CppAD::vector<double> grad_localT(parameters_extra.Ngamma);
-    CppAD::vector<double> w(1); w[0] = 1.0;   
+    CppAD::vector<double> wT({1.0});   
+
 
     for (size_t D = 0; D < parameters_extra.Ngamma; D++ ) {
       const double g = parameters_extra.gamma[D];
@@ -186,15 +130,16 @@ Rcpp::NumericVector objectiveFunctionGrad(
       grad_localT[D]=0;
     }
 
-   #pragma omp for 
-    for (size_t Dstrata = 0; Dstrata < data.Nstrata;
-      Dstrata+= cfg.strataPerIter) {
-
+   #pragma omp for nowait
+    for (size_t DstrataOuter = 0; 
+      DstrataOuter < data.Nstrata; 
+      DstrataOuter += cfg.strataPerIter
+      )     {
 
     CppAD::Independent(ad_paramsT);  // Tell CppAD these are inputs for differentiation
 
     auto yvalT = loglikNStrata<CppAD::AD<double>>(
-      Dstrata,
+      DstrataOuter,
       cfg.strataPerIter,
       ad_paramsT,
       parameters_extra,
@@ -202,24 +147,24 @@ Rcpp::NumericVector objectiveFunctionGrad(
       cfg
       );
 
-    auto funT = CppAD::ADFun<double>(ad_paramsT, yvalT );
-    funT.optimize();
-    funT.Forward(0, x_valT);   
-    auto grad_resultT = funT.Reverse(1, w); 
+    CppAD::ADFun<double> funT(ad_paramsT, yvalT);
+    CppAD::vector<double> y0 = funT.Forward(0, x_valT);
+    auto grad_resultT = funT.Reverse(1, wT); 
 
-    for(size_t Dparam = 0; Dparam < parameters_extra.Ngamma; Dparam++) {
-      grad_localT[Dparam] += grad_resultT[Dparam];
-    }
+      for(size_t Dparam = 0; Dparam < parameters_extra.Ngamma; Dparam++) {
+        grad_localT[Dparam] += grad_resultT[Dparam];
+      }
+  } // DstrataOuter
 
-  } // Dstrata
 
-   for(size_t Dparam = 0; Dparam < parameters_extra.Ngamma; Dparam++) {
-      grad_local[tid][Dparam] = grad_localT[Dparam];
+
+  for(size_t Dparam = 0; Dparam < parameters_extra.Ngamma; Dparam++) {
+    grad_local[tid][Dparam] = grad_localT[Dparam];
   }
+
   } // end parallel block
 
   if(cfg.verbose) Rcpp::Rcout << "done parallel\n";
-
 
   Rcpp::NumericVector grad_total(parameters_extra.Ngamma);
   for(size_t Dparam = 0; Dparam < parameters_extra.Ngamma; ++Dparam){
@@ -227,29 +172,32 @@ Rcpp::NumericVector objectiveFunctionGrad(
     for(size_t Dthread=0; Dthread < cfg.num_threads; ++Dthread) {
       acc += grad_local[Dthread][Dparam];
     }
-    grad_total[Dparam] = acc;
+    grad_total[Dparam] = - acc;
   }
 
-// Q 
+
+  if(cfg.verbose) Rcpp::Rcout << "gl " << grad_local[0][0] <<  " d0 " << grad_total[0] << " d1 " << grad_total[1] << "\n";
+
+// Q , put this in parallel?
   CppAD::vector<CppAD::AD<double>> ad_params(parameters_extra.Ngamma);
   CppAD::vector<double> x_val(parameters_extra.Ngamma);
+  CppAD::vector<double> w({1.0});   
 
   for (size_t D = 0; D < parameters_extra.Ngamma; D++) {
-      const double g = parameters_extra.gamma[D];
-      ad_params[D] = g;
-      x_val[D] = g;
+    const double g = parameters_extra.gamma[D];
+    ad_params[D] = g;
+    x_val[D] = g;
   }
 
 
   CppAD::Independent(ad_params);  
-  auto yvec = loglikQ(ad_params,  parameters_extra, data); 
-
+  auto yvec = loglikQ(ad_params,  parameters_extra, data);
   auto funQ = CppAD::ADFun<double>(ad_params, yvec);
-  funQ.optimize();
-  auto grad = funQ.Jacobian(x_val);
+  funQ.Forward(0, x_val);   
+  auto gradQ= funQ.Reverse(1, w); 
 
   for(size_t Dparam = 0; Dparam < parameters_extra.Ngamma; Dparam++) {
-    grad_total[Dparam] += grad[Dparam];
+    grad_total[Dparam] += gradQ[Dparam];
   }
 
   return grad_total;
@@ -374,199 +322,18 @@ Rcpp::List objectiveFunctionHessian(
 
 } //parallel
 
-  if (config.verbose ) Rcpp::Rcout << "done parallel\n";
+if (config.verbose ) Rcpp::Rcout << "done parallel\n";
 
 
-  Rcpp::List resultList = Rcpp::List::create(
-    Rcpp::Named("diag") = Rcpp::wrap(resultDiag),
-    Rcpp::Named("off_diag") = Rcpp::wrap(resultOffDiag),
-    Rcpp::Named("colSum") = Rcpp::wrap(resultColSum),
-        Rcpp::Named("test") = Rcpp::wrap(diagTest)
-    );
-  return(resultList);
+Rcpp::List resultList = Rcpp::List::create(
+  Rcpp::Named("diag") = Rcpp::wrap(resultDiag),
+  Rcpp::Named("off_diag") = Rcpp::wrap(resultOffDiag),
+  Rcpp::Named("colSum") = Rcpp::wrap(resultColSum),
+  Rcpp::Named("test") = Rcpp::wrap(diagTest)
+  );
+return(resultList);
 }
 
-//' @export
-// [[Rcpp::export]]
-Rcpp::List objectiveFunctionHessian2(
-  Rcpp::NumericVector parameters, 
-  Rcpp::List dataList, 
-  Rcpp::List configList
-  ) {
-
-
-  const Data   data(dataList);
-  const Config cfg(configList);
-  const PackedParams<double> parameters_extra = unpack_params(parameters, data, cfg);
-
-  const Rcpp::List sparsity = cfg.sparsity;
-  const Rcpp::List pairs = sparsity["random"];
-  auto pairsi = get_intvec_copy(pairs, "i");
-  auto pairsj = get_intvec_copy(pairs, "j");
-  auto pairsp = get_intvec_copy(pairs, "p");
-  auto jForDiag = get_intvec_copy(pairs, "jNoOffDiag");
-  auto Npairs = pairsj.size();
-  auto NoffDiag = pairsi.size();
-
-
-  CppAD::vector<CppAD::vector<double>>  local(cfg.num_threads);
-  CppAD::vector<CppAD::vector<double>>  localOffdiag(cfg.num_threads);
-
-  for(size_t D=0;D<cfg.num_threads;D++) {
-    local[D].resize(parameters_extra.Ngamma);
-    localOffdiag[D].resize(NoffDiag);
-  }
-
-  omp_set_num_threads(cfg.num_threads);
-
-  CppAD::thread_alloc::parallel_setup(
-    cfg.num_threads,
-    [](){ return in_parallel_wrapper(); },
-    [](){ return static_cast<size_t>(thread_num_wrapper()); }
-    );
-
-
-// diagonals
-      #pragma omp parallel
- { 
-
-    const int tid=omp_get_thread_num();
-
-    CppAD::vector<CppAD::AD<double>> ad_paramsT(parameters_extra.Ngamma);
-    CppAD::vector<double> x_valT(parameters_extra.Ngamma);
-    CppAD::vector<double> localT(parameters_extra.Ngamma);
-    CppAD::vector<double> localOffdiagT(NoffDiag);
-    CppAD::vector<double> w(1); w[0] = 1.0;   
-    CppAD::vector<double> u(parameters_extra.Ngamma, 0.0);
-
-    // pattern for the diagonals
-    std::vector<std::set<size_t>> p(parameters_extra.Ngamma);
-    std::vector<size_t> row(parameters_extra.Ngamma), col(parameters_extra.Ngamma);
-
-    for(size_t j=0; j<parameters_extra.Ngamma; ++j) {
-      p[j].insert(j);
-      row[j]=j;
-      col[j]=j;
-    }
-    CppAD::sparse_hessian_work work; 
-    CppAD::vector<double> hes(parameters_extra.Ngamma);
-
-    for (size_t D = 0; D < parameters_extra.Ngamma; ++D) {
-      const double g = parameters_extra.gamma[D];
-      ad_paramsT[D] = g;
-      x_valT[D] = g;
-      localT[D]=0;
-    }
-    for (size_t D = 0; D < NoffDiag; ++D) {
-      localOffdiagT[D]=0;
-    }
-
-
-   #pragma omp for 
-    for (size_t Dstrata = 0; Dstrata < data.Nstrata; Dstrata++) {
-
-
-    CppAD::Independent(ad_paramsT);  // Tell CppAD these are inputs for differentiation
-
-    auto yvalT = loglikOneStrata<CppAD::AD<double>>(
-      Dstrata,
-      ad_paramsT,
-      parameters_extra,
-      data, 
-      cfg
-      );
-
-    auto funT = CppAD::ADFun<double>(ad_paramsT, yvalT );
-    funT.optimize();
-    work.clear();
-    size_t count=funT.SparseHessian(x_valT, w, p, row, col, hes, work);
-
-    for(size_t Dparam = 0; Dparam < parameters_extra.Ngamma; Dparam++) {
-      localT[Dparam] += hes[Dparam];
-    }
-
-    // off diagonals
-    funT.Forward(0, x_valT);   
-    for(size_t Doffdiag=0; Doffdiag < Npairs; ++Doffdiag) {
-        u[pairsj[Doffdiag]] = 1;
-        funT.Forward(1, u);
-        auto resultT = funT.Reverse(2, u); 
-        u[pairsj[Doffdiag]] = 0;
-        auto pairsEnd = pairsp[Doffdiag+1];
-        for(size_t Di=pairsp[Doffdiag];Di<pairsEnd;Di++) {
-          localOffdiagT[Di] += resultT[2*pairsi[Di]+1];
-        }
-
-    }
-
-
-  } // Dstrata
-
-   for(size_t Dparam = 0; Dparam < parameters_extra.Ngamma; Dparam++) {
-      local[tid][Dparam] = localT[Dparam];
-  }
-   for(size_t Dparam = 0; Dparam < NoffDiag; Dparam++) {
-      localOffdiag[tid][Dparam] = localOffdiagT[Dparam];
-  }
-
-
-
-} // parallel
-
- if(cfg.verbose) Rcpp::Rcout << "done parallel\n";
-
-
-  Rcpp::NumericVector diag_total(parameters_extra.Ngamma);
-  for(size_t Dparam = 0; Dparam < parameters_extra.Ngamma; ++Dparam){
-    double acc = 0.0;
-    for(size_t Dthread=0; Dthread < cfg.num_threads; ++Dthread) {
-      acc += local[Dthread][Dparam];
-    }
-    diag_total[Dparam] = acc;
-  }
-
-  Rcpp::NumericVector off_diag_total(NoffDiag);
-  for(size_t Dparam = 0; Dparam < NoffDiag; ++Dparam){
-    double acc = 0.0;
-    for(size_t Dthread=0; Dthread < cfg.num_threads; ++Dthread) {
-      acc += localOffdiag[Dthread][Dparam];
-    }
-    off_diag_total[Dparam] = acc;
-  }
-
-#ifdef UNDEF
-// Q 
-  CppAD::vector<CppAD::AD<double>> ad_params(parameters_extra.Ngamma);
-  CppAD::vector<double> x_val(parameters_extra.Ngamma);
-  CppAD::vector<double> w(1); w[0] = 1.0;   
-
-  for (size_t D = 0; D < parameters_extra.Ngamma; D++) {
-      const double g = parameters_extra.gamma[D];
-      ad_params[D] = g;
-      x_val[D] = g;
-  }
-
-  CppAD::Independent(ad_params);  
-  auto yvec = loglikQ(ad_params,  parameters_extra, data); 
-
-  auto funQ = CppAD::ADFun<double>(ad_params, yvec);
-  funQ.optimize();
-  funQ.Forward(0, x_val);   
-  auto resultQ = funQ.Reverse(2, w); 
-
-  for(size_t Dparam = 0; Dparam < parameters_extra.Ngamma; Dparam++) {
-    diag_total[Dparam] += resultQ[Dparam];
-  }
-#endif
-
-
-  Rcpp::List result = Rcpp::List::create(
-    Rcpp::Named("diag") = diag_total,
-    Rcpp::Named("off_diag") = off_diag_total
-    );
-  return(result);
-
-}
 
 
 template<class Type>
@@ -582,15 +349,15 @@ CppAD::vector<Type>  objectiveFunctionInternal(
   Type loglik = Type(0);
 
 
-    for (size_t Dstrata = 0; Dstrata < data.Nstrata;  Dstrata++) {
+  for (size_t Dstrata = 0; Dstrata < data.Nstrata;  Dstrata++) {
 
-      auto etaHere = compute_eta_for_stratum(
-        Dstrata, data, latent.gamma, latent.beta);
+    auto etaHere = compute_eta_for_stratum(
+      Dstrata, data, latent.gamma, latent.beta);
 
-      auto contrib = accumulate_contrib_for_stratum<Type, Type>(
-        Dstrata, data, etaHere, latent, config);
+    auto contrib = accumulate_contrib_for_stratum<Type, Type>(
+      Dstrata, data, etaHere, latent, config);
 
-    loglik += contrib;
+    loglik += contrib[0];
 
   }
 
@@ -598,16 +365,16 @@ CppAD::vector<Type>  objectiveFunctionInternal(
 
 
 
-minusLogDens[0] =  - loglik + randomContribution[0];
+  minusLogDens[0] =  - loglik + randomContribution[0];
 
 
 #ifdef EVALCONSTANTS
-minusLogDens[0] += Ngamma * HALFLOGTWOPI;
-minusLogDens[0] -= Rcpp::as<double>(config.halfLogDetQ);
+  minusLogDens[0] += Ngamma * HALFLOGTWOPI;
+  minusLogDens[0] -= Rcpp::as<double>(config.halfLogDetQ);
 #endif
 
 
-return minusLogDens;
+  return minusLogDens;
 }
 
 

@@ -467,7 +467,7 @@ std::size_t Ntheta_base = 0u;
   if (cfg.dirichlet) {
     out.logSqrtNu           = out.logTheta[out.logTheta.size()-1] / Type(2);
     out.oneOverSqrtNu       = CppAD::exp(-out.logSqrtNu);
-    out.lgammaOneOverSqrtNu = lgamma_ad(out.oneOverSqrtNu);
+    out.lgammaOneOverSqrtNu = lgamma_any(out.oneOverSqrtNu);
   } else {
     out.logSqrtNu = Type(0);
     out.oneOverSqrtNu = Type(0);

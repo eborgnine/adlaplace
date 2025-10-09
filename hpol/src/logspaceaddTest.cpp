@@ -1,10 +1,11 @@
-#include "hpol.hpp"
+#ifdef UNDEF
 
+
+#include "hpol.hpp"
 #include <Rcpp.h>
 
 
 
-// [[Rcpp::export]]
 Rcpp::NumericMatrix logspaceadd_forward_deriv(Rcpp::NumericVector x, int order) {
     if(order < 0 || order > 4)
         Rcpp::stop("Order must be between 0 and 4");
@@ -55,7 +56,6 @@ Rcpp::NumericMatrix logspaceadd_forward_deriv(Rcpp::NumericVector x, int order) 
 }
 
 
-// [[Rcpp::export]]
 Rcpp::NumericVector logspaceadd_inbuilt_deriv(Rcpp::NumericVector x, int order) {
     size_t n = x.size();
 
@@ -179,7 +179,6 @@ CppAD::vector< CppAD::AD<double> > testAddGamma(
 }
 
 
-// [[Rcpp::export]]
 Rcpp::List testAddGammaR(
   Rcpp::NumericVector parameters
   ) {
@@ -243,3 +242,5 @@ Rcpp::List testAddGammaR(
 
   return result;
 }
+
+#endif

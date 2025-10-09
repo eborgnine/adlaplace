@@ -3,11 +3,16 @@
 #ifndef HPOL_HELPERS_HPP
 #define HPOL_HELPERS_HPP
 
+#include"lgamma.hpp"
 
-#include"hpol.hpp"
+
+
+//#include"hpol.hpp"
 template <class Type>
 Type stable_logsumexp(const CppAD::vector<Type>& eta) {
     // compute log(sum(exp(eta)))
+
+
 
     // find index of maximum
     size_t max_idx = 0;
@@ -27,11 +32,16 @@ Type stable_logsumexp(const CppAD::vector<Type>& eta) {
 
     // sum exp differences
     Type sumexp = Type(0);
+    Type max_valueT = Type(max_value);
+
     for (size_t Deta = 0; Deta < eta.size(); ++Deta) {
-        sumexp += CppAD::exp(eta[Deta] - max_value);
+        sumexp += CppAD::exp(eta[Deta] - max_valueT);
     }
 
-    return Type(max_value) + CppAD::log(sumexp);
+    Type logSum = CppAD::log(sumexp);
+    Type result = logSum + max_valueT;
+
+    return(result);
 }
 
 
@@ -65,7 +75,7 @@ CppAD::vector<GammaT> compute_eta_for_stratum(size_t Dstrata,
     const int p0a = data.A.p[Deta];
     const int p1a = data.A.p[Deta + 1];
     for (int t = p0a; t < p1a; ++t) {
-      accGamma += data.A.x[t] * gamma[data.A.i[t]];
+      accGamma += GammaT(data.A.x[t]) * gamma[data.A.i[t]];
     }
 
     etaHere[j] = GammaT(accBeta) + accGamma;
@@ -78,7 +88,7 @@ CppAD::vector<GammaT> compute_eta_for_stratum(size_t Dstrata,
 // - ParamsT: provides logSqrtNu and (optionally) other constants; e.g. PackedParams<double>
 // Returns {contrib, sumY}
 template <class Out, class ParamsT>
-Out accumulate_contrib_for_stratum(size_t Dstrata,
+CppAD::vector<Out> accumulate_contrib_for_stratum(size_t Dstrata,
                                const Data& data,
                                const CppAD::vector<Out>& etaHere, // length = NinStrata
                                const PackedParams<ParamsT>& params,
@@ -93,38 +103,114 @@ Out accumulate_contrib_for_stratum(size_t Dstrata,
 
   Out   contrib = Out(0);
   int   sumY    = 0;
+  CppAD::vector<Out> result(1);
 
-  if (NinStrata == 0) return contrib;
+  if (NinStrata == 0) {
+    result[0] = contrib;
+    return(result);
+  }
 
   // normalize to get probabilities
-  Out etaLogSum = stable_logsumexp(etaHere);
+  Out etaLogSum = stable_logsumexp<Out>(etaHere);
+
 
   for (size_t j = 0, k = startHere; j < NinStrata; ++j, ++k) {
     const size_t idx = static_cast<size_t>(data.CC.i[k]);
+    const auto yhere = data.y[idx];
+    Out yOut = Out(yhere);
 
-    sumY += static_cast<int>(data.y[idx]);
+    sumY += yhere;
 
     const Out etaMinusLogSumMu = etaHere[j] - etaLogSum;
-    const Out muBarDivSqrtNu   = exp(etaMinusLogSumMu - Out(params.logSqrtNu));
+    const Out muBarDivSqrtNu   = cfg.dirichlet ?  CppAD::exp(etaMinusLogSumMu - Out(params.logSqrtNu)):0;
 
     if (cfg.dirichlet) {
-      contrib += lgamma_ad( Out(data.y[idx]) + muBarDivSqrtNu )
-               - lgamma_ad( muBarDivSqrtNu );
+      contrib += lgamma_any<Out>(yOut + muBarDivSqrtNu) - lgamma_any<Out>(muBarDivSqrtNu);
     } else {
-      contrib += Out(data.y[idx]) * etaMinusLogSumMu;
+      contrib += yOut * etaMinusLogSumMu;
     }
-
 #ifdef EVALCONSTANTS
-    contrib -= lgamma(static_cast<double>(data.y[idx]) + 1.0);
+    contrib -= Out(lgamma_any<Out>(static_cast<double>(data.y[idx]) + 1.0));
 #endif
   }
 
 if (cfg.dirichlet) {
-  ParamsT dirichletContrib = params.lgammaOneOverSqrtNu - lgamma_ad(params.oneOverSqrtNu + ParamsT(sumY));
+  ParamsT dirichletContrib = ParamsT(params.lgammaOneOverSqrtNu) - 
+    lgamma_any<ParamsT>(params.oneOverSqrtNu + sumY);
   contrib += Out(dirichletContrib);
 }
 
-  return contrib;
+  result[0] = contrib;
+  return result;
+}
+
+
+template<class Type> CppAD::vector<Type> loglikOneStrata(
+const int Dstrata,
+const CppAD::vector<Type>& gamma,
+const PackedParams<double>& parameters, // gamma is ignored
+const Data& data, 
+const Config& cfg
+){
+
+
+  auto etaHere = compute_eta_for_stratum<Type, double>(
+    Dstrata, data, gamma, parameters.beta);
+
+  auto contrib = accumulate_contrib_for_stratum<Type, double>(
+    Dstrata, data, etaHere, parameters, cfg
+    );
+
+  return(contrib);
+}
+
+template<class Type> CppAD::vector<Type> loglikNStrata(
+const int Dstrata,
+const int Niter,
+const CppAD::vector<Type>& gamma,
+const PackedParams<double>& parameters, // gamma is ignored
+const Data& data, 
+const Config& cfg
+){
+  const size_t end = data.Nstrata < (Dstrata+Niter) ? data.Nstrata : (Dstrata+Niter);
+  CppAD::vector<Type> result(1);
+  result[0] = Type(0);
+
+  for(size_t Diter=Dstrata; Diter < end; ++Diter ) {
+    result[0] += loglikOneStrata(Diter, gamma, parameters, data, cfg)[0];
+  }
+  return(result);
+}
+
+
+// Compute scaled gamma values and accumulate log-likelihood contribution
+template <class TypeGamma, class TypeTheta>
+CppAD::vector<TypeGamma>  loglikQ(
+    const CppAD::vector<TypeGamma>& gamma,  
+    const PackedParams<TypeTheta>& latent,
+    const Data& data
+) {
+
+    CppAD::vector<TypeGamma> gammaScaled(data.Ngamma);
+    CppAD::vector<TypeGamma> result(1);
+    result[0] = TypeGamma(0);
+
+    for (size_t D = 0; D < data.Ngamma; ++D) {
+        size_t mapHere = data.map[D];
+
+        gammaScaled[D] = gamma[D] / latent.theta[mapHere];
+
+        result[0] += TypeGamma(latent.logTheta[mapHere])
+                      + TypeGamma(0.5* data.Qdiag[D]) * gammaScaled[D] * gammaScaled[D] ;
+    }
+
+      // Q offdiag    
+    for(size_t D = 0; D < data.Nq; D++) {
+        result[0] += gammaScaled[data.QsansDiag.i[D]] * gammaScaled[data.QsansDiag.j[D]] 
+          * TypeGamma(data.QsansDiag.x[D]);
+    }
+
+    return(result);
 }
 
 

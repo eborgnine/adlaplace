@@ -72,7 +72,6 @@ thirdDeriv = function(x, data, config) {
 # might be some duplicated
   nonDiagUnique = t(apply(thirdNonDiag[,c('i','j','k')], 1, sort))  
   thirdNonDiag = thirdNonDiag[!duplicated(nonDiagUnique), ]
-# thirdNonDiag[apply(thirdNonDiag[,c('i','j','k')], 1, function(xx) all(xx %in% (c(2,3,4)-1))),]       
 
 
   theCols = c('i','j','k', 'x')
@@ -98,7 +97,8 @@ thirdDeriv = function(x, data, config) {
 
   dHlist = mapply(
   	function(Tijk, dUp, Sgamma1) {
-  		There = as(Tijk[Sgamma1,Sgamma1], 'TsparseMatrix')
+      if(is.null(Tijk)) return(NULL)
+  		There =try( as(Tijk[Sgamma1,Sgamma1], 'TsparseMatrix'))
   		cbind(j=There@i, i=There@j, outer(There@x, dUp))
   	},
   	Tijk = thirdList[Sgamma1],

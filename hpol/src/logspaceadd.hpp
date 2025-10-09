@@ -1,5 +1,7 @@
-#ifndef LOGSPACE_ADD_HPP
-#define LOGSPACE_ADD_HPP
+#ifdef UNDEF
+
+//#ifndef LOGSPACE_ADD_HPP
+//#define LOGSPACE_ADD_HPP
 
 #include <cppad/cppad.hpp>
 

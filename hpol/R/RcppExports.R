@@ -37,32 +37,7 @@ objectiveFunctionHessian <- function(parameters, dataList, configList) {
 }
 
 #' @export
-objectiveFunctionHessian2 <- function(parameters, dataList, configList) {
-    .Call('_hpolcc_objectiveFunctionHessian2', PACKAGE = 'hpolcc', parameters, dataList, configList)
-}
-
-#' @export
 objectiveFunctionC <- function(parameters, dataList, configList) {
     .Call('_hpolcc_objectiveFunctionC', PACKAGE = 'hpolcc', parameters, dataList, configList)
-}
-
-lgamma_forward_deriv <- function(x, order) {
-    .Call('_hpolcc_lgamma_forward_deriv', PACKAGE = 'hpolcc', x, order)
-}
-
-lgamma_reverse_deriv <- function(x, order) {
-    .Call('_hpolcc_lgamma_reverse_deriv', PACKAGE = 'hpolcc', x, order)
-}
-
-logspaceadd_forward_deriv <- function(x, order) {
-    .Call('_hpolcc_logspaceadd_forward_deriv', PACKAGE = 'hpolcc', x, order)
-}
-
-logspaceadd_inbuilt_deriv <- function(x, order) {
-    .Call('_hpolcc_logspaceadd_inbuilt_deriv', PACKAGE = 'hpolcc', x, order)
-}
-
-testAddGammaR <- function(parameters) {
-    .Call('_hpolcc_testAddGammaR', PACKAGE = 'hpolcc', parameters)
 }
 

@@ -224,7 +224,7 @@ hnlm <- function(formula,
   )
   if(identical(config$verbose, TRUE)) cat("getting sparsity.. ")
   config$sparsity = sparsity_pattern(
-      start_parameters, fitD$tmb_data, config)
+      start_parameters, tmb_data, config)
   if(identical(config$verbose, TRUE)) cat("done\n")
 
   if (for_dev)

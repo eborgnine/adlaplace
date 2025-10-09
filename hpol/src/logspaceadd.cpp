@@ -1,3 +1,5 @@
+#ifdef UNDEF
+
 #include "logspaceadd.hpp"
 #include <Rcpp.h>
 
@@ -270,4 +272,4 @@ Type logspace_add_n(const CppAD::vector<Type>& x) {
 
 // Explicit instantiation for AD<double> and AD<AD<double>> if you want:
 template CppAD::AD<double> logspace_add_n(const CppAD::vector<CppAD::AD<double>>&);
-
+#endif

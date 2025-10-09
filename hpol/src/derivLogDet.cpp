@@ -4,7 +4,6 @@
 //#define DEBUG
 
 
-
 //' @export
 // [[Rcpp::export]]
 Rcpp::List test3(Rcpp::NumericVector X, Rcpp::NumericVector U, Rcpp::NumericVector V, Rcpp::NumericVector W){

@@ -73,7 +73,6 @@ dataMedSimple =
 #    & deaths$ecoRegion %in% 2:6 #setdiff(1:20, c(1,7,19)) # regions 1, 7, 19 have some very low temperatures.
     , ]
 save(dataMedSimple, file='dataMedSimple.RData')
-# load("dataMedSimple.RData")
 ```
 
 
@@ -85,6 +84,8 @@ save(dataMedSimple, file='dataMedSimple.RData')
 
 
 library('hpolcc')
+# load("dataMedSimple.RData")
+
 
 fitD <- hpolcc::hnlm(
   formula= medical ~ #f(date, model='iid') +
@@ -95,10 +96,11 @@ fitD <- hpolcc::hnlm(
       knots = seq(0, 45, by=5), 
     group_var = ecoRegion), 
   data=dataMedSimple[dataMedSimple$ecoRegion < 7,],
-  dirichlet= TRUE,
+  dirichlet= FALSE,#TRUE,
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
   for_dev=TRUE, verbose=FALSE
   )
+rm(dataMedSimple)
 
   parameters = c(
     0.0, 0.01, # beta (slope, quadratic) 
@@ -134,94 +136,22 @@ fitD$config$transform_theta = TRUE
 
 library('hpolcc')
 
-config$beta = parameters[1:Nbeta]
-config$theta = parameters[-(1:Nbeta)]
-x=c(parameters[1:Nbeta], gamma_start, parameters[-(1:Nbeta)])
-
 config$verbose=FALSE
-    configS = configD = config
-    configS$dense = FALSE
-configS$num_threads = 10
+config$num_threads = 10
 
-configS$sparsity = sparsity_pattern(
-      x, fitD$tmb_data, configS)
-
-configS$verbose = FALSE
-configS$dense = FALSE
-
-      control=list(maxit=1000, start.trust.radius = 1, prec=1e-9, stop.trust.radius = 1e-15,
-        cg.tol = 1e-9,
-      report.level=3, report.freq=1)
-config = configS
 config$strataPerIter = 100
 
-system.time(bob <- objectiveFunctionHessian(gamma_start, fitD$tmb_data, 
-  c(configS[setdiff(names(configS), 'num_threads')], list(num_threads=10))))
-bob$colSumM = matrix(bob$colSum, nrow=2)  
-str(bob)
-
-# in pairs or did diagonal with forward2
-hesDfPairs = data.frame(
-  j = configS$sparsity$random$jLong,
-  i = configS$sparsity$random$i,
-  x = bob$off_diag)
-hesDfDiag = data.frame(
-  j = c(configS$sparsity$random$SjNotPairOrDiag, configS$sparsity$random$onesJ),
-  x = c(bob$colSum[1+2*configS$sparsity$random$SjNotPairOrDiag], bob$diag)
-  )
-hesDfDiag$i = hesDfDiag$j
-
-hesDfAll1 = rbind(hesDfPairs, hesDfDiag[,names(hesDfPairs)])
-
-hessianR1 = Matrix::sparseMatrix(
-  i = pmax(hesDfAll1$i, hesDfAll1$j),
-  j = pmin(hesDfAll1$i, hesDfAll1$j),
-  x = hesDfAll1$x,
-  index1=FALSE, symmetric=TRUE,
-  dims = c(Ngamma, Ngamma)
-  )
-
-# elements with one necessary off-diagonal, the diagonal j was computed with forward 2
-hesDfOnes = data.frame(
-  j = configS$sparsity$random$onesJ,
-  i = configS$sparsity$random$onesI,  # M[1, 1+configS$sparsity$random$onesJ] 
-  x= bob$colSum[1+2*configS$sparsity$random$onesJ]- apply(hessianR1[, 1+configS$sparsity$random$onesJ], 2, sum)
-  )
-
-hesDfAll2 = rbind(hesDfAll1, hesDfOnes[,names(hesDfAll1)])
-hessianR2 = Matrix::sparseMatrix(
-  i = pmax(hesDfAll2$i, hesDfAll2$j),
-  j = pmin(hesDfAll2$i, hesDfAll2$j),
-  x = hesDfAll2$x,
-  index1=FALSE, symmetric=TRUE
-  )
-
-# needed one more off-diagonal but diagonal wasn't computed.  
-hesDfInotJ = data.frame(
-  i = configS$sparsity$random$SiNotJ, j=configS$sparsity$random$SiNotJ,
-  x = bob$colSum[1+2*configS$sparsity$random$SiNotJ] - apply(hessianR2[, 1+configS$sparsity$random$SiNotJ], 2, sum)
-  )
-
-hesDfAll = rbind(hesDfAll2, hesDfInotJ[,names(hesDfAll2)])
-hessianR = Matrix::sparseMatrix(
-  i = pmax(hesDfAll$i, hesDfAll$j), 
-  j = pmin(hesDfAll$i, hesDfAll$j),
-  x = hesDfAll$x,
-  index1=FALSE, symmetric=TRUE
-  )
 
 
+resultS1 <- loglik(parameters, 
+             gamma_start, 
+             data=fitD$tmb_data, 
+    config = config,
+      control=list(maxit=1000, start.trust.radius = 1, prec=1e-9, stop.trust.radius = 1e-15,
+        cg.tol = 1e-9,
+      report.level=4, report.freq=1)
+      )
 
-system.time(resThirdDiag <- thirdDiagonals(
-    x, fitD$tmb_data, c(configS[setdiff(names(configS), 'dense')], list(dense=TRUE))
-  ) 
-  )
-Sgamma1 = seq(Nbeta+1, len=Ngamma)
-hessian3 = as(
-    Matrix::forceSymmetric(Matrix::Matrix(resThirdDiag$second, sparse=TRUE)),
-    'TsparseMatrix')[Sgamma1, Sgamma1]
-
-range((hessiandiff <- abs(hessian3 - hessianR)))
 
 ```
 
@@ -235,21 +165,20 @@ range((hessiandiff <- abs(hessian3 - hessianR)))
 
 
 ```{r someoldstuff}
-configS$maxDeriv=0
-hpolcc:::objectiveFunctionC(c(parameters[1:Nbeta], gamma_start, parameters[-(1:Nbeta)]), 
-  fitD$tmb_data, configS)
 
 
-resultS1 <- loglik(parameters, 
-             gamma_start, 
-             data=fitD$tmb_data, 
-    config = configS,
-      control=list(maxit=1000, start.trust.radius = 0.1, prec=1e-12, stop.trust.radius = 1e-12,
-        cg.tol = 1e-12,
-      report.level=3, report.freq=1)
-      )
+mle =   # inner opt
+    trustOptim::trust.optim(
+    x = parameters,
+    fn = wrappers_outer$fn,
+    gr = wrappers_outer$gr,
+    method = 'BFGS',
+    control = control,
+    data=fitD$tmb_data, config = config, cache =  new.env(), controlInner = control
+  )
 
-outer_cache_env <- new.env()
+
+
 outer_cache_env$data = data
 outer_cache_env$control=list(maxit=1000, start.trust.radius = 0.1, prec=1e-12, stop.trust.radius = 1e-12,
         cg.tol = 1e-12,
