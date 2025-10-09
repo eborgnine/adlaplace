@@ -95,12 +95,12 @@ fitD <- hpolcc::hnlm(
     f(tempClean, model='hiwp',ref_value = 20, p=3, 
       knots = seq(0, 45, by=5), 
     group_var = ecoRegion), 
-  data=dataMedSimple[dataMedSimple$ecoRegion < 7,],
+  data=dataMedSimple, #[dataMedSimple$ecoRegion < 7,],
   dirichlet= FALSE,#TRUE,
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
   for_dev=TRUE, verbose=FALSE
   )
-rm(dataMedSimple)
+#rm(dataMedSimple)
 
   parameters = c(
     0.0, 0.01, # beta (slope, quadratic) 
@@ -137,7 +137,7 @@ fitD$config$transform_theta = TRUE
 library('hpolcc')
 
 config$verbose=FALSE
-config$num_threads = 10
+config$num_threads =  parallel::detectCores()
 
 config$strataPerIter = 100
 
@@ -164,13 +164,20 @@ resultS1 <- loglik(parameters,
 
 
 
-```{r someoldstuff}
+```{r mLE}
 
       control=list(maxit=1000, start.trust.radius = 1, prec=1e-9, stop.trust.radius = 1e-15,
-        cg.tol = 1e-9,
-      report.level=4, report.freq=1)
+        cg.tol = 1e-9, report.precision=7,
+      report.level=4, report.freq=1, report.header.freq=1)
 controlInner = control
-controlInner$report.freq=10
+controlInner$report.level=3
+controlInner$report.freq=20
+controlInner$report.header.freq=100
+controlInner$report.precision = 5
+
+config$verbose=FALSE
+config$num_threads =  parallel::detectCores()
+config$strataPerIter = 500
 
 mle =   # inner opt
     trustOptim::trust.optim(
@@ -181,51 +188,6 @@ mle =   # inner opt
     control = control,
     data=fitD$tmb_data, config = config, cache =  new.env(), controlInner = controlInner
   )
-
-
-
-outer_cache_env$data = data
-outer_cache_env$control=list(maxit=1000, start.trust.radius = 0.1, prec=1e-12, stop.trust.radius = 1e-12,
-        cg.tol = 1e-12,
-      report.level=3, report.freq=1)
-
-outer_cache_env$gamma_start = resultS$solution
-outer_cache_env$config = resultS1$config
-outer_cache_env$wrappers_gamma = resultS1$wrappers
-
-get_outer_result = function(x, deriv) {
-
-  res = hpolcc::loglik(x, 
-    gamma_start = gamma_start, 
-    data= data, config=config,
-    control= control, deriv = deriv)
-
-  outer_cache_env$gamma_start <- res$solution
-  res[c('minusLogLik','deriv')]
-}
-
-
-environment(get_outer_result) = outer_cache_env
-assign("get_outer_result", get_outer_result, envir = outer_cache_env)  # optional, for clarity
-
-wrappers_env = new.env()
-wrappers_env$get_outer_result = get_outer_result
-
-wrappers_outer = list(
-  value = function(x) {
-    get_outer_result(x,deriv=0)$minusLogLik
-    },
-  grad = function(x) {
-    get_outer_result(x,deriv=1)$deriv
-  }
-  )
-
-environment(wrappers_outer$value) = outer_cache_env
-environment(wrappers_outer$grad) = outer_cache_env
-
-wrappers_outer$value(parameters)
-
-
 
 
 
