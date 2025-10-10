@@ -130,7 +130,7 @@ Rcpp::List thirdDiagonals(
   {
  // set up autodiff function
 
-        const int tid=omp_get_thread_num();
+//        const int tid=omp_get_thread_num();
 
 
   std::vector<double> y_val(1);

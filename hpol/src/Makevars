@@ -3,36 +3,68 @@
 UNAME_S := $(shell uname -s)
 UNAME_M := $(shell uname -m)
 
-
-# ---- CppAD include path (adjust if needed)
-CPPADINC =
+# -----------------------------------------------------------------------
+# === macOS with Homebrew LLVM & libomp =================================
+# -----------------------------------------------------------------------
 ifeq ($(UNAME_S),Darwin)
-  CPPADINC = -I$(shell brew --prefix)/include
+    HB := $(shell brew --prefix)
+
+    CC   = $(HB)/opt/llvm/bin/clang
+    CXX  = $(HB)/opt/llvm/bin/clang++
+
+    # R already defines SHLIB_OPENMP_* = -fopenmp on this setup
+    OMPINC = -I$(HB)/opt/libomp/include
+
+    CPPADINC = -I$(HB)/include
+
+    # Only Intel-Mac needs an SDKROOT flag
+    ifeq ($(UNAME_M),x86_64)
+        SDKROOT := /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk
+        PKG_CPPFLAGS += -isysroot $(SDKROOT)
+        CXXFLAGS     += -isysroot $(SDKROOT)
+    endif
+
+# -----------------------------------------------------------------------
+# === Linux: choose Intel oneAPI if icpx is present =====================
+# -----------------------------------------------------------------------
 else
-  CPPADINC = -I/usr/include/cppad
+    ifneq ($(shell which icpx 2>/dev/null),)
+        CC  = icx
+        CXX = icpx
+        # oneAPI: R sets SHLIB_OPENMP_* = -qopenmp
+        # Add the explicit runtime lib to be safe
+        OMPLIB = -liomp5
+    else
+        # GCC / Clang on Linux
+        # SHLIB_OPENMP_* expands to -fopenmp here
+    endif
+
+    CPPADINC = -I/usr/include/cppad
+    CPPADLIB = -lcppad_lib
 endif
 
-
-# ---- Add include flags
-PKG_CPPFLAGS += $(CPPADINC)
-
-# ---- Let R supply the OpenMP flags; they resolve to:
-# macOS (clang+libomp):    -fopenmp
-# Linux (gcc/clang):       -fopenmp
+# ---------  Compiler & linker flags that work everywhere ---------------
+PKG_CPPFLAGS += $(CPPADINC) $(OMPINC)
 PKG_CFLAGS   += $(SHLIB_OPENMP_CFLAGS)
 PKG_CXXFLAGS += $(SHLIB_OPENMP_CXXFLAGS)
-PKG_LIBS     += $(SHLIB_OPENMP_CXXFLAGS)
 
-# ---- If and only if the actual C++17 compiler is Intel oneAPI (icpx),
-#      swap to -qopenmp and link iomp5.
-ifneq (,$(findstring icpx,$(CXX17)))
-  PKG_CFLAGS   := $(filter-out -fopenmp,$(PKG_CFLAGS))   -qopenmp
-  PKG_CXXFLAGS := $(filter-out -fopenmp,$(PKG_CXXFLAGS)) -qopenmp
-  PKG_LIBS     := $(filter-out -fopenmp,$(PKG_LIBS))     -qopenmp -liomp5
+PKG_LIBS     += $(SHLIB_OPENMP_CXXFLAGS) $(OMPLIB) $(CPPADLIB)
+
+# ---- If we are compiling with Intel oneAPI (icpx / icx) ------------- 
+ifeq ($(CXX),icpx)
+    # strip any -fopenmp that R added, then append -qopenmp
+    PKG_CFLAGS   := $(filter-out -fopenmp,$(PKG_CFLAGS))   -qopenmp
+    PKG_CXXFLAGS := $(filter-out -fopenmp,$(PKG_CXXFLAGS)) -qopenmp
+    PKG_LIBS     := $(filter-out -fopenmp,$(PKG_LIBS))     -qopenmp -liomp5
 endif
 
-
-
-# ---- Optional diagnostics
-$(info  >> R CXX17 is  $(CXX17))
-$(info  >> OpenMP flag $(SHLIB_OPENMP_CXXFLAGS))
+# ---------------------  helpful build echo -----------------------------
+$(info  >> CC is        $(CC))
+$(info  >> CXX is       $(CXX))
+$(info  >> OpenMP flag  $(SHLIB_OPENMP_CXXFLAGS))
+ifneq ($(strip $(OMPLIB)),)
+  $(info >> Linking with  $(OMPLIB))
+endif
+ifneq ($(strip $(SDKROOT)),)
+  $(info >> SDKROOT      $(SDKROOT))
+endif

@@ -95,7 +95,7 @@ fitD <- hpolcc::hnlm(
     f(tempClean, model='hiwp',ref_value = 20, p=3, 
       knots = seq(0, 45, by=5), 
     group_var = ecoRegion), 
-  data=dataMedSimple, #[dataMedSimple$ecoRegion < 7,],
+  data=dataMedSimple[dataMedSimple$ecoRegion < 8,],
   dirichlet= TRUE, config = list(num_threads=10),
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
   for_dev=TRUE, verbose=FALSE
@@ -138,10 +138,7 @@ library('hpolcc')
 
 config$verbose=FALSE
 config$num_threads =  parallel::detectCores()
-
 config$strataPerIter = 500
-
-
 
 result <- loglik(parameters, 
              gamma_start, 
@@ -151,8 +148,6 @@ result <- loglik(parameters,
         cg.tol = 1e-9,
       report.level=4, report.freq=1)
       )
-
-
 ```
 
 
