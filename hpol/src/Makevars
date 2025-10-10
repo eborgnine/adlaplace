@@ -50,12 +50,20 @@ PKG_CXXFLAGS += $(SHLIB_OPENMP_CXXFLAGS)
 
 PKG_LIBS     += $(SHLIB_OPENMP_CXXFLAGS) $(OMPLIB) $(CPPADLIB)
 
-# ---- If we are compiling with Intel oneAPI (icpx / icx) ------------- 
-ifeq ($(CXX),icpx)
-    # strip any -fopenmp that R added, then append -qopenmp
-    PKG_CFLAGS   := $(filter-out -fopenmp,$(PKG_CFLAGS))   -qopenmp
-    PKG_CXXFLAGS := $(filter-out -fopenmp,$(PKG_CXXFLAGS)) -qopenmp
-    PKG_LIBS     := $(filter-out -fopenmp,$(PKG_LIBS))     -qopenmp -liomp5
+# ---- Normalize OpenMP flags based on the actual compiler -------------
+# get the basename of CXX (so /usr/bin/icpx -> icpx)
+CXX_BASENAME := $(notdir $(CXX))
+
+ifneq (,$(findstring icpx,$(CXX_BASENAME)))
+  # Intel oneAPI
+  PKG_CFLAGS   := $(filter-out -fopenmp,$(PKG_CFLAGS))   -qopenmp
+  PKG_CXXFLAGS := $(filter-out -fopenmp,$(PKG_CXXFLAGS)) -qopenmp
+  PKG_LIBS     := $(filter-out -fopenmp,$(PKG_LIBS))     -qopenmp -liomp5
+else
+  # GCC/Clang
+  PKG_CFLAGS   := $(filter-out -qopenmp,$(PKG_CFLAGS))   -fopenmp
+  PKG_CXXFLAGS := $(filter-out -qopenmp,$(PKG_CXXFLAGS)) -fopenmp
+  PKG_LIBS     := $(filter-out -qopenmp,$(PKG_LIBS))     -fopenmp
 endif
 
 # ---------------------  helpful build echo -----------------------------
