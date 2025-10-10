@@ -1,26 +1,3 @@
-#' @export
-wrappers_outer = list( 
-  fn = function(x, data, config, controlInner, cache) {
-    print(get("gamma_start", envir=cache)[1:4])
-    result=loglik(x,
-      gamma_start = get("gamma_start", envir=cache), 
-      data=data, config=config, control=controlInner, 
-      deriv=0)
-      assign("gamma_start", result$solution, envir=cache)
-      print(get("gamma_start", envir=cache)[1:4])
-      result$minusLogLik
-    },
-  gr = function(x, data, config, controlInner, cache) {
-    print(get("gamma_start", envir=cache)[1:4])
-  result= loglik(x,
-        gamma_start = get("gamma_start", envir=cache), 
-        data=data, config=config, control=controlInner)
-  assign("gamma_start", result$solution, envir=cache)
-  print(get("gamma_start", envir=cache)[1:4])
-  result$deriv$dL
-}
- 
- )
 
 
 #' @export
@@ -33,18 +10,14 @@ loglik <- function(
 ) {
 
   Nbeta = nrow(data$XTp)
-  Ngamma = nrow(data$ATp)
-  Nparams = length(parameters) + Ngamma
-
-  Sgamma1 = seq(Nbeta+1, len=Ngamma)
 
   beta = parameters[1:Nbeta]
   theta = parameters[-(1:Nbeta)]
+
   if(missing(gamma_start)) {
-    gamma_start = rep(0, Ngamma)
+    gamma_start = rep(0, nrow(data$ATp))
   }
 
-#library('hpolcc')
   if(is.null(config$sparsity$third)) {
     config$sparsity = sparsity_pattern(
       x=c(beta, gamma_start, theta),
@@ -100,23 +73,29 @@ loglik <- function(
 
   thirdRes = thirdDeriv(x=result$fullParameters, data, config)
 
+  Sgamma1 = seq(Nbeta+1, len=length(result$solution))
+
   result$deriv = data.frame(
     theta = thirdRes$first[-Sgamma1],
     det = thirdRes$dDet,
     U = - as.vector(thirdRes$first[Sgamma1] %*% (thirdRes$invHessianRandom %*% thirdRes$fullHessian[Sgamma1, -Sgamma1]))
   )
-  result$dLogLik =result$deriv$dL = result$deriv$theta + result$deriv$det + result$deriv$U
 
-  result$minusLogLik = result$fval +
-    as.numeric(result$extra$logDetHessian)/2 + 
-      0.5 * Ngamma * 1.8378770664093454835606594728  # log 2 pi
+  result$dLogLik =result$deriv$dL = result$deriv$theta + result$deriv$det + result$deriv$U
 
    if(identical(deriv, 1)) {
     return(result['deriv'])
   }
 
+
   result$extra = thirdRes
   result$config = config
+
+  result$minusLogLik = result$fval +
+    as.numeric(result$extra$logDetHessian)/2 + 
+      0.5 * length(result$solution) * 1.8378770664093454835606594728  # log 2 pi
+
+
 
   return(result)
 }

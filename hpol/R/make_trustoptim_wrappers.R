@@ -1,3 +1,25 @@
+# cache must have gamma_start, Nfun, Nge
+#' @export
+wrappers_outer = list( 
+  fn = function(x, data, config, controlInner, cache) {
+    assign("Nfun", get("Nfun", cache)+1, cache)
+    result=loglik(x,
+      gamma_start = get("gamma_start", envir=cache), 
+      data=data, config=config, control=controlInner, 
+      deriv=0)
+      assign("gamma_start", result$solution, envir=cache)
+      result$minusLogLik
+    },
+  gr = function(x, data, config, controlInner, cache) {
+    assign("Ngr", get("Ngr", cache)+1, cache)
+    result= loglik(x,
+        gamma_start = get("gamma_start", envir=cache), 
+        data=data, config=config, control=controlInner)
+  assign("gamma_start", result$solution, envir=cache)
+  result$deriv$dL
+}
+ 
+ )
 
 hessianGamma = function(x, data, config) {
   res = objectiveFunctionHessian(x, data, config)
@@ -60,58 +82,3 @@ wrappers_gamma = list(
   gr = objectiveFunctionGrad,
   hs = hessianGamma
 )
-
-#' @export
-make_trustoptim_wrappers_old <- function(data, 
-  config = list(dirichelet=TRUE), 
-  obj_fn = objectiveFunctionC,
-  obj_fn_noad = objectiveFunctionNoDiff,
-  debug=FALSE) {
-
-  # Create environment to store the last evaluated x and result
-  cache_env <- new.env()
-  cache_env$data = data
-  cache_env$config1 = config[setdiff(names(config), 'maxDeriv')]
-  if(is.null(config$debugfile)) cache_env$debugfile = 'hpoldebug.rds'
-
-  get_result <- function(x, maxDeriv) {
-    result <- obj_fn(x, cache_env$data, 
-      c(cache_env$config1, list(maxDeriv = unname(maxDeriv))))
-    return(result)
-  }
-  
-  fn_wrapper <- function(x, ...) {
-#   get_result(x, maxDeriv=0)$value
-    objectiveFunctionNoDiff(x, cache_env$data, cache_env$config1)
-  }
-  gr_wrapper <- function(x, ...) {
-    get_result(x,  maxDeriv=1)$grad
-  }
-  hs_wrapper <- function(x, ...) {
-    result = get_result(x,  maxDeriv=2)
-    if(identical(cache_env$config1$debug, TRUE)) { 
-      saveRDS(c(result, list(x=x)), file=cache_env$config1$debugfile)  
-    }
-    result = result$hessian
-
-    if(is.null(cache_env$config1$sparsity)) {
-      # save the sparsity pattern
-      sparsity = list(
-        second=list(
-          list(
-            i=result@i, j=result@j,
-            p=as(result, "CsparseMatrix")@p)
-        )
-      )
-      names(sparsity$second) = c("full", "random")[1+(
-        length(x) == nrow(cache_env$data$ATp)
-      )]
-      cache_env$config1$sparsity = sparsity
-    }
-  # trustoptim needs general matrix
-    as(as(result, 'CsparseMatrix'),'generalMatrix')
-
-  }
-  list(fn = fn_wrapper, gr = gr_wrapper, hs = hs_wrapper)
-}
-

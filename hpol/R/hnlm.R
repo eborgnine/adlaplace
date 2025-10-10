@@ -31,6 +31,7 @@ hnlm <- function(formula,
                  tmb_parameters = NULL,
                  optim_parameters = list(eval.max = 2000, iter.max = 2000),
                  optimizer = c('nlminb', 'optim'),
+                 config=list(),
                  for_dev = FALSE,
                  verbose = FALSE,
                  ...) {
@@ -212,7 +213,7 @@ hnlm <- function(formula,
     cc_matrix = cc_matrix
   )
   
-  config = list(verbose = verbose,  dirichlet = as.integer(dirichlet))
+  config = c(config, list(verbose = verbose,  dirichlet = as.integer(dirichlet)))
   
   tmb_data = formatHpolData(tmb_data)
   
