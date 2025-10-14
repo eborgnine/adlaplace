@@ -4,18 +4,26 @@ wrappers_outer = list(
   fn = function(x, data, config, controlInner, cache) {
     assign("Nfun", get("Nfun", cache)+1, cache)
     assign("last.par", x, envir=cache)
-    result=loglik(x,
+    result=try(loglik(x,
       gamma_start = get("gamma_start", envir=cache), 
       data=data, config=config, control=controlInner, 
-      deriv=0)
+      deriv=0))
+      if("file" %in% ls(cache)) {
+        if('try-error' %in% class(result) ) {result = list(minusLogLik = NA)}
+        cat(c(0, get("Nfun", cache), result$minusLogLik, NA, x, '\n'), file = get('file', cache), append=TRUE)
+      }
       assign("gamma_start", result$solution, envir=cache)
       result$minusLogLik
     },
   gr = function(x, data, config, controlInner, cache) {
     assign("Ngr", get("Ngr", cache)+1, cache)
-    result= loglik(x,
+    result= try(loglik(x,
         gamma_start = get("gamma_start", envir=cache), 
-        data=data, config=config, control=controlInner)
+        data=data, config=config, control=controlInner))
+      if("file" %in% ls(cache)) {
+        if('try-error' %in% class(result) ) {result = list(minusLogLik = NA, deriv = list(dL = NA))}
+        cat(c(1, get("Ngr", cache), result$minusLogLik, sum(result$deriv$dL^2), x, '\n'), file = get('file', cache), append=TRUE)
+      }
   assign("gamma_start", result$solution, envir=cache)
   result$deriv$dL
 }

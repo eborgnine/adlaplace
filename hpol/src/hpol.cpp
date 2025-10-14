@@ -135,7 +135,7 @@ Rcpp::NumericVector objectiveFunctionGrad(
    #pragma omp for nowait
     for (size_t DstrataOuter = 0; 
       DstrataOuter < dat.Nstrata; 
-      DstrataOuter += cfg.strataPerIter
+      DstrataOuter += strataPerIter
       )     {
 
     CppAD::Independent(ad_paramsT);  // Tell CppAD these are inputs for differentiation

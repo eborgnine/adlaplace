@@ -24,39 +24,39 @@
 #' @useDynLib hpolcc
 #' @export
 hnlm <- function(formula,
-                 data,
-                 cc_design = ccDesign(),
-                 weight_var,
-                 dirichlet = FALSE,
-                 tmb_parameters = NULL,
-                 optim_parameters = list(eval.max = 2000, iter.max = 2000),
-                 optimizer = c('nlminb', 'optim'),
-                 config=list(),
-                 control=list(),
-                 control_inner = control,
-                 for_dev = FALSE,
-                 verbose = FALSE,
-                 ...) {
-  
+ data,
+ cc_design = ccDesign(),
+ weight_var,
+ dirichlet = FALSE,
+ tmb_parameters = NULL,
+ optim_parameters = list(eval.max = 2000, iter.max = 2000),
+ optimizer = c('nlminb', 'optim'),
+ config=list(),
+ control=list(),
+ control_inner = control,
+ for_dev = FALSE,
+ verbose = FALSE,
+ ...) {
+
   # Check inputs
   if (!is(formula, "formula"))
     stop("formula must be a formula.")
   #  if (!is.data.frame(data)) stop("data must be a data.frame.")
   if (!missing(weight_var) &&
-      !is.character(weight_var) &&
-      !(weight_var %in% colnames(data)))
-    stop("weight_var must be a character vector.")
+    !is.character(weight_var) &&
+    !(weight_var %in% colnames(data)))
+  stop("weight_var must be a character vector.")
   
   # Order the rows of data appropriately.
   if (is.character(cc_design)) {
     cc_design = ccDesign(strat_vars = cc_design)
   }
   if (is.null(cc_design$strat_vars) &
-      is.null(cc_design$time_var))
-    stop("Provide a valid stratification (or time) variable.")
+    is.null(cc_design$time_var))
+  stop("Provide a valid stratification (or time) variable.")
   
 
-    data.table::setDT(data)
+  data.table::setDT(data)
   strat_time_vars <- c(cc_design$strat_vars, cc_design$time_var)
   data.table::setorderv(data, strat_time_vars)
   
@@ -78,7 +78,7 @@ hnlm <- function(formula,
   if (verbose) cat("collecting terms\n")
   # setup of the design matrices and other parameters
   # terms carries all the information throughout
-  terms <- collectTerms(formula)
+    terms <- collectTerms(formula)
   
   # design matrices
   Xlist <- list() # <- matrix(nrow=nrow(data), ncol=0) # fixed effects
@@ -98,9 +98,9 @@ hnlm <- function(formula,
     term <- getExtra(terms[[k]], data = data, cc_matrix = cc_matrix)
     term$id <- k
     if (!is.factor(data[[term$var]][1]) &&
-        !is.character(data[[term$var]][1]) &&
-        is.null(term$range))
-      range <- term$range <- range(data[[term$var]])
+      !is.character(data[[term$var]][1]) &&
+      is.null(term$range))
+    range <- term$range <- range(data[[term$var]])
     
     if (term$run_as_is) {
       Xsub <- Matrix::sparse.model.matrix(term$f, data)
@@ -203,7 +203,7 @@ hnlm <- function(formula,
   }
 
   allMap = 
-    rep(theta_info$map[1:length(gamma_info$split)], gamma_info$split)-1
+  rep(theta_info$map[1:length(gamma_info$split)], gamma_info$split)-1
   
   tmb_data <- list(
     X = X,
@@ -220,28 +220,18 @@ hnlm <- function(formula,
   
   config = c(
     config[
-      setdiff(names(config), c('verbose', 'dirichlet'))
+    setdiff(names(config), c('verbose', 'dirichlet'))
     ], 
     list(verbose = verbose,  dirichlet = as.integer(dirichlet))
   )
   
   tmb_data = formatHpolData(tmb_data)
-  
-  start_parameters = c(
-    rep(0, nrow(tmb_data$XTp)), # beta
-    rep(0, nrow(tmb_data$ATp)), # gamma
-    theta_info$init[!duplicated(theta_info$map)]    
-  )
 
-  if(identical(config$verbose, TRUE)) cat("getting sparsity.. ")
-  config$sparsity = sparsity_pattern(
-      x=start_parameters, data=tmb_data, config)
-  if(identical(config$verbose, TRUE)) cat("done sparsity\n")
-
-  configDefaults = list(
-    verbose=FALSE, transform_theta=TRUE,
-    num_threads = 1
-  )
+ 
+    configDefaults = list(
+      verbose=FALSE, transform_theta=TRUE,
+      num_threads = 1
+    )
 
   configDefaults = configDefaults[setdiff(names(configDefaults), names(config))]
   config = c(config, configDefaults)
@@ -251,21 +241,32 @@ hnlm <- function(formula,
 
   controlInner = control
 
-Sgamma = seq(nrow(tmb_data$XTp)+1, len=nrow(tmb_data$ATp))
+  Sgamma = seq(nrow(tmb_data$XTp)+1, len=nrow(tmb_data$ATp))
 
-parameters = start_parameters[-Sgamma]
-start_gamma = start_parameters[Sgamma]
-control_inner = control
-control_inner$report.level=3
-control_inner$report.freq=20
-control_inner$report.header.freq=100
-control_inner$report.precision = 5
+
+  
+  start_beta = rep(0, nrow(tmb_data$XTp))
+
+  start_gamma=    rep(0, nrow(tmb_data$ATp)) 
+
+  start_theta = theta_info$init[!duplicated(theta_info$map)]
+  if(config$transform_theta)
+    start_theta = log(start_theta)    
+
+  parameters = c(start_beta, start_theta)
+  start_parameters = c(start_beta, start_gamma, start_theta)
+
+
+ if(identical(config$verbose, TRUE)) cat("getting sparsity.. ")
+    config$sparsity = sparsity_pattern(
+      x=start_parameters, data=tmb_data, config)
+  if(identical(config$verbose, TRUE)) cat("done sparsity\n")
+
 
 
   if(for_dev)
     return(
       list(
-        start_parameters = start_parameters,
         start_gamma = start_gamma,
         parameters = parameters, 
         theta_info = theta_info,
@@ -281,17 +282,17 @@ control_inner$report.precision = 5
 
 
 
-cache = new.env()
-assign("Nfun", 0, cache)
-assign("Ngr", 0, cache)
-assign("gamma_start", start_gamma, cache)
+  cache = new.env()
+  assign("Nfun", 0, cache)
+  assign("Ngr", 0, cache)
+  assign("gamma_start", start_gamma, cache)
 
 
 
   if(identical(config$verbose, TRUE)) cat("optimizing")
 
-mle =   # inner opt
-    trustOptim::trust.optim(
+    mle =   # inner opt
+  trustOptim::trust.optim(
     x = parameters,
     fn = wrappers_outer$fn,
     gr = wrappers_outer$gr,
@@ -299,16 +300,16 @@ mle =   # inner opt
     control = control,
     data=tmb_data, config = config, cache =  cache, controlInner = controlInner
   )
-return(mle)
+  return(mle)
 
   if(identical(config$verbose, TRUE)) cat("done")
 
-mle$extra = loglik(
-  mle$solution, 
-  get("gamma_start", cache), 
-  data, config, controlInner, deriv=0)
+    mle$extra = loglik(
+      mle$solution, 
+      get("gamma_start", cache), 
+      data, config, controlInner, deriv=0)
 
-mle$gamma_hat = mle$extra$solution
+  mle$gamma_hat = mle$extra$solution
 
   
   return(mle)

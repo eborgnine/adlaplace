@@ -198,7 +198,7 @@ stuff = DHp - dH[[2]]
 
 list(fullHessian=fullHessian, third =third, thirdList = thirdList,  first = resThirdDiag$first, 
 	invHessianRandom = invHessianRandom,
-	logDetHessian = drop(Matrix::determinant(cholHessianRandom, log=TRUE, sqrt=FALSE)$modulus),
+	halfLogDet = drop(Matrix::determinant(cholHessianRandom, log=TRUE, sqrt=TRUE)$modulus),
 	dUhat = dUhat, dH = dH, dDet = dDet
 )
 

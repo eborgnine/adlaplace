@@ -57,16 +57,16 @@ genHum <- function(date){
   hum/max(hum)
 }
 
-region_effect1 <- rnorm(10,1,.1)
-region_effect2 <- rnorm(10,1,.1)
 genPmEffect <- function(pm, r1, r2, coseffect=5){
   0.5*(r1*pm/10 + pm^(r2/2) - coseffect*cos(pm*pi/25))
 }
 genCount <- function(hum, pm, r1=1, r2=1, od = FALSE){
   l <- length(pm)
-#  od <- rnorm(l, 0, ifelse(od, .1, 0)) 
-  od <- log(rgamma(l, shape = 0.1^(-2), rate = 0.1^(-2) ))
-  rpois(l, exp(-log(5) + hum + genPmEffect(pm, r1, r2) + od))
+#  od <- rnorm(l, 0, ifelse(od, .1, 0))
+  odSd = 0.2;odPrec = odSd^(-2)
+  od <- rgamma(l, shape = odPrec, rate = odPrec )
+#  print(sd(od)/odSd)
+  rpois(l, exp(-log(1) + hum + genPmEffect(pm, r1, r2) + log(od)))
 }
 
 
@@ -74,6 +74,8 @@ genCount <- function(hum, pm, r1=1, r2=1, od = FALSE){
 
 #res <- mclapply(1:500, \(dummy){
 set.seed(0)
+region_effect1 <- rnorm(10,1,.1)
+region_effect2 <- rnorm(10,1,.1)
   data <- lapply(1:10, \(i){
     data <- data.table(date = as.Date(1:1000), region = i)
     data$hum <- genHum(data$date)
@@ -90,8 +92,6 @@ set.seed(0)
   ref_values <- list("pm" = 10)
   knots_pm <- seq(0, 22, by=2)
 
-
-
   res  <- hnlm(count ~  hum + 
     f(pm, model = 'hiwp', p = 2, ref_value = 10, 
       knots = knots_pm, group_var = region), 
@@ -100,25 +100,113 @@ set.seed(0)
     for_dev=TRUE, 
     verbose=FALSE, 
     dirichlet=TRUE,
-    control_inner=list(maxit=1000, start.trust.radius = 1, prec=1e-9, stop.trust.radius = 1e-15,
-        cg.tol = 1e-9, report.level=0),
-    control=list(maxit=1000, start.trust.radius = 1, prec=1e-9, stop.trust.radius = 1e-15,
-        cg.tol = 1e-9, report.level=4, report.freq=1, report.header.freq=1, report.precision=7),
-    config = list(num_threads = 2, strataPerIter=20)
+    control_inner=list(maxit=1000, start.trust.radius = 1, prec=1e-7, stop.trust.radius = 1e-9,
+        cg.tol = 1e-6, report.level=0),
+    control=list(maxit=1000, start.trust.radius = 1, prec=1e-6, stop.trust.radius = 1e-9,
+        cg.tol = 1e-6, report.level=4, report.freq=1, report.header.freq=10, report.precision=7),
+    config = list(num_threads = 10, strataPerIter=100, transform_theta = TRUE)
   )
 
 cache = new.env()
 assign("Nfun", 0, cache)
 assign("Ngr", 0, cache)
 assign("gamma_start", res$start_gamma, cache)
+assign("file", "sim.txt", cache)
+if(file.exists(get("file", cache))) file.remove(get("file", cache))
+
 mle =  trustOptim::trust.optim(
-    x = res$parameters,
+    x = res$parameters, #c(1, 0.3, log(c(0.05, 0.001, 0.05, 0.001))),
     fn = wrappers_outer$fn,
     gr = wrappers_outer$gr,
     method = 'BFGS',
     control = res$control,
     data=res$tmb_data, config = res$config, cache =  cache, controlInner = res$control_inner
   )
+mle$fval
+
+assign("file", "sim5.txt", cache)
+if(file.exists(get("file", cache))) file.remove(get("file", cache))
+assign("Nfun", 0, cache)
+assign("Ngr", 0, cache)
+
+Nbeta = nrow(res$tmb_data$XTp)
+
+mle5 = optim(
+  par = res$parameters, #c(1, 0.3, log(c(0.05, 0.001, 0.05, 0.001))),
+    fn = wrappers_outer$fn,
+    gr = wrappers_outer$gr,
+  method = "L-BFGS-B",
+  upper = c(rep(2, Nbeta), rep(0, length(res$parameters)-Nbeta)),
+  lower = c(rep(-2, Nbeta), rep(-10, length(res$parameters)-Nbeta)),
+  control= list(trace=5, REPORT=20, parscale = rep(c(1e-1, 1),  c(Nbeta, length(res$parameters)-Nbeta))),
+  data=res$tmb_data, config = res$config, cache =  cache, controlInner = res$control_inner
+)
+
+wrappers_outer$fn(x=cache$last.par,  data=res$tmb_data, config = res$config, cache =  cache, controlInner = res$control_inner)
+
+assign("file", "sim2.txt", cache)
+if(file.exists(get("file", cache))) file.remove(get("file", cache))
+assign("Nfun", 0, cache)
+assign("Ngr", 0, cache)
+
+mle2 = optim(
+  par = mle$solution, #c(1, 0.3, log(c(0.05, 0.001, 0.05, 0.001))),
+  fn = wrappers_outer$fn,
+  method = "Nelder-Mead",
+  control= list(trace=5, REPORT=20),
+  data=res$tmb_data, config = res$config, cache =  cache, controlInner = res$control_inner
+)
+
+modGrad = function(...) {
+  sum(wrappers_outer$gr(...)^2)
+}
+
+wrappers_outer$fn(mle$solution, data=res$tmb_data, config = res$config, cache =  cache, controlInner = res$control_inner)
+sum(wrappers_outer$gr(mle$solution, data=res$tmb_data, config = res$config, cache =  cache, controlInner = res$control_inner)^2)
+modGrad(mle$solution, data=res$tmb_data, config = res$config, cache =  cache, controlInner = res$control_inner)
+
+
+assign("file", "sim3.txt", cache)
+if(file.exists(get("file", cache))) file.remove(get("file", cache))
+assign("Nfun", 0, cache)
+assign("Ngr", 0, cache)
+mle3 = optim(
+  par = mle2$par, #c(1, 0.3, log(c(0.05, 0.001, 0.05, 0.001))),
+  fn = modGrad,
+  method = "Nelder-Mead",
+  control= list(trace=5, REPORT=20, temp =  2, tmax = 5),
+  data=res$tmb_data, config = res$config, cache =  cache, controlInner = res$control_inner
+)
+
+
+
+assign("file", "sim4.txt", cache)
+if(file.exists(get("file", cache))) file.remove(get("file", cache))
+assign("Nfun", 0, cache)
+assign("Ngr", 0, cache)
+mle4 = optim(
+  par = mle2$par, #c(1, 0.3, log(c(0.05, 0.001, 0.05, 0.001))),
+    fn = wrappers_outer$fn,
+    gr = wrappers_outer$gr,
+  method = "BFGS",
+  control= list(trace=5, REPORT=20),
+  data=res$tmb_data, config = res$config, cache =  cache, controlInner = res$control_inner
+)
+
+
+
+
+basePar = mle2$par
+Dpar = 1
+Spar = seq(-0.1, 0.1, len=5) + basepar[Dpar]
+
+parMat = matrix(basePar, ncol=length(Spar), nrow=length(basePar))
+parMat[Dpar,] = Spar
+
+  bobL =  mapply(loglik, 
+   parameters = as.list(as.data.frame(parMat)), 
+   MoreArgs = list(data=res$tmb_data, config = res$config, gamma_start=get("gamma_start", cache), controlInner = res$control_inner),
+   SIMPLIFY=FALSE)
 
 
 
@@ -131,29 +219,20 @@ config2$beta = parameters[1:Nbeta]
 config2$theta = parameters[-(1:Nbeta)]
 config2$strataPerIter = 10
 
-wrappers_gamma$fn(
-  res$start_gamma,
-  res$tmb_data, config2
-)
-wrappers_gamma$fn(
-  rnorm(length(res$start_gamma), mean=res$start_gamma, sd=0.01),
-  res$tmb_data, config2
-)
-wrappers_gamma$gr(
-  res$start_gamma,
-  res$tmb_data, config2
-)[1:5]
-wrappers_gamma$hs(
-  res$start_gamma,
-  res$tmb_data, config2
-)[1:5,1:5]
-
-
-
 
 
 wrappers_outer$fn(x=res$parameters, data=res$tmb_data, config=res$config, control=res$control_inner, cache=cache)
 cache$gamma_start[1:5]
+config2$beta = res$parameters[1:Nbeta]
+config2$theta = res$parameters[-(1:Nbeta)]
+wrappers_gamma$gr(
+  cache$gamma_start,
+  res$tmb_data, config2
+)[1:5]
+bob = loglik(res$parameters, cache$gamma_start, res$tmb_data, config2)
+bob$deriv
+
+
 wrappers_outer$fn(x=res$parameters+1, data=res$tmb_data, config=res$config, control=res$control_inner, cache=cache)
 cache$gamma_start[1:5]
 loglik(parameters=res$parameters, gamma_start = cache$gamma_start, data=res$tmb_data, 

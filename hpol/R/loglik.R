@@ -45,6 +45,26 @@ loglik <- function(
     data=data, config = configInner
   )
 
+
+  if(identical(deriv, 0)) {
+
+    result$cholHessian = Matrix::chol(result$hessian)
+    result$invHessian = Matrix::solve(result$cholHessian)
+
+    result$halfLogDet = drop(Matrix::determinant(
+      result$cholHessian, log=TRUE, sqrt=TRUE
+    )$modulus)
+
+    result$minusLogLik = result$fval +
+      as.numeric(result$halfLogDet) + 
+      0.5 * length(result$solution) * 1.8378770664093454835606594728  # log 2 pi
+
+    return(c(
+      result[c('minusLogLik','solution')], 
+      configInner[c('beta','theta')])
+    )
+  }
+
   result$parameters = c(
     beta,
     theta)
@@ -53,22 +73,6 @@ loglik <- function(
     beta,
     result$solution,
     theta)
-
-  if(identical(deriv, 0)) {
-
-    result$cholHessian = Matrix::chol(result$hessian)
-    result$invHessian = Matrix::solve(result$cholHessian)
-
-    result$logDetHessian = drop(Matrix::determinant(
-      result$cholHessian, log=TRUE, sqrt=FALSE
-    )$modulus)
-
-    result$minusLogLik = result$fval +
-      as.numeric(result$logDetHessian)/2 + 
-      0.5 * length(result$solution) * 1.8378770664093454835606594728  # log 2 pi
-
-    return(result[c('minusLogLik','solution')])
-  }
 
   thirdRes = thirdDeriv(x=result$fullParameters, data, config)
 
@@ -91,7 +95,7 @@ loglik <- function(
   result$config = config
 
   result$minusLogLik = result$fval +
-    as.numeric(result$extra$logDetHessian)/2 + 
+    as.numeric(result$extra$halfLogDet) + 
       0.5 * length(result$solution) * 1.8378770664093454835606594728  # log 2 pi
 
 
