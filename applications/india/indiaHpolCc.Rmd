@@ -95,7 +95,7 @@ fitD <- hpolcc::hnlm(
     f(tempClean, model='hiwp',ref_value = 20, p=3, 
       knots = seq(0, 45, by=5), 
     group_var = ecoRegion), 
-  data=dataMedSimple[dataMedSimple$ecoRegion < 8,],
+  data=dataMedSimple, #[dataMedSimple$ecoRegion < 8,],
   dirichlet= TRUE, config = list(num_threads=10),
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
   for_dev=TRUE, verbose=FALSE
@@ -177,10 +177,8 @@ config$strataPerIter = 500
 cache = new.env()
 assign("Nfun", 0, cache)
 assign("Ngr", 0, cache)
-assign("gamma_start", result$solution, cache)
 
-mle =   # inner opt
-    trustOptim::trust.optim(
+mle = trustOptim::trust.optim(
     x = parameters,
     fn = wrappers_outer$fn,
     gr = wrappers_outer$gr,
@@ -188,13 +186,156 @@ mle =   # inner opt
     control = control,
     data=fitD$tmb_data, config = config, cache =  cache, controlInner = controlInner
   )
+saveRDS(mle, file='mle.rds')
+```
 
+
+
+```{r theResults}
+result$parameters = hpolcc::formatParameters(
+  result$solution, fitD, TRUE)
+
+result$parameters$theta
+
+# parameters are (beta, gamma, theta)
+
+randomEffects = seq(from=length(result$parameters$beta)+1,
+  length = nrow(result$parameters$gamma))
+
+result$Htilde = result$hessian[randomEffects, randomEffects]
+result$HtildeChol = Matrix::solve(Matrix::chol(result$Htilde))
+
+Nsim = 200
+simInd = matrix(rnorm(Nsim * nrow(result$Htilde)),
+ nrow(result$Htilde), Nsim)
+
+# sample from [U|Y, theta_map]
+simGamma = Matrix::crossprod(result$HtildeChol,  simInd) 
+rownames(simGamma) = rownames(fitD$tmb_data$ATp)
+
+simGamma = simGamma + unlist(result$parameters$gamma[
+  rownames(simGamma), 'value'])
+
+
+Stemp = seq(0,45,by=0.1)
+SobsTemp = na.omit(match(Stemp, round(fitD$data$tempClean, 1)))
+Spm = seq(1,1000, by=1)
+SobsPm = na.omit(match(Spm, round(fitD$data$pm)))
+
+Sobs = SobsTemp
+nameX = 'tempClean'
+
+Bmat = fitD$tmb_data$ATp[, Sobs]
+# only want the global effects
+Bmat = Bmat[grep(paste0(nameX,".*global"), rownames(Bmat)),]
+
+
+simF = crossprod(Bmat, simGamma[rownames(Bmat),]) 
+
+covHere = grep(nameX, names(result$parameters$beta), value=TRUE)
+fixedPart = drop(crossprod(fitD$tmb_data$XTp[covHere,Sobs, drop=FALSE], 
+                           result$parameters$beta[covHere]))
+
+simSum = simF + fixedPart 
+
+
+
+theX= fitD$data[[covHere[1] ]][Sobs]
+if(grepl("^sqrt", nameX)) theX = theX^2
+
+par(mar=c(3,3,0,0), bty='l')
+matplot(theX, simSum, type='l',
+  col='#00000010', lty=1, xaxs='i')
 
 
 ```
 
 
 
+```{r otherstuff22, eval=FALSE}
+
+Sstart = 1:(nrow(fitD$tmb_data$XTp)+1)
+Send = seq(to = length(fitD$start_parameters), by=1, 
+  len=length(fitD$theta_info$name)+1)
+
+bob = function(xx) {
+  hpolcc:::objectiveFunctionC( 
+c(xx[Sstart], fitD$start_parameters[-c(Sstart, Send)], 
+  xx[-Sstart]),
+ fitD$tmb_data, 
+ c(
+ fitD$config[setdiff(names(fitD$config), c('verbose','maxDeriv'))], 
+  list(maxDeriv = 0, verbose=FALSE))
+  )$value
+}
+
+round(numDeriv::hessian(bob, fitD$start_parameters[c(Sstart, Send)]), 3)
+
+res$hessian[c(Sstart, Send), c(Sstart, Send)]
+
+
+
+beta = fitD$start_parameters[1:nrow(fitD$tmb_data$XTp)]
+gamma =fitD$start_parameters[seq(from=length(beta)+1, 
+  len=nrow(fitD$tmb_data$ATp)
+  )]
+theta = fitD$start_parameters[seq(from = length(beta) + length(gamma)+1,
+  to=length(fitD$start_parameters))]
+
+
+resFun = function(xx)  hpolcc:::objectiveFunctionC(xx, fitD$tmb_data, 
+  c(fitD$config[
+    setdiff(names(fitD$config), 'maxDeriv')], 
+  list(maxDeriv = 0)))$value
+
+
+resFun(fitD$start_parameters)  
+
+Matrix::determinant(res$hessian)
+
+
+
+fitD$config$verbose=FALSE
+res$grad
+theGradAgain = numDeriv::grad(resFun, fitD$start_parameters)  
+
+rbind(res$grad, theGradAgain)
+
+
+
+theHessAgain = numDeriv::hessian(resFun, fitD$start_parameters)
+
+
+```
+
+```{r originalPackage, eval=FALSE}
+# using the hpoltest original package (and TMB)
+
+fitM <- hnlm(
+  formula= y ~ f(date, model='iid') +
+    f(tempClean, model='hiwp',ref_value = 22, p=3, knots = seq(0, 42, by=2), group_var = ecoRegion), 
+  data=dataMedSimple,
+  dirichlet=FALSE,
+  cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
+  tmb_parameters = list(theta = thetaStartM),
+  optim_parameters = list(maxit = 20),
+  verbose=TRUE, optimizer='optim', intern=FALSE, inner.method = 'BFGS', 
+  inner.control = list(maxit = 500), for_dev=FALSE)
+```
+
+```{r plotFit2, fig.height=4, fig.width=4, eval=FALSE}
+simTemp =  hpoltest:::condSim(fitD, 'tempClean') 
+
+theYlim = c(0.2, 5) #exp(quantile(simTemp$y[,'GLOBAL', ], c(0.01, 0.99)))
+for(D in dimnames(simTemp$y)[[2]]) {
+matplot(simTemp$x, exp(simTemp$y[,D, ]), type='l', col='#00000010', lty=1, 
+        xaxs='i', log='y',
+        ylim =theYlim,bty='n', 
+        xlab='temperature',ylab=D)
+lines(simTemp$x, exp(simTemp$fixed_mean), col='yellow')
+lines(simTemp$x, exp(apply(simTemp$y[,D, ], 1, mean)), col='red')
+}
+```
 
 
 
@@ -462,151 +603,6 @@ abline(h=pairsHere2$Tijk, lwd=nrow(pairsHere2):1, lty=1:nrow(pairsHere2),col=1:n
 ```
 
 
-```{r theResults}
-result$parameters = hpolcc::formatParameters(
-  result$solution, fitD, TRUE)
-
-result$parameters$theta
-
-# parameters are (beta, gamma, theta)
-
-randomEffects = seq(from=length(result$parameters$beta)+1,
-  length = nrow(result$parameters$gamma))
-
-result$Htilde = result$hessian[randomEffects, randomEffects]
-result$HtildeChol = Matrix::solve(Matrix::chol(result$Htilde))
-
-Nsim = 200
-simInd = matrix(rnorm(Nsim * nrow(result$Htilde)),
- nrow(result$Htilde), Nsim)
-
-# sample from [U|Y, theta_map]
-simGamma = Matrix::crossprod(result$HtildeChol,  simInd) 
-rownames(simGamma) = rownames(fitD$tmb_data$ATp)
-
-simGamma = simGamma + unlist(result$parameters$gamma[
-  rownames(simGamma), 'value'])
-
-
-Stemp = seq(0,45,by=0.1)
-SobsTemp = na.omit(match(Stemp, round(fitD$data$tempClean, 1)))
-Spm = seq(1,1000, by=1)
-SobsPm = na.omit(match(Spm, round(fitD$data$pm)))
-
-Sobs = SobsTemp
-nameX = 'tempClean'
-
-Bmat = fitD$tmb_data$ATp[, Sobs]
-# only want the global effects
-Bmat = Bmat[grep(paste0(nameX,".*global"), rownames(Bmat)),]
-
-
-simF = crossprod(Bmat, simGamma[rownames(Bmat),]) 
-
-covHere = grep(nameX, names(result$parameters$beta), value=TRUE)
-fixedPart = drop(crossprod(fitD$tmb_data$XTp[covHere,Sobs, drop=FALSE], 
-                           result$parameters$beta[covHere]))
-
-simSum = simF + fixedPart 
-
-
-
-theX= fitD$data[[covHere[1] ]][Sobs]
-if(grepl("^sqrt", nameX)) theX = theX^2
-
-par(mar=c(3,3,0,0), bty='l')
-matplot(theX, simSum, type='l',
-  col='#00000010', lty=1, xaxs='i')
-
-
-```
-
-
-
-```{r otherstuff22, eval=FALSE}
-
-Sstart = 1:(nrow(fitD$tmb_data$XTp)+1)
-Send = seq(to = length(fitD$start_parameters), by=1, 
-  len=length(fitD$theta_info$name)+1)
-
-bob = function(xx) {
-  hpolcc:::objectiveFunctionC( 
-c(xx[Sstart], fitD$start_parameters[-c(Sstart, Send)], 
-  xx[-Sstart]),
- fitD$tmb_data, 
- c(
- fitD$config[setdiff(names(fitD$config), c('verbose','maxDeriv'))], 
-  list(maxDeriv = 0, verbose=FALSE))
-  )$value
-}
-
-round(numDeriv::hessian(bob, fitD$start_parameters[c(Sstart, Send)]), 3)
-
-res$hessian[c(Sstart, Send), c(Sstart, Send)]
-
-
-
-beta = fitD$start_parameters[1:nrow(fitD$tmb_data$XTp)]
-gamma =fitD$start_parameters[seq(from=length(beta)+1, 
-  len=nrow(fitD$tmb_data$ATp)
-  )]
-theta = fitD$start_parameters[seq(from = length(beta) + length(gamma)+1,
-  to=length(fitD$start_parameters))]
-
-
-resFun = function(xx)  hpolcc:::objectiveFunctionC(xx, fitD$tmb_data, 
-  c(fitD$config[
-    setdiff(names(fitD$config), 'maxDeriv')], 
-  list(maxDeriv = 0)))$value
-
-
-resFun(fitD$start_parameters)  
-
-Matrix::determinant(res$hessian)
-
-
-
-fitD$config$verbose=FALSE
-res$grad
-theGradAgain = numDeriv::grad(resFun, fitD$start_parameters)  
-
-rbind(res$grad, theGradAgain)
-
-
-
-theHessAgain = numDeriv::hessian(resFun, fitD$start_parameters)
-
-
-```
-
-```{r originalPackage, eval=FALSE}
-# using the hpoltest original package (and TMB)
-
-fitM <- hnlm(
-  formula= y ~ f(date, model='iid') +
-    f(tempClean, model='hiwp',ref_value = 22, p=3, knots = seq(0, 42, by=2), group_var = ecoRegion), 
-  data=dataMedSimple,
-  dirichlet=FALSE,
-  cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
-  tmb_parameters = list(theta = thetaStartM),
-  optim_parameters = list(maxit = 20),
-  verbose=TRUE, optimizer='optim', intern=FALSE, inner.method = 'BFGS', 
-  inner.control = list(maxit = 500), for_dev=FALSE)
-```
-
-```{r plotFit2, fig.height=4, fig.width=4, eval=FALSE}
-simTemp =  hpoltest:::condSim(fitD, 'tempClean') 
-
-theYlim = c(0.2, 5) #exp(quantile(simTemp$y[,'GLOBAL', ], c(0.01, 0.99)))
-for(D in dimnames(simTemp$y)[[2]]) {
-matplot(simTemp$x, exp(simTemp$y[,D, ]), type='l', col='#00000010', lty=1, 
-        xaxs='i', log='y',
-        ylim =theYlim,bty='n', 
-        xlab='temperature',ylab=D)
-lines(simTemp$x, exp(simTemp$fixed_mean), col='yellow')
-lines(simTemp$x, exp(apply(simTemp$y[,D, ], 1, mean)), col='red')
-}
-```
 
 ```{r plotDate, eval=FALSE}
 simDate = hpoltest:::condSim(fitD, 'date') 
