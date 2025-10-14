@@ -104,8 +104,23 @@ set.seed(0)
         cg.tol = 1e-9, report.level=0),
     control=list(maxit=1000, start.trust.radius = 1, prec=1e-9, stop.trust.radius = 1e-15,
         cg.tol = 1e-9, report.level=4, report.freq=1, report.header.freq=1, report.precision=7),
-    config = list(num_threads = 10)
+    config = list(num_threads = 2, strataPerIter=20)
   )
+
+cache = new.env()
+assign("Nfun", 0, cache)
+assign("Ngr", 0, cache)
+assign("gamma_start", res$start_gamma, cache)
+mle =  trustOptim::trust.optim(
+    x = res$parameters,
+    fn = wrappers_outer$fn,
+    gr = wrappers_outer$gr,
+    method = 'BFGS',
+    control = res$control,
+    data=res$tmb_data, config = res$config, cache =  cache, controlInner = res$control_inner
+  )
+
+
 
 Nbeta = nrow(res$tmb_data$XTp)
 Sgamma = seq(Nbeta+1, len=nrow(res$tmb_data$ATp))
@@ -135,10 +150,6 @@ wrappers_gamma$hs(
 
 
 
-cache = new.env()
-assign("Nfun", 0, cache)
-assign("Ngr", 0, cache)
-assign("gamma_start", res$start_gamma, cache)
 
 
 wrappers_outer$fn(x=res$parameters, data=res$tmb_data, config=res$config, control=res$control_inner, cache=cache)
@@ -158,15 +169,6 @@ innerOpt = trustOptim::trust.optim(
   config=config2, data=res$tmb_data
 )
 
-mle =   # inner opt
-    trustOptim::trust.optim(
-    x = res$parameters,
-    fn = wrappers_outer$fn,
-    gr = wrappers_outer$gr,
-    method = 'BFGS',
-    control = res$control,
-    data=res$tmb_data, config = res$config, cache =  cache, controlInner = res$control_inner
-  )
 
 mle$extra = loglik(
   mle$solution, 
