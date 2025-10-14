@@ -22,13 +22,13 @@ thirdOffDiagonals <- function(parameters, dataList, configList) {
 }
 
 #' @export
-objectiveFunctionNoDiff <- function(parameters, dataList, configList) {
-    .Call('_hpolcc_objectiveFunctionNoDiff', PACKAGE = 'hpolcc', parameters, dataList, configList)
+objectiveFunctionNoDiff <- function(x, data, config) {
+    .Call('_hpolcc_objectiveFunctionNoDiff', PACKAGE = 'hpolcc', x, data, config)
 }
 
 #' @export
-objectiveFunctionGrad <- function(parameters, dataList, configList) {
-    .Call('_hpolcc_objectiveFunctionGrad', PACKAGE = 'hpolcc', parameters, dataList, configList)
+objectiveFunctionGrad <- function(x, data, config) {
+    .Call('_hpolcc_objectiveFunctionGrad', PACKAGE = 'hpolcc', x, data, config)
 }
 
 #' @export

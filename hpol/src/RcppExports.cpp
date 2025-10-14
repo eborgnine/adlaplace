@@ -65,28 +65,28 @@ BEGIN_RCPP
 END_RCPP
 }
 // objectiveFunctionNoDiff
-double objectiveFunctionNoDiff(Rcpp::NumericVector parameters, Rcpp::List dataList, Rcpp::List configList);
-RcppExport SEXP _hpolcc_objectiveFunctionNoDiff(SEXP parametersSEXP, SEXP dataListSEXP, SEXP configListSEXP) {
+double objectiveFunctionNoDiff(Rcpp::NumericVector x, Rcpp::List data, Rcpp::List config);
+RcppExport SEXP _hpolcc_objectiveFunctionNoDiff(SEXP xSEXP, SEXP dataSEXP, SEXP configSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type parameters(parametersSEXP);
-    Rcpp::traits::input_parameter< Rcpp::List >::type dataList(dataListSEXP);
-    Rcpp::traits::input_parameter< Rcpp::List >::type configList(configListSEXP);
-    rcpp_result_gen = Rcpp::wrap(objectiveFunctionNoDiff(parameters, dataList, configList));
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type x(xSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type data(dataSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type config(configSEXP);
+    rcpp_result_gen = Rcpp::wrap(objectiveFunctionNoDiff(x, data, config));
     return rcpp_result_gen;
 END_RCPP
 }
 // objectiveFunctionGrad
-Rcpp::NumericVector objectiveFunctionGrad(Rcpp::NumericVector parameters, Rcpp::List dataList, Rcpp::List configList);
-RcppExport SEXP _hpolcc_objectiveFunctionGrad(SEXP parametersSEXP, SEXP dataListSEXP, SEXP configListSEXP) {
+Rcpp::NumericVector objectiveFunctionGrad(Rcpp::NumericVector x, Rcpp::List data, Rcpp::List config);
+RcppExport SEXP _hpolcc_objectiveFunctionGrad(SEXP xSEXP, SEXP dataSEXP, SEXP configSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type parameters(parametersSEXP);
-    Rcpp::traits::input_parameter< Rcpp::List >::type dataList(dataListSEXP);
-    Rcpp::traits::input_parameter< Rcpp::List >::type configList(configListSEXP);
-    rcpp_result_gen = Rcpp::wrap(objectiveFunctionGrad(parameters, dataList, configList));
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type x(xSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type data(dataSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type config(configSEXP);
+    rcpp_result_gen = Rcpp::wrap(objectiveFunctionGrad(x, data, config));
     return rcpp_result_gen;
 END_RCPP
 }

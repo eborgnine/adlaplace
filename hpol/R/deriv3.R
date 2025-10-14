@@ -95,6 +95,7 @@ thirdDeriv = function(x, data, config) {
   	MoreArgs = list(third=third, N=Nparameters)
   )
 
+
   dHlist = mapply(
   	function(Tijk, dUp, Sgamma1) {
       if(is.null(Tijk)) return(NULL)
@@ -107,11 +108,11 @@ thirdDeriv = function(x, data, config) {
   )
 
   TijpAdd = mapply(function(Tijk, Sgamma1) {
+  if(is.null(Tijk)) return(NULL)
 	There = as(Tijk[Sgamma1,Sgamma1], 'TsparseMatrix')
 	cbind(i=There@i, j=There@j, x=There@x)
   }, Tijk = thirdList[-Sgamma1], MoreArgs = list(Sgamma1=Sgamma1))
   names(TijpAdd) = paste0("p", SbetaTheta0)
-
 
 # try to do without thirdList
   if(FALSE) {

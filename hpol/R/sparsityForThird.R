@@ -15,7 +15,9 @@ sparsity_pattern = function(x, data, config=list()) {
   resThirdDiag = thirdDiagonals(
     x, data, configForDiag
   ) 
-
+  if(identical(config$verbose, TRUE)) {
+    cat("done thirdDiagonals\n")
+  }
   
   hessian = as(
     Matrix::forceSymmetric(Matrix::Matrix(resThirdDiag$second, sparse=TRUE)),
@@ -30,16 +32,16 @@ sparsity_pattern = function(x, data, config=list()) {
 
     pairs = hessianIJ[!duplicated(hessianIJ[,c('i','j')]), ]
     pairs = pairs[order(pairs$j, pairs$i), ]
-
-
-
     pairs = as.matrix(pairs)
+
   if(type[1] == 'hessian') {
     # find sparsity pattern based on the hessian
 
-    Sk = apply(hessianIJ, 1, function(xx, ref) {
+    Sk =  apply(hessianIJ, 1, 
+      function(xx, ref) {
       intersect(ref[ref$i == xx['i'], 'j'], ref[ref$j == xx['j'], 'i'])
-    }, ref = hessianIJ)
+    }, 
+    ref = hessianIJ)
     ijk1 = hessianIJ[rep(1:nrow(hessianIJ), unlist(lapply(Sk, length))), ]
     ijk1$k = unlist(Sk)
 

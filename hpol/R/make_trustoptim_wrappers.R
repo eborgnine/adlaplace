@@ -3,6 +3,7 @@
 wrappers_outer = list( 
   fn = function(x, data, config, controlInner, cache) {
     assign("Nfun", get("Nfun", cache)+1, cache)
+    assign("last.par", x, envir=cache)
     result=loglik(x,
       gamma_start = get("gamma_start", envir=cache), 
       data=data, config=config, control=controlInner, 

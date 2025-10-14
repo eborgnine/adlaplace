@@ -14,6 +14,8 @@ hnlm(
   optim_parameters = list(eval.max = 2000, iter.max = 2000),
   optimizer = c("nlminb", "optim"),
   config = list(),
+  control = list(),
+  control_inner = control,
   for_dev = FALSE,
   verbose = FALSE,
   ...

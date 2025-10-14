@@ -14,19 +14,19 @@
 //' @export
 // [[Rcpp::export]]
 double objectiveFunctionNoDiff(
-  Rcpp::NumericVector parameters, 
-  Rcpp::List dataList, 
-  Rcpp::List configList
+  Rcpp::NumericVector x, 
+  Rcpp::List data, 
+  Rcpp::List config
   ) {
 
-  Data   data(dataList);
-  Config cfg(configList);
+  Data   dat(data);
+  Config cfg(config);
 
-  auto latent = unpack_params(parameters, data, cfg);
+  auto latent = unpack_params(x, dat, cfg);
 
   std::vector<double> loglik(cfg.num_threads);
   std::vector<double> Qpart(cfg.num_threads);
-  CppAD::vector<double> gammaScaled(data.Ngamma);
+  CppAD::vector<double> gammaScaled(dat.Ngamma);
 
 
   omp_set_num_threads(cfg.num_threads);
@@ -38,24 +38,24 @@ double objectiveFunctionNoDiff(
     double loglikT = double(0.0), QpartT=double(0.0);
 
     #pragma omp for nowait
-    for (size_t Dstrata = 0; Dstrata < data.Nstrata; Dstrata++) {
+    for (size_t Dstrata = 0; Dstrata < dat.Nstrata; Dstrata++) {
       loglikT += loglikOneStrata<double>(
         Dstrata,
         latent.gamma,
         latent,
-        data, 
+        dat, 
         cfg
         )[0];
       }
 
   // Q diag.  
         #pragma omp for nowait
-      for(size_t D=0;D<data.Ngamma;D++) {
-        size_t mapHere = data.map[D];
+      for(size_t D=0;D<dat.Ngamma;D++) {
+        size_t mapHere = dat.map[D];
 
         gammaScaled[D] = latent.gamma[D] / latent.theta[mapHere];
         QpartT += latent.logTheta[mapHere] +
-        0.5*gammaScaled[D]*gammaScaled[D]*data.Qdiag[D];
+        0.5*gammaScaled[D]*gammaScaled[D]*dat.Qdiag[D];
       }
       loglik[tid] = loglikT;      
       Qpart[tid] = QpartT;
@@ -73,8 +73,8 @@ double objectiveFunctionNoDiff(
 
 
   // Q offdiag    
-  for(size_t D = 0; D < data.Nq; D++) {
-    result += gammaScaled[data.QsansDiag.i[D]] * gammaScaled[data.QsansDiag.j[D]] * data.QsansDiag.x[D];
+  for(size_t D = 0; D < dat.Nq; D++) {
+    result += gammaScaled[dat.QsansDiag.i[D]] * gammaScaled[dat.QsansDiag.j[D]] * dat.QsansDiag.x[D];
   }
   if (cfg.verbose ) Rcpp::Rcout << "L " << resultL << " Q " << resultQ << 
     " total " << result << "\n";
@@ -85,16 +85,17 @@ double objectiveFunctionNoDiff(
 //' @export
 // [[Rcpp::export]]
 Rcpp::NumericVector objectiveFunctionGrad(
-  Rcpp::NumericVector parameters, 
-  Rcpp::List dataList, 
-  Rcpp::List configList
+  Rcpp::NumericVector x, 
+  Rcpp::List data, 
+  Rcpp::List config
   ) {
 
 // options: chunks of strata, or build tape once outside loop
 
-  const Data   data(dataList);
-  const Config cfg(configList);
-  const PackedParams<double> parameters_extra = unpack_params(parameters, data, cfg);
+  const Data   dat(data);
+  const Config cfg(config);
+  const PackedParams<double> parameters_extra = unpack_params(x, dat, cfg);
+  const size_t strataPerIter = cfg.strataPerIter > 0? cfg.strataPerIter : 1;
 
   CppAD::vector<CppAD::vector<double>>  grad_local(cfg.num_threads);
 
@@ -102,7 +103,8 @@ Rcpp::NumericVector objectiveFunctionGrad(
     grad_local[D].resize(parameters_extra.Ngamma);
   }
 
-  if(cfg.verbose) Rcpp::Rcout << "Ngamma " << parameters_extra.Ngamma << " Nstrata " << data.Nstrata << " starting parallel " << cfg.num_threads << " threads\n";
+  if(cfg.verbose) Rcpp::Rcout << "Ngamma " << parameters_extra.Ngamma << " Nstrata " << 
+      dat.Nstrata << " starting parallel " << cfg.num_threads << " threads\n";
 
   omp_set_num_threads(cfg.num_threads);
 
@@ -132,7 +134,7 @@ Rcpp::NumericVector objectiveFunctionGrad(
 
    #pragma omp for nowait
     for (size_t DstrataOuter = 0; 
-      DstrataOuter < data.Nstrata; 
+      DstrataOuter < dat.Nstrata; 
       DstrataOuter += cfg.strataPerIter
       )     {
 
@@ -143,7 +145,7 @@ Rcpp::NumericVector objectiveFunctionGrad(
       cfg.strataPerIter,
       ad_paramsT,
       parameters_extra,
-      data, 
+      dat, 
       cfg
       );
 
@@ -191,7 +193,7 @@ Rcpp::NumericVector objectiveFunctionGrad(
 
 
   CppAD::Independent(ad_params);  
-  auto yvec = loglikQ(ad_params,  parameters_extra, data);
+  auto yvec = loglikQ(ad_params,  parameters_extra, dat);
   auto funQ = CppAD::ADFun<double>(ad_params, yvec);
   funQ.Forward(0, x_val);   
   auto gradQ= funQ.Reverse(1, w); 

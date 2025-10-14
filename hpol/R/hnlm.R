@@ -32,10 +32,11 @@ hnlm <- function(formula,
                  optim_parameters = list(eval.max = 2000, iter.max = 2000),
                  optimizer = c('nlminb', 'optim'),
                  config=list(),
+                 control=list(),
+                 control_inner = control,
                  for_dev = FALSE,
                  verbose = FALSE,
                  ...) {
-  data.table::setDT(data)
   
   # Check inputs
   if (!is(formula, "formula"))
@@ -54,6 +55,8 @@ hnlm <- function(formula,
       is.null(cc_design$time_var))
     stop("Provide a valid stratification (or time) variable.")
   
+
+    data.table::setDT(data)
   strat_time_vars <- c(cc_design$strat_vars, cc_design$time_var)
   data.table::setorderv(data, strat_time_vars)
   
@@ -68,7 +71,8 @@ hnlm <- function(formula,
   }
   
   cc_matrix <- setStrata(
-    cc_design = cc_design, data = data, 
+    cc_design = cc_design, 
+    data = data, 
     outcome = all.vars(formula)[1])
 
   if (verbose) cat("collecting terms\n")
@@ -168,11 +172,12 @@ hnlm <- function(formula,
     k <- k + 1
   } # done k loop
   # final element of theta is the dirichlet SD
-  theta_info$var = c(theta_info$var, 'overdisp')
+
   theta_info$model = c(theta_info$model, '')
   theta_info$psd_scale = exp(theta_info$psd_scale_log)
 
   if (dirichlet) {
+    theta_info$var = c(theta_info$var, 'overdisp')
     theta_info$map = c(theta_info$map, max(theta_info$map) + 1)
     dirichletStart = 0.01
     theta_info$init <- c(theta_info$init, dirichletStart)
@@ -213,90 +218,98 @@ hnlm <- function(formula,
     cc_matrix = cc_matrix
   )
   
-  config = c(config, list(verbose = verbose,  dirichlet = as.integer(dirichlet)))
+  config = c(
+    config[
+      setdiff(names(config), c('verbose', 'dirichlet'))
+    ], 
+    list(verbose = verbose,  dirichlet = as.integer(dirichlet))
+  )
   
   tmb_data = formatHpolData(tmb_data)
   
   start_parameters = c(
     rep(0, nrow(tmb_data$XTp)), # beta
     rep(0, nrow(tmb_data$ATp)), # gamma
-    theta_info$init[!duplicated(theta_info$map)]
-    
+    theta_info$init[!duplicated(theta_info$map)]    
   )
+
   if(identical(config$verbose, TRUE)) cat("getting sparsity.. ")
   config$sparsity = sparsity_pattern(
-      start_parameters, tmb_data, config)
-  if(identical(config$verbose, TRUE)) cat("done\n")
+      x=start_parameters, data=tmb_data, config)
+  if(identical(config$verbose, TRUE)) cat("done sparsity\n")
 
-  if (for_dev)
+  configDefaults = list(
+    verbose=FALSE, transform_theta=TRUE,
+    num_threads = 1
+  )
+
+  configDefaults = configDefaults[setdiff(names(configDefaults), names(config))]
+  config = c(config, configDefaults)
+  if(!length(config$strataPerIter)) {
+    config$strataPerIter = ceiling(nrow(tmb_data$XTp)/config$num_threads)
+  }
+
+  controlInner = control
+
+Sgamma = seq(nrow(tmb_data$XTp)+1, len=nrow(tmb_data$ATp))
+
+parameters = start_parameters[-Sgamma]
+start_gamma = start_parameters[Sgamma]
+control_inner = control
+control_inner$report.level=3
+control_inner$report.freq=20
+control_inner$report.header.freq=100
+control_inner$report.precision = 5
+
+
+  if(for_dev)
     return(
       list(
         start_parameters = start_parameters,
+        start_gamma = start_gamma,
+        parameters = parameters, 
         theta_info = theta_info,
         tmb_data = tmb_data,
         terms = terms,
         config = config,
+        control = control,
+        control_inner = control_inner,
         data = data
       )
     )
   
-  
-  
-  if (is.null(tmb_parameters)) {
-    tmb_parameters = list()
-  }
-  tmbParametersDefault = list(beta = 0,
-                              gamma = 0,
-                              theta = theta_info$init)
-  tmb_parameters = c(tmb_parameters, tmbParametersDefault[setdiff(names(tmbParametersDefault), names(tmb_parameters))])
-  
-  tmb_parameters$beta  = rep_len(tmb_parameters$beta, ncol(X))
-  tmb_parameters$gamma = rep_len(tmb_parameters$gamma, ncol(A))
-  tmb_parameters$theta = rep_len(tmb_parameters$theta, length(theta_info$init))
-  
-  
-  objectiveFunction = function(parameters, data, 
-                               config) {
-                                 data = formatHpolData(data)
-                                 result = objectiveFunctionC(parameters, data, config)
-                                 try(result$hessian <- do.call(Matrix::sparseMatrix, resut$hessian))
-                                 result
-                               }
-parameters = c(tmb_parameters$beta, tmb_parameters$gamma, tmb_parameters$theta)
-stuff = objectiveFunction(parameters, data=tmb_data, config)
 
 
+
+cache = new.env()
+assign("Nfun", 0, cache)
+assign("Ngr", 0, cache)
+assign("gamma_start", start_gamma, cache)
+
+
+
+  if(identical(config$verbose, TRUE)) cat("optimizing")
+
+mle =   # inner opt
+    trustOptim::trust.optim(
+    x = parameters,
+    fn = wrappers_outer$fn,
+    gr = wrappers_outer$gr,
+    method = 'BFGS',
+    control = control,
+    data=tmb_data, config = config, cache =  cache, controlInner = controlInner
+  )
+return(mle)
+
+  if(identical(config$verbose, TRUE)) cat("done")
+
+mle$extra = loglik(
+  mle$solution, 
+  get("gamma_start", cache), 
+  data, config, controlInner, deriv=0)
+
+mle$gamma_hat = mle$extra$solution
+
   
-  if (!'map' %in% names(tmb_parameters)) {
-    map <- list(theta = factor(theta_info$map))
-  } else {
-    map = tmb_parameters$map
-  }
-  
-  
-  optim_inline_parameters = optim_parameters[intersect(names(optim_parameters), c('upper', 'lower', 'method'))]
-  theMax = apply(tmb_data$X, 2, function(xx)
-    quantile(abs(xx), 0.99))
-  
-  Nthetas = length(unique(na.omit(theta_info$map)))
-  if (is.null(optim_inline_parameters$upper))
-    optim_inline_parameters$upper = c(5 / theMax, rep(5, Nthetas))
-  if (is.null(optim_inline_parameters$lower))
-    optim_inline_parameters$lower =  c(-5 / theMax, rep(1e-3, Nthetas))
-  if (!'parscale' %in% names(optim_parameters)) {
-    optim_parameters$parscale = c(theMax, rep(1 / 100, Nthetas))
-  }
-  
-  r <- if (length(tmb_parameters$gamma) > 0) {
-    "gamma"
-  } else{
-    NULL
-  }
-  
-  # Return the result
-  return(
-    list(
-      NULL
-    )
-  )#, funNoRandom = funNoRandom))
+  return(mle)
 }

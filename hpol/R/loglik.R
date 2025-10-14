@@ -34,7 +34,6 @@ loglik <- function(
         theta = theta
       ))
 
-
   # inner opt
   result <- trustOptim::trust.optim(
     x = gamma_start,
@@ -66,7 +65,7 @@ loglik <- function(
 
     result$minusLogLik = result$fval +
       as.numeric(result$logDetHessian)/2 + 
-      0.5 * Ngamma * 1.8378770664093454835606594728  # log 2 pi
+      0.5 * length(result$solution) * 1.8378770664093454835606594728  # log 2 pi
 
     return(result[c('minusLogLik','solution')])
   }

@@ -9,20 +9,19 @@ UNAME_M := $(shell uname -m)
 ifeq ($(UNAME_S),Darwin)
     HB := $(shell brew --prefix)
 
-    CC   = $(HB)/opt/llvm/bin/clang
-    CXX  = $(HB)/opt/llvm/bin/clang++
+  CC   = $(HB)/opt/llvm/bin/clang
+  CXX  = $(HB)/opt/llvm/bin/clang++
 
-    # R already defines SHLIB_OPENMP_* = -fopenmp on this setup
-    OMPINC = -I$(HB)/opt/libomp/include
+  # libomp (already working)
+  OMPPREFIX := $(HB)/opt/libomp
+  PKG_CPPFLAGS += -I$(OMPPREFIX)/include
+  PKG_CXXFLAGS += -fopenmp
+  PKG_LIBS     += -L$(OMPPREFIX)/lib -lomp -Wl,-rpath,$(OMPPREFIX)/lib
 
-    CPPADINC = -I$(HB)/include
-
-    # Only Intel-Mac needs an SDKROOT flag
-    ifeq ($(UNAME_M),x86_64)
-        SDKROOT := /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk
-        PKG_CPPFLAGS += -isysroot $(SDKROOT)
-        CXXFLAGS     += -isysroot $(SDKROOT)
-    endif
+  # **CppAD (this is what’s missing in your devtools build)**
+  CPPAD_PREFIX := $(HB)/opt/cppad
+  PKG_CPPFLAGS += -I$(CPPAD_PREFIX)/include
+  PKG_LIBS     += -L$(CPPAD_PREFIX)/lib -lcppad_lib -Wl,-rpath,$(CPPAD_PREFIX)/lib
 
 # -----------------------------------------------------------------------
 # === Linux: choose Intel oneAPI if icpx is present =====================
