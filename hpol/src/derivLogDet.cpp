@@ -144,7 +144,7 @@ Rcpp::List thirdDiagonals(
   }
   CppAD::Independent(ad_params);  // Tell CppAD these are inputs for differentiation
 
-  CppAD::vector<CppAD::AD<double>> y = objectiveFunctionInternal(ad_params, data, config);  
+  CppAD::vector<CppAD::AD<double>> y = objectiveFunctionInternal<CppAD::AD<double>>(ad_params, data, config);  
 
   CppAD::ADFun<double> fun(ad_params, y);
 

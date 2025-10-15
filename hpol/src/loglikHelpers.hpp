@@ -5,7 +5,7 @@
 
 #include"lgamma.hpp"
 
-
+//#define DEBUG
 
 //#include"hpol.hpp"
 template <class Type>
@@ -85,7 +85,7 @@ CppAD::vector<GammaT> compute_eta_for_stratum(size_t Dstrata,
 
 // Accumulate contribution over one stratum.
 // - Out: accumulation/tape type (double or CppAD::AD<double>)
-// - ParamsT: provides logSqrtNu and (optionally) other constants; e.g. PackedParams<double>
+// - ParamsT: provides logNuSq and (optionally) other constants; e.g. PackedParams<double>
 // Returns {contrib, sumY}
 template <class Out, class ParamsT>
 CppAD::vector<Out> accumulate_contrib_for_stratum(size_t Dstrata,
@@ -122,21 +122,31 @@ CppAD::vector<Out> accumulate_contrib_for_stratum(size_t Dstrata,
     sumY += yhere;
 
     const Out etaMinusLogSumMu = etaHere[j] - etaLogSum;
-    const Out muBarDivSqrtNu   = cfg.dirichlet ?  CppAD::exp(etaMinusLogSumMu - Out(params.logSqrtNu)):0;
+    const Out muBarDivNuSq   = cfg.dirichlet ?  CppAD::exp(etaMinusLogSumMu - Out(params.logNuSq)):0;
 
     if (cfg.dirichlet) {
-      contrib += lgamma_any<Out>(yOut + muBarDivSqrtNu) - lgamma_any<Out>(muBarDivSqrtNu);
+      contrib += lgamma_any<Out>(yOut + muBarDivNuSq) - lgamma_any<Out>(muBarDivNuSq);
+      contrib -= Out(lgamma_any<Out>(static_cast<double>(data.y[idx]) + 1.0));
+#ifdef DEBUG
+      Rcpp::Rcout << lgamma_any<Out>(yOut + muBarDivNuSq)  << " m " << muBarDivNuSq << " " << 
+        lgamma_any<Out>(muBarDivNuSq) << " " <<  data.y[idx] + 1.0 << " " << lgamma_any<Out>(static_cast<double>(data.y[idx]) + 1.0) <<
+        "\n";
+#endif      
     } else {
       contrib += yOut * etaMinusLogSumMu;
     }
-#ifdef EVALCONSTANTS
-    contrib -= Out(lgamma_any<Out>(static_cast<double>(data.y[idx]) + 1.0));
-#endif
   }
 
 if (cfg.dirichlet) {
-  ParamsT dirichletContrib = ParamsT(params.lgammaOneOverSqrtNu) - 
-    lgamma_any<ParamsT>(params.oneOverSqrtNu + sumY);
+  ParamsT dirichletContrib = ParamsT(params.lgammaOneOverNuSq) - 
+    lgamma_any<ParamsT>(params.oneOverNuSq + sumY) +
+    lgamma_any<ParamsT>(1 + sumY);
+#ifdef DEBUG
+      Rcpp::Rcout << "dirichletContrib " << dirichletContrib <<
+      " " <<  ParamsT(params.lgammaOneOverNuSq)  << " " <<  lgamma_any<ParamsT>(params.oneOverNuSq + sumY) 
+      << " " << lgamma_any<ParamsT>(1 + sumY) << "\n";
+#endif      
+
   contrib += Out(dirichletContrib);
 }
 
@@ -197,11 +207,13 @@ CppAD::vector<TypeGamma>  loglikQ(
 
     for (size_t D = 0; D < data.Ngamma; ++D) {
         size_t mapHere = data.map[D];
+        TypeGamma thetaHere = TypeGamma(latent.theta[mapHere]);
+        TypeGamma logThetaHere = TypeGamma(latent.logTheta[mapHere]);
 
-        gammaScaled[D] = gamma[D] / latent.theta[mapHere];
+        gammaScaled[D] = gamma[D] / thetaHere;
 
-        result[0] += TypeGamma(latent.logTheta[mapHere])
-                      + TypeGamma(0.5* data.Qdiag[D]) * gammaScaled[D] * gammaScaled[D] ;
+        result[0] += logThetaHere +
+                      TypeGamma(0.5 * data.Qdiag[D]) * gammaScaled[D] * gammaScaled[D] ;
     }
 
       // Q offdiag    

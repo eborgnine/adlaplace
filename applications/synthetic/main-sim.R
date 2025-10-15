@@ -63,10 +63,10 @@ genPmEffect <- function(pm, r1, r2, coseffect=5){
 genCount <- function(hum, pm, r1=1, r2=1, od = FALSE){
   l <- length(pm)
 #  od <- rnorm(l, 0, ifelse(od, .1, 0))
-  odSd = 0.2;odPrec = odSd^(-2)
+  odSd = 0.3;odPrec = odSd^(-2)
   od <- rgamma(l, shape = odPrec, rate = odPrec )
 #  print(sd(od)/odSd)
-  rpois(l, exp(-log(1) + hum + genPmEffect(pm, r1, r2) + log(od)))
+  rpois(l, exp(-log(0.1) + hum + genPmEffect(pm, r1, r2) + log(od  )))
 }
 
 
@@ -85,8 +85,8 @@ region_effect2 <- rnorm(10,1,.1)
   }) 
   data = do.call(rbind, data)
 
-
   data$monthDow = format(data$date, '%Y-%m-%a')
+
   cc_design <- ccDesign(time_var = "date", strat_vars = c('monthDow',"region"))
 
   ref_values <- list("pm" = 10)
@@ -107,6 +107,8 @@ region_effect2 <- rnorm(10,1,.1)
     config = list(num_threads = 10, strataPerIter=100, transform_theta = TRUE)
   )
 
+
+
 cache = new.env()
 assign("Nfun", 0, cache)
 assign("Ngr", 0, cache)
@@ -114,7 +116,66 @@ assign("gamma_start", res$start_gamma, cache)
 assign("file", "sim.txt", cache)
 if(file.exists(get("file", cache))) file.remove(get("file", cache))
 
-mle =  trustOptim::trust.optim(
+mle <- BB::spg(par = res$parameters, #mle$solution, 
+  fn = wrappers_outer$fn,
+    gr = wrappers_outer$gr,
+        data=res$tmb_data, config = res$config, cache =  cache, controlInner = res$control_inner,
+           control = list(maxit = 1e4, M = 10, trace=TRUE, checkGrad=TRUE))  # M = nonmonotone history
+
+# element 4 has a problem
+
+
+
+
+
+basePar = c(0.952726603,  0.416559358, -2.938788, -4.834099, -3.586874, -1.951997)
+Dpar = 3
+Spar = seq(-0.1, 0.1, len=5) + basePar[Dpar]
+parMat = matrix(basePar, ncol=length(Spar), nrow=length(basePar))
+parMat[Dpar,] = Spar
+
+Nbeta = nrow(res$tmb_data$XTp)
+Sgamma = seq(Nbeta+1, len=nrow(res$tmb_data$ATp))
+
+bob = Matrix::sparseMatrix(i=res$config$sparsity$second$full$i, j=res$config$sparsity$second$full$j, symmetric=TRUE, index1=FALSE)
+bob[1:25, -Sgamma]
+
+
+  bobL =  mapply(loglik, 
+   parameters = as.list(as.data.frame(parMat)), 
+   MoreArgs = list(data=res$tmb_data, config = res$config, gamma_start=get("gamma_start", cache), control = res$control_inner),
+   SIMPLIFY=FALSE)
+
+bobL[[1]]$extra$fullHessian[1:25,-Sgamma]
+
+
+Slik = unlist(lapply(bobL, function(xx) xx$minusLogLik))
+Sdl = unlist(lapply(bobL, function(xx) xx$deriv[Dpar,'dL']))
+Sddet = unlist(lapply(bobL, function(xx) xx$deriv[Dpar,'det']))
+
+Sdet = unlist(lapply(bobL, function(xx) xx$extra$halfLogDet))
+
+
+numD = diff(Slik)/diff(Spar)
+plot(Spar, Sdl, type='o', col='red', ylim = range(c(Sdl, numD)))
+points(Spar[-1] - diff(Spar)/2, numD)
+abline(h=0);abline(v=basePar[Dpar])
+
+numD = diff(Sdet)/diff(Spar)
+plot(Spar, Sddet, type='o', col='red', ylim = range(c(numD, Sddet)))
+points(Spar[-1] - diff(Spar)/2, numD)
+
+Sh = lapply(bobL, function(xx) xx$hessian)
+SdhAd = lapply(bobL, function(xx) xx$extra$dH[[Dpar]])
+SdhAd2 = Sdh = list()
+for(D in seq(1, length(Sh)-1)) {
+  Sdh[[D]] = (Sh[[D+1]] - Sh[[D]])/(diff(Spar)[D])
+  SdhAd2[[D]] = (SdhAd[[D+1]] + SdhAd[[D]])/2
+}
+
+bob=(SdhAd2[[1]] - Sdh[[1]])
+
+mleX =  trustOptim::trust.optim(
     x = res$parameters, #c(1, 0.3, log(c(0.05, 0.001, 0.05, 0.001))),
     fn = wrappers_outer$fn,
     gr = wrappers_outer$gr,
@@ -123,6 +184,15 @@ mle =  trustOptim::trust.optim(
     data=res$tmb_data, config = res$config, cache =  cache, controlInner = res$control_inner
   )
 mle$fval
+
+
+assign("Nfun", 0, cache)
+assign("Ngr", 0, cache)
+assign("file", "simbb.txt", cache)
+if(file.exists(get("file", cache))) file.remove(get("file", cache))
+
+
+
 
 assign("file", "sim5.txt", cache)
 if(file.exists(get("file", cache))) file.remove(get("file", cache))
@@ -141,8 +211,6 @@ mle5 = optim(
   control= list(trace=5, REPORT=20, parscale = rep(c(1e-1, 1),  c(Nbeta, length(res$parameters)-Nbeta))),
   data=res$tmb_data, config = res$config, cache =  cache, controlInner = res$control_inner
 )
-
-wrappers_outer$fn(x=cache$last.par,  data=res$tmb_data, config = res$config, cache =  cache, controlInner = res$control_inner)
 
 assign("file", "sim2.txt", cache)
 if(file.exists(get("file", cache))) file.remove(get("file", cache))
@@ -192,22 +260,6 @@ mle4 = optim(
   control= list(trace=5, REPORT=20),
   data=res$tmb_data, config = res$config, cache =  cache, controlInner = res$control_inner
 )
-
-
-
-
-basePar = mle2$par
-Dpar = 1
-Spar = seq(-0.1, 0.1, len=5) + basepar[Dpar]
-
-parMat = matrix(basePar, ncol=length(Spar), nrow=length(basePar))
-parMat[Dpar,] = Spar
-
-  bobL =  mapply(loglik, 
-   parameters = as.list(as.data.frame(parMat)), 
-   MoreArgs = list(data=res$tmb_data, config = res$config, gamma_start=get("gamma_start", cache), controlInner = res$control_inner),
-   SIMPLIFY=FALSE)
-
 
 
 Nbeta = nrow(res$tmb_data$XTp)
@@ -301,7 +353,25 @@ wrappers_outer$gr(
 
 
 
+x = seq(0, 1, len=21)[-1]
 
+nu = x = 0.1
+
+
+thel = unlist(mapply(function(xx) {
+  objectiveFunctionC(
+    c(rep(0, length(res$start_gamma) + length(res$parameters)-1), log(xx)),
+    res$tmb_data, res$config)
+  }, 
+xx= x))
+
+sumPerStrata
+data2
+
+cbind(r=-lR, c=thel)
+
+
+matplot(x, cbind(-lR, thel), type='l')
 
 
 

@@ -5,7 +5,7 @@
 
 
 
-// #define DEBUG
+//#define DEBUG
 
 #include<omp.h>
 
@@ -54,8 +54,7 @@ double objectiveFunctionNoDiff(
         size_t mapHere = dat.map[D];
 
         gammaScaled[D] = latent.gamma[D] / latent.theta[mapHere];
-        QpartT += latent.logTheta[mapHere] +
-        0.5*gammaScaled[D]*gammaScaled[D]*dat.Qdiag[D];
+        QpartT += latent.logTheta[mapHere] + gammaScaled[D]*gammaScaled[D]*(0.5*dat.Qdiag[D]);
       }
       loglik[tid] = loglikT;      
       Qpart[tid] = QpartT;
@@ -68,9 +67,6 @@ double objectiveFunctionNoDiff(
     resultQ += Qpart[D];
   }
   double result = -resultL + resultQ;
-
-
-
 
   // Q offdiag    
   for(size_t D = 0; D < dat.Nq; D++) {
@@ -190,7 +186,6 @@ Rcpp::NumericVector objectiveFunctionGrad(
     ad_params[D] = g;
     x_val[D] = g;
   }
-
 
   CppAD::Independent(ad_params);  
   auto yvec = loglikQ(ad_params,  parameters_extra, dat);
@@ -363,18 +358,33 @@ CppAD::vector<Type>  objectiveFunctionInternal(
 
   }
 
-  auto randomContribution = loglikQ(latent.gamma, latent, data);
+  Type randomContribution = 0;//loglikQ(latent.gamma, latent, data);
+  CppAD::vector<Type> gammaScaled(data.Ngamma);
+
+    for (size_t D = 0; D < data.Ngamma; ++D) {
+        size_t mapHere = data.map[D];
+        Type thetaHere = latent.theta[mapHere];
+        Type logThetaHere = latent.logTheta[mapHere];
+
+        gammaScaled[D] = latent.gamma[D] / thetaHere;
+
+        randomContribution += logThetaHere +
+                      Type(0.5 * data.Qdiag[D]) * gammaScaled[D] * gammaScaled[D] ;
+    }
+
+      // Q offdiag    
+    for(size_t D = 0; D < data.Nq; D++) {
+        randomContribution+= gammaScaled[data.QsansDiag.i[D]] * gammaScaled[data.QsansDiag.j[D]] 
+          * Type(data.QsansDiag.x[D]);
+    }
 
 
-
-  minusLogDens[0] =  - loglik + randomContribution[0];
-
+  minusLogDens[0] =  - loglik + randomContribution;
 
 #ifdef EVALCONSTANTS
   minusLogDens[0] += Ngamma * HALFLOGTWOPI;
   minusLogDens[0] -= Rcpp::as<double>(config.halfLogDetQ);
 #endif
-
 
   return minusLogDens;
 }
@@ -395,13 +405,15 @@ Rcpp::List objectiveFunctionC(
   size_t Nparams = parameters.size();
 
 
+
   CppAD::vector<CppAD::AD<double>> ad_params(Nparams);
   for (size_t D = 0; D < Nparams; D++) {
     ad_params[D] = parameters[D];  // Initialize CppAD variables
   }
   CppAD::Independent(ad_params);  // Tell CppAD these are inputs for differentiation
   
-  
+
+
   auto y = objectiveFunctionInternal<CppAD::AD<double>>(ad_params, data, config);
 
   if(config.verbose ) {
@@ -454,7 +466,7 @@ Rcpp::List objectiveFunctionC(
 
 
   bool dense = config.dense;
-  if(!config.sparsity.size()) {
+  if(!dense & (!config.sparsity.size())) {
     Rcpp::warning("no sparsity pattern specified, producing dense matrix");
     dense = true;
   }

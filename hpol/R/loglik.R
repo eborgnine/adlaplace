@@ -14,25 +14,28 @@ loglik <- function(
   beta = parameters[1:Nbeta]
   theta = parameters[-(1:Nbeta)]
 
+    config = config[setdiff(
+        names(config), c('beta','theta')
+      )]
+
+    configInner = c(
+      config,
+      list(
+        beta = beta,
+        theta = theta
+      ))
+
+
   if(missing(gamma_start)) {
     gamma_start = rep(0, nrow(data$ATp))
   }
 
   if(is.null(config$sparsity$third)) {
     config$sparsity = sparsity_pattern(
-      x=c(beta, gamma_start, theta),
+      x=c(beta, rep(1,length(gamma_start)), theta),
       data, config)
   }
 
-
-    configInner = c(
-      config[setdiff(
-        names(config), c('beta','theta')
-      )],
-      list(
-        beta = beta,
-        theta = theta
-      ))
 
   # inner opt
   result <- trustOptim::trust.optim(

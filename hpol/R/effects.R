@@ -192,7 +192,7 @@ hiwpDesign <- function(term, data, use_dev_version = F){
       res = as(AA[xx, ], "TsparseMatrix")
       cbind(i=xx[1+res@i], j=res@j+1, x=res@x)
     }, 
-    xx = id_split, MoreArgs = list(AA=A0))
+    xx = id_split, MoreArgs = list(AA=A0), SIMPLIFY=FALSE)
     A0combine = cbind(
       as.data.frame(do.call(rbind, A0split)), 
       split = rep(1:length(A0split), unlist(lapply(A0split, nrow)))

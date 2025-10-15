@@ -380,9 +380,9 @@ struct PackedParams {
   CppAD::vector<Type> gamma;    // size Ngamma
   CppAD::vector<Type> theta;    // size Ntheta (on natural scale)
   CppAD::vector<Type> logTheta; // size Ntheta (log scale)
-  Type logSqrtNu;
-  Type oneOverSqrtNu;
-  Type lgammaOneOverSqrtNu;
+  Type logNuSq;
+  Type oneOverNuSq;
+  Type lgammaOneOverNuSq;
   size_t startGamma = 0;        // index into ad_params where gamma starts (if sourced there)
 };
 
@@ -465,13 +465,13 @@ std::size_t Ntheta_base = 0u;
   }
 
   if (cfg.dirichlet) {
-    out.logSqrtNu           = out.logTheta[out.logTheta.size()-1] / Type(2);
-    out.oneOverSqrtNu       = CppAD::exp(-out.logSqrtNu);
-    out.lgammaOneOverSqrtNu = lgamma_any(out.oneOverSqrtNu);
+    out.logNuSq           = 2 * out.logTheta[out.logTheta.size()-1];
+    out.oneOverNuSq       = CppAD::exp(-out.logNuSq);
+    out.lgammaOneOverNuSq = lgamma_any(out.oneOverNuSq);
   } else {
-    out.logSqrtNu = Type(0);
-    out.oneOverSqrtNu = Type(0);
-    out.lgammaOneOverSqrtNu = Type(0);
+    out.logNuSq = Type(0);
+    out.oneOverNuSq = Type(0);
+    out.lgammaOneOverNuSq = Type(0);
   }
   return out;
 }

@@ -168,7 +168,7 @@ dDet = mapply(function(Dhp, Hinv) {
 	sum(Matrix::diag(Hinv %*% Dhp))
 	sum((Hinv * Dhp))
 }, Dhp = dH, MoreArgs = list(Hinv = invHessianRandom)
-)
+) / 2
 
 
   if(FALSE) {

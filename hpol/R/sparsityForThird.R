@@ -9,18 +9,30 @@ sparsity_pattern = function(x, data, config=list()) {
     type = 'hessian'
   }
 
-  configForDiag = config[setdiff(names(config), c("dense","sparsity"))]
+  configForDiag = config[setdiff(names(config), c("dense","sparsity","beta","theta"))]
   configForDiag$dense=TRUE
+  configForDiag$maxDeriv = 2
 
+x[x==0] = 1
+
+denseHessian = objectiveFunctionC(
+  x, data, configForDiag
+)$denseHessian
+
+if(FALSE) {
   resThirdDiag = thirdDiagonals(
     x, data, configForDiag
   ) 
+  denseHessian = resThirdDiag$second
+}
+
+
   if(identical(config$verbose, TRUE)) {
     cat("done thirdDiagonals\n")
   }
   
   hessian = as(
-    Matrix::forceSymmetric(Matrix::Matrix(resThirdDiag$second, sparse=TRUE)),
+    Matrix::forceSymmetric(Matrix::Matrix(denseHessian, sparse=TRUE)),
     'TsparseMatrix')  
 
 
