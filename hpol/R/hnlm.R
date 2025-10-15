@@ -236,7 +236,7 @@ hnlm <- function(formula,
   configDefaults = configDefaults[setdiff(names(configDefaults), names(config))]
   config = c(config, configDefaults)
   if(!length(config$strataPerIter)) {
-    config$strataPerIter = ceiling(nrow(tmb_data$XTp)/config$num_threads)
+    config$strataPerIter = ceiling(0.2*nrow(tmb_data$XTp)/config$num_threads)
   }
 
   controlInner = control
