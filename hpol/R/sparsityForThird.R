@@ -13,7 +13,8 @@ sparsity_pattern = function(x, data, config=list()) {
   configForDiag$dense=TRUE
   configForDiag$maxDeriv = 2
 
-  x[x==0] = 1
+  # sometimes zero parameter values lead to zeros in the hessian.
+  x[x==0] = 1e-2
 
   denseHessian = objectiveFunctionC(
     x, data, configForDiag
@@ -27,15 +28,15 @@ sparsity_pattern = function(x, data, config=list()) {
   }
 
 
-  if(identical(config$verbose, TRUE)) {
-    cat("done hessian\n")
-  }
   
   hessian = as(
     Matrix::forceSymmetric(Matrix::Matrix(denseHessian, sparse=TRUE)),
     'TsparseMatrix')  
+  if(identical(config$verbose, TRUE)) {
+    cat("done hessian ", nrow(hessian), " ", length(hessian@x), "\n")
+  }
 
-
+  if(any(is.na(hessian@x))) warning("NA's in hessian")
 
   hessianUL = as(hessian, 'generalMatrix')
 
