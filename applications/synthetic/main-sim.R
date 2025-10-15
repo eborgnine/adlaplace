@@ -122,10 +122,22 @@ mle <- BB::spg(par = res$parameters, #mle$solution,
         data=res$tmb_data, config = res$config, cache =  cache, controlInner = res$control_inner,
            control = list(maxit = 1e4, M = 10, trace=TRUE, checkGrad=TRUE))  # M = nonmonotone history
 
-# element 4 has a problem
 
+assign("Nfun", 0, cache)
+assign("Ngr", 0, cache)
+assign("file", "simbfgs.txt", cache)
+if(file.exists(get("file", cache))) file.remove(get("file", cache))
 
-
+mleX =  trustOptim::trust.optim(
+    x = res$parameters, #c(1, 0.3, log(c(0.05, 0.001, 0.05, 0.001))),
+    fn = wrappers_outer$fn,
+    gr = wrappers_outer$gr,
+    method = 'BFGS',
+    control = res$control,
+    data=res$tmb_data, config = res$config, cache =  cache, controlInner = res$control_inner
+  )
+mle$fval
+mleX$fval
 
 
 basePar = c(0.952726603,  0.416559358, -2.938788, -4.834099, -3.586874, -1.951997)
@@ -175,21 +187,8 @@ for(D in seq(1, length(Sh)-1)) {
 
 bob=(SdhAd2[[1]] - Sdh[[1]])
 
-mleX =  trustOptim::trust.optim(
-    x = res$parameters, #c(1, 0.3, log(c(0.05, 0.001, 0.05, 0.001))),
-    fn = wrappers_outer$fn,
-    gr = wrappers_outer$gr,
-    method = 'BFGS',
-    control = res$control,
-    data=res$tmb_data, config = res$config, cache =  cache, controlInner = res$control_inner
-  )
-mle$fval
 
 
-assign("Nfun", 0, cache)
-assign("Ngr", 0, cache)
-assign("file", "simbb.txt", cache)
-if(file.exists(get("file", cache))) file.remove(get("file", cache))
 
 
 
