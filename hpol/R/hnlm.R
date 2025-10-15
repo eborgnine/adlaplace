@@ -245,9 +245,9 @@ hnlm <- function(formula,
 
 
   
-  start_beta = rep(0, nrow(tmb_data$XTp))
+  start_beta = rep(1e-2, nrow(tmb_data$XTp))
 
-  start_gamma=    rep(0, nrow(tmb_data$ATp)) 
+  start_gamma=    rep(1e-2, nrow(tmb_data$ATp)) 
 
   start_theta = theta_info$init[!duplicated(theta_info$map)]
   if(config$transform_theta)
@@ -301,14 +301,13 @@ hnlm <- function(formula,
     control = control,
     data=tmb_data, config = config, cache =  cache, controlInner = controlInner
   )
-  return(mle)
 
   if(identical(config$verbose, TRUE)) cat("done")
 
     mle$extra = loglik(
       mle$solution, 
       get("gamma_start", cache), 
-      data, config, controlInner, deriv=0)
+      data, config, controlInner, check=TRUE)
 
   mle$gamma_hat = mle$extra$solution
 

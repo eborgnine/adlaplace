@@ -6,7 +6,8 @@ loglik <- function(
   gamma_start, 
   data, config,
   control=list(), 
-  deriv = c(0,1)
+  deriv = c(0,1),
+  check=FALSE
 ) {
 
   Nbeta = nrow(data$XTp)
@@ -48,6 +49,17 @@ loglik <- function(
     data=data, config = configInner
   )
 
+if(check) {
+mleB <- BB::spg(par = result$solution, 
+  fn = wrappers_gamma$fn,
+  gr = wrappers_gamma$gr,
+  alertConvergence=FALSE, 
+  data=data, config = configInner,
+   control = list(maxit = 1e3, M = 10, trace=TRUE, checkGrad=TRUE))  # M = nonmonotone history
+  result$solution = mleB$par
+  result$hessian = wrappers_gamma$hs(mleB$par, data=data, config=configInner)
+}
+
 
   if(identical(deriv, 0)) {
 
@@ -71,6 +83,7 @@ loglik <- function(
   result$parameters = c(
     beta,
     theta)
+  names(result$parameters) = c(rownames(data$XTp), paste0('theta', seq(1, length(theta))))
 
   result$fullParameters = c(
     beta,

@@ -6,32 +6,6 @@ library(hpolcc)
 library(data.table)
 
 
-constructEffect <- function (fit, exposure_var, group_var, group, values, ref_values, pars = NULL, probs = c(.1,.5,.9)){
-  vars <- c(as.character(fit$formula)[2], unique(sapply(fit$terms, 
-                                                        "[[", "var")), unique(unlist(sapply(fit$terms, "[[", 
-                                                                                            "group_var"))), fit$cc_design$time_var, fit$cc_design$strat_var)
-  group_var[is.na(group_var)] <- "__NONE__"
-  df <- data.frame(row.names = 1:(length(values) * length(group)))
-  for (v in vars) df[[v]] <- ifelse(is.null(ref_values[[v]]), 
-                                    0, ref_values[[v]])
-  df[[group_var]] <- unlist(rep(group, each = length(values)))
-  df[[exposure_var]] <- rep(values, times = max(1, length(group)))
-  list2env(hpoltest:::getNewXA(fit$terms, df), envir = environment())
-  if(is.null(pars)) pars <- fit$obj$env$last.par.best
-  if(!is.matrix(pars)) pars <- as.matrix(pars)
-  
-  beta <- pars[,colnames(pars) == "beta",drop=F]
-  gamma <- pars[,colnames(pars) == "gamma",drop=F]
-  
-  P <- X %*% t(beta) + A %*% t(gamma)
-  Q <- t(apply(P,1,quantile,probs=probs))
-  colnames(Q) <- paste0("q_",probs)
-  
-  df <- data.frame(variable = exposure_var, var_value = values, group = df[[group_var]])
-  cbind(df, Q)
-}
-
-
 
 # Data --------------------------------------------------------------------
 genPM <- function(date){
@@ -57,8 +31,8 @@ genHum <- function(date){
   hum/max(hum)
 }
 
-genPmEffect <- function(pm, r1, r2, coseffect=5){
-  0.5*(r1*pm/10 + pm^(r2/2) - coseffect*cos(pm*pi/25))
+genPmEffect <- function(pm, r1, r2, coseffect=1){
+  0.1*(r1*pm/10 + 0.2*pm^(r2/2) - coseffect*cos(pm*pi/25))
 }
 genCount <- function(hum, pm, r1=1, r2=1, od = FALSE){
   l <- length(pm)
@@ -66,7 +40,7 @@ genCount <- function(hum, pm, r1=1, r2=1, od = FALSE){
   odSd = 0.3;odPrec = odSd^(-2)
   od <- rgamma(l, shape = odPrec, rate = odPrec )
 #  print(sd(od)/odSd)
-  rpois(l, exp(-log(0.1) + hum + genPmEffect(pm, r1, r2) + log(od  )))
+  rpois(l, exp(-log(1) + hum + genPmEffect(pm, r1, r2) + log(od  )))
 }
 
 
@@ -74,8 +48,8 @@ genCount <- function(hum, pm, r1=1, r2=1, od = FALSE){
 
 #res <- mclapply(1:500, \(dummy){
 set.seed(0)
-region_effect1 <- rnorm(10,1,.1)
-region_effect2 <- rnorm(10,1,.1)
+region_effect1 <- rnorm(10,1,.2)
+region_effect2 <- rnorm(10,1,.2)
   data <- lapply(1:10, \(i){
     data <- data.table(date = as.Date(1:1000), region = i)
     data$hum <- genHum(data$date)
@@ -113,18 +87,6 @@ cache = new.env()
 assign("Nfun", 0, cache)
 assign("Ngr", 0, cache)
 assign("gamma_start", res$start_gamma, cache)
-assign("file", "sim.txt", cache)
-if(file.exists(get("file", cache))) file.remove(get("file", cache))
-
-mle <- BB::spg(par = res$parameters, #mle$solution, 
-  fn = wrappers_outer$fn,
-    gr = wrappers_outer$gr,
-        data=res$tmb_data, config = res$config, cache =  cache, controlInner = res$control_inner,
-           control = list(maxit = 1e4, M = 10, trace=TRUE, checkGrad=TRUE))  # M = nonmonotone history
-
-
-assign("Nfun", 0, cache)
-assign("Ngr", 0, cache)
 assign("file", "simbfgs.txt", cache)
 if(file.exists(get("file", cache))) file.remove(get("file", cache))
 
@@ -136,243 +98,57 @@ mleX =  trustOptim::trust.optim(
     control = res$control,
     data=res$tmb_data, config = res$config, cache =  cache, controlInner = res$control_inner
   )
-mle$fval
-mleX$fval
+mleX$solution
 
-
-basePar = c(0.952726603,  0.416559358, -2.938788, -4.834099, -3.586874, -1.951997)
-Dpar = 3
-Spar = seq(-0.1, 0.1, len=5) + basePar[Dpar]
-parMat = matrix(basePar, ncol=length(Spar), nrow=length(basePar))
-parMat[Dpar,] = Spar
-
-Nbeta = nrow(res$tmb_data$XTp)
-Sgamma = seq(Nbeta+1, len=nrow(res$tmb_data$ATp))
-
-bob = Matrix::sparseMatrix(i=res$config$sparsity$second$full$i, j=res$config$sparsity$second$full$j, symmetric=TRUE, index1=FALSE)
-bob[1:25, -Sgamma]
-
-
-  bobL =  mapply(loglik, 
-   parameters = as.list(as.data.frame(parMat)), 
-   MoreArgs = list(data=res$tmb_data, config = res$config, gamma_start=get("gamma_start", cache), control = res$control_inner),
-   SIMPLIFY=FALSE)
-
-bobL[[1]]$extra$fullHessian[1:25,-Sgamma]
-
-
-Slik = unlist(lapply(bobL, function(xx) xx$minusLogLik))
-Sdl = unlist(lapply(bobL, function(xx) xx$deriv[Dpar,'dL']))
-Sddet = unlist(lapply(bobL, function(xx) xx$deriv[Dpar,'det']))
-
-Sdet = unlist(lapply(bobL, function(xx) xx$extra$halfLogDet))
-
-
-numD = diff(Slik)/diff(Spar)
-plot(Spar, Sdl, type='o', col='red', ylim = range(c(Sdl, numD)))
-points(Spar[-1] - diff(Spar)/2, numD)
-abline(h=0);abline(v=basePar[Dpar])
-
-numD = diff(Sdet)/diff(Spar)
-plot(Spar, Sddet, type='o', col='red', ylim = range(c(numD, Sddet)))
-points(Spar[-1] - diff(Spar)/2, numD)
-
-Sh = lapply(bobL, function(xx) xx$hessian)
-SdhAd = lapply(bobL, function(xx) xx$extra$dH[[Dpar]])
-SdhAd2 = Sdh = list()
-for(D in seq(1, length(Sh)-1)) {
-  Sdh[[D]] = (Sh[[D+1]] - Sh[[D]])/(diff(Spar)[D])
-  SdhAd2[[D]] = (SdhAd[[D+1]] + SdhAd[[D]])/2
-}
-
-bob=(SdhAd2[[1]] - Sdh[[1]])
-
-
-
-
-
-
-
-assign("file", "sim5.txt", cache)
-if(file.exists(get("file", cache))) file.remove(get("file", cache))
-assign("Nfun", 0, cache)
-assign("Ngr", 0, cache)
-
-Nbeta = nrow(res$tmb_data$XTp)
-
-mle5 = optim(
-  par = res$parameters, #c(1, 0.3, log(c(0.05, 0.001, 0.05, 0.001))),
-    fn = wrappers_outer$fn,
-    gr = wrappers_outer$gr,
-  method = "L-BFGS-B",
-  upper = c(rep(2, Nbeta), rep(0, length(res$parameters)-Nbeta)),
-  lower = c(rep(-2, Nbeta), rep(-10, length(res$parameters)-Nbeta)),
-  control= list(trace=5, REPORT=20, parscale = rep(c(1e-1, 1),  c(Nbeta, length(res$parameters)-Nbeta))),
-  data=res$tmb_data, config = res$config, cache =  cache, controlInner = res$control_inner
-)
-
-assign("file", "sim2.txt", cache)
-if(file.exists(get("file", cache))) file.remove(get("file", cache))
-assign("Nfun", 0, cache)
-assign("Ngr", 0, cache)
-
-mle2 = optim(
-  par = mle$solution, #c(1, 0.3, log(c(0.05, 0.001, 0.05, 0.001))),
+mleB <- BB::spg(par = mleX$solution, 
   fn = wrappers_outer$fn,
-  method = "Nelder-Mead",
-  control= list(trace=5, REPORT=20),
-  data=res$tmb_data, config = res$config, cache =  cache, controlInner = res$control_inner
-)
+  gr = wrappers_outer$gr,
+  data=res$tmb_data, config = res$config, cache =  cache, controlInner = res$control_inner,
+  control = list(maxit = 1e2, ftol=1e-6, gtol = 1e-4, M = 5, trace=TRUE, checkGrad=TRUE))  # M = nonmonotone history
 
-modGrad = function(...) {
-  sum(wrappers_outer$gr(...)^2)
-}
+c(mleB$value,mleX$fval)
 
-wrappers_outer$fn(mle$solution, data=res$tmb_data, config = res$config, cache =  cache, controlInner = res$control_inner)
-sum(wrappers_outer$gr(mle$solution, data=res$tmb_data, config = res$config, cache =  cache, controlInner = res$control_inner)^2)
-modGrad(mle$solution, data=res$tmb_data, config = res$config, cache =  cache, controlInner = res$control_inner)
-
-
-assign("file", "sim3.txt", cache)
-if(file.exists(get("file", cache))) file.remove(get("file", cache))
-assign("Nfun", 0, cache)
-assign("Ngr", 0, cache)
-mle3 = optim(
-  par = mle2$par, #c(1, 0.3, log(c(0.05, 0.001, 0.05, 0.001))),
-  fn = modGrad,
-  method = "Nelder-Mead",
-  control= list(trace=5, REPORT=20, temp =  2, tmax = 5),
-  data=res$tmb_data, config = res$config, cache =  cache, controlInner = res$control_inner
+mle = loglik(
+  parameters=mleX$solution,
+  gamma_start=get("gamma_start", cache),
+  data=res$tmb_data, config=res$config, control=res$control_inner,
+  check=TRUE
 )
 
 
-
-assign("file", "sim4.txt", cache)
-if(file.exists(get("file", cache))) file.remove(get("file", cache))
-assign("Nfun", 0, cache)
-assign("Ngr", 0, cache)
-mle4 = optim(
-  par = mle2$par, #c(1, 0.3, log(c(0.05, 0.001, 0.05, 0.001))),
-    fn = wrappers_outer$fn,
-    gr = wrappers_outer$gr,
-  method = "BFGS",
-  control= list(trace=5, REPORT=20),
-  data=res$tmb_data, config = res$config, cache =  cache, controlInner = res$control_inner
-)
-
-
-Nbeta = nrow(res$tmb_data$XTp)
-Sgamma = seq(Nbeta+1, len=nrow(res$tmb_data$ATp))
-parameters = res$start_parameters[-Sgamma]
-
-config2 = res$config
-config2$beta = parameters[1:Nbeta]
-config2$theta = parameters[-(1:Nbeta)]
-config2$strataPerIter = 10
-
-
-
-wrappers_outer$fn(x=res$parameters, data=res$tmb_data, config=res$config, control=res$control_inner, cache=cache)
-cache$gamma_start[1:5]
-config2$beta = res$parameters[1:Nbeta]
-config2$theta = res$parameters[-(1:Nbeta)]
-wrappers_gamma$gr(
-  cache$gamma_start,
-  res$tmb_data, config2
-)[1:5]
-bob = loglik(res$parameters, cache$gamma_start, res$tmb_data, config2)
-bob$deriv
-
-
-wrappers_outer$fn(x=res$parameters+1, data=res$tmb_data, config=res$config, control=res$control_inner, cache=cache)
-cache$gamma_start[1:5]
-loglik(parameters=res$parameters, gamma_start = cache$gamma_start, data=res$tmb_data, 
-  config=res$config, control=res$control_innern, deriv=0)
-
-innerOpt = trustOptim::trust.optim(
-  x=cache$gamma_start,
-  fn = wrappers_gamma$fn,
-  gr=wrappers_gamma$gr,
-  hs = wrappers_gamma$hs,
-  method = 'Sparse',
-  control = res$control_inner,
-  config=config2, data=res$tmb_data
-)
-
-
-mle$extra = loglik(
-  mle$solution, 
-  get("gamma_start", cache), 
-  res$tmb_data, res$config, res$control_inner)
-
-
-
-stuff = trustOptim::trust.optim(
-  cache$gamma_start,
-  fn = wrappers_gamma$fn,
-  gr= wrappers_gamma$gr,
-  hs = wrappers_gamma$hs,
-  method = 'Sparse',
-  dataList = res$tmb_data, 
-  configList = config2
- )
-
-allPar = mle$solution
-Dpar = 1
-Spar = seq(-0.1, 0.1, len=5)
-
-
-wrappers_outer$gr(
-
-)
-
-
-
-  Sigma <- solve(sdr$jointPrecision)
+  Sigma <- mle$extra$invHessianRandom
+  mu = mle$solution
   samp <- mvtnorm::rmvnorm(1e4, mu, as.matrix(Sigma))
-  res1 <- constructEffect(fit, exposure_var = "pm", 
-                          group_var = "region", group = unique(data$region), 
-                          values = seq(knots_pm[1],rev(knots_pm)[1],.01),
-                          ref_values = ref_values,
-                          pars = samp, probs = c(.1,.5,.9))
-  res1sub = res1[res1$group == 1, ]
-  matplot(res1sub$var_value, res1sub[,grep("q", colnames(res1sub))], type='l', 
-  lty=1, col=c('grey','black','grey'), lwd=2)
 
-#  for(i in unique(res1$group)){
-#    x <- genPmEffect(res1$var_value[res1$group == i], region_effect1[i], region_effect2[i])
-#    k <- which(res1$var_value[res1$group == i] == ref_values$pm)
-#    res1$true[res1$group == i] <- x - x[k]
-#  }
-#  (res1$true >= res1$q_0.1) & (res1$true <= res1$q_0.9)
-  
-#}, mc.cores=10)
+  xseq = seq(knots_pm[1],rev(knots_pm)[1],by=0.5)
+  df = expand.grid(
+    pm = xseq,
+    region =  c(-1, unique(res$data$region)), 
+    hum=0)
+  XA = hpolcc:::getNewXA(res$terms, df)
+  df$fixed = as.vector(XA$X %*% mle$parameters[1:nrow(res$tmb_data$XTp)])
 
-#saveRDS(res, "applications/synthetic/coverage.rds")
+  samp2 = tcrossprod(XA$A, samp)
+  Sprob = c(0.005, 0.025, 0.1, 0.5, 0.9, 0.975, 0.995)
+  sampq = t(apply(samp2, 1, quantile, prob = Sprob))
+  colnames(sampq) = paste0('q',Sprob)
+  sampq = sampq + df$fixed
 
 
+  Slwd = 4*sqrt(pmin(Sprob, 1-Sprob))
+  Scol = c('grey','black')[1+(Sprob == 0.5)]
+  Sorder = order(Slwd)
 
-x = seq(0, 1, len=21)[-1]
+  toPlot = which(df$region == -1)
+  matplot(df[toPlot, 'pm'], 
+    sampq[toPlot,Sorder], type='l', 
+  lty=1, col=Scol[Sorder], lwd=Slwd[Sorder], xaxs='i', yaxs='i')
+  lines(xseq, genPmEffect(xseq, 1, 1), col='yellow')
 
-nu = x = 0.1
-
-
-thel = unlist(mapply(function(xx) {
-  objectiveFunctionC(
-    c(rep(0, length(res$start_gamma) + length(res$parameters)-1), log(xx)),
-    res$tmb_data, res$config)
-  }, 
-xx= x))
-
-sumPerStrata
-data2
-
-cbind(r=-lR, c=thel)
-
-
-matplot(x, cbind(-lR, thel), type='l')
-
-
+  toPlot = which(df$region == 1)
+  matplot(df[toPlot, 'pm'], 
+    sampq[toPlot,Sorder], type='l', 
+  lty=1, col=Scol[Sorder], lwd=Slwd[Sorder], xaxs='i', yaxs='i')
 
 
 
