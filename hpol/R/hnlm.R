@@ -256,6 +256,7 @@ hnlm <- function(formula,
   parameters = c(start_beta, start_theta)
   start_parameters = c(start_beta, start_gamma, start_theta)
 
+ if(identical(config$verbose, TRUE)) print(config)
 
  if(identical(config$verbose, TRUE)) cat("getting sparsity.. ")
     config$sparsity = sparsity_pattern(

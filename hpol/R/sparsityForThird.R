@@ -28,7 +28,7 @@ if(FALSE) {
 
 
   if(identical(config$verbose, TRUE)) {
-    cat("done thirdDiagonals\n")
+    cat("done hessian\n")
   }
   
   hessian = as(
@@ -58,7 +58,9 @@ if(FALSE) {
     ijk1$k = unlist(Sk)
 
   } else {
-
+  if(identical(config$verbose, TRUE)) {
+    cat("computing offdiag\n")
+  }
     # compute and check all entries
 
     resThirdSparse = thirdNonDiagonalsSparsity(
@@ -84,6 +86,10 @@ ijk$ik = apply(ijk[,c('i','k')], 1, paste, collapse='_')
 Sdim = c('ij','jk','ik')
 Spairs = c("pairs1","pairs2","pairs3")
 ijk$pair = ijk$type = NA
+
+if(identical(config$verbose, TRUE)) {
+    cat("finding pairs\n")
+}
 Nna=1;Niter = 0
 while(Nna > 0 & Niter < nrow(ijk)) {
   theNA = which(is.na(ijk$pair))
@@ -109,6 +115,10 @@ while(Nna > 0 & Niter < nrow(ijk)) {
   Niter = Niter +1
   Nna = sum(is.na(ijk$pair))
 } # while
+
+if(identical(config$verbose, TRUE)) {
+    cat("done pairs ", Niter, "\n")
+}
 
 
 ijk$pairFac = factor(ijk$pair, levels=unique(apply(pairs, 1, function(xx) paste(sort(xx), collapse='_'))))
