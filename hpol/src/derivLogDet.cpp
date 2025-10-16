@@ -361,14 +361,16 @@ for (size_t D = 0; D < Nparams; D++) {
   }
 
   omp_set_num_threads(config.num_threads);
-  const std::vector<double>  w{0.0, 0.0, 1.0};  
-  const std::vector<double> direction2(Nparams, 0.0);
   
   #pragma omp parallel
   {
     const int tid=omp_get_thread_num();
 
+    const std::vector<double>  w{0.0, 0.0, 1.0};  
+    const std::vector<double> direction2(Nparams, 0.0);
     std::vector<double> direction1(Nparams, 0.0);
+
+    fun_threads[tid].Forward(0, x_val);
 
 // off diag T_ijk, pair is ij
   #pragma omp for
@@ -378,10 +380,8 @@ for (size_t D = 0; D < Nparams; D++) {
       const int Dj = sparsityIjJ[Dpair];
 
       std::fill(direction1.begin(), direction1.end(), 0.0);
-
       direction1[Di] = direction1[Dj] = 1.0;     
 
-      fun_threads[tid].Forward(0, x_val);
       fun_threads[tid].Forward(1, direction1);
       fun_threads[tid].Forward(2, direction2);
 

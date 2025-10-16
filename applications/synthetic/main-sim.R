@@ -94,8 +94,8 @@ mleX =  trustOptim::trust.optim(
     x = res$parameters, #c(1, 0.3, log(c(0.05, 0.001, 0.05, 0.001))),
     fn = wrappers_outer$fn,
     gr = wrappers_outer$gr,
-    method = 'BFGS',
-    control = res$control,
+    method = 'SR1',
+    control = list(start.trust.radius = 0.05, report.freq=1, report.level=10),
     data=res$tmb_data, config = res$config, cache =  cache, controlInner = res$control_inner
   )
 mleX$solution
@@ -104,9 +104,18 @@ mleB <- BB::spg(par = mleX$solution,
   fn = wrappers_outer$fn,
   gr = wrappers_outer$gr,
   data=res$tmb_data, config = res$config, cache =  cache, controlInner = res$control_inner,
-  control = list(maxit = 1e2, ftol=1e-6, gtol = 1e-4, M = 5, trace=TRUE, checkGrad=TRUE))  # M = nonmonotone history
+  control = list(maxit = 1e2, ftol=1e-12, gtol = 1e-9, M = 15, trace=TRUE, checkGrad=TRUE))  # M = nonmonotone history
 
-c(mleB$value,mleX$fval)
+mleN <- optimx::optimx(
+  par = mleX$solution, 
+  fn = wrappers_outer$fn,
+  gr = wrappers_outer$gr,
+  method = 'Rvmmin',
+  control = list(trace = 10, maxit=1e3),
+  data=res$tmb_data, config = res$config, cache =  cache, controlInner = res$control_inner
+)
+
+xx=c(mleB$value,mleX$fval,mleX3$fval, mleN$value);xx - min(xx)
 
 mle = loglik(
   parameters=mleX$solution,
@@ -143,7 +152,7 @@ mle = loglik(
   matplot(df[toPlot, 'pm'], 
     sampq[toPlot,Sorder], type='l', 
   lty=1, col=Scol[Sorder], lwd=Slwd[Sorder], xaxs='i', yaxs='i')
-  lines(xseq, genPmEffect(xseq, 1, 1), col='yellow')
+  lines(xseq, genPmEffect(xseq, 1, 1) - genPmEffect(ref_values$pm, 1, 1), col='yellow')
 
   toPlot = which(df$region == 1)
   matplot(df[toPlot, 'pm'], 
