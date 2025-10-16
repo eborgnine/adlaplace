@@ -86,7 +86,7 @@ save(dataMedSimple, file='dataMedSimple.RData')
 library('hpolcc')
 # load("dataMedSimple.RData")
 
-
+# add day iid
 fitD <- hpolcc::hnlm(
   formula= medical ~ #f(date, model='iid') +
 #    f(sqrtPm, model='hiwp', ref_value = 8, p=2, 
@@ -115,7 +115,7 @@ assign("file", "india.txt", cache)
 if(file.exists(get("file", cache))) file.remove(get("file", cache))
 
 mleX =  trustOptim::trust.optim(
-    x = fitD$parameters, #c(1, 0.3, log(c(0.05, 0.001, 0.05, 0.001))),
+    x = c(0.021726796, -2.118758e-04 ,-4.253132, -7.918471, -5.099570 ,-7.996464, -2.621749), #fitD$parameters, #c(1, 0.3, log(c(0.05, 0.001, 0.05, 0.001))),
     fn = wrappers_outer$fn,
     gr = wrappers_outer$gr,
     method = 'BFGS',
@@ -124,7 +124,18 @@ mleX =  trustOptim::trust.optim(
   )
 mleX$solution
 
+bob = loglik(
+  c(0.021726796, -2.118758e-04 ,-4.253132, -7.918471, -5.099570 ,-7.996464, -2.621749),
+  gamma_start = get("gamma_start", cache),
+ data=fitD$tmb_data, config = fitD$config, control = fitD$control_inner)
 
+
+mleB <- BB::spg(
+  par = c(0.021726796, -2.118758e-04 ,-4.253132, -7.918471, -5.099570 ,-7.996464, -2.621749),
+  fn = wrappers_outer$fn,
+  gr = wrappers_outer$gr,
+  data=fitD$tmb_data, config = fitD$config, cache =  cache, controlInner = fitD$control_inner,
+  control = list(maxit = 1e2, ftol=1e-6, gtol = 1e-4, M = 5, trace=TRUE, checkGrad=TRUE))  # M = nonmonotone history
 
 
   parameters = c(

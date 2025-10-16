@@ -89,14 +89,15 @@ thirdDeriv = function(x, data, config) {
   dUhat = - invHessianRandom %*% fullHessian[Sgamma1, -Sgamma1] 
 
 
-  thirdList = mapply(
+  thirdList = parallel::mcmapply(
   	thirdTensor,
   	k=seq(from=0, len=Nparameters),
-  	MoreArgs = list(third=third, N=Nparameters)
+  	MoreArgs = list(third=third, N=Nparameters), 
+    mc.cores = pmax(config$num_threads, 1, na.rm=TRUE)
   )
 
 
-  dHlist = mapply(
+  dHlist = parallel::mcmapply(
   	function(Tijk, dUp, Sgamma1) {
       if(is.null(Tijk)) return(NULL)
   		There =try( as(Tijk[Sgamma1,Sgamma1], 'TsparseMatrix'))
@@ -104,14 +105,17 @@ thirdDeriv = function(x, data, config) {
   	},
   	Tijk = thirdList[Sgamma1],
   	dUp = as.list(as.data.frame(t(as.matrix(dUhat)))),
-  	MoreArgs = list(Sgamma1=Sgamma1)
+  	MoreArgs = list(Sgamma1=Sgamma1), 
+    mc.cores = pmax(config$num_threads, 1, na.rm=TRUE)
   )
 
-  TijpAdd = mapply(function(Tijk, Sgamma1) {
+  TijpAdd = parallel::mcmapply(function(Tijk, Sgamma1) {
   if(is.null(Tijk)) return(NULL)
 	There = as(Tijk[Sgamma1,Sgamma1], 'TsparseMatrix')
 	cbind(i=There@i, j=There@j, x=There@x)
-  }, Tijk = thirdList[-Sgamma1], MoreArgs = list(Sgamma1=Sgamma1))
+  }, Tijk = thirdList[-Sgamma1], MoreArgs = list(Sgamma1=Sgamma1),
+    mc.cores = pmax(config$num_threads, 1, na.rm=TRUE)
+  )
   names(TijpAdd) = paste0("p", SbetaTheta0)
 
 # try to do without thirdList
@@ -147,7 +151,7 @@ thirdDeriv = function(x, data, config) {
 
 
   
-  dH = mapply(function(TU, ij, Tijp, dims) {
+  dH = parallel::mcmapply(function(TU, ij, Tijp, dims) {
   	toAgg = rbind(cbind(ij, x=TU), Tijp)
   	theAgg = aggregate(toAgg[,'x', drop=FALSE], toAgg[,c('i','j')], sum, na.rm=TRUE)
   	Matrix::sparseMatrix(
@@ -157,42 +161,21 @@ thirdDeriv = function(x, data, config) {
   }, 
   TU = as.list(dHagg[,names(TijpAdd)]),
   Tijp = TijpAdd,
-  MoreArgs = list(ij = dHagg[,c('i','j')], dims=c(Ngamma, Ngamma))
-	)
+  MoreArgs = list(ij = dHagg[,c('i','j')], dims=c(Ngamma, Ngamma)), 
+    mc.cores = pmax(config$num_threads, 1, na.rm=TRUE)
+  )
 
 
   # i,j are gamma indices
 
 
-dDet = mapply(function(Dhp, Hinv) {
-	sum(Matrix::diag(Hinv %*% Dhp))
+dDet = parallel::mcmapply(function(Dhp, Hinv) {
+#	sum(Matrix::diag(Hinv %*% Dhp))
 	sum((Hinv * Dhp))
-}, Dhp = dH, MoreArgs = list(Hinv = invHessianRandom)
-) / 2
+}, Dhp = dH, MoreArgs = list(Hinv = invHessianRandom), 
+    mc.cores = pmax(config$num_threads, 1, na.rm=TRUE)
+  ) / 2
 
-
-  if(FALSE) {
-  	 pair = pairsGamma[1,]# go to getDh
-  	Dp = 2
-  	DHpInitial = as.matrix(thirdList[[Dp]][Sgamma1, Sgamma1])
-  	DHp1 = 0
-  	bob=rep(NA, length(Sgamma1))
-  	for(D in 1:length(Sgamma1)) {
-  		DHp1 = DHp1 + as.matrix(thirdList[[Sgamma1[D] ]][Sgamma1,Sgamma1])*dUhat[D,Dp]
-  	}
-#  	stuff1 = unlist(lapply(thirdList[Sgamma1], function(xx) xx[DparL2, DparL3]))
-sum(dUhat[,2] * as.vector(thirdHere[Sgamma1]))
-DHp1[1:25,1:7]
-sum(bob*dUhat[,Dp])
-  	DHp = DHp1 + DHpInitial
-DHp[1:15,1:5]
-dHlist[[Dp]][1:15,1:5]
-
-dH[[2]][1:3,1:3]
-DHp[1:3,1:3]
-stuff = DHp - dH[[2]]
-
-  }
 
 
 
