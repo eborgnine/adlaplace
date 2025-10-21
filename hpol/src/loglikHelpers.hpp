@@ -155,30 +155,30 @@ if (cfg.dirichlet) {
 }
 
 
-template<class Type> CppAD::vector<Type> loglikOneStrata(
+template<class Type, class ParamsT> CppAD::vector<Type> loglikOneStrata(
 const int Dstrata,
 const CppAD::vector<Type>& gamma,
-const PackedParams<double>& parameters, // gamma is ignored
+const PackedParams<ParamsT>& parameters, // gamma is ignored
 const Data& data, 
 const Config& cfg
 ){
 
 
-  auto etaHere = compute_eta_for_stratum<Type, double>(
+  auto etaHere = compute_eta_for_stratum<Type, ParamsT>(
     Dstrata, data, gamma, parameters.beta);
 
-  auto contrib = accumulate_contrib_for_stratum<Type, double>(
+  auto contrib = accumulate_contrib_for_stratum<Type, ParamsT>(
     Dstrata, data, etaHere, parameters, cfg
     );
 
   return(contrib);
 }
 
-template<class Type> CppAD::vector<Type> loglikNStrata(
+template<class Type, class ParamsT> CppAD::vector<Type> loglikNStrata(
 const int Dstrata,
 const int Niter,
 const CppAD::vector<Type>& gamma,
-const PackedParams<double>& parameters, // gamma is ignored
+const PackedParams<ParamsT>& parameters, // gamma is ignored
 const Data& data, 
 const Config& cfg
 ){
@@ -191,6 +191,31 @@ const Config& cfg
   }
   return(result);
 }
+
+template<class Type, class ParamsT> CppAD::vector<Type> loglikSeq(
+const Rcpp::NumericVector Sstrata,
+const CppAD::vector<Type>& gamma,
+const PackedParams<ParamsT>& parameters, // gamma is ignored
+const Data& data, 
+const Config& cfg
+){
+  const size_t end = Sstrata.length();
+  CppAD::vector<Type> result(1);
+  result[0] = Type(0);
+
+  for(size_t Diter=0; Diter < end; ++Diter ) {
+    size_t Dstrata = Sstrata[Diter];
+    auto etaHere = compute_eta_for_stratum<Type, ParamsT>(
+      Dstrata, data, gamma, parameters.beta);
+
+    auto contrib = accumulate_contrib_for_stratum<Type, ParamsT>(
+      Dstrata, data, etaHere, parameters, cfg
+      );
+    result[0] += contrib[0];
+  }
+  return(result);
+}
+
 
 
 // Compute scaled gamma values and accumulate log-likelihood contribution

@@ -82,7 +82,8 @@ $$
      H\left(\hat U(\theta), \theta\right)^{-1}  
      \frac{\partial }{\partial \theta_p} H\left[ \hat U(\theta), \theta\right] 
      \right\}\\
-= & \sum_{ij} (H^{-1})_{ij}   \frac{\partial}{\partial \theta_p}  H_{ij}\left(\hat U(\theta), \theta\right) 
+= & \sum_{ij} (H^{-1})_{ij}   \frac{\partial}{\partial \theta_p}  H_{ij}\left(\hat U(\theta), \theta\right) \\
+= & \sum_{ij} (H^{-1})_{ij} T_{ijp} + \sum_{ijk} (H^{-1})_{ij} T_{ijk}    \hat U'_{kp}
 \end{aligned}
 $$
 

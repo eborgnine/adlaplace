@@ -491,6 +491,7 @@ unpack_params(const Rcpp::NumericVector& params,
   return(result);
 }
 
+#endif // LOGSPACE_HPOL_HPP
 
 template<class Type>
 CppAD::vector<Type>  objectiveFunctionInternal(
@@ -500,4 +501,12 @@ CppAD::vector<Type>  objectiveFunctionInternal(
  );
 
 
-#endif // LOGSPACE_HPOL_HPP
+CppAD::vector<CppAD::AD<double>>  objectiveFunctionSeq(
+ const CppAD::vector<CppAD::AD<double>>& ad_params,  
+ const Data& data,
+ const Config& config,
+ const Rcpp::IntegerVector& Sstrata,
+ const size_t start,
+ const size_t end ); 
+
+

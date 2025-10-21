@@ -61,7 +61,7 @@ region_effect2 <- rnorm(10,1,.2)
 
   data$monthDow = format(data$date, '%Y-%m-%a')
 
-  cc_design <- ccDesign(time_var = "date", strat_vars = c('monthDow',"region"))
+  cc_design <- ccDesign(time_var = "date", strat_vars = c("region",'monthDow'))
 
   ref_values <- list("pm" = 10)
   knots_pm <- seq(0, 22, by=2)
@@ -78,8 +78,110 @@ region_effect2 <- rnorm(10,1,.2)
         cg.tol = 1e-6, report.level=0),
     control=list(maxit=1000, start.trust.radius = 1, prec=1e-6, stop.trust.radius = 1e-9,
         cg.tol = 1e-6, report.level=4, report.freq=1, report.header.freq=10, report.precision=7),
-    config = list(num_threads = 10, strataPerIter=100, transform_theta = TRUE)
+    config = list(num_threads = parallel::detectCores(), strataPerIter=100, transform_theta = TRUE)
   )
+
+
+Nstrata = ncol(res$tmb_data$cc_matrixTp)
+configForPairs = res$config;configForPairs$num_threads = 1
+configForPairs$dense = FALSE
+pairsStrataList = parallel::mcmapply(function(Dstrata, x, config, data) {
+# get third tensor for only one strata
+config$sparsity$third$strataList = list(Dstrata)[rep(1, nrow(config$sparsity$third$pairs))]
+config$sparsity$third$pairs$Nstrata = 1
+from3 = hpolcc::thirdOffDiagonals(x, data, config)
+ijk= as.data.frame(config$sparsity$third$ijk)
+ijk$x = abs(drop(from3))
+ijk2 = aggregate(ijk[,'x', drop=FALSE], ijk[,c('i','j'), drop=FALSE], sum)
+ijk2 = as.data.frame(
+  ijk2[ijk2$x != 0, c('i','j'), drop=FALSE])
+ijk2$strata = Dstrata
+ijk2
+},
+Dstrata = seq(0, len=Nstrata),
+MoreArgs = list(config = configForPairs, data=res$tmb_data, x = res$parameters_for_sparsity),
+mc.cores = parallel::detectCores(), 
+SIMPLIFY=FALSE )
+
+pairsStrata = do.call(rbind, pairsStrataList)
+pairsStrataN = aggregate(data.frame(N=rep(1, nrow(pairsStrata))), pairsStrata[,c('i','j')], sum)
+# if over 80%, set to zero (so all strata are used)
+pairsStrataN[pairsStrataN$N > ceiling(0.8*Nstrata), 'N'] = 0
+
+pairsStrataN$pair = paste(pairsStrataN$i, pairsStrataN$j, sep='_')
+pairsStrata$pair = paste(pairsStrata$i, pairsStrata$j, sep='_')
+pairsStrataIndex = pairsStrata[pairsStrata$pair %in% pairsStrataN[pairsStrataN$N >0, 'pair'], ]
+
+pairsStrataN = pairsStrataN[order(pairsStrataN$j, pairsStrataN$i), ]
+pairsStrataIndex = pairsStrataIndex[order(pairsStrataIndex$j, pairsStrataIndex$i), ]
+
+pairsStrataN$p = match(pairsStrataN$pair, pairsStrataIndex$pair)-1
+pairsStrataN$pEnd = mapply(function(x, y) min(c(Inf, y[which(y > x)]), na.rm=TRUE), x=pairsStrataN$p, MoreArgs = list(y=pairsStrataN$p))
+
+xx = res$parameters_for_sparsity
+
+
+config2 = res$config
+config2$verbose=FALSE
+config2$dense=TRUE
+config2$num_threads = 10
+bob = hpolcc::thirdOffDiagonals(xx, res$tmb_data, config2)
+bobA = thirdDeriv(xx, res$tmb_data, config2)
+
+
+config3 = config2
+config3$sparsity$third$pairs$Nstrata = 0
+bob2 = hpolcc::thirdOffDiagonals(xx, res$tmb_data, config3)
+bob2A = thirdDeriv(xx, res$tmb_data, config3)
+
+
+config4 = config2
+config4$dense = FALSE
+config4$num_threads= 1
+config4$sparsity$third$pairs$Nstrata = 1
+
+Dstrata = 30
+
+
+
+
+
+stuff4 = merge(stuff3, res$config$sparsity$third$pairs)
+stuff4 = stuff4[order(stuff4$j, stuff4$i), ]
+
+iseq = 375+seq(-5,5)
+stuff4[iseq,]
+
+
+notAll = which(res$config$sparsity$third$pairs$Nstrata != 0)
+notAllList = res$config$sparsity$third$strataList[notAll]
+fromData = cbind(
+  res$config$sparsity$third$pairs[
+    rep(notAll, unlist(lapply(notAllList, length))), c('i','j')],
+  strata = unlist(notAllList),
+  inData = 1
+)
+
+compare = merge(fromData, stuff2, all=TRUE)
+
+
+quantile(unlist(lapply(stuff, nrow)))
+
+dim(stuff3)
+dim(config4$sparsity$third$pairs)
+
+
+bob3[1:5,1:5] 
+which(apply(abs(bob3), 1, sum)>0) 
+
+
+Shere = config2$sparsity$third$ijk[
+  seq(config2$sparsity$third$pairs[26,"p"]+1, len=10),'k']+1 
+
+cbind(bob[,26], bob2[,26])[Shere,]
+
+range(bob - bob2)
+range(bobA$third$x-bob2A$third$x)
 
 
 
@@ -90,12 +192,13 @@ assign("gamma_start", res$start_gamma, cache)
 assign("file", "simbfgs.txt", cache)
 if(file.exists(get("file", cache))) file.remove(get("file", cache))
 
+
 mleX =  trustOptim::trust.optim(
     x = res$parameters, #c(1, 0.3, log(c(0.05, 0.001, 0.05, 0.001))),
     fn = wrappers_outer$fn,
     gr = wrappers_outer$gr,
     method = 'SR1',
-    control = list(start.trust.radius = 0.05, report.freq=1, report.level=10),
+    control = list(start.trust.radius = 0.1, report.freq=1, report.level=10),
     data=res$tmb_data, config = res$config, cache =  cache, controlInner = res$control_inner
   )
 mleX$solution
@@ -104,7 +207,8 @@ mleB <- BB::spg(par = mleX$solution,
   fn = wrappers_outer$fn,
   gr = wrappers_outer$gr,
   data=res$tmb_data, config = res$config, cache =  cache, controlInner = res$control_inner,
-  control = list(maxit = 1e2, ftol=1e-12, gtol = 1e-9, M = 15, trace=TRUE, checkGrad=TRUE))  # M = nonmonotone history
+  control = list(maxit = 1e2, ftol=1e-12, gtol = 1e-9, M = 15, trace=TRUE, checkGrad=TRUE))  
+
 
 mleN <- optimx::optimx(
   par = mleX$solution, 

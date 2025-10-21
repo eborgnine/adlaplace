@@ -58,12 +58,13 @@ hnlm <- function(formula,
 
   data.table::setDT(data)
   strat_time_vars <- c(cc_design$strat_vars, cc_design$time_var)
+
+  strat_time_vars = strat_time_vars[
+    order(sapply(data[, strat_time_vars, with = FALSE], function(xx) length(unique(xx))), decreasing=FALSE)
+  ]
+
+
   data.table::setorderv(data, strat_time_vars)
-  
-  #  strat_time_vars <- c(cc_design$strat_vars, cc_design$time_var)
-  #  new_order <- eval(str2lang(paste0("order(", paste0("data[['", strat_time_vars, "']]", collapse = ", "), ")")))
-  #  data <- data[new_order,]
-  
   
   # setup the data for case-crossover
   if (verbose) {
@@ -264,12 +265,12 @@ hnlm <- function(formula,
   if(identical(config$verbose, TRUE)) cat("done sparsity\n")
 
 
-
   if(for_dev)
     return(
       list(
         start_gamma = start_gamma,
         parameters = parameters, 
+        parameters_for_sparsity = start_parameters,
         theta_info = theta_info,
         tmb_data = tmb_data,
         terms = terms,

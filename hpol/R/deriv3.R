@@ -17,7 +17,7 @@ thirdDeriv = function(x, data, config) {
   resThirdOffDiag = thirdOffDiagonals(
     x, data, config
   ) 
-
+  
   if(identical(config$dense, TRUE)) {
           # T_iik, doubles are columns of resThirdDiag$diag
     fullHessian = Matrix::Matrix(resThirdDiag$second)

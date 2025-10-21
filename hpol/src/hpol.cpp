@@ -265,7 +265,6 @@ Rcpp::List objectiveFunctionHessian(
 
   auto y = objectiveFunctionInternal(ad_params, data, config);  
   CppAD::ADFun<double> fun(ad_params, y);
-  fun.Forward(0, x_val);
 
 
 #pragma omp single
@@ -332,7 +331,6 @@ return(resultList);
 }
 
 
-
 template<class Type>
 CppAD::vector<Type>  objectiveFunctionInternal(
  const CppAD::vector<Type>& ad_params,  
@@ -346,9 +344,9 @@ CppAD::vector<Type>  objectiveFunctionInternal(
   Type loglik = Type(0);
 
 
-  for (size_t Dstrata = 0; Dstrata < data.Nstrata;  Dstrata++) {
+  for (size_t Dstrata = 0; Dstrata < data.Nstrata; Dstrata++) {
 
-    auto etaHere = compute_eta_for_stratum(
+    auto etaHere = compute_eta_for_stratum<Type,Type>(
       Dstrata, data, latent.gamma, latent.beta);
 
     auto contrib = accumulate_contrib_for_stratum<Type, Type>(
@@ -381,9 +379,69 @@ CppAD::vector<Type>  objectiveFunctionInternal(
 
   minusLogDens[0] =  - loglik + randomContribution;
 
+
 #ifdef EVALCONSTANTS
-  minusLogDens[0] += Ngamma * HALFLOGTWOPI;
+  minusLogDens[0] += data.Ngamma * HALFLOGTWOPI;
   minusLogDens[0] -= Rcpp::as<double>(config.halfLogDetQ);
+#endif
+
+  return minusLogDens;
+}
+
+
+CppAD::vector<CppAD::AD<double>>  objectiveFunctionSeq(
+ const CppAD::vector<CppAD::AD<double>> & ad_params,  
+ const Data& data,
+ const Config& config,
+ const Rcpp::IntegerVector& Sstrata,
+ const size_t start,
+ const size_t end
+ ) {
+
+  auto latent=unpack_params(ad_params, data, config);
+
+  CppAD::vector<CppAD::AD<double>> minusLogDens(1);
+  CppAD::AD<double> loglik = 0;
+
+
+  for (size_t Dindex = start; Dindex < end;  Dindex++) {
+    size_t Dstrata = Sstrata[Dindex];
+
+    auto etaHere = compute_eta_for_stratum(
+      Dstrata, data, latent.gamma, latent.beta);
+
+    auto contrib = accumulate_contrib_for_stratum(
+      Dstrata, data, etaHere, latent, config);
+
+    loglik += contrib[0];
+
+  }
+
+  CppAD::AD<double> randomContribution = 0;//loglikQ(latent.gamma, latent, data);
+  CppAD::vector<CppAD::AD<double>> gammaScaled(data.Ngamma);
+
+    for (size_t D = 0; D < data.Ngamma; ++D) {
+        size_t mapHere = data.map[D];
+        CppAD::AD<double>  thetaHere = latent.theta[mapHere];
+        CppAD::AD<double>  logThetaHere = latent.logTheta[mapHere];
+
+        gammaScaled[D] = latent.gamma[D] / thetaHere;
+
+        randomContribution += logThetaHere +
+                      (0.5 * data.Qdiag[D]) * gammaScaled[D] * gammaScaled[D] ;
+    }
+
+      // Q offdiag    
+    for(size_t D = 0; D < data.Nq; D++) {
+        randomContribution+= gammaScaled[data.QsansDiag.i[D]] * gammaScaled[data.QsansDiag.j[D]] 
+          * (data.QsansDiag.x[D]);
+    }
+
+  minusLogDens[0] =  - loglik + randomContribution;
+
+#ifdef EVALCONSTANTS
+  minusLogDens[0] += data.Ngamma * HALFLOGTWOPI;
+  minusLogDens[0] -= config.halfLogDetQ;
 #endif
 
   return minusLogDens;
@@ -413,8 +471,9 @@ Rcpp::List objectiveFunctionC(
   CppAD::Independent(ad_params);  // Tell CppAD these are inputs for differentiation
   
 
-
   auto y = objectiveFunctionInternal<CppAD::AD<double>>(ad_params, data, config);
+//  const Rcpp::IntegerVector Sstrata = Rcpp::seq(0, data.Nstrata);
+//  auto y = objectiveFunctionSeq<CppAD::AD<double>>(ad_params, data, config, Sstrata);
 
   if(config.verbose ) {
     Rcpp::Rcout << "y " << y[0] << "\n";
