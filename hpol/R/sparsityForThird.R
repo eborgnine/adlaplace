@@ -1,27 +1,10 @@
-pairsStrataFun = function(Dstrata, x, config, data) {
-# get third tensor for only one strata
-config$sparsity$third$strata = rep(1, nrow(config$sparsity$third$pairs))
-from3 = hpolcc::thirdOffDiagonals(x, data, config)
-ijk= as.data.frame(config$sparsity$third$ijk)
-ijk$x = abs(drop(from3))>0
-ijk2 = aggregate(ijk[,'x', drop=FALSE], ijk[,c('i','j'), drop=FALSE], sum)
-ijk2 = as.data.frame(
-  ijk2[ijk2$x != 0, c('i','j'), drop=FALSE])
-ijk2 = ijk2[order(ijk2$j, ijk2$i), ]
-ijk2$strata = Dstrata
-ijk2
-}
+
 
 #' @export
 sparsity_pattern = function(x, data, config=list()) {
 
-#library('hpolcc')
+#x=bob$x;data=bob$data;config=bob$config  
 
-  if(identical(config$dense, "TRUE")) {
-    type = 'compute'
-  } else {
-    type = 'hessian'
-  }
 
   configForDiag = config[setdiff(names(config), c("dense","sparsity","beta","theta"))]
   configForDiag$dense=TRUE
@@ -58,41 +41,43 @@ sparsity_pattern = function(x, data, config=list()) {
 
   pairs = hessianIJ[!duplicated(hessianIJ[,c('i','j')]), ]
   pairs = pairs[order(pairs$j, pairs$i), ]
-  pairs = as.matrix(pairs)
 
-    if(identical(config$verbose, TRUE)) {
-      cat("third non-zeros\n")
-    }
-  if(type[1] == 'hessian') {
+
+
     # find sparsity pattern based on the hessian
     if(identical(config$verbose, TRUE)) {
       cat("third non-zeros from hessian\n")
     }
+
     Sk =  apply(hessianIJ, 1, 
       function(xx, ref) {
         intersect(ref[ref$i == xx['i'], 'j'], ref[ref$j == xx['j'], 'i'])
       }, 
       ref = hessianIJ)
+
+
     ijk1 = hessianIJ[rep(1:nrow(hessianIJ), unlist(lapply(Sk, length))), ]
+
     ijk1$k = unlist(Sk)
 
-  } else {
-    if(identical(config$verbose, TRUE)) {
-      cat("computing offdiag\n")
-    }
+
+    if(FALSE) {
+      # something wrong
     # compute and check all entries
 
     resThirdSparse = thirdNonDiagonalsSparsity(
-      x, data, config, pairs
+      x, data, config, as.matrix(pairs)
     )
     ijk2 = as(resThirdSparse, "TsparseMatrix")
     ijk1 = data.frame(
       i=pairs[ijk2@i+1, 'i'], 
       j=pairs[ijk2@i+1, 'j'], 
       k=ijk2@j)
-  } # else dense
+  } # end dense
 
-  ijk1 = t(apply(ijk1, 1, sort))
+
+  ijk1 = ijk1[!duplicated(ijk1[,c('i','j','k')]), ]
+  ijk1 = t(apply(ijk1[,c('i','j','k')], 1, sort))
   ijk1 = ijk1[!duplicated(ijk1), ]
 
   Nunique = apply(ijk1,1, function(xx) length(unique(xx)))
@@ -170,6 +155,35 @@ sparsity_pattern = function(x, data, config=list()) {
   pairs = ijkp[!duplicated(ijkp[,c('i','j')]), setdiff(names(ijkp), 'k')]
   pairs$pEnd = c(pairs[-1,'p'], nrow(ijkp))
   pairs$n =pairs$pEnd - pairs$p
+  pairs$pair = paste(pairs$i, pairs$j, sep='_')
+
+
+# ijkp and pairs are what we need
+
+
+# find which pairs dont contribute to likelihood part
+  configForDiag$sparsity = list(
+    third = list(
+      ijk = as.data.frame(ijkp),
+      pairs = cbind(as.data.frame(pairs), nodata=0, noQ=0)
+    )
+  )
+  configForDiag$dense=FALSE
+
+#library(hpolcc)
+
+  from3 = thirdOffDiagonals(
+    x, data, configForDiag
+  )
+  colnames(from3) = c('data','q')
+
+  checkZeros = cbind(configForDiag$sparsity$third$ijk, abs(from3)>.Machine$double.eps)
+  checkZeros = aggregate(checkZeros[,c('data','q'), drop=FALSE], checkZeros[,c('i','j'), drop=FALSE], sum)
+  checkZeros$pair = paste(checkZeros$i, checkZeros$j, sep='_')
+
+  pairs$nodata = checkZeros[match(pairs$pair, checkZeros$pair), 'data']==0
+  pairs$noQ = checkZeros[match(pairs$pair, checkZeros$pair), 'q']==0
+
 
 
   hessianC = as(hessian, 'CsparseMatrix')
@@ -251,59 +265,7 @@ sparsity_pattern = function(x, data, config=list()) {
     )
   )
 
-# which strata contribute to third
-Nstrata = ncol(data$cc_matrixTp)
-configForPairs = configForDiag
-configForPairs$dense = FALSE
-configForPairs$verbose = FALSE
-configForPairs$num_threads = 1
-configForPairs$sparsity = sparsity
-configForPairs$sparsity$third$pairs$Nstrata = 1
-configForPairs$sparsity$third$pairs$pStrata = seq(0, len=nrow(configForPairs$sparsity$third$pairs))
-configForPairs$sparsity$third$pairs$pStrataEnd = configForPairs$sparsity$third$pairs$pStrata +1
-
-
-
-pairsStrataList = parallel::mcmapply(
-  pairsStrataFun,
-Dstrata = seq(0, len=Nstrata),
-MoreArgs = list(config = configForPairs, data=data, x = x),
-mc.cores = config$num_threads, 
-SIMPLIFY=FALSE )
-
-pairsStrata = do.call(rbind, pairsStrataList)
-pairsStrataN = aggregate(data.frame(N=rep(1, nrow(pairsStrata))), pairsStrata[,c('i','j')], sum)
-# if over 80%, set to zero (so all strata are used)
-pairsStrataN[pairsStrataN$N > ceiling(0.8*Nstrata), 'N'] = 0
-
-pairsStrataN$pair = paste(pairsStrataN$i, pairsStrataN$j, sep='_')
-pairsStrata$pair = paste(pairsStrata$i, pairsStrata$j, sep='_')
-pairsStrataIndex = pairsStrata[pairsStrata$pair %in% pairsStrataN[pairsStrataN$N >0, 'pair'], , drop=FALSE]
-
-#pairsStrataN = pairsStrataN[order(pairsStrataN$j, pairsStrataN$i), ]
-pairsStrataIndex = pairsStrataIndex[order(pairsStrataIndex$j, pairsStrataIndex$i), ]
-
-
-pairsStrataN$p = match(pairsStrataN$pair, pairsStrataIndex$pair)-1
-pairsStrataN$pEnd = mapply(function(x, y) min(c(Inf, y[which(y > x)]), na.rm=TRUE), x=pairsStrataN$p, MoreArgs = list(y=pairsStrataN$p))
-pairsStrataN[is.na(pairsStrataN$p), 'p'] = -1
-pairsStrataN[pairsStrataN$pEnd==Inf, 'pEnd'] = -1
-
-
-sparsity$third$pairs$pair = paste(sparsity$third$pairs$i, sparsity$third$pairs$j, sep='_')
-
-theMatch = match(sparsity$third$pairs$pair, pairsStrataN$pair)
-sparsity$third$pairs$pStrata = as.integer(pairsStrataN[theMatch, 'p'])
-sparsity$third$pairs$pStrataEnd = as.integer(pairsStrataN[theMatch, 'pEnd'])
-sparsity$third$pairs$Nstrata = as.integer(pairsStrataN[theMatch, 'N'])
-
-sparsity$third$strata = as.integer(pairsStrata$strata)
-
-
   sparsity
 
 }
-
-
-
 

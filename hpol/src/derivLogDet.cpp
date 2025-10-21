@@ -230,50 +230,48 @@ Rcpp::LogicalMatrix thirdNonDiagonalsSparsity(
 
   const int Npairs = pairs.nrow();
   const int Nparams = parameters.size();
+
+const Rcpp::IntegerVector colI = pairs.column(0);
+const Rcpp::IntegerVector colJ = pairs.column(1);
+
+const std::vector<int> pairsI(colI.begin(), colI.end());
+const std::vector<int> pairsJ(colJ.begin(), colJ.end());
+
   Rcpp::LogicalMatrix result(Npairs, Nparams);
+
+  omp_set_num_threads(config.num_threads);
+  #pragma omp parallel
+  {
 
   // set up autodiff function
   CppAD::vector<CppAD::AD<double>> ad_params(Nparams);  
-  for (size_t D = 0; D < Nparams; D++) {
-    ad_params[D] = parameters[D];  // Initialize CppAD variables
-  }
-  CppAD::Independent(ad_params);  // Tell CppAD these are inputs for differentiation
-
-  CppAD::vector<CppAD::AD<double>> y = objectiveFunctionInternal(ad_params, data, config);  
-  CppAD::ADFun<double> fun(ad_params, y);
-
   std::vector<double> x_val(Nparams);
   std::vector<double> y_val(1);
 
-  std::vector<CppAD::ADFun<double>> fun_threads(config.num_threads);
-  for (size_t i = 0; i < config.num_threads; ++i) {
-    fun_threads[i] = fun;
+  for (size_t D = 0; D < Nparams; D++) {
+    ad_params[D] = parameters[D];  // Initialize CppAD variables
+    x_val[D] = parameters[D];
   }
+  CppAD::Independent(ad_params);  // Tell CppAD these are inputs for differentiation
 
-  for (size_t i = 0; i < Nparams; ++i) {
-    x_val[i] = parameters[i];
-  }
+  auto y = logLikNoQ(ad_params, data, config);  
+  CppAD::ADFun<double> fun(ad_params, y);
+  fun.Forward(0, x_val);
 
 
   const std::vector<double> direction2(Nparams, 0.0);
   const std::vector<double> w{0.0, 0.0, 1.0};  
 
-  omp_set_num_threads(config.num_threads);
-  #pragma omp parallel
-  {
-    const int tid=omp_get_thread_num();
-    fun_threads[tid].Forward(0, x_val);
-
       #pragma omp for
     for(size_t Dpair=0;Dpair<Npairs;Dpair++) {
 
       std::vector<double> direction1(Nparams, 0.0);
-      direction1[pairs(Dpair,0)]  = direction1[pairs(Dpair, 1)] = 1.0;     
+      direction1[pairsI[Dpair] ]  = direction1[pairsJ[Dpair] ] = 1.0;     
 
 //  fun_threads[tid].Forward(0, x_val);
-      fun_threads[tid].Forward(1, direction1);
-      fun_threads[tid].Forward(2, direction2);
-      auto taylor3 = fun_threads[tid].Reverse(3, w);
+      fun.Forward(1, direction1);
+      fun.Forward(2, direction2);
+      auto taylor3 = fun.Reverse(3, w);
       for(size_t Dk = 0;Dk < Nparams;Dk++) {
         if (!CppAD::NearEqual(taylor3[3*Dk], 0.0, 1e-12, 1e-12)) {
           result(Dpair, Dk) = 1L;
@@ -296,26 +294,24 @@ Rcpp::NumericMatrix thirdOffDiagonals(
   Rcpp::List configList) {
 
 
+
   Data   data(dataList);
   Config config(configList);
+
 
   const int Nparams = parameters.size();
 
 // hessian of random effects, lower triangle only, column format
 
 // sparsity for third deriv
-  Rcpp::List sparsity = config.sparsity;
-  Rcpp::List thirdList = sparsity["third"];
-  Rcpp::List pairs = thirdList["pairs"];     
-  Rcpp::IntegerVector Sstrata = thirdList["strata"];
-  Rcpp::IntegerVector pairsPstrata = pairs["pStrata"];
-  Rcpp::IntegerVector pairsPstrataEnd = pairs["pStrataEnd"];
-  Rcpp::IntegerVector pairsNstrata = pairs["Nstrata"];
+  const Rcpp::List sparsity = config.sparsity;
+  const Rcpp::List thirdList = sparsity["third"];
+  const Rcpp::List pairs = thirdList["pairs"];     
 
-
-  Rcpp::IntegerVector sparsityIjI = pairs["i"];
-  Rcpp::IntegerVector sparsityIjJ = pairs["j"];
-  Rcpp::IntegerVector  sparsityIjNstrata = pairs["Nstrata"];
+  const Rcpp::IntegerVector sparsityIjI = pairs["i"];
+  const Rcpp::IntegerVector sparsityIjJ = pairs["j"];
+  const Rcpp::LogicalVector pairsNoData = pairs["nodata"];
+  const Rcpp::LogicalVector pairsNoQ = pairs["noQ"];
   const int Npairs = sparsityIjJ.size();
 
  // only used for sparse
@@ -325,8 +321,6 @@ Rcpp::NumericMatrix thirdOffDiagonals(
 
 // output
   Rcpp::NumericMatrix Tijk;
-// Rcpp::NumericMatrix outF1(Nparams, Npairs);
-// Rcpp::NumericMatrix outF2(Nparams, Npairs);
 
   if(config.dense){
     Tijk = Rcpp::NumericMatrix(Nparams, Npairs);
@@ -336,7 +330,7 @@ Rcpp::NumericMatrix thirdOffDiagonals(
     sparsityIjP = pairs["p"];
     sparsityIjPend = pairs["pEnd"];
     sparsityIjkK = sparsityThirdIjk["k"];
-    Tijk = Rcpp::NumericMatrix(sparsityIjkK.size(), 1L);
+    Tijk = Rcpp::NumericMatrix(sparsityIjkK.size(), 2L);
   }
 
   if (config.verbose ) {
@@ -355,65 +349,70 @@ Rcpp::NumericMatrix thirdOffDiagonals(
   {
 // set up autodiff function
 
-  CppAD::vector<CppAD::AD<double>> ad_params(Nparams), ad_params_strata(Nparams);
+  CppAD::vector<CppAD::AD<double>> ad_params(Nparams), ad_params_Q(Nparams);
   std::vector<double> x_val(Nparams);  
 
   for (size_t D = 0; D < Nparams; D++) {
     ad_params[D] = parameters[D];  // Initialize CppAD variables
-    ad_params_strata[D] = parameters[D];  // Initialize CppAD variables
+    ad_params_Q[D] = parameters[D];  // Initialize CppAD variables
     x_val[D] = parameters[D];
   }
 
-  CppAD::Independent(ad_params);  // Tell CppAD these are inputs for differentiation
-
-  auto y = objectiveFunctionInternal(ad_params, data, config);  
+  CppAD::Independent(ad_params);  
+  auto y = logLikNoQ(ad_params, data, config);  
   CppAD::ADFun<double> fun(ad_params, y);
   fun.Forward(0, x_val);
+
+  CppAD::Independent(ad_params_Q);  
+  auto yQ = logLikOnlyQ(ad_params_Q, data, config);
+  CppAD::ADFun<double> funQ(ad_params_Q, yQ);
+  funQ.Forward(0, x_val);
 
 
     const std::vector<double>  w{0.0, 0.0, 1.0};  
     const std::vector<double> direction2(Nparams, 0.0);
     std::vector<double> direction1(Nparams, 0.0);
-    std::vector<double> taylor3;
+
 
 // off diag T_ijk, pair is ij
   #pragma omp for
     for(int Dpair=0; Dpair < Npairs; ++Dpair) {
 
-      const int Di = sparsityIjI[Dpair];
-      const int Dj = sparsityIjJ[Dpair];
-      const int Nstrata = pairsNstrata[Dpair];
-      const int Dstart = pairsPstrata[Dpair];
-      const int Dend = pairsPstrataEnd[Dpair];
+    std::vector<double> taylor3, taylor3Q;
 
-      std::fill(direction1.begin(), direction1.end(), 0.0);
-      direction1[Di] = direction1[Dj] = 1.0;     
+        const int Di = sparsityIjI[Dpair];
+        const int Dj = sparsityIjJ[Dpair];
+        const bool havedata = !pairsNoData[Dpair];
+        const bool haveQ = !pairsNoQ[Dpair];
 
-    if(Nstrata) {// not working yet
+        std::fill(direction1.begin(), direction1.end(), 0.0);
+        direction1[Di] = direction1[Dj] = 1.0;     
 
-      CppAD::Independent(ad_params_strata);  
+        if(havedata) {
+          fun.Forward(1, direction1);
+          fun.Forward(2, direction2);
+          taylor3 = fun.Reverse(3, w);  
+        }
 
-      auto yStrata = objectiveFunctionSeq(ad_params_strata, data, config, Sstrata, Dstart, Dend);
-      CppAD::ADFun<double> funStrata(ad_params_strata, yStrata);
-      funStrata.Forward(0, x_val);
-      funStrata.Forward(1, direction1);
-      funStrata.Forward(2, direction2);
-      taylor3 = funStrata.Reverse(3, w);  
-    } else { 
-      fun.Forward(0, x_val);
-      fun.Forward(1, direction1);
-      fun.Forward(2, direction2);
+        if(haveQ) {
+          funQ.Forward(1, direction1);
+          funQ.Forward(2, direction2);
+          taylor3Q = funQ.Reverse(3, w);  
+        }
 
-      taylor3 = fun.Reverse(3, w);  
-    } 
   // first column is third deriv combination
   //  T_iik/2 + T_jjk/2 + T_ijk 
   // columns of diag are the double deriv
   // rows of taylor3 are i
     if(config.dense) {
-      for(int Dk=0; Dk<Nparams; 
-        Dk++){
-        Tijk(Dk, Dpair) = taylor3[3*Dk];
+      const int DpairsForQ = Dpair + Npairs;
+      for(int Dk=0; Dk<Nparams; Dk++){
+        if(havedata) {
+          Tijk(Dk, Dpair) += taylor3[3*Dk];
+        } else {
+          Tijk(Dk, Dpair) =0;
+        }
+        if(haveQ) Tijk(Dk, Dpair) += taylor3Q[3*Dk];
       }
     } else { // sparse
       int DinIjkStart = sparsityIjP[Dpair];
@@ -422,10 +421,18 @@ Rcpp::NumericMatrix thirdOffDiagonals(
           DinIjk<DinIjkEnd; DinIjk++
       ){
         int Dk = sparsityIjkK[DinIjk];
-        Tijk[DinIjk] = taylor3[3*Dk];
+        if(havedata) {
+          Tijk(DinIjk,0) = taylor3[3*Dk];
+        } else {
+          Tijk(DinIjk,0) = 0;
+        }
+        if(haveQ) {
+          Tijk(DinIjk,1) = taylor3Q[3*Dk];
+        } else {
+          ijk(DinIjk,1) = 0;
+        }
       }
     } // end sparse
-
   } // Dpair
 
 } // parallel

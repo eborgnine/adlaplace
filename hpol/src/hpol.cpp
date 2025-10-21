@@ -188,7 +188,7 @@ Rcpp::NumericVector objectiveFunctionGrad(
   }
 
   CppAD::Independent(ad_params);  
-  auto yvec = loglikQ(ad_params,  parameters_extra, dat);
+  auto yvec = loglikQ(ad_params,  parameters_extra.theta, parameters_extra.logTheta, dat);
   auto funQ = CppAD::ADFun<double>(ad_params, yvec);
   funQ.Forward(0, x_val);   
   auto gradQ= funQ.Reverse(1, w); 
@@ -356,8 +356,8 @@ CppAD::vector<Type>  objectiveFunctionInternal(
 
   }
 
-  Type randomContribution = 0;//loglikQ(latent.gamma, latent, data);
-  CppAD::vector<Type> gammaScaled(data.Ngamma);
+  auto randomContribution = loglikQ(latent.gamma, latent.theta, latent.logTheta, data);
+/*  CppAD::vector<Type> gammaScaled(data.Ngamma);
 
     for (size_t D = 0; D < data.Ngamma; ++D) {
         size_t mapHere = data.map[D];
@@ -375,9 +375,9 @@ CppAD::vector<Type>  objectiveFunctionInternal(
         randomContribution+= gammaScaled[data.QsansDiag.i[D]] * gammaScaled[data.QsansDiag.j[D]] 
           * Type(data.QsansDiag.x[D]);
     }
+*/
 
-
-  minusLogDens[0] =  - loglik + randomContribution;
+  minusLogDens[0] =  - loglik + randomContribution[0];
 
 
 #ifdef EVALCONSTANTS
@@ -389,13 +389,11 @@ CppAD::vector<Type>  objectiveFunctionInternal(
 }
 
 
-CppAD::vector<CppAD::AD<double>>  objectiveFunctionSeq(
+// excludes random effect
+CppAD::vector<CppAD::AD<double>>  logLikNoQ(
  const CppAD::vector<CppAD::AD<double>> & ad_params,  
  const Data& data,
- const Config& config,
- const Rcpp::IntegerVector& Sstrata,
- const size_t start,
- const size_t end
+ const Config& config
  ) {
 
   auto latent=unpack_params(ad_params, data, config);
@@ -403,9 +401,8 @@ CppAD::vector<CppAD::AD<double>>  objectiveFunctionSeq(
   CppAD::vector<CppAD::AD<double>> minusLogDens(1);
   CppAD::AD<double> loglik = 0;
 
-
-  for (size_t Dindex = start; Dindex < end;  Dindex++) {
-    size_t Dstrata = Sstrata[Dindex];
+  size_t end = data.Nstrata;
+  for (size_t Dstrata = 0; Dstrata < end;  Dstrata++) {
 
     auto etaHere = compute_eta_for_stratum(
       Dstrata, data, latent.gamma, latent.beta);
@@ -417,37 +414,44 @@ CppAD::vector<CppAD::AD<double>>  objectiveFunctionSeq(
 
   }
 
-  CppAD::AD<double> randomContribution = 0;//loglikQ(latent.gamma, latent, data);
-  CppAD::vector<CppAD::AD<double>> gammaScaled(data.Ngamma);
-
-    for (size_t D = 0; D < data.Ngamma; ++D) {
-        size_t mapHere = data.map[D];
-        CppAD::AD<double>  thetaHere = latent.theta[mapHere];
-        CppAD::AD<double>  logThetaHere = latent.logTheta[mapHere];
-
-        gammaScaled[D] = latent.gamma[D] / thetaHere;
-
-        randomContribution += logThetaHere +
-                      (0.5 * data.Qdiag[D]) * gammaScaled[D] * gammaScaled[D] ;
-    }
-
-      // Q offdiag    
-    for(size_t D = 0; D < data.Nq; D++) {
-        randomContribution+= gammaScaled[data.QsansDiag.i[D]] * gammaScaled[data.QsansDiag.j[D]] 
-          * (data.QsansDiag.x[D]);
-    }
-
-  minusLogDens[0] =  - loglik + randomContribution;
-
-#ifdef EVALCONSTANTS
-  minusLogDens[0] += data.Ngamma * HALFLOGTWOPI;
-  minusLogDens[0] -= config.halfLogDetQ;
-#endif
+  minusLogDens[0] = -loglik;
 
   return minusLogDens;
 }
 
+CppAD::vector<CppAD::AD<double>>  logLikOnlyQ(
+    const CppAD::vector<CppAD::AD<double>> & ad_params,  
+    const Data& data,
+    const Config& config
+) {
 
+    auto latent=unpack_params(ad_params, data, config);
+
+    CppAD::vector<CppAD::AD<double>> gammaScaled(data.Ngamma);
+    CppAD::vector<CppAD::AD<double>> result(1);
+
+    CppAD::AD<double> result0=0;
+    for (size_t D = 0; D < data.Ngamma; ++D) {
+        size_t mapHere = data.map[D];
+
+        auto thetaHere = latent.theta[mapHere];
+        auto logThetaHere = latent.logTheta[mapHere];
+
+        gammaScaled[D] = latent.gamma[D] / thetaHere;
+        result0 += logThetaHere +
+                      (0.5 * data.Qdiag[D]) * gammaScaled[D] * gammaScaled[D];
+                      
+    }
+
+      // Q offdiag    
+    for(size_t D = 0; D < data.Nq; D++) {
+        result0 += gammaScaled[data.QsansDiag.i[D]] * gammaScaled[data.QsansDiag.j[D]] 
+          * data.QsansDiag.x[D];
+    }
+
+    result[0] = result0;
+    return(result);
+}
 
 //' @export
 // [[Rcpp::export]]

@@ -143,7 +143,10 @@ struct Data {
     , map(       data["map"] )
   {
   // Basic sizes
-    Nq      = static_cast<std::size_t>(QsansDiag.nnz());
+    Rcpp::S4 QsansDiag2(data["QsansDiag"]);
+    Rcpp::NumericVector QsansDiagx=QsansDiag2.slot("x");
+
+    Nq      = static_cast<std::size_t>(QsansDiagx.size());
     Nbeta   = static_cast<std::size_t>(X.nrow());
     Ngamma  = static_cast<std::size_t>(A.nrow());
     Neta    = static_cast<std::size_t>(X.ncol());   // == A.ncol()
@@ -501,12 +504,14 @@ CppAD::vector<Type>  objectiveFunctionInternal(
  );
 
 
-CppAD::vector<CppAD::AD<double>>  objectiveFunctionSeq(
+CppAD::vector<CppAD::AD<double>>  logLikNoQ(
  const CppAD::vector<CppAD::AD<double>>& ad_params,  
  const Data& data,
- const Config& config,
- const Rcpp::IntegerVector& Sstrata,
- const size_t start,
- const size_t end ); 
+ const Config& config); 
 
+CppAD::vector<CppAD::AD<double>>  logLikOnlyQ(
+    const CppAD::vector<CppAD::AD<double>> & ad_params,  
+    const Data& data,
+    const Config& config
+);
 

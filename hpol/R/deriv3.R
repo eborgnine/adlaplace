@@ -52,7 +52,7 @@ thirdDeriv = function(x, data, config) {
     )
 
     thirdNonDiag = config$sparsity$third$ijk[,c('i','j','k')]
-    thirdNonDiag$taylor3 = drop(resThirdOffDiag)
+    thirdNonDiag$taylor3 = apply(resThirdOffDiag, 1, sum)
   }
     thirdDiag$j = thirdDiag$i
 

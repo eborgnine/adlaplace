@@ -66,7 +66,8 @@ region_effect2 <- rnorm(10,1,.2)
   ref_values <- list("pm" = 10)
   knots_pm <- seq(0, 22, by=2)
 
-  res  <- hnlm(count ~  hum + 
+  res  <- hnlm(
+    formula = count ~  hum + 
     f(pm, model = 'hiwp', p = 2, ref_value = 10, 
       knots = knots_pm, group_var = region), 
     data, 
@@ -81,42 +82,8 @@ region_effect2 <- rnorm(10,1,.2)
     config = list(num_threads = parallel::detectCores(), strataPerIter=100, transform_theta = TRUE)
   )
 
+str(res$config$sparsity)
 
-Nstrata = ncol(res$tmb_data$cc_matrixTp)
-configForPairs = res$config;configForPairs$num_threads = 1
-configForPairs$dense = FALSE
-pairsStrataList = parallel::mcmapply(function(Dstrata, x, config, data) {
-# get third tensor for only one strata
-config$sparsity$third$strataList = list(Dstrata)[rep(1, nrow(config$sparsity$third$pairs))]
-config$sparsity$third$pairs$Nstrata = 1
-from3 = hpolcc::thirdOffDiagonals(x, data, config)
-ijk= as.data.frame(config$sparsity$third$ijk)
-ijk$x = abs(drop(from3))
-ijk2 = aggregate(ijk[,'x', drop=FALSE], ijk[,c('i','j'), drop=FALSE], sum)
-ijk2 = as.data.frame(
-  ijk2[ijk2$x != 0, c('i','j'), drop=FALSE])
-ijk2$strata = Dstrata
-ijk2
-},
-Dstrata = seq(0, len=Nstrata),
-MoreArgs = list(config = configForPairs, data=res$tmb_data, x = res$parameters_for_sparsity),
-mc.cores = parallel::detectCores(), 
-SIMPLIFY=FALSE )
-
-pairsStrata = do.call(rbind, pairsStrataList)
-pairsStrataN = aggregate(data.frame(N=rep(1, nrow(pairsStrata))), pairsStrata[,c('i','j')], sum)
-# if over 80%, set to zero (so all strata are used)
-pairsStrataN[pairsStrataN$N > ceiling(0.8*Nstrata), 'N'] = 0
-
-pairsStrataN$pair = paste(pairsStrataN$i, pairsStrataN$j, sep='_')
-pairsStrata$pair = paste(pairsStrata$i, pairsStrata$j, sep='_')
-pairsStrataIndex = pairsStrata[pairsStrata$pair %in% pairsStrataN[pairsStrataN$N >0, 'pair'], ]
-
-pairsStrataN = pairsStrataN[order(pairsStrataN$j, pairsStrataN$i), ]
-pairsStrataIndex = pairsStrataIndex[order(pairsStrataIndex$j, pairsStrataIndex$i), ]
-
-pairsStrataN$p = match(pairsStrataN$pair, pairsStrataIndex$pair)-1
-pairsStrataN$pEnd = mapply(function(x, y) min(c(Inf, y[which(y > x)]), na.rm=TRUE), x=pairsStrataN$p, MoreArgs = list(y=pairsStrataN$p))
 
 xx = res$parameters_for_sparsity
 
@@ -127,42 +94,6 @@ config2$dense=TRUE
 config2$num_threads = 10
 bob = hpolcc::thirdOffDiagonals(xx, res$tmb_data, config2)
 bobA = thirdDeriv(xx, res$tmb_data, config2)
-
-
-config3 = config2
-config3$sparsity$third$pairs$Nstrata = 0
-bob2 = hpolcc::thirdOffDiagonals(xx, res$tmb_data, config3)
-bob2A = thirdDeriv(xx, res$tmb_data, config3)
-
-
-config4 = config2
-config4$dense = FALSE
-config4$num_threads= 1
-config4$sparsity$third$pairs$Nstrata = 1
-
-Dstrata = 30
-
-
-
-
-
-stuff4 = merge(stuff3, res$config$sparsity$third$pairs)
-stuff4 = stuff4[order(stuff4$j, stuff4$i), ]
-
-iseq = 375+seq(-5,5)
-stuff4[iseq,]
-
-
-notAll = which(res$config$sparsity$third$pairs$Nstrata != 0)
-notAllList = res$config$sparsity$third$strataList[notAll]
-fromData = cbind(
-  res$config$sparsity$third$pairs[
-    rep(notAll, unlist(lapply(notAllList, length))), c('i','j')],
-  strata = unlist(notAllList),
-  inData = 1
-)
-
-compare = merge(fromData, stuff2, all=TRUE)
 
 
 quantile(unlist(lapply(stuff, nrow)))

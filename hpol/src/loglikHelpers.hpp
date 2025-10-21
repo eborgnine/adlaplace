@@ -222,7 +222,8 @@ const Config& cfg
 template <class TypeGamma, class TypeTheta>
 CppAD::vector<TypeGamma>  loglikQ(
     const CppAD::vector<TypeGamma>& gamma,  
-    const PackedParams<TypeTheta>& latent,
+    const CppAD::vector<TypeTheta>& theta,
+    const CppAD::vector<TypeTheta>& logTheta,
     const Data& data
 ) {
 
@@ -232,8 +233,8 @@ CppAD::vector<TypeGamma>  loglikQ(
 
     for (size_t D = 0; D < data.Ngamma; ++D) {
         size_t mapHere = data.map[D];
-        TypeGamma thetaHere = TypeGamma(latent.theta[mapHere]);
-        TypeGamma logThetaHere = TypeGamma(latent.logTheta[mapHere]);
+        TypeGamma thetaHere = TypeGamma(theta[mapHere]);
+        TypeGamma logThetaHere = TypeGamma(logTheta[mapHere]);
 
         gammaScaled[D] = gamma[D] / thetaHere;
 
