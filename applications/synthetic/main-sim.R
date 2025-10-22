@@ -96,25 +96,6 @@ bob = hpolcc::thirdOffDiagonals(xx, res$tmb_data, config2)
 bobA = thirdDeriv(xx, res$tmb_data, config2)
 
 
-quantile(unlist(lapply(stuff, nrow)))
-
-dim(stuff3)
-dim(config4$sparsity$third$pairs)
-
-
-bob3[1:5,1:5] 
-which(apply(abs(bob3), 1, sum)>0) 
-
-
-Shere = config2$sparsity$third$ijk[
-  seq(config2$sparsity$third$pairs[26,"p"]+1, len=10),'k']+1 
-
-cbind(bob[,26], bob2[,26])[Shere,]
-
-range(bob - bob2)
-range(bobA$third$x-bob2A$third$x)
-
-
 
 cache = new.env()
 assign("Nfun", 0, cache)

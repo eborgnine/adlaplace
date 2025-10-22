@@ -22,6 +22,16 @@ thirdOffDiagonals <- function(parameters, dataList, configList) {
 }
 
 #' @export
+thirdDiagonalsStrata <- function(parameters, data, config, sparsity, strata) {
+    .Call('_hpolcc_thirdDiagonalsStrata', PACKAGE = 'hpolcc', parameters, data, config, sparsity, strata)
+}
+
+#' @export
+thirdOffDiagonalsStrata <- function(parameters, data, config, sparsity, strata) {
+    .Call('_hpolcc_thirdOffDiagonalsStrata', PACKAGE = 'hpolcc', parameters, data, config, sparsity, strata)
+}
+
+#' @export
 objectiveFunctionNoDiff <- function(x, data, config) {
     .Call('_hpolcc_objectiveFunctionNoDiff', PACKAGE = 'hpolcc', x, data, config)
 }
@@ -34,6 +44,11 @@ objectiveFunctionGrad <- function(x, data, config) {
 #' @export
 objectiveFunctionHessian <- function(parameters, dataList, configList) {
     .Call('_hpolcc_objectiveFunctionHessian', PACKAGE = 'hpolcc', parameters, dataList, configList)
+}
+
+#' @export
+logLikNoQStrata <- function(parameters, data, config, strata, sparsity) {
+    .Call('_hpolcc_logLikNoQStrata', PACKAGE = 'hpolcc', parameters, data, config, strata, sparsity)
 }
 
 #' @export

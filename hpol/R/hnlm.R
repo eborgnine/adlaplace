@@ -239,7 +239,7 @@ hnlm <- function(formula,
   if(!length(config$strataPerIter)) {
     config$strataPerIter = ceiling(0.2*nrow(tmb_data$XTp)/config$num_threads)
   }
-  controlInner = control
+  controlInner = control_inner
 
   Sgamma = seq(nrow(tmb_data$XTp)+1, len=nrow(tmb_data$ATp))
   start_beta = rep(1e-2, nrow(tmb_data$XTp))
@@ -287,22 +287,21 @@ hnlm <- function(formula,
 
   if(identical(config$verbose, TRUE)) cat("optimizing")
 
-    mle =   # inner opt
-  trustOptim::trust.optim(
+    mle = trustOptim::trust.optim(
     x = parameters,
     fn = wrappers_outer$fn,
     gr = wrappers_outer$gr,
     method = 'BFGS',
     control = control,
-    data=tmb_data, config = config, cache =  cache, controlInner = controlInner
+    data=tmb_data, config = config, cache =  cache, controlInner = control_inner
   )
 
   if(identical(config$verbose, TRUE)) cat("done")
 
-    mle$extra = loglik(
+    mle$extra = try(loglik(
       mle$solution, 
       get("gamma_start", cache), 
-      data, config, controlInner, check=TRUE)
+      tmb_data, config, control_inner, check=TRUE))
 
   mle$gamma_hat = mle$extra$solution
 

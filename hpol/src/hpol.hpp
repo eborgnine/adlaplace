@@ -514,4 +514,9 @@ CppAD::vector<CppAD::AD<double>>  logLikOnlyQ(
     const Data& data,
     const Config& config
 );
-
+CppAD::vector<CppAD::AD<double>>  logLikNoQStrata(
+    const CppAD::vector<CppAD::AD<double>> & ad_params,  
+    const Data& data,
+    const Config& config,
+    Rcpp::IntegerVector& strata
+);

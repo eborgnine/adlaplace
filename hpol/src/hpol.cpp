@@ -100,7 +100,7 @@ Rcpp::NumericVector objectiveFunctionGrad(
   }
 
   if(cfg.verbose) Rcpp::Rcout << "Ngamma " << parameters_extra.Ngamma << " Nstrata " << 
-      dat.Nstrata << " starting parallel " << cfg.num_threads << " threads\n";
+    dat.Nstrata << " starting parallel " << cfg.num_threads << " threads\n";
 
   omp_set_num_threads(cfg.num_threads);
 
@@ -136,22 +136,22 @@ Rcpp::NumericVector objectiveFunctionGrad(
 
     CppAD::Independent(ad_paramsT);  // Tell CppAD these are inputs for differentiation
 
-    auto yvalT = loglikNStrata<CppAD::AD<double>>(
-      DstrataOuter,
-      cfg.strataPerIter,
-      ad_paramsT,
-      parameters_extra,
-      dat, 
-      cfg
-      );
+  auto yvalT = loglikNStrata<CppAD::AD<double>>(
+    DstrataOuter,
+    cfg.strataPerIter,
+    ad_paramsT,
+    parameters_extra,
+    dat, 
+    cfg
+    );
 
-    CppAD::ADFun<double> funT(ad_paramsT, yvalT);
-    CppAD::vector<double> y0 = funT.Forward(0, x_valT);
-    auto grad_resultT = funT.Reverse(1, wT); 
+  CppAD::ADFun<double> funT(ad_paramsT, yvalT);
+  CppAD::vector<double> y0 = funT.Forward(0, x_valT);
+  auto grad_resultT = funT.Reverse(1, wT); 
 
-      for(size_t Dparam = 0; Dparam < parameters_extra.Ngamma; Dparam++) {
-        grad_localT[Dparam] += grad_resultT[Dparam];
-      }
+  for(size_t Dparam = 0; Dparam < parameters_extra.Ngamma; Dparam++) {
+    grad_localT[Dparam] += grad_resultT[Dparam];
+  }
   } // DstrataOuter
 
 
@@ -419,39 +419,277 @@ CppAD::vector<CppAD::AD<double>>  logLikNoQ(
   return minusLogDens;
 }
 
+
 CppAD::vector<CppAD::AD<double>>  logLikOnlyQ(
-    const CppAD::vector<CppAD::AD<double>> & ad_params,  
-    const Data& data,
-    const Config& config
-) {
+  const CppAD::vector<CppAD::AD<double>> & ad_params,  
+  const Data& data,
+  const Config& config) {
 
-    auto latent=unpack_params(ad_params, data, config);
+  auto latent=unpack_params(ad_params, data, config);
 
-    CppAD::vector<CppAD::AD<double>> gammaScaled(data.Ngamma);
-    CppAD::vector<CppAD::AD<double>> result(1);
+  CppAD::vector<CppAD::AD<double>> gammaScaled(data.Ngamma);
+  CppAD::vector<CppAD::AD<double>> result(1);
 
-    CppAD::AD<double> result0=0;
-    for (size_t D = 0; D < data.Ngamma; ++D) {
-        size_t mapHere = data.map[D];
+  CppAD::AD<double> result0=0;
+  for (size_t D = 0; D < data.Ngamma; ++D) {
+    size_t mapHere = data.map[D];
 
-        auto thetaHere = latent.theta[mapHere];
-        auto logThetaHere = latent.logTheta[mapHere];
+    auto thetaHere = latent.theta[mapHere];
+    auto logThetaHere = latent.logTheta[mapHere];
 
-        gammaScaled[D] = latent.gamma[D] / thetaHere;
-        result0 += logThetaHere +
-                      (0.5 * data.Qdiag[D]) * gammaScaled[D] * gammaScaled[D];
-                      
-    }
+    gammaScaled[D] = latent.gamma[D] / thetaHere;
+    result0 += logThetaHere +
+    (0.5 * data.Qdiag[D]) * gammaScaled[D] * gammaScaled[D];
+  }
 
       // Q offdiag    
-    for(size_t D = 0; D < data.Nq; D++) {
-        result0 += gammaScaled[data.QsansDiag.i[D]] * gammaScaled[data.QsansDiag.j[D]] 
-          * data.QsansDiag.x[D];
+  for(size_t D = 0; D < data.Nq; D++) {
+    result0 += gammaScaled[data.QsansDiag.i[D]] * gammaScaled[data.QsansDiag.j[D]] 
+    * data.QsansDiag.x[D];
+  }
+
+  result[0] = result0;
+  return(result);
+}
+
+#include <Rcpp.h>
+#include <cppad/cppad.hpp>
+using namespace Rcpp;
+
+// helper: convert 1-based R indices to 0-based and keep (i >= j) lower triangle
+CPPAD_TESTVECTOR( std::set<size_t> ) build_pattern_from_R(const IntegerVector& row0,
+  const IntegerVector& col0,
+  size_t n)
+{
+ auto K = row0.size();
+ CPPAD_TESTVECTOR(std::set<size_t>) pattern(n);
+
+ 
+ for (size_t k = 0; k < K; ++k) {
+        int ri = row0[k];   // convert to 0-based if R passed 1-based
+        int cj = col0[k];
+        pattern[(size_t)ri].insert((size_t)cj);
+        pattern[(size_t)cj].insert((size_t)ri);
+      }
+
+      return pattern;
     }
 
-    result[0] = result0;
-    return(result);
+
+//' @export
+// [[Rcpp::export]]
+    Rcpp::List logLikNoQStrata(
+      const Rcpp::NumericVector parameters, 
+      const Rcpp::List data, 
+      const Rcpp::List config,
+      const Rcpp::List strata,
+      const Rcpp::List sparsity
+      ) {
+
+      const Rcpp::IntegerVector strataI = strata["i"], strataP = strata["p"];
+      const Data   dataC(data);
+      const Config configC(config);
+      const std::vector<double> x_val(parameters.begin(), parameters.end());
+
+
+
+      const size_t Nparams = parameters.size();
+      const size_t Ngroup = strataP.size()-1;
+
+
+      std::vector<double> grad(Nparams * Ngroup);
+      std::vector<double> value(Ngroup);
+
+      Rcpp::List hessianOut(Ngroup);
+
+      if(configC.maxDeriv >1 ) {
+        for(size_t D=0; D<Ngroup; D++) {
+          if(configC.dense) {
+            hessianOut[D] = Rcpp::NumericMatrix(Nparams, Nparams);
+          } else{
+            Rcpp::List sparseHere = sparsity[D];
+            Rcpp::List twoHere = sparseHere["second"];
+            Rcpp::List fullHere = twoHere["full"];
+            Rcpp::IntegerVector fullIhere = fullHere["i"];
+            hessianOut[D] = Rcpp::NumericMatrix(fullIhere.size(), 1);
+          }
+        }
+      }
+
+
+
+      omp_set_num_threads(configC.num_threads);
+      CppAD::thread_alloc::parallel_setup(
+        configC.num_threads,
+        [](){ return in_parallel_wrapper(); },
+        [](){ return static_cast<size_t>(thread_num_wrapper()); }
+        );
+
+
+  #pragma omp parallel
+      {
+
+        const std::vector<double> w(1, 1.0);
+
+        CppAD::vector<CppAD::AD<double>> ad_params(Nparams);
+        for (size_t D = 0; D < Nparams; D++) {
+          ad_params[D] = x_val[D];  
+        }
+
+  #pragma omp for
+        for(size_t Dgroup = 0; Dgroup < Ngroup; ++Dgroup) {
+
+
+    /* making the AD function */
+    CppAD::Independent(ad_params);  // Tell CppAD these are inputs for differentiation
+    CppAD::vector<CppAD::AD<double>> minusLogDens(1);
+    CppAD::AD<double> loglik = 0;
+    auto latent=unpack_params(ad_params, dataC, configC);
+
+    const size_t end = strataP[Dgroup+1];
+    for (size_t Dindex = strataP[Dgroup]; Dindex < end;  Dindex++) {
+
+      const size_t Dstrata = strataI[Dindex];
+
+      auto etaHere = compute_eta_for_stratum(
+        Dstrata, dataC, latent.gamma, latent.beta);
+
+      auto contrib = accumulate_contrib_for_stratum(
+        Dstrata, dataC, etaHere, latent, configC);
+
+      loglik += contrib[0];
+    } // Dstrata
+
+    minusLogDens[0] = -loglik;
+
+    CppAD::ADFun<double> fun(ad_params, minusLogDens);
+
+    /* gradient */
+    auto y_val = fun.Forward(0, x_val);
+    auto gradHere = fun.Jacobian(x_val);
+
+    value[Dgroup] = y_val[0];
+    const size_t DstrataNparams = Dgroup * Nparams;
+    for(size_t D=0;D<grad.size();D++) {
+      grad[DstrataNparams+D] = gradHere[D];
+    }
+
+
+    // hessian
+    if(configC.maxDeriv >1 ) {
+      Rcpp::NumericMatrix hessianOutHere = hessianOut[Dgroup];
+      fun.Forward(0, x_val);
+
+
+      if(configC.dense) {
+        std::vector<double> u(Nparams, 0.0);
+        for (int Dcol = 0; Dcol < Nparams; Dcol++) {
+          std::fill(u.begin(), u.end(), 0.0);
+          u[Dcol] = 1.0;
+          fun.Forward(1, u);
+          auto ddw = fun.Reverse(2, w);
+          for (int Drow = 0; Drow < Nparams; ++Drow) {
+            hessianOutHere(Drow, Dcol) = ddw[2 * Drow + 1];
+          }
+        } // Dcol
+
+      } else { // sparse hessian
+
+        Rcpp::List sparsityHere=sparsity[Dgroup];
+        Rcpp::List second = sparsityHere["second"];
+        Rcpp::List nonSymmetric = second["nonSymmetric"];
+        Rcpp::List full = second["full"];
+
+        Rcpp::IntegerVector Srow = nonSymmetric["i"]; 
+        Rcpp::IntegerVector Scol = nonSymmetric["j"]; 
+
+        Rcpp::IntegerVector SrowOutR = full["i"]; 
+        Rcpp::IntegerVector ScolOutR = full["j"]; 
+
+        std::vector<size_t> SrowOut = Rcpp::as<std::vector<size_t>>(SrowOutR);
+        std::vector<size_t> ScolOut = Rcpp::as<std::vector<size_t>>(ScolOutR);
+
+
+        size_t Nout = SrowOut.size();
+        std::vector<double> out(Nout);
+
+
+        auto pattern = build_pattern_from_R(Srow, Scol, Nparams);
+        CppAD::sparse_hessian_work work;
+
+        fun.SparseHessian(x_val, w, pattern, SrowOut, ScolOut, out, work);
+
+        for(size_t D=0; D < Nout; D++ ) {
+          hessianOutHere[D] = out[D];
+        }
+
+      }// sparse 
+    } // if hessian
+  } // Dgroup
+  } // parallel
+
+
+  auto valueOut = std::accumulate(value.begin(), value.end(), 0.0);
+
+  Rcpp::NumericVector gradR(Nparams);
+  for(size_t Dparam=0;Dparam<Nparams;Dparam++) {
+    double out=0;
+    for(size_t Dgroup = 0;Dgroup<Ngroup;++Dgroup) {
+      out += grad[Dgroup*Nparams + Dparam];
+    }
+    gradR[Dparam] = out;
+  }
+
+  Rcpp::List result = Rcpp::List::create(
+    Rcpp::Named("value") = Rcpp::wrap(valueOut),
+    Rcpp::Named("grad") = gradR
+    );
+
+  if(configC.maxDeriv >1 ) {
+
+    if(configC.dense) {
+    // sum hessian
+      Rcpp::NumericMatrix hessianSum(Nparams,Nparams);
+      for(size_t Dparam=0;Dparam<Nparams;Dparam++) {
+        for(size_t Dparam2=0;Dparam2<Nparams;Dparam2++) {
+          double out=0;
+          for(size_t Dgroup = 0;Dgroup<Ngroup;++Dgroup) {
+            Rcpp::NumericMatrix hessianOutHere = hessianOut[Dgroup];
+            out += hessianOutHere(Dparam, Dparam2);
+          }
+          hessianSum(Dparam, Dparam2) = out;
+        }
+      }
+      result["hessian"] = hessianSum;
+    } else {
+    // TO DO, sum sparse matrix
+      Rcpp::List secondAll = configC.sparsity["second"];
+      Rcpp::List fullAll = secondAll["full"];
+      Rcpp::IntegerVector iAll = fullAll["i"];
+      auto sizeH = iAll.size();
+      Rcpp::NumericVector hessianSum(sizeH);
+      for(size_t D=0;D < sizeH; D++) {
+        hessianSum[D] = 0;
+      }
+
+      for(size_t Dgroup = 0;Dgroup<Ngroup;++Dgroup) {
+        const Rcpp::List sparsityHere = sparsity[Dgroup];
+        const Rcpp::List fullHere= sparsityHere["full"];
+        const Rcpp::IntegerVector matchHere = fullHere["match"];
+        const Rcpp::IntegerVector iHere = fullHere["i"];
+        const size_t Nhere = iHere.size();
+
+        Rcpp::NumericMatrix hessianOutHere = hessianOut[Dgroup];
+        for(size_t D=0;D < Nhere; D++) {
+          hessianSum[iHere[D]] += hessianOutHere[D];
+        }
+      }
+      result["hessian"] = hessianSum;
+    }
+  }
+  return(result);
 }
+
 
 //' @export
 // [[Rcpp::export]]

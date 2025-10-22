@@ -64,6 +64,36 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// thirdDiagonalsStrata
+Rcpp::List thirdDiagonalsStrata(const Rcpp::NumericVector parameters, const Rcpp::List data, const Rcpp::List config, const Rcpp::List sparsity, const Rcpp::List strata);
+RcppExport SEXP _hpolcc_thirdDiagonalsStrata(SEXP parametersSEXP, SEXP dataSEXP, SEXP configSEXP, SEXP sparsitySEXP, SEXP strataSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::NumericVector >::type parameters(parametersSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List >::type data(dataSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List >::type config(configSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List >::type sparsity(sparsitySEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List >::type strata(strataSEXP);
+    rcpp_result_gen = Rcpp::wrap(thirdDiagonalsStrata(parameters, data, config, sparsity, strata));
+    return rcpp_result_gen;
+END_RCPP
+}
+// thirdOffDiagonalsStrata
+Rcpp::List thirdOffDiagonalsStrata(const Rcpp::NumericVector parameters, const Rcpp::List data, const Rcpp::List config, const Rcpp::List sparsity, const Rcpp::List strata);
+RcppExport SEXP _hpolcc_thirdOffDiagonalsStrata(SEXP parametersSEXP, SEXP dataSEXP, SEXP configSEXP, SEXP sparsitySEXP, SEXP strataSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::NumericVector >::type parameters(parametersSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List >::type data(dataSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List >::type config(configSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List >::type sparsity(sparsitySEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List >::type strata(strataSEXP);
+    rcpp_result_gen = Rcpp::wrap(thirdOffDiagonalsStrata(parameters, data, config, sparsity, strata));
+    return rcpp_result_gen;
+END_RCPP
+}
 // objectiveFunctionNoDiff
 double objectiveFunctionNoDiff(Rcpp::NumericVector x, Rcpp::List data, Rcpp::List config);
 RcppExport SEXP _hpolcc_objectiveFunctionNoDiff(SEXP xSEXP, SEXP dataSEXP, SEXP configSEXP) {
@@ -103,6 +133,21 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// logLikNoQStrata
+Rcpp::List logLikNoQStrata(const Rcpp::NumericVector parameters, const Rcpp::List data, const Rcpp::List config, const Rcpp::List strata, const Rcpp::List sparsity);
+RcppExport SEXP _hpolcc_logLikNoQStrata(SEXP parametersSEXP, SEXP dataSEXP, SEXP configSEXP, SEXP strataSEXP, SEXP sparsitySEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::NumericVector >::type parameters(parametersSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List >::type data(dataSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List >::type config(configSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List >::type strata(strataSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List >::type sparsity(sparsitySEXP);
+    rcpp_result_gen = Rcpp::wrap(logLikNoQStrata(parameters, data, config, strata, sparsity));
+    return rcpp_result_gen;
+END_RCPP
+}
 // objectiveFunctionC
 Rcpp::List objectiveFunctionC(Rcpp::NumericVector parameters, Rcpp::List dataList, Rcpp::List configList);
 RcppExport SEXP _hpolcc_objectiveFunctionC(SEXP parametersSEXP, SEXP dataListSEXP, SEXP configListSEXP) {
@@ -122,9 +167,12 @@ static const R_CallMethodDef CallEntries[] = {
     {"_hpolcc_thirdDiagonals", (DL_FUNC) &_hpolcc_thirdDiagonals, 3},
     {"_hpolcc_thirdNonDiagonalsSparsity", (DL_FUNC) &_hpolcc_thirdNonDiagonalsSparsity, 4},
     {"_hpolcc_thirdOffDiagonals", (DL_FUNC) &_hpolcc_thirdOffDiagonals, 3},
+    {"_hpolcc_thirdDiagonalsStrata", (DL_FUNC) &_hpolcc_thirdDiagonalsStrata, 5},
+    {"_hpolcc_thirdOffDiagonalsStrata", (DL_FUNC) &_hpolcc_thirdOffDiagonalsStrata, 5},
     {"_hpolcc_objectiveFunctionNoDiff", (DL_FUNC) &_hpolcc_objectiveFunctionNoDiff, 3},
     {"_hpolcc_objectiveFunctionGrad", (DL_FUNC) &_hpolcc_objectiveFunctionGrad, 3},
     {"_hpolcc_objectiveFunctionHessian", (DL_FUNC) &_hpolcc_objectiveFunctionHessian, 3},
+    {"_hpolcc_logLikNoQStrata", (DL_FUNC) &_hpolcc_logLikNoQStrata, 5},
     {"_hpolcc_objectiveFunctionC", (DL_FUNC) &_hpolcc_objectiveFunctionC, 3},
     {NULL, NULL, 0}
 };

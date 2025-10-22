@@ -429,7 +429,7 @@ Rcpp::NumericMatrix thirdOffDiagonals(
         if(haveQ) {
           Tijk(DinIjk,1) = taylor3Q[3*Dk];
         } else {
-          ijk(DinIjk,1) = 0;
+          Tijk(DinIjk,1) = 0;
         }
       }
     } // end sparse
