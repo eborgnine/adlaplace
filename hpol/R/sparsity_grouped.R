@@ -1,3 +1,5 @@
+#' @export
+ 
 sparsity_grouped = function(x, data, config) {
 
 # library('hpolcc');x = res$parameters_for_sparsity;data=res$tmb_data;config=res$config
@@ -20,22 +22,24 @@ sparsity_grouped = function(x, data, config) {
 		list(p=c(0,1), i=x)
 	}, x=seq(0,len=Nstrata), SIMPLIFY=FALSE)
 
-config$verbose=TRUE
-	firstDeriv = mapply(logLikNoQStrata,
+	# get rid of map so Q won't be added to likelihood
+	dataNoMap = data
+
+
+	firstDeriv = mapply(grad,
 		strata = singleStrataList,
 		MoreArgs = list(
-			parameters=x, data=data, sparsity = list(),
+			parameters=x, data=dataNoMap, sparsity = list(),
 			config = c(config[
-				setdiff(names(config), c('num_Rthreads', 'dense', 'maxDeriv'))
-				], list(dense=TRUE, maxDeriv=1, num_threads=1))),
+				setdiff(names(config), c('num_threads'))
+				], list(num_threads=1))),
 		SIMPLIFY=FALSE
 	)
-	firstDeriv = do.call(cbind, lapply(firstDeriv, function(xx) xx$grad))
-	firstDeriv = firstDeriv > 0
+	firstDeriv = do.call(cbind, lapply(firstDeriv, function(xx) {xx$grad > 0} ))
 
 		km <- try(kmeans(t(firstDeriv), centers = ceiling(1.5*Nclusters), iter.max=15000,nstart=5*Nclusters, algorithm='Hartigan-Wong'))
 		if(!any(class('km') == 'try-error')) {
-			mergeThreshold = floor(Nstrata/Nclusters)
+			mergeThreshold = floor(0.5*Nstrata/Nclusters)
 			NtoMerge = max(which(cumsum(sort(km$size)) < mergeThreshold))
 			mergeSize = sort(km$size)[NtoMerge]
 			whichToMerge = which(km$size <= mergeSize)
@@ -43,6 +47,17 @@ config$verbose=TRUE
 			km$cluster2 = km$cluster
 			km$cluster2[km$cluster %in% whichToMerge] = min(whichToMerge)
 			km$cluster = as.integer(factor(km$cluster2))
+
+			# split biggest cluster
+			theTable = table(km$cluster)
+			if(max(theTable) > 1.5*order(theTable, decreasing=TRUE)[2]) {
+				whichInBiggest = which(km$cluster == which.max(theTable))
+				firstDeriv2 = firstDeriv[,whichInBiggest]
+				km2 = kmeans(t(firstDeriv2), centers = 2, iter.max=15000,nstart=200, algorithm='Hartigan-Wong')
+				km$cluster[whichInBiggest] = -km2$cluster
+				km$cluster = as.integer(factor(km$cluster))
+			}
+
 		} else {
 			pr = prcomp(firstDeriv)
 			theOrder = order(pr$rotation[,1])
@@ -65,7 +80,7 @@ if(FALSE) {
 	)
 	strataMatrix = strataMatrix[,order(table(km$cluster), decreasing=TRUE)]
 
-	strataMatrixList = list(i=strataMatrix@i, p=strataMatrix@p)
+	strataMatrixList = list(i=strataMatrix@i, j = as(strataMatrix, 'TsparseMatrix')@j, p=strataMatrix@p)
 
 	strataListForHessian = mapply(
 		function(x, y) {
@@ -76,20 +91,59 @@ if(FALSE) {
 
 
 	# now find hessian for each block
-	hessianByBlock = parallel::mcmapply(logLikNoQStrata,
+	hessianByBlock = parallel::mcmapply(hessianDense,
 		strata = strataListForHessian,
 		MoreArgs = list(
-		parameters=x, data=data, sparsity = list(),
-		config = c(config[setdiff(names(config), c('dense','num_threads', 'maxDeriv'))], list(maxDeriv=2, num_threads=1, dense=TRUE))),
+		parameters=x, data=dataNoMap, sparsity = list(),
+		config = c(config[setdiff(names(config), 'num_threads')], 
+			list(num_threads=1))),
 		SIMPLIFY=FALSE, mc.cores=config$num_threads
 	)
 	hessianByBlock2 = lapply(hessianByBlock, function(xx) Matrix::Matrix(xx$hessian, sparse=TRUE))
 
+	#hessian for random part,
+	hessianQ = list(dense=hessianQdense(parameters=x, data=data, config=config))
+
+
+# get non-zeros of tensor
+
+	hessianQ$hessian = Matrix::forceSymmetric(Matrix::Matrix(hessianQ$dense, sparse=TRUE))
+	hessianQT = as(as(hessianQ$hessian, 'generalMatrix'),'TsparseMatrix')
+	hessianQns = as(hessianQ$hessian, 'generalMatrix')
+    ijkQ = getThirdFromHessian(hessianQ$hessian)
+    if(any(ijkQ[,'Nunique'] == 3)) warning("need to implement non-diagonal Q third")
+
 	fullHessian=do.call(rbind, lapply(hessianByBlock2, function(xx) cbind(xx@i,as(xx, "TsparseMatrix")@j)))
 	fullHessian = fullHessian[!duplicated(fullHessian), ]
-	colnames(fullHessian) = c('i','j')
-	fullHessian = fullHessian[fullHessian[,'i'] <= fullHessian[,'j'],]
-	fullHessian = fullHessian[order(fullHessian[,'j'], fullHessian[,'i']),]
+
+	fullHessian = rbind(fullHessian, cbind(hessianQT@i, hessianQT@j))
+	fullHessian = fullHessian[!duplicated(fullHessian), ]
+	fullHessian = fullHessian[fullHessian[,1] <= fullHessian[,2], ]
+	fullHessianMatrix = Matrix::sparseMatrix(i=fullHessian[,1], j=fullHessian[,2], symmetric=TRUE, index1=FALSE,
+		dims = c(Ntotal, Ntotal), repr='T')
+	fullList = getOptimalPairs(fullHessianMatrix, Sparams=Sparams, Sgamma1=Sgamma1)
+
+
+  	fullHessianPairs = paste(fullList$second$full$i, fullList$second$full$j, sep='_')
+  	fullHessianPairs2 = paste(fullList$second$nonSymmetric$i,fullList$second$nonSymmetric$j, sep='_')
+  	fullHessianPairsR = paste(fullList$second$random$i, fullList$second$random$j, sep='_')
+
+  	randomFromFull = paste(fullList$second$random$i+Nbeta, fullList$second$random$j+Nbeta, sep='_')
+
+
+	sparsityQ = list(
+		full=list(i=hessianQ$hessian@i, p=hessianQ$hessian@p, j = as(hessianQ$hessian, 'TsparseMatrix')@j),
+		nonSymmetric=list(i=hessianQns@i, p=hessianQns@p, j = as(hessianQns, 'TsparseMatrix')@j)
+	)
+
+  	sparsityQ$full$match = try(match(
+  		paste(sparsityQ$full$i, sparsityQ$full$j, sep='_'), 
+  		fullHessianPairs
+  	))
+  	sparsityQ$nonSymmetric$match = try(match(
+  		paste(sparsityQ$nonSymmetric$i, sparsityQ$nonSymmetric$j, sep='_'), 
+  		fullHessianPairs2
+  	))
 
 
 	# find full hessian sparsity
@@ -97,17 +151,18 @@ if(FALSE) {
 
 	sparsityList = parallel::mcmapply(getOptimalPairs,
 		hessian = hessianByBlock2,
-		MoreArgs = list(Sparams = Sparams, Sgamma1=Sgamma1, fullHessian = fullHessian), 
+		MoreArgs = list(Sparams = Sparams, Sgamma1=Sgamma1, 
+			hessianPairs = fullHessianPairs,
+			hessianPairsNS = fullHessianPairs2,
+			hessianPairsR = fullHessianPairsR,
+			randomFromFull = randomFromFull), 
 		SIMPLIFY=FALSE, mc.cores=config$num_threads)
 
-
-	# try to get the hessian
-	bob = logLikNoQStrata(
-		parameters=x, data=data, config = c(
-			config[setdiff(names(config), c('sparsity','maxDeriv'))],
-			list(maxDeriv=2)), 
-		strata = strataMatrixList,
-		sparsity = sparsityList
+	
+	result = list(
+		group_sparsity = sparsityList,
+		groups = strataMatrixList,
+		sparsity = c(fullList, list(Q=sparsityQ))
 	)
 
 }

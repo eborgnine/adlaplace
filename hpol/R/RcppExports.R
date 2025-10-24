@@ -47,6 +47,11 @@ objectiveFunctionHessian <- function(parameters, dataList, configList) {
 }
 
 #' @export
+logLikOnlyQ <- function(parameters, data, config) {
+    .Call('_hpolcc_logLikOnlyQ', PACKAGE = 'hpolcc', parameters, data, config)
+}
+
+#' @export
 logLikNoQStrata <- function(parameters, data, config, strata, sparsity) {
     .Call('_hpolcc_logLikNoQStrata', PACKAGE = 'hpolcc', parameters, data, config, strata, sparsity)
 }

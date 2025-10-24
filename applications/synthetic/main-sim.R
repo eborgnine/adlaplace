@@ -82,10 +82,61 @@ region_effect2 <- rnorm(10,1,.2)
     config = list(num_threads = parallel::detectCores(), strataPerIter=100, transform_theta = TRUE)
   )
 
-str(res$config$sparsity)
+grouped = sparsity_grouped(res$parameters_for_sparsity, res$tmb_data, res$config)
+
+res$config$sparsity = grouped$sparsity
+res$config$dense=FALSE
+res$config$maxDeriv = 3
+dQ = logLikOnlyQ(res$parameters_for_sparsity, res$tmb_data, res$config)
 
 
-xx = res$parameters_for_sparsity
+res$config$maxDeriv = 2
+res$config$dense=FALSE
+res$config$num_threads = 1
+dL = logLikNoQStrata(res$parameters_for_sparsity, res$tmb_data, res$config,
+    #grouped$groups, 
+    c(grouped$groups[c('i','j')], list(p=grouped$groups$p) ), 
+    grouped$group_sparsity)
+res$config$dense=TRUE
+dL2 = logLikNoQStrata(res$parameters_for_sparsity, res$tmb_data, res$config,
+    #grouped$groups, 
+    c(grouped$groups[c('i','j')], list(p=grouped$groups$p) ), 
+    grouped$group_sparsity)
+
+
+dL$hessianMat = Matrix::sparseMatrix(
+  i=res$config$sparsity$second$full$i, 
+  p=res$config$sparsity$second$full$p, 
+  x=drop(dL$hessian), index1=0,
+  symmetric=TRUE)
+
+quantile(as.matrix(dL$hessianMat) - dL2$hessian)
+
+
+bob = numDeriv::hessian(
+  function(xx)  logLikNoQStrata(
+    c(xx, res$parameters_for_sparsity[-(1:length(xx))]), 
+    res$tmb_data, c(res$config[setdiff(names(res$config), 'maxDeriv')], list(maxDeriv=0)),
+    grouped$groups, grouped$group_sparsity
+  )$value, 
+  res$parameters_for_sparsity[1:5])
+
+bob
+dL$hessianMat[1:5,1:5]
+dL2$hessian[1:5,1:5]
+
+
+#' To Do:
+#' - combine third diag and offdiag.
+#' - sum over groups in Third, add Q to third
+#' - rename likelihood funcitons
+#' - wrappers
+#' - loglik
+#' create ADfuns separately, pass instead of data.  createADfun(x, data,  config, groups)  and list of patterns and list of work
+#' functions grad, hessiansparse, hessiandense, thirdsparse, thirddense which take x, adfunlist, config, sparsity as arguments
+#' R interface 1) pass data, creates adfuns  2) pass external pointer stuff
+#' save ADfun as EXTPTRSXP (and pattern, srowout, work?)
+
 
 
 config2 = res$config

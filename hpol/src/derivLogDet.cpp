@@ -1,3 +1,5 @@
+#ifdef UNDEF
+
 #include"hpol.hpp"
 #include"loglikHelpers.hpp"
 #include<omp.h>
@@ -59,6 +61,65 @@ for(size_t D=0;D<result.size();D++) result[D] = taylor3[D];
       );
 
 }
+
+
+CppAD::vector<CppAD::AD<double>> logLikNoQ(
+  CppAD::vector<CppAD::AD<double>> ad_params, 
+  const Data &data, 
+  const Config &config) {
+
+  auto latent=unpack_params(ad_params, data, config);
+
+  Rcpp::NumericVector Sstrata(2);
+  Sstrata[0]=0;
+  Sstrata[1]=data.Nstrata;
+
+  auto result = loglikSeq(Sstrata, latent.gamma, latent, data, config);
+  return(result);
+};  
+
+
+
+CppAD::vector<CppAD::AD<double>>  logLikQ(
+    CppAD::vector<CppAD::AD<double>> ad_params, 
+    const Data& data,
+    const Config& config
+) {
+
+  auto latent = unpack_params(ad_params, data, config);
+
+    CppAD::vector<CppAD::AD<double>> gammaScaled(data.Ngamma);
+    CppAD::vector<CppAD::AD<double>> result(1);
+    result[0] = 0;
+
+    for (size_t D = 0; D < data.Ngamma; ++D) {
+        size_t mapHere = data.map[D];
+        CppAD::AD<double> thetaHere = latent.theta[mapHere];
+        CppAD::AD<double> logThetaHere = latent.logTheta[mapHere];
+
+        gammaScaled[D] = latent.gamma[D] / thetaHere;
+
+        result[0] += logThetaHere +
+                      (0.5 * data.Qdiag[D]) * gammaScaled[D] * gammaScaled[D] ;
+    }
+
+      // Q offdiag    
+    for(size_t D = 0; D < data.Nq; D++) {
+        result[0] += gammaScaled[data.QsansDiag.i[D]] * gammaScaled[data.QsansDiag.j[D]] 
+          * (data.QsansDiag.x[D]);
+    }
+
+
+  return(result);
+}
+
+
+template<class Type>
+CppAD::vector<Type>  objectiveFunctionInternal(
+ const CppAD::vector<Type>& ad_params,  
+ const Data& data,
+ const Config& config
+ );
 
 
 
@@ -364,7 +425,7 @@ Rcpp::NumericMatrix thirdOffDiagonals(
   fun.Forward(0, x_val);
 
   CppAD::Independent(ad_params_Q);  
-  auto yQ = logLikOnlyQ(ad_params_Q, data, config);
+  auto yQ = logLikQ(ad_params_Q, data, config);
   CppAD::ADFun<double> funQ(ad_params_Q, yQ);
   funQ.Forward(0, x_val);
 
@@ -405,7 +466,6 @@ Rcpp::NumericMatrix thirdOffDiagonals(
   // columns of diag are the double deriv
   // rows of taylor3 are i
     if(config.dense) {
-      const int DpairsForQ = Dpair + Npairs;
       for(int Dk=0; Dk<Nparams; Dk++){
         if(havedata) {
           Tijk(Dk, Dpair) += taylor3[3*Dk];
@@ -445,3 +505,4 @@ if (config.verbose ) {
 return Tijk;
 
 }
+#endif

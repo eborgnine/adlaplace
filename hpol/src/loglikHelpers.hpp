@@ -218,38 +218,5 @@ const Config& cfg
 
 
 
-// Compute scaled gamma values and accumulate log-likelihood contribution
-template <class TypeGamma, class TypeTheta>
-CppAD::vector<TypeGamma>  loglikQ(
-    const CppAD::vector<TypeGamma>& gamma,  
-    const CppAD::vector<TypeTheta>& theta,
-    const CppAD::vector<TypeTheta>& logTheta,
-    const Data& data
-) {
-
-    CppAD::vector<TypeGamma> gammaScaled(data.Ngamma);
-    CppAD::vector<TypeGamma> result(1);
-    result[0] = TypeGamma(0);
-
-    for (size_t D = 0; D < data.Ngamma; ++D) {
-        size_t mapHere = data.map[D];
-        TypeGamma thetaHere = TypeGamma(theta[mapHere]);
-        TypeGamma logThetaHere = TypeGamma(logTheta[mapHere]);
-
-        gammaScaled[D] = gamma[D] / thetaHere;
-
-        result[0] += logThetaHere +
-                      TypeGamma(0.5 * data.Qdiag[D]) * gammaScaled[D] * gammaScaled[D] ;
-    }
-
-      // Q offdiag    
-    for(size_t D = 0; D < data.Nq; D++) {
-        result[0] += gammaScaled[data.QsansDiag.i[D]] * gammaScaled[data.QsansDiag.j[D]] 
-          * TypeGamma(data.QsansDiag.x[D]);
-    }
-
-    return(result);
-}
-
 
 #endif

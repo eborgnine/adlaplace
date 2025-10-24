@@ -13,7 +13,6 @@
 
 #include"lgamma.hpp"
 #include"logspaceadd.hpp"
-#include"matrixUtils.hpp"
 
 
 // Constants
@@ -207,141 +206,7 @@ struct TripletMatrix {
   inline size_t nnz() const { return x.size(); }
 };
 
-struct DataNoR {
-  // Sparse matrices (owned, plain vectors)
-  TripletMatrix QsansDiag;  // (off-diagonal part; you treat it like dsT)
-  CscMatrix     A;          // rows = Ngamma, cols = Neta
-  CscMatrix     X;          // rows = Nbeta,  cols = Neta
-  CscMatrix     CC;         // selector (obs-by-strata)
-
-  // Dense vectors (owned)
-  std::vector<double> Qdiag;   // length Ngamma
-  std::vector<double> y;       // length Neta (or #obs; per your code, it's indexed by CC.i)
-  std::vector<int>    map;     // length Ngamma
-
-  // Sizes (cached)
-  size_t Nq       = 0;
-  size_t Nbeta    = 0;
-  size_t Ngamma   = 0;
-  size_t Neta     = 0;
-  size_t Nstrata  = 0;
-
-  // Optional / derived
-  bool   has_offset   = false;
-  size_t Kmax_strata  = 0;   // max number of obs in any stratum (column nnz of CC)
-  size_t Kx_col_max   = 0;   // max nnz in any X column
-  size_t Ka_col_max   = 0;   // max nnz in any A column
-
-  // (Optional) dynamic payload sizing you computed before
-  size_t Ndyn_dense_per_obs  = 0;
-  size_t Ndyn_dense_total    = 0;
-  size_t Ndyn_sparse_per_obs = 0;
-  size_t Ndyn_sparse_total   = 0;
-
-  // ---------- helpers to copy from Rcpp S4 into plain structs ----------
-  static CscMatrix copy_dgc(const Rcpp::S4& mat) {
-    CscMatrix out;
-    Rcpp::IntegerVector Iv = mat.slot("i");
-    Rcpp::IntegerVector Pv = mat.slot("p");
-    Rcpp::IntegerVector Dv = mat.slot("Dim");
-
-    out.i.assign(Iv.begin(), Iv.end());
-    out.p.assign(Pv.begin(), Pv.end());
-    out.nrow = Dv[0];
-    out.ncol = Dv[1];
-
-    // Some Matrix classes (ngCMatrix) have no 'x'. Handle generically:
-    if (mat.hasSlot("x")) {
-      Rcpp::NumericVector Xv = mat.slot("x");
-      out.x.assign(Xv.begin(), Xv.end());
-    } else {
-      // pattern-only matrix: treat all structural nonzeros as 1.0
-      out.x.assign(out.i.size(), 1.0);
-    }
-    return out;
-  }
-
-  static TripletMatrix copy_dst(const Rcpp::S4& mat) {
-    TripletMatrix out;
-    Rcpp::IntegerVector Iv = mat.slot("i");
-    Rcpp::IntegerVector Jv = mat.slot("j");
-    Rcpp::NumericVector Xv = mat.slot("x");
-    Rcpp::IntegerVector Dv = mat.slot("Dim");
-
-    out.i.assign(Iv.begin(), Iv.end());
-    out.j.assign(Jv.begin(), Jv.end());
-    out.x.assign(Xv.begin(), Xv.end());
-    out.nrow = Dv[0];
-    out.ncol = Dv[1];
-    return out;
-  }
-
-  // ---------- main constructor from the original R list ----------
-  explicit DataNoR(const Rcpp::List& data)
-  : QsansDiag(copy_dst( Rcpp::S4(data["QsansDiag"]) ))
-  , A(        copy_dgc( Rcpp::S4(data["ATp"])      ))
-  , X(        copy_dgc( Rcpp::S4(data["XTp"])      ))
-  , CC(       copy_dgc( Rcpp::S4(data["cc_matrixTp"]) ))
-  {
-    // Dense vectors
-    {
-      Rcpp::NumericVector rQdiag = data["Qdiag"];
-      Qdiag.assign(rQdiag.begin(), rQdiag.end());
-
-      Rcpp::NumericVector ry = data["y"];
-      y.assign(ry.begin(), ry.end());
-
-      Rcpp::IntegerVector rmap = data["map"];
-      map.assign(rmap.begin(), rmap.end());
-    }
-
-    // Sizes (mirror your earlier logic)
-    Nq       = QsansDiag.nnz();
-    Nbeta    = static_cast<size_t>(X.nrow);
-    Ngamma   = static_cast<size_t>(A.nrow);
-    Neta     = static_cast<size_t>(X.ncol);   // == A.ncol (by construction)
-    Nstrata  = static_cast<size_t>(CC.ncol);
-
-    has_offset = data.containsElementNamed("offset");
-
-    // ---- Kmax over strata (max nin per stratum = max column nnz of CC) ----
-    Kmax_strata = 0;
-    for (size_t s = 0; s < Nstrata; ++s) {
-      const size_t nin = static_cast<size_t>(CC.p[s+1] - CC.p[s]);
-      if (nin > Kmax_strata) Kmax_strata = nin;
-    }
-
-    // ---- Max nnz per column in X and A ----
-    Kx_col_max = 0;
-    Ka_col_max = 0;
-    for (size_t c = 0; c < static_cast<size_t>(Neta); ++c) {
-      const size_t nnzX = static_cast<size_t>(X.p[c+1] - X.p[c]);
-      const size_t nnzA = static_cast<size_t>(A.p[c+1] - A.p[c]);
-      if (nnzX > Kx_col_max) Kx_col_max = nnzX;
-      if (nnzA > Ka_col_max) Ka_col_max = nnzA;
-    }
-
-    // ---- Optional: your payload sizing (unchanged) ----
-    Ndyn_dense_per_obs = 1 /*mask*/ + 1 /*y*/ + (has_offset ? 1 : 0)
-                       + Nbeta + Ngamma;
-    Ndyn_dense_total   = Kmax_strata * Ndyn_dense_per_obs;
-
-    Ndyn_sparse_per_obs = 1 /*mask*/ + 1 /*y*/ + (has_offset ? 1 : 0)
-                        + (Kx_col_max + Ka_col_max);
-    Ndyn_sparse_total   = Kmax_strata * Ndyn_sparse_per_obs;
-  }
-
-  // ---------- tiny convenience accessors (optional) ----------
-  inline int X_col_nnz(int col) const { return pdiff(X.p, col); }
-  inline int A_col_nnz(int col) const { return pdiff(A.p, col); }
-  inline int CC_col_nnz(int col) const { return pdiff(CC.p, col); }
-
-private:
-  static inline int pdiff(const std::vector<int>& p, int c) {
-    return p[c+1] - p[c];
-  }
-};
-
+ 
 // ----- config bundle -----
 struct Config {
   Rcpp::List list;             
@@ -480,7 +345,7 @@ std::size_t Ntheta_base = 0u;
 }
 
 inline PackedParams<double>
-unpack_params(const Rcpp::NumericVector& params,
+unpack_params(const std::vector<double>& params,
               const Data& data,
               const Config& cfg)
 {
@@ -494,29 +359,22 @@ unpack_params(const Rcpp::NumericVector& params,
   return(result);
 }
 
+
+
 #endif // LOGSPACE_HPOL_HPP
 
-template<class Type>
-CppAD::vector<Type>  objectiveFunctionInternal(
- const CppAD::vector<Type>& ad_params,  
- const Data& data,
- const Config& config
- );
+CppAD::ADFun<double> adFunQ(
+  const std::vector<double> & parameters,  
+  const Data& data,
+  const Config& config);
+
+CppAD::ADFun<double> adFunGroup(
+  const std::vector<double> & parameters,  
+  const Data& data, 
+  const Config& config,
+  const Rcpp::IntegerVector& strataI,
+  const size_t start,
+  const size_t end
+  );
 
 
-CppAD::vector<CppAD::AD<double>>  logLikNoQ(
- const CppAD::vector<CppAD::AD<double>>& ad_params,  
- const Data& data,
- const Config& config); 
-
-CppAD::vector<CppAD::AD<double>>  logLikOnlyQ(
-    const CppAD::vector<CppAD::AD<double>> & ad_params,  
-    const Data& data,
-    const Config& config
-);
-CppAD::vector<CppAD::AD<double>>  logLikNoQStrata(
-    const CppAD::vector<CppAD::AD<double>> & ad_params,  
-    const Data& data,
-    const Config& config,
-    Rcpp::IntegerVector& strata
-);

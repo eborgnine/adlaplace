@@ -1,5 +1,31 @@
+getThirdFromHessian = function(hessian) {
 
-getOptimalPairs = function(hessian, Sparams, Sgamma1, fullHessian) {
+  hessianG = as(hessian, 'generalMatrix')
+  hessianUL = as(hessianG, "TsparseMatrix") 
+  hessianIJ = data.frame(i = hessianUL@i, j=hessianUL@j)
+
+  Sk =  apply(hessianIJ, 1, 
+    function(xx, ref) {
+      intersect(ref[ref$i == xx['i'], 'j'], ref[ref$j == xx['j'], 'i'])
+    }, 
+    ref = hessianIJ, simplify=FALSE)
+
+
+  ijk1 = hessianIJ[rep(1:nrow(hessianIJ), unlist(lapply(Sk, length))), ]
+  ijk1$k = unlist(Sk)
+  ijk1 = ijk1[!duplicated(ijk1[,c('i','j','k')]), ]
+  ijk1 = t(apply(ijk1[,c('i','j','k')], 1, sort))
+  ijk1 = ijk1[!duplicated(ijk1), ]
+
+  Nunique = apply(ijk1,1, function(xx) length(unique(xx)))
+
+  colnames(ijk1) = c('i','j','k')
+  ijk2 = cbind(ijk1, Nunique = Nunique)
+  ijk2
+}
+
+
+getOptimalPairs = function(hessian, Sparams, Sgamma1, hessianPairs, hessianPairsNS, hessianPairsR,randomFromFull) {
 
   hessianG = as(hessian, 'generalMatrix')
   hessianUL = as(hessianG, "TsparseMatrix") 
@@ -9,22 +35,12 @@ getOptimalPairs = function(hessian, Sparams, Sgamma1, fullHessian) {
   pairs = hessianIJ[!duplicated(hessianIJ[,c('i','j')]), ]
   pairs = pairs[order(pairs$j, pairs$i), ]
 
-    Sk =  apply(hessianIJ, 1, 
-      function(xx, ref) {
-        intersect(ref[ref$i == xx['i'], 'j'], ref[ref$j == xx['j'], 'i'])
-      }, 
-      ref = hessianIJ, simplify=FALSE)
+# find non-zero entries based on hessian
 
 
-    ijk1 = hessianIJ[rep(1:nrow(hessianIJ), unlist(lapply(Sk, length))), ]
+  ijk1 = getThirdFromHessian(hessian)
 
-    ijk1$k = unlist(Sk)
-  ijk1 = ijk1[!duplicated(ijk1[,c('i','j','k')]), ]
-  ijk1 = t(apply(ijk1[,c('i','j','k')], 1, sort))
-  ijk1 = ijk1[!duplicated(ijk1), ]
-
-  Nunique = apply(ijk1,1, function(xx) length(unique(xx)))
-  ijk2 = as.data.frame(ijk1[Nunique == 3, ])
+  ijk2 = as.data.frame(ijk1[ijk1[,'Nunique'] == 3, ])
 
   # only one parameter per trio, dont need Tijk for two parameters
   Nparams = apply(ijk2, 1, function(xx) sum(xx %in% Sparams))
@@ -154,15 +170,16 @@ getOptimalPairs = function(hessian, Sparams, Sgamma1, fullHessian) {
   pairsHessian2$SjNotPairOrDiag = setdiff(pairsHessian2$SjNotPair, unlist(pairsHessian2[c('onesI', 'onesJ')]))
   pairsHessian2$SiNotJ = sort(setdiff(pairsHessian2$i, c(pairsHessian2$j, pairsHessian2$onesJ)))
 
+
   hessianT = Matrix::forceSymmetric(hessianT)
 
-  matchFull = try(match(paste(hessianT@i, hessianT@j, sep='_'), paste(fullHessian[,'i'], fullHessian[,'j'], sep='_')))
+
 
   sparsity = list(
     random = pairsHessian2, 
     second = list(
       full = list(i=hessianT@i, j=hessianT@j, 
-        p=hessianC@p, match = matchFull),
+        p=hessianC@p),
       random = list(i=hessianRandom@i, j=hessianRandom@j, 
         p=as(hessianRandom, "CsparseMatrix")@p),
       nonSymmetric = nonsymmetric
@@ -172,20 +189,32 @@ getOptimalPairs = function(hessian, Sparams, Sgamma1, fullHessian) {
       pairs = as.data.frame(pairs)
     )
   )
+  if(!missing(hessianPairs))
+    sparsity$second$full$match =  try(match(paste(hessianT@i, hessianT@j, sep='_'), hessianPairs))-1L
+  if(!missing(hessianPairsNS))
+    sparsity$second$nonSymmetric$match =  try(match(paste(hessianT2@i, hessianT2@j, sep='_'), hessianPairsNS))-1L
+  if(!missing(hessianPairsR))
+    sparsity$second$hessianRandom$match =  try(match(paste(hessianRandom@i, hessianRandom@j, sep='_'), hessianPairsR))-1L
+  sparsity$second$full$matchToRandom = match(paste(hessianT@i, hessianT@j, sep='_'), randomFromFull)-1L
 
 
   sparsity
 }
 
 #' @export
-sparsity_pattern = function(x, data, config=list()) {
+sparsity_pattern = function(x, data, config=list(), denseHessian) {
 
 #x=res$parameters_for_sparsity ;data=res$tmb_data;config=res$config  
 
-
+  # sometimes zero parameter values lead to zeros in the hessian.
+    x[x==0] = 1e-2
   configForDiag = config[setdiff(names(config), c("dense","sparsity","beta","theta"))]
   configForDiag$dense=TRUE
   configForDiag$maxDeriv = 2
+  denseHessian = objectiveFunctionC(
+    x, data, configForDiag
+  )$denseHessian
+
 
   Nbeta = nrow(data$XTp)
   Ngamma = nrow(data$ATp)
@@ -193,13 +222,6 @@ sparsity_pattern = function(x, data, config=list()) {
   Nparams = Ntotal - Ngamma  
   Sgamma1 = seq(from=Nbeta+1, len=Ngamma)
   Sparams = setdiff(seq(0, len=Ntotal), seq(from=Nbeta, len=Ngamma))
-
-  # sometimes zero parameter values lead to zeros in the hessian.
-  x[x==0] = 1e-2
-
-  denseHessian = objectiveFunctionC(
-    x, data, configForDiag
-  )$denseHessian
 
 
   hessian = as(
@@ -212,8 +234,8 @@ sparsity_pattern = function(x, data, config=list()) {
   if(any(is.na(hessian@x))) warning("NA's in hessian")
 
   sparsity = getOptimalPairs(hessian, Sparams, Sgamma1)
-
-
+  ijkp = sparsity$third$ijk
+  pairs = sparsity$third$pairs
 
 # find which pairs dont contribute to likelihood part
 

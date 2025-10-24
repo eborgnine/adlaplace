@@ -25,7 +25,7 @@ Rcpp::List thirdDiagonalsStrata(
   const int Nparams = parameters.size();
   const int Ngroup = strata.size();
 
-  const Rcpp::NumericVector strataI = strata["i"], strataP = strata["p"];
+  const Rcpp::IntegerVector strataI = strata["i"], strataP = strata["p"];
 
 
   bool dense = configC.dense;
@@ -42,15 +42,15 @@ Rcpp::List thirdDiagonalsStrata(
       hessianOut[D] = Rcpp::NumericMatrix(Nparams, Nparams);
       thirdDiagOut[D] = Rcpp::NumericMatrix(Nparams, Nparams);
     } else {
-      Rcpp::List sparseHere = sparsity[D];
-      Rcpp::List twoHere = sparseHere["two"];
-      Rcpp::List fullHere = twoHere["full"];
-      Rcpp::IntegerVector fullIhere = fullHere["i"];
+      const Rcpp::List sparseHere = sparsity[D];
+      const Rcpp::List twoHere = sparseHere["two"];
+      const Rcpp::List fullHere = twoHere["full"];
+      const Rcpp::IntegerVector fullIhere = fullHere["i"];
 
       const size_t NoutRowsH = fullIhere.size();
 
-      Rcpp::List twoThere = twoHere["nonSymmetric"];
-      Rcpp::List twoTihere = twoThere["i"];
+      const Rcpp::List twoThere = twoHere["nonSymmetric"];
+      const Rcpp::List twoTihere = twoThere["i"];
 
       const size_t NoutRowsT = twoTihere.size();
 
@@ -82,16 +82,15 @@ Rcpp::List thirdDiagonalsStrata(
 
     std::vector<double> y_val(1);
     const std::vector<double> w{0.0, 0.0, 1.0};  
-    std::vector<double> direction(Nparams, 0.0), directionZeros(Nparams, 0.0);
-
-
-    CppAD::vector<CppAD::AD<double>> ad_params(Nparams);  
-    for (size_t D = 0; D < Nparams; D++) {
-      ad_params[D] = x_val[D];  // Initialize CppAD variables
-    }
+    std::vector<double> direction(Nparams, 0.0);
+    const std::vector<double> directionZeros(Nparams, 0.0);
 
   #pragma omp for
     for(size_t Dgroup = 0; Dgroup < Ngroup; ++Dgroup) {
+
+      CppAD::ADFun<double> fun = adFunGroup(x_val,  
+        dataC, configC, strataI,
+        strataP[Dgroup], strataP[Dgroup+1]);
 
       const Rcpp::List sparsityHere = sparsity[Dgroup];
       const Rcpp::List sparsitySecond = sparsityHere["second"];
@@ -108,31 +107,6 @@ Rcpp::List thirdDiagonalsStrata(
       Rcpp::NumericMatrix hessianOutHere = hessianOut[Dgroup];
       Rcpp::NumericMatrix thirdDiagOutHere = thirdDiagOut[Dgroup];
 
-
-      CppAD::Independent(ad_params);  
-
-      auto latent=unpack_params(ad_params, dataC, configC);
-
-      CppAD::AD<double> loglik = 0;
-      CppAD::vector<CppAD::AD<double>> minusLogDens(1);
-
-      const size_t end = strataP[Dgroup+1];
-      for (size_t Dindex = strataP[Dgroup]; Dindex < end;  Dindex++) {
-
-        const size_t Dstrata = strata[Dindex];
-
-        auto etaHere = compute_eta_for_stratum(
-          Dstrata, dataC, latent.gamma, latent.beta);
-
-        auto contrib = accumulate_contrib_for_stratum(
-          Dstrata, dataC, etaHere, latent, configC);
-
-        loglik += contrib[0];
-    } // Dstrata
-
-    minusLogDens[0] = -loglik;
-
-    CppAD::ADFun<double> fun(ad_params, minusLogDens);
 
     y_val = fun.Forward(0, x_val);
 
@@ -162,19 +136,19 @@ Rcpp::List thirdDiagonalsStrata(
       const int diagEnd = diagP[Dk+1];
 
       for(int Di=diagP[Dk]; Di<diagEnd; Di++){
-        int indexHere = 3*diagRow[Di];
+        const int indexHere = 3*diagRow[Di];
         thirdDiagOutHere[Di] = taylor3[indexHere+1];
       }
       const int hessianEnd = hessianP[Dk+1];
       for(int Di=hessianP[Dk]; Di<hessianEnd; Di++){
-        int indexHere = 3*hessianRow[Di];
+        const int indexHere = 3*hessianRow[Di];
         hessianOutHere[Di] = taylor3[indexHere];
       } // Di
     } // else is sparse
 
     if(Dk == 0) {
       for(int Dj=0; Dj<Nparams; Dj++){
-        int indexHere = 3*Dj;
+        const int indexHere = 3*Dj;
         gradientOut(Dj,Dgroup) = taylor3[indexHere+2];
       }
     }
@@ -182,6 +156,8 @@ Rcpp::List thirdDiagonalsStrata(
   } //group
 
 } // parallel
+
+// combine over groups
 
 if (configC.verbose ) {
   Rcpp::Rcout << "done\n";
@@ -217,7 +193,7 @@ Rcpp::List thirdOffDiagonalsStrata(
 
   const int Nparams = parameters.size();
   const int Ngroups = strata.size();
-  const Rcpp::NumericVector strataI = strata["i"], strataP = strata["p"];
+  const Rcpp::IntegerVector strataI = strata["i"], strataP = strata["p"];
 
 // output
   Rcpp::List Tijk(Ngroups);
@@ -257,14 +233,12 @@ Rcpp::List thirdOffDiagonalsStrata(
   const std::vector<double> direction2(Nparams, 0.0);
   std::vector<double> direction1(Nparams, 0.0);
 
-    CppAD::vector<CppAD::AD<double>> ad_params(Nparams);
-
-    for (size_t D = 0; D < Nparams; D++) {
-      ad_params[D] = x_val[D];
-    }
-
   #pragma omp for
     for(size_t Dgroup = 0; Dgroup < Ngroups; ++Dgroup) {
+
+      CppAD::ADFun<double> fun = adFunGroup(x_val,  
+        dataC, configC, strataI,
+        strataP[Dgroup], strataP[Dgroup+1]);
 
       const Rcpp::List sparsityHere = sparsity[Dgroup];
       const Rcpp::List threeHere = sparsityHere["three"];
@@ -281,29 +255,8 @@ Rcpp::List thirdOffDiagonalsStrata(
 
       Rcpp::NumericMatrix TijkHere = Tijk[Dgroup];
 
-      CppAD::AD<double> loglik = 0;
-      CppAD::vector<CppAD::AD<double>> minusLogDens(1);
 
-      CppAD::Independent(ad_params);
-      auto latent=unpack_params(ad_params, dataC, configC);
 
-      const size_t end = strataP[Dgroup+1];
-      for (size_t Dindex = strataP[Dgroup]; Dindex < end;  Dindex++) {
-
-        const size_t Dstrata = strata[Dindex];
-
-        auto etaHere = compute_eta_for_stratum(
-          Dstrata, dataC, latent.gamma, latent.beta);
-
-        auto contrib = accumulate_contrib_for_stratum(
-          Dstrata, dataC, etaHere, latent, configC);
-
-        loglik += contrib[0];
-    } // Dstrata
-
-    minusLogDens[0] = -loglik;
-
-  CppAD::ADFun<double> fun(ad_params, minusLogDens);
   fun.Forward(0, x_val);
 
   for(int Dpair=0; Dpair < Npairs; ++Dpair) {
@@ -339,8 +292,101 @@ Rcpp::List thirdOffDiagonalsStrata(
 } //Dgroup
 } // parallel
 
-
+// combine over groups
 
 return Tijk;
 
 }
+
+
+Rcpp::NumericMatrix thirdQSparse(
+  const std::vector<double> parameters, 
+  const Data& data,
+  const Config& config) {
+
+// config$sparsity$Q must have i j, p, iUp, jUp
+  const Rcpp::List sparsity=config.sparsity;
+  const size_t Nparams = parameters.size();
+
+      const Rcpp::List sparsityQ = sparsity["Q"]; 
+      const Rcpp::List nsQ =  sparsityQ["nonSymmetric"]; 
+      const Rcpp::List fullQ = sparsityQ["full"]; 
+
+      const Rcpp::IntegerVector rowQns = nsQ["i"]; 
+      const Rcpp::IntegerVector colQns = nsQ["j"]; 
+      const Rcpp::IntegerVector pQns = nsQ["p"]; 
+      const Rcpp::IntegerVector rowQfull = fullQ["i"]; 
+      const Rcpp::IntegerVector colQfull = fullQ["j"]; 
+      const Rcpp::IntegerVector pQfull =  fullQ["p"]; 
+
+      const size_t NoutNs =  rowQns.size();
+
+      auto fun = adFunQ(parameters, data, config);
+
+    Rcpp::NumericMatrix thirdDiagOut(NoutNs,2);
+
+    std::vector<double> w{0.0, 0.0, 1.0};  
+    std::vector<double> direction(Nparams, 0.0), directionZeros(Nparams, 0.0);
+
+    for(int Dk=0; Dk < Nparams; ++Dk) {
+
+      std::fill(direction.begin(), direction.end(), 0.0);
+      direction[Dk]  = 1.0;     
+
+      fun.Forward(1, direction);
+      fun.Forward(2, directionZeros);
+
+      auto taylor3 = fun.Reverse(3, w);
+
+      const int endDiag = pQns[Dk+1];
+      const int endH = pQfull[Dk+1];
+
+        for(int Di=0; Di<endH; Di++){
+          const int indexH = 3*rowQfull[Di]+1;
+          thirdDiagOut(Di,0) = taylor3[indexH];
+      } // Di
+      for(int Di=0; Di<endDiag; Di++){
+        const int indexDiag = 3*rowQns[Di];
+        thirdDiagOut(Di,1) = taylor3[indexDiag];
+      } // Di
+  } // Dk
+
+    if(data.Nq) {
+      Rcpp::warning("off diagonals for third derivative of Q not implemented");
+    }
+
+    return(thirdDiagOut); // first col third diag, second col hessian
+}
+
+Rcpp::NumericMatrix thirdQDense(
+    const std::vector<double> parameters, 
+    const Data& data, 
+    const Config& config) {
+
+  const size_t Nparams = parameters.size();
+    Rcpp::NumericMatrix thirdDiagOut(Nparams, Nparams);
+
+    std::vector<double> w{0.0, 0.0, 1.0};  
+    std::vector<double> direction(Nparams, 0.0), directionZeros(Nparams, 0.0);
+
+      auto fun = adFunQ(parameters, data, config);
+
+
+    for(int Dk=0; Dk < Nparams; ++Dk) {
+      std::fill(direction.begin(), direction.end(), 0.0);
+      direction[Dk]  = 1.0;     
+
+      fun.Forward(1, direction);
+      fun.Forward(2, directionZeros);
+
+      auto taylor3 = fun.Reverse(3, w);
+
+      for(int Dj=0; Dj<Nparams; Dj++){
+          int indexHere = 3*Dj;
+//          hessianOut(Dj, Dk) = taylor3[indexHere+1];
+          thirdDiagOut(Dj, Dk) = taylor3[indexHere];
+        }
+  } // Dk
+  return(thirdDiagOut);
+}
+

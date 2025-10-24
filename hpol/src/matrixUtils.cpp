@@ -1,4 +1,4 @@
-#include <Rcpp.h>
+#include "hpol.hpp"
 #include <vector>
 
 
@@ -23,7 +23,6 @@ Rcpp::IntegerVector compute_p_vector(
 
     return p;
 }
-
 
 
 
@@ -93,4 +92,126 @@ Rcpp::S4 make_gCMatrix(
 
 }
 
+
+Rcpp::S4 make_convert_gCmatrix(const Rcpp::NumericVector& x,
+                              const Rcpp::IntegerVector& i,
+                              const Rcpp::IntegerVector& j,
+                              const size_t N)
+{
+  const int nnz = i.size();
+
+  std::vector<int> Iout;
+  std::vector<int> Jout;
+  std::vector<double> Xout;
+  Iout.reserve(2 * nnz);
+  Jout.reserve(2 * nnz);
+  Xout.reserve(2 * nnz);
+  for(int k=0;k<nnz;k++) {
+    const int row = i[k];
+    const int col = j[k];
+    const double val = x[k]; 
+
+      Iout.push_back(row);
+    Jout.push_back(col);
+    Xout.push_back(val);
+
+    // add mirrored lower triangle if off-diagonal
+    if (row != col) {
+      Iout.push_back(col);
+      Jout.push_back(row);
+      Xout.push_back(val);
+    }
+  }
+    const int nnzOut = Jout.size();
+    std::vector<size_t> idx(nnzOut);
+    std::iota(idx.begin(), idx.end(), 0);  
+
+    std::stable_sort(idx.begin(), idx.end(),
+              [&](size_t a, size_t b) { return Jout[a] < Jout[b]; });
+
+  Rcpp::IntegerVector i1(nnzOut), j1(nnzOut);
+  Rcpp::NumericVector x1(nnzOut);    
+    for(int D=0;D<nnzOut;D++) {
+      const int newD = idx[D];
+      i1[D] = Iout[newD];
+      j1[D] = Jout[newD];
+      x1[D] = Xout[newD];
+    }
+  Rcpp::IntegerVector p1 = compute_p_vector(j1, N);
+  Rcpp::S4 result = make_gCMatrix(x1, i1, p1);
+  return(result);
+}
+
+Rcpp::S4 assembleHessian(
+  const std::vector<std::vector<double>>& randomHessian, 
+  const std::vector<double>& qHessian, 
+  const Rcpp::List& sparsity, 
+  const Config& config, 
+  const bool onlyRandom) {
+
+    const size_t Ngroups = randomHessian.size();
+      // TO DO, sum sparse matrix
+    const Rcpp::List secondAll = config.sparsity["second"];
+    const Rcpp::List outAll = secondAll["full"];
+    const Rcpp::IntegerVector iAll = outAll["i"];
+    const auto sizeH = iAll.size();
+    Rcpp::NumericVector hessianSum(sizeH);
+
+    for(size_t D=0;D < sizeH; D++) {
+      hessianSum[D] = 0;
+    }
+
+    for(size_t Dgroup = 0;Dgroup<Ngroups;++Dgroup) {
+
+      const Rcpp::List sparsityHere = sparsity[Dgroup];
+      const Rcpp::List secondHere = sparsityHere["second"];
+      const Rcpp::List targetHere= onlyRandom?secondHere["random"]:secondHere["full"];
+      const Rcpp::IntegerVector matchHere = targetHere["match"];
+
+      const std::vector<double> hessianOutHere = randomHessian[Dgroup];
+      const size_t Nhere = matchHere.size();
+      for(size_t D=0;D < Nhere; D++) {
+        hessianSum[matchHere[D]] += hessianOutHere[D];
+      }
+    } // groupd
+      const Rcpp::List secondHere = config.sparsity["Q"];
+      const Rcpp::List targetHere= onlyRandom?secondHere["random"]:secondHere["full"];
+      const Rcpp::IntegerVector matchHere = targetHere["match"];
+      const size_t Nq = matchHere.size();
+
+    for(size_t D=0;D<Nq;++D) {
+      hessianSum[matchHere[D]] += qHessian[D];
+    }      
+
+    const Rcpp::List outList = onlyRandom?secondAll["random"]:secondAll["full"];
+    const Rcpp::IntegerVector outI = outList["i"];
+    const Rcpp::IntegerVector outJ = outList["j"];
+    const Rcpp::IntegerVector outP = outList["p"];
+
+    const size_t Nsize = outP.size()-1;
+    Rcpp::S4 result = onlyRandom?
+      make_CMatrix(hessianSum, outI, outP):
+      make_convert_gCmatrix(hessianSum, outI, outJ, Nsize);
+
+    return(result);
+   
+}
+
+// helper: convert 1-based R indices to 0-based and keep (i >= j) lower triangle
+CPPAD_TESTVECTOR( std::set<size_t> ) build_pattern_from_R(
+  const Rcpp::IntegerVector& row0,
+  const Rcpp::IntegerVector& col0,
+  size_t n) {
+ auto K = row0.size();
+ CPPAD_TESTVECTOR(std::set<size_t>) pattern(n);
+ 
+ for (size_t k = 0; k < K; ++k) {
+    int ri = row0[k];   // convert to 0-based if R passed 1-based
+    int cj = col0[k];
+    pattern[(size_t)ri].insert((size_t)cj);
+    pattern[(size_t)cj].insert((size_t)ri);
+  }
+
+  return pattern;
+}
 

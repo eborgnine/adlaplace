@@ -253,11 +253,6 @@ hnlm <- function(formula,
   start_parameters = c(start_beta, start_gamma, start_theta)
 
 
- if(identical(config$verbose, TRUE)) cat("getting sparsity.. ")
-    config$sparsity = sparsity_pattern(
-      x=start_parameters, data=tmb_data, config)
-  if(identical(config$verbose, TRUE)) cat("done sparsity\n")
-
 
   if(for_dev)
     return(
