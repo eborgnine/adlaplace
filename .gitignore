@@ -14,7 +14,6 @@ hpoltest.Rproj
 hpoltest_orig/src/.DS_Store
 hpoldebug.rds
 result.rds
-
 .RDataTmp
 hpoltest_0.0.1.tar.gz
 .DS_Store
@@ -29,3 +28,4 @@ hpol/src/.DS_Store
 applications/india/mle.rds
 applications/synthetic/log.txt
 *.rds
+mleX.RData
