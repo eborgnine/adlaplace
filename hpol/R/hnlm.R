@@ -223,10 +223,14 @@ hnlm <- function(formula,
     config[
     setdiff(names(config), c('verbose', 'dirichlet'))
     ], 
-    list(verbose = verbose,  dirichlet = as.integer(dirichlet))
+    list(
+      verbose = (verbose>1),  
+      dirichlet = as.integer(dirichlet))
   )
   
+  if(verbose) cat("formatting data..")
   tmb_data = formatHpolData(tmb_data)
+  if(verbose) cat("done\n")
 
  
     configDefaults = list(
@@ -250,8 +254,9 @@ hnlm <- function(formula,
   start_parameters = c(start_beta, start_gamma, start_theta)
 
 
-
-  groups = try(sparsity_grouped(start_parameters, tmb_data, config))
+  if(verbose) cat("getting groups..")
+  groups = try(sparsity_grouped(start_parameters, tmb_data, config, verbose))
+  if(verbose) cat("done\n")
   if(any(class(groups) == 'try-error')) groups = list()
   config$sparsity = groups$sparsity
   config$groups = groups$groups
@@ -266,9 +271,8 @@ hnlm <- function(formula,
   env$tmb_data    <- tmb_data
   env$config      <- config
   environment(getAdfunHere) <- env
-
-# optional: lock it to prevent accidental changes
-lockEnvironment(env, bindings = TRUE)
+  lockEnvironment(env, bindings = TRUE)
+  
   cache = new.env(parent = emptyenv())
   assign("Nfun", 0, cache)
   assign("Ngr", 0, cache)
@@ -300,7 +304,7 @@ lockEnvironment(env, bindings = TRUE)
 
 
 
-  if(identical(config$verbose, TRUE)) cat("optimizing")
+  if(verbose) cat("optimizing")
 
     mle = trustOptim::trust.optim(
     x = parameters,
@@ -311,7 +315,7 @@ lockEnvironment(env, bindings = TRUE)
     data=tmb_data, config = config, cache =  cache, controlInner = control_inner
   )
 
-  if(identical(config$verbose, TRUE)) cat("done")
+  if(verbose) cat("done")
 
     mle$extra = try(loglik(
       mle$solution, 

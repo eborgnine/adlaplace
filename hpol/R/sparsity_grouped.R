@@ -1,6 +1,6 @@
 #' @export
 
-sparsity_grouped = function(x, data, config) {
+sparsity_grouped = function(x, data, config, verbose=FALSE) {
 
 # library('hpolcc');x = res$parameters_for_sparsity;data=res$tmb_data;config=res$config
 
@@ -26,10 +26,13 @@ sparsity_grouped = function(x, data, config) {
 	dataNoMap = data
 	dataNoMap$Qdiag = rep(1, 0)
 
+	if(verbose) cat("getting first deriv...")
 	firstDeriv = gradLogical(x, dataNoMap, config)
-
+	if(verbose) cat("done\ngetting clusters...")
 	km <- try(kmeans(t(firstDeriv), centers = ceiling(1.1*Nclusters), 
 		iter.max=25000, nstart=10*Nclusters, algorithm='Hartigan-Wong'))
+	if(verbose) cat("done\n")
+
 	if(!any(class('km') == 'try-error')) {
 		mergeThreshold = floor(0.25*Nstrata/Nclusters)
 		NtoMerge = (which(cumsum(sort(km$size)) < mergeThreshold))
@@ -84,6 +87,7 @@ sparsity_grouped = function(x, data, config) {
 
 #	hessianDenseAll = hessianDenseLogical(parameters=x, data=dataNoMap,config=config, strata = res$groups$groups)
 	# now find hessian for each block
+	if(verbose) cat("getting hessian by group...")
 	hessianByBlock = parallel::mcmapply(function(strata, config, ...) {
 		hessianDenseLogical(..., config = c(config, list(groups = strata)))
 	},
@@ -97,6 +101,7 @@ sparsity_grouped = function(x, data, config) {
 	hessianByBlock2 = lapply(hessianByBlock, Matrix::Matrix, sparse=TRUE)
 
 	#hessian for random part,
+	if(verbose) cat("getting Q hessian")
 	hessianQ = list(dense=hessianQdense(parameters=x, data=data, config=config))
 
 
@@ -105,7 +110,9 @@ sparsity_grouped = function(x, data, config) {
 	hessianQ$hessian = Matrix::forceSymmetric(Matrix::Matrix(hessianQ$dense, sparse=TRUE))
 	hessianQT = as(as(hessianQ$hessian, 'generalMatrix'),'TsparseMatrix')
 	hessianQns = as(hessianQ$hessian, 'generalMatrix')
+	if(verbose) cat("getting third sparsity...")
 	ijkQ = getThirdFromHessian(hessianQ$hessian)
+	if(verbose) cat("done\n")
 	if(any(ijkQ[,'Nunique'] == 3)) warning("need to implement non-diagonal Q third")
 
 	fullHessian=do.call(rbind, lapply(hessianByBlock2, function(xx) cbind(xx@i,as(xx, "TsparseMatrix")@j)))
@@ -124,7 +131,9 @@ sparsity_grouped = function(x, data, config) {
 
 	fullHessianMatrix = Matrix::sparseMatrix(i=fullHessian[,1], j=fullHessian[,2], symmetric=TRUE, index1=FALSE,
 		dims = c(Ntotal, Ntotal), repr='T')
+	if(verbose) cat("getting optimal pairs")
 	fullList = getOptimalPairs(fullHessianMatrix, Sparams=Sparams, Sgamma1=Sgamma1)
+	if(verbose) cat("done\n")
 
 
 	fullHessianPairs = paste(fullList$second$full$i, fullList$second$full$j, sep='_')
@@ -154,13 +163,14 @@ sparsity_grouped = function(x, data, config) {
 
 	# find full hessian sparsity
 	# for each strata, get index in full hessian
-
+	if(verbose) cat("getting sparsity by block...")
 	sparsityList = parallel::mcmapply(getOptimalPairs,
 		hessian = hessianByBlock2,
 		MoreArgs = list(Sparams = Sparams, Sgamma1=Sgamma1, 
 			hessianPairs = fullHessianPairs,
 			hessianPairsR = fullHessianPairsR), 
 		SIMPLIFY=FALSE, mc.cores=config$num_threads)
+	if(verbose) cat("done\n")
 
 	
 	result = list(
