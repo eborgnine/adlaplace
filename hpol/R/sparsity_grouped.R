@@ -58,11 +58,16 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 
 			# split biggest cluster
 			theTable = table(km$cluster)
-			if(max(theTable) > 1.5*order(theTable, decreasing=TRUE)[2]) {
-				whichInBiggest = which(km$cluster == which.max(theTable))
+			maxClustersInd = order(theTable, decreasing=TRUE)[1:2]
+			maxClustersSize = theTable[maxClustersInd]
+			if( maxClustersSize[1] > 1.5*maxClustersSize[2]) {
+				whichInBiggest = which(km$cluster == maxClustersInd[1])
 				firstDeriv2 = firstDeriv[,whichInBiggest]
-				km2 = kmeans(t(firstDeriv2), centers = 2, iter.max=15000,nstart=200, algorithm='Hartigan-Wong')
-				km$cluster[whichInBiggest] = -km2$cluster
+				pr = prcomp(firstDeriv2)
+				theOrder = order(pr$rotation[,1])
+				newk = cut(theOrder, seq(0, length(theOrder)+1, 
+					len=ceiling(maxClustersSize[1]/maxClustersSize[2])))
+				km$cluster[whichInBiggest] = -as.numeric(newk)
 				km$cluster = as.integer(factor(km$cluster))
 			}
 		}
