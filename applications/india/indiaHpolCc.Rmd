@@ -107,10 +107,13 @@ fitD <- hpolcc::hnlm(
 ```
 
 ```{r sparsePlot}
-    image(seq(0, len=nrow(fitD$groups$firstDeriv)), seq(0, len=ncol(fitD$groups$firstDeriv)), 
-        as.matrix(fitD$groups$firstDeriv[, 1+fitD$groups$groups$i])
-    )
-    abline(h=fitD$groups$groups$p, col='blue', lty=1)
+par(mar=c(3,3,0,0), bty='n')
+image(seq(0, len = nrow(fitD$groups$firstDeriv)),
+      seq(0, len = ncol(fitD$groups$firstDeriv)),
+      as.matrix(fitD$groups$firstDeriv[, 1 + fitD$groups$groups$i]))
+abline(h = fitD$groups$groups$p,
+       col = 'blue',
+       lty = 1)
 ```
 
 ```{r dostuff}
