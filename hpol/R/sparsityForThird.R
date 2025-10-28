@@ -25,7 +25,7 @@ getThirdFromHessian = function(hessian) {
 }
 
 
-getOptimalPairs = function(hessian, Sparams, Sgamma1, hessianPairs, hessianPairsR) {
+getOptimalPairs = function(hessian, Sparams, Sgamma1, hessianPairs, hessianPairsR, hessianPairsNs, hessianPairsRns) {
 
   hessianG = as(hessian, 'generalMatrix')
   hessianUL = as(hessianG, "TsparseMatrix") 
@@ -197,6 +197,12 @@ getOptimalPairs = function(hessian, Sparams, Sgamma1, hessianPairs, hessianPairs
     sparsity$second$full$match =  try(match(paste(hessianT@i, hessianT@j, sep='_'), hessianPairs))-1L
   if(!missing(hessianPairsR))
     sparsity$second$random$match =  try(match(paste(hessianRandom@i, hessianRandom@j, sep='_'), hessianPairsR))-1L
+
+  if(!missing(hessianPairsNs))
+    sparsity$second$nonSymmetric$match =  try(match(paste(nonsymmetric$i, nonsymmetric$j, sep='_'), hessianPairsNs))-1L
+
+  if(!missing(hessianPairsRns))
+    sparsity$second$randomNS$match =  try(match(paste(sparsity$second$randomNS$i, sparsity$second$randomNS$j, sep='_'), hessianPairsRns))-1L
 
   sparsity
 }

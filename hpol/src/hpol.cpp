@@ -1,14 +1,11 @@
 
 #include"hpol.hpp"
-#include"loglikHelpers.hpp"
-#include"matrixUtils.hpp"
 
 const double sqrtDblEpsilon = std::sqrt(DBL_EPSILON);
 
 
 //#define DEBUG
 
-#include<omp.h>
 
 
 // to do: put Q in adpack
@@ -88,205 +85,6 @@ double jointLogDens(
 
 
 
-/* likelihood part */
-CppAD::ADFun<double> adFunGroup(
-      const std::vector<double> & parameters,  
-      const Data& data, 
-      const Config& config,
-      const Rcpp::IntegerVector& strataI,
-      const size_t start,
-      const size_t end
-      ) {
-
-      const size_t Nparams = parameters.size();
-      CppAD::vector<CppAD::AD<double>> ad_params(Nparams);
-      CppAD::vector<CppAD::AD<double>> minusLogDens(1);
-      CppAD::AD<double> loglik = 0;
-
-      for (size_t D = 0; D < Nparams; D++) {
-        ad_params[D] = parameters[D];  
-      }
-      CppAD::Independent(ad_params);
-
-      auto latent=unpack_params(ad_params, data, config);
-
-      for (size_t Dindex = start; Dindex < end;  Dindex++) {
-
-        const size_t Dstrata = strataI[Dindex];
-
-        auto etaHere = compute_eta_for_stratum(
-          Dstrata, data, latent.gamma, latent.beta);
-
-        auto contrib = accumulate_contrib_for_stratum(
-          Dstrata, data, etaHere, latent, config);
-
-        loglik += contrib[0];
-  } // Dstrata
-
-  minusLogDens[0] = -loglik;
-
-  CppAD::ADFun<double> fun(ad_params, minusLogDens);
-
-  return(fun);
-}
-
-
-
-
-CppAD::ADFun<double> adFunQ(
-  const std::vector<double> & parameters,  
-  const Data& data,
-  const Config& config) {
-
-  const size_t Nparams = parameters.size();
-
-  CppAD::vector<CppAD::AD<double>> ad_params(Nparams);
-  for(size_t D=0;D<Nparams;D++) {
-    ad_params[D] = parameters[D];
-  }
-  CppAD::Independent(ad_params);   
-
-  auto latent=unpack_params<CppAD::AD<double>>(ad_params, data, config);
-
-  CppAD::vector<CppAD::AD<double>> gammaScaled(data.Ngamma);
-  CppAD::vector<CppAD::AD<double>> result(1);
-
-  CppAD::AD<double> result0=0;
-  const Rcpp::IntegerVector map = data.map;
-  for (size_t D = 0; D < data.Ngamma; ++D) {
-    const size_t mapHere = map[D];
-
-    auto thetaHere = latent.theta[mapHere];
-    auto logThetaHere = latent.logTheta[mapHere];
-
-    gammaScaled[D] = latent.gamma[D] / thetaHere;
-    result0 += logThetaHere + (0.5 * data.Qdiag[D]) * gammaScaled[D] * gammaScaled[D];
-  }
-
-      // Q offdiag    
-  for(size_t D = 0; D < data.Nq; D++) {
-    result0 += gammaScaled[data.QsansDiag.i[D]] * gammaScaled[data.QsansDiag.j[D]] 
-    * data.QsansDiag.x[D];
-  }
-
-  result[0] = result0;
-
-  CppAD::ADFun<double> fun(ad_params, result);
-
-  return(fun);
-}
-
-struct GroupPack {
-  CppAD::ADFun<double>                    fun;       // taped function for the group
-  CppAD::sparse_hessian_work              work;      // reusable work cache
-  CppAD::vector< std::set<size_t> >       pattern;   // Hessian sparsity pattern (size = Nparams)
-  std::array< std::vector<size_t>, 2 >    outRowCol; // [0]=rows, [1]=cols for subset extraction
-};
-
-
-inline std::vector<GroupPack>
-getAdfun(const std::vector<double>& parameters,
-                           const Data&                data,
-                           const Config&              config)
-{
-  const Rcpp::List sparsityList = config.group_sparsity;
-  const Rcpp::List strata = config.groups;
-  const size_t Nparams = parameters.size();
-  const bool onlyRandom = Nparams == data.Ngamma;
-  const Rcpp::IntegerVector strataI = strata["i"], strataP = strata["p"];
-
-
-  const size_t Ngroup  = static_cast<size_t>(strataP.size() - 1);
-
-  std::vector<GroupPack> packs(Ngroup);
-
-  // ---- Phase 1: extract everything from R (single-thread, safe) ----
-  if(sparsityList.size()) {
-  for (size_t g = 0; g < Ngroup; ++g) {
-    Rcpp::List sparsityHere = sparsityList[g];
-    Rcpp::List second       = sparsityHere["second"];
-
-    Rcpp::List nonSymmetric = onlyRandom ? second["randomNS"] : second["nonSymmetric"];
-    Rcpp::IntegerVector Srow = nonSymmetric["i"];
-    Rcpp::IntegerVector Scol = nonSymmetric["j"];
-
-    // full symmetric pattern for this group (size = Nparams)
-    packs[g].pattern = build_pattern_from_R(Srow, Scol, Nparams);
-
-    // output subset (rows/cols), copied to STL (thread-safe)
-    Rcpp::List outList          = onlyRandom ? second["random"] : second["full"];
-    Rcpp::IntegerVector rowOutR = outList["i"];
-    Rcpp::IntegerVector colOutR = outList["j"];
-    packs[g].outRowCol[0] = Rcpp::as<std::vector<size_t>>(rowOutR);
-    packs[g].outRowCol[1] = Rcpp::as<std::vector<size_t>>(colOutR);
-
-    // default-constructed work is fine; keep it per group
-    packs[g].work = CppAD::sparse_hessian_work();
-  }
-  }
-
-  // ---- Phase 2: build ADFun per group (parallel, no Rcpp touched) ----
-  omp_set_num_threads(config.num_threads);
-  CppAD::thread_alloc::parallel_setup(
-    config.num_threads,
-    [](){ return in_parallel_wrapper(); },
-    [](){ return static_cast<size_t>(thread_num_wrapper()); }
-  );
-
-#pragma omp parallel for
-  for (size_t g = 0; g < Ngroup; ++g) {
-    // Create the taped function for this group's strata range
-    CppAD::ADFun<double> f =
-      adFunGroup(parameters, data, config, strataI,
-                 static_cast<size_t>(strataP[g]),
-                 static_cast<size_t>(strataP[g + 1]));
-    packs[g].fun = std::move(f); // move-assign into the bundle
-  }
-
-  return packs;
-}
-
-struct AdpackHandle {
-  std::vector<GroupPack>* ptr = nullptr;   // pointer to existing or new object
-  bool created_here = false;             // whether we must delete it later
-
-  void cleanup() {
-    if (created_here && ptr) { delete ptr; ptr = nullptr; }
-  }
-};
-
-
-// ---- helper to rehydrate or create adpack (no Nullable<SEXP>) ----
-inline AdpackHandle getAdpackFromR(
-    SEXP adfun,                                   // pass R_NilValue if none
-    const std::vector<double>& parametersC,
-    const Data& dataC,
-    const Config& configC)
-{
-  AdpackHandle h;
-
-  if (adfun != R_NilValue) {
-    // Rehydrate external pointer
-    Rcpp::XPtr<std::vector<GroupPack>> xp(adfun);
-
-    // Optional: validate class tag
-    if (xp.hasAttribute("class")) {
-      Rcpp::CharacterVector cls = xp.attr("class");
-      if (cls.size() == 0 || std::string(cls[0]) != "adpack_ptr")
-        Rcpp::stop("getAdpackFromR: external pointer class mismatch");
-    }
-
-    h.ptr = xp.get();              // we do NOT own this memory
-    h.created_here = false;
-  } else {
-    // Build on the fly (we own it)
-    auto packs = getAdfun(parametersC, dataC, configC);
-    h.ptr = new std::vector<GroupPack>(std::move(packs));
-    h.created_here = true;
-  }
-
-  return h;
-}
 
 Rcpp::NumericMatrix hessianQdense(
   const std::vector<double> parameters, 
@@ -322,36 +120,16 @@ std::vector<double> hessianQsparse(
       const Config& config
       ) {
 
-      const size_t Nparams = parameters.size();
-      const bool onlyRandom = Nparams == data.Ngamma;
-      const Rcpp::List sparsity=config.sparsity;
+      GroupPack Qpack = getAdFunQ(parameters, data, config);
 
-
-      const Rcpp::List sparsityQ = sparsity["Q"]; 
-
-      const Rcpp::List nsQ =  onlyRandom?sparsityQ["randomNS"]:sparsityQ["nonSymmetric"]; 
-      const Rcpp::List outList = onlyRandom?sparsityQ["random"]:sparsityQ["full"];
-      
-
-      const Rcpp::IntegerVector rowQns = nsQ["i"]; 
-      const Rcpp::IntegerVector colQns = nsQ["j"]; 
-      const auto pattern = build_pattern_from_R(rowQns, colQns, Nparams);
-
-      const Rcpp::IntegerVector rowOut = outList["i"]; 
-      const Rcpp::IntegerVector colOut = outList["j"]; 
-
-      const std::vector<size_t> SrowOut = Rcpp::as<std::vector<size_t>>(rowOut);
-      const std::vector<size_t> ScolOut = Rcpp::as<std::vector<size_t>>(colOut);
-      const size_t Nout =  SrowOut.size();
-
-
+      const size_t Nout = Qpack.outRowCol[0].size();
       std::vector<double> hessian(Nout);
 
-      CppAD::sparse_hessian_work work;
       const std::vector<double> w(1, 1.0);
 
-      auto fun = adFunQ(parameters, data, config);
-      fun.SparseHessian(parameters, w, pattern, SrowOut, ScolOut, hessian, work);
+      Qpack.fun.SparseHessian(parameters, w, 
+        Qpack.pattern, Qpack.outRowCol[0], 
+        Qpack.outRowCol[1], hessian, Qpack.work);
 
       return(hessian);
 }
@@ -387,7 +165,7 @@ Rcpp::S4 hessian(
 
     const std::vector<double> w(1, 1.0);
 
-  #pragma omp for
+  #pragma omp for nowait
     for(size_t Dgroup = 0; Dgroup < Ngroup; ++Dgroup) {
 
       const size_t Nhere = adpack[Dgroup].outRowCol[0].size();
@@ -425,7 +203,7 @@ Rcpp::S4 hessian(
   const Rcpp::List strata = config.groups;
   const Rcpp::List sparsity = config.group_sparsity;
 
-  std::vector<GroupPack> adpack = getAdfun(
+  std::vector<GroupPack> adpack = getAdFun(
     parameters, data, config);
 
   Rcpp::S4 result = hessian(
@@ -467,7 +245,7 @@ Rcpp::S4 hessian(
       hessianOutHere[D] = std::vector<bool>(Nparams, false);
     }
 
-  #pragma omp for
+  #pragma omp for nowait
     for(size_t Dgroup = 0; Dgroup < Ngroup; ++Dgroup) {
 
       auto fun=adFunGroup(
@@ -559,7 +337,7 @@ return(result);
       hessianOutHere[D] = std::vector<double>(Nparams, 0.0);
     }
 
-  #pragma omp for
+  #pragma omp for nowait
     for(size_t Dgroup = 0; Dgroup < Ngroup; ++Dgroup) {
 
       auto fun=adFunGroup(
@@ -645,7 +423,7 @@ std::vector<double> grad(
     std::vector<double> gradHere(Nparams, 0);
     std::vector<double> w(1, 1.0);
 
-      #pragma omp for
+      #pragma omp for nowait
     for(size_t Dgroup = 0; Dgroup < Ngroup; ++Dgroup) {
 
       adpack[Dgroup].fun.Forward(0, parameters);
@@ -690,7 +468,7 @@ std::vector<double> grad(
   const Config& config
   ) {
 
-  std::vector<GroupPack> adpack = getAdfun(
+  std::vector<GroupPack> adpack = getAdFun(
     parameters, data, config);
 
   std::vector<double>  result = grad(
@@ -704,7 +482,7 @@ std::vector<double> grad(
 /* R exported stuff */
 //' @export
 // [[Rcpp::export]]
-SEXP getAdfun(
+SEXP getAdFun(
   Rcpp::NumericVector x, 
   const Rcpp::List data, 
   const Rcpp::List config
@@ -715,7 +493,7 @@ SEXP getAdfun(
    std::vector<double> parametersC = Rcpp::as<std::vector<double>>(x);
 
 
-  std::vector<GroupPack> adpack = getAdfun(
+  std::vector<GroupPack> adpack = getAdFun(
     parametersC, dataC, configC);
 
   auto* ptr = new std::vector<GroupPack>(std::move(adpack));
@@ -890,7 +668,7 @@ std::iota(idx.begin(), idx.end(), 0);
         ad_params[D] = parametersC[D];  
       }
 
-      #pragma omp for
+      #pragma omp for nowait
     for(size_t Dstrata = 0;Dstrata< dataC.Nstrata;Dstrata++) {
 
 

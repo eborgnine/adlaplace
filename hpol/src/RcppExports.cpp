@@ -23,29 +23,16 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
-// thirdOffDiagonalsStrata
-Rcpp::List thirdOffDiagonalsStrata(const Rcpp::NumericVector parameters, const Rcpp::List data, const Rcpp::List config);
-RcppExport SEXP _hpolcc_thirdOffDiagonalsStrata(SEXP parametersSEXP, SEXP dataSEXP, SEXP configSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const Rcpp::NumericVector >::type parameters(parametersSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::List >::type data(dataSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::List >::type config(configSEXP);
-    rcpp_result_gen = Rcpp::wrap(thirdOffDiagonalsStrata(parameters, data, config));
-    return rcpp_result_gen;
-END_RCPP
-}
-// getAdfun
-SEXP getAdfun(Rcpp::NumericVector x, const Rcpp::List data, const Rcpp::List config);
-RcppExport SEXP _hpolcc_getAdfun(SEXP xSEXP, SEXP dataSEXP, SEXP configSEXP) {
+// getAdFun
+SEXP getAdFun(Rcpp::NumericVector x, const Rcpp::List data, const Rcpp::List config);
+RcppExport SEXP _hpolcc_getAdFun(SEXP xSEXP, SEXP dataSEXP, SEXP configSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< Rcpp::NumericVector >::type x(xSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List >::type data(dataSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List >::type config(configSEXP);
-    rcpp_result_gen = Rcpp::wrap(getAdfun(x, data, config));
+    rcpp_result_gen = Rcpp::wrap(getAdFun(x, data, config));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -146,8 +133,7 @@ END_RCPP
 
 static const R_CallMethodDef CallEntries[] = {
     {"_hpolcc_thirdDiagonalsStrata", (DL_FUNC) &_hpolcc_thirdDiagonalsStrata, 3},
-    {"_hpolcc_thirdOffDiagonalsStrata", (DL_FUNC) &_hpolcc_thirdOffDiagonalsStrata, 3},
-    {"_hpolcc_getAdfun", (DL_FUNC) &_hpolcc_getAdfun, 3},
+    {"_hpolcc_getAdFun", (DL_FUNC) &_hpolcc_getAdFun, 3},
     {"_hpolcc_jointLogDens", (DL_FUNC) &_hpolcc_jointLogDens, 4},
     {"_hpolcc_grad", (DL_FUNC) &_hpolcc_grad, 4},
     {"_hpolcc_hessian", (DL_FUNC) &_hpolcc_hessian, 4},

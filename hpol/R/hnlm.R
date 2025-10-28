@@ -265,7 +265,7 @@ hnlm <- function(formula,
   config$beta = start_beta
   config$theta = start_theta
 
-  getAdfunHere = function() {getAdfun(start_gamma, data=tmb_data, config=config)}
+  getAdfunHere = function() {getAdFun(start_gamma, data=tmb_data, config=config)}
   env <- new.env(parent = asNamespace("hpolcc"))
   env$start_gamma <- start_gamma
   env$tmb_data    <- tmb_data

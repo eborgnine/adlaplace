@@ -33,7 +33,7 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 		set.seed(seed)
 		try(kmeans(t(firstDeriv), 
 			centers = ceiling(1.1*Nclusters), 
-			iter.max=25000, nstart=ceiling(5*Nclusters/config$num_threads), 
+			iter.max=25000, nstart=ceiling(10*Nclusters/config$num_threads), 
 			algorithm='Hartigan-Wong'))
 		}, seed = 1:config$num_threads, mc.cores=config$num_threads, 
 		SIMPLIFY=FALSE)
@@ -155,7 +155,7 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 	fullHessianPairs = paste(fullList$second$full$i, fullList$second$full$j, sep='_')
 	fullHessianPairsNs = paste(fullList$second$nonSymmetric$i,fullList$second$nonSymmetric$j, sep='_')
 	fullHessianPairsR = paste(fullList$second$random$i, fullList$second$random$j, sep='_')
-	fullHessianPairsRNs = paste(fullList$second$random$i, fullList$second$random$j, sep='_')
+	fullHessianPairsRNs = paste(fullList$second$randomNS$i, fullList$second$randomNS$j, sep='_')
 
 	hessianQrandom = hessianQ$hessian[Sgamma1, Sgamma1] 
 	hessianQrandomNs = as(hessianQrandom, 'generalMatrix')
@@ -171,9 +171,17 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 		paste(sparsityQ$full$i, sparsityQ$full$j, sep='_'), 
 		fullHessianPairs
 	)-1L)
+	sparsityQ$nonSymmetric$match = try(match(
+		paste(sparsityQ$nonSymmetric$i, sparsityQ$nonSymmetric$j, sep='_'), 
+		fullHessianPairsNs
+	)-1L)
 	sparsityQ$random$match = try(match(
 		paste(sparsityQ$random$i, sparsityQ$random$j, sep='_'), 
 		fullHessianPairsR
+	)-1L)
+	sparsityQ$randomNS$match = try(match(
+		paste(sparsityQ$randomNS$i, sparsityQ$randomNS$j, sep='_'), 
+		fullHessianPairsRNs
 	)-1L)
 
 
@@ -184,7 +192,10 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 		hessian = hessianByBlock2,
 		MoreArgs = list(Sparams = Sparams, Sgamma1=Sgamma1, 
 			hessianPairs = fullHessianPairs,
-			hessianPairsR = fullHessianPairsR), 
+			hessianPairsR = fullHessianPairsR, 
+			hessianPairsNs = fullHessianPairsNs,
+			hessianPairsRns = fullHessianPairsRNs
+		), 
 		SIMPLIFY=FALSE, mc.cores=config$num_threads)
 	if(verbose) cat("done\n")
 

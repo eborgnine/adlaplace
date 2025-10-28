@@ -198,21 +198,4 @@ Rcpp::S4 assembleHessian(
    
 }
 
-// helper: convert 1-based R indices to 0-based and keep (i >= j) lower triangle
-CPPAD_TESTVECTOR( std::set<size_t> ) build_pattern_from_R(
-  const Rcpp::IntegerVector& row0,
-  const Rcpp::IntegerVector& col0,
-  size_t n) {
- auto K = row0.size();
- CPPAD_TESTVECTOR(std::set<size_t>) pattern(n);
- 
- for (size_t k = 0; k < K; ++k) {
-    int ri = row0[k];   // convert to 0-based if R passed 1-based
-    int cj = col0[k];
-    pattern[(size_t)ri].insert((size_t)cj);
-    pattern[(size_t)cj].insert((size_t)ri);
-  }
-
-  return pattern;
-}
 

@@ -1,7 +1,17 @@
 #' @export
 thirdDeriv = function(x, data, config) {
 
-  # x=c(res2$beta, res2$solution, res2$theta);config=res$config;data=res$tmb_data
+
+   # computing T_kii and H_ki, columnns are i, rows are k 
+  # library("hpolcc");x=c(res$config$beta, innerRes$solution, res$config$theta);config=res$config;data=res$tmb_data;config$verbose=TRUE;config$dense=FALSE;config$num_threads = 10
+  resThirdDiag = thirdDiagonalsStrata(
+    x, data, config
+  ) 
+
+  resThirdOffDiag = thirdOffDiagonalsStrata(
+    x, data, config
+  ) 
+
 
   Nbeta = nrow(data$XTp)
   Ngamma = nrow(data$ATp)
@@ -11,14 +21,7 @@ thirdDeriv = function(x, data, config) {
   Sgamma1 = Sgamma0+1
   SbetaTheta0 = setdiff(Spars0, Sgamma0)
 
-   # computing T_kii and H_ki, columnns are i, rows are k 
-  resThirdDiag = thirdDiagonals(
-    x, data, config
-  ) 
 
-  resThirdOffDiag = thirdOffDiagonals(
-    x, data, config
-  ) 
   
   if(identical(config$dense, TRUE)) {
           # T_iik, doubles are columns of resThirdDiag$diag
@@ -39,13 +42,15 @@ thirdDeriv = function(x, data, config) {
     		thirdNonDiag[,c('i','j','k')], 1, lengthUnique
     	)==3, ]
   } else { # sparse
-    fullHessian = Matrix::forceSymmetric(
+    fullHessian = 
       Matrix::sparseMatrix(
         i = config$sparsity$second$nonSymmetric$i,
         j = config$sparsity$second$nonSymmetric$j,
         x = drop(resThirdDiag$second),
         dims = rep(length(resThirdDiag$first), 2), index1=FALSE
-      ))
+      )
+
+    fullHessian = Matrix::forceSymmetric(fullHessian)
 
     thirdDiag = data.frame(
       i = config$sparsity$second$nonSymmetric$j,

@@ -7,13 +7,8 @@ thirdDiagonalsStrata <- function(parameters, data, config) {
 }
 
 #' @export
-thirdOffDiagonalsStrata <- function(parameters, data, config) {
-    .Call('_hpolcc_thirdOffDiagonalsStrata', PACKAGE = 'hpolcc', parameters, data, config)
-}
-
-#' @export
-getAdfun <- function(x, data, config) {
-    .Call('_hpolcc_getAdfun', PACKAGE = 'hpolcc', x, data, config)
+getAdFun <- function(x, data, config) {
+    .Call('_hpolcc_getAdFun', PACKAGE = 'hpolcc', x, data, config)
 }
 
 #' @export

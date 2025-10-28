@@ -1,10 +1,4 @@
 #include"hpol.hpp"
-#include"loglikHelpers.hpp"
-#include<omp.h>
-
-//#define DEBUG
-
-
 
 
 
@@ -23,44 +17,54 @@ Rcpp::List thirdDiagonalsStrata(
   const Rcpp::List sparsity = configC.group_sparsity;
   const Rcpp::List strata = configC.groups;
 
+  const Rcpp::IntegerVector strataI = strata["i"], strataP = strata["p"];
+  const int Ngroup = strataP.size()-1;
+
+struct ThirdPack {
+  std::vector<int> pairsI, pairsJ, pairsP, pairsPend, ijkK;
+};
+std::vector<ThirdPack> third(Ngroup);
+
+for (int g = 0; g < Ngroup; ++g) {
+  Rcpp::List spHere   = sparsity[g];
+  Rcpp::List three    = spHere["third"];
+  Rcpp::List pairs    = three["pairs"];
+  Rcpp::List ijk      = three["ijk"];
+
+  third[g].pairsI   = Rcpp::as<std::vector<int>>(pairs["i"]);
+  third[g].pairsJ   = Rcpp::as<std::vector<int>>(pairs["j"]);
+  third[g].pairsP   = Rcpp::as<std::vector<int>>(pairs["p"]);
+  third[g].pairsPend= Rcpp::as<std::vector<int>>(pairs["pEnd"]);
+  third[g].ijkK     = Rcpp::as<std::vector<int>>(ijk["k"]);
+}
 
   const int Nparams = parameters.size();
-  const int Ngroup = strata.size();
-
-  const Rcpp::IntegerVector strataI = strata["i"], strataP = strata["p"];
-
+  const int NparamsSq = Nparams*Nparams;
+  if(Nparams == dataC.Ngamma) Rcpp::warning("need full parameters, only random has been sent");
 
   bool dense = configC.dense;
-  Rcpp::List hessianOut(Ngroup), thirdDiagOut(Ngroup);
-
-  for(size_t D=0;D<Ngroup;D++) {
-    if(dense) {
-      hessianOut[D] = Rcpp::NumericMatrix(Nparams, Nparams);
-      thirdDiagOut[D] = Rcpp::NumericMatrix(Nparams, Nparams);
-    } else {
-      const Rcpp::List sparseHere = sparsity[D];
-      const Rcpp::List twoHere = sparseHere["second"];
-      const Rcpp::List fullHere = twoHere["full"];
-      const Rcpp::IntegerVector fullIhere = fullHere["i"];
-
-      const size_t NoutRowsH = fullIhere.size();
-
-      const Rcpp::List twoThere = twoHere["nonSymmetric"];
-      const Rcpp::List twoTihere = twoThere["i"];
-
-      const size_t NoutRowsT = twoTihere.size();
-
-      hessianOut[D] = Rcpp::NumericMatrix(NoutRowsH, 1L);
-      thirdDiagOut[D] = Rcpp::NumericMatrix(NoutRowsT, 1L);
-    }
-
-  }
-  Rcpp::NumericMatrix gradientOut(Nparams, Ngroup);
-
   const std::vector<double> x_val(parameters.begin(), parameters.end());
 
+  auto fun = getAdFun(x_val, dataC, configC);
+  auto Qfun = getAdFunQ(x_val, dataC, configC); 
 
-  if (configC.verbose ) Rcpp::Rcout << "objects allocated\n";
+  const Rcpp::List secondAll = configC.sparsity["second"];
+  const Rcpp::List fullAll = secondAll["full"];
+  const Rcpp::List nsAll = secondAll["nonSymmetric"];
+
+  const Rcpp::IntegerVector iFullAll = fullAll["i"];
+  const Rcpp::IntegerVector iNsAll = nsAll["i"];
+
+
+  const size_t NoutRowsT = dense?NparamsSq:iNsAll.size();
+  const size_t NoutRowsH = dense?NparamsSq:iFullAll.size();
+
+  std::vector<double> hessianOut(NoutRowsH, 0.0);
+  std::vector<double> thirdDiagOut(NoutRowsT, 0.0);
+  std::vector<double> gradientOut(Nparams, 0.0);
+  std::vector<std::vector<double>> TijkOut(Ngroup);
+
+  if (configC.verbose ) Rcpp::Rcout << "starting parallel " << configC.num_threads << " threads\n";
 
   omp_set_num_threads(configC.num_threads);
   CppAD::thread_alloc::parallel_setup(
@@ -69,113 +73,229 @@ Rcpp::List thirdDiagonalsStrata(
     [](){ return static_cast<size_t>(thread_num_wrapper()); }
     );
 
-
-  if (configC.verbose ) Rcpp::Rcout << "starting parallel " << configC.num_threads << " threads\n";
-
   #pragma omp parallel
   {
- // set up autodiff function
 
-    std::vector<double> y_val(1);
+    std::vector<double> hessianOutHere(NoutRowsH, 0.0);
+    std::vector<double> thirdDiagOutHere(NoutRowsT, 0.0);
+    std::vector<double> gradientOutHere(Nparams, 0.0);
+    std::vector<double> denseThirdHere(NparamsSq);
+
     const std::vector<double> w{0.0, 0.0, 1.0};  
     std::vector<double> direction(Nparams, 0.0);
     const std::vector<double> directionZeros(Nparams, 0.0);
 
-  #pragma omp for
+# pragma omp for nowait
     for(size_t Dgroup = 0; Dgroup < Ngroup; ++Dgroup) {
 
-      CppAD::ADFun<double> fun = adFunGroup(x_val,  
-        dataC, configC, strataI,
-        strataP[Dgroup], strataP[Dgroup+1]);
+      fun[Dgroup].fun.Forward(0, x_val);
 
-      const Rcpp::List sparsityHere = sparsity[Dgroup];
-      const Rcpp::List sparsitySecond = sparsityHere["second"];
+      auto& iNS = fun[Dgroup].nsRowCol[0];
+      auto& matchNS = fun[Dgroup].nsRowCol[2];
+      auto& pNS = fun[Dgroup].nsP;
 
-      // DiagP = second$nonSymmetric$p  
-      const Rcpp::List nonSymmetricHere = sparsitySecond["nonSymmetric"];
-      const Rcpp::IntegerVector diagP = nonSymmetricHere["p"];
-      const Rcpp::IntegerVector diagRow = nonSymmetricHere["i"];
-      const Rcpp::List fullHere = sparsitySecond["full"];
-      const Rcpp::IntegerVector hessianP = fullHere["p"];
-      const Rcpp::IntegerVector hessianRow = fullHere["i"];
+      auto& iFull = fun[Dgroup].outRowCol[0];
+      auto& matchFull = fun[Dgroup].outRowCol[2];
+      auto& pFull = fun[Dgroup].outP;
+
+//      Rcpp::Rcout << "group " << Dgroup << " " << iNS[0] << "a " << matchNS[0] << "b " << pNS[0] << "c " << iFull[0] << "d " << matchFull[0] << "e " << pFull[0] << "kk" << pFull[1] << "f\n";
+
+      for(int Dk=0; Dk < Nparams; ++Dk) {
+
+        std::fill(direction.begin(), direction.end(), 0.0);
+        direction[Dk]  = 1.0;     
+
+        fun[Dgroup].fun.Forward(1, direction);
+        fun[Dgroup].fun.Forward(2, directionZeros);
+
+        auto taylor3 = fun[Dgroup].fun.Reverse(3, w);
+
+    // store dense
+        const size_t colStart = Dk * Nparams;
+        for(int Dj=0; Dj<Nparams; Dj++){
+          const size_t indexHere = 3*Dj;
+          const size_t rowHere = colStart + Dj;
+          // first column is T_kii/2 + H_ki
+          denseThirdHere[rowHere] = 2*(taylor3[indexHere] - taylor3[indexHere+1]);
+          if(dense) {
+            hessianOutHere[rowHere] += taylor3[indexHere+1];
+            thirdDiagOutHere[rowHere] += denseThirdHere[rowHere];
+          }
+        }
+      if(!dense) { // not dense
+      // fill in the T_kii
+      // first column is T_kii/2 + H_ki
+        const size_t nsEnd = pNS[Dk+1];
+        for(size_t Di=pNS[Dk]; Di<nsEnd; Di++){
+          const size_t indexHere = 3*iNS[Di];
+          const size_t allHere = matchNS[Di];
+          thirdDiagOutHere[allHere] += 2*(taylor3[indexHere] - taylor3[indexHere+1]);
+        }
+        const size_t fullEnd = pFull[Dk+1];
+ 
+        for(size_t Di=pFull[Dk]; Di<fullEnd; Di++){
+          const size_t indexHere = 3*iFull[Di];
+          const size_t allHere = matchFull[Di];
+          hessianOutHere[allHere] += taylor3[indexHere+1];
+        } // Di
+      } // else is sparse
+
+      if(Dk == 0) {
+        for(int Dj=0; Dj<Nparams; Dj++){
+          const int indexHere = 3*Dj;
+          gradientOutHere[Dj] += taylor3[indexHere+2];
+        }
+      }
+    } // for k diagonal bit
+
+    // off diagonals
+
+      auto& pairsI = third[Dgroup].pairsI;
+      auto& pairsJ = third[Dgroup].pairsJ;
+      auto& pairsP = third[Dgroup].pairsP;
+      auto& pairsPend = third[Dgroup].pairsPend;
+      auto& sparsityIjk = third[Dgroup].ijkK;
+
+      const size_t Npairs = pairsI.size();
+
+      const size_t NtijkHere = dense?Nparams*Npairs:sparsityIjk.size();
+      std::vector<double> TijkHere(NtijkHere);
+
+      for(int Dpair=0; Dpair < Npairs; ++Dpair) {
+
+        const size_t Di = pairsI[Dpair];
+        const size_t Dj = pairsJ[Dpair];
+        const size_t pairStart = pairsP[Dpair];
+        const size_t DiNparams = Di* Nparams;
+        const size_t DjNparams = Dj* Nparams;
+        const size_t DcolHere =  Dpair * Nparams;
+
+        std::fill(direction.begin(), direction.end(), 0.0);
+        direction[Di] = direction[Dj] = 1.0;     
+
+        fun[Dgroup].fun.Forward(1, direction);
+        fun[Dgroup].fun.Forward(2, directionZeros);
+        auto taylor3 = fun[Dgroup].fun.Reverse(3, w);
+
+  // first column is third deriv combination
+      //  T_iik/2 + T_jjk/2 + T_ijk 
+
+        if(dense) {
+          for(size_t Dk=0; Dk<Nparams; Dk++){
+            const double TiikTjjk = thirdDiagOutHere[DiNparams + Dk] + thirdDiagOutHere[DjNparams + Dk];
+            TijkHere[DcolHere + Dk] = taylor3[3*Dk] - TiikTjjk/2; 
+          }
+        } else {
+          const size_t NthisPair = pairsPend[Dpair] - pairsP[Dpair];
+          for(size_t Dindex=0; Dindex<NthisPair; Dindex++){
+            const size_t DindexInIjk = pairStart + Dindex;
+            const size_t Dk = sparsityIjk[DindexInIjk];
+            const double TiikTjjk = thirdDiagOutHere[DiNparams + Dk] + thirdDiagOutHere[DjNparams + Dk];
+            TijkHere[pairStart + Dindex] = taylor3[3*Dk] - TiikTjjk/2;
+          }           
+        }
+      } // Dpair
+        // save the TijkHere
+      TijkOut[Dgroup] = TijkHere;
+  } //group
 
 
-      Rcpp::NumericMatrix hessianOutHere = hessianOut[Dgroup];
-      Rcpp::NumericMatrix thirdDiagOutHere = thirdDiagOut[Dgroup];
+# pragma omp single
+  {
+        Qfun.fun.Forward(0, x_val);
+
+        auto& iNS = Qfun.nsRowCol[0];
+        auto& matchNS = Qfun.nsRowCol[2];
+        auto& pNS = Qfun.nsP;
+        auto& iFull = Qfun.outRowCol[0];
+        auto& matchFull = Qfun.outRowCol[2];
+        auto& pFull = Qfun.outP;
 
 
-    y_val = fun.Forward(0, x_val);
+      for(int Dk=0; Dk < Nparams; ++Dk) {
+        std::fill(direction.begin(), direction.end(), 0.0);
+        direction[Dk]  = 1.0;     
+        Qfun.fun.Forward(1, direction);
+        Qfun.fun.Forward(2, directionZeros);
 
-    for(int Dk=0; Dk < Nparams; ++Dk) {
+        auto taylor3 = Qfun.fun.Reverse(3, w);
 
-      std::fill(direction.begin(), direction.end(), 0.0);
-      direction[Dk]  = 1.0;     
-
-      fun.Forward(1, direction);
-      fun.Forward(2, directionZeros);
-
-      auto taylor3 = fun.Reverse(3, w);
 
       if(dense) {
     // store dense
-        for(int Dj=0; Dj<Nparams; 
-          Dj++){
-          int indexHere = 3*Dj;
-        hessianOutHere(Dj, Dk) = taylor3[indexHere+1];
-        thirdDiagOutHere(Dj, Dk) = taylor3[indexHere];
-      }
-    } else { // not dense
+        const size_t colStart = Dk * Nparams;
+        for(int Dj=0; Dj<Nparams; Dj++){
+          const size_t indexHere = 3*Dj;
+          const size_t rowHere = colStart + Dj;
 
-      // fill in the T_kii
-      // first column is T_kii/2 + H_ki
+          hessianOutHere[rowHere] += taylor3[indexHere+1];
+          thirdDiagOutHere[rowHere] += taylor3[indexHere];
+        }
+      } else { // not dense
 
-      const int diagEnd = diagP[Dk+1];
+        const size_t nsEnd = pNS[Dk+1];
+        for(size_t Di=pNS[Dk]; Di<nsEnd; Di++){
+          const size_t indexHere = 3*iNS[Di];
+          const size_t allHere = matchNS[Di];
+          thirdDiagOutHere[allHere] += taylor3[indexHere];
+        } // Di
 
-      for(int Di=diagP[Dk]; Di<diagEnd; Di++){
-        const int indexHere = 3*diagRow[Di];
-        thirdDiagOutHere[Di] = taylor3[indexHere+1];
-      }
-      const int hessianEnd = hessianP[Dk+1];
-      for(int Di=hessianP[Dk]; Di<hessianEnd; Di++){
-        const int indexHere = 3*hessianRow[Di];
-        hessianOutHere[Di] = taylor3[indexHere];
-      } // Di
-    } // else is sparse
+        const size_t fullEnd = pFull[Dk+1];
+        for(size_t Di=pFull[Dk]; Di<fullEnd; Di++){
+          const size_t indexHere = 3*iFull[Di];
+          const size_t allHere = matchFull[Di];
+          hessianOutHere[allHere] += taylor3[indexHere+1];
+        }
+      } // else is sparse
+    } // Dk
+  } // Q
 
-    if(Dk == 0) {
-      for(int Dj=0; Dj<Nparams; Dj++){
-        const int indexHere = 3*Dj;
-        gradientOut(Dj,Dgroup) = taylor3[indexHere+2];
-      }
+# pragma omp critical
+  {
+    for(size_t Dcol=0;Dcol<Nparams;Dcol++) {
+      gradientOut[Dcol] += gradientOutHere[Dcol];
     }
-  } // for k diagonal bit
-  } //group
-
+    for(size_t D=0;D<NoutRowsH;D++) {
+      hessianOut[D] += hessianOutHere[D];
+    }
+    for(size_t D=0;D<NoutRowsT;D++) {
+      thirdDiagOut[D] += thirdDiagOutHere[D];
+    }
+  } // critical
 } // parallel
 
-// combine over groups
+
+Rcpp::List TijkR(Ngroup);
+for(size_t D=0;D<Ngroup;D++) {
+  TijkR[D] = Rcpp::NumericVector(TijkOut[D].begin(), TijkOut[D].end());
+}
 
 if (configC.verbose ) {
   Rcpp::Rcout << "done\n";
 }
 
+Rcpp::NumericVector gradientOutR(gradientOut.begin(), gradientOut.end());
+Rcpp::NumericVector hessianOutR(hessianOut.begin(), hessianOut.end());
+Rcpp::NumericVector thirdDiagOutR(thirdDiagOut.begin(), thirdDiagOut.end());
 
 Rcpp::List resultList = Rcpp::List::create(
-  Rcpp::Named("first") = gradientOut,
-  Rcpp::Named("second") = hessianOut,
-  Rcpp::Named("diag") = thirdDiagOut
+  Rcpp::Named("first") = gradientOutR,
+  Rcpp::Named("second") = hessianOutR,
+  Rcpp::Named("diag") = thirdDiagOutR,
+  Rcpp::Named("Tijk") = TijkR
   );
+
 
 return resultList;
 
 }
 
 
+#ifdef UNDEF
 
-
-/* function for third derivatives, of laplace approx */
-//' @export
-// [[Rcpp::export]]
+/* function for third derivatives, of laplace approx 
+ ' @export
+ [[Rcpp::export]]*/
 Rcpp::List thirdOffDiagonalsStrata(
   const Rcpp::NumericVector parameters, // beta, gamma, theta
   const Rcpp::List data, 
@@ -226,9 +346,9 @@ Rcpp::List thirdOffDiagonalsStrata(
   {
 // set up autodiff function
 
-  const std::vector<double>  w{0.0, 0.0, 1.0};  
-  const std::vector<double> direction2(Nparams, 0.0);
-  std::vector<double> direction1(Nparams, 0.0);
+    const std::vector<double>  w{0.0, 0.0, 1.0};  
+    const std::vector<double> direction2(Nparams, 0.0);
+    std::vector<double> direction1(Nparams, 0.0);
 
   #pragma omp for
     for(size_t Dgroup = 0; Dgroup < Ngroups; ++Dgroup) {
@@ -254,29 +374,29 @@ Rcpp::List thirdOffDiagonalsStrata(
 
 
 
-  fun.Forward(0, x_val);
+      fun.Forward(0, x_val);
 
-  for(int Dpair=0; Dpair < Npairs; ++Dpair) {
+      for(int Dpair=0; Dpair < Npairs; ++Dpair) {
 
-    const int Di = pairsI[Dpair];
-    const int Dj = pairsJ[Dpair];
+        const int Di = pairsI[Dpair];
+        const int Dj = pairsJ[Dpair];
 
-    std::fill(direction1.begin(), direction1.end(), 0.0);
-    direction1[Di] = direction1[Dj] = 1.0;     
+        std::fill(direction1.begin(), direction1.end(), 0.0);
+        direction1[Di] = direction1[Dj] = 1.0;     
 
-      fun.Forward(1, direction1);
-      fun.Forward(2, direction2);
-      auto taylor3 = fun.Reverse(3, w);  
+        fun.Forward(1, direction1);
+        fun.Forward(2, direction2);
+        auto taylor3 = fun.Reverse(3, w);  
 
 
   // first column is third deriv combination
   //  T_iik/2 + T_jjk/2 + T_ijk 
   // columns of diag are the double deriv
   // rows of taylor3 are i
-    if(configC.dense) {
-      for(int Dk=0; Dk<Nparams; Dk++){
-          TijkHere(Dk, Dpair) += taylor3[3*Dk];
-      }
+        if(configC.dense) {
+          for(int Dk=0; Dk<Nparams; Dk++){
+            TijkHere(Dk, Dpair) += taylor3[3*Dk];
+          }
     } else { // sparse
       int DinIjkStart = pairsP[Dpair];
       int DinIjkEnd = pairsPend[Dpair];
@@ -295,95 +415,4 @@ return Tijk;
 
 }
 
-
-Rcpp::NumericMatrix thirdQSparse(
-  const std::vector<double> parameters, 
-  const Data& data,
-  const Config& config) {
-
-// config$sparsity$Q must have i j, p, iUp, jUp
-  const Rcpp::List sparsity=config.sparsity;
-  const size_t Nparams = parameters.size();
-
-      const Rcpp::List sparsityQ = sparsity["Q"]; 
-      const Rcpp::List nsQ =  sparsityQ["nonSymmetric"]; 
-      const Rcpp::List fullQ = sparsityQ["full"]; 
-
-      const Rcpp::IntegerVector rowQns = nsQ["i"]; 
-      const Rcpp::IntegerVector colQns = nsQ["j"]; 
-      const Rcpp::IntegerVector pQns = nsQ["p"]; 
-      const Rcpp::IntegerVector rowQfull = fullQ["i"]; 
-      const Rcpp::IntegerVector colQfull = fullQ["j"]; 
-      const Rcpp::IntegerVector pQfull =  fullQ["p"]; 
-
-      const size_t NoutNs =  rowQns.size();
-
-      auto fun = adFunQ(parameters, data, config);
-
-    Rcpp::NumericMatrix thirdDiagOut(NoutNs,2);
-
-    std::vector<double> w{0.0, 0.0, 1.0};  
-    std::vector<double> direction(Nparams, 0.0), directionZeros(Nparams, 0.0);
-
-    for(int Dk=0; Dk < Nparams; ++Dk) {
-
-      std::fill(direction.begin(), direction.end(), 0.0);
-      direction[Dk]  = 1.0;     
-
-      fun.Forward(1, direction);
-      fun.Forward(2, directionZeros);
-
-      auto taylor3 = fun.Reverse(3, w);
-
-      const int endDiag = pQns[Dk+1];
-      const int endH = pQfull[Dk+1];
-
-        for(int Di=0; Di<endH; Di++){
-          const int indexH = 3*rowQfull[Di]+1;
-          thirdDiagOut(Di,0) = taylor3[indexH];
-      } // Di
-      for(int Di=0; Di<endDiag; Di++){
-        const int indexDiag = 3*rowQns[Di];
-        thirdDiagOut(Di,1) = taylor3[indexDiag];
-      } // Di
-  } // Dk
-
-    if(data.Nq) {
-      Rcpp::warning("off diagonals for third derivative of Q not implemented");
-    }
-
-    return(thirdDiagOut); // first col third diag, second col hessian
-}
-
-Rcpp::NumericMatrix thirdQDense(
-    const std::vector<double> parameters, 
-    const Data& data, 
-    const Config& config) {
-
-  const size_t Nparams = parameters.size();
-    Rcpp::NumericMatrix thirdDiagOut(Nparams, Nparams);
-
-    std::vector<double> w{0.0, 0.0, 1.0};  
-    std::vector<double> direction(Nparams, 0.0), directionZeros(Nparams, 0.0);
-
-      auto fun = adFunQ(parameters, data, config);
-
-
-    for(int Dk=0; Dk < Nparams; ++Dk) {
-      std::fill(direction.begin(), direction.end(), 0.0);
-      direction[Dk]  = 1.0;     
-
-      fun.Forward(1, direction);
-      fun.Forward(2, directionZeros);
-
-      auto taylor3 = fun.Reverse(3, w);
-
-      for(int Dj=0; Dj<Nparams; Dj++){
-          int indexHere = 3*Dj;
-//          hessianOut(Dj, Dk) = taylor3[indexHere+1];
-          thirdDiagOut(Dj, Dk) = taylor3[indexHere];
-        }
-  } // Dk
-  return(thirdDiagOut);
-}
-
+#endif
