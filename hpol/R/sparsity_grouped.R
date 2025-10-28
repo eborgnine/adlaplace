@@ -29,8 +29,18 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 	if(verbose) cat("getting first deriv...")
 	firstDeriv = gradLogical(x, dataNoMap, config)
 	if(verbose) cat("done\ngetting clusters...")
-	km <- try(kmeans(t(firstDeriv), centers = ceiling(1.1*Nclusters), 
-		iter.max=25000, nstart=10*Nclusters, algorithm='Hartigan-Wong'))
+	kmMC = parallel::mcmapply(function(seed) {
+		set.seed(seed)
+		try(kmeans(t(firstDeriv), 
+			centers = ceiling(1.1*Nclusters), 
+			iter.max=25000, nstart=ceiling(2*Nclusters/config$num_threads), 
+			algorithm='Hartigan-Wong'))
+	}, seed = 1:config$num_threads, mc.cores=config$num_threads)
+	km <- kmMC[[ which.min(sapply(kmMC, `[[`, "tot.withinss")) ]]
+
+#	km <- try(kmeans(t(firstDeriv), centers = ceiling(1.1*Nclusters), 
+#		iter.max=25000, nstart=10*Nclusters, algorithm='Hartigan-Wong'))
+
 	if(verbose) cat("done\n")
 
 	if(!any(class('km') == 'try-error')) {
