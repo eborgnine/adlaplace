@@ -101,7 +101,7 @@ fitD <- hpolcc::hnlm(
   control_inner=list(report.level=0),
   dirichlet= TRUE, config = list(num_threads=parallel::detectCores()),
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
-  for_dev=TRUE, verbose=FALSE
+  for_dev=TRUE, verbose=TRUE
   )
 #rm(dataMedSimple)
 ```
