@@ -2,7 +2,7 @@
 
 sparsity_grouped = function(x, data, config, verbose=FALSE) {
 
-# library('hpolcc');x = res$parameters_for_sparsity;data=res$tmb_data;config=res$config
+# library('hpolcc');x = res$parameters_for_sparsity;data=res$tmb_data;config=res$config;verbose=TRUE
 
 	Nstrata = ncol(data$cc_matrixTp)
 	Sstrata = seq(0, len=Nstrata)
@@ -33,9 +33,10 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 		set.seed(seed)
 		try(kmeans(t(firstDeriv), 
 			centers = ceiling(1.1*Nclusters), 
-			iter.max=25000, nstart=ceiling(2*Nclusters/config$num_threads), 
+			iter.max=25000, nstart=ceiling(5*Nclusters/config$num_threads), 
 			algorithm='Hartigan-Wong'))
-	}, seed = 1:config$num_threads, mc.cores=config$num_threads)
+		}, seed = 1:config$num_threads, mc.cores=config$num_threads, 
+		SIMPLIFY=FALSE)
 	km <- kmMC[[ which.min(sapply(kmMC, `[[`, "tot.withinss")) ]]
 
 #	km <- try(kmeans(t(firstDeriv), centers = ceiling(1.1*Nclusters), 
