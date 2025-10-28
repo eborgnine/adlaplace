@@ -236,9 +236,6 @@ hnlm <- function(formula,
 
   configDefaults = configDefaults[setdiff(names(configDefaults), names(config))]
   config = c(config, configDefaults)
-  if(!length(config$strataPerIter)) {
-    config$strataPerIter = ceiling(0.2*nrow(tmb_data$XTp)/config$num_threads)
-  }
   controlInner = control_inner
 
   Sgamma = seq(nrow(tmb_data$XTp)+1, len=nrow(tmb_data$ATp))
@@ -254,9 +251,33 @@ hnlm <- function(formula,
 
 
 
+  groups = try(sparsity_grouped(start_parameters, tmb_data, config))
+  if(any(class(groups) == 'try-error')) groups = list()
+  config$sparsity = groups$sparsity
+  config$groups = groups$groups
+  config$group_sparsity = groups$group_sparsity
+
+  config$beta = start_beta
+  config$theta = start_theta
+
+  getAdfunHere = function() {getAdfun(start_gamma, data=tmb_data, config=config)}
+  env <- new.env(parent = asNamespace("hpolcc"))
+  env$start_gamma <- start_gamma
+  env$tmb_data    <- tmb_data
+  env$config      <- config
+  environment(getAdfunHere) <- env
+
+# optional: lock it to prevent accidental changes
+lockEnvironment(env, bindings = TRUE)
+  cache = new.env(parent = emptyenv())
+  assign("Nfun", 0, cache)
+  assign("Ngr", 0, cache)
+  assign("gamma_start", start_gamma, cache)
+
+
   if(for_dev)
     return(
-      list(
+      list( 
         start_gamma = start_gamma,
         parameters = parameters, 
         parameters_for_sparsity = start_parameters,
@@ -266,17 +287,16 @@ hnlm <- function(formula,
         config = config,
         control = control,
         control_inner = control_inner,
-        data = data
+        data = data,
+        groups = groups[setdiff(names(groups), "sparsity")],
+        adfun = getAdfunHere,
+        cache = cache
       )
     )
   
 
 
 
-  cache = new.env()
-  assign("Nfun", 0, cache)
-  assign("Ngr", 0, cache)
-  assign("gamma_start", start_gamma, cache)
 
 
 

@@ -218,10 +218,10 @@ struct Config {
   std::vector<double>beta;
   std::vector<double> theta;
   int num_threads=1;
-  int strataPerIter = 1;
-  int maxDeriv=0;
   bool dense=0;
   Rcpp::List sparsity;
+  Rcpp::List groups;
+  Rcpp::List group_sparsity;
   double halfLogDetQ;
 
   explicit Config(const Rcpp::List& cfg)
@@ -232,10 +232,10 @@ struct Config {
   beta(get_numvec_copy(cfg, "beta")),
   theta(get_numvec_copy(cfg, "theta")),
   num_threads(get_int(cfg, "num_threads", 1)),           
-  strataPerIter(get_int(cfg, "strataPerIter", 1)),        
-  maxDeriv(get_int(cfg, "maxDeriv", 0)),
   dense(get_bool(cfg, "dense", 0)),
   sparsity(cfg.containsElementNamed("sparsity") ? cfg["sparsity"] : Rcpp::List()),
+  groups(cfg.containsElementNamed("groups") ? cfg["groups"] : Rcpp::List()),
+  group_sparsity(cfg.containsElementNamed("group_sparsity") ? cfg["group_sparsity"] : Rcpp::List()),
   halfLogDetQ(get_double(cfg, "halfLogDetQ", 0))
   {}
 };

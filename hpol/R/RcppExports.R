@@ -2,62 +2,52 @@
 # Generator token: 10BE3573-1514-4C36-9D1C-5A225CD40393
 
 #' @export
-test3 <- function(X, U, V, W) {
-    .Call('_hpolcc_test3', PACKAGE = 'hpolcc', X, U, V, W)
+thirdDiagonalsStrata <- function(parameters, data, config) {
+    .Call('_hpolcc_thirdDiagonalsStrata', PACKAGE = 'hpolcc', parameters, data, config)
 }
 
 #' @export
-thirdDiagonals <- function(parameters, dataList, configList) {
-    .Call('_hpolcc_thirdDiagonals', PACKAGE = 'hpolcc', parameters, dataList, configList)
+thirdOffDiagonalsStrata <- function(parameters, data, config) {
+    .Call('_hpolcc_thirdOffDiagonalsStrata', PACKAGE = 'hpolcc', parameters, data, config)
 }
 
 #' @export
-thirdNonDiagonalsSparsity <- function(parameters, dataList, configList, pairs) {
-    .Call('_hpolcc_thirdNonDiagonalsSparsity', PACKAGE = 'hpolcc', parameters, dataList, configList, pairs)
+getAdfun <- function(x, data, config) {
+    .Call('_hpolcc_getAdfun', PACKAGE = 'hpolcc', x, data, config)
 }
 
 #' @export
-thirdOffDiagonals <- function(parameters, dataList, configList) {
-    .Call('_hpolcc_thirdOffDiagonals', PACKAGE = 'hpolcc', parameters, dataList, configList)
+jointLogDens <- function(x, data, config, adfun = NULL) {
+    .Call('_hpolcc_jointLogDens', PACKAGE = 'hpolcc', x, data, config, adfun)
 }
 
 #' @export
-thirdDiagonalsStrata <- function(parameters, data, config, sparsity, strata) {
-    .Call('_hpolcc_thirdDiagonalsStrata', PACKAGE = 'hpolcc', parameters, data, config, sparsity, strata)
+grad <- function(parameters, data, config, adfun = NULL) {
+    .Call('_hpolcc_grad', PACKAGE = 'hpolcc', parameters, data, config, adfun)
 }
 
 #' @export
-thirdOffDiagonalsStrata <- function(parameters, data, config, sparsity, strata) {
-    .Call('_hpolcc_thirdOffDiagonalsStrata', PACKAGE = 'hpolcc', parameters, data, config, sparsity, strata)
+hessian <- function(parameters, data, config, adfun = NULL) {
+    .Call('_hpolcc_hessian', PACKAGE = 'hpolcc', parameters, data, config, adfun)
 }
 
 #' @export
-objectiveFunctionNoDiff <- function(x, data, config) {
-    .Call('_hpolcc_objectiveFunctionNoDiff', PACKAGE = 'hpolcc', x, data, config)
+hessianQdense <- function(parameters, data, config) {
+    .Call('_hpolcc_hessianQdense', PACKAGE = 'hpolcc', parameters, data, config)
 }
 
 #' @export
-objectiveFunctionGrad <- function(x, data, config) {
-    .Call('_hpolcc_objectiveFunctionGrad', PACKAGE = 'hpolcc', x, data, config)
+hessianDense <- function(parameters, data, config) {
+    .Call('_hpolcc_hessianDense', PACKAGE = 'hpolcc', parameters, data, config)
 }
 
 #' @export
-objectiveFunctionHessian <- function(parameters, dataList, configList) {
-    .Call('_hpolcc_objectiveFunctionHessian', PACKAGE = 'hpolcc', parameters, dataList, configList)
+hessianDenseLogical <- function(parameters, data, config) {
+    .Call('_hpolcc_hessianDenseLogical', PACKAGE = 'hpolcc', parameters, data, config)
 }
 
 #' @export
-logLikOnlyQ <- function(parameters, data, config) {
-    .Call('_hpolcc_logLikOnlyQ', PACKAGE = 'hpolcc', parameters, data, config)
-}
-
-#' @export
-logLikNoQStrata <- function(parameters, data, config, strata, sparsity) {
-    .Call('_hpolcc_logLikNoQStrata', PACKAGE = 'hpolcc', parameters, data, config, strata, sparsity)
-}
-
-#' @export
-objectiveFunctionC <- function(parameters, dataList, configList) {
-    .Call('_hpolcc_objectiveFunctionC', PACKAGE = 'hpolcc', parameters, dataList, configList)
+gradLogical <- function(parameters, data, config) {
+    .Call('_hpolcc_gradLogical', PACKAGE = 'hpolcc', parameters, data, config)
 }
 

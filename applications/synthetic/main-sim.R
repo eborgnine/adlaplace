@@ -61,6 +61,8 @@ region_effect2 <- rnorm(10,1,.2)
 
   data$monthDow = format(data$date, '%Y-%m-%a')
 
+  dataOrig = data
+
   cc_design <- ccDesign(time_var = "date", strat_vars = c("region",'monthDow'))
 
   ref_values <- list("pm" = 10)
@@ -70,7 +72,7 @@ region_effect2 <- rnorm(10,1,.2)
     formula = count ~  hum + 
     f(pm, model = 'hiwp', p = 2, ref_value = 10, 
       knots = knots_pm, group_var = region), 
-    data, 
+    dataOrig, 
     cc_design = cc_design, 
     for_dev=TRUE, 
     verbose=FALSE, 
@@ -82,7 +84,61 @@ region_effect2 <- rnorm(10,1,.2)
     config = list(num_threads = parallel::detectCores(), strataPerIter=100, transform_theta = TRUE)
   )
 
-grouped = sparsity_grouped(res$parameters_for_sparsity, res$tmb_data, res$config)
+    image(seq(0, len=nrow(res$groups$firstDeriv)), seq(0, len=ncol(res$groups$firstDeriv)), 
+        as.matrix(res$groups$firstDeriv[, 1+res$groups$groups$i])
+    )
+    abline(h=res$groups$groups$p, col='blue', lty=1)
+
+
+library(hpolcc)
+
+
+adfun = res$adfun()
+grad2 = grad(res$start_gamma, data=res$tmb_data, config=configHere, adfun=adfun)
+hes2 = hessian(res$start_gamma, data=res$tmb_data, config=configHere, adfun=adfun)
+
+innerRes = trustOptim::trust.optim(
+    x = res$start_gamma, 
+    fn = jointLogDens,
+    gr = grad,
+    hs = hessian,
+    method = 'Sparse',
+    control = list(start.trust.radius = 0.1, report.freq=1, report.level=10),
+    data=res$tmb_data, config = res$config, adfun = res$adfun()
+  )
+
+
+innerResB <- BB::spg(par = innerRes$solution, 
+    fn = jointLogDens,
+    gr = grad,
+  data=res$tmb_data, config = configHere)  
+
+res2  = loglik(
+  res$parameters,
+  res$start_gamma,
+  res$tmb_data, config=res$config,
+  deriv=0
+)
+
+
+str(res$groups$group_sparsity[[1]]$second)
+
+plot(as.matrix(hesSF), hesDF)
+
+hesD[1:8,1:8]
+hes[1:8,1:8]
+
+plot(as.matrix(hes) ,hesD);abline(0,1)
+
+
+hesN[1:8,1:8]
+
+
+
+hes[1:5,1:5]
+hesN[Sgamma1,Sgamma1][1:5,1:5]
+hesD[Sgamma1,Sgamma1][1:5,1:5]
+
 
 res$config$sparsity = grouped$sparsity
 res$config$dense=FALSE

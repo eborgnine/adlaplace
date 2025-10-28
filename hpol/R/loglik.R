@@ -10,6 +10,7 @@ loglik <- function(
   check=FALSE
 ) {
 
+# parameters = res$parameters;gamma_start = res$gamma_start;data = res$tmb_data; config=res$config
   Nbeta = nrow(data$XTp)
 
   beta = parameters[1:Nbeta]
@@ -31,19 +32,13 @@ loglik <- function(
     gamma_start = rep(0, nrow(data$ATp))
   }
 
-  if(is.null(config$sparsity$third)) {
-    config$sparsity = sparsity_pattern(
-      x=c(beta, rep(1,length(gamma_start)), theta),
-      data, config)
-  }
-
 
   # inner opt
   result <- trustOptim::trust.optim(
     x = gamma_start,
-    fn = wrappers_gamma$fn,
-    gr = wrappers_gamma$gr,
-    hs = wrappers_gamma$hs,
+    fn = jointLogDens,
+    gr = grad,
+    hs = hessian,
     method = "Sparse",
     control = control,
     data=data, config = configInner
@@ -51,13 +46,13 @@ loglik <- function(
 
 if(check) {
 mleB <- BB::spg(par = result$solution, 
-  fn = wrappers_gamma$fn,
-  gr = wrappers_gamma$gr,
+    fn = jointLogDens,
+    gr = grad,
   alertConvergence=FALSE, 
   data=data, config = configInner,
    control = list(maxit = 1e3, M = 10, trace=TRUE, checkGrad=TRUE))  # M = nonmonotone history
   result$solution = mleB$par
-  result$hessian = wrappers_gamma$hs(mleB$par, data=data, config=configInner)
+  result$hessian = hessian(mleB$par, data=data, config=configInner)
 }
 
 
@@ -75,7 +70,7 @@ mleB <- BB::spg(par = result$solution,
       0.5 * length(result$solution) * 1.8378770664093454835606594728  # log 2 pi
 
     return(c(
-      result[c('minusLogLik','solution')], 
+      result[c('minusLogLik','solution', 'halfLogDet')], 
       configInner[c('beta','theta')])
     )
   }

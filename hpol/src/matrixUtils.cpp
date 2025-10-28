@@ -67,7 +67,7 @@ Rcpp::S4 make_CMatrix(
   mat.slot("p") = p;
   mat.slot("x") = x;
   mat.slot("Dim") = dims;
-  mat.slot("uplo") =  Rcpp::wrap('L');
+  mat.slot("uplo") =  Rcpp::wrap('U');
   return mat;
 
 
@@ -152,16 +152,18 @@ Rcpp::S4 assembleHessian(
     const size_t Ngroups = randomHessian.size();
       // TO DO, sum sparse matrix
     const Rcpp::List secondAll = config.sparsity["second"];
-    const Rcpp::List outAll = secondAll["full"];
+    const Rcpp::List outAll = onlyRandom?secondAll["random"]:secondAll["full"];
     const Rcpp::IntegerVector iAll = outAll["i"];
     const auto sizeH = iAll.size();
     Rcpp::NumericVector hessianSum(sizeH);
+
 
     for(size_t D=0;D < sizeH; D++) {
       hessianSum[D] = 0;
     }
 
     for(size_t Dgroup = 0;Dgroup<Ngroups;++Dgroup) {
+
 
       const Rcpp::List sparsityHere = sparsity[Dgroup];
       const Rcpp::List secondHere = sparsityHere["second"];
@@ -174,6 +176,7 @@ Rcpp::S4 assembleHessian(
         hessianSum[matchHere[D]] += hessianOutHere[D];
       }
     } // groupd
+
       const Rcpp::List secondHere = config.sparsity["Q"];
       const Rcpp::List targetHere= onlyRandom?secondHere["random"]:secondHere["full"];
       const Rcpp::IntegerVector matchHere = targetHere["match"];
@@ -187,11 +190,9 @@ Rcpp::S4 assembleHessian(
     const Rcpp::IntegerVector outI = outList["i"];
     const Rcpp::IntegerVector outJ = outList["j"];
     const Rcpp::IntegerVector outP = outList["p"];
+    const size_t N = outP.size()-1;
 
-    const size_t Nsize = outP.size()-1;
-    Rcpp::S4 result = onlyRandom?
-      make_CMatrix(hessianSum, outI, outP):
-      make_convert_gCmatrix(hessianSum, outI, outJ, Nsize);
+    Rcpp::S4 result = make_convert_gCmatrix(hessianSum, outI, outJ, N);
 
     return(result);
    

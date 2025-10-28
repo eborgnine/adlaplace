@@ -1,6 +1,8 @@
 #' @export
 thirdDeriv = function(x, data, config) {
 
+  # x=c(res2$beta, res2$solution, res2$theta);config=res$config;data=res$tmb_data
+
   Nbeta = nrow(data$XTp)
   Ngamma = nrow(data$ATp)
   Nparameters = length(x)

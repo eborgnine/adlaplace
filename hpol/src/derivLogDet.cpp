@@ -7,8 +7,7 @@
 //#define DEBUG
 
 
-//' @export
-// [[Rcpp::export]]
+
 Rcpp::List test3(Rcpp::NumericVector X, Rcpp::NumericVector U, Rcpp::NumericVector V, Rcpp::NumericVector W){
 
   std::vector<double> w = Rcpp::as<std::vector<double>>(W);
@@ -124,8 +123,7 @@ CppAD::vector<Type>  objectiveFunctionInternal(
 
 
 /* function for third derivatives, of laplace approx */
-//' @export
-// [[Rcpp::export]]
+
 Rcpp::List thirdDiagonals(
   Rcpp::NumericVector parameters, // beta, gamma, theta
   Rcpp::List dataList, 
@@ -276,8 +274,7 @@ return resultList;
 
 
 
-//' @export
-// [[Rcpp::export]]
+
 Rcpp::LogicalMatrix thirdNonDiagonalsSparsity(
   Rcpp::NumericVector parameters, // beta, gamma, theta
   Rcpp::List dataList, 
@@ -347,8 +344,7 @@ return result;
 }
 
 /* function for third derivatives, of laplace approx */
-//' @export
-// [[Rcpp::export]]
+
 Rcpp::NumericMatrix thirdOffDiagonals(
   Rcpp::NumericVector parameters, // beta, gamma, theta
   Rcpp::List dataList, 

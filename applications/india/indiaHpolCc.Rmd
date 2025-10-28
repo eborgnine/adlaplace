@@ -105,12 +105,33 @@ fitD <- hpolcc::hnlm(
   )
 #rm(dataMedSimple)
 
+    image(seq(0, len=nrow(fitD$groups$firstDeriv)), seq(0, len=ncol(fitD$groups$firstDeriv)), 
+        as.matrix(fitD$groups$firstDeriv[, 1+fitD$groups$groups$i])
+    )
+    abline(h=fitD$groups$groups$p, col='blue', lty=1)
 
 
-cache = new.env()
-assign("Nfun", 0, cache)
-assign("Ngr", 0, cache)
-assign("gamma_start", fitD$start_gamma, cache)
+
+library(hpolcc)
+
+
+adfun = fitD$adfun()
+grad2 = grad(fitD$start_gamma, data=fitD$tmb_data, config=fitD$config, adfun=adfun)
+hes2 = hessian(fitD$start_gamma, data=fitD$tmb_data, config=fitD$config, adfun=adfun)
+
+
+innerRes = trustOptim::trust.optim(
+    x = fitD$start_gamma, 
+    fn = jointLogDens,
+    gr = grad,
+    hs = hessian,
+    method = 'Sparse',
+    control = list(start.trust.radius = 0.1, report.freq=1, report.level=10),
+    data=fitD$tmb_data, config = configHere, adfun = adfun
+  )
+
+
+cache = fitD$cache
 assign("file", "india.txt", cache)
 if(file.exists(get("file", cache))) file.remove(get("file", cache))
 

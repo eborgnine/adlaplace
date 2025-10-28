@@ -25,7 +25,7 @@ getThirdFromHessian = function(hessian) {
 }
 
 
-getOptimalPairs = function(hessian, Sparams, Sgamma1, hessianPairs, hessianPairsNS, hessianPairsR,randomFromFull) {
+getOptimalPairs = function(hessian, Sparams, Sgamma1, hessianPairs, hessianPairsR) {
 
   hessianG = as(hessian, 'generalMatrix')
   hessianUL = as(hessianG, "TsparseMatrix") 
@@ -172,6 +172,7 @@ getOptimalPairs = function(hessian, Sparams, Sgamma1, hessianPairs, hessianPairs
 
 
   hessianT = Matrix::forceSymmetric(hessianT)
+  hessianRandomNS = as(hessianRandom, 'generalMatrix')
 
 
 
@@ -182,21 +183,20 @@ getOptimalPairs = function(hessian, Sparams, Sgamma1, hessianPairs, hessianPairs
         p=hessianC@p),
       random = list(i=hessianRandom@i, j=hessianRandom@j, 
         p=as(hessianRandom, "CsparseMatrix")@p),
-      nonSymmetric = nonsymmetric
+      nonSymmetric = nonsymmetric,
+      randomNS = list(i=hessianRandomNS@i, j=hessianRandomNS@j, 
+        p=as(hessianRandomNS, "CsparseMatrix")@p)
     ),
     third = list(
       ijk = as.data.frame(ijkp),
       pairs = as.data.frame(pairs)
     )
   )
+
   if(!missing(hessianPairs))
     sparsity$second$full$match =  try(match(paste(hessianT@i, hessianT@j, sep='_'), hessianPairs))-1L
-  if(!missing(hessianPairsNS))
-    sparsity$second$nonSymmetric$match =  try(match(paste(hessianT2@i, hessianT2@j, sep='_'), hessianPairsNS))-1L
   if(!missing(hessianPairsR))
-    sparsity$second$hessianRandom$match =  try(match(paste(hessianRandom@i, hessianRandom@j, sep='_'), hessianPairsR))-1L
-  sparsity$second$full$matchToRandom = match(paste(hessianT@i, hessianT@j, sep='_'), randomFromFull)-1L
-
+    sparsity$second$random$match =  try(match(paste(hessianRandom@i, hessianRandom@j, sep='_'), hessianPairsR))-1L
 
   sparsity
 }

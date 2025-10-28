@@ -14,13 +14,15 @@
 Rcpp::List thirdDiagonalsStrata(
   const Rcpp::NumericVector parameters, // beta, gamma, theta
   const Rcpp::List data, 
-  const Rcpp::List config, 
-  const Rcpp::List sparsity,
-  const Rcpp::List strata
+  const Rcpp::List config
   ) {
 
   const Data   dataC(data);
   const Config configC(config);
+
+  const Rcpp::List sparsity = configC.group_sparsity;
+  const Rcpp::List strata = configC.groups;
+
 
   const int Nparams = parameters.size();
   const int Ngroup = strata.size();
@@ -29,12 +31,6 @@ Rcpp::List thirdDiagonalsStrata(
 
 
   bool dense = configC.dense;
-  if(!sparsity.size()) {
-    if(!dense) {
-      Rcpp::warning("no sparsity provided, switching to dense\n");
-      dense = true;
-    }
-  }
   Rcpp::List hessianOut(Ngroup), thirdDiagOut(Ngroup);
 
   for(size_t D=0;D<Ngroup;D++) {
@@ -43,7 +39,7 @@ Rcpp::List thirdDiagonalsStrata(
       thirdDiagOut[D] = Rcpp::NumericMatrix(Nparams, Nparams);
     } else {
       const Rcpp::List sparseHere = sparsity[D];
-      const Rcpp::List twoHere = sparseHere["two"];
+      const Rcpp::List twoHere = sparseHere["second"];
       const Rcpp::List fullHere = twoHere["full"];
       const Rcpp::IntegerVector fullIhere = fullHere["i"];
 
@@ -183,12 +179,13 @@ return resultList;
 Rcpp::List thirdOffDiagonalsStrata(
   const Rcpp::NumericVector parameters, // beta, gamma, theta
   const Rcpp::List data, 
-  const Rcpp::List config,
-  const Rcpp::List sparsity, 
-  const Rcpp::List strata) {
+  const Rcpp::List config) {
 
   const Data   dataC(data);
   const Config configC(config);
+
+  const Rcpp::List sparsity = configC.group_sparsity;
+  const Rcpp::List strata = configC.groups;
 
 
   const int Nparams = parameters.size();
@@ -201,7 +198,7 @@ Rcpp::List thirdOffDiagonalsStrata(
   for(size_t D=0;D<Ngroups;D++) {
 
     const Rcpp::List sparsityHere = sparsity[D];
-    const Rcpp::List threeHere = sparsityHere["three"];
+    const Rcpp::List threeHere = sparsityHere["third"];
     const Rcpp::List pairsHere = threeHere["pairs"];
     const Rcpp::IntegerVector pairsI = pairsHere["i"];
     const size_t Npairs = pairsI.size();
@@ -241,7 +238,7 @@ Rcpp::List thirdOffDiagonalsStrata(
         strataP[Dgroup], strataP[Dgroup+1]);
 
       const Rcpp::List sparsityHere = sparsity[Dgroup];
-      const Rcpp::List threeHere = sparsityHere["three"];
+      const Rcpp::List threeHere = sparsityHere["third"];
       const Rcpp::List pairsHere = threeHere["pairs"];
       const Rcpp::List ijkHere = threeHere["ijk"];
       const Rcpp::IntegerVector pairsI = pairsHere["i"];

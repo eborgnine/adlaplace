@@ -66,8 +66,6 @@ deaths$month = format(deaths$date, '%m')
 
 
 
-
-
 dataMedSimple =
   deaths[
     deaths$date >= as.Date('2006/1/1') &
@@ -112,7 +110,7 @@ fitD <- hpolcc::hnlm(
     f(tempClean, model='hiwp',ref_value = 20, p=3, 
       knots = seq(0, 45, by=2.5), 
     group_var = ecoRegion), 
-  data=dataMedSimple[dataMedSimple$ecoRegion < 7,],
+  data=dataMedSimple[,
   dirichelet= FALSE,
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
   for_dev=TRUE, verbose=TRUE
