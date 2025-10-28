@@ -69,7 +69,7 @@ dataMedSimple =
   deaths[
     deaths$date >= as.Date('2006/1/1') &
     format(deaths$date, '%b%d') != 'Jan01'
-    & deaths$tempClean >= (-5)  & deaths$ecoRegion %in% 1:10 #setdiff(1:20, c(1,7,19)) # regions 1, 7, 19 have some very low temperatures.
+    & deaths$tempClean >= (0)  & deaths$ecoRegion %in% 1:10 #setdiff(1:20, c(1,7,19)) # regions 1, 7, 19 have some very low temperatures.
     , ]
 save(dataMedSimple, file='dataMedSimple.RData')
 ```
@@ -93,25 +93,27 @@ fitD <- hpolcc::hnlm(
 #      knots = seq(0,32, by=2),
 #      group_var = ecoRegion) + 
     f(tempClean, model='hiwp',ref_value = 20, p=3, 
-      knots = seq(0, 45, by=5), 
+      knots = seq(0, 45, by=2.5), 
     group_var = ecoRegion), 
   data=dataMedSimple, 
  control=list(maxit=1000, start.trust.radius = 1, prec=1e-6, stop.trust.radius = 1e-9,
         cg.tol = 1e-6, report.level=4, report.freq=1, report.header.freq=10, report.precision=7),
   control_inner=list(report.level=0),
-  dirichlet= TRUE, config = list(num_threads=10),
+  dirichlet= TRUE, config = list(num_threads=parallel::detectCores()),
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
   for_dev=TRUE, verbose=FALSE
   )
 #rm(dataMedSimple)
+```
 
+```{r sparsePlot}
     image(seq(0, len=nrow(fitD$groups$firstDeriv)), seq(0, len=ncol(fitD$groups$firstDeriv)), 
         as.matrix(fitD$groups$firstDeriv[, 1+fitD$groups$groups$i])
     )
     abline(h=fitD$groups$groups$p, col='blue', lty=1)
+```
 
-
-
+```{r dostuff}
 library(hpolcc)
 
 
