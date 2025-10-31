@@ -80,93 +80,164 @@ region_effect2 <- rnorm(10,1,.2)
     control_inner=list(maxit=1000, start.trust.radius = 1, prec=1e-7, stop.trust.radius = 1e-9,
         cg.tol = 1e-6, report.level=0),
     control=list(maxit=1000, start.trust.radius = 1, prec=1e-6, stop.trust.radius = 1e-9,
-        cg.tol = 1e-6, report.level=4, report.freq=1, report.header.freq=10, report.precision=7),
-    config = list(num_threads = parallel::detectCores(), strataPerIter=100, transform_theta = TRUE)
+        cg.tol = 1e-6, report.level=4, report.freq=10, report.header.freq=10, report.precision=7),
+    config = list(num_threads = 1, #parallel::detectCores(), 
+      Nclusters = 1, transform_theta = TRUE)
   )
-
+#save(res, file='.RData')
     image(seq(0, len=nrow(res$groups$firstDeriv)), seq(0, len=ncol(res$groups$firstDeriv)), 
         as.matrix(res$groups$firstDeriv[, 1+res$groups$groups$i])
     )
     abline(h=res$groups$groups$p, col='blue', lty=1)
 
 
+res$tmb_data$Qdiag = rep(1, 0)
 library(hpolcc)
+adFun = getAdFun(res$gamma_start, res$tmb_data, res$config)
+adFunFull = getAdFun(res$parameters_and_gamma, res$tmb_data, res$config)
+
+res$config$dense = TRUE
+bob =  thirdStrata(
+    res$parameters_and_gamma, data=res$tmb_data, config=res$config, adFunFull
+  ) 
+bob$diagMat = matrix(bob$diag, length(res$parameters_and_gamma))
+bob$Tmat = matrix(bob$Tijk[[1]], ncol=nrow(res$config$group_sparsity[[1]]$third$pairs))
+bob$H = matrix(bob$second, length(res$parameters_and_gamma))
+
+rawT = res$config$group_sparsity[[1]]$third$pairs[
+  rep(
+    1:nrow(res$config$group_sparsity[[1]]$third$pairs), 
+    each = 137), c('i','j')]
+rawT$k = rep(seq(0,len=137), nrow(res$config$group_sparsity[[1]]$third$pairs)) 
+rawT$x = round(bob$Tijk[[1]],4)
 
 
-adfun = res$adfun()
-grad2 = grad(res$start_gamma, data=res$tmb_data, config=configHere, adfun=adfun)
-hes2 = hessian(res$start_gamma, data=res$tmb_data, config=configHere, adfun=adfun)
+Dpar = 2
+Sx = seq(-0.001, 0.001, len=6) + res$parameters[Dpar]
+Sx1 = Sx[-1] - diff(Sx)/2
+parMat = as.data.frame(matrix(res$parameters_and_gamma, ncol=length(Sx), nrow=length(res$parameters_and_gamma), byrow=FALSE))
+parMat[Dpar,] = Sx
 
-innerRes = trustOptim::trust.optim(
-    x = res$start_gamma, 
-    fn = jointLogDens,
-    gr = grad,
-    hs = hessian,
-    method = 'Sparse',
-    control = list(start.trust.radius = 0.1, report.freq=1, report.level=10),
-    data=res$tmb_data, config = res$config, adfun = res$adfun()
+theH = mapply(
+  hessian,
+  parameters = parMat,
+  MoreArgs = list(
+    data = res$tmb_data, config=res$config, adFun = adFunFull
   )
+)
+theH2 = lapply(theH, Matrix::as.matrix)
+theH3 = do.call(abind::abind, c(theH2, list(along=3)))
+theT = apply(theH3, 1:2, diff)/mean(diff(Sx))
 
 
-innerResB <- BB::spg(par = innerRes$solution, 
-    fn = jointLogDens,
-    gr = grad,
-  data=res$tmb_data, config = configHere)  
+round(diag(theT[3,,])[1:10],4)
+round(bob$diagMat[Dpar, 1:10], 4)*2
 
-res2  = loglik(
-  res$parameters,
-  res$start_gamma,
-  res$tmb_data, config=res$config,
-  deriv=0
+
+
+Dpar1 = 3;Dpar2=8
+
+
+Tiik = bob$diagMat
+
+round(xx <- c(theT[3,Dpar1, Dpar2],Tiik[Dpar, Dpar1], Tiik[Dpar, Dpar2], Tiik[Dpar1, Dpar], Tiik[Dpar2, Dpar], 
+  Tiik[Dpar1, Dpar2], Tiik[Dpar2, Dpar1]), 4)
+
+ -1888.4776*c(0.5,1,2,4)
+
+sum(xx[1:3]*c(-1,1,1))
+sum(xx[c(1,4,5)]*c(-1,1,1))
+sum(xx[1:3]*c(1,0.5, 0.5))
+sum(xx[c(1,4,5)]*c(1,0.5, 0.5))
+sum(xx[1:3]*c(-1,0.5, 0.5))
+sum(xx[c(1,4,5)]*c(-1,0.5, 0.5))
+
+
+
+round(theT[3,1:8,1:10],4)
+rawT[136+1:9,]
+round(bob$diagMat[1:8, 1:10], 4)
+
+cbind(res$config$group_sparsity[[1]]$third$ijk, round(bob$raw$Tijk[[1]], 5))[1:5]
+
+bob$third[apply(bob$third[,1:3], 1,function(xx) all((xx+1) %in% c(Dpar, Dpar1, Dpar2))),]
+
+bob$raw$diagMat[1:8,1:8] # need to double!
+bob$raw$Tmat[1:8,1:8] # need to double!
+
+
+
+res$config$group_sparsity[[1]]$third$pairs[1:2,]
+cbind(i=0, j=7, k=seq(0, len=length(res$parameters_and_gamma)),rawMat[,1])[1:5,]
+
+
+plot(
+  Sx, theH3[Dpar1, Dpar2,],
 )
 
 
-str(res$groups$group_sparsity[[1]]$second)
-
-plot(as.matrix(hesSF), hesDF)
-
-hesD[1:8,1:8]
-hes[1:8,1:8]
-
-plot(as.matrix(hes) ,hesD);abline(0,1)
+theT[3, 3:8,3:8]
+bob$thirdList[[Dpar]][3:8,3:8]
+bob$raw$diagMat = matrix(bob$raw$diag, nrow(parMat), nrow(parMat))
+bob$raw$diagMat[1:6,1:6]
 
 
-hesN[1:8,1:8]
+sum(bob$raw$diagMat[c(Dpar1, Dpar2),Dpar])/2
+sum(bob$raw$diagMat[Dpar, c(Dpar1, Dpar2)])/2
 
 
 
-hes[1:5,1:5]
-hesN[Sgamma1,Sgamma1][1:5,1:5]
-hesD[Sgamma1,Sgamma1][1:5,1:5]
+plot(Sx1, theT[,Dpar1, Dpar2])
+abline(h=bob$raw$diagMat[Dpar, Dpar1])# - bob$fullHessian[Dpar, Dpar1])
+abline(v=res$parameters_and_gamma[Dpar])
 
 
-res$config$sparsity = grouped$sparsity
-res$config$dense=FALSE
-res$config$maxDeriv = 3
-dQ = logLikOnlyQ(res$parameters_for_sparsity, res$tmb_data, res$config)
+abline(h=bob$thirdList[[Dpar]][Dpar1, Dpar2])
+abline(h=bob$raw$diagMat[Dpar, Dpar1])
+
+res$config$dense = TRUE
+res2 = loglik(res$parameters, gamma_start = res$gamma_start, data = res$tmb_data, config=res$config, 
+  adFun = adFun, adFunFull = adFunFull, control = res$control_inner)
 
 
-res$config$maxDeriv = 2
-res$config$dense=FALSE
-res$config$num_threads = 1
-dL = logLikNoQStrata(res$parameters_for_sparsity, res$tmb_data, res$config,
-    #grouped$groups, 
-    c(grouped$groups[c('i','j')], list(p=grouped$groups$p) ), 
-    grouped$group_sparsity)
-res$config$dense=TRUE
-dL2 = logLikNoQStrata(res$parameters_for_sparsity, res$tmb_data, res$config,
-    #grouped$groups, 
-    c(grouped$groups[c('i','j')], list(p=grouped$groups$p) ), 
-    grouped$group_sparsity)
+wrappers_outer$fn(
+  res$parameters, data = res$tmb_data, config=res$config, 
+  adFun = adFun, adFunFull = adFunFull, control = res$control_inner,
+  cache = res$cache
+)
+
+wrappers_outer$gr(
+  res$parameters, data = res$tmb_data, config=res$config, 
+  adFun = adFun, adFunFull = adFunFull, control = res$control_inner,
+  cache = res$cache
+)
 
 
-dL$hessianMat = Matrix::sparseMatrix(
-  i=res$config$sparsity$second$full$i, 
-  p=res$config$sparsity$second$full$p, 
-  x=drop(dL$hessian), index1=0,
-  symmetric=TRUE)
 
-quantile(as.matrix(dL$hessianMat) - dL2$hessian)
+
+mle <- trustOptim::trust.optim(
+    x = res$parameters,
+    fn = wrappers_outer$fn,
+    gr = wrappers_outer$gr,
+    method = "SR1",
+    control = res$control,
+    data=res$tmb_data, config = res$config, 
+    control_inner = res$control_inner,
+    adFun=adFun, adFunFull = adFunFull, 
+    cache = res$cache
+  )
+
+mleB <- BB::spg(
+  par = res$parameters, #mle$solution, 
+  fn = wrappers_outer$fn,
+  gr = wrappers_outer$gr,
+  data=res$tmb_data, config = res$config, 
+  control_inner = res$control_inner,
+  adFun=adFun, adFunFull = adFunFull, 
+  cache = res$cache,
+  control = list(maxit = 1e2, ftol=1e-12, gtol = 1e-9, M = 15, trace=TRUE, checkGrad=TRUE))  
+
+
 
 
 bob = numDeriv::hessian(

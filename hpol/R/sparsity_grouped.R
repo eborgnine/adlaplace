@@ -2,11 +2,13 @@
 
 sparsity_grouped = function(x, data, config, verbose=FALSE) {
 
-# library('hpolcc');x = res$parameters_for_sparsity;data=res$tmb_data;config=res$config;verbose=TRUE
+# library('hpolcc');x = res$parameters_and_gamma;data=res$tmb_data;config=res$config;verbose=TRUE
 
 	Nstrata = ncol(data$cc_matrixTp)
 	Sstrata = seq(0, len=Nstrata)
-	Nclusters  <- config$num_threads*2                                   
+
+	Nclusters = config$Nclusters
+	if(!length(Nclusters)) Nclusters  <- config$num_threads*2                                   
 
 	Nbeta = nrow(data$XTp)
 	Ngamma = nrow(data$ATp)
@@ -29,6 +31,10 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 	if(verbose) cat("getting first deriv...")
 	firstDeriv = gradLogical(x, dataNoMap, config)
 	if(verbose) cat("done\ngetting clusters...")
+
+	if(Nclusters == 1) {
+		km = list(cluster = rep(1, Nstrata))		
+	} else {
 	kmMC = parallel::mcmapply(function(seed) {
 		set.seed(seed)
 		try(kmeans(t(firstDeriv), 
@@ -77,7 +83,7 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 		theCl = floor(seq(1, Nclusters+0.999, len= Nstrata))
 		km = list(cluster = theCl)
 	}
-
+} # not one cluster
 
 	clusterTable = table(km$cluster)
 	tableOrder = order(clusterTable, decreasing=TRUE)

@@ -1,195 +1,166 @@
 #' @export
-thirdDeriv = function(x, data, config) {
+thirdDeriv = function(x, data, config, adFun, extra=FALSE) {
 
 
    # computing T_kii and H_ki, columnns are i, rows are k 
-  # library("hpolcc");x=c(res$config$beta, innerRes$solution, res$config$theta);config=res$config;data=res$tmb_data;config$verbose=TRUE;config$dense=FALSE;config$num_threads = 10
-  resThirdDiag = thirdDiagonalsStrata(
-    x, data, config
-  ) 
+  # library("hpolcc");x=res$parameters_and_gamma;config=res$config;data=res$tmb_data;config$verbose=FALSE;config$dense=TRUE#;config$num_threads = 10
+  if(missing(adFun)) {
+    if(missing(data)) stop("provide data if adFun is missing")
+    adFun = getadFun(x, data=data, config=config)
+  }
 
-  resThirdOffDiag = thirdOffDiagonalsStrata(
-    x, data, config
-  ) 
-
-
-  Nbeta = nrow(data$XTp)
-  Ngamma = nrow(data$ATp)
   Nparameters = length(x)
   Spars0 = seq(0, length=Nparameters)
+
+  if(!missing(data)) {
+    Nbeta = nrow(data$XTp)
+    Ngamma = nrow(data$ATp)
+  } else {
+    Nbeta = length(config$beta)
+    Ntheta = length(config$theta)
+    Ngamma = Nparameters - Nbeta - Ntheta
+    if(Nbeta == 0) warning("assuming no betas.  add data or config$beta if this is incorrect")
+    if(Ntheta == 0) warning("assuming no betas.  add data or config$beta if this is incorrect")
+  }
+
   Sgamma0 = seq(Nbeta, len=Ngamma)
   Sgamma1 = Sgamma0+1
   SbetaTheta0 = setdiff(Spars0, Sgamma0)
 
 
+  resThird = thirdStrata(
+    x, data, config, adFun
+  ) 
+
   
   if(identical(config$dense, TRUE)) {
-          # T_iik, doubles are columns of resThirdDiag$diag
-    fullHessian = Matrix::Matrix(resThirdDiag$second)
-    thirdDiag = data.frame(
-      i = rep(seq(0, len=nrow(resThirdDiag$diag)), each=ncol(resThirdDiag$diag)),
-      k = rep(seq(0, len=ncol(resThirdDiag$diag)), nrow(resThirdDiag$diag)),
-      x = 2*as.vector(resThirdDiag$diag)
+
+
+    thirdTensorList = mapply(function(group_sparsity, Tijk)
+      {
+        Npairs = nrow(group_sparsity$third$pairs)
+        resultIJK = as.data.frame(t(apply(cbind(group_sparsity$third$pairs[
+            rep(1:Npairs, each=Nparameters), c('i','j')],
+          k=rep(seq(0, len=Nparameters), Npairs)), 1, sort)))
+          colnames(resultIJK) = c('i','j','k')
+          duplicatedHere = duplicated(resultIJK)
+          resultIJK$Tijk = Tijk
+        result = resultIJK[!duplicatedHere,]
+        result = result[result$Tijk != 0, ]        
+      }, group_sparsity = config$group_sparsity, Tijk = resThird$Tijk,
+      SIMPLIFY=FALSE
     )
 
-    thirdNonDiag = config$sparsity$third$pairs[
-    	rep(1:nrow(config$sparsity$third$pairs), each=nrow(resThirdOffDiag)),
-    	c('i','j')]
-    thirdNonDiag$k = rep(seq(0, len=nrow(resThirdOffDiag)), ncol(resThirdOffDiag))
-    thirdNonDiag$taylor3 = as.vector(resThirdOffDiag)
-    thirdNonDiag = thirdNonDiag[
-    	apply(
-    		thirdNonDiag[,c('i','j','k')], 1, lengthUnique
-    	)==3, ]
-  } else { # sparse
-    fullHessian = 
-      Matrix::sparseMatrix(
-        i = config$sparsity$second$nonSymmetric$i,
-        j = config$sparsity$second$nonSymmetric$j,
-        x = drop(resThirdDiag$second),
-        dims = rep(length(resThirdDiag$first), 2), index1=FALSE
-      )
+  thirdDiag = expand.grid(i=seq(0, len=Nparameters), k=seq(0, len=Nparameters))
+  thirdDiag$j = thirdDiag$i
+  thirdDiag$Tijk = as.vector(resThird$diag)
 
-    fullHessian = Matrix::forceSymmetric(fullHessian)
+  fullHessian = matrix(resThird$second, Nparameters)
 
-    thirdDiag = data.frame(
-      i = config$sparsity$second$nonSymmetric$j,
-      k = config$sparsity$second$nonSymmetric$i,
-      x = 2*as.vector(resThirdDiag$diag)
-    )
+  } else {
 
-    thirdNonDiag = config$sparsity$third$ijk[,c('i','j','k')]
-    thirdNonDiag$taylor3 = apply(resThirdOffDiag, 1, sum)
-  }
-    thirdDiag$j = thirdDiag$i
+  thirdTensorList = mapply(function(third, sparsity) {
+      ijkHere = sparsity$third$ijk[,c('i','j','k')]
+      ijkHere$Tijk = third
+      ijkHere
+  },
+  third = resThird$Tijk[1:10],
+  sparsity = config$group_sparsity[1:10],
+  SIMPLIFY=FALSE)
 
-
-  # 3rd taylor is   T_iik/2 + T_jjk/2 + T_ijk
-  # pairs are i and j
-  thirdDiag$ik = apply(thirdDiag[,c('i','k')],1,paste,collapse='_')
-  thirdNonDiag$ik = apply(thirdNonDiag[,c('i','k')],1,paste,collapse='_')
-  thirdNonDiag$jk = apply(thirdNonDiag[,c('j','k')],1,paste,collapse='_')
-  matchIik = match(thirdNonDiag$ik, thirdDiag$ik)
-  matchJjk = match(thirdNonDiag$jk, thirdDiag$ik)
-  thirdNonDiag$Tiik = thirdDiag[matchIik, 'x']
-  thirdNonDiag$Tjjk = thirdDiag[matchJjk, 'x']
-
-  thirdNonDiag$x = thirdNonDiag$taylor3 - 0.5*(thirdNonDiag$Tiik  + thirdNonDiag$Tjjk)
-  
-# might be some duplicated
-  nonDiagUnique = t(apply(thirdNonDiag[,c('i','j','k')], 1, sort))  
-  thirdNonDiag = thirdNonDiag[!duplicated(nonDiagUnique), ]
-
-
-  theCols = c('i','j','k', 'x')
-  third = rbind(
-    thirdDiag[abs(thirdDiag$x) > 1e-20,theCols],
-    thirdNonDiag[abs(thirdNonDiag$x) > 1e-20,theCols]
+  thirdDiag = data.frame(
+    i=config$sparsity$second$nonSymmetric$i, 
+    j=config$sparsity$second$nonSymmetric$i, 
+    k = config$sparsity$second$nonSymmetric$j,
+    Tijk = resThird$diag
   )
-  third = third[order(third[,'i'], third[,'j'], third[,'k']),]
 
-  # to do: don't cmpute third list, cmpute dHlist without it.
+  fullHessian = Matrix::sparseMatrix(
+    i = config$sparsity$second$full$i, 
+    j = config$sparsity$second$full$j,
+    x=resThird$second,
+    dims = rep(Nparameters, 2), symmetric=FALSE, index1=FALSE)
 
-   
+  }
+
+
+  thirdTensorDf = do.call(rbind, thirdTensorList)
+  thirdTensorDf = cbind(as.data.frame(t(apply(thirdTensorDf[,c('i','j','k')], 1, sort))), thirdTensorDf[,'Tijk',drop=FALSE])
+  colnames(thirdTensorDf) = c('i','j','k','Tijk')
+
+  thirdTensorAgg = aggregate(
+    thirdTensorDf[,'Tijk', drop=FALSE], 
+    as.data.frame(thirdTensorDf[,c('i','j','k')]), 
+    sum)
+
+  # get rid of diagonals, only has an effect if dense=TRUE
+  Nunique = apply(thirdTensorAgg[,c('i','j','k')], 1, lengthUnique)
+  thirdTensorAgg = thirdTensorAgg[Nunique == 3, ]
+
+  thirdAll = rbind(thirdTensorAgg, thirdDiag)
+  thirdAll = thirdAll[order(thirdAll$i, thirdAll$j, thirdAll$k),]
+  thirdAll = thirdAll[abs(thirdAll$Tijk)> .Machine$double.eps, ]
+  colnames(thirdAll) = gsub("Tijk", "x", colnames(thirdAll))
+
+  thirdList = parallel::mcmapply(
+    thirdTensor,
+    k=seq(from=0, len=Nparameters),
+    MoreArgs = list(third=thirdAll, N=Nparameters), 
+    mc.cores = pmax(config$num_threads, 1, na.rm=TRUE)
+  )
+
+
   cholHessianRandom = Matrix::Cholesky(fullHessian[Sgamma1, Sgamma1])
   invHessianRandom = Matrix::solve(cholHessianRandom)
   dUhat = - invHessianRandom %*% fullHessian[Sgamma1, -Sgamma1] 
 
-
-  thirdList = parallel::mcmapply(
-  	thirdTensor,
-  	k=seq(from=0, len=Nparameters),
-  	MoreArgs = list(third=third, N=Nparameters), 
-    mc.cores = pmax(config$num_threads, 1, na.rm=TRUE)
-  )
-
-
   dHlist = parallel::mcmapply(
-  	function(Tijk, dUp, Sgamma1) {
-      if(is.null(Tijk)) return(NULL)
-  		There =try( as(Tijk[Sgamma1,Sgamma1], 'TsparseMatrix'))
-  		cbind(j=There@i, i=There@j, outer(There@x, dUp))
-  	},
-  	Tijk = thirdList[Sgamma1],
-  	dUp = as.list(as.data.frame(t(as.matrix(dUhat)))),
-  	MoreArgs = list(Sgamma1=Sgamma1), 
+    forDhList,
+    Tijk = thirdList[Sgamma1],
+    dUp = as.list(as.data.frame(t(as.matrix(dUhat)))),
+    MoreArgs = list(Sgamma1=Sgamma1), 
     mc.cores = pmax(config$num_threads, 1, na.rm=TRUE)
   )
 
-  TijpAdd = parallel::mcmapply(function(Tijk, Sgamma1) {
-  if(is.null(Tijk)) return(NULL)
-	There = as(Tijk[Sgamma1,Sgamma1], 'TsparseMatrix')
-	cbind(i=There@i, j=There@j, x=There@x)
-  }, Tijk = thirdList[-Sgamma1], MoreArgs = list(Sgamma1=Sgamma1),
+  TijpAdd = parallel::mcmapply(forTijpAdd, 
+    Tijk = thirdList[-Sgamma1], MoreArgs = list(Sgamma1=Sgamma1),
     mc.cores = pmax(config$num_threads, 1, na.rm=TRUE)
   )
   names(TijpAdd) = paste0("p", SbetaTheta0)
-
-# try to do without thirdList
-  if(FALSE) {
-  dHlist = mapply(
-  	function(Dgamma, dUp, third, Sgamma1,  Nparameters) {
-  		Tijk = thirdTensor(k=Dgamma, third=third, N=Nparameters)
-  		There = as(Tijk[Sgamma1,Sgamma1], 'TsparseMatrix')
-  		cbind(j=There@i, i=There@j, outer(There@x, dUp))
-  	},
-  	Dgamma = Sgamma0,
-  	dUp = as.list(as.data.frame(t(as.matrix(dUhat)))),
-  	MoreArgs = list(Sgamma1=Sgamma1, third = third, Nparameters=Nparameters)
-  )
-  TijpAdd = mapply(function(Dpar, third, Sgamma1,  Nparameters) {
-  	Tijk = thirdTensor(k=Dpar, third=third, N=Nparameters)  	
-	There = as(Tijk[Sgamma1,Sgamma1], 'TsparseMatrix')
-	cbind(i=There@i, j=There@j, x=There@x)
-  }, Dpar = SbetaTheta0, MoreArgs = list(third=third, Sgamma1=Sgamma1, Nparameters=Nparameters))
-  names(TijpAdd) = paste0("p", SbetaTheta0)
-
-}
 
 
   dHlong = as.data.frame(do.call(rbind, dHlist))
   colnames(dHlong) = c(names(dHlong)[1:2], paste0("p", SbetaTheta0))
   dHagg = aggregate(
-  	dHlong[,setdiff(names(dHlong), c('i','j')), drop=FALSE], 
-  	dHlong[,c('i','j')], 
-  	sum)
-
-#  dHlong$k = rep(1:length(dHlist), unlist(lapply(dHlist, nrow)))
-
+    dHlong[,setdiff(names(dHlong), c('i','j')), drop=FALSE], 
+    dHlong[,c('i','j')], 
+    sum)
 
   
-  dH = parallel::mcmapply(function(TU, ij, Tijp, dims) {
-  	toAgg = rbind(cbind(ij, x=TU), Tijp)
-  	theAgg = aggregate(toAgg[,'x', drop=FALSE], toAgg[,c('i','j')], sum, na.rm=TRUE)
-  	Matrix::sparseMatrix(
-  		i=pmax(theAgg$j, theAgg$i), 
-  		j=pmin(theAgg$i, theAgg$j), x=theAgg$x, 
-  		index1=FALSE, dims=dims, symmetric=TRUE)
-  }, 
-  TU = as.list(dHagg[,names(TijpAdd)]),
-  Tijp = TijpAdd,
-  MoreArgs = list(ij = dHagg[,c('i','j')], dims=c(Ngamma, Ngamma)), 
+  dH = parallel::mcmapply(forDh, 
+    TU = as.list(dHagg[,names(TijpAdd)]),
+    Tijp = TijpAdd,
+    MoreArgs = list(ij = dHagg[,c('i','j')], dims=c(Ngamma, Ngamma)), 
     mc.cores = pmax(config$num_threads, 1, na.rm=TRUE)
   )
 
 
-  # i,j are gamma indices
-
-
-dDet = parallel::mcmapply(function(Dhp, Hinv) {
-#	sum(Matrix::diag(Hinv %*% Dhp))
-	sum((Hinv * Dhp))
-}, Dhp = dH, MoreArgs = list(Hinv = invHessianRandom), 
+dDet = parallel::mcmapply(traceProd, Dhp = dH, 
+  MoreArgs = list(Hinv = invHessianRandom), 
     mc.cores = pmax(config$num_threads, 1, na.rm=TRUE)
   ) / 2
 
 
-
-
-list(fullHessian=fullHessian, third =third, thirdList = thirdList,  first = resThirdDiag$first, 
-	invHessianRandom = invHessianRandom,
-	halfLogDet = drop(Matrix::determinant(cholHessianRandom, log=TRUE, sqrt=TRUE)$modulus),
-	dUhat = dUhat, dH = dH, dDet = dDet
+result = list(  
+  halfLogDet = drop(Matrix::determinant(cholHessianRandom, log=TRUE, sqrt=TRUE)$modulus),
+  dUhat = dUhat, dH = dH, dDet = dDet,
+  fullHessian=fullHessian, invHessianRandom = invHessianRandom,  first = resThird$first
 )
 
+if(identical(extra, TRUE)) {
+result = c(result, list(third =thirdAll, 
+  thirdList = thirdList, raw = resThird))
+}
+
+return(result)
 }

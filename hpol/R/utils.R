@@ -49,3 +49,30 @@ getDh = function(pair, third, Sgamma1, dUhat, Nparameters) {
 	as.vector(crossprod(dUhat, thirdHere[Sgamma1]) + thirdHere[-Sgamma1])
 }
 
+forDhList = function(Tijk, dUp, Sgamma1) {
+      if(is.null(Tijk)) return(NULL)
+      There =try( as(Tijk[Sgamma1,Sgamma1], 'TsparseMatrix'))
+      cbind(j=There@i, i=There@j, outer(There@x, dUp))
+    }
+
+forTijpAdd =    function(Tijk, Sgamma1) {
+  if(is.null(Tijk)) return(NULL)
+  There = as(Tijk[Sgamma1,Sgamma1], 'TsparseMatrix')
+  cbind(i=There@i, j=There@j, x=There@x)
+  }
+
+
+forDh = function(TU, ij, Tijp, dims) {
+    toAgg = rbind(cbind(ij, x=TU), Tijp)
+    theAgg = aggregate(toAgg[,'x', drop=FALSE], toAgg[,c('i','j')], sum, na.rm=TRUE)
+    Matrix::sparseMatrix(
+      i=pmax(theAgg$j, theAgg$i), 
+      j=pmin(theAgg$i, theAgg$j), x=theAgg$x, 
+      index1=FALSE, dims=dims, symmetric=TRUE)
+  }
+
+
+traceProd = function(Dhp, Hinv) {
+# sum(Matrix::diag(Hinv %*% Dhp))
+  sum((Hinv * Dhp))
+}

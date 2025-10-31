@@ -40,13 +40,12 @@ getOptimalPairs = function(hessian, Sparams, Sgamma1, hessianPairs, hessianPairs
 
   ijk1 = getThirdFromHessian(hessian)
 
-  ijk2 = as.data.frame(ijk1[ijk1[,'Nunique'] == 3, ])
+  ijk2 = as.data.frame(ijk1[ijk1[,'Nunique'] == 3, ,drop=FALSE])
 
   # only one parameter per trio, dont need Tijk for two parameters
   Nparams = apply(ijk2, 1, function(xx) sum(xx %in% Sparams))
-  ijk = ijk2[Nparams < 2,,drop=FALSE]
+  ijk = ijk2[Nparams < 2,setdiff(names(ijk2), "Nunique"),drop=FALSE]
 
-  colnames(ijk) = c('i','j','k')
   ijk$ij = apply(ijk[,c('i','j')], 1, paste, collapse='_')
   ijk$jk = apply(ijk[,c('j','k')], 1, paste, collapse='_')
   ijk$ik = apply(ijk[,c('i','k')], 1, paste, collapse='_')
@@ -56,11 +55,12 @@ getOptimalPairs = function(hessian, Sparams, Sgamma1, hessianPairs, hessianPairs
   ijk$pair = ijk$type = NA
 
 
-  Nna=1;Niter = 0
+  Nna=1;Niter = 0;pairVec = NULL
   while(Nna > 0 & Niter < nrow(ijk)) {
     theNA = which(is.na(ijk$pair))
     theTable = table(unlist(ijk[theNA, Sdim]))
     biggestPair = names(theTable)[which.max(theTable)]
+    pairVec = c(pairVec, biggestPair)
     newIJ =intersect(which(ijk$ij==biggestPair), theNA)
     newIK =intersect(which(ijk$ik==biggestPair), theNA)
     newJK =intersect(which(ijk$jk==biggestPair), theNA)
@@ -82,8 +82,9 @@ getOptimalPairs = function(hessian, Sparams, Sgamma1, hessianPairs, hessianPairs
     Nna = sum(is.na(ijk$pair))
   } # while
 
+  #ijk[apply(ijk[,c('i','j','k')], 1, function(xx) all(c(0,7)%in% xx)), ]
 
-  ijk$pairFac = factor(ijk$pair, levels=unique(apply(pairs, 1, function(xx) paste(sort(xx), collapse='_'))))
+  ijk$pairFac = factor(ijk$pair, levels=pairVec)
   ijk[,Spairs] = as.integer(NA)
   theIj = which(ijk$type == 'ij')
   ijk[theIj,Spairs] = ijk[theIj,c('i','j','k')]

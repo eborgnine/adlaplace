@@ -10,16 +10,17 @@ Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
 Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
-// thirdDiagonalsStrata
-Rcpp::List thirdDiagonalsStrata(const Rcpp::NumericVector parameters, const Rcpp::List data, const Rcpp::List config);
-RcppExport SEXP _hpolcc_thirdDiagonalsStrata(SEXP parametersSEXP, SEXP dataSEXP, SEXP configSEXP) {
+// thirdStrata
+Rcpp::List thirdStrata(const Rcpp::NumericVector parameters, const Rcpp::List data, const Rcpp::List config, SEXP adFun);
+RcppExport SEXP _hpolcc_thirdStrata(SEXP parametersSEXP, SEXP dataSEXP, SEXP configSEXP, SEXP adFunSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< const Rcpp::NumericVector >::type parameters(parametersSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List >::type data(dataSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List >::type config(configSEXP);
-    rcpp_result_gen = Rcpp::wrap(thirdDiagonalsStrata(parameters, data, config));
+    Rcpp::traits::input_parameter< SEXP >::type adFun(adFunSEXP);
+    rcpp_result_gen = Rcpp::wrap(thirdStrata(parameters, data, config, adFun));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -37,44 +38,44 @@ BEGIN_RCPP
 END_RCPP
 }
 // jointLogDens
-double jointLogDens(Rcpp::NumericVector x, const Rcpp::List data, const Rcpp::List config, SEXP adfun);
-RcppExport SEXP _hpolcc_jointLogDens(SEXP xSEXP, SEXP dataSEXP, SEXP configSEXP, SEXP adfunSEXP) {
+double jointLogDens(Rcpp::NumericVector x, const Rcpp::List data, const Rcpp::List config, SEXP adFun);
+RcppExport SEXP _hpolcc_jointLogDens(SEXP xSEXP, SEXP dataSEXP, SEXP configSEXP, SEXP adFunSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< Rcpp::NumericVector >::type x(xSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List >::type data(dataSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List >::type config(configSEXP);
-    Rcpp::traits::input_parameter< SEXP >::type adfun(adfunSEXP);
-    rcpp_result_gen = Rcpp::wrap(jointLogDens(x, data, config, adfun));
+    Rcpp::traits::input_parameter< SEXP >::type adFun(adFunSEXP);
+    rcpp_result_gen = Rcpp::wrap(jointLogDens(x, data, config, adFun));
     return rcpp_result_gen;
 END_RCPP
 }
 // grad
-Rcpp::NumericVector grad(const Rcpp::NumericVector parameters, const Rcpp::List& data, const Rcpp::List& config, SEXP adfun);
-RcppExport SEXP _hpolcc_grad(SEXP parametersSEXP, SEXP dataSEXP, SEXP configSEXP, SEXP adfunSEXP) {
+Rcpp::NumericVector grad(const Rcpp::NumericVector parameters, const Rcpp::List& data, const Rcpp::List& config, SEXP adFun);
+RcppExport SEXP _hpolcc_grad(SEXP parametersSEXP, SEXP dataSEXP, SEXP configSEXP, SEXP adFunSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< const Rcpp::NumericVector >::type parameters(parametersSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List& >::type data(dataSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List& >::type config(configSEXP);
-    Rcpp::traits::input_parameter< SEXP >::type adfun(adfunSEXP);
-    rcpp_result_gen = Rcpp::wrap(grad(parameters, data, config, adfun));
+    Rcpp::traits::input_parameter< SEXP >::type adFun(adFunSEXP);
+    rcpp_result_gen = Rcpp::wrap(grad(parameters, data, config, adFun));
     return rcpp_result_gen;
 END_RCPP
 }
 // hessian
-Rcpp::S4 hessian(const Rcpp::NumericVector parameters, const Rcpp::List& data, const Rcpp::List& config, SEXP adfun);
-RcppExport SEXP _hpolcc_hessian(SEXP parametersSEXP, SEXP dataSEXP, SEXP configSEXP, SEXP adfunSEXP) {
+Rcpp::S4 hessian(const Rcpp::NumericVector parameters, const Rcpp::List& data, const Rcpp::List& config, SEXP adFun);
+RcppExport SEXP _hpolcc_hessian(SEXP parametersSEXP, SEXP dataSEXP, SEXP configSEXP, SEXP adFunSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< const Rcpp::NumericVector >::type parameters(parametersSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List& >::type data(dataSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List& >::type config(configSEXP);
-    Rcpp::traits::input_parameter< SEXP >::type adfun(adfunSEXP);
-    rcpp_result_gen = Rcpp::wrap(hessian(parameters, data, config, adfun));
+    Rcpp::traits::input_parameter< SEXP >::type adFun(adFunSEXP);
+    rcpp_result_gen = Rcpp::wrap(hessian(parameters, data, config, adFun));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -132,7 +133,7 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_hpolcc_thirdDiagonalsStrata", (DL_FUNC) &_hpolcc_thirdDiagonalsStrata, 3},
+    {"_hpolcc_thirdStrata", (DL_FUNC) &_hpolcc_thirdStrata, 4},
     {"_hpolcc_getAdFun", (DL_FUNC) &_hpolcc_getAdFun, 3},
     {"_hpolcc_jointLogDens", (DL_FUNC) &_hpolcc_jointLogDens, 4},
     {"_hpolcc_grad", (DL_FUNC) &_hpolcc_grad, 4},

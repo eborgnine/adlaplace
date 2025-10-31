@@ -29,7 +29,7 @@ build_pattern_from_R(const Rcpp::IntegerVector& row0,
                      const Rcpp::IntegerVector& col0,
                      size_t n);
 
-AdpackHandle getAdpackFromR(SEXP adfun,
+AdpackHandle getAdpackFromR(SEXP adFun,
                             const std::vector<double>& parametersC,
                             const Data& dataC,
                             const Config& configC);

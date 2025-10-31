@@ -512,7 +512,7 @@ double jointLogDens(
   Rcpp::NumericVector x, 
   const Rcpp::List data, 
   const Rcpp::List config,
-  SEXP adfun = R_NilValue)
+  SEXP adFun = R_NilValue)
 {
 
   Data   dat(data);
@@ -535,14 +535,14 @@ Rcpp::NumericVector grad(
     const Rcpp::NumericVector parameters,
     const Rcpp::List& data,
     const Rcpp::List& config,
-    SEXP adfun = R_NilValue)
+    SEXP adFun = R_NilValue)
 {
 
   std::vector<double> parametersC(parameters.begin(), parameters.end());
   const Data   dataC(data);
   const Config configC(config);
 
-  AdpackHandle ad = getAdpackFromR(adfun, parametersC, dataC, configC);
+  AdpackHandle ad = getAdpackFromR(adFun, parametersC, dataC, configC);
   std::vector<GroupPack>* packsPtr = ad.ptr;
 
   std::vector<double> result = grad(parametersC, *packsPtr, dataC, configC);
@@ -557,7 +557,7 @@ Rcpp::S4 hessian(
   const Rcpp::NumericVector parameters,
   const Rcpp::List& data,
   const Rcpp::List& config,
-  SEXP adfun = R_NilValue)
+  SEXP adFun = R_NilValue)
 {
 
  const Data dataC(data);
@@ -565,7 +565,7 @@ Rcpp::S4 hessian(
 
  std::vector<double> parametersC = Rcpp::as<std::vector<double>>(parameters);
 
-AdpackHandle ad = getAdpackFromR(adfun, parametersC, dataC, configC);
+AdpackHandle ad = getAdpackFromR(adFun, parametersC, dataC, configC);
 std::vector<GroupPack>* packsPtr = ad.ptr;
 
 

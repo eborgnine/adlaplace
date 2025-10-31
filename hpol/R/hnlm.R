@@ -255,6 +255,7 @@ hnlm <- function(formula,
 
 
   if(verbose) cat("getting groups..")
+
   groups = try(sparsity_grouped(start_parameters, tmb_data, config, verbose))
   if(verbose) cat("done\n")
   if(any(class(groups) == 'try-error')) groups = list()
@@ -265,13 +266,6 @@ hnlm <- function(formula,
   config$beta = start_beta
   config$theta = start_theta
 
-  getAdfunHere = function() {getAdFun(start_gamma, data=tmb_data, config=config)}
-  env <- new.env(parent = asNamespace("hpolcc"))
-  env$start_gamma <- start_gamma
-  env$tmb_data    <- tmb_data
-  env$config      <- config
-  environment(getAdfunHere) <- env
-  lockEnvironment(env, bindings = TRUE)
   
   cache = new.env(parent = emptyenv())
   assign("Nfun", 0, cache)
@@ -282,9 +276,9 @@ hnlm <- function(formula,
   if(for_dev)
     return(
       list( 
-        start_gamma = start_gamma,
+        gamma_start = start_gamma,
         parameters = parameters, 
-        parameters_for_sparsity = start_parameters,
+        parameters_and_gamma = start_parameters,
         theta_info = theta_info,
         tmb_data = tmb_data,
         terms = terms,
@@ -293,7 +287,6 @@ hnlm <- function(formula,
         control_inner = control_inner,
         data = data,
         groups = groups[setdiff(names(groups), "sparsity")],
-        adfun = getAdfunHere,
         cache = cache
       )
     )

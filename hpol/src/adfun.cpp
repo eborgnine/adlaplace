@@ -51,6 +51,7 @@ CppAD::ADFun<double> adFunQ(
   const Config& config) {
 
   const size_t Nparams = parameters.size();
+  const size_t Nq = data.Qdiag.size();
 
   CppAD::vector<CppAD::AD<double>> ad_params(Nparams);
   for(size_t D=0;D<Nparams;D++) {
@@ -65,7 +66,7 @@ CppAD::ADFun<double> adFunQ(
 
   CppAD::AD<double> result0=0;
   const Rcpp::IntegerVector map = data.map;
-  for (size_t D = 0; D < data.Ngamma; ++D) {
+  for (size_t D = 0; D < Nq; ++D) {
     const size_t mapHere = map[D];
 
     auto thetaHere = latent.theta[mapHere];
@@ -195,7 +196,7 @@ getAdFun(const std::vector<double>& parameters,
     Rcpp::List nonSymmetric = onlyRandom ? second["randomNS"] : second["nonSymmetric"];
     Rcpp::IntegerVector Srow = nonSymmetric["i"];
     Rcpp::IntegerVector Scol = nonSymmetric["j"];
-    Rcpp::IntegerVector pNs = nonSymmetric["j"];
+    Rcpp::IntegerVector pNs = nonSymmetric["p"];
     Rcpp::IntegerVector matchNs = nonSymmetric["match"];
 
     // full symmetric pattern for this group (size = Nparams)
@@ -255,16 +256,16 @@ getAdFun(const std::vector<double>& parameters,
 
 // ---- helper to rehydrate or create adpack (no Nullable<SEXP>) ----
 AdpackHandle getAdpackFromR(
-    SEXP adfun,                                   // pass R_NilValue if none
+    SEXP adFun,                                   // pass R_NilValue if none
     const std::vector<double>& parametersC,
     const Data& dataC,
     const Config& configC)
 {
   AdpackHandle h;
 
-  if (adfun != R_NilValue) {
+  if (adFun != R_NilValue) {
     // Rehydrate external pointer
-    Rcpp::XPtr<std::vector<GroupPack>> xp(adfun);
+    Rcpp::XPtr<std::vector<GroupPack>> xp(adFun);
 
     // Optional: validate class tag
     if (xp.hasAttribute("class")) {

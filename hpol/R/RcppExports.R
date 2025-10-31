@@ -2,8 +2,8 @@
 # Generator token: 10BE3573-1514-4C36-9D1C-5A225CD40393
 
 #' @export
-thirdDiagonalsStrata <- function(parameters, data, config) {
-    .Call('_hpolcc_thirdDiagonalsStrata', PACKAGE = 'hpolcc', parameters, data, config)
+thirdStrata <- function(parameters, data, config, adFun = NULL) {
+    .Call('_hpolcc_thirdStrata', PACKAGE = 'hpolcc', parameters, data, config, adFun)
 }
 
 #' @export
@@ -12,18 +12,18 @@ getAdFun <- function(x, data, config) {
 }
 
 #' @export
-jointLogDens <- function(x, data, config, adfun = NULL) {
-    .Call('_hpolcc_jointLogDens', PACKAGE = 'hpolcc', x, data, config, adfun)
+jointLogDens <- function(x, data, config, adFun = NULL) {
+    .Call('_hpolcc_jointLogDens', PACKAGE = 'hpolcc', x, data, config, adFun)
 }
 
 #' @export
-grad <- function(parameters, data, config, adfun = NULL) {
-    .Call('_hpolcc_grad', PACKAGE = 'hpolcc', parameters, data, config, adfun)
+grad <- function(parameters, data, config, adFun = NULL) {
+    .Call('_hpolcc_grad', PACKAGE = 'hpolcc', parameters, data, config, adFun)
 }
 
 #' @export
-hessian <- function(parameters, data, config, adfun = NULL) {
-    .Call('_hpolcc_hessian', PACKAGE = 'hpolcc', parameters, data, config, adfun)
+hessian <- function(parameters, data, config, adFun = NULL) {
+    .Call('_hpolcc_hessian', PACKAGE = 'hpolcc', parameters, data, config, adFun)
 }
 
 #' @export
