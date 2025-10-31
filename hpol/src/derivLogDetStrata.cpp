@@ -95,7 +95,7 @@ Rcpp::List thirdStrata(
           denseThirdHere[rowHere] = xHere;
           if(dense) {
             hessianOutHere[rowHere] += Hhere;
-            thirdDiagOutHere[rowHere] += xHere;
+            thirdDiagOutHere[rowHere] += 2*xHere;
           }
         }
       if(!dense) { // not dense
@@ -105,7 +105,7 @@ Rcpp::List thirdStrata(
         for(size_t Di=pNS[Dk]; Di<nsEnd; Di++){
           const size_t indexHere = 3*iNS[Di];
           const size_t allHere = matchNS[Di];
-          thirdDiagOutHere[allHere] += taylor3[indexHere];// - taylor3[indexHere+1];
+          thirdDiagOutHere[allHere] += 2*taylor3[indexHere];
         }
         const size_t fullEnd = pFull[Dk+1];
  
@@ -136,17 +136,14 @@ Rcpp::List thirdStrata(
       const size_t NtijkHere = dense?Nparams*Npairs:sparsityIjk.size();
       std::vector<double> TijkHere(NtijkHere);
 
-      for(int Dpair=0; Dpair < 2//Npairs
-        ; ++Dpair) {
-
+      for(int Dpair=0; Dpair < Npairs; ++Dpair) {
 
         const size_t Di = pairsI[Dpair];
         const size_t Dj = pairsJ[Dpair];
         const size_t pairStart = pairsP[Dpair];
         const size_t DcolHere =  Dpair * Nparams;
 
-        Rcpp::Rcout << "pair " << Di << " " << Dj << " " << DcolHere << "\n";
-
+//        Rcpp::Rcout << "pair " << Di << " " << Dj << " " << DcolHere << "\n";
         std::fill(direction.begin(), direction.end(), 0.0);
         direction[Di] = direction[Dj] = 1.0;     
 
@@ -161,7 +158,7 @@ Rcpp::List thirdStrata(
         if(dense) {
           for(size_t Dk=0; Dk<Nparams; Dk++){
             const double TiikTjjk = denseThirdHere[DiNparams + Dk] + denseThirdHere[DjNparams + Dk];
-            TijkHere[DcolHere + Dk] = taylor3[3*Dk];// - 0*TiikTjjk/2; 
+            TijkHere[DcolHere + Dk] = taylor3[3*Dk] - TiikTjjk; 
           }
         } else {
           const size_t NthisPair = pairsPend[Dpair] - pairsP[Dpair];
@@ -169,7 +166,7 @@ Rcpp::List thirdStrata(
             const size_t DindexInIjk = pairStart + Dindex;
             const size_t Dk = sparsityIjk[DindexInIjk];
             const double TiikTjjk = denseThirdHere[DiNparams + Dk] + denseThirdHere[DjNparams + Dk];
-            TijkHere[pairStart + Dindex] = taylor3[3*Dk];// - 0*TiikTjjk/2;
+            TijkHere[pairStart + Dindex] = taylor3[3*Dk] - TiikTjjk;
           }           
         }
       } // Dpair
@@ -207,7 +204,7 @@ Rcpp::List thirdStrata(
           const size_t rowHere = colStart + Dj;
 
           hessianOutHere[rowHere] += taylor3[indexHere+1];
-          thirdDiagOutHere[rowHere] += taylor3[indexHere];
+          thirdDiagOutHere[rowHere] += 2*taylor3[indexHere];
         }
       } else { // not dense
 
@@ -215,7 +212,7 @@ Rcpp::List thirdStrata(
         for(size_t Di=pNS[Dk]; Di<nsEnd; Di++){
           const size_t indexHere = 3*iNS[Di];
           const size_t allHere = matchNS[Di];
-          thirdDiagOutHere[allHere] += taylor3[indexHere];
+          thirdDiagOutHere[allHere] += 2*taylor3[indexHere];
         } // Di
 
         const size_t fullEnd = pFull[Dk+1];

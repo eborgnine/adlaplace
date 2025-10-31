@@ -36,24 +36,30 @@ thirdDeriv = function(x, data, config, adFun, extra=FALSE) {
   if(identical(config$dense, TRUE)) {
 
 
-    thirdTensorList = mapply(function(group_sparsity, Tijk)
+    thirdTensorList = parallel::mcmapply(function(group_sparsity, Tijk, Nparameters)
       {
         Npairs = nrow(group_sparsity$third$pairs)
         resultIJK = as.data.frame(t(apply(cbind(group_sparsity$third$pairs[
             rep(1:Npairs, each=Nparameters), c('i','j')],
           k=rep(seq(0, len=Nparameters), Npairs)), 1, sort)))
+                  resultIJK = as.data.frame(t(apply(resultIJK, 1, sort)))
           colnames(resultIJK) = c('i','j','k')
           duplicatedHere = duplicated(resultIJK)
           resultIJK$Tijk = Tijk
-        result = resultIJK[!duplicatedHere,]
-        result = result[result$Tijk != 0, ]        
+          result = resultIJK[resultIJK$Tijk != 0, ,drop=FALSE]        
+          Nunique = apply(result[,c('i','j','k')], 1, lengthUnique)
+          result = result[Nunique == 3, ]
+#          result = result[order(result$i, result$j, result$k), ]
+          result = result[!duplicated(result[,c('i','j','k'),]),,drop=FALSE]
+          result
       }, group_sparsity = config$group_sparsity, Tijk = resThird$Tijk,
-      SIMPLIFY=FALSE
+      MoreArgs = list(Nparameters = Nparameters),
+      SIMPLIFY=FALSE, mc.cores = config$num_threads
     )
 
-  thirdDiag = expand.grid(i=seq(0, len=Nparameters), k=seq(0, len=Nparameters))
-  thirdDiag$j = thirdDiag$i
-  thirdDiag$Tijk = as.vector(resThird$diag)
+  diagMat = matrix(resThird$diag, Nparameters)
+  thirdDiag = data.frame(k=c(row(diagMat))-1, j=c(col(diagMat))-1, Tijk = c(diagMat))
+  thirdDiag$i= thirdDiag$j
 
   fullHessian = matrix(resThird$second, Nparameters)
 
@@ -85,19 +91,16 @@ thirdDeriv = function(x, data, config, adFun, extra=FALSE) {
 
 
   thirdTensorDf = do.call(rbind, thirdTensorList)
-  thirdTensorDf = cbind(as.data.frame(t(apply(thirdTensorDf[,c('i','j','k')], 1, sort))), thirdTensorDf[,'Tijk',drop=FALSE])
-  colnames(thirdTensorDf) = c('i','j','k','Tijk')
+#  thirdTensorDf = cbind(as.data.frame(t(apply(thirdTensorDf[,c('i','j','k')], 1, sort))), thirdTensorDf[,'Tijk',drop=FALSE])
+#  colnames(thirdTensorDf) = c('i','j','k','Tijk')
 
   thirdTensorAgg = aggregate(
     thirdTensorDf[,'Tijk', drop=FALSE], 
     as.data.frame(thirdTensorDf[,c('i','j','k')]), 
     sum)
 
-  # get rid of diagonals, only has an effect if dense=TRUE
-  Nunique = apply(thirdTensorAgg[,c('i','j','k')], 1, lengthUnique)
-  thirdTensorAgg = thirdTensorAgg[Nunique == 3, ]
 
-  thirdAll = rbind(thirdTensorAgg, thirdDiag)
+  thirdAll = rbind(thirdTensorAgg, thirdDiag[,colnames(thirdTensorAgg)])
   thirdAll = thirdAll[order(thirdAll$i, thirdAll$j, thirdAll$k),]
   thirdAll = thirdAll[abs(thirdAll$Tijk)> .Machine$double.eps, ]
   colnames(thirdAll) = gsub("Tijk", "x", colnames(thirdAll))

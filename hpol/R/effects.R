@@ -67,7 +67,7 @@ f <- function(x, model = c("iwp", "hiwp", "fpoly", "rpoly", "hfpoly", "hrpoly", 
 
 
 
-.my_theta_init <- 0.1
+.my_theta_init <- -2
 
 #' @rdname effects_and_utilities 
 #' @export

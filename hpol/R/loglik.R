@@ -70,7 +70,7 @@ loglik <- function(
     result$invHessian = Matrix::solve(result$cholHessian)
 
     result$halfLogDet = drop(Matrix::determinant(
-      result$cholHessian, log=TRUE, sqrt=TRUE
+      result$cholHessian, log=TRUE #, sqrt=TRUE
     )$modulus)
 
     result$minusLogLik = result$fval +

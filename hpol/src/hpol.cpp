@@ -22,6 +22,7 @@ double jointLogDens(
   std::vector<double> Qpart(config.num_threads);
   CppAD::vector<double> gammaScaled(data.Ngamma);
 
+  const size_t NqDiag = data.Qdiag.size();
 
   omp_set_num_threads(config.num_threads);
 
@@ -54,7 +55,7 @@ double jointLogDens(
 
   // Q diag.  
         #pragma omp for nowait
-      for(size_t D=0;D<data.Ngamma;D++) {
+      for(size_t D=0;D<NqDiag;D++) {
         size_t mapHere = data.map[D];
 
         gammaScaled[D] = latent.gamma[D] / latent.theta[mapHere];

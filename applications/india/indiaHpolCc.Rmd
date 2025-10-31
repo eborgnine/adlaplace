@@ -87,7 +87,7 @@ library('hpolcc')
 # load("dataMedSimple.RData")
 
 # add day iid
-fitD <- hpolcc::hnlm(
+res <- hpolcc::hnlm(
   formula= medical ~ #f(date, model='iid') +
 #    f(sqrtPm, model='hiwp', ref_value = 8, p=2, 
 #      knots = seq(0,32, by=2),
@@ -99,7 +99,8 @@ fitD <- hpolcc::hnlm(
  control=list(maxit=1000, start.trust.radius = 1, prec=1e-6, stop.trust.radius = 1e-9,
         cg.tol = 1e-6, report.level=4, report.freq=1, report.header.freq=10, report.precision=7),
   control_inner=list(report.level=0),
-  dirichlet= TRUE, config = list(num_threads=parallel::detectCores()),
+  dirichlet= TRUE, 
+  config = list(transform_theta = TRUE, num_threads=parallel::detectCores(),Nclusters = 1),
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
   for_dev=TRUE, verbose=TRUE
   )
@@ -116,13 +117,129 @@ abline(h = fitD$groups$groups$p,
        lty = 1)
 ```
 
+```{r checkDeriv}
+library('hpolcc')
+adFun = getAdFun(res$gamma_start, res$tmb_data, res$config)
+adFunFull = getAdFun(res$parameters_and_gamma, res$tmb_data, res$config)
+
+res$config$dense = TRUE
+estHere= loglik(res$parameters, res$gamma_start, res$tmb_data, res$config, adFun, adFunFull, check=TRUE)
+quantile(grad(estHere$solution, res$tmb_data, res$config, adFun))
+
+bob2 = thirdDeriv(
+      estHere$fullParameters, data=res$tmb_data, config=res$config, adFunFull,
+      extra=TRUE)
+
+SparAll = 1:length(res$parameters_and_gamma)
+Sgamma = seq(length(res$config$beta)+1, len=nrow(res$tmb_data$ATp)   )
+SparOnly = setdiff(SparAll, Sgamma)
+DparL = 1;DparL2 = SparOnly[DparL]
+bnd = 10^(floor(log10(abs(res$parameters[DparL])))-1)
+SxL = seq(-bnd,bnd, len=6) + res$parameters[DparL]
+SxL1 = SxL[-1] - diff(SxL)/2
+parMat2 = as.data.frame(matrix(res$parameters, ncol=length(SxL), nrow=length(res$parameters), byrow=FALSE))
+parMat2[DparL,] = SxL
+
+config2 = res$config;config2$dense=TRUE
+theL = mapply(
+  loglik,
+  parameters = parMat2,
+  MoreArgs = list(
+    gamma_start =estHere$solution, data = res$tmb_data, config=config2, adFun = adFun,
+    adFunFull = adFunFull, control = list(report.level=10, report.freq=5), check=FALSE),
+  SIMPLIFY=FALSE
+)
+
+estHere$deriv[DparL,]
+
+plot(SxL, unlist(lapply(theL, "[[", "fval")))
+
+plot(SxL1, diff(unlist(lapply(theL, "[[", "fval")))/mean(diff(SxL)))
+points(SxL, unlist(lapply(theL, function(xx) xx$deriv[DparL,'theta'])), col='red')
+abline(h=estHere$deriv[DparL,'theta'])
+
+
+
+theD = unlist(lapply(theL, function(xx) xx$halfLogDet))
+plot(SxL, theD)
+
+plot(SxL1, diff(theD)/mean(diff(SxL)), xlim = range(SxL), type='o')
+points(SxL, unlist(lapply(theL, function(xx) xx$deriv[DparL,'det'])), col='red')
+
+abline(h=theL[[3]]$deriv[DparL, 'det'])
+
+xx = solve(theL[[3]]$hessian) %*% Matrix::as.matrix(bob2$dH[[DparL]]) 
+sum(Matrix::diag(xx))
+
+
+
+theU = do.call(cbind, lapply(theL, "[[", "solution"))
+dU = apply(theU, 1, diff)
+DuIndex=1
+
+which.max(abs(dU[3,] - bob2$dUhat[,DparL]))
+
+plot(SxL1, dU[,DuIndex]/mean(diff(SxL)))
+abline(h=bob2$dUhat[DuIndex, DparL]);abline(v=res$parameters[DparL])
+
+
+
+
+
+theH = lapply(theL, '[[', 'hessian')
+theH = do.call(abind::abind, c(lapply(theH, Matrix::as.matrix), list(along=3)))
+dH = apply(theH, 1:2, diff)/mean(diff(SxL))
+
+round(bob2$dH[[DparL]][1:35,1:16], 1)
+round(dH[3,1:35,1:16], 1)
+
+D1 = 14;D2 = 27
+plot(SxL1, dH[,D1, D2])
+abline(h=bob2$dH[[DparL]][D1, D2]);abline(v=res$parameters[DparL])
+
+xx = as.matrix(bob2$dH[[DparL]]) - dH[3,,] 
+which.max(apply(abs(xx), 1, sum))
+which.max(abs(xx[,14]))
+
+cbind(round(bob2$dH[[DparL]][10:30,12:17],3),
+NA,
+round(dH[3,10:30,12:17],3))
+
+theD = unlist(lapply(theL, function(xx) Matrix::determinant(xx$hessian, log=TRUE)$modulus))
+plot(SxL, theD)
+
+plot(SxL1, diff(theD)/mean(diff(SxL)), xlim = range(SxL))
+abline(h=estHere$deriv[DparL,'det'], lwd=3, col='yellow')
+abline(h=bob2$dDet[DparL]);abline(v=res$parameters[DparL])
+points(SxL, unlist(lapply(theL, function(xx) xx$deriv[DparL, 'det'])), col='red')
+
+xx = bob2$invHessianRandom %*% dH[3,,] 
+sum(Matrix::diag(xx))
+xx = bob2$invHessianRandom %*% Matrix::as.matrix(bob2$dH[[DparL]]) 
+sum(Matrix::diag(xx))
+estHere$deriv[DparL,'det']
+
+theF = unlist(lapply(theL, '[[', 'fval'))
+plot(SxL, theF)
+
+plot(SxL1, diff(theF)/mean(diff(SxL)))
+
+estHere$deriv[DparL, ]
+
+
+  multGammaParam = bob2$invHessianRandom %*% bob2$fullHessian[Sgamma, -Sgamma]
+as.vector(bob2$first[Sgamma] %*% multGammaParam )
+
+```
+
 ```{r dostuff}
 library(hpolcc)
 
+adFun = getAdFun(res$gamma_start, res$tmb_data, res$config)
 
-adfun = fitD$adfun()
-grad2 = grad(fitD$start_gamma, data=fitD$tmb_data, config=fitD$config, adfun=adfun)
-hes2 = hessian(fitD$start_gamma, data=fitD$tmb_data, config=fitD$config, adfun=adfun)
+
+grad2 = grad(res$start_gamma, data=res$tmb_data, config=res$config, adfun=adfun)
+hes2 = hessian(res$start_gamma, data=res$tmb_data, config=res$config, adfun=adfun)
 
 innerRes = trustOptim::trust.optim(
     x = fitD$start_gamma, 
