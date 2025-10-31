@@ -108,11 +108,11 @@ rawT = res$config$group_sparsity[[1]]$third$pairs[
   rep(
     1:nrow(res$config$group_sparsity[[1]]$third$pairs), 
     each = 137), c('i','j')]
-rawT$k = rep(seq(0,len=137), nrow(res$config$group_sparsity[[1]]$third$pairs)) 
+rawT$k = rep(seq(0L,len=137), nrow(res$config$group_sparsity[[1]]$third$pairs)) 
 rawT$x = round(bob$Tijk[[1]],4)
 
 
-Dpar = 2
+Dpar = 1
 Sx = seq(-0.001, 0.001, len=6) + res$parameters[Dpar]
 Sx1 = Sx[-1] - diff(Sx)/2
 parMat = as.data.frame(matrix(res$parameters_and_gamma, ncol=length(Sx), nrow=length(res$parameters_and_gamma), byrow=FALSE))
@@ -129,14 +129,45 @@ theH2 = lapply(theH, Matrix::as.matrix)
 theH3 = do.call(abind::abind, c(theH2, list(along=3)))
 theT = apply(theH3, 1:2, diff)/mean(diff(Sx))
 
+rawT$Dij = rawT$Dji = rawT$Dik = rawT$Dki = rawT$Djk = rawT$Dkj = NA
+for(D in 1:nrow(rawT)) {
+  rawT[D, 'Dij'] = bob$diagMat[1+rawT[D, 'i'], 1+rawT[D, 'j']]
+  rawT[D, 'Dji'] = bob$diagMat[1+rawT[D, 'j'], 1+rawT[D, 'i']]
+  rawT[D, 'Dik'] = bob$diagMat[1+rawT[D, 'i'], 1+rawT[D, 'k']]
+  rawT[D, 'Dki'] = bob$diagMat[1+rawT[D, 'k'], 1+rawT[D, 'i']]
+  rawT[D, 'Djk'] = bob$diagMat[1+rawT[D, 'j'], 1+rawT[D, 'k']]
+  rawT[D, 'Dkj'] = bob$diagMat[1+rawT[D, 'k'], 1+rawT[D, 'j']]
+}
+
+rawT$Tijk = NA
+for(D in which(rawT$i == (Dpar-1))){
+  rawT[D, 'Tijk'] = theT[3, 1+rawT[D, 'j'], 1+rawT[D, 'k']]
+}
+for(D in which(rawT$j == (Dpar-1))){
+  rawT[D, 'Tijk'] = theT[3, 1+rawT[D, 'i'], 1+rawT[D, 'k']]
+}
+for(D in which(rawT$k == (Dpar-1))){
+  rawT[D, 'Tijk'] = theT[3, 1+rawT[D, 'i'], 1+rawT[D, 'j']]
+}
+
+print(format(rawT[1:9,], digits = 3, nsmall = 3), row.names = FALSE)
 
 round(diag(theT[3,,])[1:10],4)
 round(bob$diagMat[Dpar, 1:10], 4)*2
 
+rawT[c(1,8),]
+round(bob$diagMat[1:8,1:8],3)
+theT[1, 8, 8]
+theT[1, 1, 8]
+
+bob$diagMat[8,8] + 2*theT[3,8,8]
+
+bob$diagMat[1,8] + bob$diagMat[2,8] + 2*theT[3,8,2]
+bob$diagMat[1,8] + bob$diagMat[3,8] + 2*theT[3,8,3]
+
 
 
 Dpar1 = 3;Dpar2=8
-
 
 Tiik = bob$diagMat
 
