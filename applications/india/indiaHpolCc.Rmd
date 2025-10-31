@@ -84,7 +84,7 @@ save(dataMedSimple, file='dataMedSimple.RData')
 
 
 library('hpolcc')
-# load("dataMedSimple.RData")
+load("dataMedSimple.RData")
 
 # add day iid
 res <- hpolcc::hnlm(
@@ -100,7 +100,7 @@ res <- hpolcc::hnlm(
         cg.tol = 1e-6, report.level=4, report.freq=1, report.header.freq=10, report.precision=7),
   control_inner=list(report.level=0),
   dirichlet= TRUE, 
-  config = list(transform_theta = TRUE, num_threads=parallel::detectCores(),Nclusters = 1),
+  config = list(transform_theta = TRUE, num_threads=parallel::detectCores(),Nclusters = 64),
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
   for_dev=TRUE, verbose=TRUE
   )
@@ -109,10 +109,10 @@ res <- hpolcc::hnlm(
 
 ```{r sparsePlot}
 par(mar=c(3,3,0,0), bty='n')
-image(seq(0, len = nrow(fitD$groups$firstDeriv)),
-      seq(0, len = ncol(fitD$groups$firstDeriv)),
-      as.matrix(fitD$groups$firstDeriv[, 1 + fitD$groups$groups$i]))
-abline(h = fitD$groups$groups$p,
+image(seq(0, len = nrow(res$groups$firstDeriv)),
+      seq(0, len = ncol(res$groups$firstDeriv)),
+      as.matrix(res$groups$firstDeriv[, 1 + res$groups$groups$i]))
+abline(h = res$groups$groups$p,
        col = 'blue',
        lty = 1)
 ```
@@ -123,8 +123,12 @@ adFun = getAdFun(res$gamma_start, res$tmb_data, res$config)
 adFunFull = getAdFun(res$parameters_and_gamma, res$tmb_data, res$config)
 
 res$config$dense = TRUE
-estHere= loglik(res$parameters, res$gamma_start, res$tmb_data, res$config, adFun, adFunFull, check=TRUE)
-quantile(grad(estHere$solution, res$tmb_data, res$config, adFun))
+estHere= loglik(res$parameters, res$gamma_start, res$tmb_data, res$config, adFun, adFunFull, check=FALSE)
+
+mygrad = grad(estHere$fullParameters, data=res$tmb_data, config=res$config, adFun = adFunFull)
+mygrad2 = numDeriv::grad(
+  grad, estHere$fullParameters, data=res$tmb_data, config=res$config, adFun = adFunFull
+)
 
 bob2 = thirdDeriv(
       estHere$fullParameters, data=res$tmb_data, config=res$config, adFunFull,
