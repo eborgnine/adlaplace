@@ -180,7 +180,7 @@ hnlm <- function(formula,
   if (dirichlet) {
     theta_info$var = c(theta_info$var, 'overdisp')
     theta_info$map = c(theta_info$map, max(theta_info$map) + 1)
-    dirichletStart = 0.01
+    dirichletStart = exp(-4)
     theta_info$init <- c(theta_info$init, dirichletStart)
   } 
 
