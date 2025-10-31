@@ -38,16 +38,16 @@ BEGIN_RCPP
 END_RCPP
 }
 // jointLogDens
-double jointLogDens(Rcpp::NumericVector x, const Rcpp::List data, const Rcpp::List config, SEXP adFun);
-RcppExport SEXP _hpolcc_jointLogDens(SEXP xSEXP, SEXP dataSEXP, SEXP configSEXP, SEXP adFunSEXP) {
+double jointLogDens(Rcpp::NumericVector parameters, const Rcpp::List data, const Rcpp::List config, SEXP adFun);
+RcppExport SEXP _hpolcc_jointLogDens(SEXP parametersSEXP, SEXP dataSEXP, SEXP configSEXP, SEXP adFunSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type x(xSEXP);
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type parameters(parametersSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List >::type data(dataSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List >::type config(configSEXP);
     Rcpp::traits::input_parameter< SEXP >::type adFun(adFunSEXP);
-    rcpp_result_gen = Rcpp::wrap(jointLogDens(x, data, config, adFun));
+    rcpp_result_gen = Rcpp::wrap(jointLogDens(parameters, data, config, adFun));
     return rcpp_result_gen;
 END_RCPP
 }

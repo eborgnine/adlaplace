@@ -57,7 +57,7 @@ loglik <- function(
       fn = jointLogDens,
       gr = grad,
       alertConvergence=FALSE, 
-      data=data, config = config,
+      data=data, config = config, adFun=adFun,
       control = list(maxit = 1e3, M = 10, trace=TRUE, checkGrad=TRUE))  # M = nonmonotone history
     result$solution = mleB$par
     result$hessian = hessian(mleB$par, data=data, config=config)

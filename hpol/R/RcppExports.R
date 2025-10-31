@@ -12,8 +12,8 @@ getAdFun <- function(x, data, config) {
 }
 
 #' @export
-jointLogDens <- function(x, data, config, adFun = NULL) {
-    .Call('_hpolcc_jointLogDens', PACKAGE = 'hpolcc', x, data, config, adFun)
+jointLogDens <- function(parameters, data, config, adFun = NULL) {
+    .Call('_hpolcc_jointLogDens', PACKAGE = 'hpolcc', parameters, data, config, adFun)
 }
 
 #' @export

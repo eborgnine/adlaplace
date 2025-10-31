@@ -11,12 +11,12 @@ const double sqrtDblEpsilon = std::sqrt(DBL_EPSILON);
 // to do: put Q in adpack
 
 double jointLogDens(
-  std::vector<double> x, 
+  std::vector<double> parameters, 
   Data& data, 
   Config& config
   ) {
 
-  auto latent = unpack_params(x, data, config);
+  auto latent = unpack_params(parameters, data, config);
 
   std::vector<double> logLik(config.num_threads);
   std::vector<double> Qpart(config.num_threads);
@@ -510,7 +510,7 @@ SEXP getAdFun(
 //' @export
 // [[Rcpp::export]]
 double jointLogDens(
-  Rcpp::NumericVector x, 
+  Rcpp::NumericVector parameters, 
   const Rcpp::List data, 
   const Rcpp::List config,
   SEXP adFun = R_NilValue)
@@ -518,7 +518,7 @@ double jointLogDens(
 
   Data   dat(data);
   Config cfg(config);
- std::vector<double> parametersC = Rcpp::as<std::vector<double>>(x);
+ std::vector<double> parametersC = Rcpp::as<std::vector<double>>(parameters);
 
   double result= jointLogDens(
     parametersC,
