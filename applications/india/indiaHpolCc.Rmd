@@ -125,9 +125,12 @@ adFunFull = getAdFun(res$parameters_and_gamma, res$tmb_data, res$config)
 res$config$dense = TRUE
 estHere= loglik(res$parameters, res$gamma_start, res$tmb_data, res$config, adFun, adFunFull, check=FALSE)
 
-mygrad = grad(estHere$fullParameters, data=res$tmb_data, config=res$config, adFun = adFunFull)
+saveRDS(estHere$fullParameters, file='fp.rds')
+x = readRDS("fp.rds")
+
+mygrad = grad(x, data=res$tmb_data, config=res$config, adFun = adFunFull)
 mygrad2 = numDeriv::grad(
-  grad, estHere$fullParameters, data=res$tmb_data, config=res$config, adFun = adFunFull
+  grad, x, data=res$tmb_data, config=res$config, adFun = adFunFull
 )
 
 bob2 = thirdDeriv(
