@@ -69,7 +69,7 @@ dataMedSimple =
   deaths[
     deaths$date >= as.Date('2006/1/1') &
     format(deaths$date, '%b%d') != 'Jan01'
-    & deaths$tempClean >= (0)  & deaths$ecoRegion %in% 1:10 #setdiff(1:20, c(1,7,19)) # regions 1, 7, 19 have some very low temperatures.
+    & deaths$tempClean >= (0) # & deaths$ecoRegion %in% 1:10 #setdiff(1:20, c(1,7,19)) # regions 1, 7, 19 have some very low temperatures.
     , ]
 save(dataMedSimple, file='dataMedSimple.RData')
 ```
@@ -261,17 +261,24 @@ innerRes = trustOptim::trust.optim(
 ```
 
 ```{r morestuff}
-cache = fitD$cache
+cache = res$cache
 assign("file", "india.txt", cache)
+assign("gamma_start", res$gamma_start, cache)
 if(file.exists(get("file", cache))) file.remove(get("file", cache))
 
-mleX =  trustOptim::trust.optim(
-    x = c(0.021726796, -2.118758e-04 ,-4.253132, -7.918471, -5.099570 ,-7.996464, -2.621749), #fitD$parameters, #c(1, 0.3, log(c(0.05, 0.001, 0.05, 0.001))),
+wrappers_outer$fn(res$parameters,    data=res$tmb_data, config = res$config, cache =  cache, control_inner = res$control_inner,
+    adFun = adFun, adFunFull = adFunFull)
+
+
+mleX =  optim(
+    par = res$parameters, #fitD$parameters, #c(1, 0.3, log(c(0.05, 0.001, 0.05, 0.001))),
     fn = wrappers_outer$fn,
-    gr = wrappers_outer$gr,
-    method = 'SR1',
-    control = list(start.trust.radius = 0.05, REPORT=1, trace=10),
-    data=fitD$tmb_data, config = fitD$config, cache =  cache, controlInner = fitD$control_inner
+    method = 'BFGS',
+#    control = list(start.trust.radius = 0.05, REPORT=1, trace=10),
+    lower = c(-0.1, -0.1, -6, -6, -6, -6, -6),
+    upper = c(0.1, 0.1, -1, -1, -1, -1, -1),
+    data=res$tmb_data, config = res$config, cache =  cache, control_inner = res$control_inner,
+    adFun = adFun, adFunFull = adFunFull
   )
 mleX$solution
 
