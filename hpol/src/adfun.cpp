@@ -118,7 +118,7 @@ GroupPack getAdFunQ(
   const Rcpp::List sparsityQ = config.sparsity["Q"];
 
   const size_t Nparams = parameters.size();
-  const bool onlyRandom = Nparams == data.Ngamma;
+  const bool onlyRandom = (Nparams == data.Ngamma);
 
   if(config.verbose) Rcpp::Rcout << "q random " << onlyRandom << " Nparams " << Nparams;
 
@@ -128,6 +128,7 @@ GroupPack getAdFunQ(
 
   const Rcpp::IntegerVector rowQns = nsQ["i"]; 
   const Rcpp::IntegerVector colQns = nsQ["j"]; 
+  const Rcpp::IntegerVector pNs = nsQ["p"]; 
   const Rcpp::IntegerVector matchQns = nsQ["match"]; 
 
   const auto pattern = build_pattern_from_R(rowQns, colQns, Nparams);
@@ -150,7 +151,7 @@ GroupPack getAdFunQ(
       nsRowCol[1] = Rcpp::as<std::vector<size_t>>(colQns);
       nsRowCol[2] = Rcpp::as<std::vector<size_t>>(matchQns);
 
-      std::vector<size_t> pvecNs = Rcpp::as<std::vector<size_t>>(pOut);
+      std::vector<size_t> pvecNs = Rcpp::as<std::vector<size_t>>(pNs);
 
 
       CppAD::sparse_hessian_work work;

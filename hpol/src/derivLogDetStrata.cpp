@@ -16,9 +16,9 @@ Rcpp::List thirdStrata(
 
   const std::vector<double>& x_val = parameters;
 
-  const int Nparams = parameters.size();
-  const int NparamsSq = Nparams*Nparams;
-  const int Ngroup = fun.size();
+  const size_t Nparams = parameters.size();
+  const size_t NparamsSq = Nparams*Nparams;
+  const size_t Ngroup = fun.size();
 
   bool dense = config.dense;
 
@@ -30,6 +30,11 @@ Rcpp::List thirdStrata(
   const Rcpp::IntegerVector iNsAll = nsAll["i"];
   const size_t NoutRowsT = dense?NparamsSq:iNsAll.size();
   const size_t NoutRowsH = dense?NparamsSq:iFullAll.size();
+  const Rcpp::List thirdAll = config.sparsity["third"];
+  const Rcpp::List pairsAll = thirdAll["pairs"];
+  const Rcpp::NumericVector pairsIall = pairsAll["i"];
+  const size_t NpairsAll = pairsIall.size();
+  const size_t NpairsAllNparams = NpairsAll*Nparams;
 
   std::vector<double> hessianOut(NoutRowsH, 0.0);
   std::vector<double> thirdDiagOut(NoutRowsT, 0.0);
@@ -56,6 +61,9 @@ Rcpp::List thirdStrata(
     std::vector<double> direction(Nparams, 0.0);
     const std::vector<double> directionZeros(Nparams, 0.0);
 
+    std::vector<double> TijkHere;
+
+
 # pragma omp for nowait
     for(size_t Dgroup = 0; Dgroup < Ngroup; ++Dgroup) {
 
@@ -74,7 +82,8 @@ Rcpp::List thirdStrata(
 
 //      Rcpp::Rcout << "group " << Dgroup << " " << iNS[0] << "a " << matchNS[0] << "b " << pNS[0] << "c " << iFull[0] << "d " << matchFull[0] << "e " << pFull[0] << "kk" << pFull[1] << "f\n";
 
-      for(int Dk=0; Dk < Nparams; ++Dk) {
+      // diagonals
+      for(size_t Dk=0; Dk < Nparams; ++Dk) {
 
         std::fill(direction.begin(), direction.end(), 0.0);
         direction[Dk]  = 1.0;     
@@ -86,14 +95,14 @@ Rcpp::List thirdStrata(
 
     // store dense
         const size_t colStart = Dk * Nparams;
-        for(int Dj=0; Dj<Nparams; Dj++){
+        for(size_t Dj=0; Dj<Nparams; Dj++){
           const size_t indexHere = 3*Dj;
           const size_t rowHere = colStart + Dj;
           // first column is T_kii/2 + H_ki
-          const double Hhere = taylor3[indexHere+1];
           const double xHere = taylor3[indexHere];//2*taylor3[indexHere]; - Hhere;
           denseThirdHere[rowHere] = xHere;
           if(dense) {
+            const double Hhere = taylor3[indexHere+1];
             hessianOutHere[rowHere] += Hhere;
             thirdDiagOutHere[rowHere] += 2*xHere;
           }
@@ -117,8 +126,8 @@ Rcpp::List thirdStrata(
       } // else is sparse
 
       if(Dk == 0) {
-        for(int Dj=0; Dj<Nparams; Dj++){
-          const int indexHere = 3*Dj;
+        for(size_t Dj=0; Dj<Nparams; Dj++){
+          const size_t indexHere = 3*Dj;
           gradientOutHere[Dj] += taylor3[indexHere+2];
         }
       }
@@ -132,11 +141,10 @@ Rcpp::List thirdStrata(
       auto& sparsityIjk = third[Dgroup].ijkK;
 
       const size_t Npairs = pairsI.size();
-
       const size_t NtijkHere = dense?Nparams*Npairs:sparsityIjk.size();
-      std::vector<double> TijkHere(NtijkHere);
+      TijkHere = std::vector<double>(NtijkHere);
 
-      for(int Dpair=0; Dpair < Npairs; ++Dpair) {
+      for(size_t Dpair=0; Dpair < Npairs; ++Dpair) {
 
         const size_t Di = pairsI[Dpair];
         const size_t Dj = pairsJ[Dpair];
@@ -174,7 +182,8 @@ Rcpp::List thirdStrata(
       TijkOut[Dgroup] = TijkHere;
   } //group
 
-
+// get rid of this barrier?
+#pragma omp barrier
 # pragma omp single
   {
         Qfun.fun.Forward(0, x_val);
@@ -187,7 +196,7 @@ Rcpp::List thirdStrata(
         auto& pFull = Qfun.outP;
 
 
-      for(int Dk=0; Dk < Nparams; ++Dk) {
+      for(size_t Dk=0; Dk < Nparams; ++Dk) {
         std::fill(direction.begin(), direction.end(), 0.0);
         direction[Dk]  = 1.0;     
         Qfun.fun.Forward(1, direction);
@@ -199,12 +208,12 @@ Rcpp::List thirdStrata(
       if(dense) {
     // store dense
         const size_t colStart = Dk * Nparams;
-        for(int Dj=0; Dj<Nparams; Dj++){
+        for(size_t Dj=0; Dj<Nparams; Dj++){
           const size_t indexHere = 3*Dj;
           const size_t rowHere = colStart + Dj;
 
           hessianOutHere[rowHere] += taylor3[indexHere+1];
-          thirdDiagOutHere[rowHere] += 2*taylor3[indexHere];
+          thirdDiagOutHere[rowHere] += 2*(taylor3[indexHere]);
         }
       } else { // not dense
 
@@ -212,7 +221,7 @@ Rcpp::List thirdStrata(
         for(size_t Di=pNS[Dk]; Di<nsEnd; Di++){
           const size_t indexHere = 3*iNS[Di];
           const size_t allHere = matchNS[Di];
-          thirdDiagOutHere[allHere] += 2*taylor3[indexHere];
+          thirdDiagOutHere[allHere] += 2*(taylor3[indexHere]);
         } // Di
 
         const size_t fullEnd = pFull[Dk+1];
@@ -223,8 +232,8 @@ Rcpp::List thirdStrata(
         }
       } // else is sparse
       if(Dk == 0) {
-        for(int Dj=0; Dj<Nparams; Dj++){
-          const int indexHere = 3*Dj;
+        for(size_t Dj=0; Dj<Nparams; Dj++){
+          const size_t indexHere = 3*Dj;
           gradientOutHere[Dj] += taylor3[indexHere+2];
         }
       }
@@ -232,6 +241,8 @@ Rcpp::List thirdStrata(
     } // Dk
   } // Q
 
+#pragma omp barrier
+  
 # pragma omp critical
   {
     for(size_t Dcol=0;Dcol<Nparams;Dcol++) {
@@ -296,11 +307,11 @@ Rcpp::List thirdStrata(
 
 //  const Rcpp::IntegerVector strataI = strata["i"], strataP = strata["p"];
   const Rcpp::List sparsity = configC.group_sparsity;
-  const int Ngroup = sparsity.size();
+  const size_t Ngroup = sparsity.size();
 
   std::vector<ThirdPack> third(Ngroup);
 
-for (int g = 0; g < Ngroup; ++g) {
+for (size_t g = 0; g < Ngroup; ++g) {
   Rcpp::List spHere   = sparsity[g];
   Rcpp::List three    = spHere["third"];
   Rcpp::List pairs    = three["pairs"];

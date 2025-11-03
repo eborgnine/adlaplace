@@ -6,6 +6,42 @@ lengthUnique = function(xx) {
 
 firstTwoElements = function(xx, k) sort(c(xx[xx!=k], rep(k,2))[1:2] )
 
+thirdTensorSparse = function(third, sparsity) {
+    ijkHere = as.matrix(sparsity$third$ijk[,c('i','j','k')])
+    ijkHere = Rfast::rowSort(ijkHere)
+    colnames(ijkHere) = c('i','j','k')
+    ijkHere = as.data.frame(ijkHere)
+    ijkHere$Tijk = third
+    ijkHere
+  }
+
+thirdTensorDense = function(group_sparsity, Tijk, Nparameters)
+      {
+
+
+        Npairs = nrow(group_sparsity$third$pairs)
+        matHere = as(Matrix::Matrix(Tijk, ncol=Npairs),'TsparseMatrix')
+        matHerePairK = cbind(k = matHere@i, pair=matHere@j)
+
+        toApply = cbind(
+        	as.matrix(as.data.frame(
+        		group_sparsity$third$pairs[c('i','j')]
+        	))[1+matHerePairK[,'pair'],],
+        	matHerePairK[,'k', drop=FALSE]
+        )
+
+        resultIJK = Rfast::rowSort(toApply)
+        colnames(resultIJK) = c('i','j','k')
+        duplicatedHere = duplicated(resultIJK)
+        Nunique = apply(resultIJK, 1, Rfast::sort_unique.length)
+
+        toKeep = (!duplicatedHere) & (Nunique == 3)
+
+				resultIJK = as.data.frame(resultIJK[toKeep,])          
+        resultIJK$Tijk = matHere@x[toKeep]
+        resultIJK
+      }
+
 thirdTensor = function(k, third, N) {
 	thirdHere = third[apply(third[,c('i','j','k')] == k, 1, any), ]
 	if(!nrow(thirdHere)) return(NULL)
@@ -50,13 +86,13 @@ getDh = function(pair, third, Sgamma1, dUhat, Nparameters) {
 }
 
 forDhList = function(Tijk, dUp, Sgamma1) {
-      if(is.null(Tijk)) return(NULL)
+      if(is.null(Tijk)) return(matrix(nrow=0, ncol=2+length(dUp)))
       There =try( as(Tijk[Sgamma1,Sgamma1], 'TsparseMatrix'))
       cbind(j=There@i, i=There@j, outer(There@x, dUp))
     }
 
 forTijpAdd =    function(Tijk, Sgamma1) {
-  if(is.null(Tijk)) return(NULL)
+  if(is.null(Tijk)) return(matrix(nrow=0, ncol=3))
   There = as(Tijk[Sgamma1,Sgamma1], 'TsparseMatrix')
   cbind(i=There@i, j=There@j, x=There@x)
   }
