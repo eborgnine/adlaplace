@@ -271,11 +271,11 @@ wrappers_outer$fn(res$parameters,    data=res$tmb_data, config = res$config, cac
 
 
 mleX =  optim(
-    par = res$parameters, #fitD$parameters, #c(1, 0.3, log(c(0.05, 0.001, 0.05, 0.001))),
+    par = c(0.009,  0.012, -3, -7, -5, -6, -1),
     fn = wrappers_outer$fn,
-    method = 'BFGS',
+    method = 'L-BFGS-B',
 #    control = list(start.trust.radius = 0.05, REPORT=1, trace=10),
-    lower = c(-0.1, -0.1, -6, -6, -6, -6, -6),
+    lower = c(-0.1, -0.1, -8, -8, -8, -8, -8),
     upper = c(0.1, 0.1, -1, -1, -1, -1, -1),
     data=res$tmb_data, config = res$config, cache =  cache, control_inner = res$control_inner,
     adFun = adFun, adFunFull = adFunFull
