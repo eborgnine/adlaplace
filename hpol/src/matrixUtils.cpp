@@ -154,26 +154,28 @@ Rcpp::S4 assembleHessian(
     const Rcpp::List secondAll = config.sparsity["second"];
     const Rcpp::List outAll = onlyRandom?secondAll["random"]:secondAll["full"];
     const Rcpp::IntegerVector iAll = outAll["i"];
+    const Rcpp::IntegerVector jAll = outAll["j"];
+    const Rcpp::IntegerVector pAll = outAll["p"];
+    const size_t N = pAll.size()-1;
+
     const auto sizeH = iAll.size();
-    Rcpp::NumericVector hessianSum(sizeH);
+    Rcpp::NumericVector hessianSum(sizeH, 0.0);
 
 
-    for(size_t D=0;D < sizeH; D++) {
-      hessianSum[D] = 0;
-    }
+    //for(size_t D=0;D < sizeH; D++) {hessianSum[D] = 0;}
 
     for(size_t Dgroup = 0;Dgroup<Ngroups;++Dgroup) {
-
 
       const Rcpp::List sparsityHere = sparsity[Dgroup];
       const Rcpp::List secondHere = sparsityHere["second"];
       const Rcpp::List targetHere= onlyRandom?secondHere["random"]:secondHere["full"];
       const Rcpp::IntegerVector matchHere = targetHere["match"];
 
-      const std::vector<double> hessianOutHere = randomHessian[Dgroup];
+      const std::vector<double>& hessianOutHere = randomHessian[Dgroup];
       const size_t Nhere = matchHere.size();
       for(size_t D=0;D < Nhere; D++) {
-        hessianSum[matchHere[D]] += hessianOutHere[D];
+        const size_t indexHere = matchHere[D];
+        hessianSum[indexHere] += hessianOutHere[D];
       }
     } // groupd
 
@@ -186,13 +188,7 @@ Rcpp::S4 assembleHessian(
       hessianSum[matchHere[D]] += qHessian[D];
     }      
 
-    const Rcpp::List outList = onlyRandom?secondAll["random"]:secondAll["full"];
-    const Rcpp::IntegerVector outI = outList["i"];
-    const Rcpp::IntegerVector outJ = outList["j"];
-    const Rcpp::IntegerVector outP = outList["p"];
-    const size_t N = outP.size()-1;
-
-    Rcpp::S4 result = make_convert_gCmatrix(hessianSum, outI, outJ, N);
+    Rcpp::S4 result = make_convert_gCmatrix(hessianSum, iAll, jAll, N);
 
     return(result);
    

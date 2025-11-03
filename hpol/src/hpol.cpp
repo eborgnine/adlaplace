@@ -1,7 +1,7 @@
 
 #include"hpol.hpp"
 
-const double sqrtDblEpsilon = std::sqrt(DBL_EPSILON);
+const double sqrtDblEpsilon = DBL_EPSILON;//std::sqrt(DBL_EPSILON);
 
 
 //#define DEBUG
@@ -171,6 +171,8 @@ Rcpp::S4 hessian(
 
       const size_t Nhere = adpack[Dgroup].outRowCol[0].size();
       hessianOut[Dgroup] = std::vector<double>(Nhere);
+
+//      adpack[Dgroup].fun.Forward(0, parameters);
 
       adpack[Dgroup].fun.SparseHessian(parameters, w, 
         adpack[Dgroup].pattern, adpack[Dgroup].outRowCol[0], 

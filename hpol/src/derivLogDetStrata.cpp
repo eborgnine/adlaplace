@@ -222,6 +222,13 @@ Rcpp::List thirdStrata(
           hessianOutHere[allHere] += taylor3[indexHere+1];
         }
       } // else is sparse
+      if(Dk == 0) {
+        for(int Dj=0; Dj<Nparams; Dj++){
+          const int indexHere = 3*Dj;
+          gradientOutHere[Dj] += taylor3[indexHere+2];
+        }
+      }
+
     } // Dk
   } // Q
 
