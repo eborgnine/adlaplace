@@ -131,7 +131,8 @@ assign("file", "india.txt", cache)
 assign("gamma_start", res$gamma_start, cache)
 if(file.exists(get("file", cache))) file.remove(get("file", cache))
 
-bob = loglik(parameters=res$parameters, gamma_start = get("gamma_start", cache), data=res$tmb_data, config=res$config)
+bob = loglik(parameters=res$parameters, gamma_start = get("gamma_start", cache), data=res$tmb_data, 
+             config= modifyList(res$config, list(verbose = TRUE)))
 
 mleX =  trustOptim::trust.optim(
     x = res$parameters,
