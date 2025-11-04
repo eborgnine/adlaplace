@@ -133,7 +133,7 @@ if(file.exists(get("file", cache))) file.remove(get("file", cache))
 bob = hessian(res$parameters_and_gamma, data=res$tmb_data, adFun = adFunFull, config= res$config)
 
 
-bob = loglik(parameters=res$parameters, gamma_start = get("gamma_start", cache), data=res$tmb_data, config=res$config, deriv=0)
+bob = loglik(parameters=res$parameters, gamma_start = get("gamma_start", cache), data=res$tmb_data, config=res$config)
 
 mleX =  trustOptim::trust.optim(
     x = res$parameters,
