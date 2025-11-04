@@ -219,6 +219,11 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 						SIMPLIFY=FALSE, mc.cores=config$num_threads))
 				if(verbose) cat("done\n")
 
+					if('try-error' %in% class(sparsityList)) sparsityList = list(hessianByBlock2=hessianByBlock2, Sparams= Sparams, Sgamma1=Sgamma1,
+							hessianPairs = fullHessianPairs,
+							hessianPairsR = fullHessianPairsR, 
+							hessianPairsNs = fullHessianPairsNs,
+							hessianPairsRns = fullHessianPairsRNs)
 
 					result = list(
 						group_sparsity = sparsityList,

@@ -121,8 +121,7 @@ adFunFull = getAdFun(res$parameters_and_gamma, res$tmb_data, res$config)
 assign("file", "stuff.txt", res$cache)
 
 
-mleX =  #trustOptim::trust.optim
-    optim(
+mleX = optim(
     res$parameters,
     fn = wrappers_outer$fn,
     gr = wrappers_outer$gr,
@@ -140,6 +139,73 @@ mleXcheck = loglik(
   gamma_start = get("gamma_start", res$cache),
   config=res$config, data=res$tmb_data, adFunFull=adFunFull, deriv=0, check=FALSE)
 
+```
+
+
+
+```{r theResults}
+result = mleX
+result$parameters = hpolcc::formatParameters(
+  result$solution, fitD, TRUE)
+
+result$parameters$theta
+
+# parameters are (beta, gamma, theta)
+
+randomEffects = seq(from=length(result$parameters$beta)+1,
+  length = nrow(result$parameters$gamma))
+
+result$Htilde = result$hessian[randomEffects, randomEffects]
+result$HtildeChol = Matrix::solve(Matrix::chol(result$Htilde))
+
+Nsim = 200
+simInd = matrix(rnorm(Nsim * nrow(result$Htilde)),
+ nrow(result$Htilde), Nsim)
+
+# sample from [U|Y, theta_map]
+simGamma = Matrix::crossprod(result$HtildeChol,  simInd) 
+rownames(simGamma) = rownames(fitD$tmb_data$ATp)
+
+simGamma = simGamma + unlist(result$parameters$gamma[
+  rownames(simGamma), 'value'])
+
+
+Stemp = seq(0,45,by=0.1)
+SobsTemp = na.omit(match(Stemp, round(fitD$data$tempClean, 1)))
+Spm = seq(1,1000, by=1)
+SobsPm = na.omit(match(Spm, round(fitD$data$pm)))
+
+Sobs = SobsTemp
+nameX = 'tempClean'
+
+Bmat = fitD$tmb_data$ATp[, Sobs]
+# only want the global effects
+Bmat = Bmat[grep(paste0(nameX,".*global"), rownames(Bmat)),]
+
+
+simF = crossprod(Bmat, simGamma[rownames(Bmat),]) 
+
+covHere = grep(nameX, names(result$parameters$beta), value=TRUE)
+fixedPart = drop(crossprod(fitD$tmb_data$XTp[covHere,Sobs, drop=FALSE], 
+                           result$parameters$beta[covHere]))
+
+simSum = simF + fixedPart 
+
+
+
+theX= fitD$data[[covHere[1] ]][Sobs]
+if(grepl("^sqrt", nameX)) theX = theX^2
+
+par(mar=c(3,3,0,0), bty='l')
+matplot(theX, simSum, type='l',
+  col='#00000010', lty=1, xaxs='i')
+
+
+```
+
+
+
+```{r moreoldstuff}
 Sall = 1:length(res$parameters_and_gamma)
 Sgamma = seq(length(res$config$beta)+1, len=length(res$gamma_start))
 
@@ -362,362 +428,8 @@ plot(Sx, unlist(lapply(rx, "[[", "minusLogLik")))
 
 ```
 
-```{r checkDeriv}
-library('hpolcc')
-adFun = getAdFun(res$gamma_start, res$tmb_data, res$config)
-adFunFull = getAdFun(res$parameters_and_gamma, res$tmb_data, res$config)
 
-res$config$dense = FALSE
-estHere= loglik(res$parameters, res$gamma_start, res$tmb_data, res$config, adFun, adFunFull, check=FALSE)
 
-bob2 = thirdDeriv(
-      estHere$fullParameters, data=res$tmb_data, config=res$config, adFunFull,
-      extra=TRUE)
-
-SparAll = 1:length(res$parameters_and_gamma)
-Sgamma = seq(length(res$config$beta)+1, len=nrow(res$tmb_data$ATp)   )
-SparOnly = setdiff(SparAll, Sgamma)
-DparL = 1;DparL2 = SparOnly[DparL]
-bnd = 10^(floor(log10(abs(res$parameters[DparL])))-1)
-SxL = seq(-bnd,bnd, len=6) + res$parameters[DparL]
-SxL1 = SxL[-1] - diff(SxL)/2
-parMat2 = as.data.frame(matrix(res$parameters, ncol=length(SxL), nrow=length(res$parameters), byrow=FALSE))
-parMat2[DparL,] = SxL
-
-config2 = res$config;config2$dense=TRUE
-theL = mapply(
-  loglik,
-  parameters = parMat2,
-  MoreArgs = list(
-    gamma_start =estHere$solution, data = res$tmb_data, config=config2, adFun = adFun,
-    adFunFull = adFunFull, control = list(report.level=10, report.freq=5), check=FALSE),
-  SIMPLIFY=FALSE
-)
-
-estHere$deriv[DparL,]
-
-plot(SxL, unlist(lapply(theL, "[[", "fval")))
-
-plot(SxL1, diff(unlist(lapply(theL, "[[", "fval")))/mean(diff(SxL)), type='o')
-points(SxL, unlist(lapply(theL, function(xx) xx$deriv[DparL,'theta'])), col='red')
-abline(h=estHere$deriv[DparL,'theta'])
-
-
-
-theD = unlist(lapply(theL, function(xx) xx$halfLogDet))
-plot(SxL, theD)
-
-plot(SxL1, diff(theD)/mean(diff(SxL)), xlim = range(SxL), type='o')
-points(SxL, unlist(lapply(theL, function(xx) xx$deriv[DparL,'det'])), col='red')
-
-abline(h=theL[[3]]$deriv[DparL, 'det'])
-
-xx = solve(theL[[3]]$hessian) %*% Matrix::as.matrix(bob2$dH[[DparL]]) 
-sum(Matrix::diag(xx))
-
-
-
-theU = do.call(cbind, lapply(theL, "[[", "solution"))
-dU = apply(theU, 1, diff)
-DuIndex=1
-
-which.max(abs(dU[3,] - bob2$dUhat[,DparL]))
-
-plot(SxL1, dU[,DuIndex]/mean(diff(SxL)))
-abline(h=bob2$dUhat[DuIndex, DparL]);abline(v=res$parameters[DparL])
-
-
-
-
-
-theH = lapply(theL, '[[', 'hessian')
-theH = do.call(abind::abind, c(lapply(theH, Matrix::as.matrix), list(along=3)))
-dH = apply(theH, 1:2, diff)/mean(diff(SxL))
-
-round(bob2$dH[[DparL]][1:35,1:16], 1)
-round(dH[3,1:35,1:16], 1)
-
-D1 = 14;D2 = 27
-plot(SxL1, dH[,D1, D2])
-abline(h=bob2$dH[[DparL]][D1, D2]);abline(v=res$parameters[DparL])
-
-xx = as.matrix(bob2$dH[[DparL]]) - dH[3,,] 
-which.max(apply(abs(xx), 1, sum))
-which.max(abs(xx[,14]))
-
-cbind(round(bob2$dH[[DparL]][10:30,12:17],3),
-NA,
-round(dH[3,10:30,12:17],3))
-
-theD = unlist(lapply(theL, function(xx) Matrix::determinant(xx$hessian, log=TRUE)$modulus))
-plot(SxL, theD)
-
-plot(SxL1, diff(theD)/mean(diff(SxL)), xlim = range(SxL))
-abline(h=estHere$deriv[DparL,'det'], lwd=3, col='yellow')
-abline(h=bob2$dDet[DparL]);abline(v=res$parameters[DparL])
-points(SxL, unlist(lapply(theL, function(xx) xx$deriv[DparL, 'det'])), col='red')
-
-xx = bob2$invHessianRandom %*% dH[3,,] 
-sum(Matrix::diag(xx))
-xx = bob2$invHessianRandom %*% Matrix::as.matrix(bob2$dH[[DparL]]) 
-sum(Matrix::diag(xx))
-estHere$deriv[DparL,'det']
-
-theF = unlist(lapply(theL, '[[', 'fval'))
-plot(SxL, theF)
-
-plot(SxL1, diff(theF)/mean(diff(SxL)))
-
-estHere$deriv[DparL, ]
-
-
-  multGammaParam = bob2$invHessianRandom %*% bob2$fullHessian[Sgamma, -Sgamma]
-as.vector(bob2$first[Sgamma] %*% multGammaParam )
-
-```
-
-```{r checkGrad}
-
-mygrad = grad(estHere$solution, data=res$tmb_data, config=res$config, adFun = adFun)
-
-mygrad2 = numDeriv::grad(
-  jointLogDens, estHere$solution, data=res$tmb_data, config=res$config, adFun = adFun,
-    method.args = list(
-    d        = 1e-4,                         # relative step for |x_i| > zero.tol
-    eps      = 1e-6,                         # absolute step for near-zero x_i
-    zero.tol = sqrt(.Machine$double.eps),    # what counts as “near zero”
-    r        = 6,                            # Richardson iterations (↑ accuracy, ↑ evals)
-    v        = 2                             # step shrink factor
-  )
-)
-which.max(abs(mygrad - mygrad2))
-
-
-Dpar = 9
-parMat = data.frame(estHere$solution)[,rep(1, 6)]
-Sx = seq(-0.0001,0.0001, len=ncol(parMat)) + parMat[Dpar,1]
-Sx1 = Sx[-1] - diff(Sx)/2
-
-parMat[Dpar,] = Sx
-
-rx = unlist(mapply(
-  jointLogDens,
-  x = as.list(parMat),
-  MoreArgs = list(data=res$tmb_data, config = res$config, adFun=adFun),
-  SIMPLIFY=FALSE
-  ))
-dx = do.call(cbind, mapply(
-  grad,
-  parameters = as.list(parMat),
-  MoreArgs = list(data=res$tmb_data, config = res$config, adFun=adFun),
-  SIMPLIFY=FALSE
-  ))
-
-plot(Sx, rx)
-
-plot(Sx1, diff(rx)/mean(diff(Sx)), type='o', xlim = range(Sx))
-points(Sx, dx[Dpar,], col='red')
-abline(h=mygrad2[Dpar], col='yellow', lwd=3)
-abline(h=mygrad[Dpar])
-
-```
-
-```{r dostuff}
-library(hpolcc)
-
-adFun = getAdFun(res$gamma_start, res$tmb_data, res$config)
-
-
-grad2 = grad(res$start_gamma, data=res$tmb_data, config=res$config, adfun=adfun)
-hes2 = hessian(res$start_gamma, data=res$tmb_data, config=res$config, adfun=adfun)
-
-innerRes = trustOptim::trust.optim(
-    x = fitD$start_gamma, 
-    fn = jointLogDens,
-    gr = grad,
-    hs = hessian,
-    method = 'Sparse',
-    control = list(start.trust.radius = 0.1, report.freq=5, report.level=10),
-    data=fitD$tmb_data, config = fitD$config, adfun = fitD$adfun()
-  )
-
-```
-
-```{r morestuff}
-library('hpolcc')
-adFun = getAdFun(res$gamma_start, res$tmb_data, res$config)
-adFunFull = getAdFun(res$parameters_and_gamma, res$tmb_data, res$config)
-
-cache = res$cache
-assign("file", "india.txt", cache)
-assign("gamma_start", res$gamma_start, cache)
-if(file.exists(get("file", cache))) file.remove(get("file", cache))
-
-wrappers_outer$fn(res$parameters,    data=res$tmb_data, config = res$config, cache =  cache, control_inner = res$control_inner,
-    adFun = adFun, adFunFull = adFunFull)
-
-
-mleX =  trustOptim::trust.optim(
-    par = c(0.009,  0.012, -3, -7, -5, -6, -1),
-    fn = wrappers_outer$fn,
-    fn = wrappers_outer$gr,
-    method = 'Sparse',
-    data=res$tmb_data, config = res$config, cache =  cache, control_inner = res$control_inner,
-    adFun = adFun, adFunFull = adFunFull
-  )
-mleX$solution
-
-bob = loglik(
-  c(0.021726796, -2.118758e-04 ,-4.253132, -7.918471, -5.099570 ,-7.996464, -2.621749),
-  gamma_start = get("gamma_start", cache),
- data=fitD$tmb_data, config = fitD$config, control = fitD$control_inner)
-
-
-mleB <- BB::spg(
-  par = c(0.021726796, -2.118758e-04 ,-4.253132, -7.918471, -5.099570 ,-7.996464, -2.621749),
-  fn = wrappers_outer$fn,
-  gr = wrappers_outer$gr,
-  data=fitD$tmb_data, config = fitD$config, cache =  cache, controlInner = fitD$control_inner,
-  control = list(maxit = 1e2, ftol=1e-6, gtol = 1e-4, M = 5, trace=TRUE, checkGrad=TRUE))  # M = nonmonotone history
-
-
-  parameters = c(
-    0.0, 0.01, # beta (slope, quadratic) 
-    log(1), # sd global
-    log(0.1), # sd local
-    log(0.001), log(0.001), # sd local slope, quad
-    log(0.1)[fitD$config$dirichlet] # dirichelet OD
-    )
-
-
-fitD$config$transform_theta = TRUE
-  fitD$config$num_threads = parallel::detectCores()
-
-
-  Nbeta = nrow(fitD$tmb_data$XTp)
-  Ngamma = nrow(fitD$tmb_data$ATp)
-
-  Ntheta = length(fitD$theta_info$name)
-
-
-
- gamma_start = seq(-0.01, 0.01, len=Ngamma) #mapOptim$solution[seq(Nbeta+1, len=Ngamma)]
-    config = fitD$config
-    config$transform_theta = TRUE
-
-
-# likelihood
-# parameters = (beta, theta)R
-# config$transform_theta = TRUE means thetas are log(sd) otherwise theta=sd
-
-# test when beta and theta in config
-
-
-library('hpolcc')
-
-config$verbose=FALSE
-config$num_threads =  parallel::detectCores()
-config$strataPerIter = 500
-
-result <- loglik(parameters, 
-             gamma_start, 
-             data=fitD$tmb_data, 
-    config = config,
-      control=list(maxit=1000, start.trust.radius = 1, prec=1e-9, stop.trust.radius = 1e-15,
-        cg.tol = 1e-9,
-      report.level=4, report.freq=1)
-      )
-```
-
-
-
-
-
-
-
-
-
-
-```{r mLE}
-
-
-mle = optim(
-    c(0.00858558945462489, 0.0100467550976791, -3.1175149461754 ,-7.02350405776971, -5.01580155255101, -6.04704512936413, -1.16549925013542),
-    fn = wrappers_outer$fn,
-#    gr = wrappers_outer$gr,
-    method = 'L-BFGS-B',
-    control = res$control,
-lower = c(-0.2, -0.1, -8,-8,-8,-8,-8),
-upper = c(0.2, 0.1, 8,8,8, 8, 8),
-    data=res$tmb_data, config = res$config, cache =  res$cache, control_inner = control_inner,
-    adFun=adFun, adFunFull = adFunFull
-  )
-
-mle$extra = loglik(mle$solution, get("gamma_start", cache), data, config, controlInner)
-mle$gamma_hat = mle$extra$solution
-saveRDS(mle, file='mle.rds')
-```
-
-
-
-```{r theResults}
-result$parameters = hpolcc::formatParameters(
-  result$solution, fitD, TRUE)
-
-result$parameters$theta
-
-# parameters are (beta, gamma, theta)
-
-randomEffects = seq(from=length(result$parameters$beta)+1,
-  length = nrow(result$parameters$gamma))
-
-result$Htilde = result$hessian[randomEffects, randomEffects]
-result$HtildeChol = Matrix::solve(Matrix::chol(result$Htilde))
-
-Nsim = 200
-simInd = matrix(rnorm(Nsim * nrow(result$Htilde)),
- nrow(result$Htilde), Nsim)
-
-# sample from [U|Y, theta_map]
-simGamma = Matrix::crossprod(result$HtildeChol,  simInd) 
-rownames(simGamma) = rownames(fitD$tmb_data$ATp)
-
-simGamma = simGamma + unlist(result$parameters$gamma[
-  rownames(simGamma), 'value'])
-
-
-Stemp = seq(0,45,by=0.1)
-SobsTemp = na.omit(match(Stemp, round(fitD$data$tempClean, 1)))
-Spm = seq(1,1000, by=1)
-SobsPm = na.omit(match(Spm, round(fitD$data$pm)))
-
-Sobs = SobsTemp
-nameX = 'tempClean'
-
-Bmat = fitD$tmb_data$ATp[, Sobs]
-# only want the global effects
-Bmat = Bmat[grep(paste0(nameX,".*global"), rownames(Bmat)),]
-
-
-simF = crossprod(Bmat, simGamma[rownames(Bmat),]) 
-
-covHere = grep(nameX, names(result$parameters$beta), value=TRUE)
-fixedPart = drop(crossprod(fitD$tmb_data$XTp[covHere,Sobs, drop=FALSE], 
-                           result$parameters$beta[covHere]))
-
-simSum = simF + fixedPart 
-
-
-
-theX= fitD$data[[covHere[1] ]][Sobs]
-if(grepl("^sqrt", nameX)) theX = theX^2
-
-par(mar=c(3,3,0,0), bty='l')
-matplot(theX, simSum, type='l',
-  col='#00000010', lty=1, xaxs='i')
-
-
-```
 
 
 
