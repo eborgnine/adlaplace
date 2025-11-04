@@ -127,15 +127,16 @@ mleX =  #trustOptim::trust.optim
     fn = wrappers_outer$fn,
     gr = wrappers_outer$gr,
     method = 'L-BFGS-B',#'SR1',
-    lower = rep(c(-0.5, -8), c(length(res$config$beta), length(res$config$theta))),
+    lower = rep(c(-0.5, -Inf), c(length(res$config$beta), length(res$config$theta))),
     upper = rep(c(0.5, 0), c(length(res$config$beta), length(res$config$theta))),
     control = list(trace=3, REPORT=1),#start.trust.radius = 0.05, REPORT=1, trace=10),
     data=res$tmb_data, config = res$config, cache =  res$cache, control_inner = res$control_inner,
     adFunFull = adFunFull
   )
+saveRDS(mleX, file='mleX.rds')  
 
 mleXcheck = loglik(
-  parameters = get("last.par", res$cache), 
+  parameters = mleX$par, 
   gamma_start = get("gamma_start", res$cache),
   config=res$config, data=res$tmb_data, adFunFull=adFunFull, deriv=0, check=FALSE)
 

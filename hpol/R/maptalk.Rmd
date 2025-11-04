@@ -1,0 +1,1239 @@
+
+
+```{r header, results='asis', echo=FALSE}
+Pmisc::markdownHeader(
+title= "Disease mapping with aggregated data",
+author= 'Patrick Brown, University of Toronto',
+date= 'Nov 2025',
+bibliography= normalizePath(c('~/Admin/teaching/asTwo/astwo.bib', '~/Admin/cv/bibs/patrick.bib', '../refs.bib')),
+theme='Singapore',
+beamer=TRUE,
+classoption=c(
+  aspectratio=169,
+  xcolor='dvipsnames'),
+biblatexoptions = c(
+  maxbibnames=20,
+  maxcitenames=2,doi='true', isbn='false', url='true'),
+headerincludes =c(
+  '\\usepackage{tikz}',
+  '\\usepackage{longtable}',
+  '\\usetikzlibrary{shapes}',
+  '\\graphicspath{{~/research/book/docs/geostat2015}}',  
+  '\\usecolortheme[named=MidnightBlue]{structure}'),
+mathCommands=TRUE
+)
+```
+
+
+```{r setup, include=FALSE}
+library('knitr')
+
+knitr::opts_chunk$set(echo=FALSE, prompt=TRUE, comment=NA,
+		dev='png', marginsp=1, fig.cap=' ',
+		fig.width=6.5, fig.height=4, half=NULL,
+		tidy=TRUE,tidy.opts=list(indent=2, width.cutoff=55)
+)
+
+knitr::knit_hooks$set(
+		marginsp = function(before, options, envir){	
+			if(!before) return()
+# use small margins				
+			par(mar=c(1.5+0.9*options$marginsp,
+							1.5+0.9*options$marginsp,0.2,0.2),
+					mgp=c(1.45, 0.45, 0),cex=1.25)
+		}		
+)
+
+knitr::opts_hooks$set(half = function(options) {
+  options$tidy.opts = list(width.cutoff = 12)
+  options
+})
+
+options(width=80)
+
+knitr::knit_hooks$set(plot=Pmisc::hook_plot_beamer) 
+par(bg='#FFFFFF00')
+
+#$
+```
+
+
+```{r setupPackages,include=FALSE}
+# packages which print stuff
+requireNamespace('Hmisc')
+library('mapmisc')
+library('geostatsp')
+```
+
+# Today
+
+\bcol
+
+\begin{enumerate}
+
+\item What is geostatistics?
+
+\item Gaussian random fields
+
+\item Generalized linear geostatistical model
+
+\end{enumerate}
+
+\newcol
+
+
+```{r simData, include=FALSE, cache=TRUE}
+myRaster <- squareRaster(ext(0,30,0,20), 60)
+myModel =  c(variance=1, range=7, shape=1)
+f1 <- geostatsp::RFsimulate(
+		x=myRaster, model=myModel, n=2)
+f = crop(f1, ext(f1) + c(-1,0,0,-1) )
+f = wrap(f)
+```
+```{r unwrapf, include=FALSE}
+f = unwrap(f)
+```
+
+```{r simDataPlot, echo=FALSE, fig.height=3, fig.width=6}
+simCol = colourScale(f, style='equal', dec=0, breaks=10, 
+		col='Spectral', rev=TRUE)
+for(D in 1:2) {
+mapmisc::map.new(f)
+plot(f[[D]], col=simCol$col, breaks=simCol$breaks, legend=FALSE, add=TRUE)
+legendBreaks('right', simCol)
+}
+```
+
+\ecol
+
+
+
+# What is Geostatistics
+
+ 
+\bcol[0.45]
+ 
+```{r inspace3, message=FALSE, fig.height=4, fig.width=8}
+
+mapmisc::map.new(f)
+plot(f[['sim1']], col=simCol$col, breaks=simCol$breaks, legend=FALSE, add=TRUE)
+legendBreaks('right', simCol)
+
+
+thePoints = vect(
+	cbind(
+		runif(15, xmin(f), xmax(f)), 
+		runif(15, ymin(f), ymax(f))))
+values(thePoints)= extract(f, thePoints)
+
+pointsCol = colourScale(thePoints$sim1, breaks=simCol$breaks, col=simCol$col, style='fixed')
+mapmisc::map.new(f)
+plot(thePoints, col=pointsCol$plot, add=TRUE, cex=2)
+```
+
+
+
+
+
+\newcol
+
+\begin{itemize}
+\item There is an underlying and unobserved spatial surface
+\item Data is only observed at a few points 
+\item Create a statistical model for the surface
+\item Estimate the model parameters
+\item Make spatial predictions for the full surface (Kriging)
+\end{itemize}
+
+\ecol
+
+
+ 
+ 
+# Example : Rongelap Island 
+
+\bcol
+
+```{r rongelapWorld}
+
+pacificMap = openmap(ext(130,179,-25,25),
+			path="http://tile.openstreetmap.org/",
+			maxTiles=20)
+
+plot(pacificMap,mar=c(0,0,0,0))
+rongelapLoc = 166.84 + 11.153i
+points(rongelapLoc, col="red")
+text(rongelapLoc,"Rongelap", pos=3)
+
+```
+
+
+\newcol
+
+\begin{itemize}
+\item contaminated by nuclear weapons testing in 1954
+    \item Leukemia and thyroid-tumors followed.  
+    Greenpeace evacuates residents in 1985
+\end{itemize}
+
+\ecol
+
+\begin{itemize}
+    \item After some removal of soil, radiation levels have fallen
+    \item Is it safe to return?
+\end{itemize}
+``Model-based geostatistics''
+PJ Diggle, JA Tawn, RA Moyeed (1998) \emph{Applied Statistics}
+Volume 47, Issue 3, 
+
+
+
+# Rongelap Island
+
+\bcol
+
+```{r rongelapData}
+	data("rongelapUTM", package='geostatsp')  
+	rongelapUTM = unwrap(rongelapUTM)
+	rongelapUTM$raw = rongelapUTM$count/rongelapUTM$time
+
+	MarshallIslands = geodata::gadm("MHL", path="cache")	
+	MarshallIslands = project(MarshallIslands, crs(rongelapUTM))
+
+	rongelapMap = openmap(rongelapUTM, maxTiles=20,buffer=1*1000)
+
+
+	theColours= mapmisc::colourScale(rongelapUTM$raw,breaks=10, dec=2)
+
+	map.new(rongelapUTM, buffer=0.5*1000)
+	plot(rongelapMap, add=TRUE)
+	plot(MarshallIslands,add=T)
+	plot(rongelapUTM, col=theColours$plot, add=TRUE, cex=0.6)
+	
+
+```
+
+\vspace{-20pt}
+\begin{itemize}
+  \item Radiation measurements taken at a number of locations
+  \item Number of particles entering the machine is recorded
+\item Count data: non-Gaussian Geostatistics
+\end{itemize}
+
+\newcol[0.2]
+
+\noindent Radiation (particles / second)
+
+
+```{r rongelapLegend,fig.width=2,fig.height=3}
+	plot.new()
+
+	mapmisc::legendBreaks("top", theColours)	
+```
+
+\ecol
+
+
+# Random things
+
+\bcolb{In time}
+
+```{r intime, dev='pdf', fig.height=4, fig.width=6}
+toplot=cbind(arima.sim(list(ar=0.98), 100)/3,
+arima.sim(list(ar=0.3), 100), 
+arima.sim(list(ar=0.9), 100)/2)
+matplot(seq(1901, 2000, len=100),-min(toplot)+toplot, xlab="years",ylab="cancer rate",
+type="l",lty=1)
+```
+\begin{itemize}
+	\item $U(t)$ is a random time series
+	\item indexed by time $t$
+\item or written $U_t$
+\end{itemize}
+
+\newcolb{In space}
+
+
+```{r theSeedA}
+set.seed(1)
+```
+
+
+```{r inSpace, fig.height=4, fig.width=6}
+plot(f[[1]])
+```
+
+\begin{itemize}
+	\item $U(x,y)$ is a random field 
+	\item Could write $U(\mathbf{s}), \mathbf{s} = (x, y)$, or
+\item $U_i = U(s_i), s_i = (s_{i1}, s_{i2})$
+\end{itemize}
+
+\ecolb
+
+
+# Exponential covariance functions 
+
+\bcol[0.6]
+
+$$
+\text{cov}[U(t), U(t+h)] = \sigma^2 \exp(- h/\psi)
+$$
+or
+$$
+\text{cov}[U(t), U(t+h)] = \sigma^2 \exp(- \alpha h)
+$$
+
+\begin{itemize}
+	\item $\phi$ is a \emph{range} parameter
+	\item small $\phi$ means covariance falls quickly
+	\item \ldots and $U(t)$ is rough
+    \item $\alpha = 1/\phi$ is a \emph{scale} parameter
+\item $\sigma^2$ is the variance
+\item Note that $U(t)$ can be continuous in time.
+\end{itemize}
+
+\newcol[0.4]
+
+```{r covarioARa,echo=F, fig.height=4, fig.width=6, dev='pdf'}
+hseq = 0:25
+
+rangeseq = c(50, 10, 1)
+alphaseq = 1/rangeseq
+
+arseq = exp(-alphaseq)
+
+
+corrg = exp(-hseq %o% alphaseq )
+matplot(hseq, corrg, type="l", lty=1, xlab="h", ylab="corr[U(t), U(t+h)]")
+legend("topright", col=1:3, lty=1, legend=as.character(signif(rangeseq,1)),
+		title='range')
+```
+
+```{r arPlots2,echo=F, fig.height=4, fig.width=6, dev='pdf'}
+margVar = 1/(1-arseq^2)
+toplot=cbind(arima.sim(list(ar=arseq[1]), 100)/sqrt(margVar[1]),
+arima.sim(list(ar=arseq[2]), 100)/sqrt(margVar[2]), 
+arima.sim(list(ar=arseq[3]), 100)/sqrt(margVar[3]))
+matplot(seq(1901, 2000, len=100),toplot, 
+		xlab="years",ylab="cancer rate",
+type="l",lty=1, col=1:3 )
+
+```
+
+\ecol
+
+
+
+# Gaussian Random Fields
+
+\bcol[0.45]
+
+\begin{itemize}
+  \item Consider a random surface $U(s)$ evaluated at a finite number of
+  locations $s_1 \ldots s_N$
+  \item What's a sensible way to define the distribution of $[U(s_1)\ldots U(s_N)]$?
+\end{itemize}
+
+\newcol[0.5]
+
+$$
+\left[
+\begin{array}{c}
+U(s_1)\\
+\vdots \\
+U(s_n)
+\end{array}
+\right]
+ \sim 
+\text{MVN}\left[ 
+\left(\begin{array}{c}
+\mu_1\\
+\vdots \\
+\mu_n
+\end{array}\right)
+, \Sigma\right]
+$$
+
+\ecol
+
+\begin{itemize}
+\item Let's restrict the class of spatial processes and try to define a nice
+model
+\item Gaussian distributions are a natural choice for multivariate, correlated
+data
+\item By restricting ourselves to {\em Gaussian Random Fields}, we only 
+need to define means and a variance matrix
+\end{itemize}
+
+
+
+
+
+
+```{r Srange,include=FALSE}
+shape=1
+isoParams = c(variance=1, shape=shape, range=NA)
+isoParams = rbind(isoParams, isoParams, isoParams)
+isoParams[,'range'] = Srange = c(2,4,8)
+
+myraster = squareRaster(ext(-12,12,-8,8),60)
+rasterCor = squareRaster(ext(-3, 3, -2, 2),60)
+
+
+```
+
+```{r simIso, cache=TRUE, include=FALSE}
+set.seed(1)
+resM = geostatsp::RFsimulate(isoParams, myraster)
+names(resM) = paste('range', as.character(isoParams[,'range']))
+resMwrap = wrap(resM)
+```
+```{r unwrapResM}
+resM = unwrap(resMwrap)
+simColC = colourScale(
+		resM, breaks=9,
+		style='equal', dec=0,
+		col="RdYlBu", rev=TRUE)
+
+
+corColC = colourScale(
+		breaks=sort(c(
+						seq(0,1,by=0.2),
+						0.95, 0.1)),
+		style='fixed',
+		col="Reds")
+
+```
+
+
+
+```{r maternSimPlot, echo=FALSE, fig.height=3, fig.width=6.5, fig.subcap=c('correlations',names(resM)), fig.cap='Correlations and simulations', fig.start='#', fig.ncol=2}
+par(bg='#FFFFFF00')
+useq = seq(0, mean(isoParams[,'range'])*2.25,len=400)
+
+theCor = NULL
+for(D in 1:nrow(isoParams)) {
+	theCor = cbind(theCor, geostatsp::matern(useq, 
+					param=isoParams[D,]))
+}
+
+
+matplot(useq, theCor, type='l', 
+		lty=1:3, col='black',
+		lwd=2,
+    xlab=expression(abs('s'['i'] - 's'['j'])),
+    ylab=expression(paste(
+            rho, '[ (', 's'['i'] - 's'['j'], 
+            ')/', phi, ' ]')))	
+
+legend('right',lty=1:3, col='black', lwd=2,
+    legend=as.character(Srange),
+	title=expression(paste('range, ', phi)),
+    bty='n')
+
+
+ for(D in names(resM)) {
+ 	mapmisc::map.new(resM)
+    plot(resM[[D]],
+      col=simColC$col, breaks=simColC$breaks, legend=FALSE,
+      add=TRUE)
+  mapmisc::legendBreaks('right', simColC, 
+      title= 'U(s)', bty='n')
+}
+
+```
+
+# Gaussian random fields  
+
+ 
+
+\begin{itemize}
+\item $U(s)$ is a the value of a Gaussian Random Field at location $s$
+\item Correlation is a function of distance
+\item $\text{cor}[U(s+h), U(s)] = \sigma^2 \rho(h/\phi)$
+\item A range parameter $\phi$ controls how quickly correlation falls
+\item big range $\Rightarrow$ slow decay $\Rightarrow$ smooth surface
+\end{itemize}
+
+ 
+# The Matérn family 
+
+     
+$$
+\rho(h; \phi, \kappa) = \frac{1}{\Gamma(\kappa)2^{\kappa-1}}\left(\frac{\sqrt{8\kappa}||h||}{\phi}\right)^\kappa
+K_\kappa\left(\sqrt{8\kappa}||h||/\phi\right).
+$$
+
+
+    
+\bcol[0.5]
+      
+- $\phi$ is the range
+- $\kappa$ is a shape parameter!        
+- $K_\kappa(\cdot)$ denotes modified Bessel function of order $\kappa$
+- $\kappa=0.5$: *exponential* correlation function
+
+
+
+
+\newcol[0.5]
+
+```{r maternCors1setup, cache=TRUE, include=FALSE}
+useq = seq(-3, 3,len=1001)
+
+param=cbind(range = c(0.5,1,2,4,6), 
+			shape = rev(c(0.25, 0.5,1, 2, 20)),
+			variance=1)
+	
+theCor = apply(param, 1, matern, x=useq)
+
+set.seed(0)
+myraster2 = squareRaster(ext(0,15,0,10), 60)
+
+simsM = geostatsp::RFsimulate(param, myraster2)
+simsM = crop(simsM, ext(simsM) + c(-xres(simsM),0,0,-yres(simsM)) )
+
+simsMwrap = wrap(simsM)
+```
+
+```{r maternCors1,echo=FALSE,fig.height=3,fig.width=6, dev='pdf'}
+simsM = unwrap(simsMwrap)
+theCol = RColorBrewer::brewer.pal(nrow(param), 'Set2')
+
+matplot(useq, theCor, type="l", lty=1,xlab="h", ylab="rho(h,0)",col=theCol, lwd=3)
+legend("topright", lty=1, col=theCol,
+		legend = param[,'shape'],bty='n')	
+```
+
+\ecol
+
+- $\kappa \rightarrow \infty$: *Gaussian* correlation function
+- $U(s)$ is mean-square $m$ times differentiable if and only if $\kappa>m$
+
+        
+
+
+
+```{r maternShape, fig.height=3, fig.width=5, fig.cap='Matern correlations and simulations', fig.subcap=c('correlation', param[,'shape']), marginsp=0, fig.start='#', fig.ncol=3}
+
+matplot(useq, theCor, type="l", lty=1,xlab="h", 
+		ylab="rho(h,0)",col=theCol,
+		ylim=c(0.9, 1), xlim=c(-1, 1)*0.5)
+
+legend('topright',lty=1,lwd=2,
+		col=theCol,legend=param[,'shape'], 
+		bty='n')
+
+myCol = colourScale(simsM, breaks=10, col='Spectral', dec=0, rev=TRUE, style='equal')
+
+for(D in names(simsM)) {
+	map.new(simsM)
+	plot(simsM[[D]], col=myCol$col, breaks=myCol$breaks, legend=FALSE, add=TRUE)
+}
+```
+
+
+
+# A Geostatistical model
+
+Write $s_i$ as the location observation $Y_i$ was made at:
+\begin{align*} 
+Y_{i} \sim & \text{N}\left[\lambda(s_i), \tau^2\right]\\
+\lambda(s) = &\mu + X(s) \beta + U(s)\\
+\text{cov}\left[U(s +h), U(s)\right] = &\sigma^2 \rho(h/\phi;\nu)
+\end{align*}
+\begin{itemize}
+    \item $U(s)$ is the {\bf Spatial Random Effect} {\small or {\em Residual
+    Spatial Variation} or  \emph{Signal process} or
+    \emph{latent spatial process}}
+\item The $X(s)$ are {\bf covariates} at $s$ {\small or \emph{explanatory
+variables},
+\emph{independent variables}, \emph{confounders}, or \emph{fixed effects}}
+\item $\tau^2$ is the {\bf observation variance} {\small or
+\emph{error variance}, \emph{nugget effect}, \emph{noise variance} or more
+correctly the {\em independent observation-level random term}}
+\end{itemize}
+
+
+
+
+# Interpretation
+
+\begin{description}
+    \item[ $Y_i$:]  the (possibly log-transformed) mercury concentration
+    measured at location $s_i$
+    \item[ $X(s)$:]  a vector of altitude, nighttime light, and categorical
+    variables of land use type at $s$.
+    \item[ $\tau$:]  the error associated with mercury measurement, or very
+    localized factors influencing mercury.
+    \item[ $U(s)$:]  the residual spatial variation, the difference
+    between actual mercury concentration and what the covariates predict. Depends on 
+\begin{description}
+\item[$\sigma$] variability in residual variation   
+\item[$\phi$] range parameter
+\item[$\nu$] shape parameter    
+\end{description}
+\end{description}
+
+
+
+
+
+```{r eval=FALSE,include=FALSE}
+cfiles = c('timhortons' =
+				"https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Tim_Hortons_%288138484955%29.jpg/800px-Tim_Hortons_%288138484955%29.jpg",
+		"starbucks" = 
+				'https://upload.wikimedia.org/wikipedia/commons/thumb/5/55/Starbucks_Coffee_on_Front_Street%2C_Toronto%2C_between_Church_and_Jarvis_streets_-b.jpg/640px-Starbucks_Coffee_on_Front_Street%2C_Toronto%2C_between_Church_and_Jarvis_streets_-b.jpg',
+		fordtim = 'http://insidetimmies.com/wp-content/uploads/2014/08/Screen-Shot-2014-08-08-at-10.05.46-PM.png'
+)
+
+for(D in names(cfiles)) {
+	Djpg = file.path("Figures","overview",paste(D, ".jpg", sep=""))
+	if(!file.exists(Djpg)) {
+		download.file(cfiles[D], Djpg, method='curl')
+	}
+}
+
+download.file('https://upload.wikimedia.org/wikipedia/commons/e/e8/Rob_Ford_Mayor.jpg',
+		file.path("Figures", "overview",'ford.jpg'),
+		method='curl')
+```
+
+```{r loadCoffee, include=FALSE}
+load("../data/coffee.RData")
+dineUtm = vect(dineUtm)
+to2010utm = vect(to2010utm)
+toCt2006 = vect(toCt2006)
+```
+
+```{r toMmap, include=FALSE, cache=TRUE}
+themap1 = openmap(to2010utm, 
+		fact=2, path='nrcan')
+themap = tonerToTrans(themap1, pattern='blue', threshold=200)
+themap1 = wrap(themap1)
+themap = wrap(themap)
+```
+```{r murderDataLoad}
+themap = unwrap(themap)
+themap1 = unwrap(themap1)
+data(murder)
+torontoBorder = unwrap(torontoBorder)
+allTo = project(torontoBorder, crs(themap))
+```
+
+```{r getRid,include=FALSE}
+getRidUtm = vect(ext(-1700+500000,-800+500000, -5800,-3800), 
+	crs= crs(themap))
+values(getRidUtm)= 1
+dineUtm$getRid = !is.na(extract(getRidUtm, dineUtm)$value)
+```
+
+
+# Election results, 2010
+
+\bcol[0.6]
+
+```{r fordElectionPlot, echo=FALSE, fig.width=6, fig.height=3}
+toPlot = function() map.new(allTo, 0.9, buffer=c(0,0,-1000,-200))
+toScale = function() scaleBar(to2010utm,'bottomright', 
+			bg='white', seg.len=5, 
+			inset=c(0.15, 0), bty='n')
+
+myColFord = colourScale(to2010utm$pctFord,
+		style='quantile', col='RdYlBu',
+		breaks=12,dec=1,
+		opacity=1)
+
+toPlot()
+plot(to2010utm, col=myColFord$plot,
+		add=TRUE,border='#00000020')
+plot(themap,add=TRUE)
+plot(allTo,add=TRUE)
+legendBreaks("right", 
+		breaks=paste(round(100*myColFord$breaks), '%', sep=''),
+		col=myColFord$col,
+		title="Votes\nfor\nFord",inset=0, 
+		bty='n')
+toScale()
+```
+
+\newcol[0.3]
+
+\includegraphics[width=0.7\textwidth]{~/research/book/docs/geostat2015/staticFigures/overview/ford.jpg}
+
+\ecol
+
+``[...] fashioned his image as the defender of the little guy, the
+  suburban strivers, against the downtown elites, with their degrees and their
+  symphonies'' Andrew Coyne, National Post 15 Nov 2013
+
+\fullcite{hose}
+
+ 
+# Coffee shop locations  
+
+Locations of establishments inspected by Toronto
+Public Health.  
+
+```{r torontoCoffeeShop, fig.height=5,fig.width=10}
+myCol = c(RColorBrewer::brewer.pal(8, "Blues")[8:6],
+		RColorBrewer::brewer.pal(8, "Oranges")[8:5])
+names(myCol) = c("Tim Horton's", "Coffee time","Country style", "Starbuck's","Second Cup","Timothy's", "Aroma Espresso Bar")
+map.new(dineUtm)
+plotRGB(themap1,add=TRUE)
+plot(getRidUtm,border='green',col='green',add=TRUE)
+plot(dineUtm, col=
+				paste( myCol[as.character(dineUtm$coffee)], 
+						"99", sep=""),
+		add=TRUE, 
+		pch=15,cex=c(0.7, 0.2)[1+dineUtm$getRid])
+plot(allTo,add=TRUE, border='green')
+scaleBar(to2010utm,'topright')
+legend("bottomright", fill=myCol,legend=names(myCol))
+```
+
+\url{http://opendata.toronto.ca/public.health/dinesafe/dinesafe.zip}
+
+\url{https://raw.githubusercontent.com/paulgb/dinesafe-api/master/data.csv}
+
+
+
+# The Generalised Linear Geostatistical Model
+
+\begin{align}\nonumber
+Y_i | U(s_i) \sim &\mathbf{\pi}[\lambda(s_i), \theta]\\
+\label{eq:glgm}
+g[\lambda(s_i)] = & \beta X(s_i) + U(s_i)\\ \nonumber
+\text{cov}[U(s_i), U(s_j)] =& \sigma^2 \rho[ (s_i - s_j) /\phi,\nu].
+\end{align}
+
+\begin{itemize}
+    \item $U(s)$ is the {\bf Spatial Random Effect} {\small or {\em Residual
+    Spatial Variation} or  \emph{Signal process} or
+    \emph{latent spatial process}}
+\item The $X(s)$ are {\bf covariates} at $s$ {\small or \emph{explanatory
+variables},
+\emph{independent variables}, \emph{confounders}, or \emph{fixed effects}}
+\item $\mathbf{\pi}$ distribution of the observed $Y_i$ conditional on a mean $\lambda(s_i)$
+\item $g$ is a link function.
+\item $\theta$ are additional parameters for $\pi$
+\end{itemize}
+
+
+
+# Interpretation
+
+\begin{description}
+    \item[ $Y_i$:]  coffee shop type (1=latte) at location $s_i$
+    \item[ $\pi$:]  Bernoulli distribution
+    \item[$\lambda(s)$:] probability a caf\'e at $s$ serves lattes
+    \item[ $X(s)$:]  a vector of covariates at $s$ (proportion of Ford voters, income).
+    \item[ $g$:]  logit transformation
+    \item[ $U(s)$:]  the residual spatial variation, the difference
+    between actual probability and what the covariates predict. Depends on 
+\begin{description}
+\item[$\sigma$] variability in residual variation   
+\item[$\phi$] range parameter
+\item[$\nu$] shape parameter    
+\end{description}
+\end{description}
+
+
+
+# Inference
+
+\begin{itemize}
+\item Computationally much more difficult than Gaussian models
+\item No closed-form expression for the likelihood
+\item Bayesian inference is easier than Maximum Likelihood (!?)
+\end{itemize}
+\begin{description}
+      \item[Prior distributions] $[\beta]$, $[\sigma]$, $[\phi]$
+\item[Model] $[Y|U, \beta]$, $[U|\sigma, \phi]$
+\item[Marginal Posteriors] $[\beta | Y]$, $[\sigma | Y]$, $[\phi | Y]$, 
+$[U(s_0)| Y]$
+\end{description}
+Integrated Nested Laplace Approximation (INLA) and Gaussian
+Markov Random Field approximations
+
+
+# GLGM in R
+
+```{r fitModel, eval=FALSE, echo=TRUE}
+coffeeFit = glgm(formula=latte ~ logIncome + ford,
+  data=dineSub, covariates=covariates,
+  grid=80, shape=2, buffer=4000,
+  prior = list(range=5000, sd=0.5),
+  family='binomial')
+```
+\begin{itemize}
+  \item {\tt dineSub} is a {\tt vect} with locations of coffee
+  shops and variable {\tt latte}
+  \item {\tt covariates} is a list of rasters {\tt logIncome} and {\tt ford}
+  \item Cover Toronto with a grid of 80 square cells in the x-direction.
+  \item {\tt prior} gives prior medians for $\phi$ and $\sigma$
+  \begin{itemize}  \item Exponentials for $\sigma$ and $1/\phi$ \end{itemize}
+  \item {\tt glgm} is in the {\tt geostatsp} package, which in turn calls {\tt
+  inla} from \url{http://r-inla.org}.
+\end{itemize}
+
+```{r loadCoffeeResults, include=FALSE}
+#res = readRDS("/store/patrick/spatialData/coffeeFit.rds")
+(load("../data/coffeeResults.RData"))
+to2010utm = vect(to2010utm)
+res$raster = rast(res$raster)
+```
+
+```{r toMmap2, cache=FALSE, include=FALSE}
+themap2 = themap #tonerToTrans(openmap(res$raster, 
+#		fact=2, path='stamen-toner'))
+```
+
+# Parameter estimates
+
+
+\bcol[0.7]
+
+```{r coffeeResultsTable, results='asis'}
+
+hrows = c('(Intercept)','range/1000','sd')
+notHrows = !rownames(res$parameters$summary)%in%hrows
+toprint = rbind(
+  cbind(mean=res$parameters$summary['(Intercept)','meanInvLogit'],
+    exp(
+        res$parameters$summary['(Intercept)',c('0.025quant','0.975quant')])/
+      (1 + 
+        exp(res$parameters$summary['(Intercept)',c('0.025quant','0.975quant')])
+        )
+  ),
+  cbind(mean=res$parameters$summary[notHrows,'meanExp'],
+    exp(res$parameters$summary[notHrows,c('0.025quant','0.975quant')])		
+  ),
+  res$parameters$summary['range', c('mean','0.025quant','0.975quant')],
+  res$parameters$summary['sd', c('mean','0.025quant','0.975quant')]
+)
+
+knitr::kable(toprint, digits=2)
+```
+
+Posterior means and 95\% credible intervals for odds ratios of
+regression coefficients $\exp(\beta)$ and spatial covariance parameters.
+
+
+\newcol[0.4]
+
+\begin{itemize}
+\item Non-Ford voting people really are latte sipping downtown elites.
+\item \ldots even accounting for both latte-drinkers and the anti-Ford camp to
+have high incommes.
+\end{itemize}
+
+\ecol
+
+
+
+
+
+```{r coffeePriorPost, fig.cap='Prior and posterior distributions of spatial covariance parameters', fig.subcap=c('range $\\phi$','Std Dev $\\sigma$'), fig.height=3, fig.width=4, fig.ncol=2, dev='pdf', fig.start = '#'}
+
+swissFit=res
+matplot(res$parameters$range$posterior[,1],
+	res$parameters$range$posterior[,-1],
+	type="l", col=c('black','blue'), lty=1,
+  xlim=c(0, 18*1000), xlab='range', ylab='dens')
+
+legend("topright", col=c('blue','black'), lty=1, legend=c("prior","post'r"), bty='n')
+
+plot(res$parameters$sd$posterior[,1],
+	res$parameters$sd$posterior[,2], xlim = c(0, 1),
+	type="l",  lty=1, xlab='sd', ylab='dens')
+lines(res$parameters$sd$prior[,1], res$parameters$sd$prior[,2], col='blue')	
+```
+
+
+```{r coffeeResultsPlot, fig.cap='Latte prevalence and residual spatial variation', fig.subcap=c('E(rho g data)','E( exp(random) g data)'), fig.ncol=2, fig.start='#'}
+
+toMap = vect(cbind(c(482429.6, 517016.1),c(-6439.042, 10139.631)),
+  crs = crs(res$raster))
+colFit = colourScale(res$raster[['predict.invlogit']], style='equal',
+  dec=-log10(0.05), breaks=7, col='RdYlBu',opacity=0.5, rev=TRUE)
+map.new(res$raster)
+
+plot(res$raster[['predict.invlogit']], col=colFit$colOpacity,
+  breaks=colFit$breaks,legend=FALSE,add=TRUE)
+plot(themap2,add=TRUE)
+
+
+
+legendBreaks('bottomright', colFit)
+scaleBar(to2010utm,'topright')
+
+
+malls = rbind(
+  "Sherway Gardens" = c(43.611839, -79.557097),
+  "Yorkdale" = c(43.725599, -79.452696),
+  "Bayview village" = c(43.768661, -79.385812),
+  "Scarborough town centre" = c(43.776354, -79.258279),
+  "Fairview mall" = c(43.777778, -79.344444),
+  "Yonge/ Eglinton" = c(43.706802, -79.398271),
+  "Yonge/ Sheppard" = c(43.761389, -79.410833),
+  "Bay/ Bloor" = c(43.6646186,-79.3958636)
+)
+mallsSp = vect(malls[,2:1],
+  crs="epsg:4326")
+
+values(mallsSp) = data.frame(name=rownames(malls),  
+    pos=1, 
+    offset=1,
+    row.names=rownames(malls))
+
+mallsSp$pos[as.character(mallsSp$name)=="Bayview village"] = 3
+mallsSp$offset[as.character(mallsSp$name)=="Bayview village"] = 0
+mallsSp$pos[as.character(mallsSp$name)=="Bayv/ Bloor"] = 2
+
+
+mallsSp = project(mallsSp, crs(res$raster))
+
+colRandom = colourScale(res$raster[['random.exp']], style='equal',
+  dec=-log10(.005)	, breaks=7, col='RdYlBu',opacity=0.5, rev=TRUE)
+map.new(res$raster)
+plot(getRidUtm,border='green',col='green',add=TRUE)
+plot(res$raster[['random.exp']], col=colRandom$colOpacity,
+  breaks=colRandom$breaks,legend=FALSE,add=TRUE)
+plot(themap2,add=TRUE)
+legendBreaks('bottomright', colRandom)
+scaleBar(to2010utm,'topright')
+points(mallsSp)
+text(mallsSp, labels=gsub(" ", "\n", mallsSp$name), pos=mallsSp$pos,
+  offset=mallsSp$offset)
+
+
+```
+
+
+```{r coffeeResultsExcPlot, fig.cap='Latte exceedance probabilities', fig.start='#', fig.height=4, fig.width=8, fig.subcap = c('pr($\\rho(s) > 0.6 | Y$)', 'pr($U(s) > 0 | Y$)'), fig.ncol=2}
+
+
+fitP = excProb(res$inla$marginals.predict, log((0.6) / (1-(0.6))),
+  template=res$raster)
+
+colFitP = colourScale(fitP , style='fixed',
+  breaks=c(0, 0.2, 0.5, 0.8, 0.9, 0.95, 1), 
+  col='RdYlGn', rev=TRUE)
+map.new(res$raster)
+plot(fitP, col=colFitP$col,
+  breaks=colFitP$breaks,legend=FALSE,add=TRUE)
+plot(themap2,add=TRUE)
+legendBreaks('bottomright', colFitP)
+scaleBar(to2010utm,'topright')
+
+fitR = excProb(res$inla$marginals.random$space, 
+	0, template=res$raster)
+
+map.new(res$raster)
+  plot(fitR, col=colFitP$col,
+    breaks=colFitP$breaks,legend=FALSE,add=TRUE)
+plot(themap2,add=TRUE)
+  legendBreaks('bottomright', colFitP)
+  scaleBar(to2010utm,'topright')
+
+```
+
+
+
+
+
+
+
+
+# Log-Gaussian Cox Process
+
+\begin{itemize}
+\item $P_i = $ location of murder $i$
+\item murders are a Poisson prrocess with intensity $\lambda(s)O(s)$ 
+\item $\lambda(s)$ = risk, $O(s)$ = population at risk
+$$
+|| \{ P_i \in R \} || \sim \text{Poisson}\left[\int_R \lambda(u)O(\cdot) du  \right]
+$$
+\item $\lambda$ depends on covariates $X_p(s)$ and a residual spatial random
+effect $U(s)$
+\begin{align*}
+\{ P_i \} | U(\cdot) \sim & \text{Poisson process}[\lambda(\cdot) O(\cdot)] \\
+\log[\lambda(s)] = & \mu + X(s)^T\beta + U(s) \\
+\text{cov}[U(s+h), U(s)] = & \sigma^2\text{Mat\'ern}(|h|/\phi, \nu)
+\end{align*}
+$\phi_1$ and $\nu$ are spatial range and shape parameters. 
+\end{itemize}
+
+
+
+
+
+
+```{r lgcp1, include=FALSE}
+mymodel = c(mean=-1, variance=1, 
+		range=2, shape=2)
+myraster = squareRaster(ext(0,10,0,10), 20)
+myCovariate = list(
+	a=rast(matrix(1:10,10,10), extent=ext(0,10,0,10)),
+		b=rast(matrix(1:10,10,10,byrow=T), extent=ext(0,10,0,10)) )
+
+myLgcp=simLgcp(mymodel, myCovariate,betas=c(a=-0.01, b=0.025), 
+		rasterTemplate=myraster)
+```
+
+
+
+
+
+```{r covA, fig.cap='An LGCP', fig.subcap=c('$X_1(s)$','$X_2(s)$','$U(s)$','$\\log(\\lambda(s))$','intensity', 'events'), fig.start='#', fig.ncol=3, fig.height=3, fig.width=5}
+
+par(bg='#FFFFFF00')
+plot(myLgcp$r[["a"]])
+
+plot(myLgcp$r[["b"]])
+
+plot(myLgcp$r[["random"]])
+
+plot(myLgcp$r[["linearPredictor"]])
+
+plot(myLgcp$r[["intensity"]])
+
+plot(myLgcp$events);axis(1);axis(2)
+```
+
+
+
+
+
+```{r murderSetup, include=FALSE}
+data('murder', package='geostatsp')
+data('torontoPop')
+torontoPdens = unwrap(torontoPdens)
+torontoBorder = unwrap(torontoBorder)
+torontoNight = unwrap(torontoNight)
+torontoIncome = unwrap(torontoIncome)
+murder = unwrap(murder)
+murderRot = project(murder, mapmisc::omerc(murder, angle=-17))
+```
+
+
+```{r murderSetupMap, cache=FALSE}
+distMat = distance(murderRot, murderRot)
+closeMurders = distMat < 10
+murderRot$Nclose = apply(closeMurders, 2, sum)
+murderClust = murderRot[murderRot$Nclose > 7, ]
+murderMap = mapmisc::openmap(murderRot, path='nrcan', zoom=9, fact=2.5)
+murderMapZoom = mapmisc::openmap(murderClust, buffer=2*1000, fact=1.5)
+```
+
+
+```{r murderExpl, fig.start='#', fig.ncol=2, fig.cap='Murders', fig.subcap=c('all','zoom')}
+mapmisc::map.new(murderRot)
+plotRGB(murderMap, add=TRUE, maxpixels=10^9)
+points(murderRot, pch=16, col=mapmisc::col2html('blue', 0.25))
+text(murderRot[murderRot$Nclose > 4, ], murderRot$Nclose[murderRot$Nclose > 4], col='red', cex=1.5)
+
+mapmisc::map.new(murderClust, buffer=0.5*1000)
+plot(murderMapZoom, add=TRUE, maxpixels=10^9)
+points(murderRot, pch=16, cex=1.5, col=mapmisc::col2html('blue', 0.25))
+text(murderRot[murderRot$Nclose > 4, ], murderRot$Nclose[murderRot$Nclose > 4], col='red', cex=1.5)
+```
+
+
+```{r murderCllean}
+
+murderClean = murderRot[murderRot$Nclose < 15, ]
+
+```
+
+
+
+
+
+
+
+# Fitting the murder data
+
+```{r lgcpFit,echo=TRUE, cache=TRUE}
+murderFit = lgcp(
+  formula= ~ loginc + logpop + loglight,
+  data=murderClean, grid=125,
+  covariates= list(loginc = log(torontoIncome),
+	logpop = log(torontoPdens), loglight = log(torontoNight)),
+ shape=1, buffer=2000,
+  border=torontoBorder,
+  prior = list(
+  	range=c(2000,5000),
+  	sd=0.25)
+)
+murderFit$raster = mask(murderFit$raster, torontoBorder)
+murderFit$rasterWrap = wrap(murderFit$raster)
+``` 
+```{r murderFitUnwrap}
+murderFit$raster = unwrap(murderFit$rasterWrap)
+```
+
+\begin{itemize}
+\item {\tt murderRot} is a {\tt vect} object of murder locations
+\item {\tt covList} is a list of rasters of log income, log population, and log
+ambient light
+\item Cell counts for a grid with 125 cells in the x-direction are computed
+\item \ldots and a Poisson model is fit by {\tt glgm} and {\tt inla}.
+\end{itemize}
+
+
+# Parameter posterior distributions
+
+```{r murderParam, results='asis', echo=TRUE}
+knitr::kable(murderFit$parameters$summary[,
+		c('0.5quant','0.025quant','0.975quant')],
+		digits=2)
+```
+
+
+# E$[\lambda(s)\mid Y]$ in cases/km2 (for 30 years)
+
+```{r murderSetupMap2, cache=TRUE, include=FALSE}
+murderBgTrans =  wrap(mapmisc::tonerToTrans(mapmisc::openmap(
+	murderFit$raster, path='nrcan'), pattern='blue', threshold=200))
+```
+```{r muderStupMapUnwrap}
+murderBgTrans = unwrap(murderBgTrans)
+```
+
+```{r murderLambda, fig.height=4, fig.width=8}
+murderFitKm2 = murderFit$raster$predict.exp * 10^6
+murderCol = mapmisc::colourScale(murderFitKm2, 
+	breaks=8, style='equal', transform='log', digits=1, col='Spectral',
+	rev=TRUE)
+mapmisc::map.new(torontoBorder)
+plot(murderFitKm2, col=murderCol$col, breaks=murderCol$breaks, add=TRUE, legend=FALSE)
+terra::plot(murderBgTrans, add=TRUE)
+mapmisc::legendBreaks('bottomright', murderCol, bty='n')
+```
+
+
+
+
+
+# Residual spatial variation E$(U(s)\mid Y)$
+
+
+
+```{r murderLambdaResid, fig.height=4, fig.width=8}
+murderColR = mapmisc::colourScale(murderFit$raster$random.mean, breaks=8, style='equal', digits=1, col='Spectral',
+	rev=TRUE)
+mapmisc::map.new(torontoBorder)
+plot(murderFit$raster$random.mean, col=murderColR$col, breaks=murderColR$breaks, add=TRUE, legend=FALSE)
+plot(murderBgTrans, add=TRUE)
+mapmisc::legendBreaks('bottomright', murderColR, bty='n')
+```
+
+
+
+
+# Lung and thyroid cancer
+
+
+\begin{tabular}{ll}
+\includegraphics[width=0.5\textwidth]{staticFigures/plotIncome-2.png} &
+\includegraphics[width=0.5\textwidth]{staticFigures/plotIncome-3.png}\tabularnewline
+a) Asian & b) African or Caribean \tabularnewline
+\end{tabular}
+
+
+\fullcite{thyroid}
+
+
+# Parameter estimates 
+
+log-Gaussian Cox process model applied to Lung and Thyroid cancer
+
+\begin{tabular}{r|llllllll}
+& mean & 0.025q & 0.975q & E$(e^\beta)$ & mean & 0.025q &
+0.975q & E$(e^\beta)$\tabularnewline
+\hline
+(Intercept) & -0.49 & -0.61 & -0.38 & 0.62 & 0.99 & 0.89 & 1.09 &
+2.73\tabularnewline
+income & -0.20 & -0.35 & -0.05 & 0.83 & 0.04 & -0.11 & 0.19 &
+1.05\tabularnewline
+asia & -0.50 & -0.79 & -0.20 & 0.61 & 0.40 & 0.13 & 0.66 &
+1.50\tabularnewline
+africa & -0.31 & -0.92 & 0.28 & 0.75 & -0.30 & -0.89 & 0.28 &
+0.76\tabularnewline
+immigrant & 0.05 & -0.17 & 0.26 & 1.06 & 0.12 & -0.09 & 0.33 &
+1.14\tabularnewline
+range & 4858.19 & 2474.94 & 8819.62 & NA & 2355.21 & 809.02 & 5111.70 &
+NA\tabularnewline
+sd & 0.22 & 0.16 & 0.31 & NA & 0.19 & 0.11 & 0.33 & NA\tabularnewline
+\end{tabular}
+
+
+# Lung and Thyroid Cancer
+
+\begin{tabular}{ll}
+\includegraphics[width=0.4\textwidth]{staticFigures/plotRes-1.png}
+&
+\includegraphics[width=0.4\textwidth]{staticFigures/plotRes-2.png}\tabularnewline
+a) L E$(\lambda(s)|Y)$ & b) L E$(U(s)|Y)$\tabularnewline
+\includegraphics[width=0.4\textwidth]{staticFigures/plotRes-3.png}
+&
+\includegraphics[width=0.4\textwidth]{staticFigures/plotRes-4.png}\tabularnewline
+e)  T E$(\lambda(s)|Y)$ & f) T E$(U(s)|Y)$\tabularnewline
+\end{tabular}
+
+
+
+# Rongelap
+
+
+```{r rongelapGlgmsetup, echo=TRUE, tidy=FALSE}
+rongelapUTM$logTime = log(rongelapUTM$time)
+rongelapBorder = crop(MarshallIslands, 
+	extend(ext(rongelapUTM), 200)) 
+```
+```{r rongelapGlgm, echo=TRUE, tidy=FALSE, cache=TRUE}
+rongelapRes = glgm(
+	count ~ offset(logTime),
+	data = rongelapUTM,
+	prior = list(sd=0.5, range = 1000),
+	family='poisson',
+	grid = squareRaster(rongelapBorder, 100), 
+	buffer=1000)		
+rongelapRes$rasterWrap = 
+	wrap(rongelapRes$raster)		
+```
+
+#
+
+
+```{r rongelapPlot, echo=FALSE, fig.height=4, fig.width=8}
+rongelapRes$raster = unwrap(rongelapRes$rasterWrap)
+toPlot = exp(mask(rongelapRes$raster$predict.0.5quant, rongelapBorder))
+rongelapCol = colourScale(toPlot, style='equal', breaks=10,dec=-log10(0.5),
+	col='Reds', opacity=c(0.1,1))
+mapmisc::map.new(rongelapBorder, buffer=100)
+plot(rongelapMap, add=TRUE)
+plot(toPlot, col=rongelapCol$colOpacity, breaks=rongelapCol$breaks, legend=FALSE, add=TRUE)
+plot(rongelapBorder, add=TRUE)
+legendBreaks('topleft', rongelapCol, bty='n')
+scalBar(toPlot, 'top', bty='n')
+```
+
+
+
+
+
+# more rongelap
+
+```{r params, echo=TRUE}
+knitr::kable(rongelapRes$parameters$summary[,4:6], digits=2)
+```
+
+
+# Conclusions 
+
+- Geostatistics is fun!
+

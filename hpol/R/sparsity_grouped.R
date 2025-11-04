@@ -41,7 +41,7 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 
 			tFirst <- t(firstDeriv)                 # do this once in the master
 			centers <- ceiling(1.1 * Nclusters)
-			nstart  <- ceiling(5 * Nclusters / config$num_threads)
+			nstart  <- ceiling(2 * Nclusters / config$num_threads)
 
 			parallel::clusterExport(cl, varlist = c("tFirst", "centers", "nstart"), envir = environment())
 			parallel::clusterEvalQ(cl, { gc(); NULL })       # optional hygiene
@@ -54,16 +54,6 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 			})
 			parallel::stopCluster(cl)
 
-			if(FALSE) {
-				parallel::mcmapply(function(seed) {
-					set.seed(seed)
-					try(kmeans(t(firstDeriv), 
-						centers = ceiling(1.1*Nclusters), 
-						iter.max=25000, nstart=ceiling(5*Nclusters/config$num_threads), 
-						algorithm='Hartigan-Wong'))
-				}, seed = 1:config$num_threads, mc.cores=ceiling(config$num_threads/2), 
-				SIMPLIFY=FALSE)
-			}
 			km <- kmMC[[ which.min(sapply(kmMC, `[[`, "tot.withinss")) ]]
 
 #	km <- try(kmeans(t(firstDeriv), centers = ceiling(1.1*Nclusters), 
@@ -154,7 +144,7 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 			hessianQT = as(as(hessianQ$hessian, 'generalMatrix'),'TsparseMatrix')
 			hessianQns = as(hessianQ$hessian, 'generalMatrix')
 			if(verbose) cat("getting third sparsity...")
-				ijkQ = getThirdFromHessian(hessianQ$hessian)
+				ijkQ = hpolcc:::getThirdFromHessian(hessianQ$hessian)
 			if(verbose) cat("done\n")
 				if(any(ijkQ[,'Nunique'] == 3)) warning("need to implement non-diagonal Q third")
 
@@ -175,11 +165,13 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 				fullHessianMatrix = Matrix::sparseMatrix(i=fullHessian[,1], j=fullHessian[,2], symmetric=TRUE, index1=FALSE,
 					dims = c(Ntotal, Ntotal), repr='T')
 				if(verbose) cat("getting optimal pairs")
-					fullList = getOptimalPairs(fullHessianMatrix, Sparams=Sparams, Sgamma1=Sgamma1)
+
+				fullList = hpolcc:::getOptimalPairs(fullHessianMatrix, Sparams=Sparams, Sgamma1=Sgamma1)
+
 				if(verbose) cat("done\n")
 
 
-					fullHessianPairs = paste(fullList$second$full$i, fullList$second$full$j, sep='_')
+				fullHessianPairs = paste(fullList$second$full$i, fullList$second$full$j, sep='_')
 				fullHessianPairsNs = paste(fullList$second$nonSymmetric$i,fullList$second$nonSymmetric$j, sep='_')
 				fullHessianPairsR = paste(fullList$second$random$i, fullList$second$random$j, sep='_')
 				fullHessianPairsRNs = paste(fullList$second$randomNS$i, fullList$second$randomNS$j, sep='_')
@@ -215,8 +207,8 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 	# find full hessian sparsity
 	# for each strata, get index in full hessian
 				if(verbose) cat("getting sparsity by block...")
-					sparsityList = parallel::mcmapply(
-					  getOptimalPairs,
+					sparsityList = try(parallel::mcmapply(
+					  hpolcc:::getOptimalPairs,
 						hessian = hessianByBlock2,
 						MoreArgs = list(Sparams = Sparams, Sgamma1=Sgamma1, 
 							hessianPairs = fullHessianPairs,
@@ -224,7 +216,7 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 							hessianPairsNs = fullHessianPairsNs,
 							hessianPairsRns = fullHessianPairsRNs
 						), 
-						SIMPLIFY=FALSE, mc.cores=config$num_threads)
+						SIMPLIFY=FALSE, mc.cores=config$num_threads))
 				if(verbose) cat("done\n")
 
 
