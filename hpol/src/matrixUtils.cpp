@@ -179,6 +179,8 @@ Rcpp::S4 assembleHessian(
       }
     } // groupd
 
+      if (config.verbose ) Rcpp::Rcout << "done groups\n";
+
       const Rcpp::List secondHere = config.sparsity["Q"];
       const Rcpp::List targetHere= onlyRandom?secondHere["random"]:secondHere["full"];
       const Rcpp::IntegerVector matchHere = targetHere["match"];
@@ -187,6 +189,7 @@ Rcpp::S4 assembleHessian(
     for(size_t D=0;D<Nq;++D) {
       hessianSum[matchHere[D]] += qHessian[D];
     }      
+      if (config.verbose ) Rcpp::Rcout << "convert to gCmatrix\n";
 
     Rcpp::S4 result = make_convert_gCmatrix(hessianSum, iAll, jAll, N);
 
