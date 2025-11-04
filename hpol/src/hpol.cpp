@@ -137,9 +137,70 @@ std::vector<double> hessianQsparse(
 }
 
 
-
-
 Rcpp::S4 hessian(
+  const std::vector<double>& parameters,
+  std::vector<GroupPack>& adpack, 
+  const Data& data,
+  const Config& config
+  ) {
+
+  const Rcpp::List sparsity = config.group_sparsity;
+  const size_t Nparams = parameters.size();
+  const bool onlyRandom = Nparams == data.Ngamma;
+  const size_t Ngroup = adpack.size();
+
+  std::vector<double> qRes;
+  std::vector<std::vector<double>> hessianOut(Ngroup);
+
+  omp_set_num_threads(config.num_threads);
+  CppAD::thread_alloc::parallel_setup(
+    config.num_threads,
+    [](){ return in_parallel_wrapper(); },
+    [](){ return static_cast<size_t>(thread_num_wrapper()); }
+    );
+
+
+  #pragma omp parallel
+  {
+
+    const std::vector<double> w(1, 1.0);
+
+  #pragma omp for nowait
+    for(size_t Dgroup = 0; Dgroup < Ngroup; ++Dgroup) {
+
+      const size_t Nhere = adpack[Dgroup].outRowCol[0].size();
+      hessianOut[Dgroup] = std::vector<double>(Nhere);
+
+      adpack[Dgroup].fun.Forward(0, parameters);
+
+      adpack[Dgroup].fun.SparseHessian(parameters, w, 
+        adpack[Dgroup].pattern, adpack[Dgroup].outRowCol[0], 
+        adpack[Dgroup].outRowCol[1], hessianOut[Dgroup], 
+        adpack[Dgroup].work);
+      } //Dgroup
+
+  // add Q
+  #pragma omp single 
+    {
+      // Q likelihood
+      qRes = hessianQsparse(parameters, data, config);
+    }
+
+    } //parallel
+
+// assemble
+
+      if (config.verbose ) Rcpp::Rcout << "assemble hessian\n";
+
+    Rcpp::S4 result=assembleHessian(hessianOut, qRes, sparsity, config, onlyRandom);
+
+
+    return(result);
+}
+
+
+
+Rcpp::S4 hessianADsparse(
   const std::vector<double>& parameters,
   std::vector<GroupPack>& adpack, 
   const Data& data,
