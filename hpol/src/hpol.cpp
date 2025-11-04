@@ -149,7 +149,6 @@ Rcpp::S4 hessian(
   const bool onlyRandom = Nparams == data.Ngamma;
   const size_t Ngroup = adpack.size();
 
-  std::vector<double> qRes;
   std::vector<std::vector<double>> hessianOut(Ngroup);
 
   omp_set_num_threads(config.num_threads);
@@ -179,16 +178,11 @@ Rcpp::S4 hessian(
         adpack[Dgroup].work);
       } //Dgroup
 
-  // add Q
-  #pragma omp single 
-    {
-      // Q likelihood
-      qRes = hessianQsparse(parameters, data, config);
-    }
 
     } //parallel
 
 // assemble
+      auto qRes = hessianQsparse(parameters, data, config);
 
       if (config.verbose ) Rcpp::Rcout << "assemble hessian\n";
 
