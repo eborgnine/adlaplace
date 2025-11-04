@@ -212,7 +212,7 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
                     "fullHessianPairsNs", "fullHessianPairsRNs"), envir=environment())
 
 
-#				save(hessianByBlock2, Sparams, Sgamma1, fullHessianPairs, fullHessianPairsR, fullHesisanPairsNs, fullHessianPairsRNs, file='todebug.Rdata')
+				save(hessianByBlock2, Sparams, Sgamma1, fullHessianPairs, fullHessianPairsR, fullHesisanPairsNs, fullHessianPairsRNs, file='todebug.Rdata')
 
 				if(verbose) cat("getting sparsity by block...")
 					sparsityList = parallel::parLapply(cl, seq_along(hessianByBlock2), function(i) {
