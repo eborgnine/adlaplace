@@ -191,6 +191,9 @@ Rcpp::S4 hessian(
     } //parallel
 
 // assemble
+
+      if (config.verbose ) Rcpp::Rcout << "assemble hessian\n";
+
     Rcpp::S4 result=assembleHessian(hessianOut, qRes, sparsity, config, onlyRandom);
 
 
