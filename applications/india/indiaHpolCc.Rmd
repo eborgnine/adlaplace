@@ -117,9 +117,8 @@ library('hpolcc')
 adFunFull = getAdFun(res$parameters_and_gamma, res$tmb_data, res$config)
 #adFunFull1 = getAdFun(res1$parameters_and_gamma, res1$tmb_data, res1$config)
 
-
 assign("file", "stuff.txt", res$cache)
-
+if(file.exists(get("file", res$cache))) file.remove(get("file", res$cache))
 
 mleX = optim(
     rep(c(0,-10), c(length(res$config$beta), length(res$config$theta))),
@@ -128,7 +127,9 @@ mleX = optim(
     method = 'L-BFGS-B',#'SR1',
     lower = rep(c(-0.5, -Inf), c(length(res$config$beta), length(res$config$theta))),
     upper = rep(c(0.5, 0), c(length(res$config$beta), length(res$config$theta))),
-    control = list(trace=3, REPORT=1),#start.trust.radius = 0.05, REPORT=1, trace=10),
+    control = list(trace=3, REPORT=1, 
+      parscale = rep(c(1e-3, 1), c(length(res$config$beta), length(res$config$theta)))
+      ),#start.trust.radius = 0.05, REPORT=1, trace=10),
     data=res$tmb_data, config = res$config, cache =  res$cache, control_inner = res$control_inner,
     adFunFull = adFunFull
   )

@@ -122,7 +122,7 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 #	hessianDenseAll = hessianDenseLogical(parameters=x, data=dataNoMap,config=config, strata = res$groups$groups)
 	# now find hessian for each block
 			if(verbose) cat("getting hessian by group...")
-				hessianByBlock = mapply(function(strata, config, ...) {
+				hessianByBlock = parallel::mcmapply(function(strata, config, ...) {
 					hessianDenseLogical(..., config = c(config, list(groups = strata)))
 				},
 				strata = strataListForHessian,
@@ -130,7 +130,7 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 					parameters=x, data=dataNoMap, 
 					config = c(config[setdiff(names(config), 'num_threads')], 
 						list(num_threads=1))),
-				SIMPLIFY=FALSE#, mc.cores=config$num_threads
+				SIMPLIFY=FALSE, mc.cores=config$num_threads
 			)
 			hessianByBlock2 = lapply(hessianByBlock, Matrix::Matrix, sparse=TRUE)
 
@@ -208,28 +208,9 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 	# find full hessian sparsity
 	# for each strata, get index in full hessian
 if(verbose) cat("getting sparsity by block...")				
-				save(hessianByBlock2, Sparams, Sgamma1, fullHessianPairs, fullHessianPairsR, fullHessianPairsNs, fullHessianPairsRNs, file='todebug.Rdata')
-
-if(FALSE) {
-				parallel::clusterExport(cl, c( "hessianByBlock2", "Sparams", "Sgamma1",
-                    "fullHessianPairs", "fullHessianPairsR",
-                    "fullHessianPairsNs", "fullHessianPairsRNs"), envir=environment())
-parallel::clusterEvalQ(cl, { library(hpolcc); NULL })
+#				save(hessianByBlock2, Sparams, Sgamma1, fullHessianPairs, fullHessianPairsR, fullHessianPairsNs, fullHessianPairsRNs, file='todebug.Rdata')
 
 
-
-					sparsityList = parallel::parLapply(cl, seq_along(hessianByBlock2), function(i) {
-					  hpolcc:::getOptimalPairs(
-						hessian = hessianByBlock2[[i]],
-						Sparams = Sparams, Sgamma1=Sgamma1, 
-							hessianPairs = fullHessianPairs,
-							hessianPairsR = fullHessianPairsR, 
-							hessianPairsNs = fullHessianPairsNs,
-							hessianPairsRns = fullHessianPairsRNs
-						)
-					}
-					)
-}
 				
 				sparsityList = mapply(
 				  hpolcc:::getOptimalPairs,
