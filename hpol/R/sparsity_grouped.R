@@ -207,13 +207,13 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 	# find full hessian sparsity
 	# for each strata, get index in full hessian
 
-				clusterExport(cl, c( "hessianByBlock2", "Sparams", "Sgamma1",
+				parallel::clusterExport(cl, c( "hessianByBlock2", "Sparams", "Sgamma1",
                     "fullHessianPairs", "fullHessianPairsR",
                     "fullHessianPairsNs", "fullHessianPairsRNs"), envir=environment())
 
 
 				if(verbose) cat("getting sparsity by block...")
-					sparsityList = parLapply(cl, seq_along(hessianByBlock2), function(i) {
+					sparsityList = parallel::parLapply(cl, seq_along(hessianByBlock2), function(i) {
 					  hpolcc:::getOptimalPairs(
 						hessian = hessianByBlock2[[i]],
 						Sparams = Sparams, Sgamma1=Sgamma1, 
