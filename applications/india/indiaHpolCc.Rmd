@@ -115,20 +115,29 @@ abline(h = res$groups$groups$p,
 ```{r mle}
 library('hpolcc')
 adFunFull = getAdFun(res$parameters_and_gamma, res$tmb_data, res$config)
-adFunFull1 = getAdFun(res1$parameters_and_gamma, res1$tmb_data, res1$config)
+#adFunFull1 = getAdFun(res1$parameters_and_gamma, res1$tmb_data, res1$config)
 
 
-mleX =  trustOptim::trust.optim(
-    x = res$parameters,
+assign("file", "stuff.txt", res$cache)
+
+
+mleX =  #trustOptim::trust.optim
+    optim(
+    res$parameters,
     fn = wrappers_outer$fn,
     gr = wrappers_outer$gr,
-    method = 'SR1',
-    control = list(start.trust.radius = 0.05, REPORT=1, trace=10),
-    data=res$tmb_data, config = res$config, cache =  cache, control_inner = res$control_inner,
+    method = 'L-BFGS-B',#'SR1',
+    lower = rep(c(-0.5, -8), c(length(res$config$beta), length(res$config$theta))),
+    upper = rep(c(0.5, 0), c(length(res$config$beta), length(res$config$theta))),
+    control = list(trace=3, REPORT=1),#start.trust.radius = 0.05, REPORT=1, trace=10),
+    data=res$tmb_data, config = res$config, cache =  res$cache, control_inner = res$control_inner,
     adFunFull = adFunFull
   )
 
-mleX$check = loglik(mleX$solution, config=res$config, cache=cache, deriv=0, check=TRUE)
+mleXcheck = loglik(
+  parameters = get("last.par", res$cache), 
+  gamma_start = get("gamma_start", res$cache),
+  config=res$config, data=res$tmb_data, adFunFull=adFunFull, deriv=0, check=FALSE)
 
 Sall = 1:length(res$parameters_and_gamma)
 Sgamma = seq(length(res$config$beta)+1, len=length(res$gamma_start))

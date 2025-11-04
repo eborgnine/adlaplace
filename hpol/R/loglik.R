@@ -66,12 +66,17 @@ loglik <- function(
 
   if(identical(deriv, 0)) { # return log lik
 
-    result$cholHessian = Matrix::chol(result$hessian)
+    # hessianDense(gamma_start, data, config)
+    result$cholHessian = Matrix::Cholesky(result$hessian)
     result$invHessian = Matrix::solve(result$cholHessian)
 
-    result$halfLogDet = drop(Matrix::determinant(
-      result$cholHessian, log=TRUE #, sqrt=TRUE
+    result$halfLogDet = try(Matrix::determinant(
+      result$cholHessian, log=TRUE, sqrt=TRUE
     )$modulus)
+    if(is.na(result$halfLogDet)) {
+      warning("determinant of hessian is NA")
+      result$halfLogDet = 1e8
+    }
 
     result$minusLogLik = result$fval +
     as.numeric(result$halfLogDet) + 
