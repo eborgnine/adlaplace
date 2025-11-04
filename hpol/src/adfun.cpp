@@ -24,7 +24,7 @@ CppAD::ADFun<double> adFunGroup(
 
       auto latent=unpack_params(ad_params, data, config);
 
-      Rcpp::Rcout << "ad beta " << latent.beta[0] << " gamma " << latent.gamma[0] << "\n";
+//      Rcpp::Rcout << "ad beta " << latent.beta[0] << " gamma " << latent.gamma[0] << "\n";
 
       for (size_t Dindex = start; Dindex < end;  Dindex++) {
 
