@@ -149,7 +149,7 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 
 # get non-zeros of tensor
 
-			hessianQ$hessian = Matrix::forceSymmetric(Matrix::Matrix(hessianQ$dense, sparse=TRUE))
+			hessianQ$hessian = Matrix::forceSymmetric(Matrix::Matrix(hessianQ$dense, sparse=TRUE), uplo='U')
 			hessianQT = as(as(hessianQ$hessian, 'generalMatrix'),'TsparseMatrix')
 			hessianQns = as(hessianQ$hessian, 'generalMatrix')
 			if(verbose) cat("getting third sparsity...")
@@ -214,7 +214,8 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 	# find full hessian sparsity
 	# for each strata, get index in full hessian
 				if(verbose) cat("getting sparsity by block...")
-					sparsityList = parallel::mcmapply(getOptimalPairs,
+					sparsityList = parallel::mcmapply(
+					  getOptimalPairs,
 						hessian = hessianByBlock2,
 						MoreArgs = list(Sparams = Sparams, Sgamma1=Sgamma1, 
 							hessianPairs = fullHessianPairs,
