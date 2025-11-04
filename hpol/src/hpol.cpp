@@ -182,6 +182,7 @@ Rcpp::S4 hessian(
     } //parallel
 
 // assemble
+      if (config.verbose ) Rcpp::Rcout << "q..";
       auto qRes = hessianQsparse(parameters, data, config);
 
       if (config.verbose ) Rcpp::Rcout << "assemble hessian\n";
