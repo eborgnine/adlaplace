@@ -122,7 +122,7 @@ assign("file", "stuff.txt", res$cache)
 
 
 mleX = optim(
-    res$parameters,
+    rep(c(0,-10), c(length(res$config$beta), length(res$config$theta))),
     fn = wrappers_outer$fn,
     gr = wrappers_outer$gr,
     method = 'L-BFGS-B',#'SR1',
@@ -146,17 +146,16 @@ mleXcheck = loglik(
 ```{r theResults}
 result = mleX
 result$parameters = hpolcc::formatParameters(
-  result$solution, fitD, TRUE)
+  c(mleX$par[1:2], mleXcheck$solution, mleX$par[-(1:2)]), 
+  res, TRUE)
 
 result$parameters$theta
 
 # parameters are (beta, gamma, theta)
 
-randomEffects = seq(from=length(result$parameters$beta)+1,
-  length = nrow(result$parameters$gamma))
-
-result$Htilde = result$hessian[randomEffects, randomEffects]
-result$HtildeChol = Matrix::solve(Matrix::chol(result$Htilde))
+result$Htilde = mleXcheck$hessian
+result$HtildeChol = as(mleXcheck$cholHessian,"Matrix")
+result$HtildeInv = mleXcheck$invHessian
 
 Nsim = 200
 simInd = matrix(rnorm(Nsim * nrow(result$Htilde)),
@@ -164,21 +163,21 @@ simInd = matrix(rnorm(Nsim * nrow(result$Htilde)),
 
 # sample from [U|Y, theta_map]
 simGamma = Matrix::crossprod(result$HtildeChol,  simInd) 
-rownames(simGamma) = rownames(fitD$tmb_data$ATp)
+rownames(simGamma) = rownames(res$tmb_data$ATp)
 
 simGamma = simGamma + unlist(result$parameters$gamma[
   rownames(simGamma), 'value'])
 
 
 Stemp = seq(0,45,by=0.1)
-SobsTemp = na.omit(match(Stemp, round(fitD$data$tempClean, 1)))
-Spm = seq(1,1000, by=1)
-SobsPm = na.omit(match(Spm, round(fitD$data$pm)))
+SobsTemp = na.omit(match(Stemp, round(res$data$tempClean, 1)))
+#Spm = seq(1,1000, by=1)
+#SobsPm = na.omit(match(Spm, round(res$data$pm)))
 
 Sobs = SobsTemp
 nameX = 'tempClean'
 
-Bmat = fitD$tmb_data$ATp[, Sobs]
+Bmat = res$tmb_data$ATp[, Sobs]
 # only want the global effects
 Bmat = Bmat[grep(paste0(nameX,".*global"), rownames(Bmat)),]
 
@@ -186,19 +185,20 @@ Bmat = Bmat[grep(paste0(nameX,".*global"), rownames(Bmat)),]
 simF = crossprod(Bmat, simGamma[rownames(Bmat),]) 
 
 covHere = grep(nameX, names(result$parameters$beta), value=TRUE)
-fixedPart = drop(crossprod(fitD$tmb_data$XTp[covHere,Sobs, drop=FALSE], 
+fixedPart = drop(crossprod(res$tmb_data$XTp[covHere,Sobs, drop=FALSE], 
                            result$parameters$beta[covHere]))
 
 simSum = simF + fixedPart 
 
 
 
-theX= fitD$data[[covHere[1] ]][Sobs]
+theX= res$data[[covHere[1] ]][Sobs]
 if(grepl("^sqrt", nameX)) theX = theX^2
 
 par(mar=c(3,3,0,0), bty='l')
 matplot(theX, simSum, type='l',
-  col='#00000010', lty=1, xaxs='i')
+  col='#00000010', lty=1, xaxs='i',
+  ylim = c(-1,1)*100)
 
 
 ```

@@ -1,9 +1,9 @@
 rowSortP = function(x) {
 
 if(requireNamespace("Rfast", quietly=TRUE)) {      
-      x = Rfast::rowSort(x)
+      return(Rfast::rowSort(x))
     } else {
-      x = t(apply(x, 1, sort))
+      return(t(apply(x, 1, sort)))
     }
     x
 }

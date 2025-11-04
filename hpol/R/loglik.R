@@ -63,10 +63,19 @@ loglik <- function(
     }
   }
 
+  result$parameters = c(
+    beta,
+    theta)
+
+  result$fullParameters = c(
+    beta,
+    result$solution,
+    theta)
+
 
   if(identical(deriv, 0)) { # return log lik
 
-    # hessianDense(gamma_start, data, config)
+    # h2 = hessianDense(gamma_start, data, config)
     result$cholHessian = Matrix::Cholesky(result$hessian)
     result$invHessian = Matrix::solve(result$cholHessian)
 
@@ -85,14 +94,6 @@ loglik <- function(
     return(result)
   }
 
-  result$parameters = c(
-    beta,
-    theta)
-
-  result$fullParameters = c(
-    beta,
-    result$solution,
-    theta)
 
   if(missing(adFunFull)) {
     adFunFull = getAdFun(result$fullParameters, data=data, config=config)

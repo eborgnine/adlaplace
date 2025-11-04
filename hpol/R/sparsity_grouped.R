@@ -42,12 +42,12 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 
 			tFirst <- t(firstDeriv)                 # do this once in the master
 			centers <- ceiling(1.1 * Nclusters)
-			nstart  <- ceiling(2 * Nclusters / config$num_threads)
+			nstart  <- max(5L, ceiling(2 * Nclusters / config$num_threads))
 
 			parallel::clusterExport(cl, varlist = c("tFirst", "centers", "nstart"), envir = environment())
 			parallel::clusterEvalQ(cl, { gc(); NULL })       # optional hygiene
 			parallel::clusterSetRNGStream(cl, 123)           # reproducible, different stream per worker
-			seeds <- seq_len(config$num_threads)
+			seeds <- seq_len(n_workers)
 			kmMC = parallel::parLapply(cl, seeds, function(seed) {
 				set.seed(seed)
 				stats::kmeans(tFirst, centers = centers, iter.max = 1000,
@@ -150,7 +150,7 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 
 					fullHessian=do.call(rbind, lapply(hessianByBlock2, function(xx) cbind(xx@i,as(xx, "TsparseMatrix")@j)))
 				fullHessian = fullHessian[!duplicated(fullHessian), ]
-				fullHessian = t(apply(fullHessian, 1, sort))
+				fullHessian = rowSortP(fullHessian) #t(apply(fullHessian, 1, sort))
 				fullHessian = fullHessian[!duplicated(fullHessian), ]
 				fullHessian = fullHessian[order(fullHessian[,2], fullHessian[,1]),]
 
@@ -210,9 +210,9 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 				parallel::clusterExport(cl, c( "hessianByBlock2", "Sparams", "Sgamma1",
                     "fullHessianPairs", "fullHessianPairsR",
                     "fullHessianPairsNs", "fullHessianPairsRNs"), envir=environment())
+parallel::clusterEvalQ(cl, { library(hpolcc); NULL })
 
-
-				save(hessianByBlock2, Sparams, Sgamma1, fullHessianPairs, fullHessianPairsR, fullHesisanPairsNs, fullHessianPairsRNs, file='todebug.Rdata')
+				save(hessianByBlock2, Sparams, Sgamma1, fullHessianPairs, fullHessianPairsR, fullHessianPairsNs, fullHessianPairsRNs, file='todebug.Rdata')
 
 				if(verbose) cat("getting sparsity by block...")
 					sparsityList = parallel::parLapply(cl, seq_along(hessianByBlock2), function(i) {
