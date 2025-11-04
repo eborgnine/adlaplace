@@ -182,8 +182,6 @@ Rcpp::List thirdStrata(
       TijkOut[Dgroup] = TijkHere;
   } //group
 
-// get rid of this barrier?
-#pragma omp barrier
 # pragma omp single
   {
         Qfun.fun.Forward(0, x_val);
@@ -241,8 +239,7 @@ Rcpp::List thirdStrata(
     } // Dk
   } // Q
 
-#pragma omp barrier
-  
+
 # pragma omp critical
   {
     for(size_t Dcol=0;Dcol<Nparams;Dcol++) {

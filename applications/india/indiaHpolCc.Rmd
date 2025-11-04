@@ -78,15 +78,9 @@ save(dataMedSimple, file='dataMedSimple.RData')
 
 
 ```{r fit}
-# R CMD INSTALL --clean --preclean hpoltest_0.0.1.tar.gz   --configure-args="--enable-openmp" --configure-vars="PKG_CPPFLAGS='-fopenmp' PKG_LIBS='-fopenmp'"
-# devtools::install_github("samperochkin/hpoltest")
-# ulimit -s unlimited 
-
-
 library('hpolcc')
 load("dataMedSimple.RData")
 
-# add day iid
 res <- hpolcc::hnlm(
   formula= medical ~ #f(date, model='iid') +
 #    f(sqrtPm, model='hiwp', ref_value = 8, p=2, 
@@ -100,7 +94,7 @@ res <- hpolcc::hnlm(
         cg.tol = 1e-6, report.level=4, report.freq=1, report.header.freq=10, report.precision=7),
   control_inner=list(report.level=0),
   dirichlet= TRUE, 
-  config = list(transform_theta = TRUE, num_threads=parallel::detectCores(),Nclusters = 64),
+  config = list(transform_theta = TRUE, num_threads=parallel::detectCores(),Nclusters = 30),
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
   for_dev=TRUE, verbose=TRUE
   )
@@ -117,18 +111,253 @@ abline(h = res$groups$groups$p,
        lty = 1)
 ```
 
+```{r mle}
+library('hpolcc')
+adFunFull = getAdFun(res$parameters_and_gamma, res$tmb_data, res$config)
+adFunFull1 = getAdFun(res1$parameters_and_gamma, res1$tmb_data, res1$config)
+
+
+mleX =  trustOptim::trust.optim(
+    x = res$parameters,
+    fn = wrappers_outer$fn,
+    gr = wrappers_outer$gr,
+    method = 'SR1',
+    control = list(start.trust.radius = 0.05, REPORT=1, trace=10),
+    data=res$tmb_data, config = res$config, cache =  cache, control_inner = res$control_inner,
+    adFunFull = adFunFull
+  )
+
+mleX$check = loglik(mleX$solution, config=res$config, cache=cache, deriv=0, check=TRUE)
+
+Sall = 1:length(res$parameters_and_gamma)
+Sgamma = seq(length(res$config$beta)+1, len=length(res$gamma_start))
+
+Dpar = 2;Dpar0 = Dpar-1
+Sall = 1:length(res$parameters_and_gamma)
+Sgamma = seq(length(res$config$beta)+1, len=length(res$gamma_start))
+Spar = setdiff(Sall, Sgamma)
+DparInAll = which(Sall == Spar[Dpar])
+parMat = data.frame(res$parameters)[,rep(1, 6)]
+Sx = seq(-0.5,0.5, len=ncol(parMat)) + parMat[Dpar,1]
+Sx1 = Sx[-1] - diff(Sx)/2
+
+parMatFull = data.frame(par=estHere$fullParameters)[,rep(1, 6)]
+parMatFull[DparInAll,] = parMat[Dpar,] = Sx
+
+rx = mapply(
+  loglik,
+  parameters = as.list(parMat),
+  MoreArgs = list(
+    gamma_start = get('gamma_start', cache)+ rnorm(length(Sgamma), 0, 1e-4),
+    control = list(
+  maxit = 5000L,
+  gtol  = 1e-13,   # gradient-norm tolerance
+  xtol  = 1e-13,   # parameter step tolerance
+  ftol  = 1e-12,   # objective change tolerance
+  stop.trust.radius = 1e-15,
+  cg.tol = 1e-15,
+  prec   = 1e-15,
+  report.level = 8L, report.freq = 1L
+),
+    data=res$tmb_data, config = res$config, adFun=adFun, adFunFull = adFunFull),
+  SIMPLIFY=FALSE
+  )
+
+lapply(rx, '[[', 'parameters')
+
+the30 = hpolcc:::thirdDeriv(x=estHere$fullParameters, data=res$tmb_data, config = res$config, adFun=adFunFull, extra=TRUE)
+config2 = res$config;config2$dense=TRUE
+the3b = hpolcc:::thirdDeriv(x=estHere$fullParameters, data=res$tmb_data, config = config2, adFun=adFunFull, extra=TRUE)
+
+bob = as.matrix(the30$thirdList[[1]][Sgamma,Sgamma]) - as.matrix(the3b$thirdList[[1]][Sgamma,Sgamma])
+
+p1 = estHere$fullParameters
+p1[1] = estHere$fullParameters + 0.01
+h1 = hessian(parameters=p1, data=res$tmb_data, config = res$config, adFun=adFunFull)
+dh = (as.matrix(h1)[Sgamma,Sgamma]- as.matrix(estHere$hessian))/0.01
+dh2 = the30$thirdList[[Dpar]][Sgamma,Sgamma]
+dh3 = the3b$thirdList[[Dpar]][Sgamma,Sgamma]
+
+sum(Matrix::diag(the30$invHessianRandom %*% dh2))
+sum(the30$invHessianRandom * dh2)
+
+tracehu = mapply(function(ih, tuuu,Sgamma) {
+  sum(Matrix::diag(ih %*% tuuu[Sgamma, Sgamma]))
+  },
+  tuuu = the30$thirdList,
+  MoreArgs = list(ih = the30$invHessianRandom, Sgamma=Sgamma))
+cbind(tracehu[-Sgamma],
+as.vector(crossprod(the30$dUhat, tracehu[Sgamma])))
+
+bob1 = Matrix::sparseMatrix(i=res$config$sparsity$second$nonSymmetric$i, j=res$config$sparsity$second$nonSymmetric$j, 
+  x=the30$raw$diag, 
+  index1=0, dims = c(125, 125))
+bob2 = matrix(the3b$raw$diag, ncol=125)
+quantile(as.matrix(bob1) - bob2)
+
+bob3 = merge(the30$third, the3b$third, by =c('i','j','k'), suffixes = c('s','f'), all=TRUE)
+bob3$diff = abs(bob3$xf - bob3$xs)
+bob3[which(is.na(bob3$diff))[1:12],]
+
+plot(Sx1, diff(unlist(lapply(rx, "[[", "minusLogLik")))/mean(diff(Sx)),  pch=16, xlim = range(Sx))
+points(Sx, unlist(lapply(rx, function(xx) xx$deriv[Dpar,'dL'])), col='red', type='o', cex=2, pch=15)
+
+
+theU = lapply(rx, "[[", "solution")
+theU = do.call(cbind, theU)
+(themax <- order(apply(theU, 1, sd), decreasing=TRUE)[1:10])
+dU = apply(theU, 1, diff)/mean(diff(Sx))
+matplot(Sx,t(theU[themax,]), type='o')
+
+
+myDu = as.matrix(the30$invHessianRandom %*% the30$hessianFull[Sgamma, -Sgamma])
+
+matplot(Sx1, dU[,themax], xlim = range(Sx), type='o')
+abline(h=the30$dUhat[themax, Dpar])
+
+
+theH = lapply(rx, "[[", "hessian")
+theH = lapply(theH, as.matrix)
+theH = do.call(abind::abind, c(theH, list(along=3)))
+dH = apply(theH, 1:2, diff)/mean(diff(Sx))
+
+theSd = apply(dH, 2:3, sd)
+themax = order(diag(theSd), decreasing=TRUE)[1:8]
+
+
+matplot(Sx1, t(apply(dH, 1, diag)[themax,]), col=1:length(themax))
+abline(h=Matrix::diag(the30$dH[[Dpar]])[themax], col=1:length(themax))
+
+
+
+
+Dpar1=14;Dpar2=16
+plot(Sx1, dH[,Dpar1, Dpar2])
+abline(h=the30$dH[[Dpar]][Dpar1, Dpar2])
+
+
+plot(Sx1, diff(unlist(lapply(rx, "[[", "fval")))/mean(diff(Sx)), type='o')
+points(Sx, unlist(lapply(rx, function(xx) xx$deriv[Dpar,'theta'])), col='red')
+
+
+
+theD = unlist(lapply(rx, "[[", "halfLogDet"))
+dD = diff(theD)/mean(diff(Sx))
+plot(Sx1, dD, xlim = range(Sx))
+abline(h=the30$dDet[Dpar])
+
+dhub = mapply(
+  function(tuuu, hinv, Sgamma) {
+    if(is.null(tuuu)) return(0)
+    if(nrow(tuuu) == 0) return(0)
+    tsub = tuuu[Sgamma, Sgamma]
+    res = try(sum(as.vector(hinv * as.matrix(tsub))))
+    if('try-error' %in% class(res)) res = list(hinv, tuuu, Sgamma, tsub)
+    res
+  },
+  tuuu = the3b$thirdList,
+  MoreArgs = list(hinv = Matrix::as.matrix(the3b$invHessianRandom), Sgamma = Sgamma)
+  )
+
+ddet =  as.vector(unlist(dhu)[Sgamma] %*% the30$dUhat) + unlist(dhu)[-Sgamma]
+
+as.vector(unlist(dhub)[Sgamma] %*% the3b$dUhat) + unlist(dhub)[-Sgamma]
+
+abline(h=ddet[Dpar], col='red')
+
+
+the3b = hpolcc:::thirdStrata(parameters=estHere$fullParameters, data=res$tmb_data, config = res1$config, adFun=adFunFull1)
+
+
+
+Shere = -(1:117)
+round(bob1[Shere, Shere],2)
+round(bob2[Shere, Shere],2)
+
+cbind(Matrix::diag(the30$thirdList[[122]]), Matrix::diag(the3b$thirdList[[122]]))
+
+theH = parallel::mcmapply(hessianDense,
+  parameters = parMatFull,
+  MoreArgs = list(data=res$tmb_data, config = res$config), SIMPLIFY=FALSE,
+  mc.cores=2
+)
+
+Nparams = length(rx[[3]]$fullParameters)
+theH2 = array(unlist(theH), c(Nparams, Nparams, length(theH)))
+dH = apply(theH2, 1:2, diff)/mean(diff(Sx))
+
+
+
+config3 = res$config;config3$num_threads = 1
+config2 = res$config;config2$dense=TRUE
+config4 = res1$config;config4$dense = FALSE
+the30 = hpolcc:::thirdDeriv(x=estHere$fullParameters, data=res$tmb_data, config = res$config, adFun=adFunFull, extra=TRUE)
+the31 = hpolcc:::thirdDeriv(x=estHere$fullParameters, data=res1$tmb_data, config = res1$config, adFun=adFunFull1, extra=TRUE)
+
+
+
+# dense, multi groups
+the32 = hpolcc:::thirdDeriv(x=estHere$fullParameters, data=res$tmb_data, config = config2, adFun=adFunFull, extra=TRUE)
+the33 = hpolcc:::thirdDeriv(x=estHere$fullParameters, data=res$tmb_data, config = config3, adFun=adFunFull, extra=TRUE)
+the34 = hpolcc:::thirdDeriv(x=estHere$fullParameters, data=res1$tmb_data, config = config4, adFun=adFunFull1, extra=TRUE)
+
+
+the30$thirdList[[DparInAll]][1:5,1:5]
+
+Dpar1=3;Dpar2=4
+plot(Sx1, dH[,Dpar1,Dpar2])
+abline(h=the30$thirdList[[DparInAll]][Dpar1, Dpar2], col='red', lwd=2) # bad
+
+abline(h=the34$thirdList[[Dpar]][Dpar1, Dpar2], col='orange', lty=3,lwd=6) # bad
+abline(h=the31$thirdList[[Dpar]][Dpar1, Dpar2], lwd=5, col='grey')
+abline(h=the33$thirdList[[Dpar]][Dpar1, Dpar2], col='yellow', lty=2,lwd=1)
+abline(h=the32$thirdList[[Dpar]][Dpar1, Dpar2], col='blue', lty=3,lwd=2)
+
+quantile(the30$fullHessian - the33$fullHessian)
+quantile(the31$fullHessian - the33$fullHessian)
+
+quantile((bob1 <- the31$fullHessian - theH2[,,3]))
+quantile((bob2 <- the33$fullHessian - theH2[,,3]))
+quantile(the31$fullHessian[Sgamma,Sgamma] - rx[[3]]$hessian)
+
+
+
+
+
+
+
+theUhat = apply(do.call(cbind, lapply(rx, '[[', "solution")),1,diff)/mean(diff(Sx))
+Dpar2 = 15
+plot(Sx1, theUhat[,Dpar2])
+
+the30$dUhat[Dpar2, Dpar]
+the31$dUhat[Dpar2, Dpar]
+the33$dUhat[Dpar2, Dpar]
+
+
+theD = unlist(lapply(rx, function(xx) xx$halfLogDet))
+plot(Sx, theD)
+
+plot(Sx1, diff(theD)/mean(diff(Sx)), xlim = range(Sx), type='o',)
+points(Sx, unlist(lapply(rx, function(xx) xx$deriv[Dpar,'det'])), col='red')
+
+
+plot(Sx, unlist(lapply(rx, "[[", "minusLogLik")))
+
+
+
+
+
+
+```
+
 ```{r checkDeriv}
 library('hpolcc')
 adFun = getAdFun(res$gamma_start, res$tmb_data, res$config)
 adFunFull = getAdFun(res$parameters_and_gamma, res$tmb_data, res$config)
 
-res$config$dense = TRUE
+res$config$dense = FALSE
 estHere= loglik(res$parameters, res$gamma_start, res$tmb_data, res$config, adFun, adFunFull, check=FALSE)
-
-mygrad = grad(estHere$fullParameters, data=res$tmb_data, config=res$config, adFun = adFunFull)
-mygrad2 = numDeriv::grad(
-  grad, estHere$fullParameters, data=res$tmb_data, config=res$config, adFun = adFunFull
-)
 
 bob2 = thirdDeriv(
       estHere$fullParameters, data=res$tmb_data, config=res$config, adFunFull,
@@ -158,7 +387,7 @@ estHere$deriv[DparL,]
 
 plot(SxL, unlist(lapply(theL, "[[", "fval")))
 
-plot(SxL1, diff(unlist(lapply(theL, "[[", "fval")))/mean(diff(SxL)))
+plot(SxL1, diff(unlist(lapply(theL, "[[", "fval")))/mean(diff(SxL)), type='o')
 points(SxL, unlist(lapply(theL, function(xx) xx$deriv[DparL,'theta'])), col='red')
 abline(h=estHere$deriv[DparL,'theta'])
 
@@ -233,6 +462,52 @@ estHere$deriv[DparL, ]
 
   multGammaParam = bob2$invHessianRandom %*% bob2$fullHessian[Sgamma, -Sgamma]
 as.vector(bob2$first[Sgamma] %*% multGammaParam )
+
+```
+
+```{r checkGrad}
+
+mygrad = grad(estHere$solution, data=res$tmb_data, config=res$config, adFun = adFun)
+
+mygrad2 = numDeriv::grad(
+  jointLogDens, estHere$solution, data=res$tmb_data, config=res$config, adFun = adFun,
+    method.args = list(
+    d        = 1e-4,                         # relative step for |x_i| > zero.tol
+    eps      = 1e-6,                         # absolute step for near-zero x_i
+    zero.tol = sqrt(.Machine$double.eps),    # what counts as “near zero”
+    r        = 6,                            # Richardson iterations (↑ accuracy, ↑ evals)
+    v        = 2                             # step shrink factor
+  )
+)
+which.max(abs(mygrad - mygrad2))
+
+
+Dpar = 9
+parMat = data.frame(estHere$solution)[,rep(1, 6)]
+Sx = seq(-0.0001,0.0001, len=ncol(parMat)) + parMat[Dpar,1]
+Sx1 = Sx[-1] - diff(Sx)/2
+
+parMat[Dpar,] = Sx
+
+rx = unlist(mapply(
+  jointLogDens,
+  x = as.list(parMat),
+  MoreArgs = list(data=res$tmb_data, config = res$config, adFun=adFun),
+  SIMPLIFY=FALSE
+  ))
+dx = do.call(cbind, mapply(
+  grad,
+  parameters = as.list(parMat),
+  MoreArgs = list(data=res$tmb_data, config = res$config, adFun=adFun),
+  SIMPLIFY=FALSE
+  ))
+
+plot(Sx, rx)
+
+plot(Sx1, diff(rx)/mean(diff(Sx)), type='o', xlim = range(Sx))
+points(Sx, dx[Dpar,], col='red')
+abline(h=mygrad2[Dpar], col='yellow', lwd=3)
+abline(h=mygrad[Dpar])
 
 ```
 

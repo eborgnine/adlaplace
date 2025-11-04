@@ -49,7 +49,7 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 			seeds <- seq_len(config$num_threads)
 			kmMC = parallel::parLapply(cl, seeds, function(seed) {
 				set.seed(seed)
-				stats::kmeans(tFirst, centers = centers, iter.max = 25000,
+				stats::kmeans(tFirst, centers = centers, iter.max = 1000,
 					nstart = nstart, algorithm = "Hartigan-Wong")
 			})
 

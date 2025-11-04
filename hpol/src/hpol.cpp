@@ -501,8 +501,6 @@ std::vector<double> grad(
 
     } // group
 
-// get rid?
-#pragma omp barrier
 
 #pragma omp single 
     {

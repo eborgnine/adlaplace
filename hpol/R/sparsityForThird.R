@@ -110,8 +110,9 @@ getOptimalPairs = function(hessian, Sparams, Sgamma1, hessianPairs, hessianPairs
   pairs$pair = paste(pairs$i, pairs$j, sep='_')
 
   hessianC = as(hessian, 'CsparseMatrix')
+  hessianRandomC = hessianT[Sgamma1, Sgamma1]
+  hessianRandom = as(hessianRandomC, 'TsparseMatrix')
   hessianT = as(hessianC,'TsparseMatrix')
-  hessianRandom = hessianT[Sgamma1, Sgamma1]
 
   # store upper and lower triangle
   hessianC2 = as(hessianC, "generalMatrix")
@@ -194,10 +195,12 @@ getOptimalPairs = function(hessian, Sparams, Sgamma1, hessianPairs, hessianPairs
     )
   )
 
-  if(!missing(hessianPairs))
+  if(!missing(hessianPairs)) 
     sparsity$second$full$match =  try(match(paste(hessianT@i, hessianT@j, sep='_'), hessianPairs))-1L
-  if(!missing(hessianPairsR))
+  if(!missing(hessianPairsR)) {
     sparsity$second$random$match =  try(match(paste(hessianRandom@i, hessianRandom@j, sep='_'), hessianPairsR))-1L
+    if(any(is.na(sparsity$second$random$match))) warning("missing random match")
+  }
 
   if(!missing(hessianPairsNs))
     sparsity$second$nonSymmetric$match =  try(match(paste(nonsymmetric$i, nonsymmetric$j, sep='_'), hessianPairsNs))-1L
