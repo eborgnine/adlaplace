@@ -110,7 +110,7 @@ getOptimalPairs = function(hessian, Sparams, Sgamma1, hessianPairs, hessianPairs
   pairs$pair = paste(pairs$i, pairs$j, sep='_')
 
   hessianC = as(hessian, 'CsparseMatrix')
-  hessianRandomC = hessianT[Sgamma1, Sgamma1]
+  hessianRandomC = hessianC[Sgamma1, Sgamma1]
   hessianRandom = as(hessianRandomC, 'TsparseMatrix')
   hessianT = as(hessianC,'TsparseMatrix')
 
