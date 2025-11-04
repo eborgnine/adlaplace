@@ -5,7 +5,6 @@ loglik <- function(
   parameters, 
   gamma_start, 
   data, config,
-  adFun,
   adFunFull,
   control=list(), 
   deriv = c(0,1),
@@ -37,9 +36,7 @@ loglik <- function(
     gamma_start = rep(0, nrow(data$ATp))
   }
 
-  if(missing(adFun)) {
-    adFun = getAdFun(gamma_start, data=data, config=config)
-  }
+  adFun = getAdFun(gamma_start, data=data, config=config)
 
   # inner opt
   result <- trustOptim::trust.optim(

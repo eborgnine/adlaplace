@@ -245,32 +245,26 @@ unpack_params(const CppAD::vector<Type>& params,
 {
   using CppAD::exp; using CppAD::log;
 
-std::size_t Ntheta_base = 0u;
-
-    int max_val = data.map[0];
-    for (std::size_t i = 1; i < data.map.length(); ++i) {
-        if (data.map[i] > max_val) {
-            max_val = data.map[i];
-        }
-    }
-    Ntheta_base = static_cast<std::size_t>(max_val) + 1;
-
+  const std::size_t Nparams = params.size();
+  const bool onlyRandom = Nparams == data.Ngamma;
 
   PackedParams<Type> out;
   out.Nbeta = data.Nbeta;
   out.Ngamma = data.Ngamma;
-  out.Ntheta = Ntheta_base + (cfg.dirichlet ? 1u : 0u);
+  out.Ntheta = onlyRandom?cfg.theta.size():Nparams - out.Nbeta - out.Ngamma;
   out.dirichlet = cfg.dirichlet;
   out.transform_theta = cfg.transform_theta;
+
+//  Rcpp::Rcout << "Ntheta" << out.Ntheta << "Nbeta" << out.Nbeta << "\n";
+
 
   out.beta     = CppAD::vector<Type>(out.Nbeta);
   out.gamma    = CppAD::vector<Type>(out.Ngamma);
   out.theta    = CppAD::vector<Type>(out.Ntheta);
   out.logTheta = CppAD::vector<Type>(out.Ntheta);
 
-  const std::size_t Nparams = params.size();
 
-  if (Nparams == out.Ngamma) { // parameters are gamma only
+  if (onlyRandom) { // parameters are gamma only
     for (std::size_t Dparam=0; Dparam<out.Ngamma; ++Dparam) out.gamma[Dparam] = params[Dparam];
 
     if (static_cast<std::size_t>(cfg.beta.size()) != out.Nbeta)
@@ -294,7 +288,9 @@ std::size_t Ntheta_base = 0u;
   } else { // parameters is beta, gamma theta
     const std::size_t expected = out.Nbeta + out.Ngamma + out.Ntheta;
     if (Nparams != expected)
-      Rcpp::stop("parameters has wrong size: expected %zu, got %zu", expected, Nparams);
+      Rcpp::Rcout << "parameters has wrong size: expected" << 
+    out.Nbeta << " "  << out.Ngamma  << " "  <<  out.Ntheta <<  " = "  << 
+      expected << " got " <<  Nparams << "\n";
 
     for (std::size_t i=0; i<out.Nbeta;  ++i) out.beta[i]  = params[i];
     out.startGamma = out.Nbeta;
@@ -313,6 +309,10 @@ std::size_t Ntheta_base = 0u;
       }
     }
   }
+
+
+// Rcpp::Rcout << "beta " << out.beta[0] << " " << out.beta[1] << " gamma " <<   out.gamma[0] << " " << out.gamma[1] << "\n";
+
 
   if (cfg.dirichlet) {
     out.logNuSq           = 2 * out.logTheta[out.logTheta.size()-1];

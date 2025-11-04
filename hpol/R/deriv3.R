@@ -96,7 +96,7 @@ thirdList = parallel::mcmapply(
 
 cholHessianRandom = Matrix::Cholesky(fullHessian[Sgamma1, Sgamma1])
 invHessianRandom = Matrix::solve(cholHessianRandom)
-dUhat = - invHessianRandom %*% fullHessian[Sgamma1, -Sgamma1] 
+dUhat = as.matrix(- invHessianRandom %*% fullHessian[Sgamma1, -Sgamma1])
 
 dHlist = parallel::mcmapply(
   forDhList,
@@ -105,6 +105,8 @@ dHlist = parallel::mcmapply(
   MoreArgs = list(Sgamma1=Sgamma1), 
   mc.cores = pmax(config$num_threads, 1, na.rm=TRUE)
 )
+dHlong = as.data.frame(do.call(rbind, dHlist))
+colnames(dHlong) = c(names(dHlong)[1:2], paste0("p", SbetaTheta0))
 
 TijpAdd = parallel::mcmapply(forTijpAdd, 
   Tijk = thirdList[-Sgamma1], MoreArgs = list(Sgamma1=Sgamma1),
@@ -113,8 +115,6 @@ TijpAdd = parallel::mcmapply(forTijpAdd,
 names(TijpAdd) = paste0("p", SbetaTheta0)
 
 
-dHlong = as.data.frame(do.call(rbind, dHlist))
-colnames(dHlong) = c(names(dHlong)[1:2], paste0("p", SbetaTheta0))
 dHagg = aggregate(
   dHlong[,setdiff(names(dHlong), c('i','j')), drop=FALSE], 
   dHlong[,c('i','j')], 

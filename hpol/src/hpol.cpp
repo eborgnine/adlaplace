@@ -68,6 +68,7 @@ double jointLogDens(
 
   double resultL=0.0, resultQ = 0.0;
   for(size_t D=0;D<config.num_threads;D++) {
+//    Rcpp::Rcout << "com " << D << " " << logLik[D] << " " << Qpart[D] << "\n";
     resultL += logLik[D];
     resultQ += Qpart[D];
   }
@@ -317,6 +318,8 @@ return(result);
 
   const size_t Nparams = parameters.size();
   const size_t Ngroup = strataP.size()-1;
+  const bool useQ = data.Qdiag.size()>0;
+
 
   Rcpp::NumericMatrix result(Nparams, Nparams);
 
@@ -363,7 +366,6 @@ return(result);
  #pragma omp single 
   {
       // Q likelihood
-    const bool useQ = data.Qdiag.size()>0;
     if(useQ) {
       auto fun = adFunQ(parameters, data, config);
       fun.Forward(0, parameters);
@@ -411,6 +413,7 @@ std::vector<double> grad(
 
   const size_t Nparams = parameters.size();
   const size_t Ngroup = adpack.size();
+  const bool useQ = data.Qdiag.size()>0;
 
   std::vector<double> gradOut(Nparams, 0);
 
@@ -423,6 +426,7 @@ std::vector<double> grad(
 
   #pragma omp parallel
   {
+    CppAD::thread_alloc::hold_memory(true); 
     std::vector<double> gradHere(Nparams, 0);
     std::vector<double> w(1, 1.0);
 
@@ -433,18 +437,21 @@ std::vector<double> grad(
       auto gradThisGroup = adpack[Dgroup].fun.Reverse(1, w);
 
       for(size_t D=0;D<Nparams;D++) {
-        gradHere[D]+= gradThisGroup[D];
+        gradHere[D] += gradThisGroup[D];
       }
 
     } // group
 
+// get rid?
+#pragma omp barrier
+
 #pragma omp single 
     {
       // Q likelihood
-      const bool useQ = data.Qdiag.size();
       if(useQ) {
         auto fun = adFunQ(parameters, data, config);
-        auto gradQ = fun.Jacobian(parameters);
+        fun.Forward(0, parameters);
+        auto gradQ = fun.Reverse(1, w);
         for(size_t D=0;D<Nparams;D++) {
           gradHere[D]+= gradQ[D];
         }
@@ -465,7 +472,7 @@ for(size_t D=0;D<Nparams;D++) {
 
 }
 
-std::vector<double> grad(
+std::vector<double> gradNeedAd(
   const std::vector<double>& parameters,
   const Data& data,
   const Config& config
@@ -521,6 +528,7 @@ double jointLogDens(
   Data   dat(data);
   Config cfg(config);
  std::vector<double> parametersC = Rcpp::as<std::vector<double>>(parameters);
+
 
   double result= jointLogDens(
     parametersC,
