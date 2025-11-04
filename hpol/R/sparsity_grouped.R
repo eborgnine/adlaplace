@@ -53,7 +53,8 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 				stats::kmeans(tFirst, centers = centers, iter.max = 1000,
 					nstart = nstart, algorithm = "Hartigan-Wong")
 			})
-
+			parallel::stopCluster(cl)
+			
 			km <- kmMC[[ which.min(sapply(kmMC, `[[`, "tot.withinss")) ]]
 
 #	km <- try(kmeans(t(firstDeriv), centers = ceiling(1.1*Nclusters), 
@@ -206,7 +207,7 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 
 	# find full hessian sparsity
 	# for each strata, get index in full hessian
-
+if(FALSE) {
 				parallel::clusterExport(cl, c( "hessianByBlock2", "Sparams", "Sgamma1",
                     "fullHessianPairs", "fullHessianPairsR",
                     "fullHessianPairsNs", "fullHessianPairsRNs"), envir=environment())
@@ -214,7 +215,7 @@ parallel::clusterEvalQ(cl, { library(hpolcc); NULL })
 
 				save(hessianByBlock2, Sparams, Sgamma1, fullHessianPairs, fullHessianPairsR, fullHessianPairsNs, fullHessianPairsRNs, file='todebug.Rdata')
 
-				if(verbose) cat("getting sparsity by block...")
+								if(verbose) cat("getting sparsity by block...")
 					sparsityList = parallel::parLapply(cl, seq_along(hessianByBlock2), function(i) {
 					  hpolcc:::getOptimalPairs(
 						hessian = hessianByBlock2[[i]],
@@ -226,9 +227,20 @@ parallel::clusterEvalQ(cl, { library(hpolcc); NULL })
 						)
 					}
 					)
+}
+				
+				sparsityList = mapply(
+				  hpolcc:::getOptimalPairs,
+				    hessian = hessianByBlock2,
+				    MoreArgs = list(Sparams = Sparams, Sgamma1=Sgamma1, 
+				    hessianPairs = fullHessianPairs,
+				    hessianPairsR = fullHessianPairsR, 
+				    hessianPairsNs = fullHessianPairsNs,
+				    hessianPairsRns = fullHessianPairsRNs
+				  ), SIMPLIFY=FALSE)
+				
 				if(verbose) cat("done\n")
 
-			parallel::stopCluster(cl)
 
 
 					if('try-error' %in% class(sparsityList)) sparsityList = list(hessianByBlock2=hessianByBlock2, Sparams= Sparams, Sgamma1=Sgamma1,
