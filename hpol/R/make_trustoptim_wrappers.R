@@ -27,7 +27,7 @@ wrappers_outer = list(
         if('try-error' %in% class(result) ) {result = list(minusLogLik = NA, deriv = list(dL = NA))}
         cat(c(1, get("Ngr", cache), result$minusLogLik, sqrt(sum(result$deriv$dL^2)), x, '\n'), file = get('file', cache), append=TRUE)
       }
-  assign("gamma_start", result$solution, envir=cache)
+  if(length(result$solution)) assign("gamma_start", result$solution, envir=cache)
   result$deriv$dL
 }
  
