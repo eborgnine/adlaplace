@@ -1,3 +1,12 @@
+rowSortP = function(x) {
+
+if(requireNamespace("Rfast"), quietly=TRUE) {      
+      x = Rfast::rowSort(x)
+    } else {
+      x = t(apply(x, 1, sort))
+    }
+    x
+}
 
 lengthUnique = function(xx) {
 	length(unique(xx))
@@ -8,7 +17,7 @@ firstTwoElements = function(xx, k) sort(c(xx[xx!=k], rep(k,2))[1:2] )
 
 thirdTensorSparse = function(third, sparsity) {
     ijkHere = as.matrix(sparsity$third$ijk[,c('i','j','k')])
-    ijkHere = Rfast::rowSort(ijkHere)
+    ijkHere = rowSortP(ijkHere)
     colnames(ijkHere) = c('i','j','k')
     ijkHere = as.data.frame(ijkHere)
     ijkHere$Tijk = third
@@ -30,10 +39,12 @@ thirdTensorDense = function(group_sparsity, Tijk, Nparameters)
         	matHerePairK[,'k', drop=FALSE]
         )
 
-        resultIJK = Rfast::rowSort(toApply)
+        resultIJK = rowSortP(toApply)
+
+
         colnames(resultIJK) = c('i','j','k')
         duplicatedHere = duplicated(resultIJK)
-        Nunique = apply(resultIJK, 1, Rfast::sort_unique.length)
+        Nunique = apply(resultIJK, 1, lengthUnique)#Rfast::sort_unique.length)
 
         toKeep = (!duplicatedHere) & (Nunique == 3)
 
