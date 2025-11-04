@@ -1,6 +1,6 @@
 rowSortP = function(x) {
 
-if(requireNamespace("Rfast"), quietly=TRUE) {      
+if(requireNamespace("Rfast", quietly=TRUE)) {      
       x = Rfast::rowSort(x)
     } else {
       x = t(apply(x, 1, sort))
