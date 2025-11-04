@@ -199,7 +199,7 @@ getOptimalPairs = function(hessian, Sparams, Sgamma1, hessianPairs, hessianPairs
     sparsity$second$full$match =  try(match(paste(hessianT@i, hessianT@j, sep='_'), hessianPairs))-1L
   if(!missing(hessianPairsR)) {
     sparsity$second$random$match =  try(match(paste(hessianRandom@i, hessianRandom@j, sep='_'), hessianPairsR))-1L
-    if(any(is.na(sparsity$second$random$match))) warning("missing random match")
+#    if(any(is.na(sparsity$second$random$match))) warning("missing random match")
   }
 
   if(!missing(hessianPairsNs))
