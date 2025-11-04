@@ -14,7 +14,7 @@ wrappers_outer = list(
         if('try-error' %in% class(result) ) {result = list(minusLogLik = NA)}
         cat(c(0, get("Nfun", cache), result$minusLogLik, NA, x, '\n'), file = get('file', cache), append=TRUE)
       }
-      assign("gamma_start", result$solution, envir=cache)
+      if(length(result$solution)) assign("gamma_start", result$solution, envir=cache)
       result$minusLogLik
     },
   gr = function(x, data, config, adFunFull, control_inner, cache) {
