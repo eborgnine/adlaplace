@@ -207,7 +207,7 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 	# find full hessian sparsity
 	# for each strata, get index in full hessian
 
-				clusterExport(cl, c("hpolcc", "hessianByBlock2", "Sparams", "Sgamma1",
+				clusterExport(cl, c( "hessianByBlock2", "Sparams", "Sgamma1",
                     "fullHessianPairs", "fullHessianPairsR",
                     "fullHessianPairsNs", "fullHessianPairsRNs"), envir=environment())
 
