@@ -123,27 +123,21 @@ abline(h = res$groups$groups$p,
 
 ```{r checkDeriv}
 
-for(D in 1:65) {
-  print(D)
-x=hpolcc:::getOptimalPairs(hessianByBlock2[[D]], Sparams=Sparams, Sgamma1=Sgamma1, 
-                               							hessianPairs = fullHessianPairs,
-							hessianPairsR = fullHessianPairsR, 
-							hessianPairsNs = fullHessianPairsNs,
-							hessianPairsRns = fullHessianPairsRNs)
-print(str(x$random))
-}
 
 res = readRDS('res.rds')
 library('hpolcc')
 adFunFull = getAdFun(res$parameters_and_gamma, res$tmb_data, res$config)
 
-cache = res$cache
-assign("file", "india.txt", cache)
-assign("gamma_start", res$gamma_start, cache)
-if(file.exists(get("file", cache))) file.remove(get("file", cache))
+assign("file", "india.txt", res$cache)
+assign("gamma_start", res$gamma_start, res$cache)
+if(file.exists(get("file", res$cache))) file.remove(get("file", res$cache))
 
-bob = loglik(parameters=res$parameters, gamma_start = get("gamma_start", cache), data=res$tmb_data, 
-             config= modifyList(res$config, list(verbose = TRUE)))
+jointLogDens(get("gamma_start", res$cache), res$tmb_data, res$config)
+range(grad(get("gamma_start", res$cache), res$tmb_data, res$config))
+bob = hessian(get("gamma_start", res$cache), data=res$tmb_data, config=res$config)
+
+bob = loglik(parameters=res$parameters, gamma_start = get("gamma_start", res$cache), data=res$tmb_data, 
+             config= modifyList(res$config, list(verbose = TRUE)), adFunFull = adFunFull)
 
 mleX =  trustOptim::trust.optim(
     x = res$parameters,

@@ -132,8 +132,10 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 						list(num_threads=1))),
 				SIMPLIFY=FALSE#, mc.cores=config$num_threads
 			)
-			hessianByBlock2 = lapply(hessianByBlock, Matrix::Matrix, sparse=TRUE)
-
+				hessianByBlock1 = lapply(hessianByBlock, Matrix::Matrix, sparse=TRUE)
+# force symmetric
+				hessianByBlock2 = lapply(hessianByBlock1, function(xx) Matrix::forceSymmetric(xx + t(xx), uplo='U'))
+				
 	#hessian for random part,
 			if(verbose) cat("getting Q hessian")
 				hessianQ = list(dense=hessianQdense(parameters=x, data=data, config=config))
