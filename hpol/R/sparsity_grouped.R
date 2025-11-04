@@ -52,6 +52,7 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 				stats::kmeans(tFirst, centers = centers, iter.max = 1000,
 					nstart = nstart, algorithm = "Hartigan-Wong")
 			})
+			parallel::stopCluster(cl)
 
 			if(FALSE) {
 				parallel::mcmapply(function(seed) {
