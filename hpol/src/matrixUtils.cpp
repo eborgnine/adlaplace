@@ -166,7 +166,6 @@ Rcpp::S4 assembleHessian(
       if (config.verbose ) Rcpp::Rcout << "groups.. ";
 
     for(size_t Dgroup = 0;Dgroup<Ngroups;++Dgroup) {
-      Rcpp::Rcout << Dgroup;
       const Rcpp::List sparsityHere = sparsity[Dgroup];
       const Rcpp::List secondHere = sparsityHere["second"];
       const Rcpp::List targetHere= onlyRandom?secondHere["random"]:secondHere["full"];

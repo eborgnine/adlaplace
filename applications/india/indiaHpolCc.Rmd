@@ -69,7 +69,7 @@ dataMedSimple =
   deaths[
     deaths$date >= as.Date('2006/1/1') &
     format(deaths$date, '%b%d') != 'Jan01'
-    & deaths$tempClean >= (0)  & deaths$ecoRegion %in% 1:10 #setdiff(1:20, c(1,7,19)) # regions 1, 7, 19 have some very low temperatures.
+    & deaths$tempClean >= (0) # & deaths$ecoRegion %in% 1:10 #setdiff(1:20, c(1,7,19)) # regions 1, 7, 19 have some very low temperatures.
     , ]
 save(dataMedSimple, file='dataMedSimple.RData')
 ```
@@ -98,6 +98,7 @@ res <- hpolcc::hnlm(
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
   for_dev=TRUE, verbose=TRUE
   )
+saveRDS(res, file='res.rds')
 #rm(dataMedSimple)
 ```
 
@@ -533,17 +534,26 @@ innerRes = trustOptim::trust.optim(
 ```
 
 ```{r morestuff}
-cache = fitD$cache
+library('hpolcc')
+adFun = getAdFun(res$gamma_start, res$tmb_data, res$config)
+adFunFull = getAdFun(res$parameters_and_gamma, res$tmb_data, res$config)
+
+cache = res$cache
 assign("file", "india.txt", cache)
+assign("gamma_start", res$gamma_start, cache)
 if(file.exists(get("file", cache))) file.remove(get("file", cache))
 
+wrappers_outer$fn(res$parameters,    data=res$tmb_data, config = res$config, cache =  cache, control_inner = res$control_inner,
+    adFun = adFun, adFunFull = adFunFull)
+
+
 mleX =  trustOptim::trust.optim(
-    x = c(0.021726796, -2.118758e-04 ,-4.253132, -7.918471, -5.099570 ,-7.996464, -2.621749), #fitD$parameters, #c(1, 0.3, log(c(0.05, 0.001, 0.05, 0.001))),
+    par = c(0.009,  0.012, -3, -7, -5, -6, -1),
     fn = wrappers_outer$fn,
-    gr = wrappers_outer$gr,
-    method = 'SR1',
-    control = list(start.trust.radius = 0.05, REPORT=1, trace=10),
-    data=fitD$tmb_data, config = fitD$config, cache =  cache, controlInner = fitD$control_inner
+    fn = wrappers_outer$gr,
+    method = 'Sparse',
+    data=res$tmb_data, config = res$config, cache =  cache, control_inner = res$control_inner,
+    adFun = adFun, adFunFull = adFunFull
   )
 mleX$solution
 
@@ -620,31 +630,19 @@ result <- loglik(parameters,
 
 ```{r mLE}
 
-      control=list(maxit=1000, start.trust.radius = 1, prec=1e-9, stop.trust.radius = 1e-15,
-        cg.tol = 1e-9, report.precision=7,
-      report.level=4, report.freq=1, report.header.freq=1)
-controlInner = control
-controlInner$report.level=3
-controlInner$report.freq=20
-controlInner$report.header.freq=100
-controlInner$report.precision = 5
 
-config$verbose=FALSE
-config$num_threads =  parallel::detectCores()
-config$strataPerIter = 500
-
-cache = new.env()
-assign("Nfun", 0, cache)
-assign("Ngr", 0, cache)
-
-mle = trustOptim::trust.optim(
-    x = parameters,
+mle = optim(
+    c(0.00858558945462489, 0.0100467550976791, -3.1175149461754 ,-7.02350405776971, -5.01580155255101, -6.04704512936413, -1.16549925013542),
     fn = wrappers_outer$fn,
-    gr = wrappers_outer$gr,
-    method = 'BFGS',
-    control = control,
-    data=fitD$tmb_data, config = config, cache =  cache, controlInner = controlInner
+#    gr = wrappers_outer$gr,
+    method = 'L-BFGS-B',
+    control = res$control,
+lower = c(-0.2, -0.1, -8,-8,-8,-8,-8),
+upper = c(0.2, 0.1, 8,8,8, 8, 8),
+    data=res$tmb_data, config = res$config, cache =  res$cache, control_inner = control_inner,
+    adFun=adFun, adFunFull = adFunFull
   )
+
 mle$extra = loglik(mle$solution, get("gamma_start", cache), data, config, controlInner)
 mle$gamma_hat = mle$extra$solution
 saveRDS(mle, file='mle.rds')
