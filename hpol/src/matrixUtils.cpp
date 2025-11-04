@@ -166,13 +166,11 @@ Rcpp::S4 assembleHessian(
       if (config.verbose ) Rcpp::Rcout << "groups.. ";
 
     for(size_t Dgroup = 0;Dgroup<Ngroups;++Dgroup) {
-      Rcpp::Rcout << Dgroup;
       const Rcpp::List sparsityHere = sparsity[Dgroup];
       const Rcpp::List secondHere = sparsityHere["second"];
       const Rcpp::List targetHere= onlyRandom?secondHere["random"]:secondHere["full"];
       const Rcpp::IntegerVector matchHere = targetHere["match"];
 
-      Rcpp::Rcout << ".";
 
       const std::vector<double>& hessianOutHere = randomHessian[Dgroup];
       const size_t Nhere = matchHere.size();
@@ -180,7 +178,6 @@ Rcpp::S4 assembleHessian(
         const size_t indexHere = matchHere[D];
         hessianSum[indexHere] += hessianOutHere[D];
       }
-            Rcpp::Rcout << ".";
 
     } // groupd
 

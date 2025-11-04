@@ -132,9 +132,6 @@ if(file.exists(get("file", cache))) file.remove(get("file", cache))
 
 bob = hessian(res$parameters_and_gamma, data=res$tmb_data, adFun = adFunFull, config= res$config)
 
-res$config$verbose=TRUE
-res$config$num_threads=1
-bob = hessian(res$gamma_start, data=res$tmb_data,  config= res$config, adFun = getAdFun(res$gamma_start, res$tmb_data, res$config))
 
 bob = loglik(parameters=res$parameters, gamma_start = get("gamma_start", cache), data=res$tmb_data, config=res$config, deriv=0)
 
@@ -152,7 +149,10 @@ bob = loglik(
   c(0.021726796, -2.118758e-04 ,-4.253132, -7.918471, -5.099570 ,-7.996464, -2.621749),
   gamma_start = get("gamma_start", cache),
  data=fitD$tmb_data, config = fitD$config, control = fitD$control_inner)
+```
 
+
+```{r dunno}
 
 mleB <- BB::spg(
   par = c(0.021726796, -2.118758e-04 ,-4.253132, -7.918471, -5.099570 ,-7.996464, -2.621749),
