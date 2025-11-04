@@ -32,12 +32,13 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 		firstDeriv = gradLogical(x, dataNoMap, config)
 	if(verbose) cat("done\ngetting clusters...")
 
-		if(Nclusters == 1) {
-			km = list(cluster = rep(1, Nstrata))		
-		} else {
 			n_workers <- ceiling(config$num_threads / 2)
 			cl <- parallel::makeCluster(n_workers, type = "PSOCK")
 			on.exit(parallel::stopCluster(cl), add = TRUE)
+
+		if(Nclusters == 1) {
+			km = list(cluster = rep(1, Nstrata))		
+		} else {
 
 			tFirst <- t(firstDeriv)                 # do this once in the master
 			centers <- ceiling(1.1 * Nclusters)
@@ -52,7 +53,6 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 				stats::kmeans(tFirst, centers = centers, iter.max = 1000,
 					nstart = nstart, algorithm = "Hartigan-Wong")
 			})
-			parallel::stopCluster(cl)
 
 			km <- kmMC[[ which.min(sapply(kmMC, `[[`, "tot.withinss")) ]]
 
@@ -206,18 +206,28 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 
 	# find full hessian sparsity
 	# for each strata, get index in full hessian
+
+				clusterExport(cl, c("hpolcc", "hessianByBlock2", "Sparams", "Sgamma1",
+                    "fullHessianPairs", "fullHessianPairsR",
+                    "fullHessianPairsNs", "fullHessianPairsRNs"), envir=environment())
+
+
 				if(verbose) cat("getting sparsity by block...")
-					sparsityList = try(parallel::mcmapply(
-					  hpolcc:::getOptimalPairs,
-						hessian = hessianByBlock2,
-						MoreArgs = list(Sparams = Sparams, Sgamma1=Sgamma1, 
+					sparsityList = parLapply(cl, seq_along(hessianByBlock2), function(i) {
+					  hpolcc:::getOptimalPairs(
+						hessian = hessianByBlock2[[i]],
+						Sparams = Sparams, Sgamma1=Sgamma1, 
 							hessianPairs = fullHessianPairs,
 							hessianPairsR = fullHessianPairsR, 
 							hessianPairsNs = fullHessianPairsNs,
 							hessianPairsRns = fullHessianPairsRNs
-						), 
-						SIMPLIFY=FALSE, mc.cores=config$num_threads))
+						)
+					}
+					)
 				if(verbose) cat("done\n")
+
+			parallel::stopCluster(cl)
+
 
 					if('try-error' %in% class(sparsityList)) sparsityList = list(hessianByBlock2=hessianByBlock2, Sparams= Sparams, Sgamma1=Sgamma1,
 							hessianPairs = fullHessianPairs,
