@@ -79,7 +79,7 @@ hnlm <- function(formula,
   if (verbose) cat("collecting terms\n")
   # setup of the design matrices and other parameters
   # terms carries all the information throughout
-    terms <- collectTerms(formula)
+    terms <- hpolcc:::collectTerms(formula)
   
   # design matrices
   Xlist <- list() # <- matrix(nrow=nrow(data), ncol=0) # fixed effects
@@ -96,7 +96,7 @@ hnlm <- function(formula,
     if (verbose)
       cat(k, ' ')
     
-    term <- getExtra(terms[[k]], data = data, cc_matrix = cc_matrix)
+    term <- hpolcc:::getExtra(terms[[k]], data = data, cc_matrix = cc_matrix)
     term$id <- k
     if (!is.factor(data[[term$var]][1]) &&
       !is.character(data[[term$var]][1]) &&
@@ -140,10 +140,10 @@ hnlm <- function(formula,
     # below takes care of random effects
     
     # design matrix
-    Asub <- getDesign(term, data)
+    Asub <- hpolcc:::getDesign(term, data)
     Alist[[k]] <- Asub #cbind(A, Asub)
     
-    gamma_setup <- getGammaSetup(term)
+    gamma_setup <- hpolcc:::getGammaSetup(term)
     
     gamma_info$var <- c(gamma_info$var, gamma_setup$var)
     gamma_info$id <- c(gamma_info$id, gamma_setup$id)
@@ -153,14 +153,14 @@ hnlm <- function(formula,
     # Note: for iwp 1 knot removed for constraints
     
     # Add fized and random polynomial effects
-    terms <- c(terms, addFPoly(term), addRPoly(term))
+    terms <- c(terms, hpolcc:::addFPoly(term), hpolcc:::addRPoly(term))
     
     
     # precision matrix
-    Qs[[k]] <- getPrecision(term)
+    Qs[[k]] <- hpolcc:::getPrecision(term)
     
     # theta parameters
-    theta_setup <- getThetaSetup(theta_info, term)
+    theta_setup <- hpolcc:::getThetaSetup(theta_info, term)
     
     theta_info$var <- c(theta_info$var, theta_setup$var)
     theta_info$model <- c(theta_info$model, theta_setup$model)
@@ -256,7 +256,7 @@ hnlm <- function(formula,
 
   if(verbose) cat("getting groups..")
 
-  groups = try(sparsity_grouped(start_parameters, tmb_data, config, verbose))
+  groups = sparsity_grouped(x=start_parameters, data=tmb_data, config, verbose)
   if(verbose) cat("done\n")
   if(any(class(groups) == 'try-error')) groups = list()
   config$sparsity = groups$sparsity
