@@ -214,7 +214,7 @@ if(verbose) cat("getting sparsity by block...")
 
 
 				
-				sparsityList = mapply(
+				sparsityList = parallel::mcmapply(
 				  hpolcc:::getOptimalPairs,
 				    hessian = hessianByBlock2,
 				    MoreArgs = list(Sparams = Sparams, Sgamma1=Sgamma1, 
@@ -222,7 +222,7 @@ if(verbose) cat("getting sparsity by block...")
 				    hessianPairsR = fullHessianPairsR, 
 				    hessianPairsNs = fullHessianPairsNs,
 				    hessianPairsRns = fullHessianPairsRNs
-				  ), SIMPLIFY=FALSE)
+				  ), SIMPLIFY=FALSE, mc.cores=n_workers)
 				
 				if(verbose) cat("done\n")
 
