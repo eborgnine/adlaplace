@@ -124,10 +124,6 @@ res = readRDS('resCvd.rds')
 library('hpolcc')
 adFunFull = getAdFun(res$parameters_and_gamma, res$tmb_data, res$config)
 
-wrappers_outer$fn(
-  res$parameters,
-  data = res$tmb_data, config= res$config, adFunFull = adFunFull, control_inner = res$control_inner, cache=res$cache
-  )
 wrappers_outer$gr(
   res$parameters,
   data = res$tmb_data, config= modifyList(res$config, list(verbose=TRUE)), 
