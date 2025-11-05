@@ -100,12 +100,11 @@ res <- hpolcc::hnlm(
         cg.tol = 1e-6, report.level=4, report.freq=1, report.header.freq=10, report.precision=7),
   control_inner=list(report.level=0),
   dirichlet= TRUE, 
-  config = list(transform_theta = TRUE, num_threads=16,#parallel::detectCores(),
+  config = list(transform_theta = TRUE, num_threads=parallel::detectCores(),
                 Nclusters = 64),
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
   for_dev=TRUE, verbose=TRUE
   )
-res$config$num_threads = parallel::detectCores()
 saveRDS(res, file='res.rds')
 #rm(dataMedSimple)
 # res = readRDS('res.rds')
@@ -139,12 +138,15 @@ bob = hessian(get("gamma_start", res$cache), data=res$tmb_data, config=res$confi
 bob = loglik(parameters=res$parameters, gamma_start = get("gamma_start", res$cache), data=res$tmb_data, 
              config= modifyList(res$config, list(verbose = TRUE)), adFunFull = adFunFull)
 
+theF = wrappers_outer$fn
+theG = wrappers_outer$gr
+
 mleX =  trustOptim::trust.optim(
     x = res$parameters,
-    fn = wrappers_outer$fn,
-    gr = wrappers_outer$gr,
+    fn = theF,
+    gr = theG,
     method = 'Sparse',
-    data=res$tmb_data, config = res$config, cache =  cache, control_inner = res$control_inner,
+    data=res$tmb_data, config = res$config, cache =  res$cache, control_inner = res$control_inner,
     adFunFull = adFunFull
   )
 mleX$solution

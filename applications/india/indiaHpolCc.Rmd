@@ -163,17 +163,27 @@ mleX = optim(
   )
 saveRDS(mleX, file='mleX.rds')  
 
+<<<<<<< HEAD
 mleXcheck = loglik(
   parameters = mleX$par, 
   gamma_start = get("gamma_start", res$cache),
   config=res$config, data=res$tmb_data, adFunFull=adFunFull, deriv=0)
+=======
+>>>>>>> b5e0544 (stuff)
 
 ```
 
 
 
 ```{r theResults}
-result = mleX
+library('hpolcc')
+res = readRDS("resMed.rds")
+result = mleX = readRDS("mleMed.rds")
+mleXcheck = loglik(
+  parameters = mleX$par, 
+  gamma_start = get("gamma_start", res$cache),
+  config=res$config, data=res$tmb_data, adFunFull=adFunFull, deriv=0)
+
 result$parameters = hpolcc::formatParameters(
   c(mleX$par[1:2], mleXcheck$solution, mleX$par[-(1:2)]), 
   res, TRUE)
