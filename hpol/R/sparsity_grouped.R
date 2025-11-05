@@ -174,11 +174,17 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 	fullHessian = fullHessian[!duplicated(fullHessian), ]
 	fullHessian = fullHessian[order(fullHessian[,2], fullHessian[,1]),]
 
-	fullHessianMatrix = Matrix::sparseMatrix(i=fullHessian[,1], j=fullHessian[,2], symmetric=TRUE, index1=FALSE,
+	fullHessianMatrix = Matrix::sparseMatrix(
+		i=fullHessian[,1], j=fullHessian[,2], 
+		symmetric=TRUE, index1=FALSE,
 		dims = c(Ntotal, Ntotal), repr='T')
-	if(verbose) cat("getting optimal pairs")
+	if(verbose) {
+		cat("getting optimal pairs")
+	}
 
-		fullList = hpolcc:::getOptimalPairs(fullHessianMatrix, Sparams=Sparams, Sgamma1=Sgamma1)
+	fullList = hpolcc:::getOptimalPairs(
+		fullHessianMatrix, 
+		Sparams=Sparams, Sgamma1=Sgamma1)
 
 	if(verbose) {
 		cat("done\n")
