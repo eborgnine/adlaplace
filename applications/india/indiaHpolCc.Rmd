@@ -94,8 +94,7 @@ res <- hpolcc::hnlm(
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
     dirichlet= TRUE, 
   config = list(transform_theta = TRUE, 
-    num_threads=parallel::detectCores()/2,Nclusters = 40),
-
+    num_threads=parallel::detectCores(), Nclusters = 4*parallel::detectCores()),
  control=list(maxit=1000, start.trust.radius = 1, prec=1e-6, stop.trust.radius = 1e-9,
         cg.tol = 1e-6, report.level=4, report.freq=1, report.header.freq=10, report.precision=7),
   control_inner=list(report.level=0),

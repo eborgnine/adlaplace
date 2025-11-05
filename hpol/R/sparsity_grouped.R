@@ -227,7 +227,7 @@ abline(v = strataMatrixList$p,
 		symmetric=TRUE, index1=FALSE,
 		dims = c(Ntotal, Ntotal), repr='T')
 	if(verbose) {
-		cat("getting optimal pairs")
+		cat("getting optimal pairs..")
 	}
 
 	fullList = getOptimalPairs(
@@ -276,7 +276,7 @@ abline(v = strataMatrixList$p,
 	# find full hessian sparsity
 	# for each strata, get index in full hessian
 	if(verbose) {
-		cat("getting sparsity by block...")				
+		cat("getting sparsity by block (this can take a while)...")				
 	}
 #				save(hessianByBlock2, Sparams, Sgamma1, fullHessianPairs, fullHessianPairsR, fullHessianPairsNs, fullHessianPairsRNs, file='todebug.Rdata')
 
