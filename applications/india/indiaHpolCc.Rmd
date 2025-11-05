@@ -46,7 +46,8 @@ if(!dir.exists(storeDir)) storeDir = SstoreDir[2]
 
 deaths = as.data.table(readRDS( file.path(storeDir, "indiaCC.rds")))
 
-indiaEcoRegions = terra::unwrap(readRDS(file.path(storeDir, "indiaEcoRegions.rds")))
+indiaEcoRegions = terra::unwrap(readRDS(
+  file.path(storeDir, "indiaEcoRegions.rds")))
 
 
 # trransform variables
@@ -67,7 +68,7 @@ deaths$month = format(deaths$date, '%m')
 
 dataMedSimple =
   deaths[
-    deaths$date >= as.Date('2006/1/1') &
+    deaths$date >= as.Date('2010/1/1') &
     format(deaths$date, '%b%d') != 'Jan01'
     & deaths$tempClean >= (0) # & deaths$ecoRegion %in% 1:10 #setdiff(1:20, c(1,7,19)) # regions 1, 7, 19 have some very low temperatures.
     , ]
@@ -82,11 +83,11 @@ library('hpolcc')
 load("dataMedSimple.RData")
 
 res <- hpolcc::hnlm(
-  formula= medical ~ #f(date, model='iid') +
-#    f(sqrtPm, model='hiwp', ref_value = 8, p=2, 
-#      knots = seq(0,32, by=2),
-#      group_var = ecoRegion) + 
-    f(tempClean, model='hiwp',ref_value = 20, p=3, 
+  formula= cvd ~ f(date, model='iid') +
+    f(sqrtPm, model='hiwp', ref_value = 8, p=2, 
+      knots = seq(0,32, by=2),
+      group_var = ecoRegion) + 
+    f(tempClean, model='hiwp',ref_value = 25, p=3, 
       knots = seq(0, 45, by=2.5), 
     group_var = ecoRegion), 
   data=dataMedSimple, 
@@ -94,7 +95,8 @@ res <- hpolcc::hnlm(
         cg.tol = 1e-6, report.level=4, report.freq=1, report.header.freq=10, report.precision=7),
   control_inner=list(report.level=0),
   dirichlet= TRUE, 
-  config = list(transform_theta = TRUE, num_threads=parallel::detectCores(),Nclusters = 30),
+  config = list(transform_theta = TRUE, 
+    num_threads=parallel::detectCores()/2,Nclusters = 40),
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
   for_dev=TRUE, verbose=TRUE
   )
@@ -113,22 +115,27 @@ abline(h = res$groups$groups$p,
 ```
 
 ```{r mle}
+res = readRDS("res.rds")
 library('hpolcc')
 adFunFull = getAdFun(res$parameters_and_gamma, res$tmb_data, res$config)
 #adFunFull1 = getAdFun(res1$parameters_and_gamma, res1$tmb_data, res1$config)
 
-assign("file", "stuff.txt", res$cache)
+assign("file", "indiaDay.txt", res$cache)
 if(file.exists(get("file", res$cache))) file.remove(get("file", res$cache))
 
+jointLogDens(res$parameters, res$tmb_data, res$config)
+
+
 mleX = optim(
-    rep(c(0,-10), c(length(res$config$beta), length(res$config$theta))),
+    rep(c(0,-3), 
+      c(length(res$config$beta), length(res$config$theta))),
     fn = wrappers_outer$fn,
     gr = wrappers_outer$gr,
     method = 'L-BFGS-B',#'SR1',
     lower = rep(c(-0.5, -Inf), c(length(res$config$beta), length(res$config$theta))),
-    upper = rep(c(0.5, 0), c(length(res$config$beta), length(res$config$theta))),
+    upper = rep(c(0.5, 1), c(length(res$config$beta), length(res$config$theta))),
     control = list(trace=3, REPORT=1, 
-      parscale = rep(c(1e-3, 1), c(length(res$config$beta), length(res$config$theta)))
+      parscale = rep(c(1e-3, 10), c(length(res$config$beta), length(res$config$theta)))
       ),#start.trust.radius = 0.05, REPORT=1, trace=10),
     data=res$tmb_data, config = res$config, cache =  res$cache, control_inner = res$control_inner,
     adFunFull = adFunFull
@@ -138,7 +145,7 @@ saveRDS(mleX, file='mleX.rds')
 mleXcheck = loglik(
   parameters = mleX$par, 
   gamma_start = get("gamma_start", res$cache),
-  config=res$config, data=res$tmb_data, adFunFull=adFunFull, deriv=0, check=FALSE)
+  config=res$config, data=res$tmb_data, adFunFull=adFunFull, deriv=0)
 
 ```
 
@@ -156,14 +163,14 @@ result$parameters$theta
 
 result$Htilde = mleXcheck$hessian
 result$HtildeChol = as(mleXcheck$cholHessian,"Matrix")
-result$HtildeInv = mleXcheck$invHessian
+result$HtildeCholInv = solve(result$HtildeChol)
 
-Nsim = 200
+Nsim = 500
 simInd = matrix(rnorm(Nsim * nrow(result$Htilde)),
  nrow(result$Htilde), Nsim)
 
 # sample from [U|Y, theta_map]
-simGamma = Matrix::crossprod(result$HtildeChol,  simInd) 
+simGamma = Matrix::crossprod(result$HtildeCholInv,  simInd) 
 rownames(simGamma) = rownames(res$tmb_data$ATp)
 
 simGamma = simGamma + unlist(result$parameters$gamma[
@@ -172,37 +179,58 @@ simGamma = simGamma + unlist(result$parameters$gamma[
 
 Stemp = seq(0,45,by=0.1)
 SobsTemp = na.omit(match(Stemp, round(res$data$tempClean, 1)))
+newConstr = 25;newConstrIndex = which.min(abs(
+  res$data$tempClean[SobsTemp] - newConstr))
+
 #Spm = seq(1,1000, by=1)
 #SobsPm = na.omit(match(Spm, round(res$data$pm)))
 
 Sobs = SobsTemp
 nameX = 'tempClean'
 
-Bmat = res$tmb_data$ATp[, Sobs]
+
+covHere = grep(nameX, names(result$parameters$beta), value=TRUE)
+xHere = res$tmb_data$XTp[covHere,Sobs, drop=FALSE]
+fixedPart = drop(crossprod(xHere, 
+              result$parameters$beta[covHere]))
+
+
+BmatAll = res$tmb_data$ATp[, Sobs]
 # only want the global effects
-Bmat = Bmat[grep(paste0(nameX,".*global"), rownames(Bmat)),]
+Bmat = BmatAll[grep(paste0(nameX,".*global"), rownames(BmatAll)),]
 
 
 simF = crossprod(Bmat, simGamma[rownames(Bmat),]) 
 
-covHere = grep(nameX, names(result$parameters$beta), value=TRUE)
-fixedPart = drop(crossprod(res$tmb_data$XTp[covHere,Sobs, drop=FALSE], 
-                           result$parameters$beta[covHere]))
 
 simSum = simF + fixedPart 
 
-
+toSubtract = matrix(simSum[newConstrIndex,],
+  nrow(simSum), ncol(simSum), byrow=TRUE)
+simSum = simSum - toSubtract
 
 theX= res$data[[covHere[1] ]][Sobs]
 if(grepl("^sqrt", nameX)) theX = theX^2
 
 par(mar=c(3,3,0,0), bty='l')
-matplot(theX, simSum, type='l',
+matplot(theX, 100*(exp(simSum)-1), type='l',
   col='#00000010', lty=1, xaxs='i',
-  ylim = c(-1,1)*100)
+  ylim = c(-1/3, 31), xlim = c(6, 38))
 
 
+# eco region 2
+D = 3
+Bmat2 = BmatAll[grep(paste0(nameX,"_h(iwp|rpoly)_",D,"_"), rownames(BmatAll)),]
+simF2 = crossprod(Bmat2, simGamma[rownames(Bmat2),]) 
+simSum2 = simSum + simF2 
+matplot(theX, 100*(exp(simSum2)-1), type='l',
+  col='#00000010', lty=1, xaxs='i',
+  ylim = c(-5, 50), xlim = c(6, 38))
 ```
+
+
+
+
 
 
 
