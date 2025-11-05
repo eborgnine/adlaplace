@@ -67,7 +67,6 @@ deaths$month = format(deaths$date, '%m')
 
 dataMedSimple =
   deaths[
-    deaths$date >= as.Date('2006/1/1') &
     format(deaths$date, '%b%d') != 'Jan01'
     & deaths$tempClean >= (0) # & deaths$ecoRegion %in% 1:10 #setdiff(1:20, c(1,7,19)) # regions 1, 7, 19 have some very low temperatures.
     , ]
@@ -88,63 +87,59 @@ load("dataMedSimple.RData")
 
 # add day iid
 res <- hpolcc::hnlm(
-  formula= medical ~ #f(date, model='iid') +
-#    f(sqrtPm, model='hiwp', ref_value = 8, p=2, 
-#      knots = seq(0,32, by=2),
-#      group_var = ecoRegion) + 
+  formula= cvd ~ #f(date, model='iid') +
+    f(sqrtPm, model='hiwp', ref_value = 8, p=2, 
+      knots = seq(0,32, by=2),
+      group_var = ecoRegion) + 
     f(tempClean, model='hiwp',ref_value = 20, p=3, 
       knots = seq(0, 45, by=2.5), 
     group_var = ecoRegion), 
   data=dataMedSimple, 
- control=list(maxit=1000, start.trust.radius = 1, prec=1e-6, stop.trust.radius = 1e-9,
-        cg.tol = 1e-6, report.level=4, report.freq=1, report.header.freq=10, report.precision=7),
-  control_inner=list(report.level=0),
   dirichlet= TRUE, 
-  config = list(transform_theta = TRUE, num_threads=16,#parallel::detectCores(),
-                Nclusters = 64),
+  config = list(transform_theta = TRUE, 
+                num_threads=parallel::detectCores(),
+                Nclusters = 4*parallel::detectCores()),
+  control_inner=list(report.level=0),
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
   for_dev=TRUE, verbose=TRUE
   )
-res$config$num_threads = parallel::detectCores()
-saveRDS(res, file='res.rds')
+saveRDS(res, file='resCvd.rds')
 #rm(dataMedSimple)
 # res = readRDS('res.rds')
 ```
 
+
 ```{r sparsePlot}
 par(mar=c(3,3,0,0), bty='n')
-image(seq(0, len = nrow(res$groups$firstDeriv)),
-      seq(0, len = ncol(res$groups$firstDeriv)),
-      as.matrix(res$groups$firstDeriv[, 1 + res$groups$groups$i]))
-abline(h = res$groups$groups$p,
+bob= terra::rast(as.matrix(1.1*res$groups$firstDeriv[, 
+  1 + res$groups$groups$i]))
+terra::plot(bob, asp=FALSE, col=c('white','black'))
+abline(v = res$groups$groups$p,
        col = 'blue',
        lty = 1)
 ```
 
 ```{r checkDeriv}
-
-
-res = readRDS('res.rds')
+res = readRDS('resCvd.rds')
 library('hpolcc')
 adFunFull = getAdFun(res$parameters_and_gamma, res$tmb_data, res$config)
 
-assign("file", "india.txt", res$cache)
-assign("gamma_start", res$gamma_start, res$cache)
-if(file.exists(get("file", res$cache))) file.remove(get("file", res$cache))
-
-jointLogDens(get("gamma_start", res$cache), res$tmb_data, res$config)
-range(grad(get("gamma_start", res$cache), res$tmb_data, res$config))
-bob = hessian(get("gamma_start", res$cache), data=res$tmb_data, config=res$config)
-
-bob = loglik(parameters=res$parameters, gamma_start = get("gamma_start", res$cache), data=res$tmb_data, 
-             config= modifyList(res$config, list(verbose = TRUE)), adFunFull = adFunFull)
+wrappers_outer$fn(
+  res$parameters,
+  data = res$tmb_data, config= res$config, adFunFull = adFunFull, control_inner = res$control_inner, cache=res$cache
+  )
+wrappers_outer$gr(
+  res$parameters,
+  data = res$tmb_data, config= modifyList(res$config, list(verbose=TRUE)), 
+  adFunFull = adFunFull, control_inner = res$control_inner, cache=res$cache
+  )
 
 mleX =  trustOptim::trust.optim(
     x = res$parameters,
-    fn = wrappers_outer$fn,
-    gr = wrappers_outer$gr,
+    fn = theF,
+    gr = theG,
     method = 'Sparse',
-    data=res$tmb_data, config = res$config, cache =  cache, control_inner = res$control_inner,
+    data=res$tmb_data, config = res$config, cache =  res$cache, control_inner = res$control_inner,
     adFunFull = adFunFull
   )
 mleX$solution
