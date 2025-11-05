@@ -30,11 +30,11 @@ Rcpp::List thirdStrata(
   const Rcpp::IntegerVector iNsAll = nsAll["i"];
   const size_t NoutRowsT = dense?NparamsSq:iNsAll.size();
   const size_t NoutRowsH = dense?NparamsSq:iFullAll.size();
-  const Rcpp::List thirdAll = config.sparsity["third"];
+/*  const Rcpp::List thirdAll = config.sparsity["third"];
   const Rcpp::List pairsAll = thirdAll["pairs"];
   const Rcpp::NumericVector pairsIall = pairsAll["i"];
   const size_t NpairsAll = pairsIall.size();
-  const size_t NpairsAllNparams = NpairsAll*Nparams;
+  const size_t NpairsAllNparams = NpairsAll*Nparams;*/
 
   std::vector<double> hessianOut(NoutRowsH, 0.0);
   std::vector<double> thirdDiagOut(NoutRowsT, 0.0);
@@ -324,6 +324,8 @@ for (size_t g = 0; g < Ngroup; ++g) {
  
 
 //  auto fun = getAdFun(x_val, dataC, configC);
+  if(configC.verbose)
+    Rcpp::Rcout << "-";
 
 Rcpp::List result = thirdStrata(x_val, third, configC, *fun, Qfun);
 
