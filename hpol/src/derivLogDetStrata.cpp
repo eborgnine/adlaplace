@@ -296,7 +296,6 @@ Rcpp::List thirdStrata(
 
   if(x_val.size() == dataC.Ngamma) Rcpp::warning("need full parameters, only random has been sent");
 
-
   AdpackHandle ad = getAdpackFromR(adFun, x_val, dataC, configC);
   std::vector<GroupPack>* fun = ad.ptr;
   auto Qfun = getAdFunQ(x_val, dataC, configC);
@@ -307,6 +306,8 @@ Rcpp::List thirdStrata(
   const size_t Ngroup = sparsity.size();
 
   std::vector<ThirdPack> third(Ngroup);
+  if(configC.verbose)
+    Rcpp::Rcout << "~";
 
 for (size_t g = 0; g < Ngroup; ++g) {
   Rcpp::List spHere   = sparsity[g];
@@ -320,8 +321,7 @@ for (size_t g = 0; g < Ngroup; ++g) {
   third[g].pairsPend= Rcpp::as<std::vector<int>>(pairs["pEnd"]);
   third[g].ijkK     = Rcpp::as<std::vector<int>>(ijk["k"]);
 }
-
-
+ 
 
 //  auto fun = getAdFun(x_val, dataC, configC);
 

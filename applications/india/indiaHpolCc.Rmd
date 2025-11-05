@@ -83,7 +83,7 @@ library('hpolcc')
 load("dataMedSimple.RData")
 
 res <- hpolcc::hnlm(
-  formula= cvd ~ f(date, model='iid') +
+  formula= cvd ~ #f(date, model='iid') +
     f(sqrtPm, model='hiwp', ref_value = 8, p=2, 
       knots = seq(0,32, by=2),
       group_var = ecoRegion) + 
@@ -123,8 +123,29 @@ adFunFull = getAdFun(res$parameters_and_gamma, res$tmb_data, res$config)
 assign("file", "indiaDay.txt", res$cache)
 if(file.exists(get("file", res$cache))) file.remove(get("file", res$cache))
 
-jointLogDens(res$parameters, res$tmb_data, res$config)
+jointLogDens(res$parameters_and_gamma, res$tmb_data, modifyList(res$config, list(verbose=TRUE)))
+quantile(grad(res$parameters_and_gamma, res$tmb_data, modifyList(res$config, list(verbose=TRUE)), 
+  adFun = adFunFull))
+adFunHere = getAdFun(res$gamma_start, res$tmb_data, res$config)
+quantile(grad(res$gamma_start, res$tmb_data, modifyList(res$config, list(verbose=TRUE)), 
+  adFun = adFunHere))
+str(hessian(res$gamma_start, res$tmb_data, modifyList(res$config, list(verbose=TRUE)), 
+  adFun = adFunHere)) 
+str(hessian(res$parameters_and_gamma, res$tmb_data, modifyList(res$config, list(verbose=TRUE)), 
+  adFun = adFunFull)) 
 
+wrappers_outer$fn(
+  res$parameters,
+  data = res$tmb_data, config= res$config, adFunFull = adFunFull, control_inner = res$control_inner, cache=res$cache
+  )
+wrappers_outer$gr(
+  res$parameters,
+  data = res$tmb_data, config= modifyList(res$config, list(verbose=TRUE)), 
+  adFunFull = adFunFull, control_inner = res$control_inner, cache=res$cache
+  )
+
+bob=thirdStrata(res$parameters_and_gamma, data=res$tmb_data, config= modifyList(res$config, list(verbose=TRUE)),
+  adFun = adFunFull)
 
 mleX = optim(
     rep(c(0,-3), 

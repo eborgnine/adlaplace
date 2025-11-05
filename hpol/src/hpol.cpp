@@ -15,8 +15,11 @@ double jointLogDens(
   Data& data, 
   Config& config
   ) {
-
+  if(config.verbose)
+    Rcpp::Rcout << "a";
   auto latent = unpack_params(parameters, data, config);
+  if(config.verbose)
+    Rcpp::Rcout << "b";
 
   std::vector<double> logLik(config.num_threads);
   std::vector<double> Qpart(config.num_threads);
@@ -65,6 +68,8 @@ double jointLogDens(
       Qpart[tid] = QpartT;
   } // end parallel block
 
+  if(config.verbose)
+    Rcpp::Rcout << "b";
 
   double resultL=0.0, resultQ = 0.0;
   for(size_t D=0;D<config.num_threads;D++) {

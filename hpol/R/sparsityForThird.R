@@ -199,7 +199,7 @@ getOptimalPairs = function(hessian, Sparams, Sgamma1,
 
 
 
-    third = list(
+  sparsity$third = list(
       ijk = as.data.frame(ijkp),
       pairs = as.data.frame(pairs)
     )
