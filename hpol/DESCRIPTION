@@ -9,7 +9,7 @@ SystemRequirements: cppad, openmp
 License: GPL-3
 Depends: R (>= 4.1.0)
 LinkingTo: Rcpp
-Imports: Rcpp, Matrix, data.table
+Imports: Rcpp, Matrix, data.table, trustOptim
 Encoding: UTF-8
 RoxygenNote: 7.3.2
 Roxygen: list(markdown = TRUE)
