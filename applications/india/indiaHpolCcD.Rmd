@@ -67,7 +67,6 @@ deaths$month = format(deaths$date, '%m')
 
 dataMedSimple =
   deaths[
-    deaths$date >= as.Date('2006/1/1') &
     format(deaths$date, '%b%d') != 'Jan01'
     & deaths$tempClean >= (0) # & deaths$ecoRegion %in% 1:10 #setdiff(1:20, c(1,7,19)) # regions 1, 7, 19 have some very low temperatures.
     , ]
