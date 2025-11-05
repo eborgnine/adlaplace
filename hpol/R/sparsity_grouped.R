@@ -32,13 +32,27 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 		cat("getting first deriv...")
 	}
 	firstDeriv = gradLogical(x, dataNoMap, config)
+	firstDeriv = Matrix::Matrix(firstDeriv)
+
 	if(verbose) {
 		cat("done\ngetting clusters...")
 	}
+	if(requireNamespace("RSpectra", quietly=TRUE) ) {
+		e <- RSpectra::svds(1.1*firstDeriv, k = 3)
+		loadings <- e$v		
+	} else {
+		X <- scale(firstDeriv, center = TRUE, scale = FALSE)
+		sv <- svd(X)
+		loadings <- sv$v                  # equals prcomp(...)$rotation
+	}
+	theOrder <- order(loadings[, 1])
+
+	theCl = floor(seq(1, Nclusters+0.999, len= Nstrata))
+	km = list(cluster = theCl)
 
 	n_workers <- ceiling(config$num_threads / 2)
-	cl <- parallel::makeCluster(n_workers, type = "PSOCK")
-#			on.exit(parallel::stopCluster(cl), add = TRUE)
+
+if(FALSE) { # clustering, very slow
 
 	if(Nclusters == 1) {
 		km = list(cluster = rep(1, Nstrata))		
@@ -48,13 +62,14 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 		centers <- ceiling(1.1 * Nclusters)
 		nstart  <- max(5L, ceiling(2 * Nclusters / config$num_threads))
 
+		cl <- parallel::makeCluster(n_workers, type = "PSOCK")
 		parallel::clusterExport(cl, varlist = c("tFirst", "centers", "nstart"), envir = environment())
 		parallel::clusterEvalQ(cl, { gc(); NULL })       # optional hygiene
 		parallel::clusterSetRNGStream(cl, 123)           # reproducible, different stream per worker
 		seeds <- seq_len(n_workers)
 		kmMC = parallel::parLapply(cl, seeds, function(seed) {
 			set.seed(seed)
-			stats::kmeans(tFirst, centers = centers, iter.max = 1000,
+			stats::kmeans(tFirst, centers = centers, iter.max = 500,
 				nstart = nstart, algorithm = "Hartigan-Wong")
 		})
 		parallel::stopCluster(cl)
@@ -95,20 +110,14 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 					km$cluster = as.integer(factor(km$cluster))
 				}
 			}
-		} else {
-			pr = prcomp(firstDeriv)
-			theOrder = order(pr$rotation[,1])
-			theCl = floor(seq(1, Nclusters+0.999, len= Nstrata))
-			km = list(cluster = theCl)
 		}
 	} # not one cluster
+} # false not doing
 
 	clusterTable = table(km$cluster)
 	tableOrder = order(clusterTable, decreasing=TRUE)
 	km$cluster = match(km$cluster, tableOrder)
 
-
-	firstDeriv = Matrix::Matrix(firstDeriv)
 
 	strataMatrix = Matrix::sparseMatrix(
 		i = seq_len(Nstrata),
@@ -117,6 +126,15 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 	)
 
 	strataMatrixList = list(i=strataMatrix@i, j = as(strataMatrix, 'TsparseMatrix')@j, p=strataMatrix@p)
+
+if(FALSE) {
+par(mar=c(3,3,0,0), bty='n')
+bob= terra::rast(as.matrix(1.1*firstDeriv[, 1 + strataMatrixList$i]))
+terra::plot(bob, asp=FALSE, col=c('white','black'))
+abline(v = strataMatrixList$p,
+       col = 'blue',
+       lty = 1)
+}
 
 	strataListForHessian = mapply(
 		function(x, y) {
@@ -136,24 +154,32 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 			parameters=x, data=dataNoMap, 
 			config = c(config[setdiff(names(config), 'num_threads')], 
 				list(num_threads=1))),
-		SIMPLIFY=FALSE, mc.cores=n_workers
+		SIMPLIFY=FALSE, mc.cores=config$num_threads
 	)
 	hessianByBlock1 = lapply(hessianByBlock, Matrix::Matrix, sparse=TRUE)
 # force symmetric
-	hessianByBlock2 = lapply(hessianByBlock1, function(xx) Matrix::forceSymmetric(xx + t(xx), uplo='U'))
+	hessianByBlock2 = lapply(hessianByBlock1, 
+		function(xx) Matrix::forceSymmetric(xx + Matrix::t(xx), uplo='U')
+	)
 
 	#hessian for random part,
-	if(verbose) cat("getting Q hessian")
-		hessianQ = list(dense=hessianQdense(parameters=x, data=data, config=config))
+	if(verbose) 
+		cat("getting Q hessian")
+
+	hessianQ = list(dense=hessianQdense(parameters=x, data=data, config=config))
 
 
 # get non-zeros of tensor
 
-	hessianQ$hessian = Matrix::forceSymmetric(Matrix::Matrix(hessianQ$dense, sparse=TRUE), uplo='U')
+	hessianQ$hessian = Matrix::forceSymmetric(Matrix::Matrix(hessianQ$dense + t(hessianQ$dense), 
+		sparse=TRUE), uplo='U')
 	hessianQT = as(as(hessianQ$hessian, 'generalMatrix'),'TsparseMatrix')
 	hessianQns = as(hessianQ$hessian, 'generalMatrix')
-	if(verbose) cat("getting third sparsity...")
-		ijkQ = hpolcc:::getThirdFromHessian(hessianQ$hessian)
+	if(verbose) 
+		cat("getting third sparsity...")
+	
+	ijkQ = hpolcc:::getThirdFromHessian(hessianQ$hessian)
+	
 	if(verbose) {
 		cat("done\n")
 	}
@@ -170,7 +196,7 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 		x=rep(1, nrow(fullHessian)), symmetric=TRUE, index1=FALSE)
 
 	fullHessian = rbind(fullHessian, cbind(hessianQT@i, hessianQT@j))
-	fullHessian = t(apply(fullHessian, 1, sort))
+	fullHessian = rowSortP(fullHessian)
 	fullHessian = fullHessian[!duplicated(fullHessian), ]
 	fullHessian = fullHessian[order(fullHessian[,2], fullHessian[,1]),]
 
@@ -182,9 +208,10 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 		cat("getting optimal pairs")
 	}
 
-	fullList = hpolcc:::getOptimalPairs(
+	fullList = getOptimalPairs(
 		fullHessianMatrix, 
-		Sparams=Sparams, Sgamma1=Sgamma1)
+		Sparams=Sparams, Sgamma1=Sgamma1,
+		third=FALSE)
 
 	if(verbose) {
 		cat("done\n")

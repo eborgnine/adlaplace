@@ -91,13 +91,14 @@ res <- hpolcc::hnlm(
       knots = seq(0, 45, by=2.5), 
     group_var = ecoRegion), 
   data=dataMedSimple, 
+  cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
+    dirichlet= TRUE, 
+  config = list(transform_theta = TRUE, 
+    num_threads=parallel::detectCores()/2,Nclusters = 40),
+
  control=list(maxit=1000, start.trust.radius = 1, prec=1e-6, stop.trust.radius = 1e-9,
         cg.tol = 1e-6, report.level=4, report.freq=1, report.header.freq=10, report.precision=7),
   control_inner=list(report.level=0),
-  dirichlet= TRUE, 
-  config = list(transform_theta = TRUE, 
-    num_threads=parallel::detectCores()/2,Nclusters = 40),
-  cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
   for_dev=TRUE, verbose=TRUE
   )
 saveRDS(res, file='res.rds')
@@ -106,10 +107,10 @@ saveRDS(res, file='res.rds')
 
 ```{r sparsePlot}
 par(mar=c(3,3,0,0), bty='n')
-image(seq(0, len = nrow(res$groups$firstDeriv)),
-      seq(0, len = ncol(res$groups$firstDeriv)),
-      as.matrix(res$groups$firstDeriv[, 1 + res$groups$groups$i]))
-abline(h = res$groups$groups$p,
+bob= terra::rast(as.matrix(1.1*res$groups$firstDeriv[, 
+  1 + res$groups$groups$i]))
+terra::plot(bob, asp=FALSE, col=c('white','black'))
+abline(v = res$groups$groups$p,
        col = 'blue',
        lty = 1)
 ```

@@ -22,8 +22,83 @@
 #' # See vignette for basic usage
 #'
 #' @useDynLib hpolcc
+
 #' @export
-hnlm <- function(formula,
+hnlm_design = function(
+  formula, data,
+  verbose = FALSE
+) {
+
+  Xlist <- list()       # fixed-effects design blocks
+  Alist <- list()       # random-effects design blocks
+
+  terms <- hpolcc:::collectTerms(formula)
+
+  k <- 1
+  while (k <= length(terms)) {
+    if (verbose) cat(k, " ")
+
+    term <- hpolcc:::getExtra(terms[[k]], data = data)
+    term$id <- k
+    if(! term$var %in% names(data)) {
+      k <- k + 1
+      next
+    }
+
+    if (!is.factor(data[[term$var]][1]) &&
+        !is.character(data[[term$var]][1]) &&
+        is.null(term$range)) {
+      term$range <- range(data[[term$var]])
+    }
+
+
+    # "Run as-is" -> fixed effects via sparse.model.matrix
+    if (isTRUE(term$run_as_is)) {
+      Xsub <- Matrix::sparse.model.matrix(term$f, data)
+      if (is.factor(data[[term$var]])) Xsub <- Xsub[, -1]
+      beta_info$var  <- c(beta_info$var,  term$var)
+      beta_info$pick <- c(beta_info$pick, paste0(term$pick, "__", 0))
+      Xlist[[k]] <- Xsub
+      k <- k + 1
+      next
+    }
+
+    # Fixed polynomial
+    if (identical(term$model, "fpoly")) {
+      Xsub <- as(poly(
+        data[[term$var]] - term$ref_value,
+        degree = term$p, raw = TRUE, simple = TRUE
+      ), "TsparseMatrix")
+      colnames(Xsub) <- paste0(
+        term$var,
+        c("", seq_len(ncol(Xsub) - 1))
+      )
+      beta_info$var  <- c(beta_info$var,  term$var)
+      beta_info$pick <- c(beta_info$pick, paste0(term$pick, "__", 0))
+      Xlist[[k]] <- Xsub
+      k <- k + 1
+      next
+    }
+
+    ## Random-effects branch
+    Asub <- hpolcc:::getDesign(term, data)
+    Alist[[k]] <- Asub
+
+    ## Expand terms with fpoly / rpoly contributions
+    terms <- c(terms, hpolcc:::addFPoly(term), hpolcc:::addRPoly(term))
+
+    k <- k + 1
+  }
+    A = do.call(cbind, Alist) |> as("TsparseMatrix")
+    X = do.call(cbind, Xlist)
+
+
+  list(A = A, X=X)
+}
+
+#' @export
+hnlm <- function(
+ formula,
  data,
  cc_design = ccDesign(),
  weight_var,
@@ -71,7 +146,7 @@ hnlm <- function(formula,
     cat("setting strata\n")
   }
   
-  cc_matrix <- setStrata(
+  cc_matrix <- hpolcc:::setStrata(
     cc_design = cc_design, 
     data = data, 
     outcome = all.vars(formula)[1])
@@ -228,9 +303,7 @@ hnlm <- function(formula,
       dirichlet = as.integer(dirichlet))
   )
   
-  if(verbose) cat("formatting data..")
   tmb_data = formatHpolData(tmb_data)
-  if(verbose) cat("done\n")
 
  
     configDefaults = list(
@@ -281,21 +354,15 @@ hnlm <- function(formula,
         parameters_and_gamma = start_parameters,
         theta_info = theta_info,
         tmb_data = tmb_data,
-        terms = terms,
+        formula = formula,
         config = config,
         control = control,
         control_inner = control_inner,
-        data = data,
         groups = groups[setdiff(names(groups), "sparsity")],
         cache = cache
       )
     )
   
-
-
-
-
-
 
   if(verbose) cat("optimizing")
 
@@ -316,7 +383,7 @@ hnlm <- function(formula,
       tmb_data, config, control_inner, check=TRUE))
 
   mle$gamma_hat = mle$extra$solution
-
+  mle$formula = formula
   
   return(mle)
 }

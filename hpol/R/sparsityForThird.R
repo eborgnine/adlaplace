@@ -25,7 +25,9 @@ getThirdFromHessian = function(hessian) {
 }
 
 
-getOptimalPairs = function(hessian, Sparams, Sgamma1, hessianPairs, hessianPairsR, hessianPairsNs, hessianPairsRns) {
+getOptimalPairs = function(hessian, Sparams, Sgamma1, 
+  hessianPairs, hessianPairsR, hessianPairsNs, hessianPairsRns,
+  third = TRUE) {
 
   hessianG = as(hessian, 'generalMatrix')
   hessianUL = as(hessianG, "TsparseMatrix") 
@@ -35,79 +37,6 @@ getOptimalPairs = function(hessian, Sparams, Sgamma1, hessianPairs, hessianPairs
   pairs = hessianIJ[!duplicated(hessianIJ[,c('i','j')]), ]
   pairs = pairs[order(pairs$j, pairs$i), ]
 
-# find non-zero entries based on hessian
-
-
-  ijk1 = getThirdFromHessian(hessian)
-
-  ijk2 = as.data.frame(ijk1[ijk1[,'Nunique'] == 3, ,drop=FALSE])
-
-  # only one parameter per trio, dont need Tijk for two parameters
-  Nparams = apply(ijk2, 1, function(xx) sum(xx %in% Sparams))
-  ijk = ijk2[Nparams < 2,setdiff(names(ijk2), "Nunique"),drop=FALSE]
-
-  ijk$ij = apply(ijk[,c('i','j')], 1, paste, collapse='_')
-  ijk$jk = apply(ijk[,c('j','k')], 1, paste, collapse='_')
-  ijk$ik = apply(ijk[,c('i','k')], 1, paste, collapse='_')
-
-  Sdim = c('ij','jk','ik')
-  Spairs = c("pairs1","pairs2","pairs3")
-  ijk$pair = ijk$type = NA
-
-
-  Nna=1;Niter = 0;pairVec = NULL
-  while(Nna > 0 & Niter < nrow(ijk)) {
-    theNA = which(is.na(ijk$pair))
-    theTable = table(unlist(ijk[theNA, Sdim]))
-    biggestPair = names(theTable)[which.max(theTable)]
-    pairVec = c(pairVec, biggestPair)
-    newIJ =intersect(which(ijk$ij==biggestPair), theNA)
-    newIK =intersect(which(ijk$ik==biggestPair), theNA)
-    newJK =intersect(which(ijk$jk==biggestPair), theNA)
-
-
-    if(length(newIJ)) {
-      ijk[newIJ,'pair'] = biggestPair
-      ijk[newIJ,'type'] = 'ij'
-    }
-    if(length(newJK)) {
-      ijk[newJK,'pair'] = biggestPair
-      ijk[newJK,'type'] = 'jk'
-    }
-    if(length(newIK)) {
-      ijk[newIK,'pair'] = biggestPair
-      ijk[newIK,'type'] = 'ik'
-    }
-    Niter = Niter +1
-    Nna = sum(is.na(ijk$pair))
-  } # while
-
-  #ijk[apply(ijk[,c('i','j','k')], 1, function(xx) all(c(0,7)%in% xx)), ]
-
-  ijk$pairFac = factor(ijk$pair, levels=pairVec)
-  ijk[,Spairs] = as.integer(NA)
-  theIj = which(ijk$type == 'ij')
-  ijk[theIj,Spairs] = ijk[theIj,c('i','j','k')]
-  theJk = which(ijk$type == 'jk')
-  ijk[theJk,Spairs] = ijk[theJk,c('j','k','i')]
-  theIk = which(ijk$type == 'ik')
-  ijk[theIk,Spairs] = ijk[theIk,c('i','k','j')]
-
-  ijkp = cbind(
-    ijk[order(ijk[,'pairFac'],ijk[,'pairs3']),],
-    p=seq(from=0, len=nrow(ijk))
-  )
-  ijkp = ijkp[,c("pairs1","pairs2","pairs3","p")]
-
-  names(ijkp) = c('i','j','k', 'p')
-
-  ijkp[] <- lapply(ijkp, as.integer)
-  rownames(ijkp) = NULL
-
-  pairs = ijkp[!duplicated(ijkp[,c('i','j')]), setdiff(names(ijkp), 'k')]
-  pairs$pEnd = c(pairs[-1,'p'], nrow(ijkp))
-  pairs$n =pairs$pEnd - pairs$p
-  pairs$pair = paste(pairs$i, pairs$j, sep='_')
 
   hessianC = as(hessian, 'CsparseMatrix')
   hessianRandomC = hessianC[Sgamma1, Sgamma1]
@@ -188,12 +117,92 @@ getOptimalPairs = function(hessian, Sparams, Sgamma1, hessianPairs, hessianPairs
       nonSymmetric = nonsymmetric,
       randomNS = list(i=hessianRandomNS@i, j=hessianRandomNS@j, 
         p=as(hessianRandomNS, "CsparseMatrix")@p)
-    ),
+    )
+  )
+
+  if(!third) 
+    return(sparsity)
+
+# find non-zero entries based on hessian
+
+
+  ijk1 = getThirdFromHessian(hessian)
+
+  ijk2 = as.data.frame(ijk1[ijk1[,'Nunique'] == 3, ,drop=FALSE])
+
+  # only one parameter per trio, dont need Tijk for two parameters
+  Nparams = apply(ijk2, 1, function(xx) sum(xx %in% Sparams))
+  ijk = ijk2[Nparams < 2,setdiff(names(ijk2), "Nunique"),drop=FALSE]
+
+  ijk$ij = apply(ijk[,c('i','j')], 1, paste, collapse='_')
+  ijk$jk = apply(ijk[,c('j','k')], 1, paste, collapse='_')
+  ijk$ik = apply(ijk[,c('i','k')], 1, paste, collapse='_')
+
+  Sdim = c('ij','jk','ik')
+  Spairs = c("pairs1","pairs2","pairs3")
+  ijk$pair = ijk$type = NA
+
+
+  Nna=1;Niter = 0;pairVec = NULL
+  while(Nna > 0 & Niter < nrow(ijk)) {
+    theNA = which(is.na(ijk$pair))
+    theTable = table(unlist(ijk[theNA, Sdim]))
+    biggestPair = names(theTable)[which.max(theTable)]
+    pairVec = c(pairVec, biggestPair)
+    newIJ =intersect(which(ijk$ij==biggestPair), theNA)
+    newIK =intersect(which(ijk$ik==biggestPair), theNA)
+    newJK =intersect(which(ijk$jk==biggestPair), theNA)
+
+
+    if(length(newIJ)) {
+      ijk[newIJ,'pair'] = biggestPair
+      ijk[newIJ,'type'] = 'ij'
+    }
+    if(length(newJK)) {
+      ijk[newJK,'pair'] = biggestPair
+      ijk[newJK,'type'] = 'jk'
+    }
+    if(length(newIK)) {
+      ijk[newIK,'pair'] = biggestPair
+      ijk[newIK,'type'] = 'ik'
+    }
+    Niter = Niter +1
+    Nna = sum(is.na(ijk$pair))
+  } # while
+
+  #ijk[apply(ijk[,c('i','j','k')], 1, function(xx) all(c(0,7)%in% xx)), ]
+
+  ijk$pairFac = factor(ijk$pair, levels=pairVec)
+  ijk[,Spairs] = as.integer(NA)
+  theIj = which(ijk$type == 'ij')
+  ijk[theIj,Spairs] = ijk[theIj,c('i','j','k')]
+  theJk = which(ijk$type == 'jk')
+  ijk[theJk,Spairs] = ijk[theJk,c('j','k','i')]
+  theIk = which(ijk$type == 'ik')
+  ijk[theIk,Spairs] = ijk[theIk,c('i','k','j')]
+
+  ijkp = cbind(
+    ijk[order(ijk[,'pairFac'],ijk[,'pairs3']),],
+    p=seq(from=0, len=nrow(ijk))
+  )
+  ijkp = ijkp[,c("pairs1","pairs2","pairs3","p")]
+
+  names(ijkp) = c('i','j','k', 'p')
+
+  ijkp[] <- lapply(ijkp, as.integer)
+  rownames(ijkp) = NULL
+
+  pairs = ijkp[!duplicated(ijkp[,c('i','j')]), setdiff(names(ijkp), 'k')]
+  pairs$pEnd = c(pairs[-1,'p'], nrow(ijkp))
+  pairs$n =pairs$pEnd - pairs$p
+  pairs$pair = paste(pairs$i, pairs$j, sep='_')
+
+
+
     third = list(
       ijk = as.data.frame(ijkp),
       pairs = as.data.frame(pairs)
     )
-  )
 
   if(!missing(hessianPairs)) 
     sparsity$second$full$match =  try(match(paste(hessianT@i, hessianT@j, sep='_'), hessianPairs))-1L
@@ -335,22 +344,10 @@ sparsity_pattern = function(x, data, config=list(), denseHessian) {
   pairsHessian2$SjNotPairOrDiag = setdiff(pairsHessian2$SjNotPair, unlist(pairsHessian2[c('onesI', 'onesJ')]))
   pairsHessian2$SiNotJ = sort(setdiff(pairsHessian2$i, c(pairsHessian2$j, pairsHessian2$onesJ)))
 
-
-
-  sparsity = list(
-    random = pairsHessian2, 
-    second = list(
-      full = list(i=hessianT@i, j=hessianT@j, 
-        p=hessianC@p),
-      random = list(i=hessianRandom@i, j=hessianRandom@j, 
-        p=as(hessianRandom, "CsparseMatrix")@p),
-      nonSymmetric = nonsymmetric
-    ),
-    third = list(
+  sparsity$third = list(
       ijk = as.data.frame(ijkp),
       pairs = as.data.frame(pairs)
     )
-  )
 
   sparsity
 
