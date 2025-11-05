@@ -46,7 +46,6 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 		loadings <- sv$v                  # equals prcomp(...)$rotation
 	}
 	theOrder <- order(loadings[, 1])
-
 	theCl = floor(seq(1, Nclusters+0.999, len= Nstrata))
 	km = list(cluster = theCl)
 
@@ -58,7 +57,7 @@ if(FALSE) { # clustering, very slow
 		km = list(cluster = rep(1, Nstrata))		
 	} else {
 
-		tFirst <- t(firstDeriv)                 # do this once in the master
+		tFirst <- t(1.1*firstDeriv)                 # do this once in the master
 		centers <- ceiling(1.1 * Nclusters)
 		nstart  <- max(5L, ceiling(2 * Nclusters / config$num_threads))
 
@@ -114,10 +113,33 @@ if(FALSE) { # clustering, very slow
 	} # not one cluster
 } # false not doing
 
-	clusterTable = table(km$cluster)
-	tableOrder = order(clusterTable, decreasing=TRUE)
-	km$cluster = match(km$cluster, tableOrder)
 
+if(FALSE) {
+	firstDerivT =   as.matrix(Matrix::t(1.1*firstDeriv))
+	clusterF = factor(km$cluster)
+	centres <- rowsum(firstDerivT, clusterF) / as.vector(table(clusterF))
+
+	fit1 = mapply(function(centres, firstDerivT, seed) {
+		set.seed(seed)
+		suppressWarnings(kmeans(
+		firstDerivT,
+  centers   = matrix(rnorm(length(centres), mean=centres, sd = 1e-3), nrow(centres), ncol(centres)),      # your centers
+  iter.max  = 5,          # stop after 5 iterations
+  algorithm = "Lloyd",    # ensures a single assign -> recompute cycle
+  nstart    = 1           # ignored when centers is given, but harmless
+	))
+	},
+	seed = 1: n_workers,
+	MoreArgs = list(centres = centres, firstDerivT = firstDerivT),
+	SIMPLIFY=FALSE
+	)
+	loadings <- fit1[[ which.min(sapply(fit1, `[[`, "tot.withinss")) ]]$cluster
+
+	theOrder <- order(loadings)
+	theCl = floor(seq(1, Nclusters+0.999, len= Nstrata))
+	km = list(cluster = theCl)
+
+}
 
 	strataMatrix = Matrix::sparseMatrix(
 		i = seq_len(Nstrata),
