@@ -134,24 +134,21 @@ str(hessian(res$gamma_start, res$tmb_data, modifyList(res$config, list(verbose=T
 str(hessian(res$parameters_and_gamma, res$tmb_data, modifyList(res$config, list(verbose=TRUE)), 
   adFun = adFunFull)) 
 
-wrappers_outer$fn(
+outer_fn(
   res$parameters,
   data = res$tmb_data, config= res$config, adFunFull = adFunFull, control_inner = res$control_inner, cache=res$cache
   )
-wrappers_outer$gr(
+outer_gr(
   res$parameters,
   data = res$tmb_data, config= modifyList(res$config, list(verbose=TRUE)), 
   adFunFull = adFunFull, control_inner = res$control_inner, cache=res$cache
   )
 
-bob=thirdStrata(res$parameters_and_gamma, data=res$tmb_data, config= modifyList(res$config, list(verbose=TRUE)),
-  adFun = adFunFull)
-
-mleX = optim(
+mleX1 = optim(
     rep(c(0,-3), 
       c(length(res$config$beta), length(res$config$theta))),
-    fn = wrappers_outer$fn,
-    gr = wrappers_outer$gr,
+    fn = outer_fn,
+    gr = outer_gr,
     method = 'L-BFGS-B',#'SR1',
     lower = rep(c(-0.5, -Inf), c(length(res$config$beta), length(res$config$theta))),
     upper = rep(c(0.5, 1), c(length(res$config$beta), length(res$config$theta))),
@@ -161,6 +158,16 @@ mleX = optim(
     data=res$tmb_data, config = res$config, cache =  res$cache, control_inner = res$control_inner,
     adFunFull = adFunFull
   )
+mleX = trustOptim::trust.optim(
+    rep(c(0,-3), 
+      c(length(res$config$beta), length(res$config$theta))),
+    fn = outer_fn,
+    gr = outer_gr,
+    method = 'SR1',
+    control = list(start.trust.radius = 0.05, REPORT=1, trace=10),
+    data=res$tmb_data, config = res$config, cache =  res$cache, control_inner = res$control_inner,
+    adFunFull = adFunFull
+  )  
 saveRDS(mleX, file='mleX.rds')  
 ```
 

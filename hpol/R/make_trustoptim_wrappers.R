@@ -1,7 +1,6 @@
 # cache must have gamma_start, Nfun, Nge
 #' @export
-wrappers_outer = list( 
-  fn = function(x, data, config, adFunFull, control_inner, cache) {
+outer_fn = function(x, data, config, adFunFull, control_inner, cache) {
     assign("Nfun", get("Nfun", cache)+1, cache)
     assign("last.par", x, envir=cache)
     result=try(loglik(x,
@@ -16,8 +15,9 @@ wrappers_outer = list(
       }
       if(length(result$solution)) assign("gamma_start", result$solution, envir=cache)
       result$minusLogLik
-    },
-  gr = function(x, data, config, adFunFull, control_inner, cache) {
+    }
+#' @export
+outer_gr = function(x, data, config, adFunFull, control_inner, cache) {
     assign("Ngr", get("Ngr", cache)+1, cache)
     result= try(loglik(x,
         gamma_start = get("gamma_start", envir=cache), 
@@ -31,6 +31,5 @@ wrappers_outer = list(
   result$deriv$dL
 }
  
- )
 
 
