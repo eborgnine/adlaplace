@@ -77,11 +77,6 @@ save(dataMedSimple, file='dataMedSimple.RData')
 
 
 ```{r fit}
-# R CMD INSTALL --clean --preclean hpoltest_0.0.1.tar.gz   --configure-args="--enable-openmp" --configure-vars="PKG_CPPFLAGS='-fopenmp' PKG_LIBS='-fopenmp'"
-# devtools::install_github("samperochkin/hpoltest")
-# ulimit -s unlimited 
-
-
 library('hpolcc')
 load("dataMedSimple.RData")
 
@@ -158,45 +153,51 @@ saveRDS(mleX, file='mleCvd.rds')
 
 
 ```{r theResults}
-result$parameters = hpolcc::formatParameters(
-  result$solution, fitD, TRUE)
+library('hpolcc')
+theData = readRDS("resCvd.rds")
+result = readRDS("mleCvd.rds")
 
-result$parameters$theta
+HtildeChol = Matrix::Cholesky(result$extra$hessian, LDL=TRUE)
+HtildeCholEx = list(Lt = Matrix::expand1(HtildeChol, "L1."),
+                    D = Matrix::expand1(HtildeChol, "D"),
+                    Pt = Matrix::expand1(HtildeChol, "P1.")
+)
 
-# parameters are (beta, gamma, theta)
-
-randomEffects = seq(from=length(result$parameters$beta)+1,
-  length = nrow(result$parameters$gamma))
-
-result$Htilde = result$hessian[randomEffects, randomEffects]
-result$HtildeChol = Matrix::solve(Matrix::chol(result$Htilde))
-
-Nsim = 200
-simInd = matrix(rnorm(Nsim * nrow(result$Htilde)),
- nrow(result$Htilde), Nsim)
-
-# sample from [U|Y, theta_map]
-simGamma = Matrix::crossprod(result$HtildeChol,  simInd) 
-rownames(simGamma) = rownames(fitD$tmb_data$ATp)
-
-simGamma = simGamma + unlist(result$parameters$gamma[
-  rownames(simGamma), 'value'])
+quantile(result$extra$hessian - HtildeCholEx$Pt %*% Matrix::t(HtildeCholEx$Lt) %*% HtildeCholEx$D %*% HtildeCholEx$L %*% Matrix::t(HtildeCholEx$P))
 
 
-Stemp = seq(0,45,by=0.1)
-SobsTemp = na.omit(match(Stemp, round(fitD$data$tempClean, 1)))
-Spm = seq(1,1000, by=1)
-SobsPm = na.omit(match(Spm, round(fitD$data$pm)))
+# H = Pt L D Lt P 
+# V = Pt Ltinv Dinv Linv P
 
-Sobs = SobsTemp
-nameX = 'tempClean'
-
-Bmat = fitD$tmb_data$ATp[, Sobs]
-# only want the global effects
-Bmat = Bmat[grep(paste0(nameX,".*global"), rownames(Bmat)),]
+Nsim = 500
+predSeq = list(
+  tempClean = seq(0,45,by=0.2),
+  sqrtPm = sqrt(seq(0,1000, by=2))
+)
 
 
-simF = crossprod(Bmat, simGamma[rownames(Bmat),]) 
+simInd = matrix(
+  rnorm(Nsim * nrow(result$extra$hessian)),
+  nrow(result$extra$hessian), Nsim)
+simInd1 = simInd/sqrt(HtildeCholEx$D@x)
+simGamma = HtildeCholEx$Pt %*% Matrix::solve(HtildeCholEx$Lt, simInd1) +
+  result$extra$solution
+rownames(simGamma) = rownames(theData$tmb_data$ATp)
+
+newXA = list()
+for(D in names(predSeq)) {
+  newDf = data.frame(x = predSeq[[D]], ecoRegion = NA)
+  colnames(newDf)[1] = D
+  newXA[[D]] = hpolcc:::getNewXA(
+  terms = theData$terms, 
+  df= newDf
+  )
+}
+
+simF = lapply(newXA, function(x,y) Matrix::crossprod(x$A, y[rownames(x$A),]), y=simGamma)
+fixedPart = lapply(newXA, function(x,y) Matrix::crossprod(x$X, y[rownames(x$A),]), result$parameters)
+
+#simF = crossprod(Bmat, simGamma[rownames(Bmat),]) 
 
 covHere = grep(nameX, names(result$parameters$beta), value=TRUE)
 fixedPart = drop(crossprod(fitD$tmb_data$XTp[covHere,Sobs, drop=FALSE], 
