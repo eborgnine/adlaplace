@@ -225,16 +225,26 @@ for(D in names(predSeq)) {
 
 #  matplot(simF[[D]], type='l')
     
-if(FALSE) {
-   newDf = data.frame(x = predSeq[[D]], ecoRegion = NA)
+simGlobal = simF = fixedPart = predX = list()
+for(D in names(predSeq)) {
+  newDf = data.frame(x = predSeq[[D]], ecoRegion = NA)
   colnames(newDf)[1] = D
   newXA[[D]] = hpolcc:::getNewXA(
-  terms = theData$terms, 
-  df= newDf
+    terms = theData$terms, 
+    df= newDf
   )
   xColId = as.numeric(gsub( paste0("^", D, "([[:digit:]]+)$"), "\\1", colnames(newXA[[D]]$X)))
   newColNames = paste0(D, c("", seq(1, len=length(xColId)-1)[xColId])[xColId])
   fixedPart[[D]] = newXA[[D]]$X %*% result$parameters$beta[newColNames]
+
+  colsA = grep(paste0(D, "_hiwp_global_"), colnames(newXA$A), value=TRUE)
+  simF[[D]] = newXA$A[,colsA] %*% simGamma[colsA,]
+
+  simGlobalHere= simF[[D]] + fixedPart[[D]]
+  newConstrIndex = which.min(abs(predSeq[[D]] - newConstr[[D]]))
+  toSubtract = matrix(simGlobalHere[newConstrIndex,],
+    nrow(simGlobalHere), ncol(simGlobalHere), byrow=TRUE)
+  simGlobal[[D]] = simGlobalHere - toSubtract
 }
   
 
