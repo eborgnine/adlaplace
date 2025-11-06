@@ -113,11 +113,11 @@ theL = mapply(
   loglik,
   parameters = parMat2,
   MoreArgs = list(
-    gamma_start =res$gamma_start, data = res$tmb_data, config=res$config, adFun = adFun,
+    gamma_start =readRDS('start.rds'), data = res$tmb_data, config=res$config, adFun = adFun,
     adFunFull = adFunFull, control = list(report.level=10, report.freq=1)),
   SIMPLIFY=FALSE
 )
-
+saveRDS(theL[[3]]$solution, file='start.rds')
 
 plot(SxL, unlist(lapply(theL, "[[", "fval")))
 

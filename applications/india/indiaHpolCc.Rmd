@@ -162,15 +162,6 @@ mleX = optim(
     adFunFull = adFunFull
   )
 saveRDS(mleX, file='mleX.rds')  
-
-<<<<<<< HEAD
-mleXcheck = loglik(
-  parameters = mleX$par, 
-  gamma_start = get("gamma_start", res$cache),
-  config=res$config, data=res$tmb_data, adFunFull=adFunFull, deriv=0)
-=======
->>>>>>> b5e0544 (stuff)
-
 ```
 
 

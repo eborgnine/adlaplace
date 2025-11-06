@@ -22,80 +22,6 @@
 #' # See vignette for basic usage
 #'
 #' @useDynLib hpolcc
-
-#' @export
-hnlm_design = function(
-  formula, data,
-  verbose = FALSE
-) {
-
-  Xlist <- list()       # fixed-effects design blocks
-  Alist <- list()       # random-effects design blocks
-
-  terms <- hpolcc:::collectTerms(formula)
-
-  k <- 1
-  while (k <= length(terms)) {
-    if (verbose) cat(k, " ")
-
-    term <- hpolcc:::getExtra(terms[[k]], data = data)
-    term$id <- k
-    if(! term$var %in% names(data)) {
-      k <- k + 1
-      next
-    }
-
-    if (!is.factor(data[[term$var]][1]) &&
-        !is.character(data[[term$var]][1]) &&
-        is.null(term$range)) {
-      term$range <- range(data[[term$var]])
-    }
-
-
-    # "Run as-is" -> fixed effects via sparse.model.matrix
-    if (isTRUE(term$run_as_is)) {
-      Xsub <- Matrix::sparse.model.matrix(term$f, data)
-      if (is.factor(data[[term$var]])) Xsub <- Xsub[, -1]
-      beta_info$var  <- c(beta_info$var,  term$var)
-      beta_info$pick <- c(beta_info$pick, paste0(term$pick, "__", 0))
-      Xlist[[k]] <- Xsub
-      k <- k + 1
-      next
-    }
-
-    # Fixed polynomial
-    if (identical(term$model, "fpoly")) {
-      Xsub <- as(poly(
-        data[[term$var]] - term$ref_value,
-        degree = term$p, raw = TRUE, simple = TRUE
-      ), "TsparseMatrix")
-      colnames(Xsub) <- paste0(
-        term$var,
-        c("", seq_len(ncol(Xsub) - 1))
-      )
-      beta_info$var  <- c(beta_info$var,  term$var)
-      beta_info$pick <- c(beta_info$pick, paste0(term$pick, "__", 0))
-      Xlist[[k]] <- Xsub
-      k <- k + 1
-      next
-    }
-
-    ## Random-effects branch
-    Asub <- hpolcc:::getDesign(term, data)
-    Alist[[k]] <- Asub
-
-    ## Expand terms with fpoly / rpoly contributions
-    terms <- c(terms, hpolcc:::addFPoly(term), hpolcc:::addRPoly(term))
-
-    k <- k + 1
-  }
-    A = do.call(cbind, Alist) |> as("TsparseMatrix")
-    X = do.call(cbind, Xlist)
-
-
-  list(A = A, X=X)
-}
-
 #' @export
 hnlm <- function(
  formula,
@@ -355,6 +281,7 @@ hnlm <- function(
         theta_info = theta_info,
         tmb_data = tmb_data,
         formula = formula,
+        terms = terms, 
         config = config,
         control = control,
         control_inner = control_inner,
