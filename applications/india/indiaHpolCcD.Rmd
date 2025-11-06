@@ -77,11 +77,6 @@ save(dataMedSimple, file='dataMedSimple.RData')
 
 
 ```{r fit}
-# R CMD INSTALL --clean --preclean hpoltest_0.0.1.tar.gz   --configure-args="--enable-openmp" --configure-vars="PKG_CPPFLAGS='-fopenmp' PKG_LIBS='-fopenmp'"
-# devtools::install_github("samperochkin/hpoltest")
-# ulimit -s unlimited 
-
-
 library('hpolcc')
 load("dataMedSimple.RData")
 
@@ -127,19 +122,18 @@ adFunFull = getAdFun(res$parameters_and_gamma, res$tmb_data, res$config)
 assign("file", "indiaCvd.txt", res$cache)
 if(file.exists(get("file", res$cache))) file.remove(get("file", res$cache))
 
-forRep = c(length(res$config$beta), length(res$config$theta))
+forRep = c(length(res$config$beta), length(res$config$theta)-1, 1)
 mleX = optim(
-    c(0.00188008467387123, 
-      -0.00381641546665247, 0.000744252071127193,
-      rep(-6, 7), 
-      -1.16765482212908),
+    c(0.002, -0.004, 0.0008,
+      rep(-4, forRep[2]), 
+      -1.2),
     fn = wrappers_outer$fn,
     gr = wrappers_outer$gr,
-    method = 'L-BFGS-B',#'SR1',
-    lower = rep(c(-0.5, -12), forRep),
-    upper = rep(c(0.5, 1), forRep),
+    method = 'L-BFGS-B', 
+    lower = rep(c(-0.5, -15,-5), forRep),
+    upper = rep(c(0.5, 0, 0), forRep),
     control = list(trace=3, REPORT=1, 
-      parscale = rep(c(1e-3, 10), forRep)
+      parscale = rep(c(1e-3, 10, 1), forRep)
       ),#start.trust.radius = 0.05, REPORT=1, trace=10),
     data=res$tmb_data, config = res$config, cache =  res$cache, 
     control_inner = res$control_inner,
@@ -158,64 +152,114 @@ saveRDS(mleX, file='mleCvd.rds')
 
 
 ```{r theResults}
-result$parameters = hpolcc::formatParameters(
-  result$solution, fitD, TRUE)
+library('hpolcc')
+theData = readRDS("resCvd.rds")
+result = readRDS("mleCvd.rds")
 
+result$parameters = hpolcc::formatParameters(
+  result$extra$fullParameters, 
+  theData, TRUE)
 result$parameters$theta
 
-# parameters are (beta, gamma, theta)
+HtildeChol = Matrix::Cholesky(result$extra$hessian, LDL=TRUE)
+HtildeCholEx = list(Lt = Matrix::expand1(HtildeChol, "L1."),
+                    D = Matrix::expand1(HtildeChol, "D"),
+                    Pt = Matrix::expand1(HtildeChol, "P1.")
+)
 
-randomEffects = seq(from=length(result$parameters$beta)+1,
-  length = nrow(result$parameters$gamma))
-
-result$Htilde = result$hessian[randomEffects, randomEffects]
-result$HtildeChol = Matrix::solve(Matrix::chol(result$Htilde))
-
-Nsim = 200
-simInd = matrix(rnorm(Nsim * nrow(result$Htilde)),
- nrow(result$Htilde), Nsim)
-
-# sample from [U|Y, theta_map]
-simGamma = Matrix::crossprod(result$HtildeChol,  simInd) 
-rownames(simGamma) = rownames(fitD$tmb_data$ATp)
-
-simGamma = simGamma + unlist(result$parameters$gamma[
-  rownames(simGamma), 'value'])
+quantile(result$extra$hessian - HtildeCholEx$Pt %*% Matrix::t(HtildeCholEx$Lt) %*% HtildeCholEx$D %*% HtildeCholEx$L %*% Matrix::t(HtildeCholEx$P))
 
 
-Stemp = seq(0,45,by=0.1)
-SobsTemp = na.omit(match(Stemp, round(fitD$data$tempClean, 1)))
-Spm = seq(1,1000, by=1)
-SobsPm = na.omit(match(Spm, round(fitD$data$pm)))
+# H = Pt L D Lt P 
+# V = Pt Ltinv Dinv Linv P
 
-Sobs = SobsTemp
-nameX = 'tempClean'
-
-Bmat = fitD$tmb_data$ATp[, Sobs]
-# only want the global effects
-Bmat = Bmat[grep(paste0(nameX,".*global"), rownames(Bmat)),]
+Nsim = 500
+predSeq = list(
+  tempClean = seq(0,45,by=0.2),
+  sqrtPm = sqrt(seq(0,1000, by=2))
+)
+newConstr = list(tempClean = 25, sqrtPm = sqrt(25))
 
 
-simF = crossprod(Bmat, simGamma[rownames(Bmat),]) 
+simInd = matrix(
+  rnorm(Nsim * nrow(result$extra$hessian)),
+  nrow(result$extra$hessian), Nsim)
+simInd1 = simInd/sqrt(HtildeCholEx$D@x)
+simGamma = HtildeCholEx$Pt %*% Matrix::solve(HtildeCholEx$Lt, simInd1) +
+  result$extra$solution
+rownames(simGamma) = rownames(theData$tmb_data$ATp)
 
-covHere = grep(nameX, names(result$parameters$beta), value=TRUE)
-fixedPart = drop(crossprod(fitD$tmb_data$XTp[covHere,Sobs, drop=FALSE], 
-                           result$parameters$beta[covHere]))
+if(FALSE) {
+Hinv = Matrix::solve(result$extra$hessian)
+varHere =var(as.matrix(Matrix::t(simGamma)))
+quantile(Hinv - varHere)
 
-simSum = simF + fixedPart 
+plot(
+  sqrt(diag(varHere)),
+  sqrt(Matrix::diag(Hinv)));abline(0,1)
+}
 
+Sref = unlist(lapply(theData$terms, '[[', "ref_value"))
+Svar = unlist(lapply(theData$terms, '[[', "var"))
 
+simGlobal = simF = fixedPart = predX = list()
+for(D in names(predSeq)) {
+  refHere = Sref[match(D, Svar)]
+  Sobs = na.omit(match(predSeq[[D]], round(refHere + theData$tmb_data$XTp[D,], 1)))
+  predX[[D]] = refHere + theData$tmb_data$XTp[D,Sobs]
+  
+  colsA = grep(paste0(D, "_hiwp_global_"),rownames(theData$tmb_data$ATp), value=TRUE)
+  simF[[D]] = Matrix::crossprod(theData$tmb_data$ATp[colsA,Sobs], simGamma[colsA,])
+  
+  betaHere = grep(paste0("^", D, "([[:digit:]]+)?$"), names(result$parameters$beta), value=TRUE)
+  fixedPart[[D]] =  Matrix::crossprod(
+    theData$tmb_data$XTp[betaHere, Sobs,drop=FALSE], 
+    result$parameters$beta[betaHere])
+  simGlobalHere= simF[[D]] + fixedPart[[D]]
+  newConstrIndex = which.min(abs(predX[[D]] - newConstr[[D]]))
 
-theX= fitD$data[[covHere[1] ]][Sobs]
-if(grepl("^sqrt", nameX)) theX = theX^2
+  toSubtract = matrix(simGlobalHere[newConstrIndex,],
+    nrow(simGlobalHere), ncol(simGlobalHere), byrow=TRUE)
+  simGlobal[[D]] = simGlobalHere - toSubtract
+}
 
-par(mar=c(3,3,0,0), bty='l')
-matplot(theX, simSum, type='l',
-  col='#00000010', lty=1, xaxs='i')
+#  matplot(simF[[D]], type='l')
+    
+if(FALSE) {
+   newDf = data.frame(x = predSeq[[D]], ecoRegion = NA)
+  colnames(newDf)[1] = D
+  newXA[[D]] = hpolcc:::getNewXA(
+  terms = theData$terms, 
+  df= newDf
+  )
+  xColId = as.numeric(gsub( paste0("^", D, "([[:digit:]]+)$"), "\\1", colnames(newXA[[D]]$X)))
+  newColNames = paste0(D, c("", seq(1, len=length(xColId)-1)[xColId])[xColId])
+  fixedPart[[D]] = newXA[[D]]$X %*% result$parameters$beta[newColNames]
+}
+  
 
 
 ```
 
+
+```{r globalRes, fig.cap='Common component', fig.subcap = c("temperature", "PM 2.5)}
+
+par(mar=c(3,3,0,0), bty='l')
+matplot(predX[["tempClean"]], 
+        100*(exp(simGlobal[["tempClean"]])-1), type='l',
+  col='#00000010', lty=1, xaxs='i',
+  ylim = c(-1/3, 31), xlim = c(6, 38))
+
+theY =  100*(exp(simGlobal[["sqrtPm"]])-1)
+theX = predX[["sqrtPm"]]^2
+matplot(theX, theY , type='l',
+  col='#00000010', lty=1, xaxs='i',
+  xlim = c(0,600), ylim = c(-4, 12),
+  xlab = 'PM 2.5', ylab = '100 (RR-1)')
+theYq = t(apply(theY, 1, quantile, probs=c(0.025, 0.975, 0.5)))
+matlines(theX, theYq, lty=c(2,2,1), lwd=c(1,1,2), col='blue')
+
+```
 
 
 ```{r otherstuff22, eval=FALSE}
