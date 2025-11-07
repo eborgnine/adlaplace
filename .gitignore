@@ -30,3 +30,10 @@ applications/synthetic/log.txt
 *.rds
 mleX.RData
 todebug.Rdata
+*.html
+*.blg
+*.aux
+*.log
+*.pdf
+*.xml
+applications/india/indiaHpolCcD.tex

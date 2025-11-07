@@ -1,16 +1,23 @@
 ```{r setup, include=FALSE}
-#devtools::install_github("samperochkin/hpoltest")
+library('knitr')
+
+knitr::knit_hooks$set(margins = Pmisc::hook_plot_margins)
+
+knitr::opts_chunk$set(echo=FALSE, prompt=TRUE, comment=NA,
+    dev='pdf', margins=1, fig.cap=' ',
+  fig.path=file.path('figure','moreBayes'),    
+    fig.width=5, fig.height=5, half=NULL,
+    tidy=TRUE,tidy.opts=list(indent=2, width.cutoff=45)
+)
+
+knitr::opts_hooks$set(half = function(options) {
+    options$tidy.opts = list(width.cutoff = 12)#list(options$tidy.opts$width.cutoff/2)
+    options
+  })
+options(width=80)
 ```
 
 
-
-on darjeeling
-```{r loadpackage, eval=FALSE}
-
-library('hpolcc', lib.loc = 
-  "/home/patrick/R/x86_64-pc-linux-gnu-library/4.5")
-
-```
 
 for new package
 Need cppad, openmp
@@ -34,19 +41,31 @@ CPPFLAGS += -I/opt/homebrew/opt/libomp/include
 LDFLAGS  += -L/opt/homebrew/opt/libomp/lib -lomp
 
 
+a
 
-```{r setup2}
-
-
-library('data.table')
-# /home/patrick/Admin/globalHealth/indiaSpatial/daily.Rmd
+```{r ecoRegionmap}
 SstoreDir = c('/store/patrick/copernicus/agg', '~/Downloads/agg')
 storeDir = SstoreDir[1]
 if(!dir.exists(storeDir)) storeDir = SstoreDir[2]
 
+indiaEcoRegions = terra::unwrap(readRDS(file.path(storeDir, "indiaEcoRegions.rds")))
+mapmisc::map.new(indiaEcoRegions)
+terra::plot(indiaEcoRegions, add=TRUE)
+terra::plot(indiaEcoRegions[4,], add=TRUE, col='yellow')
+```
+
+g
+
+
+```{r setup2, eval=FALSE}
+
+
+library('data.table')
+# /home/patrick/Admin/globalHealth/indiaSpatial/daily.Rmd
+
+
 deaths = as.data.table(readRDS( file.path(storeDir, "indiaCC.rds")))
 
-indiaEcoRegions = terra::unwrap(readRDS(file.path(storeDir, "indiaEcoRegions.rds")))
 
 
 # trransform variables
@@ -76,7 +95,7 @@ save(dataMedSimple, file='dataMedSimple.RData')
 
 
 
-```{r fit}
+```{r fit, eval=FALSE}
 library('hpolcc')
 load("dataMedSimple.RData")
 
@@ -121,7 +140,7 @@ saveRDS(resTemp, file='resTemp.rds')
 ```
 
 
-```{r sparsePlot}
+```{r sparsePlot, eval=FALSE}
 par(mar=c(3,3,0,0), bty='n')
 bob= terra::rast(as.matrix(1.1*resTempPm$groups$firstDeriv[, 
   1 + resTempPm$groups$groups$i]))
@@ -131,7 +150,7 @@ abline(v = resTempPm$groups$groups$p,
        lty = 1, lwd=.2)
 ```
 
-```{r fitModel}
+```{r fitModel, eval=FALSE}
 #theFile = 'resTemp.rds'
 theFile = 'resTempPm.rds'
 res = readRDS(theFile)
@@ -171,7 +190,7 @@ saveRDS(mleX, file=gsub("^res", "mle", theFile))
 ```{r theResults}
 library('hpolcc')
 #theFile = 'resTempPm.rds'
-#theFile = 'resTemp.rds'
+theFile = 'resCvd.rds'
 
 theData = readRDS(theFile)
 result = readRDS(gsub("^res", "mle", theFile))
@@ -217,7 +236,7 @@ Svar = unlist(lapply(theData$terms, '[[', "var"))
 simGlobal = newConstrIndex = simF = fixedPart = predX = list()
 
     
-simGlobal = simF = fixedPart = predX = list()
+simGlobal = simF = fixedPart = predX = newXA = list()
 for(D in names(predSeq)) {
   newDf = data.frame(x = predSeq[[D]], ecoRegion = NA)
   colnames(newDf)[1] = D
@@ -225,7 +244,8 @@ for(D in names(predSeq)) {
     terms = theData$terms, 
     df= newDf
   )
-  xColId = as.numeric(gsub( paste0("^", D, "([[:digit:]]+)$"), "\\1", colnames(newXA[[D]]$X)))
+  xColId = as.numeric(gsub( paste0("^", D, "([[:digit:]]+)$"), "\\1", 
+  colnames(newXA[[D]]$X)))
   newColNames = paste0(D, c("", seq(1, len=length(xColId)-1)[xColId])[xColId])
   fixedPart[[D]] = newXA[[D]]$X %*% result$parameters$beta[newColNames]
 
@@ -244,7 +264,8 @@ Sregions = sort(as.numeric(Sregions))
 ```
 
 
-```{r globalRes, fig.cap='Common component', fig.subcap = c("temperature", "PM 2.5)}
+
+```{r globalRes, fig.cap='Common component', fig.subcap = c("temperature", "PM 2.5")}
 par(mar=c(3,3,0,0), bty='l')
 if("tempClean" %in% names(simGlobal)) {
 theY = 100*(exp(simGlobal[["tempClean"]])-1)
@@ -299,7 +320,7 @@ for(D in Sregions) {
 ```
 
 
-```{r byRegionPm, fig.cap='PM2.5', fig.subcap = Sregions}
+```{r byRegionPm, fig.cap='PM2.5', fig.subcap = Sregions, fig.height=3, fig.width=5}
 Dvar = "sqrtPm"
 simPm = list()
 for(D in Sregions) {
@@ -320,6 +341,7 @@ for(D in Sregions) {
 
   theX = predSeq[[Dvar]]^2
   theY = simPm[[D]]
+  par(mar=c(2,2,0,0), bty='n')
   matplot(theX, theY, type='l',
     col='#00000010', lty=1, xaxs='i',
     ylim = c(-40, 40), xlim = c(0, 600))
@@ -330,7 +352,7 @@ for(D in Sregions) {
 ```
 
 
-```{r avgRes, fig.cap='Average, fig.subcap = c("temperature", "PM 2.5)}
+```{r avgRes, fig.cap='Average', fig.subcap = c("temperature", "PM 2.5")}
 
 par(mar=c(3,3,0,0), bty='l')
   toAvg = do.call(abind::abind, c(lapply(simTemp, as.matrix), list(along=3)))
@@ -353,88 +375,3 @@ theYq = t(apply(avgHere, 1, quantile, probs=c(0.025, 0.975, 0.5)))
 matlines(theX, theYq, lty=c(2,2,1), lwd=c(1,1,2), col='blue')
 ```
 
-
-```{r otherstuff22, eval=FALSE}
-
-Sstart = 1:(nrow(fitD$tmb_data$XTp)+1)
-Send = seq(to = length(fitD$start_parameters), by=1, 
-  len=length(fitD$theta_info$name)+1)
-
-bob = function(xx) {
-  hpolcc:::objectiveFunctionC( 
-c(xx[Sstart], fitD$start_parameters[-c(Sstart, Send)], 
-  xx[-Sstart]),
- fitD$tmb_data, 
- c(
- fitD$config[setdiff(names(fitD$config), c('verbose','maxDeriv'))], 
-  list(maxDeriv = 0, verbose=FALSE))
-  )$value
-}
-
-round(numDeriv::hessian(bob, fitD$start_parameters[c(Sstart, Send)]), 3)
-
-res$hessian[c(Sstart, Send), c(Sstart, Send)]
-
-
-
-beta = fitD$start_parameters[1:nrow(fitD$tmb_data$XTp)]
-gamma =fitD$start_parameters[seq(from=length(beta)+1, 
-  len=nrow(fitD$tmb_data$ATp)
-  )]
-theta = fitD$start_parameters[seq(from = length(beta) + length(gamma)+1,
-  to=length(fitD$start_parameters))]
-
-
-resFun = function(xx)  hpolcc:::objectiveFunctionC(xx, fitD$tmb_data, 
-  c(fitD$config[
-    setdiff(names(fitD$config), 'maxDeriv')], 
-  list(maxDeriv = 0)))$value
-
-
-resFun(fitD$start_parameters)  
-
-Matrix::determinant(res$hessian)
-
-
-
-fitD$config$verbose=FALSE
-res$grad
-theGradAgain = numDeriv::grad(resFun, fitD$start_parameters)  
-
-rbind(res$grad, theGradAgain)
-
-
-
-theHessAgain = numDeriv::hessian(resFun, fitD$start_parameters)
-
-
-```
-
-```{r originalPackage, eval=FALSE}
-# using the hpoltest original package (and TMB)
-
-fitM <- hnlm(
-  formula= y ~ f(date, model='iid') +
-    f(tempClean, model='hiwp',ref_value = 22, p=3, knots = seq(0, 42, by=2), group_var = ecoRegion), 
-  data=dataMedSimple,
-  dirichlet=FALSE,
-  cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
-  tmb_parameters = list(theta = thetaStartM),
-  optim_parameters = list(maxit = 20),
-  verbose=TRUE, optimizer='optim', intern=FALSE, inner.method = 'BFGS', 
-  inner.control = list(maxit = 500), for_dev=FALSE)
-```
-
-```{r plotFit2, fig.height=4, fig.width=4, eval=FALSE}
-simTemp =  hpoltest:::condSim(fitD, 'tempClean') 
-
-theYlim = c(0.2, 5) #exp(quantile(simTemp$y[,'GLOBAL', ], c(0.01, 0.99)))
-for(D in dimnames(simTemp$y)[[2]]) {
-matplot(simTemp$x, exp(simTemp$y[,D, ]), type='l', col='#00000010', lty=1, 
-        xaxs='i', log='y',
-        ylim =theYlim,bty='n', 
-        xlab='temperature',ylab=D)
-lines(simTemp$x, exp(simTemp$fixed_mean), col='yellow')
-lines(simTemp$x, exp(apply(simTemp$y[,D, ], 1, mean)), col='red')
-}
-```
