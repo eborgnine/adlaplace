@@ -190,7 +190,7 @@ saveRDS(mleX, file=gsub("^res", "mle", theFile))
 ```{r theResults}
 library('hpolcc')
 #theFile = 'resTempPm.rds'
-theFile = 'resCvd.rds'
+#theFile = 'resCvd.rds'
 
 theData = readRDS(theFile)
 result = readRDS(gsub("^res", "mle", theFile))
@@ -344,7 +344,7 @@ for(D in Sregions) {
   par(mar=c(2,2,0,0), bty='n')
   matplot(theX, theY, type='l',
     col='#00000010', lty=1, xaxs='i',
-    ylim = c(-40, 40), xlim = c(0, 600))
+    ylim = c(-4, 15), xlim = c(0, 600))
     theYq = t(apply(theY, 1, quantile, probs=c(0.025, 0.975, 0.5)))
   matlines(theX, theYq, lty=c(2,2,1), lwd=c(1,1,2), col='blue')
 
