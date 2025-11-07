@@ -81,8 +81,8 @@ library('hpolcc')
 load("dataMedSimple.RData")
 
 # add day iid
-res <- hpolcc::hnlm(
-  formula= cvd ~ #f(date, model='iid') +
+resTempPm <- hpolcc::hnlm(
+  formula= medical ~ #f(date, model='iid') +
     f(sqrtPm, model='hiwp', ref_value = 8, p=2, 
       knots = seq(0,32, by=2),
       group_var = ecoRegion) + 
@@ -98,35 +98,52 @@ res <- hpolcc::hnlm(
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
   for_dev=TRUE, verbose=TRUE
   )
-saveRDS(res, file='resCvd.rds')
-#rm(dataMedSimple)
+saveRDS(resTempPm, file='resTempPm.rds')
+resTemp <- hpolcc::hnlm(
+  formula= cvd ~ #f(date, model='iid') +
+#    f(sqrtPm, model='hiwp', ref_value = 8, p=2, 
+#      knots = seq(0,32, by=2),
+#      group_var = ecoRegion) + 
+    f(tempClean, model='hiwp',ref_value = 20, p=3, 
+      knots = seq(0, 45, by=2.5), 
+    group_var = ecoRegion), 
+  data=dataMedSimple, 
+  dirichlet= TRUE, 
+  config = list(transform_theta = TRUE, 
+                num_threads=parallel::detectCores(),
+                Nclusters = 4*parallel::detectCores()),
+  control_inner=list(report.level=0),
+  cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
+  for_dev=TRUE, verbose=TRUE
+  )
+saveRDS(resTemp, file='resTemp.rds')
 # res = readRDS('res.rds')
 ```
 
 
 ```{r sparsePlot}
 par(mar=c(3,3,0,0), bty='n')
-bob= terra::rast(as.matrix(1.1*res$groups$firstDeriv[, 
-  1 + res$groups$groups$i]))
+bob= terra::rast(as.matrix(1.1*resTempPm$groups$firstDeriv[, 
+  1 + resTempPm$groups$groups$i]))
 terra::plot(bob, asp=FALSE, col=c('white','black'))
-abline(v = res$groups$groups$p,
+abline(v = resTempPm$groups$groups$p,
        col = 'blue',
-       lty = 1)
+       lty = 1, lwd=.2)
 ```
 
-```{r checkDeriv}
-res = readRDS('resCvd.rds')
+```{r fitModel}
+#theFile = 'resTemp.rds'
+theFile = 'resTempPm.rds'
+res = readRDS(theFile)
 library('hpolcc')
 adFunFull = getAdFun(res$parameters_and_gamma, res$tmb_data, res$config)
 
-assign("file", "indiaCvd.txt", res$cache)
+assign("file", gsub("rds$", "txt", theFile), res$cache)
 if(file.exists(get("file", res$cache))) file.remove(get("file", res$cache))
 
 forRep = c(length(res$config$beta), length(res$config$theta)-1, 1)
 mleX = optim(
-    c(0.002, -0.004, 0.0008,
-      rep(-4, forRep[2]), 
-      -1.2),
+    rep(c(0,-4, -1), forRep),
     fn = wrappers_outer$fn,
     gr = wrappers_outer$gr,
     method = 'L-BFGS-B', 
@@ -145,7 +162,7 @@ mleX$extra = loglik(
   gamma_start = get("gamma_start", res$cache),
  data=res$tmb_data, config = res$config, control = res$control_inner,
  deriv = 0)
-saveRDS(mleX, file='mleCvd.rds')
+saveRDS(mleX, file=gsub("^res", "mle", theFile))
 ```
 
 
@@ -153,8 +170,11 @@ saveRDS(mleX, file='mleCvd.rds')
 
 ```{r theResults}
 library('hpolcc')
-theData = readRDS("resCvd.rds")
-result = readRDS("mleCvd.rds")
+#theFile = 'resTempPm.rds'
+#theFile = 'resTemp.rds'
+
+theData = readRDS(theFile)
+result = readRDS(gsub("^res", "mle", theFile))
 
 result$parameters = hpolcc::formatParameters(
   result$extra$fullParameters, 
@@ -180,6 +200,7 @@ predSeq = list(
 )
 newConstr = list(tempClean = 25, sqrtPm = sqrt(25))
 
+predSeq = predSeq[names(predSeq) %in% unlist(lapply(theData$terms, '[[', 'var'))]
 
 simInd = matrix(
   rnorm(Nsim * nrow(result$extra$hessian)),
@@ -189,41 +210,12 @@ simGamma = HtildeCholEx$Pt %*% Matrix::solve(HtildeCholEx$Lt, simInd1) +
   result$extra$solution
 rownames(simGamma) = rownames(theData$tmb_data$ATp)
 
-if(FALSE) {
-Hinv = Matrix::solve(result$extra$hessian)
-varHere =var(as.matrix(Matrix::t(simGamma)))
-quantile(Hinv - varHere)
-
-plot(
-  sqrt(diag(varHere)),
-  sqrt(Matrix::diag(Hinv)));abline(0,1)
-}
 
 Sref = unlist(lapply(theData$terms, '[[', "ref_value"))
 Svar = unlist(lapply(theData$terms, '[[', "var"))
 
-simGlobal = simF = fixedPart = predX = list()
-for(D in names(predSeq)) {
-  refHere = Sref[match(D, Svar)]
-  Sobs = na.omit(match(predSeq[[D]], round(refHere + theData$tmb_data$XTp[D,], 1)))
-  predX[[D]] = refHere + theData$tmb_data$XTp[D,Sobs]
-  
-  colsA = grep(paste0(D, "_hiwp_global_"),rownames(theData$tmb_data$ATp), value=TRUE)
-  simF[[D]] = Matrix::crossprod(theData$tmb_data$ATp[colsA,Sobs], simGamma[colsA,])
-  
-  betaHere = grep(paste0("^", D, "([[:digit:]]+)?$"), names(result$parameters$beta), value=TRUE)
-  fixedPart[[D]] =  Matrix::crossprod(
-    theData$tmb_data$XTp[betaHere, Sobs,drop=FALSE], 
-    result$parameters$beta[betaHere])
-  simGlobalHere= simF[[D]] + fixedPart[[D]]
-  newConstrIndex = which.min(abs(predX[[D]] - newConstr[[D]]))
+simGlobal = newConstrIndex = simF = fixedPart = predX = list()
 
-  toSubtract = matrix(simGlobalHere[newConstrIndex,],
-    nrow(simGlobalHere), ncol(simGlobalHere), byrow=TRUE)
-  simGlobal[[D]] = simGlobalHere - toSubtract
-}
-
-#  matplot(simF[[D]], type='l')
     
 simGlobal = simF = fixedPart = predX = list()
 for(D in names(predSeq)) {
@@ -237,38 +229,128 @@ for(D in names(predSeq)) {
   newColNames = paste0(D, c("", seq(1, len=length(xColId)-1)[xColId])[xColId])
   fixedPart[[D]] = newXA[[D]]$X %*% result$parameters$beta[newColNames]
 
-  colsA = grep(paste0(D, "_hiwp_global_"), colnames(newXA$A), value=TRUE)
-  simF[[D]] = newXA$A[,colsA] %*% simGamma[colsA,]
+  colsA = grep(paste0(D, "_hiwp_global_"), colnames(newXA[[D]]$A), value=TRUE)
+  simF[[D]] = newXA[[D]]$A[,colsA] %*% simGamma[colsA,]
 
   simGlobalHere= simF[[D]] + fixedPart[[D]]
-  newConstrIndex = which.min(abs(predSeq[[D]] - newConstr[[D]]))
-  toSubtract = matrix(simGlobalHere[newConstrIndex,],
+  newConstrIndex[[D]] = which.min(abs(predSeq[[D]] - newConstr[[D]]))
+  toSubtract = matrix(simGlobalHere[newConstrIndex[[D]],],
     nrow(simGlobalHere), ncol(simGlobalHere), byrow=TRUE)
   simGlobal[[D]] = simGlobalHere - toSubtract
 }
-  
-
-
+Sregions1 = unique(gsub("_[[:digit:]]+$", "", rownames(simGamma)))
+Sregions = setdiff(unique(gsub(".*_", "", Sregions1)), "global")
+Sregions = sort(as.numeric(Sregions))
 ```
 
 
 ```{r globalRes, fig.cap='Common component', fig.subcap = c("temperature", "PM 2.5)}
-
 par(mar=c(3,3,0,0), bty='l')
-matplot(predX[["tempClean"]], 
-        100*(exp(simGlobal[["tempClean"]])-1), type='l',
+if("tempClean" %in% names(simGlobal)) {
+theY = 100*(exp(simGlobal[["tempClean"]])-1)
+matplot(predSeq[["tempClean"]], theY, type='l',
   col='#00000010', lty=1, xaxs='i',
   ylim = c(-1/3, 31), xlim = c(6, 38))
+theYq = t(apply(theY, 1, quantile, probs=c(0.025, 0.975, 0.5)))
+matlines(predSeq[["tempClean"]], theYq, lty=c(2,2,1), lwd=c(1,1,2), col='blue')
+}
+
+if("sqrtPm" %in% names(simGlobal)) {
 
 theY =  100*(exp(simGlobal[["sqrtPm"]])-1)
-theX = predX[["sqrtPm"]]^2
+theX = predSeq[["sqrtPm"]]^2
 matplot(theX, theY , type='l',
   col='#00000010', lty=1, xaxs='i',
   xlim = c(0,600), ylim = c(-4, 12),
   xlab = 'PM 2.5', ylab = '100 (RR-1)')
 theYq = t(apply(theY, 1, quantile, probs=c(0.025, 0.975, 0.5)))
 matlines(theX, theYq, lty=c(2,2,1), lwd=c(1,1,2), col='blue')
+}
+```
 
+
+```{r byRegionTemp, fig.cap='temperature', fig.subcap = Sregions}
+Dvar = "tempClean"
+simTemp = list()
+for(D in Sregions) {
+  gammaNames = grep(paste0(Dvar,"_h(iwp|rpoly)_",D,"_"), colnames(newXA[[Dvar]]$A), value=TRUE)
+  Anames1 = grep("hiwp", gammaNames, value=TRUE)
+  Anames = gsub(paste0("_", D, "_"), "_global_",Anames1)
+  
+  Xnames1 = grep("hrpoly", gammaNames, value=TRUE)
+  Xnames = gsub(paste0("_hrpoly_", D, "_"), "", Xnames1)
+  
+  simF2 = "%*%"(newXA[[Dvar]]$A[,Anames], simGamma[Anames1,]) 
+  simX2 = "%*%"(newXA[[Dvar]]$X[,Xnames,drop=FALSE], simGamma[Xnames1,])   
+  
+  simSum2 = simGlobal[[Dvar]] + simF2 + simX2
+  toSubtract = matrix(simSum2[newConstrIndex[[Dvar]],],
+    nrow(simF2), ncol(simF2), byrow=TRUE)
+  simTemp[[D]] = 100*(exp(simSum2 - toSubtract)-1)
+
+  theY = simTemp[[D]]
+  matplot(predSeq[[Dvar]], theY, type='l',
+    col='#00000010', lty=1, xaxs='i',
+    ylim = c(-5, 50), xlim = c(6, 38))
+  theYq = t(apply(theY, 1, quantile, probs=c(0.025, 0.975, 0.5)))
+  matlines(predSeq[[Dvar]], theYq, lty=c(2,2,1), lwd=c(1,1,2), col='blue')
+
+}
+```
+
+
+```{r byRegionPm, fig.cap='PM2.5', fig.subcap = Sregions}
+Dvar = "sqrtPm"
+simPm = list()
+for(D in Sregions) {
+  gammaNames = grep(paste0(Dvar,"_h(iwp|rpoly)_",D,"_"), colnames(newXA[[Dvar]]$A), value=TRUE)
+  Anames1 = grep("hiwp", gammaNames, value=TRUE)
+  Anames = gsub(paste0("_", D, "_"), "_global_",Anames1)
+  
+  Xnames1 = grep("hrpoly", gammaNames, value=TRUE)
+  Xnames = gsub(paste0("_hrpoly_", D, "_"), "", Xnames1)
+  
+  simF2 = "%*%"(newXA[[Dvar]]$A[,Anames], simGamma[Anames1,]) 
+  simX2 = "%*%"(newXA[[Dvar]]$X[,Xnames,drop=FALSE], simGamma[Xnames1,])   
+  
+  simSum2 = simGlobal[[Dvar]] + simF2 + simX2
+  toSubtract = matrix(simSum2[newConstrIndex[[Dvar]],],
+    nrow(simF2), ncol(simF2), byrow=TRUE)
+  simPm[[D]] = 100*(exp(simSum2 - toSubtract)-1)
+
+  theX = predSeq[[Dvar]]^2
+  theY = simPm[[D]]
+  matplot(theX, theY, type='l',
+    col='#00000010', lty=1, xaxs='i',
+    ylim = c(-40, 40), xlim = c(0, 600))
+    theYq = t(apply(theY, 1, quantile, probs=c(0.025, 0.975, 0.5)))
+  matlines(theX, theYq, lty=c(2,2,1), lwd=c(1,1,2), col='blue')
+
+}
+```
+
+
+```{r avgRes, fig.cap='Average, fig.subcap = c("temperature", "PM 2.5)}
+
+par(mar=c(3,3,0,0), bty='l')
+  toAvg = do.call(abind::abind, c(lapply(simTemp, as.matrix), list(along=3)))
+  avgHere = apply(toAvg, 1:2, mean)
+  matplot(predSeq[["tempClean"]], avgHere, type='l',
+  col='#00000010', lty=1, xaxs='i',
+  ylim = c(-1/3, 31), xlim = c(6, 38))
+theYq = t(apply(avgHere, 1, quantile, probs=c(0.025, 0.975, 0.5)))
+matlines(predSeq[["tempClean"]], theYq, lty=c(2,2,1), lwd=c(1,1,2), col='blue')
+
+
+  toAvg = do.call(abind::abind, c(lapply(simPm, as.matrix), list(along=3)))
+  avgHere = apply(toAvg, 1:2, mean)
+  theX = predSeq[["sqrtPm"]]^2
+  matplot(theX, avgHere , type='l',
+  col='#00000010', lty=1, xaxs='i',
+  xlim = c(0,600), ylim = c(-4, 12),
+  xlab = 'PM 2.5', ylab = '100 (RR-1)')
+theYq = t(apply(avgHere, 1, quantile, probs=c(0.025, 0.975, 0.5)))
+matlines(theX, theYq, lty=c(2,2,1), lwd=c(1,1,2), col='blue')
 ```
 
 
