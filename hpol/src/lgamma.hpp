@@ -102,18 +102,19 @@ public:
 
     // --- order 0 ---
     const double f1 = R::psigamma(x0, 0); // digamma
+    const double f2 = order_up >= 1?R::psigamma(x0, 1):0.0;
+    const double f3 = order_up >= 2?R::psigamma(x0, 2):0.0;
+    const double f4 = order_up >= 3?R::psigamma(x0, 3):0.0;
+
     px[0] += py[0] * f1;
 
 if (order_up >= 1) {
-    const double f2 = R::psigamma(x0, 1);        // trigamma
     const double x1 = tx[1];                     // requires Forward(1)
     px[0] += py[1] * (f2 * x1);
     px[1] += py[1] * f1;
   }
 
   if (order_up >= 2) {
-    const double f2 = R::psigamma(x0, 1);
-    const double f3 = R::psigamma(x0, 2);
     const double x1 = tx[1];                     // requires Forward(1)
     const double x2 = tx[2];                     // requires Forward(2)
     px[0] += py[2] * (f2 * x2 + 0.5 * f3 * x1 * x1);
@@ -122,9 +123,6 @@ if (order_up >= 1) {
   }
 
   if (order_up >= 3) {
-    const double f2 = R::psigamma(x0, 1);
-    const double f3 = R::psigamma(x0, 2);
-    const double f4 = R::psigamma(x0, 3);
     const double x1 = tx[1];
     const double x2 = tx[2];
     const double x3 = tx[3];
