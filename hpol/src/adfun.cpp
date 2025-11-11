@@ -122,7 +122,7 @@ GroupPack getAdFunQ(
   const size_t Nparams = parameters.size();
   const bool onlyRandom = (Nparams == data.Ngamma);
 
-  if(config.verbose) Rcpp::Rcout << "q random " << onlyRandom << " Nparams " << Nparams;
+//  if(config.verbose) Rcpp::Rcout << "q random " << onlyRandom << " Nparams " << Nparams;
 
   const Rcpp::List nsQ =  onlyRandom?sparsityQ["randomNS"]:sparsityQ["nonSymmetric"]; 
   const Rcpp::List outList = onlyRandom?sparsityQ["random"]:sparsityQ["full"];
@@ -184,7 +184,7 @@ getAdFun(const std::vector<double>& parameters,
   const bool onlyRandom = Nparams == data.Ngamma;
   const Rcpp::IntegerVector strataI = strata["i"], strataP = strata["p"];
 
-  if(config.verbose) Rcpp::Rcout << "lik: random " << onlyRandom << " Nparams " << Nparams;
+//  if(config.verbose) Rcpp::Rcout << "lik: random " << onlyRandom << " Nparams " << Nparams;
 
   const size_t Ngroup  = static_cast<size_t>(strataP.size() - 1);
 

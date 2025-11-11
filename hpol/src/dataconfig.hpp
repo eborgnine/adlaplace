@@ -257,10 +257,10 @@ unpack_params(const CppAD::vector<Type>& params,
   out.dirichlet = cfg.dirichlet;
   out.transform_theta = cfg.transform_theta;
 
-  if(cfg.verbose) 
+/*  if(cfg.verbose) 
     Rcpp::Rcout << "Nparams " << Nparams << " theta size " << cfgThetaSize << " Ngamma " << 
     out.Ngamma << " Ntheta " << out.Ntheta << " Nbeta " << out.Nbeta << " onlyrandom " << onlyRandom << "\n";
-
+*/
 
   out.beta     = CppAD::vector<Type>(out.Nbeta);
   out.gamma    = CppAD::vector<Type>(out.Ngamma);

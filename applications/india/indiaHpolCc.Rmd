@@ -94,7 +94,9 @@ res <- hpolcc::hnlm(
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
     dirichlet= TRUE, 
   config = list(transform_theta = TRUE, 
-    num_threads=parallel::detectCores(), Nclusters = 4*parallel::detectCores()),
+    dense = FALSE,
+    num_threads=parallel::detectCores(), 
+    Nclusters = 4*parallel::detectCores()),
  control=list(maxit=1000, start.trust.radius = 1, prec=1e-6, stop.trust.radius = 1e-9,
         cg.tol = 1e-6, report.level=4, report.freq=1, report.header.freq=10, report.precision=7),
   control_inner=list(report.level=0),
@@ -118,9 +120,8 @@ abline(v = res$groups$groups$p,
 res = readRDS("res.rds")
 library('hpolcc')
 adFunFull = getAdFun(res$parameters_and_gamma, res$tmb_data, res$config)
-#adFunFull1 = getAdFun(res1$parameters_and_gamma, res1$tmb_data, res1$config)
 
-assign("file", "indiaDay.txt", res$cache)
+assign("file", "india.txt", res$cache)
 if(file.exists(get("file", res$cache))) file.remove(get("file", res$cache))
 
 jointLogDens(res$parameters_and_gamma, res$tmb_data, modifyList(res$config, list(verbose=TRUE)))
@@ -136,7 +137,8 @@ str(hessian(res$parameters_and_gamma, res$tmb_data, modifyList(res$config, list(
 
 outer_fn(
   res$parameters,
-  data = res$tmb_data, config= res$config, adFunFull = adFunFull, control_inner = res$control_inner, cache=res$cache
+  data = res$tmb_data, config= modifyList(res$config, list(verbose=TRUE)), 
+  adFunFull = adFunFull, control_inner = res$control_inner, cache=res$cache
   )
 outer_gr(
   res$parameters,

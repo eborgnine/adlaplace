@@ -1,11 +1,11 @@
 rowSortP = function(x) {
 
-if(requireNamespace("Rfast", quietly=TRUE)) {      
-      return(Rfast::rowSort(x))
-    } else {
-      return(t(apply(x, 1, sort)))
-    }
-    x
+  if(requireNamespace("Rfast", quietly=TRUE)) {      
+    return(Rfast::rowSort(as.matrix(x)))
+  } else {
+    return(t(apply(x, 1, sort)))
+  }
+  x
 }
 
 lengthUnique = function(xx) {
@@ -16,42 +16,92 @@ lengthUnique = function(xx) {
 firstTwoElements = function(xx, k) sort(c(xx[xx!=k], rep(k,2))[1:2] )
 
 thirdTensorSparse = function(third, sparsity) {
-    ijkHere = as.matrix(sparsity$third$ijk[,c('i','j','k')])
-    ijkHere = rowSortP(ijkHere)
-    colnames(ijkHere) = c('i','j','k')
-    ijkHere = as.data.frame(ijkHere)
-    ijkHere$Tijk = third
-    ijkHere
-  }
+  ijkHere = as.matrix(sparsity$third$ijk[,c('i','j','k')])
+  ijkHere = rowSortP(ijkHere)
+  colnames(ijkHere) = c('i','j','k')
+  ijkHere = as.data.frame(ijkHere)
+  ijkHere$Tijk = third
+  ijkHere
+}
 
 thirdTensorDense = function(group_sparsity, Tijk, Nparameters)
-      {
+{
 
 
-        Npairs = nrow(group_sparsity$third$pairs)
-        matHere = as(Matrix::Matrix(Tijk, ncol=Npairs),'TsparseMatrix')
-        matHerePairK = cbind(k = matHere@i, pair=matHere@j)
+  Npairs = nrow(group_sparsity$third$pairs)
+  matHere = as(Matrix::Matrix(Tijk, ncol=Npairs),'TsparseMatrix')
+  matHerePairK = cbind(k = matHere@i, pair=matHere@j)
 
-        toApply = cbind(
-        	as.matrix(as.data.frame(
-        		group_sparsity$third$pairs[c('i','j')]
-        	))[1+matHerePairK[,'pair'],],
-        	matHerePairK[,'k', drop=FALSE]
-        )
+  toApply = cbind(
+   as.matrix(as.data.frame(
+    group_sparsity$third$pairs[c('i','j')]
+  ))[1+matHerePairK[,'pair'],],
+   matHerePairK[,'k', drop=FALSE]
+ )
 
-        resultIJK = rowSortP(toApply)
+  resultIJK = rowSortP(toApply)
 
 
-        colnames(resultIJK) = c('i','j','k')
-        duplicatedHere = duplicated(resultIJK)
-        Nunique = apply(resultIJK, 1, lengthUnique)#Rfast::sort_unique.length)
+  colnames(resultIJK) = c('i','j','k')
+  duplicatedHere = duplicated(resultIJK)
+  Nunique = apply(resultIJK, 1, lengthUnique)#Rfast::sort_unique.length)
 
-        toKeep = (!duplicatedHere) & (Nunique == 3)
+  toKeep = (!duplicatedHere) & (Nunique == 3)
 
-				resultIJK = as.data.frame(resultIJK[toKeep,])          
-        resultIJK$Tijk = matHere@x[toKeep]
-        resultIJK
-      }
+  resultIJK = as.data.frame(resultIJK[toKeep,])          
+  resultIJK$Tijk = matHere@x[toKeep]
+  resultIJK
+}
+
+indexThirdTensor = function(i, ijk) {
+
+  idxI <- which(ijk[,'i'] == i) -1L
+  idxJ <- which(ijk[,'j'] == i) -1L
+  idxK <- which(ijk[,'k'] == i) -1L
+
+  out = data.frame(
+    index=c(idxI, idxJ, idxK),
+    isI = rep(c(TRUE, FALSE), c(length(idxI), length(idxJ) + length(idxK))),
+    isJ = rep(c(FALSE, TRUE, FALSE), c(length(idxI), length(idxJ), length(idxK)))
+  )
+  if(any(duplicated(out$index))) {
+    warning("duplicated i j k")
+  }
+
+  out
+}
+
+indexThirdTensorDiag = function(i, nonSymmetric) {
+  idx <- which(nonSymmetric$i == i | nonSymmetric$j == i)
+  isTheSingle = nonSymmetric$i[idx] == i
+  data.frame(index = idx - 1L, isTheSingle = isTheSingle)
+}
+
+thirdTensorFromIndex = function(
+  Tijk, Tiij, thirdIndexOffDiag, thirdIndexDiag, N
+) {
+
+  TijkHere = Tijk[thirdIndexOffDiag$index+1L,,drop=FALSE]
+
+  TijkHere[thirdIndexOffDiag$isI,'i'] = TijkHere[thirdIndexOffDiag$isI,'j']
+  TijkHere[thirdIndexOffDiag$isI,'j'] = TijkHere[thirdIndexOffDiag$isI,'k']
+  TijkHere[thirdIndexOffDiag$isJ,'j'] = TijkHere[thirdIndexOffDiag$isJ,'k']
+
+  # i=nsJ, j=nsJ, k=nsI
+  TiijHere = Tiij[thirdIndexDiag$index+1L,c('i','k','Tijk')] # is is the double (j==i)  
+  colnames(TiijHere) = gsub("^k$", "j", colnames(TiijHere))
+  # if it matches i, keep i,k
+  # otherwise matches k, set k=i
+  TiijHere[thirdIndexDiag$isTheSingle, 'j'] = TiijHere[thirdIndexDiag$isTheSingle, 'i']
+  toSwitch = which(TiijHere$i > TiijHere$j)
+  if(length(toSwitch)) {
+    newI = TiijHere[toSwitch,'i'] 
+    TiijHere[toSwitch,'i'] = TiijHere[toSwitch,'j']
+    TiijHere[toSwitch,'j'] = newI
+  }
+  res = rbind(TiijHere, TijkHere[,colnames(TiijHere)])
+  try(Matrix::sparseMatrix(i=res$i, j=res$j, x=res$Tijk, index1=FALSE, dims=c(N,N), symmetric=TRUE))
+}
 
 thirdTensor = function(k, third, N) {
 	thirdHere = third[apply(third[,c('i','j','k')] == k, 1, any), ]
@@ -97,27 +147,36 @@ getDh = function(pair, third, Sgamma1, dUhat, Nparameters) {
 }
 
 forDhList = function(Tijk, dUp, Sgamma1) {
-      if(is.null(Tijk)) return(matrix(nrow=0, ncol=2+length(dUp)))
-      There =try( as(Tijk[Sgamma1,Sgamma1], 'TsparseMatrix'))
-      cbind(j=There@i, i=There@j, outer(There@x, dUp))
-    }
+  if(is.null(Tijk)) {
+    return(matrix(nrow=0, ncol=2+length(dUp)))
+  }
+  There = as(Tijk[Sgamma1,Sgamma1], 'TsparseMatrix')
+  return(cbind(data.frame(j=There@i, i=There@j), outer(There@x, dUp)))
+}
 
 forTijpAdd =    function(Tijk, Sgamma1) {
   if(is.null(Tijk)) return(matrix(nrow=0, ncol=3))
-  There = as(Tijk[Sgamma1,Sgamma1], 'TsparseMatrix')
+    There = as(Tijk[Sgamma1,Sgamma1], 'TsparseMatrix')
   cbind(i=There@i, j=There@j, x=There@x)
-  }
+}
 
 
-forDh = function(TU, ij, Tijp, dims) {
-    toAgg = rbind(cbind(ij, x=TU), Tijp)
-    theAgg = aggregate(toAgg[,'x', drop=FALSE], toAgg[,c('i','j')], sum, na.rm=TRUE)
-    Matrix::sparseMatrix(
-      i=pmax(theAgg$j, theAgg$i), 
-      j=pmin(theAgg$i, theAgg$j), x=theAgg$x, 
-      index1=FALSE, dims=dims, symmetric=TRUE)
-  }
 
+forDh = function(Dpar, dHagg, thirdList, dims, Sgamma1) {
+
+  DparC = paste0('p', Dpar)
+  DparP1 = Dpar + 1L
+  There = as(thirdList[[DparP1]][Sgamma1,Sgamma1, drop=FALSE], 'TsparseMatrix')
+  Tijp = data.table::data.table(i=There@i, j=There@j, x=There@x)
+
+  baseDT <- dHagg[, .(i, j, x=get(DparC))]
+  allDT = data.table::rbindlist(list(baseDT, Tijp), use.names = TRUE)
+  allDT[, `:=`(ii = pmax(i, j), jj = pmin(i, j))]
+  aggDT <- allDT[, .(x = sum(x, na.rm = TRUE)), by = .(i = ii, j = jj)]
+
+  Matrix::sparseMatrix(i = aggDT$i, j = aggDT$j, x = aggDT$x,
+               dims = dims, index1 = FALSE, symmetric = TRUE)
+}
 
 traceProd = function(Dhp, Hinv) {
 # sum(Matrix::diag(Hinv %*% Dhp))

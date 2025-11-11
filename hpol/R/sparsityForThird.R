@@ -27,7 +27,7 @@ getThirdFromHessian = function(hessian) {
 
 getOptimalPairs = function(hessian, Sparams, Sgamma1, 
   hessianPairs, hessianPairsR, hessianPairsNs, hessianPairsRns,
-  third = TRUE) {
+  third = TRUE, thirdIndex = NULL) {
 
   hessianG = as(hessian, 'generalMatrix')
   hessianUL = as(hessianG, "TsparseMatrix") 

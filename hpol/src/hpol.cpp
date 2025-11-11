@@ -27,13 +27,15 @@ double jointLogDens(
 
   const size_t NqDiag = data.Qdiag.size();
 
+  double logLikSum = 0.0;
+  double QpartSum  = 0.0;
+
   omp_set_num_threads(config.num_threads);
 
-      #pragma omp parallel
+      #pragma omp parallel reduction(+:logLikSum, QpartSum)
   { 
 
     const int tid=omp_get_thread_num();
-    double logLikT = double(0.0), QpartT=double(0.0);
 
     #pragma omp for nowait
     for (size_t Dstrata = 0; Dstrata < data.Nstrata; Dstrata++) {
@@ -52,38 +54,33 @@ double jointLogDens(
     Dstrata, data, etaHere, latent, config
     );
 
-    logLikT += contrib[0];
+    logLikSum += contrib[0];
 
       }
 
   // Q diag.  
-        #pragma omp for nowait
+        #pragma omp for
       for(size_t D=0;D<NqDiag;D++) {
         size_t mapHere = data.map[D];
 
         gammaScaled[D] = latent.gamma[D] / latent.theta[mapHere];
-        QpartT += latent.logTheta[mapHere] + gammaScaled[D]*gammaScaled[D]*(0.5*data.Qdiag[D]);
+        QpartSum += latent.logTheta[mapHere] + gammaScaled[D]*gammaScaled[D]*(0.5*data.Qdiag[D]);
       }
-      logLik[tid] = logLikT;      
-      Qpart[tid] = QpartT;
   } // end parallel block
 
   if(config.verbose)
     Rcpp::Rcout << "b";
 
-  double resultL=0.0, resultQ = 0.0;
-  for(size_t D=0;D<config.num_threads;D++) {
-//    Rcpp::Rcout << "com " << D << " " << logLik[D] << " " << Qpart[D] << "\n";
-    resultL += logLik[D];
-    resultQ += Qpart[D];
-  }
-  double result = -resultL + resultQ;
-
   // Q offdiag    
+  double Qoff = 0.0;
+  #pragma omp parallel for reduction(+:Qoff) num_threads(config.num_threads)
   for(size_t D = 0; D < data.Nq; D++) {
-    result += gammaScaled[data.QsansDiag.i[D]] * gammaScaled[data.QsansDiag.j[D]] * data.QsansDiag.x[D];
+    Qoff += gammaScaled[data.QsansDiag.i[D]] * gammaScaled[data.QsansDiag.j[D]] * data.QsansDiag.x[D];
   }
-  if (config.verbose ) Rcpp::Rcout << "L " << resultL << " Q " << resultQ << 
+
+  const double result = -logLikSum + QpartSum + Qoff;
+
+  if (config.verbose ) Rcpp::Rcout << "L " << logLikSum << " Q " << QpartSum << " Qoff " << Qoff <<
     " total " << result << "\n";
 
   return result;
@@ -475,6 +472,8 @@ std::vector<double> grad(
   const Config& config
   ) {
 
+// To Do: sparse jacobian CppAD::sparse_jacobian_work work;  save work and pattern in the adpack
+
   const size_t Nparams = parameters.size();
   const size_t Ngroup = adpack.size();
   const bool useQ = data.Qdiag.size()>0;
@@ -492,16 +491,18 @@ std::vector<double> grad(
   {
     CppAD::thread_alloc::hold_memory(true); 
     std::vector<double> gradHere(Nparams, 0);
-    std::vector<double> w(1, 1.0);
+    std::vector<double> gcache; 
+    const std::vector<double> w(1, 1.0);
 
-      #pragma omp for nowait
+      #pragma omp for schedule(dynamic,1) nowait
     for(size_t Dgroup = 0; Dgroup < Ngroup; ++Dgroup) {
 
       adpack[Dgroup].fun.Forward(0, parameters);
       auto gradThisGroup = adpack[Dgroup].fun.Reverse(1, w);
+      gcache.swap(gradThisGroup);  
 
       for(size_t D=0;D<Nparams;D++) {
-        gradHere[D] += gradThisGroup[D];
+        gradHere[D] += gcache[D];
       }
 
     } // group
@@ -520,18 +521,19 @@ std::vector<double> grad(
       } // useQ
     } // single Q
 
-#pragma omp critical
-{
-for(size_t D=0;D<Nparams;D++) {
-  gradOut[D] += gradHere[D];
-}  
+  double* out = gradOut.data();
+  const double* here = gradHere.data();
+  int n = static_cast<int>(Nparams);
 
-} // critical
+    // Every thread runs this whole loop; OpenMP reduces elementwise
+    #pragma omp parallel reduction(+: out[:n])
+    {
+      for (int d = 0; d < n; ++d) out[d] += here[d];
+    }
+
   }// parallel
 
-
   return(gradOut);
-
 }
 
 std::vector<double> gradNeedAd(

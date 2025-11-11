@@ -189,7 +189,7 @@ saveRDS(mleX, file=gsub("^res", "mle", theFile))
 
 ```{r theResults}
 library('hpolcc')
-#theFile = 'resTempPm.rds'
+theFile = 'resTempPm.rds'
 #theFile = 'resCvd.rds'
 
 theData = readRDS(theFile)
@@ -263,7 +263,10 @@ Sregions = setdiff(unique(gsub(".*_", "", Sregions1)), "global")
 Sregions = sort(as.numeric(Sregions))
 ```
 
-
+```{r params}
+result$parameters$beta
+result$parameters$theta
+```
 
 ```{r globalRes, fig.cap='Common component', fig.subcap = c("temperature", "PM 2.5")}
 par(mar=c(3,3,0,0), bty='l')
@@ -271,6 +274,7 @@ if("tempClean" %in% names(simGlobal)) {
 theY = 100*(exp(simGlobal[["tempClean"]])-1)
 matplot(predSeq[["tempClean"]], theY, type='l',
   col='#00000010', lty=1, xaxs='i',
+  xlab='degrees C', ylab = '100 x (RR-1)',
   ylim = c(-1/3, 31), xlim = c(6, 38))
 theYq = t(apply(theY, 1, quantile, probs=c(0.025, 0.975, 0.5)))
 matlines(predSeq[["tempClean"]], theYq, lty=c(2,2,1), lwd=c(1,1,2), col='blue')
@@ -290,7 +294,7 @@ matlines(theX, theYq, lty=c(2,2,1), lwd=c(1,1,2), col='blue')
 ```
 
 
-```{r byRegionTemp, fig.cap='temperature', fig.subcap = Sregions}
+```{r byRegionTemp, fig.cap='temperature', fig.subcap = Sregions, fig.height=3, fig.width=5}
 Dvar = "tempClean"
 simTemp = list()
 for(D in Sregions) {
@@ -311,6 +315,7 @@ for(D in Sregions) {
 
   theY = simTemp[[D]]
   matplot(predSeq[[Dvar]], theY, type='l',
+    xlab = 'degrees C', ylab='100 x (RR-1)',
     col='#00000010', lty=1, xaxs='i',
     ylim = c(-5, 50), xlim = c(6, 38))
   theYq = t(apply(theY, 1, quantile, probs=c(0.025, 0.975, 0.5)))
@@ -343,6 +348,7 @@ for(D in Sregions) {
   theY = simPm[[D]]
   par(mar=c(2,2,0,0), bty='n')
   matplot(theX, theY, type='l',
+  xlab = 'pm25', ylab='100 x (RR-1)',
     col='#00000010', lty=1, xaxs='i',
     ylim = c(-4, 15), xlim = c(0, 600))
     theYq = t(apply(theY, 1, quantile, probs=c(0.025, 0.975, 0.5)))
@@ -358,6 +364,7 @@ par(mar=c(3,3,0,0), bty='l')
   toAvg = do.call(abind::abind, c(lapply(simTemp, as.matrix), list(along=3)))
   avgHere = apply(toAvg, 1:2, mean)
   matplot(predSeq[["tempClean"]], avgHere, type='l',
+    xlab = 'deg C', ylab='100 x (RR-1)',
   col='#00000010', lty=1, xaxs='i',
   ylim = c(-1/3, 31), xlim = c(6, 38))
 theYq = t(apply(avgHere, 1, quantile, probs=c(0.025, 0.975, 0.5)))

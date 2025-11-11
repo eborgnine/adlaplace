@@ -77,7 +77,9 @@ hnlm <- function(
     data = data, 
     outcome = all.vars(formula)[1])
 
-  if (verbose) cat("collecting terms\n")
+  if (verbose) {
+    cat("collecting terms\n")
+  }
   # setup of the design matrices and other parameters
   # terms carries all the information throughout
     terms <- hpolcc:::collectTerms(formula)

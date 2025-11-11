@@ -8,7 +8,9 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 	Sstrata = seq(0, len=Nstrata)
 
 	Nclusters = config$Nclusters
-	if(!length(Nclusters)) Nclusters  <- config$num_threads*2                                   
+	if(!length(Nclusters)) {
+		Nclusters  <- config$num_threads*2                                   
+	}
 
 	Nbeta = nrow(data$XTp)
 	Ngamma = nrow(data$ATp)
@@ -51,96 +53,6 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 
 	n_workers <- ceiling(config$num_threads / 2)
 
-if(FALSE) { # clustering, very slow
-
-	if(Nclusters == 1) {
-		km = list(cluster = rep(1, Nstrata))		
-	} else {
-
-		tFirst <- t(1.1*firstDeriv)                 # do this once in the master
-		centers <- ceiling(1.1 * Nclusters)
-		nstart  <- max(5L, ceiling(2 * Nclusters / config$num_threads))
-
-		cl <- parallel::makeCluster(n_workers, type = "PSOCK")
-		parallel::clusterExport(cl, varlist = c("tFirst", "centers", "nstart"), envir = environment())
-		parallel::clusterEvalQ(cl, { gc(); NULL })       # optional hygiene
-		parallel::clusterSetRNGStream(cl, 123)           # reproducible, different stream per worker
-		seeds <- seq_len(n_workers)
-		kmMC = parallel::parLapply(cl, seeds, function(seed) {
-			set.seed(seed)
-			stats::kmeans(tFirst, centers = centers, iter.max = 500,
-				nstart = nstart, algorithm = "Hartigan-Wong")
-		})
-		parallel::stopCluster(cl)
-
-		km <- kmMC[[ which.min(sapply(kmMC, `[[`, "tot.withinss")) ]]
-
-#	km <- try(kmeans(t(firstDeriv), centers = ceiling(1.1*Nclusters), 
-#		iter.max=25000, nstart=10*Nclusters, algorithm='Hartigan-Wong'))
-
-		if(verbose) {
-			cat("done\n")
-		}
-
-		if(!any(class('km') == 'try-error')) {
-			mergeThreshold = floor(0.25*Nstrata/Nclusters)
-			NtoMerge = (which(cumsum(sort(km$size)) < mergeThreshold))
-			if(length(NtoMerge)) {
-				NtoMerge = max(NtoMerge)
-				mergeSize = sort(km$size)[NtoMerge]
-				whichToMerge = which(km$size <= mergeSize)
-
-				km$cluster2 = km$cluster
-				km$cluster2[km$cluster %in% whichToMerge] = min(whichToMerge)
-				km$cluster = as.integer(factor(km$cluster2))
-
-			# split biggest cluster
-				theTable = table(km$cluster)
-				maxClustersInd = order(theTable, decreasing=TRUE)[1:2]
-				maxClustersSize = theTable[maxClustersInd]
-				if( maxClustersSize[1] > 1.5*maxClustersSize[2]) {
-					whichInBiggest = which(km$cluster == maxClustersInd[1])
-					firstDeriv2 = firstDeriv[,whichInBiggest]
-					pr = prcomp(firstDeriv2)
-					theOrder = order(pr$rotation[,1])
-					newk = cut(theOrder, seq(0, length(theOrder)+1, 
-						len=ceiling(maxClustersSize[1]/maxClustersSize[2])))
-					km$cluster[whichInBiggest] = -as.numeric(newk)
-					km$cluster = as.integer(factor(km$cluster))
-				}
-			}
-		}
-	} # not one cluster
-} # false not doing
-
-
-if(FALSE) {
-	firstDerivT =   as.matrix(Matrix::t(1.1*firstDeriv))
-	clusterF = factor(km$cluster)
-	centres <- rowsum(firstDerivT, clusterF) / as.vector(table(clusterF))
-
-	fit1 = mapply(function(centres, firstDerivT, seed) {
-		set.seed(seed)
-		suppressWarnings(kmeans(
-		firstDerivT,
-  centers   = matrix(rnorm(length(centres), mean=centres, sd = 1e-3), nrow(centres), ncol(centres)),      # your centers
-  iter.max  = 5,          # stop after 5 iterations
-  algorithm = "Lloyd",    # ensures a single assign -> recompute cycle
-  nstart    = 1           # ignored when centers is given, but harmless
-	))
-	},
-	seed = 1: n_workers,
-	MoreArgs = list(centres = centres, firstDerivT = firstDerivT),
-	SIMPLIFY=FALSE
-	)
-	loadings <- fit1[[ which.min(sapply(fit1, `[[`, "tot.withinss")) ]]$cluster
-
-	theOrder <- order(loadings)
-	theCl = floor(seq(1, Nclusters+0.999, len= Nstrata))
-	km = list(cluster = theCl)
-
-}
-
 	strataMatrix = Matrix::sparseMatrix(
 		i = seq_len(Nstrata),
 		j = km$cluster,
@@ -149,14 +61,14 @@ if(FALSE) {
 
 	strataMatrixList = list(i=strataMatrix@i, j = as(strataMatrix, 'TsparseMatrix')@j, p=strataMatrix@p)
 
-if(FALSE) {
-par(mar=c(3,3,0,0), bty='n')
-bob= terra::rast(as.matrix(1.1*firstDeriv[, 1 + strataMatrixList$i]))
-terra::plot(bob, asp=FALSE, col=c('white','black'))
-abline(v = strataMatrixList$p,
-       col = 'blue',
-       lty = 1)
-}
+	if(FALSE) {
+		par(mar=c(3,3,0,0), bty='n')
+		bob= terra::rast(as.matrix(1.1*firstDeriv[, 1 + strataMatrixList$i]))
+		terra::plot(bob, asp=FALSE, col=c('white','black'))
+		abline(v = strataMatrixList$p,
+			col = 'blue',
+			lty = 1)
+	}
 
 	strataListForHessian = mapply(
 		function(x, y) {
@@ -199,9 +111,9 @@ abline(v = strataMatrixList$p,
 	hessianQns = as(hessianQ$hessian, 'generalMatrix')
 	if(verbose) 
 		cat("getting third sparsity...")
-	
+
 	ijkQ = hpolcc:::getThirdFromHessian(hessianQ$hessian)
-	
+
 	if(verbose) {
 		cat("done\n")
 	}
@@ -230,7 +142,7 @@ abline(v = strataMatrixList$p,
 		cat("getting optimal pairs..")
 	}
 
-	fullList = getOptimalPairs(
+	fullList = hpolcc:::getOptimalPairs(
 		fullHessianMatrix, 
 		Sparams=Sparams, Sgamma1=Sgamma1,
 		third=FALSE)
@@ -294,15 +206,58 @@ abline(v = strataMatrixList$p,
 		cat("done\n")
 	}
 
+	theTijk = lapply(sparsityList, function(xx) xx$third$ijk[,c('i','j','k')])
+	theTijk = as.matrix(do.call(rbind, theTijk))
+	theTijk = theTijk[!duplicated(theTijk), ]
+	theTijk = rowSortP(theTijk)
+	theTijk = theTijk[!duplicated(theTijk), ]
+	colnames(theTijk) = c('i','j','k')
+	theTijk = theTijk[
+	order(theTijk[,'i'], theTijk[,'j'], theTijk[,'k']), 
+	]
+	fullList$third = list(ijk = theTijk)
+
+	ijkChar = apply(theTijk, 1, paste, collapse='_')
+	for(D in 1:length(sparsityList)) {
+		ijkHere = rowSortP(as.matrix(sparsityList[[D]]$third$ijk[,c('i','j','k')]))
+		sparsityList[[D]]$third$ijk$match =
+		match(
+			apply(ijkHere, 1, paste, collapse='_'),
+			ijkChar
+		) -1L
+		if(any(is.na(sparsityList[[D]]$third$ijk$match))) {
+			warning(D, "unmatched ijk")
+		}
+	}
 
 
 	if('try-error' %in% class(sparsityList)) {
-		sparsityList = list(hessianByBlock2=hessianByBlock2, Sparams= Sparams, Sgamma1=Sgamma1,
+		sparsityList = list(
+			hessianByBlock2=hessianByBlock2, Sparams= Sparams, Sgamma1=Sgamma1,
 			hessianPairs = fullHessianPairs,
 			hessianPairsR = fullHessianPairsR, 
 			hessianPairsNs = fullHessianPairsNs,
 			hessianPairsRns = fullHessianPairsRNs)
 	}
+
+	indexForThird = mapply(
+		indexThirdTensor,
+		i = seq(0L, len=Ntotal),
+		MoreArgs = list(ijk = fullList$third$ijk),
+		SIMPLIFY=FALSE
+	)
+
+	indexForDiag = mapply(
+		indexThirdTensorDiag,
+		i = seq(0L, len=Ntotal),
+		MoreArgs = list(nonSymmetric = fullList$second$nonSymmetric),
+		SIMPLIFY=FALSE
+	)
+
+	fullList$third$index = list(
+		diag = indexForDiag,
+		offDiag = indexForThird
+	)
 
 	result = list(
 		group_sparsity = sparsityList,
