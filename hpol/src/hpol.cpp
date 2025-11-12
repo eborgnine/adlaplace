@@ -137,6 +137,11 @@ GroupPack hessianQsparse(
 
   const CppAD::vector<double> w(1, 1.0);
 
+  if(config.verbose){
+    Rcpp::Rcout << "q, colour " << HESS_COLOR << "\n";
+  }
+
+
   Qpack.fun.sparse_hes(parameters, w,
     Qpack.out_hess, Qpack.pattern_hess, 
     HESS_COLOR, Qpack.work_hess);
@@ -156,6 +161,10 @@ Rcpp::S4 hessian(
   const size_t Nparams = parameters.size();
   const bool onlyRandom = Nparams == data.Ngamma;
   const size_t Ngroup = adpack.size();
+
+  if(config.verbose){
+    Rcpp::Rcout << "hessian colour " << HESS_COLOR << "\n";
+  }
 
   omp_set_num_threads(config.num_threads);
   CppAD::thread_alloc::parallel_setup(
