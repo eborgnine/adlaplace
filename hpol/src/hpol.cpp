@@ -391,8 +391,6 @@ std::vector<double> grad(
 
 
 
-
-
   const size_t Nparams = parameters.size();
   const size_t Ngroup = adpack.size();
   const bool useQ = data.Qdiag.size()>0;
