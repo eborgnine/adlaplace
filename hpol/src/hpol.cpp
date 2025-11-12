@@ -3,6 +3,12 @@
 
 const double sqrtDblEpsilon = DBL_EPSILON;//std::sqrt(DBL_EPSILON);
 
+#if defined(CPPAD_HAS_COLPACK) && CPPAD_HAS_COLPACK
+  static const char* JAC_COLOR = "colpack";
+#else
+  static const char* JAC_COLOR = "cppad";  // fallback if ColPack not available
+#endif
+
 
 //#define DEBUG
 
@@ -410,12 +416,12 @@ std::vector<double> grad(
     for(size_t Dgroup = 0; Dgroup < Ngroup; ++Dgroup) {
       auto& gp = adpack[Dgroup];
 
-      gp.fun.Forward(0,x);
+//      gp.fun.Forward(0,x);
       gp.fun.sparse_jac_rev(
         x,
         gp.out_grad,         // CppAD::sparse_rcv<...>, values overwritten
         gp.pattern_grad,
-        "cppad",      
+        JAC_COLOR,      
         gp.work_grad);
 
     const auto& index = gp.out_grad.col();   // indices of nonzero gradient components

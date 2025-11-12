@@ -14,15 +14,10 @@ ifeq ($(UNAME_S),Darwin)
 
   # libomp (already working)
   OMPPREFIX := $(HB)/opt/libomp
-  PKG_CPPFLAGS += -I$(OMPPREFIX)/include
+  PKG_CPPFLAGS += -I$(OMPPREFIX)/include 
+
   PKG_CXXFLAGS += -fopenmp
-  PKG_LIBS     += -L$(OMPPREFIX)/lib -lomp -Wl,-rpath,$(OMPPREFIX)/lib
-
-  # **CppAD (this is what’s missing in your devtools build)**
-  CPPAD_PREFIX := $(HB)/opt/cppad
-  PKG_CPPFLAGS += -I$(CPPAD_PREFIX)/include
-  PKG_LIBS     += -L$(CPPAD_PREFIX)/lib -lcppad_lib -Wl,-rpath,$(CPPAD_PREFIX)/lib
-
+  PKG_LIBS     += -L$(OMPPREFIX)/lib -Wl,-rpath,$(OMPPREFIX)/lib 
 # -----------------------------------------------------------------------
 # === Linux: choose Intel oneAPI if icpx is present =====================
 # -----------------------------------------------------------------------
@@ -38,16 +33,16 @@ else
         # SHLIB_OPENMP_* expands to -fopenmp here
     endif
 
-    CPPADINC = -I/usr/include/cppad
-    CPPADLIB = -lcppad_lib
+#    CPPADINC = -I/usr/include/cppad
+#    CPPADLIB = -lcppad_lib
 endif
 
 # ---------  Compiler & linker flags that work everywhere ---------------
-PKG_CPPFLAGS += $(CPPADINC) $(OMPINC)
+PKG_CPPFLAGS += $(OMPINC)
 PKG_CFLAGS   += $(SHLIB_OPENMP_CFLAGS)
 PKG_CXXFLAGS += $(SHLIB_OPENMP_CXXFLAGS)
 
-PKG_LIBS     += $(SHLIB_OPENMP_CXXFLAGS) $(OMPLIB) $(CPPADLIB)
+PKG_LIBS     += $(SHLIB_OPENMP_CXXFLAGS) $(OMPLIB) 
 
 # ---- Normalize OpenMP flags based on the actual compiler -------------
 # get the basename of CXX (so /usr/bin/icpx -> icpx)
@@ -64,6 +59,8 @@ else
   PKG_CXXFLAGS := $(filter-out -qopenmp,$(PKG_CXXFLAGS)) -fopenmp
   PKG_LIBS     := $(filter-out -qopenmp,$(PKG_LIBS))     -fopenmp
 endif
+
+
 
 # ---------------------  helpful build echo -----------------------------
 $(info  >> CC is        $(CC))
