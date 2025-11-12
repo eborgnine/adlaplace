@@ -7,14 +7,13 @@ struct ThirdPack {
 
 
 Rcpp::List thirdStrata(
-  const std::vector<double>&  parameters, // beta, gamma, theta
+  const CppAD::vector<double>&  parameters, // beta, gamma, theta
   const std::vector<ThirdPack>& third, 
   const Config& config,
   std::vector<GroupPack>& fun,
   GroupPack& Qfun
   ) {
 
-  const std::vector<double>& x_val = parameters;
 
   const size_t Nparams = parameters.size();
   const size_t NparamsSq = Nparams*Nparams;
@@ -61,6 +60,7 @@ Rcpp::List thirdStrata(
 
   #pragma omp parallel
   {
+    CppAD::vector<double> x_val = parameters; 
 
     std::vector<double> hessianOutHere(NoutRowsH, 0.0);
     std::vector<double> thirdDiagOutHere(NoutRowsT, 0.0);
@@ -322,7 +322,12 @@ Rcpp::List thirdStrata(
 
   const Data   dataC(data);
   const Config configC(config);
-  const std::vector<double> x_val(parameters.begin(), parameters.end());
+  const size_t Nparams = parameters.size();
+  CppAD::vector<double> x_val(Nparams);
+
+  for(size_t D=0; D<Nparams; D++) {
+    x_val[D] = parameters[D];
+  }
 
   if(x_val.size() == dataC.Ngamma) Rcpp::warning("need full parameters, only random has been sent");
 

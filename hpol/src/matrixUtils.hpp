@@ -21,8 +21,8 @@ Rcpp::IntegerVector  compute_p_vector(
 
 
 Rcpp::S4 assembleHessian(
-      const std::vector<std::vector<double>>& randomHessian, 
-      const std::vector<double>& qHessian, 
+      std::vector<GroupPack>& adpack, 
+      GroupPack& qPack, 
       const Rcpp::List& sparsity, 
       const Config& config, 
       const bool onlyRandom);

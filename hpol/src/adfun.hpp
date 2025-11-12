@@ -5,15 +5,16 @@
 
 struct GroupPack {
   CppAD::ADFun<double>                    fun;       // taped function for the group
-  CppAD::sparse_hessian_work              work;      // reusable work cache
-  CppAD::vector< std::set<size_t> >       pattern;   // Hessian sparsity pattern (size = Nparams)
-  std::array< std::vector<size_t>, 3 >    outRowCol; // [0]=rows, [1]=cols for subset extraction
-  std::vector<size_t> outP;
-  std::array< std::vector<size_t>, 3 >    nsRowCol; 
-  std::vector<size_t> nsP;
+  CppAD::sparse_hes_work              work_hess;      // reusable work cache
+  CppAD::sparse_rc< CppAD::vector<size_t> >  pattern_hess;   // Hessian sparsity pattern (size = Nparams)
+  CppAD::sparse_rcv< CppAD::vector<size_t>, CppAD::vector<double> > out_hess; // values
   CppAD::sparse_jac_work work_grad;
   CppAD::sparse_rc< CppAD::vector<size_t> > pattern_grad;
   CppAD::sparse_rcv< CppAD::vector<size_t>, CppAD::vector<double> > out_grad;
+  std::array< std::vector<size_t>, 3 >    nsRowCol; 
+  std::vector<size_t> nsP;
+  std::array< std::vector<size_t>, 3 >    outRowCol; // [0]=rows, [1]=cols for subset extraction
+  std::vector<size_t> outP;
 };
 
 struct AdpackHandle {
@@ -26,20 +27,14 @@ struct AdpackHandle {
 };
 
 
-// Forward declaration of helper
-CPPAD_TESTVECTOR(std::set<size_t>)
-build_pattern_from_R(const Rcpp::IntegerVector& row0,
-                     const Rcpp::IntegerVector& col0,
-                     size_t n);
-
 AdpackHandle getAdpackFromR(SEXP adFun,
-                            const std::vector<double>& parametersC,
+                            const CppAD::vector<double>& parametersC,
                             const Data& dataC,
                             const Config& configC);
 
 
 CppAD::ADFun<double> adFunGroup(
-  const std::vector<double> & parameters,  
+  const CppAD::vector<double> & parameters,  
   const Data& data, 
   const Config& config,
   const Rcpp::IntegerVector& strataI,
@@ -48,17 +43,17 @@ CppAD::ADFun<double> adFunGroup(
   );
 
 // Declared interface
-std::vector<GroupPack> getAdFun(const std::vector<double>& parameters,
+std::vector<GroupPack> getAdFun(const CppAD::vector<double>& parameters,
                                 const Data& data,
                                 const Config& config);
 
 CppAD::ADFun<double> adFunQ(
-  const std::vector<double> & parameters,  
+  const CppAD::vector<double> & parameters,  
   const Data& data,
   const Config& config);
 
 
 GroupPack getAdFunQ(
-  const std::vector<double>& parameters,
+  const CppAD::vector<double>& parameters,
                const Data&                data,
                const Config&              config);

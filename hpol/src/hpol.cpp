@@ -5,9 +5,12 @@ const double sqrtDblEpsilon = DBL_EPSILON;//std::sqrt(DBL_EPSILON);
 
 #if defined(CPPAD_HAS_COLPACK) && CPPAD_HAS_COLPACK
   static const char* JAC_COLOR = "colpack";
+  static const char* HESS_COLOR = "colpack.symmetric";
 #else
   static const char* JAC_COLOR = "cppad";  // fallback if ColPack not available
+  static const char* HESS_COLOR = "cppad.symmetric";
 #endif
+
 
 
 //#define DEBUG
@@ -17,7 +20,7 @@ const double sqrtDblEpsilon = DBL_EPSILON;//std::sqrt(DBL_EPSILON);
 // to do: put Q in adpack
 
 double jointLogDens(
-  std::vector<double> parameters, 
+  CppAD::vector<double> parameters, 
   Data& data, 
   Config& config
   ) {
@@ -97,7 +100,7 @@ double jointLogDens(
 
 
 Rcpp::NumericMatrix hessianQdense(
-  const std::vector<double> parameters, 
+  const CppAD::vector<double> parameters, 
   const Data& data,
   const Config& config) {
 
@@ -124,29 +127,26 @@ Rcpp::NumericMatrix hessianQdense(
 
 
 
-std::vector<double> hessianQsparse(
-  const std::vector<double> parameters, 
+GroupPack hessianQsparse(
+  const CppAD::vector<double>& parameters, 
   const Data& data, 
   const Config& config
   ) {
 
   GroupPack Qpack = getAdFunQ(parameters, data, config);
 
-  const size_t Nout = Qpack.outRowCol[0].size();
-  std::vector<double> hessian(Nout);
+  const CppAD::vector<double> w(1, 1.0);
 
-  const std::vector<double> w(1, 1.0);
+  Qpack.fun.sparse_hes(parameters, w,
+    Qpack.out_hess, Qpack.pattern_hess, 
+    HESS_COLOR, Qpack.work_hess);
 
-  Qpack.fun.SparseHessian(parameters, w, 
-    Qpack.pattern, Qpack.outRowCol[0], 
-    Qpack.outRowCol[1], hessian, Qpack.work);
-
-  return(hessian);
+  return Qpack;
 }
 
 
 Rcpp::S4 hessian(
-  const std::vector<double>& parameters,
+  const CppAD::vector<double>& parameters,
   std::vector<GroupPack>& adpack, 
   const Data& data,
   const Config& config
@@ -156,9 +156,6 @@ Rcpp::S4 hessian(
   const size_t Nparams = parameters.size();
   const bool onlyRandom = Nparams == data.Ngamma;
   const size_t Ngroup = adpack.size();
-
-
-  std::vector<std::vector<double>> hessianOut(Ngroup);
 
   omp_set_num_threads(config.num_threads);
   CppAD::thread_alloc::parallel_setup(
@@ -171,22 +168,15 @@ Rcpp::S4 hessian(
   #pragma omp parallel
   {
 
-    const std::vector<double> w(1, 1.0);
+    const CppAD::vector<double> w(1, 1.0);
 
   #pragma omp for nowait
     for(size_t Dgroup = 0; Dgroup < Ngroup; ++Dgroup) {
 
-      const size_t Nhere = adpack[Dgroup].outRowCol[0].size();
-      hessianOut[Dgroup] = std::vector<double>(Nhere);
-
-      adpack[Dgroup].fun.Forward(0, parameters);
-
-      adpack[Dgroup].fun.SparseHessian(parameters, w, 
-        adpack[Dgroup].pattern, adpack[Dgroup].outRowCol[0], 
-        adpack[Dgroup].outRowCol[1], hessianOut[Dgroup], 
-        adpack[Dgroup].work);
+      adpack[Dgroup].fun.sparse_hes(parameters, w, 
+        adpack[Dgroup].out_hess, adpack[Dgroup].pattern_hess, 
+        HESS_COLOR, adpack[Dgroup].work_hess);
       } //Dgroup
-
 
     } //parallel
 
@@ -198,7 +188,7 @@ Rcpp::S4 hessian(
     if (config.verbose ) 
       Rcpp::Rcout << "assemble hessian..";
 
-    Rcpp::S4 result=assembleHessian(hessianOut, qRes, sparsity, config, onlyRandom);
+    Rcpp::S4 result=assembleHessian(adpack, qRes, sparsity, config, onlyRandom);
 
     if (config.verbose ) 
       Rcpp::Rcout << "done\n";
@@ -209,7 +199,7 @@ Rcpp::S4 hessian(
 
 
   Rcpp::S4 hessian(
-    const std::vector<double>& parameters,
+    const CppAD::vector<double>& parameters,
     const Data& data,
     const Config& config
     ) {
@@ -227,7 +217,7 @@ Rcpp::S4 hessian(
 
 
   Rcpp::LogicalMatrix hessianDenseLogical(
-    const std::vector<double> parameters,
+    const CppAD::vector<double> parameters,
     const Data& data,
     const Config& config
     ) {
@@ -288,7 +278,7 @@ Rcpp::S4 hessian(
 }
 
 Rcpp::NumericMatrix hessianDense(
-  const std::vector<double>& parameters,
+  const CppAD::vector<double>& parameters,
   const Data& data,
   const Config& config
   ) {
@@ -383,7 +373,7 @@ return(result);
 
 
 std::vector<double> grad(
-  const std::vector<double> parameters,
+  const CppAD::vector<double> parameters,
   std::vector<GroupPack>& adpack, 
   const Data& data,
   const Config& config
@@ -412,9 +402,7 @@ std::vector<double> grad(
   {
     CppAD::thread_alloc::hold_memory(true); 
 
-    CppAD::vector<double> x(parameters.size());
-    for (size_t i = 0; i < parameters.size(); ++i)
-      x[i] = parameters[i];
+    CppAD::vector<double> x = parameters;
     std::vector<double> gradHere(Nparams, 0);
     const std::vector<double> w(1, 1.0);
 
@@ -474,7 +462,7 @@ std::vector<double> grad(
 
 
 std::vector<double> gradDense(
-  const std::vector<double> parameters,
+  const CppAD::vector<double> parameters,
   std::vector<GroupPack>& adpack, 
   const Data& data,
   const Config& config
@@ -555,7 +543,11 @@ SEXP getAdFun(
 
   Data   dataC(data);
   Config configC(config);
-  std::vector<double> parametersC = Rcpp::as<std::vector<double>>(x);
+  const size_t N = x.size();
+  CppAD::vector<double> parametersC(N);
+  for(size_t D=0; D<N;D++) {
+    parametersC[D] = x[D];
+  }
 
 
   std::vector<GroupPack> adpack = getAdFun(
@@ -585,7 +577,12 @@ double jointLogDens(
 
   Data   dat(data);
   Config cfg(config);
-  std::vector<double> parametersC = Rcpp::as<std::vector<double>>(parameters);
+  const size_t N = parameters.size();
+  CppAD::vector<double> parametersC(N);
+  for(size_t D=0; D<N;D++) {
+    parametersC[D] = parameters[D];
+  }
+
 
 
   double result= jointLogDens(
@@ -606,7 +603,11 @@ Rcpp::NumericVector grad(
   SEXP adFun = R_NilValue)
 {
 
-  std::vector<double> parametersC = Rcpp::as<std::vector<double>>(parameters);
+  const size_t N = parameters.size();
+  CppAD::vector<double> parametersC(N);
+  for(size_t D=0; D<N;D++) {
+    parametersC[D] = parameters[D];
+  }
   const Data   dataC(data);
   const Config configC(config);
 
@@ -638,7 +639,11 @@ Rcpp::S4 hessian(
  const Data dataC(data);
  const Config configC(config);
 
- std::vector<double> parametersC = Rcpp::as<std::vector<double>>(parameters);
+  const size_t N = parameters.size();
+  CppAD::vector<double> parametersC(N);
+  for(size_t D=0; D<N;D++) {
+    parametersC[D] = parameters[D];
+  }
 
  AdpackHandle ad = getAdpackFromR(adFun, parametersC, dataC, configC);
  std::vector<GroupPack>* packsPtr = ad.ptr;
@@ -663,7 +668,12 @@ Rcpp::NumericMatrix hessianQdense(
   const Data dataC(data);
   const Config configC(config);
 
-  std::vector<double> parametersC = Rcpp::as<std::vector<double>>(parameters);
+  const size_t N = parameters.size();
+  CppAD::vector<double> parametersC(N);
+  for(size_t D=0; D<N;D++) {
+    parametersC[D] = parameters[D];
+  }
+
   Rcpp::NumericMatrix result = hessianQdense(parametersC, dataC, configC);
   return(result);
 }
@@ -679,7 +689,11 @@ Rcpp::NumericMatrix hessianDense(
  const Data dataC(data);
  const Config configC(config);
 
- std::vector<double> parametersC = Rcpp::as<std::vector<double>>(parameters);
+  const size_t N = parameters.size();
+  CppAD::vector<double> parametersC(N);
+  for(size_t D=0; D<N;D++) {
+    parametersC[D] = parameters[D];
+  }
 
  Rcpp::NumericMatrix result = hessianDense(
   parametersC, dataC, configC
@@ -698,7 +712,11 @@ Rcpp::LogicalMatrix hessianDenseLogical(
  const Data dataC(data);
  const Config configC(config);
 
- std::vector<double> parametersC = Rcpp::as<std::vector<double>>(parameters);
+  const size_t N = parameters.size();
+  CppAD::vector<double> parametersC(N);
+  for(size_t D=0; D<N;D++) {
+    parametersC[D] = parameters[D];
+  }
 
  Rcpp::LogicalMatrix result = hessianDenseLogical(
   parametersC, dataC, configC
@@ -719,8 +737,11 @@ Rcpp::LogicalMatrix gradLogical(
   const Data dataC(data);
   const Config configC(config);
 
-  std::vector<double> parametersC = Rcpp::as<std::vector<double>>(parameters);
-  const size_t Nparams = parametersC.size();
+  const size_t Nparams = parameters.size();
+  CppAD::vector<double> parametersC(Nparams);
+  for(size_t D=0; D<Nparams;D++) {
+    parametersC[D] = parameters[D];
+  }
 
   Rcpp::IntegerVector idx(Nparams);
   std::iota(idx.begin(), idx.end(), 0);
