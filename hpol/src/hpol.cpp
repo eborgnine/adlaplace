@@ -157,6 +157,7 @@ Rcpp::S4 hessian(
   const bool onlyRandom = Nparams == data.Ngamma;
   const size_t Ngroup = adpack.size();
 
+
   std::vector<std::vector<double>> hessianOut(Ngroup);
 
   omp_set_num_threads(config.num_threads);
@@ -389,9 +390,16 @@ std::vector<double> grad(
   ) {
 
 
+
+
+
   const size_t Nparams = parameters.size();
   const size_t Ngroup = adpack.size();
   const bool useQ = data.Qdiag.size()>0;
+
+  if(config.verbose){
+    Rcpp::Rcout << "grad, colour " << JAC_COLOR << "\n";
+  }
 
   std::vector<double> gradOut(Nparams, 0);
 

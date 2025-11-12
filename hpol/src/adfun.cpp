@@ -2,6 +2,13 @@
 #include"loglikHelpers.hpp"
 #include"foromp.hpp"
 
+#if defined(CPPAD_HAS_COLPACK) && CPPAD_HAS_COLPACK
+  static const char* HESS_COLOR = "colpack.symmetric";
+#else
+  static const char* HESS_COLOR = "cppad.symmetric";
+#endif
+
+
 /* likelihood part */
 CppAD::ADFun<double> adFunGroup(
       const std::vector<double> & parameters,  
@@ -255,6 +262,7 @@ getAdFun(const std::vector<double>& parameters,
 
     // default-constructed work is fine; keep it per group
     packs[g].work = CppAD::sparse_hessian_work();
+    packs[g].work.color_method = HESS_COLOR;
 
     packs[g].work_grad = CppAD::sparse_jac_work();
     if(haveFirst) {
