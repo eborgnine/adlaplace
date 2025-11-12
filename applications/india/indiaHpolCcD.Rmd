@@ -19,29 +19,6 @@ options(width=80)
 
 
 
-for new package
-Need cppad, openmp
-
-brew install cppad
-brew install openmp (?)
-
-might need 
-
-~/.R/Makevars with
-
-# Use Homebrew LLVM clang++ for OpenMP support
-CXX = /opt/homebrew/opt/llvm/bin/clang++
-CC  = /opt/homebrew/opt/llvm/bin/clang
-
-CXXFLAGS += -std=c++17 -I/opt/homebrew/include -fopenmp
-LDFLAGS  += -L/opt/homebrew/lib -lcppad_lib -fopenmp
-
-# Tell clang where to find OpenMP
-CPPFLAGS += -I/opt/homebrew/opt/libomp/include
-LDFLAGS  += -L/opt/homebrew/opt/libomp/lib -lomp
-
-
-a
 
 ```{r ecoRegionmap}
 SstoreDir = c('/store/patrick/copernicus/agg', '~/Downloads/agg')
@@ -172,17 +149,22 @@ mleT = trustOptim::trust.optim(
     control_inner = res$control_inner,
     adFunFull = adFunFull
   )
-
+mleT$extra = loglik(
+  mleT$solution,
+  gamma_start = get("gamma_start", res$cache),
+ data=res$tmb_data, config = res$config, control = res$control_inner,
+ deriv = 0)
+saveRDS(mleT, file=gsub("^res", "mleT", theFile))
 
 mleX = optim(
     rep(c(0,-4, -1), forRep),
-    fn = wrappers_outer$fn,
-    gr = wrappers_outer$gr,
+    fn = outer_fn,
+    gr = outer_gr,
     method = 'L-BFGS-B', 
     lower = rep(c(-0.5, -15,-5), forRep),
     upper = rep(c(0.5, 0, 0), forRep),
     control = list(trace=3, REPORT=1, 
-      parscale = rep(c(1e-3, 10, 1), forRep)
+      parscale = rep(c(1e-2, 10, 1), forRep)
       ),#start.trust.radius = 0.05, REPORT=1, trace=10),
     data=res$tmb_data, config = res$config, cache =  res$cache, 
     control_inner = res$control_inner,
@@ -194,7 +176,51 @@ mleX$extra = loglik(
   gamma_start = get("gamma_start", res$cache),
  data=res$tmb_data, config = res$config, control = res$control_inner,
  deriv = 0)
-saveRDS(mleX, file=gsub("^res", "mle", theFile))
+saveRDS(mleX, file=gsub("^res", "mleX", theFile))
+```
+
+```{r checkDeriv}
+mleX$par
+Dpar = 1;N=5
+parMat = data.frame(res$parameters)[,rep(1, N)]
+Sx = seq(-0.5,0.5, len=ncol(parMat)) + parMat[Dpar,1]
+Sx1 = Sx[-1] - diff(Sx)/2
+parMat[Dpar,] = Sx
+
+control1 = list(
+  maxit = 5000L,
+  gtol  = 1e-13,   # gradient-norm tolerance
+  xtol  = 1e-13,   # parameter step tolerance
+  ftol  = 1e-12,   # objective change tolerance
+  stop.trust.radius = 1e-15,
+  cg.tol = 1e-15,
+  prec   = 1e-15,
+  report.level = 8L, report.freq = 1L
+  )
+
+baseLik = loglik(
+  mleX$par,
+  gamma_start = get("gamma_start", res$cache),
+ data=res$tmb_data, config = res$config, control = control1, 
+ deriv=0, check=FALSE)
+assign("gamma_start", baseLik$solution, envir=res$cache)
+
+rx = mapply(
+  loglik,
+  parameters = as.list(parMat),
+  MoreArgs = list(
+    gamma_start = get('gamma_start', res$cache),
+  control = control1,
+  deriv=0, data=res$tmb_data, config = res$config, adFunFull = adFunFull),
+  SIMPLIFY=FALSE
+  )
+
+
+
+Slik = unlist(lapply(rx, "[[", "minusLogLik"))
+plot(Sx, Slik)
+plot(Sx1, diff(Slik)/mean(diff(Sx)),  pch=16, xlim = range(Sx))
+
 ```
 
 
@@ -212,6 +238,7 @@ result$parameters = hpolcc::formatParameters(
   result$extra$fullParameters, 
   theData, TRUE)
 result$parameters$theta
+result$parameters$beta
 
 HtildeChol = Matrix::Cholesky(result$extra$hessian, LDL=TRUE)
 HtildeCholEx = list(Lt = Matrix::expand1(HtildeChol, "L1."),
