@@ -11,6 +11,9 @@ struct GroupPack {
   std::vector<size_t> outP;
   std::array< std::vector<size_t>, 3 >    nsRowCol; 
   std::vector<size_t> nsP;
+  CppAD::sparse_jac_work work_grad;
+  CppAD::sparse_rc< CppAD::vector<size_t> > pattern_grad;
+  CppAD::sparse_rcv< CppAD::vector<size_t>, CppAD::vector<double> > out_grad;
 };
 
 struct AdpackHandle {

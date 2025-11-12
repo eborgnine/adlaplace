@@ -110,6 +110,26 @@ CPPAD_TESTVECTOR( std::set<size_t> ) build_pattern_from_R(
   return pattern;
 }
 
+inline CppAD::sparse_rc< CppAD::vector<size_t> > build_gradient_pattern_from_R(
+  const Rcpp::IntegerVector& grad_index, const size_t N)
+{
+  const size_t K = static_cast<size_t>(grad_index.size());
+  std::set<size_t> idx;
+
+  for (size_t k = 0; k < K; ++k) {
+    size_t c = static_cast<size_t>(grad_index[k]);
+    idx.insert(c);
+  }
+
+
+  CppAD::sparse_rc< CppAD::vector<size_t> > pattern;
+  pattern.resize(1, N, idx.size());
+  size_t t = 0;
+  for (size_t j : idx) pattern.set(t++, 0, j);
+
+  return pattern;
+}
+
 
 GroupPack getAdFunQ(
   const std::vector<double>& parameters,
@@ -184,33 +204,39 @@ getAdFun(const std::vector<double>& parameters,
   const bool onlyRandom = Nparams == data.Ngamma;
   const Rcpp::IntegerVector strataI = strata["i"], strataP = strata["p"];
 
-//  if(config.verbose) Rcpp::Rcout << "lik: random " << onlyRandom << " Nparams " << Nparams;
 
   const size_t Ngroup  = static_cast<size_t>(strataP.size() - 1);
+
+  if(config.verbose) {
+    Rcpp::Rcout << "lik: random " << onlyRandom << " Nparams " << Nparams << " Ngroup " << Ngroup;
+  }
 
   std::vector<GroupPack> packs(Ngroup);
 
   // ---- Phase 1: extract everything from R (single-thread, safe) ----
   if(sparsityList.size()) {
   for (size_t g = 0; g < Ngroup; ++g) {
-    Rcpp::List sparsityHere = sparsityList[g];
-    Rcpp::List second       = sparsityHere["second"];
+    const Rcpp::List sparsityHere = sparsityList[g];
+    const Rcpp::List second       = sparsityHere["second"];
+    const bool haveFirst = sparsityHere.containsElementNamed("first");
+    const Rcpp::List first = haveFirst?sparsityHere["first"]:Rcpp::List();
 
-    Rcpp::List nonSymmetric = onlyRandom ? second["randomNS"] : second["nonSymmetric"];
-    Rcpp::IntegerVector Srow = nonSymmetric["i"];
-    Rcpp::IntegerVector Scol = nonSymmetric["j"];
-    Rcpp::IntegerVector pNs = nonSymmetric["p"];
-    Rcpp::IntegerVector matchNs = nonSymmetric["match"];
+    const Rcpp::IntegerVector spraseGrad = haveFirst?(onlyRandom?first["random"]:first["full"]):Rcpp::IntegerVector();
+    const Rcpp::List nonSymmetric = onlyRandom ? second["randomNS"] : second["nonSymmetric"];
+    const Rcpp::IntegerVector Srow = nonSymmetric["i"];
+    const Rcpp::IntegerVector Scol = nonSymmetric["j"];
+    const Rcpp::IntegerVector pNs = nonSymmetric["p"];
+    const Rcpp::IntegerVector matchNs = nonSymmetric["match"];
 
     // full symmetric pattern for this group (size = Nparams)
     packs[g].pattern = build_pattern_from_R(Srow, Scol, Nparams);
 
     // output subset (rows/cols), copied to STL (thread-safe)
-    Rcpp::List outList          = onlyRandom ? second["random"] : second["full"];
-    Rcpp::IntegerVector rowOutR = outList["i"];
-    Rcpp::IntegerVector colOutR = outList["j"];
-    Rcpp::IntegerVector matchOutR = outList["match"];
-    Rcpp::IntegerVector pOutR = outList["p"];
+    const Rcpp::List outList          = onlyRandom ? second["random"] : second["full"];
+    const Rcpp::IntegerVector rowOutR = outList["i"];
+    const Rcpp::IntegerVector colOutR = outList["j"];
+    const Rcpp::IntegerVector matchOutR = outList["match"];
+    const Rcpp::IntegerVector pOutR = outList["p"];
 
     packs[g].outRowCol[0] = Rcpp::as<std::vector<size_t>>(rowOutR);
     packs[g].outRowCol[1] = Rcpp::as<std::vector<size_t>>(colOutR);
@@ -229,8 +255,16 @@ getAdFun(const std::vector<double>& parameters,
 
     // default-constructed work is fine; keep it per group
     packs[g].work = CppAD::sparse_hessian_work();
-  }
-  }
+
+    packs[g].work_grad = CppAD::sparse_jac_work();
+    if(haveFirst) {
+    packs[g].pattern_grad = build_gradient_pattern_from_R(spraseGrad, Nparams);
+    packs[g].out_grad = CppAD::sparse_rcv< 
+      CppAD::vector<size_t>, CppAD::vector<double> 
+      >(packs[g].pattern_grad); 
+    }
+  } //gropu loop
+  } // sparsity list size
 
   // ---- Phase 2: build ADFun per group (parallel, no Rcpp touched) ----
   omp_set_num_threads(config.num_threads);
@@ -272,6 +306,9 @@ AdpackHandle getAdpackFromR(
 
     // Optional: validate class tag
     if (xp.hasAttribute("class")) {
+      if(configC.verbose) {
+        Rcpp::Rcout << "existing functions\n";
+      }
       Rcpp::CharacterVector cls = xp.attr("class");
       if (cls.size() == 0 || std::string(cls[0]) != "adpack_ptr")
         Rcpp::stop("getAdpackFromR: external pointer class mismatch");
@@ -280,6 +317,9 @@ AdpackHandle getAdpackFromR(
     h.ptr = xp.get();              // we do NOT own this memory
     h.created_here = false;
   } else {
+      if(configC.verbose) {
+        Rcpp::Rcout << "creating new functions\n";
+      }
     // Build on the fly (we own it)
     auto packs = getAdFun(parametersC, dataC, configC);
     h.ptr = new std::vector<GroupPack>(std::move(packs));

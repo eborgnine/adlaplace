@@ -11,5 +11,5 @@ Depends: R (>= 4.1.0)
 LinkingTo: Rcpp
 Imports: Rcpp, Matrix, data.table, trustOptim
 Encoding: UTF-8
-RoxygenNote: 7.3.2
+RoxygenNote: 7.3.3
 Roxygen: list(markdown = TRUE)

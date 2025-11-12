@@ -16,6 +16,7 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 	Ngamma = nrow(data$ATp)
 	Ntotal = length(x)
 	Sgamma1 = seq(from=Nbeta+1, len=Ngamma)
+	Sgamma0 = Sgamma1 - 1
 	Nparams = Ntotal - Ngamma  
 	Sparams = setdiff(seq(0, len=Ntotal), seq(from=Nbeta, len=Ngamma))
 
@@ -61,15 +62,6 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 
 	strataMatrixList = list(i=strataMatrix@i, j = as(strataMatrix, 'TsparseMatrix')@j, p=strataMatrix@p)
 
-	if(FALSE) {
-		par(mar=c(3,3,0,0), bty='n')
-		bob= terra::rast(as.matrix(1.1*firstDeriv[, 1 + strataMatrixList$i]))
-		terra::plot(bob, asp=FALSE, col=c('white','black'))
-		abline(v = strataMatrixList$p,
-			col = 'blue',
-			lty = 1)
-	}
-
 	strataListForHessian = mapply(
 		function(x, y) {
 			list(list(p = y$p[c(x, x+1)], i=y$i))
@@ -79,15 +71,17 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 
 #	hessianDenseAll = hessianDenseLogical(parameters=x, data=dataNoMap,config=config, strata = res$groups$groups)
 	# now find hessian for each block
-	if(verbose) cat("getting hessian by group...")
-		hessianByBlock = parallel::mcmapply(function(strata, config, ...) {
-			hessianDenseLogical(..., config = c(config, list(groups = strata)))
+	if(verbose) {
+		cat("getting hessian by group...")
+	}
+	hessianByBlock = parallel::mcmapply(
+		function(strata, config, ...) {
+			hessianDenseLogical(..., config = modifyList(config, list(groups = strata)))
 		},
 		strata = strataListForHessian,
 		MoreArgs = list(
 			parameters=x, data=dataNoMap, 
-			config = c(config[setdiff(names(config), 'num_threads')], 
-				list(num_threads=1))),
+			config = modifyList(config, list(verbose=FALSE, num_threads=1))),
 		SIMPLIFY=FALSE, mc.cores=config$num_threads
 	)
 	hessianByBlock1 = lapply(hessianByBlock, Matrix::Matrix, sparse=TRUE)
@@ -122,7 +116,7 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 	}
 	fullHessian=do.call(rbind, lapply(hessianByBlock2, function(xx) cbind(xx@i,as(xx, "TsparseMatrix")@j)))
 	fullHessian = fullHessian[!duplicated(fullHessian), ]
-	fullHessian = rowSortP(fullHessian) #t(apply(fullHessian, 1, sort))
+	fullHessian = hpolcc:::rowSortP(fullHessian) #t(apply(fullHessian, 1, sort))
 	fullHessian = fullHessian[!duplicated(fullHessian), ]
 	fullHessian = fullHessian[order(fullHessian[,2], fullHessian[,1]),]
 
@@ -130,7 +124,7 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 		x=rep(1, nrow(fullHessian)), symmetric=TRUE, index1=FALSE)
 
 	fullHessian = rbind(fullHessian, cbind(hessianQT@i, hessianQT@j))
-	fullHessian = rowSortP(fullHessian)
+	fullHessian = hpolcc:::rowSortP(fullHessian)
 	fullHessian = fullHessian[!duplicated(fullHessian), ]
 	fullHessian = fullHessian[order(fullHessian[,2], fullHessian[,1]),]
 
@@ -192,9 +186,25 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 	}
 #				save(hessianByBlock2, Sparams, Sgamma1, fullHessianPairs, fullHessianPairsR, fullHessianPairsNs, fullHessianPairsRNs, file='todebug.Rdata')
 
+	sparsityFirst = parallel::mcmapply(
+		function(strata, config, parameters, data, Sgamma0) {
+			configHere = modifyList(config, list(groups = strata, dense=TRUE, num_threads=1, verbose=FALSE))
+			adFunHere = getAdFun(parameters, data, configHere)
+			whichAll = which(abs(grad(parameters, data, config=configHere, adFun=adFunHere)) > .Machine$double.eps)-1L
+			whichRandom = as.vector(na.omit(match(whichAll, Sgamma0))-1L)
+			list(full = whichAll, random=whichRandom)
+		},
+		strata = strataListForHessian,
+		MoreArgs = list(
+			parameters=x, data=dataNoMap, 
+			config = config, Sgamma0=Sgamma0),
+		SIMPLIFY=FALSE, mc.cores=config$num_threads
+	)
+
 	sparsityList = parallel::mcmapply(
 		hpolcc:::getOptimalPairs,
 		hessian = hessianByBlock2,
+		grad = sparsityFirst,
 		MoreArgs = list(Sparams = Sparams, Sgamma1=Sgamma1, 
 			hessianPairs = fullHessianPairs,
 			hessianPairsR = fullHessianPairsR, 

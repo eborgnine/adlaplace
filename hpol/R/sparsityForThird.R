@@ -27,7 +27,7 @@ getThirdFromHessian = function(hessian) {
 
 getOptimalPairs = function(hessian, Sparams, Sgamma1, 
   hessianPairs, hessianPairsR, hessianPairsNs, hessianPairsRns,
-  third = TRUE, thirdIndex = NULL) {
+  third = TRUE, thirdIndex = NULL, grad = NULL) {
 
   hessianG = as(hessian, 'generalMatrix')
   hessianUL = as(hessianG, "TsparseMatrix") 
@@ -217,6 +217,9 @@ getOptimalPairs = function(hessian, Sparams, Sgamma1,
   if(!missing(hessianPairsRns))
     sparsity$second$randomNS$match =  try(match(paste(sparsity$second$randomNS$i, sparsity$second$randomNS$j, sep='_'), hessianPairsRns))-1L
 
+  if(!is.null(grad)) 
+    sparsity$first = grad
+
   sparsity
 }
 
@@ -349,6 +352,9 @@ sparsity_pattern = function(x, data, config=list(), denseHessian) {
       pairs = as.data.frame(pairs)
     )
 
+  if(!is.null(grad)) {
+    sparsity$first = grad@i
+  }
   sparsity
 
 }
