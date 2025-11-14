@@ -94,7 +94,6 @@ CppAD::ADFun<double> adFunQ(
 }
 
 
-// helper: convert 1-based R indices to 0-based and keep (i >= j) lower triangle
 inline CppAD::sparse_rc< CppAD::vector<size_t> > build_hessian_pattern_from_pairs(
   const Rcpp::IntegerVector& row,
   const Rcpp::IntegerVector& col,
@@ -102,7 +101,15 @@ inline CppAD::sparse_rc< CppAD::vector<size_t> > build_hessian_pattern_from_pair
   const size_t K = row.size();
   CppAD::sparse_rc< CppAD::vector<size_t> > pat;
   pat.resize(n, n, K);
-  for (size_t k = 0; k < K; ++k) pat.set(k, row[k], col[k]);
+  bool warnRC=true;
+  for (size_t k = 0; k < K; ++k) {
+    const int r = row[k], c=col[k];
+    if(r > c && warnRC) {
+      warnRC = false;
+      Rcpp::Rcout << "entry lower, should be uppper triangle\n";
+    }
+    pat.set(k, r, c);
+  }
   return pat;
 }
 

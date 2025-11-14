@@ -25,6 +25,50 @@ public:
     type_y[0] = type_x[0];
     return true;
   }
+
+bool rev_depend(
+  size_t                                           call_id,
+  const CppAD::vector<bool>&                      ident_zero_x,
+  CppAD::vector<bool>&                            depend_x,
+  const CppAD::vector<bool>&                      depend_y
+) override
+{
+  // n = 1, m = 1
+  // If y0 is relevant downstream, then x0 is relevant.
+  depend_x.resize(1);
+  depend_x[0] = depend_y[0];   // nothing fancy, y0 always depends on x0
+
+  return true;
+}
+
+bool jac_sparsity(
+  size_t                                           call_id,
+  bool                                             dependency,
+  const CppAD::vector<bool>&                      ident_zero_x,
+  const CppAD::vector<bool>&                      select_x,
+  const CppAD::vector<bool>&                      select_y,
+  CppAD::sparse_rc< CppAD::vector<size_t> >&      pattern_out
+) override
+{
+  const size_t n = select_x.size();  // domain size
+  const size_t m = select_y.size();  // range size
+  if (n != 1 || m != 1)
+    return false;
+
+  // If we don’t care about x0/y0, or x0 is identically zero,
+  // treat Jacobian as structurally zero for this query.
+  bool use_x0 = select_x[0] && select_y[0] && !ident_zero_x[0];
+  if (!use_x0) {
+    pattern_out.resize(m, n, 0);   // 1 x 1 zero matrix
+    return true;
+  }
+
+  // y0 depends on x0 -> one nonzero at (0,0) in the Jacobian.
+  pattern_out.resize(m, n, 1);
+  pattern_out.set(0, 0, 0);
+  return true;
+}
+
   // forward
   bool forward(
     size_t call_id,

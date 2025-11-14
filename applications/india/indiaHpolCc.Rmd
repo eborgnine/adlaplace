@@ -247,12 +247,142 @@ matplot(theX, 100*(exp(simSum2)-1), type='l',
 
 
 ```{r moreoldstuff, eval=FALSE}
-
+library('hpolcc')
+adFunFull = getAdFun(res$parameters_and_gamma, res$tmb_data, res$config)
 outer_fn(
   res$parameters,
   data = res$tmb_data, config= modifyList(res$config, list(verbose=TRUE)), 
   adFunFull = adFunFull, control_inner = res$control_inner, cache=res$cache
   )
+
+xx = loglik(res$parameters, get("gamma_start", res$cache), res$tmb_data, res$config, deriv=0, check=TRUE, 
+  control=list(prec=1e-9, stop.trust.radius=1e-12, cg.tol=1e-9, report.level=4, report.freq=1))
+quantile(xx$solution - xx$oldSolution)
+
+dataNoQ = res$tmb_data
+dataNoQ$Qdiag = rep(1, 0)
+
+
+
+myh = hessianDense(xx$fullParameters, dataNoQ, res$config)
+myh2 = hessian(xx$fullParameters, dataNoQ, modifyList(res$config, list(verbose=TRUE)), adFunFull)
+myh2d = hessian(xx$fullParameters, dataNoQ, modifyList(res$config, list(verbose=TRUE, debug=TRUE)), adFunFull)
+
+config1 = config2 = res$config
+config1$groups$p = res$config$groups$p[1:2]
+config2$groups$p = res$config$groups$p[2:3]
+myhG = hessianDense(xx$fullParameters, dataNoQ, config1)
+myhG2 = hessianDense(xx$fullParameters, dataNoQ, config2)
+
+myh2d1 = Matrix::sparseMatrix(
+  i = res$config$group_sparsity[[1]]$second$full$i,
+  j = res$config$group_sparsity[[1]]$second$full$j,
+  x = myh2d[[1]], index1=FALSE, symmetric=TRUE
+  )
+bob = myhG - as.matrix(myh2d1)
+quantile(bob)
+
+quantile(myhG *(1-hessianByBlock2[[1]]))
+quantile(as.matrix(myh2d1) *(1-hessianByBlock2[[1]]))
+
+quantile(bob)
+
+
+idx <- min(which(abs(bob)>0.1))
+arrayInd(idx, dim(bob))
+
+
+round(cbind(myh2d1[1:20,71:75],NA, myhG[1:20,71:75]),1) 
+
+bob1 = as.matrix(myh2) - myh
+quantile(bob1)
+
+
+(i1 = which.max(apply(abs(bob1),1,max)))
+(i2 = which.max(abs(bob1[i1,])))
+
+sseq = seq(-2,2)
+round(cbind(myh2[i1+sseq, i2+sseq], NA, myh[i1+sseq, i2+sseq]),2)
+
+
+resDense = res
+Nparams = length(xx$fullParameters)
+newDenseSecondDf = expand.grid(i=seq(0,len=Nparams), j=seq(0,len=Nparams))
+newDenseSecondDf = newDenseSecondDf[newDenseSecondDf$j >= newDenseSecondDf$i, ]
+
+theOrig= as.data.frame(res$config$group_sparsity[[1]]$second$full[c('i','j')]))
+xxx = rbind(
+  newDenseSecondDf[newDenseSecondDf$j < (Nparams-1),],
+  theOrig[thrOrig$j >= (Nparams-1), ])
+xxx = xxx[!duplicated(xxx),]
+xxx = xxx[order(xxx$j, xxx$i),]
+
+newDenseSecondDf = as.list(xxx)
+newDenseSecondDf$p = c(0,cumsum(as.vector(table(newDenseSecondDf$j))))
+newDenseSecondDf$match = seq(0, len=length(newDenseSecondDf$i))
+resDense$config$sparsity$second$full = newDenseSecondDf
+resDense$config$group_sparsity[[1]]$second$full = newDenseSecondDf
+configDense2 = configDense1 = resDense$config
+configDense1$groups$p = res$config$groups$p[1:2]
+
+myh3 = hessian(xx$fullParameters, dataNoQ, modifyList(configDense1, list(debug=TRUE,verbose=TRUE)))
+myh3a = Matrix::sparseMatrix(
+  i = resDense$config$group_sparsity[[1]]$second$full$i,
+  j = resDense$config$group_sparsity[[1]]$second$full$j,
+  x = myh3[[1]], index1=FALSE, symmetric=TRUE
+  )
+
+quantile(as.matrix(myh3a) *(1-hessianByBlock2[[1]]))
+quantile(as.matrix(myh3a) - myhG)
+
+
+quantile(as.matrix(myh2d1) - as.matrix(myh3a))
+
+
+
+myh3 = hessian(xx$fullParameters, dataNoQ, modifyList(resDense$config, list(debug=TRUE,verbose=TRUE)))
+
+myh3d1 = Matrix::sparseMatrix(
+  i = resDense$config$group_sparsity[[1]]$second$full$i,
+  j = resDense$config$group_sparsity[[1]]$second$full$j,
+  x = myh3[[1]], index1=FALSE, symmetric=TRUE
+  )
+myh3d2 = Matrix::sparseMatrix(
+  i = resDense$config$group_sparsity[[2]]$second$full$i,
+  j = resDense$config$group_sparsity[[2]]$second$full$j,
+  x = myh3[[2]], index1=FALSE, symmetric=TRUE
+  )
+bob = myhG - as.matrix(myh3d1)
+bob2 = myhG2 - as.matrix(myh3d2)
+
+myhG2a = Matrix::forceSymmetric(Matrix::Matrix(myhG2))
+
+bob1 = as.matrix(myh3) - myh
+quantile(bob1)
+(i1 = which.max(apply(abs(bob1),1,max)))
+(i2 = which.max(abs(bob1[i1,])))
+round(cbind(myh3[i1+sseq, i2+sseq], NA, myh[i1+sseq, i2+sseq]),2)
+idx <- which.min(abs(myh - 24112585))
+arrayInd(idx, dim(myh))
+
+
+myh1 = hessianDense(xx$solution, res$tmb_data, res$config)
+myh2a = hessian(xx$fullParameters, res$tmb_data, modifyList(res$config, list(verbose=TRUE)))
+myh3 = hessian(xx$solution, res$tmb_data, res$config)
+
+
+
+
+
+which(myh2@x == myh2[i1, i2])
+myh2[i1, i2] # should be 0.2308968 not -19317.62
+
+Sgamma1 = seq(length(res$config$beta)+1, len=legnth(res$gamma_start))
+bob2 = as.matrix(myh2[Sgamma1, Sgamma1]) - as.matrix(myh3) #xx$hessian)
+
+
+quantile(myh[Sgamma1, Sgamma1] - myh1)
+
 outer_gr(
   res$parameters,
   data = res$tmb_data, config= modifyList(res$config, list(verbose=TRUE)), 
@@ -297,15 +427,17 @@ quantile(gDr - gSr)
 mys = seq(-3,3) + which.max(abs(gDr - gSr))
 rbind(mys,rbind(gDr, gSr,gD=gD[Sgamma1], gS=gS[Sgamma1])[,mys] )
 
-Sgamma1 = seq(length(res$config$beta)+1, len=legnth(res$gamma_start))
 rbind(gD[Sgamma1], gS[Sgamma1], gDr, gDr1, gSr)[,1:5]
 
 
 
-str(hessian(res$gamma_start, res$tmb_data, modifyList(res$config, list(verbose=TRUE)), 
-  adFun = adFunHere)) 
-str(hessian(res$parameters_and_gamma, res$tmb_data, modifyList(res$config, list(verbose=TRUE)), 
-  adFun = adFunFull)) 
+x0= hessian(res$gamma_start, res$tmb_data, modifyList(res$config, list(verbose=TRUE)), 
+  adFun = adFunHere)
+system.time(x1 <- 
+  hessian(res$parameters_and_gamma, res$tmb_data, modifyList(res$config, list(verbose=TRUE, dense=FALSE)), 
+  adFun = adFunFull))
+system.time(x2 <- 
+  hessianDense(res$parameters_and_gamma, res$tmb_data, modifyList(res$config, list(verbose=TRUE))))
 
 
 ```

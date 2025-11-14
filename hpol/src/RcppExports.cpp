@@ -66,7 +66,7 @@ BEGIN_RCPP
 END_RCPP
 }
 // hessian
-Rcpp::S4 hessian(const Rcpp::NumericVector parameters, const Rcpp::List& data, const Rcpp::List& config, SEXP adFun);
+Rcpp::RObject hessian(const Rcpp::NumericVector parameters, const Rcpp::List& data, const Rcpp::List& config, SEXP adFun);
 RcppExport SEXP _hpolcc_hessian(SEXP parametersSEXP, SEXP dataSEXP, SEXP configSEXP, SEXP adFunSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
@@ -119,7 +119,7 @@ BEGIN_RCPP
 END_RCPP
 }
 // gradLogical
-Rcpp::LogicalMatrix gradLogical(const Rcpp::NumericVector parameters, const Rcpp::List& data, const Rcpp::List& config);
+Rcpp::RObject gradLogical(const Rcpp::NumericVector parameters, const Rcpp::List& data, const Rcpp::List& config);
 RcppExport SEXP _hpolcc_gradLogical(SEXP parametersSEXP, SEXP dataSEXP, SEXP configSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;

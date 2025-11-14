@@ -183,7 +183,7 @@ hnlm <- function(
   if (dirichlet) {
     theta_info$var = c(theta_info$var, 'overdisp')
     theta_info$map = c(theta_info$map, max(theta_info$map) + 1)
-    dirichletStart = exp(-4)
+    dirichletStart = exp(-2)
     theta_info$init <- c(theta_info$init, dirichletStart)
   } 
 
@@ -244,8 +244,8 @@ hnlm <- function(
   controlInner = control_inner
 
   Sgamma = seq(nrow(tmb_data$XTp)+1, len=nrow(tmb_data$ATp))
-  start_beta = rep(1e-2, nrow(tmb_data$XTp))
-  start_gamma=    rep(1e-2, nrow(tmb_data$ATp)) 
+  start_beta = rep(1e-4, nrow(tmb_data$XTp))
+  start_gamma=    rep(1e-4, nrow(tmb_data$ATp)) 
 
   start_theta = theta_info$init[!duplicated(theta_info$map)]
   if(config$transform_theta)

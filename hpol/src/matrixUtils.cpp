@@ -157,7 +157,7 @@ Rcpp::S4 assembleHessian(
     const Rcpp::IntegerVector jAll = outAll["j"];
     const Rcpp::IntegerVector pAll = outAll["p"];
 
-    const auto N = pAll.size()-1L;
+    const int N = static_cast<int>(pAll.size() - 1L);
     const auto sizeH = iAll.size();
     Rcpp::NumericVector hessianSum(sizeH, 0.0);
 
@@ -167,9 +167,9 @@ Rcpp::S4 assembleHessian(
 
     for(size_t Dgroup = 0;Dgroup<Ngroups;++Dgroup) {
 
-      const std::vector<size_t> matchHere = adpack[Dgroup].outRowCol[2];
+      const std::vector<size_t>& matchHere = adpack[Dgroup].outRowCol[2];
       const size_t Nhere = matchHere.size();
-      const CppAD::vector<double> hessianOutHere = adpack[Dgroup].out_hess.val();
+      const CppAD::vector<double>& hessianOutHere = adpack[Dgroup].out_hess.val();
 
       for(size_t D=0;D < Nhere; D++) {
         const size_t indexHere = matchHere[D];
@@ -181,9 +181,9 @@ Rcpp::S4 assembleHessian(
       if (config.verbose ) Rcpp::Rcout << "done groups\n";
 
 // Q
-      const std::vector<size_t> matchHere = qPack.outRowCol[2];
+      const std::vector<size_t>& matchHere = qPack.outRowCol[2];
       const size_t Nhere = matchHere.size();
-          const CppAD::vector<double> hessianOutHere = qPack.out_hess.val();
+      const CppAD::vector<double>& hessianOutHere = qPack.out_hess.val();
 
       for(size_t D=0;D < Nhere; D++) {
         const size_t indexHere = matchHere[D];

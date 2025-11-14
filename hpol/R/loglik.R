@@ -55,9 +55,10 @@ loglik <- function(
       gr = grad,
       alertConvergence=FALSE, 
       data=data, config = config, adFun=adFun,
-      control = list(maxit = 1e3, M = 10, trace=TRUE, checkGrad=TRUE))
+      control = list(maxit = 1e3, M = 10, trace=TRUE))
     )
     if(!any(class(mleB) == 'try-error')) {
+      result$oldSolution = result$solution
       result$solution = mleB$par
       result$hessian = hessian(mleB$par, data=data, config=config)
     }

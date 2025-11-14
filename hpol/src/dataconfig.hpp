@@ -195,6 +195,7 @@ struct Config {
   bool verbose;
   bool dirichlet;
   bool transform_theta;
+  bool debug;
 
   // optional numeric vectors (may be length 0)
   std::vector<double>beta;
@@ -211,6 +212,7 @@ struct Config {
   verbose(get_bool(cfg, "verbose", false)),
   dirichlet(get_bool(cfg, "dirichlet", false)),
   transform_theta(get_bool(cfg, "transform_theta", false)),
+  debug(get_bool(cfg, "debug", false)),
   beta(get_numvec_copy(cfg, "beta")),
   theta(get_numvec_copy(cfg, "theta")),
   num_threads(get_int(cfg, "num_threads", 1)),           
