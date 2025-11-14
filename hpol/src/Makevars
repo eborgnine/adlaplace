@@ -18,6 +18,7 @@ ifeq ($(UNAME_S),Darwin)
 
   PKG_CXXFLAGS += -fopenmp
   PKG_LIBS     += -L$(OMPPREFIX)/lib -Wl,-rpath,$(OMPPREFIX)/lib 
+  
 # -----------------------------------------------------------------------
 # === Linux: choose Intel oneAPI if icpx is present =====================
 # -----------------------------------------------------------------------
@@ -33,8 +34,11 @@ else
         # SHLIB_OPENMP_* expands to -fopenmp here
     endif
 
-#    CPPADINC = -I/usr/include/cppad
-#    CPPADLIB = -lcppad_lib
+PKG_CPPFLAGS += -I/usr/local/include
+PKG_LIBS     += -L/usr/local/lib -lcppad_lib
+
+PKG_CPPFLAGS += -I/usr/include/ColPack
+PKG_LIBS     += -L/usr/lib/x86_64-linux-gnu -lColPack
 endif
 
 # ---------  Compiler & linker flags that work everywhere ---------------
@@ -43,6 +47,8 @@ PKG_CFLAGS   += $(SHLIB_OPENMP_CFLAGS)
 PKG_CXXFLAGS += $(SHLIB_OPENMP_CXXFLAGS)
 
 PKG_LIBS     += $(SHLIB_OPENMP_CXXFLAGS) $(OMPLIB) 
+
+
 
 # ---- Normalize OpenMP flags based on the actual compiler -------------
 # get the basename of CXX (so /usr/bin/icpx -> icpx)
@@ -62,13 +68,19 @@ endif
 
 
 
-# ---------------------  helpful build echo -----------------------------
-$(info  >> CC is        $(CC))
-$(info  >> CXX is       $(CXX))
-$(info  >> OpenMP flag  $(SHLIB_OPENMP_CXXFLAGS))
 ifneq ($(strip $(OMPLIB)),)
   $(info >> Linking with  $(OMPLIB))
 endif
 ifneq ($(strip $(SDKROOT)),)
   $(info >> SDKROOT      $(SDKROOT))
 endif
+
+
+
+# ---------------------  helpful build echo -----------------------------
+$(info  >> CC is        $(CC))
+$(info  >> CXX is       $(CXX))
+$(info  >> PKG_LIBS  $(PKG_LIBS))
+$(info  >> PKG_CPPFLAGS  $(PKG_CPPFLAGS))
+$(info  >> PKG_CXXFLAGS  $(PKG_CXXFLAGS))
+$(info  >> OpenMP flag  $(SHLIB_OPENMP_CXXFLAGS))

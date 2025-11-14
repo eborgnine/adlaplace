@@ -132,7 +132,7 @@ abline(v = resTempPm$groups$groups$p,
 theFile = 'resTempPm.rds'
 res = readRDS(theFile)
 library('hpolcc')
-adFunFull = getAdFun(res$parameters_and_gamma, res$tmb_data, res$config)
+adFunFull = getAdFun(res$parameters_and_gamma, res$tmb_data, modifyList(res$config, list(verbose=TRUE)))
 
 assign("file", gsub("rds$", "txt", theFile), res$cache)
 if(file.exists(get("file", res$cache))) file.remove(get("file", res$cache))
