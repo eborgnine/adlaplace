@@ -5,13 +5,13 @@
 
 const double sparseCheck = 0.0;//DBL_MIN;//std::sqrt(DBL_EPSILON);
 
-#if defined(CPPAD_HAS_COLPACK) && CPPAD_HAS_COLPACK
+/*#if defined(CPPAD_HAS_COLPACK) && CPPAD_HAS_COLPACK
 static const char* JAC_COLOR = "colpack";
 static const char* HESS_COLOR = "colpack.symmetric";
-#else
+#else*/
   static const char* JAC_COLOR = "cppad";  // fallback if ColPack not available
   static const char* HESS_COLOR = "cppad.symmetric";
-#endif
+//#endif
 
 
 
