@@ -120,31 +120,14 @@ theTrace = hpolcc:::traceHinvT(
 )
 
 result$deriv = data.frame(
-  dDetUpart = as.vector(theTrace[Sgamma1] %*% result$dU),
+  dDetUpart = as.vector(theTrace[Sgamma1] %*% dU),
   dDetTpart = theTrace[-Sgamma1])
 result$deriv$gradTheta = result$fullGrad[-Sgamma1]  
-result$deriv$gradU = as.vector(-result$fullGrad[Sgamma1] %*% dU)
+result$deriv$gradU = as.vector(result$fullGrad[Sgamma1] %*% dU)
 result$deriv$dDet = result$deriv$dDetUpart + result$deriv$dDetTpart
 result$deriv$dL = result$deriv$dDet + result$deriv$gradU + result$deriv$gradTheta
 
 result$dLogLik = result$deriv$dL
-
-if(FALSE) { #old
-thirdRes = thirdDeriv(x=result$fullParameters, data, config, adFun = adFunFull)
-
-Sgamma1 = seq(Nbeta+1, len=length(result$solution))
-
-
-multGammaParam = thirdRes$invHessianRandom %*% thirdRes$fullHessian[Sgamma1, -Sgamma1]
-
-result$deriv = data.frame(
-  theta = thirdRes$first[-Sgamma1],
-  det = thirdRes$dDet,
-  U = - as.vector(thirdRes$first[Sgamma1] %*% multGammaParam)
-)
-
-result$dLogLik =result$deriv$dL = result$deriv$theta + result$deriv$det + result$deriv$U
-}
 
 
 return(result)
