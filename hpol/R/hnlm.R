@@ -272,7 +272,7 @@ verboseOrig = config$verbose
       list( 
         gamma_start = start_gamma,
         parameters = parameters, 
-        parameters_and_gamma = start_parameters,
+        parameters_and_gamma = full_parameters,
         theta_info = theta_info,
         tmb_data = tmb_data,
         formula = formula,
