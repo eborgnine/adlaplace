@@ -86,33 +86,37 @@ resTempPm <- hpolcc::hnlm(
       knots = seq(0, 45, by=2.5), 
     group_var = ecoRegion), 
   data=dataMedSimple, 
-  dirichlet= TRUE, 
   config = list(transform_theta = TRUE, 
+  dirichlet= TRUE, 
+                boundary_is_random = TRUE,
                 num_threads=parallel::detectCores(),
-                Nclusters = 4*parallel::detectCores()),
+                Nclusters = 10*parallel::detectCores(),
+  verbose=TRUE),
   control_inner=list(report.level=0),
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
-  for_dev=TRUE, verbose=TRUE
+  for_dev=TRUE
   )
 saveRDS(resTempPm, file='resTempPm.rds')
-resTemp <- hpolcc::hnlm(
-  formula= cvd ~ #f(date, model='iid') +
-#    f(sqrtPm, model='hiwp', ref_value = 8, p=2, 
-#      knots = seq(0,32, by=2),
-#      group_var = ecoRegion) + 
+resTempPmFixed <- hpolcc::hnlm(
+  formula= medical ~ #f(date, model='iid') +
+    f(sqrtPm, model='hiwp', ref_value = 8, p=2, 
+      knots = seq(0,32, by=2),
+      group_var = ecoRegion) + 
     f(tempClean, model='hiwp',ref_value = 20, p=3, 
       knots = seq(0, 45, by=2.5), 
     group_var = ecoRegion), 
   data=dataMedSimple, 
-  dirichlet= TRUE, 
   config = list(transform_theta = TRUE, 
+  dirichlet= TRUE, 
+                boundary_is_random = TRUE,
                 num_threads=parallel::detectCores(),
-                Nclusters = 4*parallel::detectCores()),
+                Nclusters = 10*parallel::detectCores()),
   control_inner=list(report.level=0),
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
   for_dev=TRUE, verbose=TRUE
   )
-saveRDS(resTemp, file='resTemp.rds')
+
+saveRDS(resTempPmFixed, file='resTempPmFixed')
 # res = readRDS('res.rds')
 ```
 
