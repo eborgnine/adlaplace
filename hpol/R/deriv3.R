@@ -109,8 +109,7 @@ result = list(
 )
 
 if(identical(extra, TRUE)) {
-  result = c(result, list(third =thirdAll, 
-
+  result = c(result, list(
     thirdList = thirdList, raw = resThird))
 }
 

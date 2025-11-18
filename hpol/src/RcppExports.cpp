@@ -10,6 +10,37 @@ Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
 Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
+// traceHinvT
+Rcpp::NumericVector traceHinvT(const Rcpp::NumericVector parameters, const Rcpp::S4& LinvPt, const Rcpp::List data, const Rcpp::List config, SEXP adFun);
+RcppExport SEXP _hpolcc_traceHinvT(SEXP parametersSEXP, SEXP LinvPtSEXP, SEXP dataSEXP, SEXP configSEXP, SEXP adFunSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::NumericVector >::type parameters(parametersSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::S4& >::type LinvPt(LinvPtSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List >::type data(dataSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List >::type config(configSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type adFun(adFunSEXP);
+    rcpp_result_gen = Rcpp::wrap(traceHinvT(parameters, LinvPt, data, config, adFun));
+    return rcpp_result_gen;
+END_RCPP
+}
+// thirdPolarization
+Rcpp::NumericVector thirdPolarization(const Rcpp::NumericVector parameters, const Rcpp::NumericVector A, const Rcpp::NumericVector B, const Rcpp::List data, const Rcpp::List config, SEXP adFun);
+RcppExport SEXP _hpolcc_thirdPolarization(SEXP parametersSEXP, SEXP ASEXP, SEXP BSEXP, SEXP dataSEXP, SEXP configSEXP, SEXP adFunSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::NumericVector >::type parameters(parametersSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::NumericVector >::type A(ASEXP);
+    Rcpp::traits::input_parameter< const Rcpp::NumericVector >::type B(BSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List >::type data(dataSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List >::type config(configSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type adFun(adFunSEXP);
+    rcpp_result_gen = Rcpp::wrap(thirdPolarization(parameters, A, B, data, config, adFun));
+    return rcpp_result_gen;
+END_RCPP
+}
 // thirdStrata
 Rcpp::List thirdStrata(const Rcpp::NumericVector parameters, const Rcpp::List data, const Rcpp::List config, SEXP adFun);
 RcppExport SEXP _hpolcc_thirdStrata(SEXP parametersSEXP, SEXP dataSEXP, SEXP configSEXP, SEXP adFunSEXP) {
@@ -133,6 +164,8 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
+    {"_hpolcc_traceHinvT", (DL_FUNC) &_hpolcc_traceHinvT, 5},
+    {"_hpolcc_thirdPolarization", (DL_FUNC) &_hpolcc_thirdPolarization, 6},
     {"_hpolcc_thirdStrata", (DL_FUNC) &_hpolcc_thirdStrata, 4},
     {"_hpolcc_getAdFun", (DL_FUNC) &_hpolcc_getAdFun, 3},
     {"_hpolcc_jointLogDens", (DL_FUNC) &_hpolcc_jointLogDens, 4},

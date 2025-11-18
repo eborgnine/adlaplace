@@ -2,6 +2,16 @@
 # Generator token: 10BE3573-1514-4C36-9D1C-5A225CD40393
 
 #' @export
+traceHinvT <- function(parameters, LinvPt, data, config, adFun = NULL) {
+    .Call('_hpolcc_traceHinvT', PACKAGE = 'hpolcc', parameters, LinvPt, data, config, adFun)
+}
+
+#' @export
+thirdPolarization <- function(parameters, A, B, data, config, adFun = NULL) {
+    .Call('_hpolcc_thirdPolarization', PACKAGE = 'hpolcc', parameters, A, B, data, config, adFun)
+}
+
+#' @export
 thirdStrata <- function(parameters, data, config, adFun = NULL) {
     .Call('_hpolcc_thirdStrata', PACKAGE = 'hpolcc', parameters, data, config, adFun)
 }

@@ -3,7 +3,6 @@
 
 #define DEBUG
 
-const double sparseCheck = 0.0;//DBL_MIN;//std::sqrt(DBL_EPSILON);
 
 /*#if defined(CPPAD_HAS_COLPACK) && CPPAD_HAS_COLPACK
 static const char* JAC_COLOR = "colpack";
@@ -39,8 +38,6 @@ static const char* HESS_COLOR = "colpack.symmetric";
       #pragma omp parallel reduction(+:logLikSum, QpartSum)
     { 
 
-      const int tid=omp_get_thread_num();
-
     #pragma omp for nowait
       for (size_t Dstrata = 0; Dstrata < data.Nstrata; Dstrata++) {
 
@@ -62,6 +59,7 @@ static const char* HESS_COLOR = "colpack.symmetric";
       }
 
   // Q diag.   map could be smaller than gamma.  the first Ngamma-Nmap entries don't have a theta
+      if(NqDiag) {
       int NgammaNoMap = data.Ngamma - data.Nmap;
       # pragma omp for
       for(int Dgamma = 0;Dgamma<NgammaNoMap;Dgamma++) {
@@ -75,7 +73,7 @@ static const char* HESS_COLOR = "colpack.symmetric";
         gammaScaled[Dgamma] = latent.gamma[Dgamma] / latent.theta[mapHere];
         QpartSum += latent.logTheta[mapHere] + gammaScaled[Dgamma]*gammaScaled[Dgamma]*(0.5*data.Qdiag[Dgamma]);
       }
-
+    }// if NqDiag
   } // end parallel block
 
 
@@ -165,8 +163,6 @@ Rcpp::RObject hessian(
 
   Rcpp::RObject result;
   const Rcpp::List sparsity = config.group_sparsity;
-  const size_t Nparams = parameters.size();
-  const bool onlyRandom = Nparams == data.Ngamma;
   const size_t Ngroup = adpack.size();
 
   if(config.verbose){
@@ -859,7 +855,7 @@ Rcpp::RObject gradLogical(
       pattern_out
     );
 
-    const CppAD::vector<size_t>& row = pattern_out.row();
+//    const CppAD::vector<size_t>& row = pattern_out.row();
     const CppAD::vector<size_t>& col = pattern_out.col();
     const size_t K = pattern_out.nnz();
 

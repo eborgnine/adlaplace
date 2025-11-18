@@ -20,111 +20,132 @@ loglik <- function(
     Nbeta = length(parameters) - sum(grepl("theta", names(parameters)))
     if(Nbeta == length(parameters)) warning("assuming no betas, data not supplied and parameters doesn't have names")
   }
-  Sbeta = seq(1, len=Nbeta)
-  beta = parameters[Sbeta]
-  theta = parameters[setdiff(1:length(parameters), Sbeta)]
+Sbeta = seq(1, len=Nbeta)
+beta = parameters[Sbeta]
+theta = parameters[setdiff(1:length(parameters), Sbeta)]
 
-  if(!missing(data) & is.null(names(parameters))) {
-    names(beta) = rownames(data$XTp)
-    names(theta) = paste0('theta', seq(1, length(theta)))
-  }
+if(!missing(data) & is.null(names(parameters))) {
+  names(beta) = rownames(data$XTp)
+  names(theta) = paste0('theta', seq(1, length(theta)))
+}
 
-  config$beta = beta
-  config$theta = theta
-  
-  if(missing(gamma_start)) {
-    gamma_start = rep(0, nrow(data$ATp))
-  }
+config$beta = beta
+config$theta = theta
 
-  adFun = getAdFun(gamma_start, data=data, config=config)
+if(missing(gamma_start)) {
+  gamma_start = rep(0, nrow(data$ATp))
+}
+
+adFun = getAdFun(gamma_start, data=data, config=config)
 
   # inner opt
-  result <- trustOptim::trust.optim(
-    x = gamma_start,
+result <- trustOptim::trust.optim(
+  x = gamma_start,
+  fn = jointLogDens,
+  gr = grad,
+  hs = hessian,
+  method = "Sparse",
+  control = control,
+  data=data, config = config, adFun=adFun
+)
+#  result$hessian2 = hessian(result$solution, data=data, config=config, adFun=adFun)
+
+if(check) {
+  mleB <- try(BB::spg(par = result$solution, 
     fn = jointLogDens,
     gr = grad,
-    hs = hessian,
-    method = "Sparse",
-    control = control,
-    data=data, config = config, adFun=adFun
-  )
-
-  if(check) {
-    mleB <- try(BB::spg(par = result$solution, 
-      fn = jointLogDens,
-      gr = grad,
-      alertConvergence=FALSE, 
-      data=data, config = config, adFun=adFun,
-      control = list(maxit = 1e3, M = 10, trace=TRUE))
-    )
-    if(!any(class(mleB) == 'try-error')) {
-      result$oldSolution = result$solution
-      result$solution = mleB$par
-      result$hessian = hessian(mleB$par, data=data, config=config)
-    }
+    alertConvergence=FALSE, 
+    data=data, config = config, adFun=adFun,
+    control = list(maxit = 1e3, M = 10, trace=TRUE))
+)
+  if(!any(class(mleB) == 'try-error')) {
+    result$oldSolution = result$solution
+    result$solution = mleB$par
+    result$hessian = hessian(mleB$par, data=data, config=config)
   }
+}
 
-  result$parameters = c(
-    beta,
-    theta)
+result$parameters = c(
+  beta,
+  theta)
 
-  result$fullParameters = c(
-    beta,
-    result$solution,
-    theta)
+result$fullParameters = c(
+  beta,
+  result$solution,
+  theta)
 
+result$cholHessian = Matrix::Cholesky(result$hessian)
+result$invHessian = Matrix::solve(result$cholHessian)
 
-  if(identical(deriv, 0)) { # return log lik
+result$halfLogDet = try(Matrix::determinant(
+  result$cholHessian, log=TRUE, sqrt=TRUE
+)$modulus)
+if(is.na(result$halfLogDet)) {
+  warning("determinant of hessian is NA")
+  result$halfLogDet = 1e8
+}
 
-    # h2 = hessianDense(gamma_start, data, config)
-    result$cholHessian = Matrix::Cholesky(result$hessian)
-    result$invHessian = Matrix::solve(result$cholHessian)
+result$minusLogLik = result$fval +
+as.numeric(result$halfLogDet) + 
+0.5 * length(result$solution) * 1.8378770664093454835606594728  # log 2 pi
 
-    result$halfLogDet = try(Matrix::determinant(
-      result$cholHessian, log=TRUE, sqrt=TRUE
-    )$modulus)
-    if(is.na(result$halfLogDet)) {
-      warning("determinant of hessian is NA")
-      result$halfLogDet = 1e8
-    }
-
-    result$minusLogLik = result$fval +
-    as.numeric(result$halfLogDet) + 
-    0.5 * length(result$solution) * 1.8378770664093454835606594728  # log 2 pi
-
-    return(result)
-  }
+if(identical(deriv, 0)) { # return log lik
+return(result)
+}
 
 
-  if(missing(adFunFull)) {
-    adFunFull = getAdFun(result$fullParameters, data=data, config=config)
-  }
-
-  thirdRes = thirdDeriv(x=result$fullParameters, data, config, adFun = adFunFull)
-
-  Sgamma1 = seq(Nbeta+1, len=length(result$solution))
+if(missing(adFunFull)) {
+  adFunFull = getAdFun(result$fullParameters, data=data, config=config)
+}
 
 
-  multGammaParam = thirdRes$invHessianRandom %*% thirdRes$fullHessian[Sgamma1, -Sgamma1]
+result$fullHessian = hessian(
+  result$fullParameters, data, config, adFunFull
+)
+result$fullGrad = grad(
+  result$fullParameters, data, config, adFunFull
+)
 
-  result$deriv = data.frame(
-    theta = thirdRes$first[-Sgamma1],
-    det = thirdRes$dDet,
-    U = - as.vector(thirdRes$first[Sgamma1] %*% multGammaParam)
-  )
+dU = -result$invHessian %*% result$fullHessian[Sgamma1, -Sgamma1]
 
-  result$dLogLik =result$deriv$dL = result$deriv$theta + result$deriv$det + result$deriv$U
 
-  if(identical(deriv, 1)) {
-    return(result)
-  }
+cholExpand = Matrix::expand(result$cholHessian)
+cholExpand$Linv = Matrix::solve(cholExpand$L)
+cholExpand$LinvP = cholExpand$Linv %*% cholExpand$P
+cholExpand$LinvPt = Matrix::t(cholExpand$LinvP)
 
-  result$halfLogDet = thirdRes$halfLogDet
-#  result$extra = thirdRes
+theTrace = hpolcc:::traceHinvT(
+  result$fullParameters, 
+  cholExpand$LinvPt, data, config, adFunFull
+)
 
-  result$minusLogLik = result$fval +
-  as.numeric(result$halfLogDet) + 
-  0.5 * length(result$solution) * 1.8378770664093454835606594728  # log 2 pi
+result$deriv = data.frame(
+  dDetUpart = as.vector(theTrace[Sgamma1] %*% result$dU),
+  dDetTpart = theTrace[-Sgamma1])
+result$deriv$gradTheta = result$fullGrad[-Sgamma1]  
+result$deriv$gradU = as.vector(-result$fullGrad[Sgamma1] %*% dU)
+result$deriv$dDet = result$deriv$dDetUpart + result$deriv$dDetTpart
+result$deriv$dL = result$deriv$dDet + result$deriv$gradU + result$deriv$gradTheta
 
-  return(result)
+result$dLogLik = result$deriv$dL
+
+if(FALSE) { #old
+thirdRes = thirdDeriv(x=result$fullParameters, data, config, adFun = adFunFull)
+
+Sgamma1 = seq(Nbeta+1, len=length(result$solution))
+
+
+multGammaParam = thirdRes$invHessianRandom %*% thirdRes$fullHessian[Sgamma1, -Sgamma1]
+
+result$deriv = data.frame(
+  theta = thirdRes$first[-Sgamma1],
+  det = thirdRes$dDet,
+  U = - as.vector(thirdRes$first[Sgamma1] %*% multGammaParam)
+)
+
+result$dLogLik =result$deriv$dL = result$deriv$theta + result$deriv$det + result$deriv$U
+}
+
+
+return(result)
 }
