@@ -126,7 +126,6 @@ adFunFull = getAdFun(res$parameters_and_gamma, res$tmb_data, res$config)
 assign("file", "india.txt", res$cache)
 if(file.exists(get("file", res$cache))) file.remove(get("file", res$cache))
 
-
 mleX1 = optim(
     rep(c(0,-3), 
       c(length(res$config$beta), length(res$config$theta))),
