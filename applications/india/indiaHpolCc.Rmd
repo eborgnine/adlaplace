@@ -93,6 +93,7 @@ res <- hpolcc::hnlm(
   data=dataMedSimple, 
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
   config = list(transform_theta = TRUE, 
+    boundary_is_random= TRUE,
     dense = FALSE, dirichlet= TRUE, verbose=TRUE,
     num_threads=parallel::detectCores(), 
     Nclusters = 4*parallel::detectCores()

@@ -211,8 +211,8 @@ hnlm <- function(
 
   NAtheta = which(is.na(gamma_theta$matchTheta))
   if(!all(NAtheta == 
-    c(seq(1,len=length(NAtheta)), nrow(gamma_theta)[config$dirichlet])
-)) {
+    c(seq(1,len=length(NAtheta) - config$dirichlet), nrow(gamma_theta)[config$dirichlet])
+    )) {
     warning("fpoly thetas not at top")
   }
 
