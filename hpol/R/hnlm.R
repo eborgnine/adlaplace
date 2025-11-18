@@ -248,7 +248,7 @@ verboseOrig = config$verbose
     cat("getting groups..")
   }
   groups = sparsity_grouped(x=full_parameters, data=tmb_data, config, verbose=verboseOrig)
-  if(verbose) {
+  if(verboseOrig) {
     cat("done\n")
   }
   if(any(class(groups) == 'try-error')) {
