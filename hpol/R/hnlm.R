@@ -35,7 +35,6 @@ hnlm <- function(
  control=list(),
  control_inner = control,
  for_dev = FALSE,
- verbose = FALSE,
  ...) {
 
   # Check inputs
