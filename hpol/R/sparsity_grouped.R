@@ -4,6 +4,7 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 
 # library('hpolcc');x = res$parameters_and_gamma;data=res$tmb_data;config=res$config;verbose=TRUE
 
+
 	Nstrata = ncol(data$cc_matrixTp)
 	Sstrata = seq(0, len=Nstrata)
 
@@ -20,8 +21,6 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 	Nparams = Ntotal - Ngamma  
 	Sparams = setdiff(seq(0, len=Ntotal), seq(from=Nbeta, len=Ngamma))
 
-
-	x[x==0] = 1e-5
 
 	singleStrataList = mapply(function(x) {
 		list(p=c(0,1), i=x)
@@ -106,8 +105,9 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 	} 
 
 	#hessian for random part,
-	if(verbose) 
+	if(verbose) {
 		cat("getting Q hessian")
+	}
 
 	hessianQ = list(dense=hessianQdense(parameters=x, data=data, config=config))
 

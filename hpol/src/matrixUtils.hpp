@@ -23,6 +23,4 @@ Rcpp::IntegerVector  compute_p_vector(
 Rcpp::S4 assembleHessian(
       std::vector<GroupPack>& adpack, 
       GroupPack& qPack, 
-      const Rcpp::List& sparsity, 
-      const Config& config, 
-      const bool onlyRandom);
+      const Config& config);

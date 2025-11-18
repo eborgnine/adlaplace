@@ -73,7 +73,7 @@ f <- function(x, model = c("iwp", "hiwp", "fpoly", "rpoly", "hfpoly", "hrpoly", 
 #' @export
 iwp <- function(x, p = 2, 
                 ref_value, knots, range = NULL, 
-                rpoly_p = 0, fpoly_p = p-1) {
+                rpoly_p = 0, fpoly_p = p-1, init=.my_theta_init) {
   l <- list(var = x, 
             model = "iwp", 
             p = p, 
@@ -82,7 +82,8 @@ iwp <- function(x, p = 2,
             range = range,
             rpoly_p = rpoly_p, 
             fpoly_p = fpoly_p,
-            run_as_is = F)
+            init = init[1],
+            run_as_is = FALSE)
   
   if(!is.null(range)){
     if(ref_value < range[1] | ref_value > range[2])
@@ -118,29 +119,12 @@ iwpPrecision <- function(term){
 
 #' @rdname effects_and_utilities 
 iwpTheta <- function(theta_info, term){
-  list2env(term, envir = environment())
-  m <- ifelse(is.null(theta_info$map), 0, max(theta_info$map))
-  
-  if(is.null(term$theta_map)) theta_map <- m + 1
-  if(theta_map < 0) theta_map <- m + 1
-  if(length(theta_map) != 1) stop("iwpTheta ", var, " ", model)
-  
-  # if(is.null(theta_init)) theta_init <- .my_theta_init
-  # if(length(theta_init) != 1) stop("iwpTheta ", var, " ", model)
-  theta_init <- .my_theta_init
-  
-  # predictive SD
-  iqrKnots = diff(quantile(term$knots, c(0.25, 0.75)))
-  pMhalf = term$p-1/2
-  logPsd = pMhalf * log(iqrKnots)- 0.5*log(2*pMhalf)-lfactorial(term$p-1)
-  names(logPsd) = var
-  
-  list(var = var, model = model,
-       name = paste0(var, "_", model),
-       name_mapped = paste0(var, "_", model),
-       level_mapped = "GLOBAL",
-       psd_scale_log = logPsd,
-       map = theta_map, init = theta_init)
+
+
+  result = data.frame(var=term$var, model=term$model, global=NA, order=NA, init=term$init)
+  result$name = apply(result[,c('var','model')],1,paste, collapse='_')
+  return(result)
+
 }
 
 
@@ -153,7 +137,8 @@ hiwp <- function(x, p = 2, ref_value, knots, range = NULL,
                  group_var,
                  include_global = T,
                  hrpoly_p = p-1, hfpoly_p = 0, # with include_global = F
-                 rpoly_p = 0, fpoly_p = include_global*(p-1)) {
+                 rpoly_p = 0, fpoly_p = include_global*(p-1),
+                 init=.my_theta_init) {
   l <- list(var = x, 
             model = "hiwp", 
             p = p,
@@ -166,6 +151,8 @@ hiwp <- function(x, p = 2, ref_value, knots, range = NULL,
             hfpoly_p = hfpoly_p,
             rpoly_p = rpoly_p, 
             fpoly_p = fpoly_p,
+            init = init,
+            init_hrpoly = rep_len(init, hrpoly_p+1)[-1],
             run_as_is = F)
   
   if(!is.null(range)){
@@ -184,9 +171,9 @@ hiwpDesign <- function(term, data, use_dev_version = F){
   id_split <- split(1:nrow(data), 
                     factor(data[[term$group_var]], levels = term$groups), 
                     drop = F)
-  if(term$include_global) id_split <- c(list(global=1:nrow(data)), id_split)
+  if(term$include_global) id_split <- c(list(GLOBAL=1:nrow(data)), id_split)
   
-  if(TRUE){
+  if(!use_dev_version){
     # fixed
     A0split = mapply(function(AA, xx) {
       res = as(AA[xx, ], "TsparseMatrix")
@@ -203,7 +190,8 @@ hiwpDesign <- function(term, data, use_dev_version = F){
       dimnames = list(rownames(data), 
         paste(term$var, term$model, 
           rep(names(id_split), each=ncol(A0)),
-          rep(1:ncol(A0), length(id_split)), sep='_')))
+          rep(formatC(1:ncol(A0), width=ceiling(log10(ncol(A0))), flag='0'), 
+            length(id_split)), sep='_')))
   }else{
     
     # the slow way
@@ -224,35 +212,14 @@ hiwpPrecision <- function(term){
 
 #' @rdname effects_and_utilities 
 hiwpTheta <- function(theta_info, term){
-  m <- ifelse(is.null(theta_info$map), 0, max(theta_info$map))
-  list2env(term, envir = environment())
 
-  if(is.null(term$theta_map)){
-    # technically (p-1) * include_global below right? No, just for slope components.
-    theta_map <- m + c(include_global + rep(1, ngroups))
-    if(include_global) theta_map <- c(m + 1, theta_map)
-  } 
-  if(length(theta_map) != include_global+ngroups) stop("hiwpTheta ", var, " ", model)
-  
-  # if(is.null(theta_init)) theta_init <- rep(.my_theta_init, p)
-  # if(length(theta_init) != p) stop("rpolyTheta ", var, " ", model)
-  theta_init <- rep(.my_theta_init, include_global+ngroups)
-  
-  name <- paste(rep(var, ngroups), rep("iwp", ngroups), as.character(term$groups), sep="_")
-  if(include_global) name <- c(paste(var, "iwp", "GLOBAL", sep="_"), name)
-  
-  name_mapped <- paste(var, "iwp", "LOCAL", sep="_")
-  level_mapped <- "LOCAL"
-  if(include_global){
-    name_mapped <- c(paste(var, "iwp", "GLOBAL", sep="_"), name_mapped)
-    level_mapped <- c("GLOBAL", level_mapped)
-  } 
-  
-  list(var = rep(var, length(theta_map)), model = rep(model, length(theta_map)), 
-       name = name,
-       name_mapped = name_mapped,
-       level_mapped = level_mapped,
-       map = theta_map, init = theta_init)
+  result = data.frame(var=term$var, model=term$model, 
+    global=sort(unique(c(FALSE, term$include_global)),decreasing=TRUE), 
+    order=NA, init= term$init)
+
+  result$name = paste(result$var, result$model, c("global","local")[2-result$global], sep='_')
+
+return(result)
 }
 
 
@@ -307,35 +274,31 @@ rpolyPrecision <- function(term){
 
 #' @rdname effects_and_utilities 
 rpolyTheta <- function(theta_info, term){
-  list2env(term, envir = environment())
-  m <- ifelse(is.null(theta_info$map), 0, max(theta_info$map))
-  
-  if(is.null(term$theta_map)) theta_map <- m + 1:p
-  if(length(theta_map) != p) stop("rpolyTheta ", var, " ", model)
-  
-  # if(is.null(theta_init)) theta_init <- rep(.my_theta_init, p)
-  # if(length(theta_init) != p) stop("rpolyTheta ", var, " ", model)
-  theta_init <- rep(.my_theta_init, p)
-  
-  list(var = rep(var, length(theta_map)), model = rep(model, length(theta_map)), 
-       name = paste0(var, "_", model, "_", 1:p),
-       name_mapped = paste0(var, "_", model, "_", 1:p),
-       level_mapped = "GLOBAL",
-       map = theta_map, init = theta_init)
+
+  result = data.frame(
+    var=term$var, model=term$model, 
+    global=NA, 
+    order=seq(1, term$p),
+  init = term$init)
+
+    result$name = apply(result[,c('var','model','order')],1,paste, collapse='_')
+
+return(result)
 }
 
 
 
 #' @rdname effects_and_utilities 
 #' @export
-hrpoly <- function(x, p = 1, ref_value, group_var, include_global = T) {
+hrpoly <- function(x, p = 1, ref_value, group_var, include_global = T, init = .my_theta_init) {
   l <- list(var = x, 
             model = "hrpoly", 
             p = p, 
             ref_value = ref_value,
             group_var = deparse(substitute(group_var)),
             include_global = include_global,
-            run_as_is = F)
+            init = rep_len(init, p),
+            run_as_is = FALSE)
   return(l)
 }
 
@@ -369,33 +332,15 @@ hrpolyPrecision <- function(term){
 
 #' @rdname effects_and_utilities 
 hrpolyTheta <- function(theta_info, term){
-  list2env(term, envir = environment())
-  
-  m <- ifelse(is.null(theta_info$map), 0, max(theta_info$map))
-  if(is.null(term$theta_map)){
-    theta_map <- m + c(p*include_global + rep(1:p, ngroups))
-    if(include_global) theta_map <- c(m + 1:p, theta_map)
-  } 
-  if(length(theta_map) != (include_global+ngroups)*p) stop("hrpolyTheta ", var, " ", model)
-  
-  # if(is.null(theta_init)) theta_init <- rep(.my_theta_init, p)
-  # if(length(theta_init) != p) stop("rpolyTheta ", var, " ", model)
-  theta_init <- rep(.my_theta_init, (include_global+ngroups)*p)
-  
-  name <- paste(rep(var, ngroups), rep("rpoly", ngroups*p), rep(as.character(term$groups), each=p), rep(1:p, times=ngroups), sep="_")
-  if(include_global) name <- c(paste(var, "rpoly", "GLOBAL", 1:p, sep="_"), name)
 
-  name_mapped <- paste(var, "rpoly", "LOCAL", 1:p, sep="_")
-  level_mapped <- "LOCAL"
-  if(include_global){
-    name_mapped <- c(paste(var, "rpoly", "GLOBAL", 1:p, sep="_"), name_mapped)
-    level_mapped <- c("GLOBAL", level_mapped)
-  } 
-  
-  list(var = rep(var, length(theta_map)), model = rep(model, length(theta_map)), 
-       name = name, name_mapped = name_mapped,
-       level_mapped = level_mapped,
-       map = theta_map, init = theta_init)
+  result = data.frame(
+    var=term$var, model=term$model, 
+    global=NA, 
+    order=seq(1, term$p),
+  init = term$init)
+  result$name = apply(result[,c('var','model','order')],1,paste, collapse='_')
+  return(result)
+
 }
 
 
@@ -434,10 +379,11 @@ hrpolyTheta <- function(theta_info, term){
 
 #' @rdname effects_and_utilities 
 #' @export
-iid <- function(x) {
+iid <- function(x, init=.my_theta_init) {
   list(var = x, 
        model = "iid",
-       run_as_is = F
+       run_as_is = F,
+       init=init[1]
   )
 }
 
@@ -456,18 +402,9 @@ iidPrecision <- function(term){
 
 #' @rdname effects_and_utilities 
 iidTheta <- function(theta_info, term){
-  list2env(term, envir = environment())
-  m <- ifelse(is.null(theta_info$map), 0, max(theta_info$map))
-  
-  if(is.null(term$theta_map)) theta_map <- m + 1
-  if(theta_map < 0) theta_map <- m + 1
-  if(length(theta_map) != 1) stop("odTheta ", var, " ", model)
-  
-  theta_init <- .my_theta_init
-  
-  list(var = rep(var, length(theta_map)), model = rep(model, length(theta_map)), 
-       name = paste(var, model, sep="_"), 
-       name_mapped = paste(var, model, sep="_"),
-       level_mapped = "GLOBAL",
-       map = theta_map, init = theta_init)
+  result = data.frame(
+    var = term$var, model=term$model,global=NA, order=NA, init=term$init
+  )
+  result$name = paste0(result$var, '_', result$model)
+  return(result)
 }

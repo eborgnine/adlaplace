@@ -53,7 +53,8 @@ $$
     G\left( U^{(0)}, \theta_p\right)  + H_{U\theta_p} \right]
 \end{aligned}
 $$
-TMB's ok since $G=0$ and we can ignore
+
+$G=0$ and we can ignore
 
 
 Hessian
@@ -154,3 +155,53 @@ $$
 
 TMB ignores $V H_{UU}^{-1} H_{U\theta}$
 
+
+
+# fourth
+
+$$
+\begin{aligned}
+\frac{\partial^2}{\partial \theta_q\,\partial \theta_p}
+\log\big|H(\hat U(\theta),\theta)\big|
+&=
+\sum_{a,b}
+\frac{\partial \hat U_a}{\partial \theta_q}
+\frac{\partial \hat U_b}{\partial \theta_p}
+\operatorname{tr}\!\big(H^{-1} F_{ab..}\big)
+   \operatorname{tr}\!\big(H^{-1} T_{b..} H^{-1} T_{a..}\big)
+\\
+& + \quad
+   \sum_a
+\frac{\partial \hat U_a}{\partial \theta_p}
+\operatorname{tr}\!\big(H^{-1} F_{aq..}\big)
+  \operatorname{tr}\!\big(H^{-1} T_{q..} H^{-1} T_{a..}\big)
+\\ 
+& + \quad
+   \sum_a
+\frac{\partial \hat U_a}{\partial \theta_q}
+\operatorname{tr}\!\big(H^{-1} F_{ap..}\big)
+   \operatorname{tr}\!\big(H^{-1} T_{p..} H^{-1} T_{a..}\big)
+\\ 
+& + \quad
+   \sum_a
+\frac{\partial^2 \hat U_a}{\partial \theta_q\,\partial \theta_p}
+\,\operatorname{tr}\!\big(H^{-1} T_{a..}\big)
+\\ 
+& + \quad
+   \operatorname{tr}\!\big(H^{-1} F_{pq..}\big)
+   \operatorname{tr}\!\big(H^{-1} T_{q..} H^{-1} T_{p..}\big)
+\end{aligned}
+$$
+
+
+$$
+\begin{aligned}
+\frac{\partial^2 \hat U_a}{\partial \theta_q\,\partial \theta_p}
+&= - \sum_b (H^{-1})_{ab} \Bigg[
+\sum_{c,d} T_{bcd} \frac{\partial \hat U_c}{\partial \theta_q}
+\frac{\partial \hat U_d}{\partial \theta_p} + 
+\sum_{c} T_{bcq} \frac{\partial \hat U_c}{\partial \theta_p} + 
+\sum_{c} T_{bcp}
+\frac{\partial \hat U_c}{\partial \theta_q} +  T_{bpq} \Bigg]
+\end{aligned}
+$$

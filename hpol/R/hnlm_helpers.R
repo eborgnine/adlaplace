@@ -24,7 +24,7 @@ collectTerms <- function(formula){
   term_labels <- attr(terms(formula), "term.labels")
   prefix <- NULL
   
-  terms <- lapply(term_labels, function(lab) {
+  terms1 <- lapply(term_labels, function(lab) {
     # Check if the term is defined using `f()`
     if (grepl("f\\(", lab)) {
       term <- eval(parse(text = lab))
@@ -40,7 +40,12 @@ collectTerms <- function(formula){
     
     return(term)
   })
-  
+  # add fpoly, rpoly terms
+  SaddPoly = which(unlist(lapply(terms1, '[[', 'model')) == 'hiwp')
+  termsFpoly = do.call(c, lapply(terms1[SaddPoly], hpolcc:::addFPoly))
+  termsRpoly = do.call(c,lapply(terms1[SaddPoly], addRPoly))
+  terms = c(terms1, termsFpoly, termsRpoly)
+
   names(terms) <- NULL
   return(terms)
 }
@@ -71,7 +76,8 @@ getExtra <- function(term, data, cc_matrix){
     term$nknots <- length(knots)
   }
   
-  
+  term$range <- range(data[[term$var]])
+
   return(term)
 }
 
@@ -110,49 +116,40 @@ getDesign <- function(term, data){
 getGammaSetup <- function(term){
   list2env(term, envir = environment())
   
-  gamma_split <- if(model == "iwp"){
-      length(knots)-1 # IS THIS ALWAYS THAT
-      
-  }else if(model == "hiwp"){
-    # if(include_global) return(c(length(knots)-1,ngroups*(length(knots)-1)))
-    # return(ngroups*(length(knots)-1))
-    rep(length(knots)-1, ngroups+include_global)
+  if(is.null(term$groups)) term$groups = NA
+  if(is.null(term$knots)) term$knots = NA
 
-  }else if(model == "iid"){
-    # return(term$n - length(term$to_remove))
-    term$n
-    
-  }else if(model == "rpoly"){
-    rep(1,p)
-    
-  }else if(model == "hrpoly"){
-    rep(1, (include_global + ngroups)*p)
+  if(term$model %in% c("fpoly","hrpoly")) {
+    term$order = 1:term$p
+  } else {
+    term$order = NA
   }
 
-  gamma_var <- rep(var, sum(gamma_split))
-  gamma_id <- rep(id, sum(gamma_split))
-
-  gamma_pick <- if(model == "iwp"){
-    factor("GLOBAL") # IS THIS ALWAYS THAT
-    
-  }else if(model == "hiwp"){
-    gp <- lapply(seq_along(groups), \(i) rep(as.integer(groups)[i]-1, gamma_split[i+include_global])) |> unlist()
-    if(include_global) gp <- c(rep(0, gamma_split[1]), gp)
-    paste0(var, "__", gp)
-    
-  }else if(model == "iid"){
-    paste0(var, "__", 0)
-    
-  }else if(model == "rpoly"){
-    paste0(var, "__", 0)
-    
-  }else if(model == "hrpoly"){
-    gp <- lapply(seq_along(groups), \(i) rep(as.integer(groups)[i]-1, gamma_split[i+include_global])) |> unlist()
-    if(include_global) gp <- c(rep(0, gamma_split[1]), gp)
-    paste0(var, "__", gp)
+  if(term$model %in% c("iwp","hiwp")) {
+    term$basis = seq(1, len=term$nknots-1)
+    term$order = NA
+  }  else {
+    term$basis = NA
   }
-  
-  return(list(var = gamma_var, id = gamma_id, split = gamma_split, pick = gamma_pick))
+  if(term$model == 'hiwp') {
+    if(term$include_global) {
+          term$groups = c(levels(term$groups)[1], as.character(term$groups))
+    }
+  }
+
+  result = expand.grid(
+    var = term$var,
+    model = term$model,
+    group = term$groups,
+    basis = term$basis,
+    order = term$order
+  )
+  if(!all(is.na(result$basis))) {
+    result$basis = formatC(result$basis, width = max(ceiling(c(1,log10(result$basis))), na.rm=TRUE), flag='0')
+  }
+  theNA = apply(result, 2, function(xx) all(is.na(xx)))
+  result$name = apply(result[,!theNA,drop=FALSE], 1, paste, collapse='_')
+  return(result)
 }
 
 
@@ -183,6 +180,7 @@ getPrecision <- function(term){
 #' @rdname hnlm_helpers
 getThetaSetup <- function(theta_info, term){
   
+
   theta_setup <- 
     if(term$model == "iwp"){
       iwpTheta(theta_info, term)
@@ -250,10 +248,11 @@ addRPoly <- function(term){
   
   if(!is.null(term$hrpoly_p) && term$hrpoly_p > 0){
     # include additional random polynomial effects in the model
-    new_f <- "~ f(__var__, model = 'hrpoly', ref_value = __rv__, p = __p__, group_var = __gv__, include_global = F)" |> 
+    new_f <- "~ f(__var__, model = 'hrpoly', ref_value = __rv__, p = __p__, group_var = __gv__, init = __init__, include_global = F)" |> 
       gsub(pattern = "__var__", replacement = term$var) |>
       gsub(pattern = "__rv__", replacement = term$ref_value) |>
       gsub(pattern = "__p__", replacement = term$hrpoly_p) |> 
+      gsub(pattern = "__init__", replacement = deparse(term$init_hrpoly)) |> 
       gsub(pattern = "__gv__", replacement = term$group_var) |>
       as.formula()
     

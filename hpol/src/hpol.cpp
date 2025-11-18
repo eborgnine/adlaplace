@@ -43,20 +43,12 @@ static const char* HESS_COLOR = "colpack.symmetric";
 
     #pragma omp for nowait
       for (size_t Dstrata = 0; Dstrata < data.Nstrata; Dstrata++) {
-/*      loglikT += loglikOneStrata<double>(
-        Dstrata,
-        latent.gamma,
-        latent,
-        dat, 
-        cfg
-        )[0];*/
 
         auto etaHere = compute_eta_for_stratum<double, double>(
           Dstrata, data, latent.gamma, latent.beta);
-
         auto contrib = accumulate_contrib_for_stratum<double, double>(
-          Dstrata, data, etaHere, latent, config
-          );
+          Dstrata, data, etaHere, latent, config);
+
 #ifdef DEBUG        
     if(config.verbose) {
       if(CppAD::isnan(contrib[0])) {        
@@ -64,22 +56,30 @@ static const char* HESS_COLOR = "colpack.symmetric";
       }
     }
 #endif
+
         logLikSum += contrib[0];
 
       }
 
-  // Q diag.  
-        #pragma omp for
-      for(size_t D=0;D<NqDiag;D++) {
-        size_t mapHere = data.map[D];
-
-        gammaScaled[D] = latent.gamma[D] / latent.theta[mapHere];
-        QpartSum += latent.logTheta[mapHere] + gammaScaled[D]*gammaScaled[D]*(0.5*data.Qdiag[D]);
+  // Q diag.   map could be smaller than gamma.  the first Ngamma-Nmap entries don't have a theta
+      int NgammaNoMap = data.Ngamma - data.Nmap;
+      # pragma omp for
+      for(int Dgamma = 0;Dgamma<NgammaNoMap;Dgamma++) {
+        gammaScaled[Dgamma] = latent.gamma[Dgamma];
+        QpartSum += gammaScaled[Dgamma]*gammaScaled[Dgamma]*(0.5*data.Qdiag[Dgamma]);
       }
+      #pragma omp for
+      for(int Dmap = 0;Dmap<data.Nmap;Dmap++) {
+        int Dgamma=NgammaNoMap + Dmap;
+        size_t mapHere = data.map[Dmap];
+        gammaScaled[Dgamma] = latent.gamma[Dgamma] / latent.theta[mapHere];
+        QpartSum += latent.logTheta[mapHere] + gammaScaled[Dgamma]*gammaScaled[Dgamma]*(0.5*data.Qdiag[Dgamma]);
+      }
+
   } // end parallel block
 
 
-  // Q offdiag    
+  // Q offdiag  Q = Qdiag + Qnd, gamma^T (Qdiag + Qnd) gamma
   double Qoff = 0.0;
   #pragma omp parallel for reduction(+:Qoff) num_threads(config.num_threads)
   for(size_t D = 0; D < data.Nq; D++) {
@@ -216,7 +216,7 @@ Rcpp::RObject hessian(
       }
       result = debugList;
     } else {
-      Rcpp::S4 resultMat=assembleHessian(adpack, qRes, sparsity, config, onlyRandom);
+      Rcpp::S4 resultMat=assembleHessian(adpack, qRes, config);
       result = resultMat;
     }
 
@@ -891,83 +891,4 @@ Rcpp::RObject gradLogical(
   } else {
     return result;       // structural logical pattern
   }
-}
-
-Rcpp::RObject gradLogicalOld(
- const Rcpp::NumericVector parameters,
- const Rcpp::List& data,
- const Rcpp::List& config
- ) {
-
-  const Data dataC(data);
-  const Config configC(config);
-  Rcpp::RObject resultObject;
-
-  const size_t Nparams = parameters.size();
-  CppAD::vector<double> parametersC(Nparams);
-  for(size_t D=0; D<Nparams;D++) {
-    parametersC[D] = parameters[D];
-  }
-
-  Rcpp::IntegerVector idx(Nparams);
-  std::iota(idx.begin(), idx.end(), 0);
-
-  Rcpp::LogicalMatrix result(Nparams, dataC.Nstrata);
-  Rcpp::NumericMatrix resultDense;
-  if(configC.debug) {
-    resultDense = Rcpp::NumericMatrix(Nparams, dataC.Nstrata);
-  }
-  CppAD::vector<double> w(1);
-  w[0] = 1.0;
-
-  omp_set_num_threads(configC.num_threads);
-  CppAD::thread_alloc::parallel_setup(
-    configC.num_threads,
-    [](){ return in_parallel_wrapper(); },
-    [](){ return static_cast<size_t>(thread_num_wrapper()); }
-    );
-
-  #pragma omp parallel
-  {
-    CppAD::vector<CppAD::AD<double>> ad_params(Nparams);
-    CppAD::AD<double> loglik = 0;
-    for (size_t D = 0; D < Nparams; D++) {
-      ad_params[D] = parametersC[D];  
-    }
-
-      #pragma omp for nowait
-    for(size_t Dstrata = 0;Dstrata< dataC.Nstrata;Dstrata++) {
-
-
-      CppAD::Independent(ad_params);
-
-      auto latent=unpack_params(ad_params, dataC, configC);
-
-
-      auto etaHere = compute_eta_for_stratum(
-        Dstrata, dataC, latent.gamma, latent.beta);
-
-      auto out = accumulate_contrib_for_stratum(
-        Dstrata, dataC, etaHere, latent, configC);
-
-      CppAD::ADFun<double> fun(ad_params, out);
-
-      fun.Forward(0, parametersC);
-      auto gradHere = fun.Reverse(1, w);
-      for(size_t D=0;D<Nparams;D++) {
-        result(D, Dstrata) = (fabs(gradHere[D])>sparseCheck);
-      }
-      if(configC.debug) {
-      for(size_t D=0;D<Nparams;D++) {
-        resultDense(D, Dstrata) = gradHere[D];
-      }
-      }
-    }
-  } // parallel
-  if(configC.debug) {
-    resultObject = resultDense;
-  } else {
-    resultObject = result;
-  }
-  return(resultObject);
 }

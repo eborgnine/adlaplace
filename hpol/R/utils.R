@@ -12,13 +12,7 @@ lengthUnique = function(xx) {
 	length(unique(xx))
 }
 
-sparsityByBlockFirst = function(strata, config, parameters, data, Sgamma0) {
-  configHere = modifyList(config, list(groups = strata, dense=TRUE, num_threads=1, verbose=FALSE))
-  adFunHere = getAdFun(parameters, data, configHere)
-  whichAll = which(abs(grad(parameters, data, config=configHere, adFun=adFunHere)) > .Machine$double.eps)-1L
-  whichRandom = as.vector(na.omit(match(whichAll, Sgamma0))-1L)
-  list(full = whichAll, random=whichRandom)
-}
+
 
 
 firstTwoElements = function(xx, k) sort(c(xx[xx!=k], rep(k,2))[1:2] )

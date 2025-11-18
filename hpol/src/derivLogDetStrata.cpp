@@ -29,11 +29,6 @@ Rcpp::List thirdStrata(
   const Rcpp::IntegerVector iNsAll = nsAll["i"];
   const size_t NoutRowsT = dense?NparamsSq:iNsAll.size();
   const size_t NoutRowsH = dense?NparamsSq:iFullAll.size();
-/*  const Rcpp::List thirdAll = config.sparsity["third"];
-  const Rcpp::List pairsAll = thirdAll["pairs"];
-  const Rcpp::NumericVector pairsIall = pairsAll["i"];
-  const size_t NpairsAll = pairsIall.size();
-  const size_t NpairsAllNparams = NpairsAll*Nparams;*/
 
   std::vector<double> hessianOut(NoutRowsH, 0.0);
   std::vector<double> thirdDiagOut(NoutRowsT, 0.0);
@@ -263,13 +258,13 @@ Rcpp::List thirdStrata(
   int nT = static_cast<int>(NoutRowsT);
 
   // scatter into TijkOutAll
+    #pragma omp critical(third_accum)
         for (size_t g = 0; g < NgroupThisThread; ++g) {
           const size_t g0   = SgroupThisThread[g];
           const auto& idxes = third[g0].ijkMatch;
           const auto& vals  = TijkThisThread[g];
           for (size_t j = 0; j < idxes.size(); ++j) {
             size_t idx = static_cast<size_t>(idxes[j]);
-      #pragma omp atomic update
             TijkOutAll[idx] += vals[j];
           }
   } // g

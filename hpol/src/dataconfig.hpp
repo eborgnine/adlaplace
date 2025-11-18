@@ -96,7 +96,7 @@ struct Data {
 
   Rcpp::NumericVector Qdiag, y;
   Rcpp::IntegerVector map;
-  size_t Nq, Nbeta, Ngamma, Neta, Nstrata;
+  size_t Nq, Nmap, Nbeta, Ngamma, Neta, Nstrata;
 
   // new (for dynamic payload planning)
   bool   has_offset = false;
@@ -128,6 +128,7 @@ struct Data {
     Rcpp::NumericVector QsansDiagx=QsansDiag2.slot("x");
 
     Nq      = static_cast<std::size_t>(QsansDiagx.size());
+    Nmap      = static_cast<std::size_t>(map.size());
     Nbeta   = static_cast<std::size_t>(X.nrow());
     Ngamma  = static_cast<std::size_t>(A.nrow());
     Neta    = static_cast<std::size_t>(X.ncol());   // == A.ncol()

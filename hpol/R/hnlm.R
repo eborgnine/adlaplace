@@ -28,11 +28,10 @@ hnlm <- function(
  data,
  cc_design = ccDesign(),
  weight_var,
- dirichlet = FALSE,
  tmb_parameters = NULL,
  optim_parameters = list(eval.max = 2000, iter.max = 2000),
  optimizer = c('nlminb', 'optim'),
- config=list(),
+ config=list(dirichlet = TRUE, boundary_is_random=FALSE),
  control=list(),
  control_inner = control,
  for_dev = FALSE,
@@ -48,6 +47,15 @@ hnlm <- function(
     !(weight_var %in% colnames(data)))
   stop("weight_var must be a character vector.")
   
+
+  configDefaults = list(
+    verbose=FALSE, transform_theta=TRUE,
+    num_threads = 1, dirichlet=TRUE
+  )
+
+  configDefaults = configDefaults[setdiff(names(configDefaults), names(config))]
+  config = c(config, configDefaults)
+
   # Order the rows of data appropriately.
   if (is.character(cc_design)) {
     cc_design = ccDesign(strat_vars = cc_design)
@@ -61,14 +69,15 @@ hnlm <- function(
   strat_time_vars <- c(cc_design$strat_vars, cc_design$time_var)
 
   strat_time_vars = strat_time_vars[
-    order(sapply(data[, strat_time_vars, with = FALSE], function(xx) length(unique(xx))), decreasing=FALSE)
-  ]
+    order(sapply(data[, strat_time_vars, with = FALSE],
+     function(xx) length(unique(xx))), decreasing=FALSE)
+    ]
 
 
   data.table::setorderv(data, strat_time_vars)
   
   # setup the data for case-crossover
-  if (verbose) {
+  if (config$verbose) {
     cat("setting strata\n")
   }
   
@@ -77,124 +86,80 @@ hnlm <- function(
     data = data, 
     outcome = all.vars(formula)[1])
 
-  if (verbose) {
+  if (config$verbose) {
     cat("collecting terms\n")
   }
   # setup of the design matrices and other parameters
   # terms carries all the information throughout
-    terms <- hpolcc:::collectTerms(formula)
-  
-  # design matrices
-  Xlist <- list() # <- matrix(nrow=nrow(data), ncol=0) # fixed effects
-  Alist <- list()#matrix(nrow=nrow(data), ncol=0) # random effects
-  Qs <- list() # precisions for random effects
-  
-  beta_info <- list()
-  gamma_info <- list()
-  theta_info <- list()
-  
-  # loop
-  k <- 1
-  while (k <= length(terms)) {
-    if (verbose)
-      cat(k, ' ')
-    
-    term <- hpolcc:::getExtra(terms[[k]], data = data, cc_matrix = cc_matrix)
-    term$id <- k
-    if (!is.factor(data[[term$var]][1]) &&
-      !is.character(data[[term$var]][1]) &&
-      is.null(term$range))
-    range <- term$range <- range(data[[term$var]])
-    
-    if (term$run_as_is) {
-      Xsub <- Matrix::sparse.model.matrix(term$f, data)
-      if (is.factor(data[[term$var]])) {
-        Xsub = Xsub[, -1]
-      }
-      beta_info$var <- c(beta_info$var, term$var)
-      beta_info$pick <- c(beta_info$pick, paste0(term$pick, "__", 0))
-      Xlist[[k]] <- Xsub
-      k <- k + 1
-      next
+  terms1 <- hpolcc:::collectTerms(formula)
+  terms = lapply(terms1, hpolcc:::getExtra, data=data, cc_matrix=ccMatrix)
+  for(D in 1:length(terms)) {
+    terms[[D]]$id = D
+  }
+
+  isFpoly = which(unlist(lapply(terms, "[[", "model")) == "fpoly")
+  isHrpoly = which(unlist(lapply(terms, "[[", "model")) == "hrpoly")
+  isAsis = which(unlist(lapply(terms, "[[", "run_as_is")))
+  isRandom = setdiff(1:length(terms), c(isFpoly, isHrpoly, isAsis))
+
+  XasIs = lapply(terms[isAsis], function(xx, data) {
+    res = Matrix::sparse.model.matrix(xx$f, data, drop.unused.levels=TRUE)
+    if(is.factor(data[[xx$var]])) {
+      res = res[,-1, drop=FALSE]
     }
-    
-    
-    if (term$model %in% "fpoly") {
-      Xsub <- as(
-        poly(
-          data[[term$var]] - term$ref_value,
-          degree = term$p,
-          raw = TRUE,
-          simple = TRUE
-        ),
-        "TsparseMatrix"
-      )
-      colnames(Xsub) <- paste0(term$var, c('', seq(
-        from = 1,
-        by = 1,
-        len = ncol(Xsub) - 1
-      )))
-      beta_info$var <- c(beta_info$var, term$var)
-      beta_info$pick <- c(beta_info$pick, paste0(term$pick, "__", 0))
-      Xlist[[k]] <- Xsub #cbind(X, Xsub)
-      k <- k + 1
-      next
+    res
+  }, data=data)
+  names(XasIs) = unlist(lapply(terms[isAsis], '[[', 'var'))
+
+  XfPoly = lapply(terms[isFpoly], function(xx, data) {
+    Xsub = as(
+      poly(
+        data[[xx$var]] - xx$ref_value,
+        degree = xx$p,
+        raw = TRUE,
+        simple = TRUE
+      ),
+      "TsparseMatrix"
+    )
+    colnames(Xsub) <- paste0(xx$var, "_fpoly_",seq(
+      from = 1,
+      len = ncol(Xsub)
+    ))
+    Xsub
+  },
+  data=data
+)
+  names(XfPoly) = unlist(lapply(terms[isFpoly], '[[', 'var'))
+
+
+  Arandom <- parallel::mclapply(
+    terms[c(isHrpoly, isRandom)],
+    hpolcc:::getDesign,
+    data=data,  mc.cores= config$num_threads)
+
+  Qs = lapply(terms[c(isHrpoly, isRandom)], hpolcc:::getPrecision)
+  names(Qs) = names(Arandom) = paste(
+    unlist(lapply(terms[isRandom], '[[', 'var')),
+    unlist(lapply(terms[isRandom], '[[', 'model')), sep='_')
+
+
+  if(identical(config$boundary_is_random, TRUE) ) {
+    if(is.null(config$prec_boundary)){
+      config$prec_boundary = 0
     }
-    # below takes care of random effects
-    
-    # design matrix
-    Asub <- hpolcc:::getDesign(term, data)
-    Alist[[k]] <- Asub #cbind(A, Asub)
-    
-    gamma_setup <- hpolcc:::getGammaSetup(term)
-    
-    gamma_info$var <- c(gamma_info$var, gamma_setup$var)
-    gamma_info$id <- c(gamma_info$id, gamma_setup$id)
-    gamma_info$split <- c(gamma_info$split, gamma_setup$split)
-    gamma_info$pick <- c(gamma_info$pick, gamma_setup$pick)
-    # if(!is.null(term$group_var)) gamma_info$nrep <- c(gamma_info$nrep, length(split(1:nrow(data), data[[term$group_var]])))
-    # Note: for iwp 1 knot removed for constraints
-    
-    # Add fized and random polynomial effects
-    terms <- c(terms, hpolcc:::addFPoly(term), hpolcc:::addRPoly(term))
-    
-    
-    # precision matrix
-    Qs[[k]] <- hpolcc:::getPrecision(term)
-    
-    # theta parameters
-    theta_setup <- hpolcc:::getThetaSetup(theta_info, term)
-    
-    theta_info$var <- c(theta_info$var, theta_setup$var)
-    theta_info$model <- c(theta_info$model, theta_setup$model)
-    theta_info$map <- c(theta_info$map, theta_setup$map)
-    theta_info$init <- c(theta_info$init, theta_setup$init)
-    theta_info$psd_scale_log <- c(theta_info$psd_scale_log, rep_len(c(theta_setup$psd_scale_log, 0), length(theta_info$init)))
-    
-    # update term with new elements
-    terms[[k]] <- term
-    k <- k + 1
-  } # done k loop
-  # final element of theta is the dirichlet SD
+    QfPoly = lapply(XfPoly, function(xx, prec) Matrix::Diagonal(ncol(xx), x=prec), prec= config$prec_boundary)
+    isBoundary = isFpoly
+    Xlist = XasIs
+    Alist = c(XfPoly, Arandom)
+    Qs = c(QfPoly, Qs)
 
-  theta_info$model = c(theta_info$model, '')
-  theta_info$psd_scale = exp(theta_info$psd_scale_log)
+  } else {
+    isBoundary = c()
+    Xlist = c(XasIs, XfPoly)
+    Alist = Arandom
+    Qall = Qs
+  }
 
-  if (dirichlet) {
-    theta_info$var = c(theta_info$var, 'overdisp')
-    theta_info$map = c(theta_info$map, max(theta_info$map) + 1)
-    dirichletStart = exp(-2)
-    theta_info$init <- c(theta_info$init, dirichletStart)
-  } 
-
-  
-  uniqueTheta = which(!duplicated(theta_info$map))
-  theta_info$name = paste(theta_info$var[uniqueTheta], 
-    c(theta_info$model[uniqueTheta]), 
-    sep = '_')
-  
-  if (verbose)
-    cat('.\n')
   if (length(Alist)) {
     A = do.call(cbind, Alist) |> as("TsparseMatrix")
   } else {
@@ -206,68 +171,96 @@ hnlm <- function(
     X = matrix(nrow = nrow(data), ncol = 0)
   }
 
-  allMap = 
-  rep(theta_info$map[1:length(gamma_info$split)], gamma_info$split)-1
-  
+  Q =  Matrix::bdiag(Qs[!sapply(Qs, is.null)])
+
+  theta_setup = lapply(terms[c(isHrpoly, isRandom)], hpolcc:::getThetaSetup, theta_info = list())
+
+  if (config$dirichlet) {
+    if(is.null(config$dirichlet_init)) {
+      config$dirichlet_init = 0.1
+    }
+    theta_setup = c(theta_setup, 
+      list(data.frame(var='overdisp', 
+        model='overdisp', global=NA, order=NA, 
+        init=config$dirichlet_init, name='overdisp')))
+  } 
+  theta_info = do.call(rbind, theta_setup)
+
+  gamma_setup <- lapply(terms[c(isBoundary, isHrpoly, isRandom)], hpolcc:::getGammaSetup)
+  if(!all(unlist(lapply(gamma_setup, nrow)) == unlist(lapply(Alist, ncol)))) {
+    warning("gamma and A dont match")
+  }
+  gamma_info = do.call(rbind, gamma_setup)
+
+  if(length(setdiff(colnames(A), gamma_info$name)) | length(setdiff(gamma_info$name, colnames(A)))) {
+    warning("some columns of design matrix not found in gamma")
+  }
+
+  gamma_info$global = gamma_info$group == 'GLOBAL'
+  gamma_info[gamma_info$model != 'hiwp','global'] = NA
+
+  gamma_theta = merge(gamma_info, theta_info, 
+    by = c('var','model','global','order'), all.x=TRUE, all.y=TRUE,
+    suffixes = c("_gamma","_theta"))
+
+  gamma_theta$matchA = match(gamma_theta$name_gamma, colnames(A))
+  gamma_theta = gamma_theta[order(gamma_theta$matchA),]
+  gamma_theta$matchTheta = match(gamma_theta$name_theta, theta_info$name)
+  gamma_theta[gamma_theta$var == 'overdisp','matchTheta'] = NA
+
+
+  NAtheta = which(is.na(gamma_theta$matchTheta))
+  if(!all(NAtheta == 
+    c(seq(1,len=length(NAtheta)), nrow(gamma_theta)[config$dirichlet])
+)) {
+    warning("fpoly thetas not at top")
+  }
+
+  if(config$transform_theta) {
+    theta_info$init = pmax(-15, log(theta_info$init))
+  }
+
   tmb_data <- list(
     X = X,
     A = A,
     y = data[[all.vars(formula)[1]]],
-    # gamma_nreplicate = gamma_info$nreplicate, # **** when hiwp, reuse the Q matrix for all (split gamma in nreplicate equal parts). gamma_nreplicate=nlevel+1
-    # Q = do.call(bdiag, Qs[!unlist(lapply(Qs, is.null))]), #Qs |> .bdiag(),
-    Q =  Matrix::bdiag(Qs[!sapply(Qs, is.null)]),
-    map = allMap,
-    psd_scale = theta_info$psd_scale[theta_info$map],
-    # theta_id = theta_info$id
+    Q =  Q,
+    map = na.omit(gamma_theta$matchTheta)-1,
     cc_matrix = cc_matrix
   )
-  
-  config = c(
-    config[
-    setdiff(names(config), c('verbose', 'dirichlet'))
-    ], 
-    list(
-      verbose = (verbose>1),  
-      dirichlet = as.integer(dirichlet))
-  )
-  
   tmb_data = formatHpolData(tmb_data)
 
- 
-    configDefaults = list(
-      verbose=FALSE, transform_theta=TRUE,
-      num_threads = 1
-    )
-
-  configDefaults = configDefaults[setdiff(names(configDefaults), names(config))]
-  config = c(config, configDefaults)
-  controlInner = control_inner
+verboseOrig = config$verbose
+  config$verbose = config$verbose > 1
 
   Sgamma = seq(nrow(tmb_data$XTp)+1, len=nrow(tmb_data$ATp))
-  start_beta = rep(1e-4, nrow(tmb_data$XTp))
-  start_gamma=    rep(1e-4, nrow(tmb_data$ATp)) 
 
-  start_theta = theta_info$init[!duplicated(theta_info$map)]
-  if(config$transform_theta)
-    start_theta = log(start_theta)    
+  start_beta = rep(0, nrow(tmb_data$XTp))
+  start_gamma=    rep(0, nrow(tmb_data$ATp)) 
+  start_theta = theta_info$init
+  config$beta = start_beta
+  config$theta = start_theta
 
   parameters = c(start_beta, start_theta)
-  start_parameters = c(start_beta, start_gamma, start_theta)
+  full_parameters = c(start_beta, start_gamma, start_theta)
 
 
-  if(verbose) cat("getting groups..")
+  if(verboseOrig) {
+    cat("getting groups..")
+  }
+  groups = sparsity_grouped(x=full_parameters, data=tmb_data, config, verbose=verboseOrig)
+  if(verbose) {
+    cat("done\n")
+  }
+  if(any(class(groups) == 'try-error')) {
+    groups = list()
+  }
 
-  groups = sparsity_grouped(x=start_parameters, data=tmb_data, config, verbose)
-  if(verbose) cat("done\n")
-  if(any(class(groups) == 'try-error')) groups = list()
   config$sparsity = groups$sparsity
   config$groups = groups$groups
   config$group_sparsity = groups$group_sparsity
 
-  config$beta = start_beta
-  config$theta = start_theta
 
-  
   cache = new.env(parent = emptyenv())
   assign("Nfun", 0, cache)
   assign("Ngr", 0, cache)
@@ -291,20 +284,20 @@ hnlm <- function(
         cache = cache
       )
     )
-  
 
-  if(verbose) cat("optimizing")
+
+  if(verboseOrig) cat("optimizing")
 
     mle = trustOptim::trust.optim(
-    x = parameters,
-    fn = wrappers_outer$fn,
-    gr = wrappers_outer$gr,
-    method = 'BFGS',
-    control = control,
-    data=tmb_data, config = config, cache =  cache, controlInner = control_inner
-  )
+      x = parameters,
+      fn = wrappers_outer$fn,
+      gr = wrappers_outer$gr,
+      method = 'BFGS',
+      control = control,
+      data=tmb_data, config = config, cache =  cache, controlInner = control_inner
+    )
 
-  if(verbose) cat("done")
+  if(verboseOrig) cat("done")
 
     mle$extra = try(loglik(
       mle$solution, 
@@ -313,6 +306,6 @@ hnlm <- function(
 
   mle$gamma_hat = mle$extra$solution
   mle$formula = formula
-  
+
   return(mle)
 }

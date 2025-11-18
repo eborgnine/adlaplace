@@ -83,24 +83,24 @@ library('hpolcc')
 load("dataMedSimple.RData")
 
 res <- hpolcc::hnlm(
-  formula= medical ~ #f(date, model='iid') +
+  formula= medical ~ humidity + #f(date, model='iid') +
     f(sqrtPm, model='hiwp', ref_value = 8, p=2, 
       knots = seq(0,32, by=2),
-      group_var = ecoRegion) + 
+      group_var = ecoRegion, init = 0.1) + 
     f(tempClean, model='hiwp',ref_value = 25, p=3, 
       knots = seq(0, 45, by=2.5), 
     group_var = ecoRegion), 
   data=dataMedSimple, 
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
-    dirichlet= TRUE, 
   config = list(transform_theta = TRUE, 
-    dense = FALSE,
+    dense = FALSE, dirichlet= TRUE, verbose=TRUE,
     num_threads=parallel::detectCores(), 
-    Nclusters = 4*parallel::detectCores()),
+    Nclusters = 4*parallel::detectCores()
+    ),
  control=list(maxit=1000, start.trust.radius = 1, prec=1e-6, stop.trust.radius = 1e-9,
         cg.tol = 1e-6, report.level=4, report.freq=1, report.header.freq=10, report.precision=7),
   control_inner=list(report.level=0),
-  for_dev=TRUE, verbose=TRUE
+  for_dev=TRUE
   )
 saveRDS(res, file='res.rds')
 #rm(dataMedSimple)
@@ -110,11 +110,12 @@ saveRDS(res, file='res.rds')
 par(mar=c(3,3,0,0), bty='n')
 bob= terra::rast(as.matrix(1.1*res$groups$firstDeriv[, 
   1 + res$groups$groups$i]))
-terra::plot(bob, asp=FALSE, col=c('white','black'))
+terra::plot(bob, asp=FALSE, col=c('white','black'), maxcell = 1e8)
 abline(v = res$groups$groups$p,
        col = 'blue',
        lty = 1)
 ```
+
 
 ```{r mle}
 res = readRDS("res.rds")
@@ -158,89 +159,109 @@ saveRDS(mleX, file='mleX.rds')
 
 ```{r theResults}
 library('hpolcc')
-res = readRDS("resMed.rds")
-result = mleX = readRDS("mleMed.rds")
-mleXcheck = loglik(
-  parameters = mleX$par, 
+res = readRDS("res.rds")
+result =  readRDS("mleX1.rds")
+adFunFull = getAdFun(res$parameters_and_gamma, res$tmb_data, res$config)
+
+result$extra = loglik(
+  parameters = result[[intersect(c("par","solution"), names(result))[1] ]], 
   gamma_start = get("gamma_start", res$cache),
   config=res$config, data=res$tmb_data, adFunFull=adFunFull, deriv=0)
 
-result$parameters = hpolcc::formatParameters(
-  c(mleX$par[1:2], mleXcheck$solution, mleX$par[-(1:2)]), 
-  res, TRUE)
-
+result$parameters = hpolcc::formatParameters(result$extra$fullParameters, res, TRUE)
 result$parameters$theta
 
-# parameters are (beta, gamma, theta)
 
-result$Htilde = mleXcheck$hessian
-result$HtildeChol = as(mleXcheck$cholHessian,"Matrix")
-result$HtildeCholInv = solve(result$HtildeChol)
+
+HtildeChol = Matrix::Cholesky(result$extra$hessian, LDL=TRUE)
+HtildeCholEx = list(Lt = Matrix::expand1(HtildeChol, "L1."),
+                    D = Matrix::expand1(HtildeChol, "D"),
+                    Pt = Matrix::expand1(HtildeChol, "P1.")
+)
+
+
+# H = Pt L D Lt P 
+# V = Pt Ltinv Dinv Linv P
 
 Nsim = 500
-simInd = matrix(rnorm(Nsim * nrow(result$Htilde)),
- nrow(result$Htilde), Nsim)
+predSeq = list(
+  tempClean = seq(0,45,by=0.2),
+  sqrtPm = sqrt(seq(0,1000, by=2))
+)
+newConstr = list(tempClean = 25, sqrtPm = sqrt(25))
 
-# sample from [U|Y, theta_map]
-simGamma = Matrix::crossprod(result$HtildeCholInv,  simInd) 
+predSeq = predSeq[names(predSeq) %in% unlist(lapply(res$terms, '[[', 'var'))]
+
+simInd = matrix(
+  rnorm(Nsim * nrow(result$extra$hessian)),
+  nrow(result$extra$hessian), Nsim)
+simInd1 = simInd/sqrt(HtildeCholEx$D@x)
+simGamma = HtildeCholEx$Pt %*% Matrix::solve(HtildeCholEx$Lt, simInd1) +
+  result$extra$solution
 rownames(simGamma) = rownames(res$tmb_data$ATp)
 
-simGamma = simGamma + unlist(result$parameters$gamma[
-  rownames(simGamma), 'value'])
 
+Sref = unlist(lapply(res$terms, '[[', "ref_value"))
+Svar = unlist(lapply(res$terms, '[[', "var"))
 
-Stemp = seq(0,45,by=0.1)
-SobsTemp = na.omit(match(Stemp, round(res$data$tempClean, 1)))
-newConstr = 25;newConstrIndex = which.min(abs(
-  res$data$tempClean[SobsTemp] - newConstr))
+simGlobal = newConstrIndex = simF = fixedPart = predX = list()
 
-#Spm = seq(1,1000, by=1)
-#SobsPm = na.omit(match(Spm, round(res$data$pm)))
+    
+simGlobal = simF = fixedPart = predX = newXA = list()
+for(D in names(predSeq)) {
+  newDf = data.frame(x = predSeq[[D]], ecoRegion = NA)
+  colnames(newDf)[1] = D
+  newXA[[D]] = hpolcc:::getNewXA(
+    terms = res$terms, 
+    df= newDf
+  )
+  xColId = as.numeric(gsub( paste0("^", D, "([[:digit:]]+)$"), "\\1", 
+  colnames(newXA[[D]]$X)))
+  newColNames = paste0(D, c("", seq(1, len=length(xColId)-1)[xColId])[xColId])
+  fixedPart[[D]] = newXA[[D]]$X %*% result$parameters$beta[newColNames]
 
-Sobs = SobsTemp
-nameX = 'tempClean'
+  colsA = grep(paste0(D, "_hiwp_global_"), colnames(newXA[[D]]$A), value=TRUE)
+  simF[[D]] = newXA[[D]]$A[,colsA] %*% simGamma[colsA,]
 
+  simGlobalHere= simF[[D]] + fixedPart[[D]]
+  newConstrIndex[[D]] = which.min(abs(predSeq[[D]] - newConstr[[D]]))
+  toSubtract = matrix(simGlobalHere[newConstrIndex[[D]],],
+    nrow(simGlobalHere), ncol(simGlobalHere), byrow=TRUE)
+  simGlobal[[D]] = simGlobalHere - toSubtract
+}
+Sregions1 = unique(gsub("_[[:digit:]]+$", "", rownames(simGamma)))
+Sregions = setdiff(unique(gsub(".*_", "", Sregions1)), "global")
+Sregions = sort(as.numeric(Sregions))
 
-covHere = grep(nameX, names(result$parameters$beta), value=TRUE)
-xHere = res$tmb_data$XTp[covHere,Sobs, drop=FALSE]
-fixedPart = drop(crossprod(xHere, 
-              result$parameters$beta[covHere]))
-
-
-BmatAll = res$tmb_data$ATp[, Sobs]
-# only want the global effects
-Bmat = BmatAll[grep(paste0(nameX,".*global"), rownames(BmatAll)),]
-
-
-simF = crossprod(Bmat, simGamma[rownames(Bmat),]) 
-
-
-simSum = simF + fixedPart 
-
-toSubtract = matrix(simSum[newConstrIndex,],
-  nrow(simSum), ncol(simSum), byrow=TRUE)
-simSum = simSum - toSubtract
-
-theX= res$data[[covHere[1] ]][Sobs]
-if(grepl("^sqrt", nameX)) theX = theX^2
-
-par(mar=c(3,3,0,0), bty='l')
-matplot(theX, 100*(exp(simSum)-1), type='l',
-  col='#00000010', lty=1, xaxs='i',
-  ylim = c(-1/3, 31), xlim = c(6, 38))
-
-
-# eco region 2
-D = 3
-Bmat2 = BmatAll[grep(paste0(nameX,"_h(iwp|rpoly)_",D,"_"), rownames(BmatAll)),]
-simF2 = crossprod(Bmat2, simGamma[rownames(Bmat2),]) 
-simSum2 = simSum + simF2 
-matplot(theX, 100*(exp(simSum2)-1), type='l',
-  col='#00000010', lty=1, xaxs='i',
-  ylim = c(-5, 50), xlim = c(6, 38))
 ```
 
 
+
+
+```{r globalRes, fig.cap='Common component', fig.subcap = c("temperature", "PM 2.5")}
+par(mar=c(3,3,0,0), bty='l')
+if("tempClean" %in% names(simGlobal)) {
+theY = 100*(exp(simGlobal[["tempClean"]])-1)
+matplot(predSeq[["tempClean"]], theY, type='l',
+  col='#00000010', lty=1, xaxs='i',
+  xlab='degrees C', ylab = '100 x (RR-1)',
+  ylim = c(-1/3, 31), xlim = c(6, 38))
+theYq = t(apply(theY, 1, quantile, probs=c(0.025, 0.975, 0.5)))
+matlines(predSeq[["tempClean"]], theYq, lty=c(2,2,1), lwd=c(1,1,2), col='blue')
+}
+
+if("sqrtPm" %in% names(simGlobal)) {
+
+theY =  100*(exp(simGlobal[["sqrtPm"]])-1)
+theX = predSeq[["sqrtPm"]]^2
+matplot(theX, theY , type='l',
+  col='#00000010', lty=1, xaxs='i',
+  xlim = c(0,600), ylim = c(-4, 12),
+  xlab = 'PM 2.5', ylab = '100 (RR-1)')
+theYq = t(apply(theY, 1, quantile, probs=c(0.025, 0.975, 0.5)))
+matlines(theX, theYq, lty=c(2,2,1), lwd=c(1,1,2), col='blue')
+}
+```
 
 
 
@@ -310,12 +331,10 @@ Nparams = length(xx$fullParameters)
 newDenseSecondDf = expand.grid(i=seq(0,len=Nparams), j=seq(0,len=Nparams))
 newDenseSecondDf = newDenseSecondDf[newDenseSecondDf$j >= newDenseSecondDf$i, ]
 
-theOrig= as.data.frame(res$config$group_sparsity[[1]]$second$full[c('i','j')]))
+theOrig= as.data.frame(res$config$group_sparsity[[1]]$second$full[c('i','j')])
 xxx = rbind(
   newDenseSecondDf[newDenseSecondDf$j < (Nparams-1),],
-  theOrig[thrOrig$j >= (Nparams-1), ])
-xxx = xxx[!duplicated(xxx),]
-xxx = xxx[order(xxx$j, xxx$i),]
+  theOrig[theOrig$j >= (Nparams-1), ])
 
 newDenseSecondDf = as.list(xxx)
 newDenseSecondDf$p = c(0,cumsum(as.vector(table(newDenseSecondDf$j))))
