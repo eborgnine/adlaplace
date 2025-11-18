@@ -270,6 +270,18 @@ matlines(theX, theYq, lty=c(2,2,1), lwd=c(1,1,2), col='blue')
 ```{r moreoldstuff, eval=FALSE}
 library('hpolcc')
 adFunFull = getAdFun(res$parameters_and_gamma, res$tmb_data, res$config)
+
+jointLogDens(res$parameters_and_gamma, res$tmb_data, res$config)
+g1 = grad(res$parameters_and_gamma, res$tmb_data, res$config, adFunFull)
+h1 = hessian(res$parameters_and_gamma, res$tmb_data, res$config, adFunFull)
+
+
+adFunInner = getAdFun(res$gamma_start, res$tmb_data, res$config)
+jointLogDens(res$gamma_start, res$tmb_data, res$config)
+g2 = grad(res$gamma_start, res$tmb_data, res$config)
+h2 = hessian(res$gamma_start, res$tmb_data, res$config)
+
+
 outer_fn(
   res$parameters,
   data = res$tmb_data, config= modifyList(res$config, list(verbose=TRUE)), 

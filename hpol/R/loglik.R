@@ -20,9 +20,9 @@ loglik <- function(
     Nbeta = length(parameters) - sum(grepl("theta", names(parameters)))
     if(Nbeta == length(parameters)) warning("assuming no betas, data not supplied and parameters doesn't have names")
   }
-
-  beta = parameters[1:Nbeta]
-  theta = parameters[-(1:Nbeta)]
+  Sbeta = seq(1, len=Nbeta)
+  beta = parameters[Sbeta]
+  theta = parameters[setdiff(1:length(parameters), Sbeta)]
 
   if(!missing(data) & is.null(names(parameters))) {
     names(beta) = rownames(data$XTp)
