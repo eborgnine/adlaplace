@@ -108,7 +108,7 @@ resTempPmFixed <- hpolcc::hnlm(
   data=dataMedSimple, 
   config = list(transform_theta = TRUE, 
   dirichlet= TRUE, 
-                boundary_is_random = TRUE,
+                boundary_is_random = FALSE,
                 num_threads=parallel::detectCores(),
                 Nclusters = 10*parallel::detectCores()),
   control_inner=list(report.level=0),
@@ -116,7 +116,7 @@ resTempPmFixed <- hpolcc::hnlm(
   for_dev=TRUE, verbose=TRUE
   )
 
-saveRDS(resTempPmFixed, file='resTempPmFixed')
+saveRDS(resTempPmFixed, file='resTempPmFixed.rds')
 # res = readRDS('res.rds')
 ```
 
@@ -132,8 +132,8 @@ abline(v = resTempPm$groups$groups$p,
 ```
 
 ```{r fitModel, eval=FALSE}
-#theFile = 'resTemp.rds'
-theFile = 'resTempPm.rds'
+#theFile = 'resTempPm.rds'
+theFile = 'resTempPmFixed.rds'
 res = readRDS(theFile)
 library('hpolcc')
 adFunFull = getAdFun(res$parameters_and_gamma, res$tmb_data, modifyList(res$config, list(verbose=TRUE)))
