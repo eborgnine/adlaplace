@@ -132,8 +132,8 @@ abline(v = resTempPm$groups$groups$p,
 ```
 
 ```{r fitModel, eval=FALSE}
-theFile = 'resTempPm.rds'
-#theFile = 'resTempPmFixed.rds'
+#theFile = 'resTempPm.rds'
+theFile = 'resTempPmFixed.rds'
 res = readRDS(theFile)
 library('hpolcc')
 adFunFull = getAdFun(res$parameters_and_gamma, res$tmb_data, modifyList(res$config, list(verbose=TRUE)))
@@ -141,10 +141,19 @@ adFunFull = getAdFun(res$parameters_and_gamma, res$tmb_data, modifyList(res$conf
 assign("file", gsub("rds$", "txt", theFile), res$cache)
 if(file.exists(get("file", res$cache))) file.remove(get("file", res$cache))
 
-forRep = c(length(res$config$beta), length(res$config$theta)-1, 1)
+for_rep = c(length(res$config$beta), length(res$config$theta)-1, 1)
+start_par = rep(c(0,-4, -1), for_rep)
+
+bob = loglik(
+  start_par,
+  gamma_start = get("gamma_start", res$cache),
+ data=res$tmb_data, config = res$config, control = res$control_inner,
+ deriv = 1)
+
+
 
 mleT = trustOptim::trust.optim(
-    rep(c(0,-4, -1), forRep),
+    start_par,
     fn =outer_fn,
     gr = outer_gr,
     method = 'SR1', 
