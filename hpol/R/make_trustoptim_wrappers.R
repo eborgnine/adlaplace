@@ -11,7 +11,7 @@ outer_fn = function(x, data, config, adFunFull, control_inner, cache) {
       deriv=0))
       if("file" %in% ls(cache)) {
         if('try-error' %in% class(result) ) {result = list(minusLogLik = NA)}
-        cat(c(0, get("Nfun", cache), result$minusLogLik, NA, x, '\n'), file = get('file', cache), append=TRUE)
+        cat(c(get("Nfun", cache), result$minusLogLik, NA, formatC(x, format = "f", digits = 5), '\n'), file = get('file', cache), append=TRUE)
       }
       if(length(result$solution)) assign("gamma_start", result$solution, envir=cache)
       result$minusLogLik
@@ -25,7 +25,7 @@ outer_gr = function(x, data, config, adFunFull, control_inner, cache) {
         data=data, config=config, control=control_inner))
       if("file" %in% ls(cache)) {
         if('try-error' %in% class(result) ) {result = list(minusLogLik = NA, deriv = list(dL = NA))}
-        cat(c(1, get("Ngr", cache), result$minusLogLik, sqrt(sum(result$deriv$dL^2)), x, '\n'), file = get('file', cache), append=TRUE)
+        cat(c(get("Ngr", cache), result$minusLogLik, sqrt(sum(result$deriv$dL^2)), formatC(x, format = "f", digits = 5), '\n'), file = get('file', cache), append=TRUE)
       }
   if(length(result$solution)) assign("gamma_start", result$solution, envir=cache)
   result$deriv$dL

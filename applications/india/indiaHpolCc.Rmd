@@ -143,7 +143,6 @@ mleX1 = optim(
   )
 saveRDS(mleX1, file='mleX1.rds')  
 mleX = trustOptim::trust.optim(
-#      rep(c(0,-3, -1),  c(length(res$config$beta), length(res$config$theta)-1), 1),
     mleX1$par,
     fn = outer_fn,
     gr = outer_gr,
@@ -153,6 +152,14 @@ mleX = trustOptim::trust.optim(
     adFunFull = adFunFull
   )  
 saveRDS(mleX, file='mleX.rds')  
+  mleB <- BB::spg(par = mleX1$par, 
+    fn = outer_fn,
+    gr = outer_gr,
+    alertConvergence=FALSE, 
+  data=res$tmb_data, config = res$config, cache =  res$cache, control_inner = res$control_inner,
+    adFunFull = adFunFull,
+    control = list(maxit = 1e3, M = 10, trace=TRUE)
+)
 ```
 
 
@@ -279,8 +286,8 @@ system.time(resM2 <- loglik(res$parameters, res$gamma_start, res$tmb_data,
   adFun, res$control, deriv=1))
 
 
-Dpar=2
-Sx = seq(-0.5, 0.5, len=5) + resM$parameters[Dpar]
+Dpar=length(resM$parameters)
+Sx = seq(-0.1, 0.1, len=5) + resM$parameters[Dpar]
 SxD = Sx[-1] - diff(Sx)/2
 parDf = data.frame(resM$parameters)[,rep(1, length(Sx))]
 parDf[Dpar,] = Sx
@@ -308,14 +315,15 @@ Sdens = unlist(lapply(allLik, '[[', 'fval'))
 Ddens = diff(Sdens)/diff(Sx)
 plot(SxD, Ddens,type='o')
 abline(v=resM$parameters[Dpar])
-abline(h=resM$deriv[Dpar, 'gradTheta'])
+abline(h=resM$deriv[Dpar,'gradTheta'],col='grey',lwd=4)
+abline(h=resM2$deriv[Dpar,'gradTheta'])
 
 Sl = unlist(lapply(allLik, '[[', 'minusLogLik'))
 Dl = diff(Sl)/diff(Sx)
 plot(SxD, Dl, type='o')
 abline(v=resM$parameters[Dpar])
-abline(h=resM$deriv[Dpar, 'dL'])
-
+abline(h=resM$deriv[Dpar,'dL'],col='grey',lwd=4)
+abline(h=resM2$deriv[Dpar,'dL'])
 
 
 

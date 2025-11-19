@@ -284,24 +284,30 @@ verboseOrig = config$verbose
       )
     )
 
+  adFunFull = getAdFun(full_parameters, tmb_data, config)
+
 
   if(verboseOrig) cat("optimizing")
 
     mle = trustOptim::trust.optim(
       x = parameters,
-      fn = wrappers_outer$fn,
-      gr = wrappers_outer$gr,
-      method = 'BFGS',
+    fn = outer_fn,
+    gr = outer_gr,
+      method = 'SR1',
       control = control,
-      data=tmb_data, config = config, cache =  cache, controlInner = control_inner
+      data=tmb_data, config = config, cache =  cache, contro_inner = control_inner,
+      adFunFull = adFunFull
     )
+
 
   if(verboseOrig) cat("done")
 
     mle$extra = try(loglik(
       mle$solution, 
       get("gamma_start", cache), 
-      tmb_data, config, control_inner, check=TRUE))
+      tmb_data, config, control = control_inner, adFunFull=adFunFull,
+      deriv=0,
+      check=TRUE))
 
   mle$gamma_hat = mle$extra$solution
   mle$formula = formula
