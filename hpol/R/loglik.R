@@ -23,6 +23,7 @@ loglik <- function(
 Sbeta = seq(1, len=Nbeta)
 beta = parameters[Sbeta]
 theta = parameters[setdiff(1:length(parameters), Sbeta)]
+Sgamma1 = seq(Nbeta+1, len=length(gamma_start))
 
 if(!missing(data) & is.null(names(parameters))) {
   names(beta) = rownames(data$XTp)
@@ -115,7 +116,6 @@ cholExpand$LinvP = cholExpand$Linv %*% cholExpand$P
 cholExpand$LinvPt = Matrix::t(cholExpand$LinvP)
 
 linvL = as(cholExpand$LinvPt, 'lMatrix')
-Sgamma1 = seq(Nbeta+1, len=length(gamma_start))
 
 if(!is.null(config$first)) {
   theFirst = as(config$first, 'lMatrix')[Sgamma1,]
