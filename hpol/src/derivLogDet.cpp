@@ -107,7 +107,7 @@ CppAD::vector<double> traceHinvT(
         }        
 
 
-            for( int Dp = 0; Dp < colEnd; Dp++) {
+            for( int Dp = LinvPtColumns.p[Dgroup]; Dp < colEnd; Dp++) {
               const int Dcol = LinvPtColumns.i[Dp];
               std::fill(direction.begin(), direction.end(), 0.0);
               const int endHere = LinvPt.p[Dcol+1];

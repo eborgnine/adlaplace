@@ -268,7 +268,7 @@ matlines(theX, theYq, lty=c(2,2,1), lwd=c(1,1,2), col='blue')
 ```{r checkThree, eval=FALSE, include=FALSE}
 res = readRDS("res.rds")
 library('hpolcc')
-res$config$verbose=TRUE
+res$config$verbose=FALSE
 
 adFun = getAdFun(res$parameters_and_gamma, res$tmb_data, res$config)
 adFunInner = getAdFun(res$gamma_start, res$tmb_data, res$config)
