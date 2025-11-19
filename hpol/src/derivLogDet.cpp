@@ -18,27 +18,63 @@ inline CSCMatrix makeCSC(const Rcpp::S4& M)
     Rcpp::IntegerVector Dim = M.slot("Dim");
     Rcpp::IntegerVector pR  = M.slot("p");
     Rcpp::IntegerVector iR  = M.slot("i");
-    Rcpp::NumericVector xR  = M.slot("x");
 
     out.nrow = Dim[0];
     out.ncol = Dim[1];
 
-    const int nnz = xR.size();
+    const int nnz = iR.size();
 
     out.p.assign(pR.begin(), pR.end());
     out.i.assign(iR.begin(), iR.end());
-    out.x.assign(xR.begin(), xR.end());
+
+    if (M.hasSlot("x")) {
+        Rcpp::NumericVector xR = M.slot("x");
+        out.x.assign(xR.begin(), xR.end());
+    } else {
+        out.x.clear();  // empty
+    }
+
 
     return out;
 }
 
+inline CSCMatrix makeFullPatternCSC(int nrow, int ncol)
+{
+    CSCMatrix out;
+    out.nrow = nrow;
+    out.ncol = ncol;
+
+    const int nnz = nrow * ncol;
+
+    // Column pointers: p[0] = 0, p[j+1] = p[j] + nrow
+    out.p.resize(ncol + 1);
+    out.p[0] = 0;
+    for (int j = 0; j < ncol; ++j) {
+        out.p[j + 1] = out.p[j] + nrow;
+    }
+
+    // Row indices: for each column j, rows 0..(nrow-1)
+    out.i.resize(nnz);
+    int idx = 0;
+    for (int j = 0; j < ncol; ++j) {
+        for (int r = 0; r < nrow; ++r) {
+            out.i[idx++] = r;  // 0-based row index
+        }
+    }
+
+    // No x slot (empty values)
+    out.x.clear();
+
+    return out;
+}
 
 CppAD::vector<double> traceHinvT(
     const CppAD::vector<double>&  parameters,
     const CSCMatrix& LinvPt,
     const Config& config,
     std::vector<GroupPack>& fun,
-    GroupPack& Qfun
+    GroupPack& Qfun,
+    const CSCMatrix LinvPtColumns
     ) {
 
     const size_t Nparams = parameters.size();
@@ -64,8 +100,9 @@ CppAD::vector<double> traceHinvT(
 
     # pragma omp for nowait
         for(int Dgroup = 0; Dgroup < Ngroup; ++Dgroup) {
-            for( int Dcol = 0; Dcol < NcolsL; Dcol++) {
-
+            const int colEnd = LinvPtColumns.p[Dgroup+1];
+            for( int Dp = 0; Dp < colEnd; Dp++) {
+              const int Dcol = LinvPtColumns.i[Dp];
               std::fill(direction.begin(), direction.end(), 0.0);
               const int endHere = LinvPt.p[Dcol+1];
               for(int D = LinvPt.p[Dcol];D<endHere;D++) {
@@ -126,6 +163,7 @@ Rcpp::NumericVector traceHinvT(
  const size_t Nparams = parameters.size();
  CppAD::vector<double> parametersC(Nparams);
 
+
  for(size_t D=0; D<Nparams; D++) {
     parametersC[D] = parameters[D];
 }
@@ -136,7 +174,15 @@ AdpackHandle ad = getAdpackFromR(adFun, parametersC, dataC, configC);
 std::vector<GroupPack>* fun = ad.ptr;
 auto Qfun = getAdFunQ(parametersC, dataC, configC);
 
-auto resultC = traceHinvT(parametersC, LinvPtC, configC, *fun, Qfun);
+CSCMatrix LinvPtColumns =
+    config.containsElementNamed("LinvPtColumns")
+        ? makeCSC(Rcpp::S4(config["LinvPtColumns"]))
+        : makeFullPatternCSC(
+              static_cast<int>(Nparams),
+              static_cast<int>(fun->size())
+          );
+
+auto resultC = traceHinvT(parametersC, LinvPtC, configC, *fun, Qfun, LinvPtColumns);
 
 Rcpp::NumericVector result(Nparams);
 for(size_t D=0; D<Nparams; D++) {

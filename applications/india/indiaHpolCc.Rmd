@@ -96,7 +96,7 @@ res <- hpolcc::hnlm(
     boundary_is_random= FALSE,
     dense = FALSE, dirichlet= TRUE, verbose=TRUE,
     num_threads=parallel::detectCores(), 
-    Nclusters = 10*parallel::detectCores()
+    Nclusters = 50*parallel::detectCores()
     ),
  control=list(maxit=1000, start.trust.radius = 1, prec=1e-6, stop.trust.radius = 1e-9,
         cg.tol = 1e-6, report.level=4, report.freq=1, report.header.freq=10, report.precision=7),
@@ -273,7 +273,10 @@ res$config$verbose=FALSE
 adFun = getAdFun(res$parameters_and_gamma, res$tmb_data, res$config)
 adFunInner = getAdFun(res$gamma_start, res$tmb_data, res$config)
 
-resM = loglik(res$parameters, res$gamma_start, res$tmb_data, res$config, adFun, res$control, deriv=1)
+system.time(resM <- loglik(res$parameters, res$gamma_start, res$tmb_data, res$config, adFun, res$control, deriv=1))
+system.time(resM2 <- loglik(res$parameters, res$gamma_start, res$tmb_data, 
+  res$config[setdiff(names(res$config), "first")], 
+  adFun, res$control, deriv=1))
 
 
 Dpar=2
@@ -298,7 +301,6 @@ plot(SxD, DsDet, type='o')
 abline(h=resM$deriv[Dpar,'dDet'])
 abline(v=resM$parameters[Dpar])
 
-(as.vector(stuff5[Sgamma1] %*% resM$dU) +theTrace[-Sgamma1])[Dpar]
 
 
 Sdens = unlist(lapply(allLik, '[[', 'fval'))

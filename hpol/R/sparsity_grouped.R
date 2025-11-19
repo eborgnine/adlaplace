@@ -274,7 +274,8 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 		group_sparsity = sparsityList,
 		groups = strataMatrixList,
 		sparsity = c(fullList, list(Q=sparsityQ)),
-		firstDeriv = firstDeriv
+		firstDeriv = as(firstDeriv, 'lMatrix'), 
+		firstDerivGroup=as(firstDerivBlock, 'lMatrix')
 	)
 
 }

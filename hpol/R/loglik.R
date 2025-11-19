@@ -48,7 +48,7 @@ result <- trustOptim::trust.optim(
   control = control,
   data=data, config = config, adFun=adFun
 )
-#  result$hessian2 = hessian(result$solution, data=data, config=config, adFun=adFun)
+
 
 if(check) {
   mleB <- try(BB::spg(par = result$solution, 
@@ -113,6 +113,26 @@ cholExpand = Matrix::expand(result$cholHessian)
 cholExpand$Linv = Matrix::solve(cholExpand$L)
 cholExpand$LinvP = cholExpand$Linv %*% cholExpand$P
 cholExpand$LinvPt = Matrix::t(cholExpand$LinvP)
+
+linvL = as(cholExpand$LinvPt, 'lMatrix')
+Sgamma1 = seq(Nbeta+1, len=length(gamma_start))
+
+if(!is.null(config$first)) {
+  theFirst = as(config$first, 'lMatrix')[Sgamma1,]
+
+whichColumnsByGroup1 = apply(theFirst, 2, function(xx) {
+  linvHere = linvL[which(xx), ]
+  which(diff(linvHere@p)>0)-1L
+})
+whichColumnsByGroup = Matrix::sparseMatrix(
+  i = unlist(whichColumnsByGroup1),
+  j = rep(seq(0, len=length(whichColumnsByGroup1)), unlist(lapply(whichColumnsByGroup1, length))),
+  index1=FALSE,
+  dims = dim(theFirst)
+)
+
+config$LinvPtColumns = whichColumnsByGroup
+}
 
 theTrace = hpolcc:::traceHinvT(
   result$fullParameters, 

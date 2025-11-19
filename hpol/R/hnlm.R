@@ -258,7 +258,7 @@ verboseOrig = config$verbose
   config$sparsity = groups$sparsity
   config$groups = groups$groups
   config$group_sparsity = groups$group_sparsity
-
+  config$first = groups$firstDerivGroup
 
   cache = new.env(parent = emptyenv())
   assign("Nfun", 0, cache)
