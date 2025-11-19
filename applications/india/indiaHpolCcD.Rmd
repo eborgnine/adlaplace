@@ -90,7 +90,7 @@ resTempPm <- hpolcc::hnlm(
   dirichlet= TRUE, 
                 boundary_is_random = TRUE,
                 num_threads=parallel::detectCores(),
-                Nclusters = 10*parallel::detectCores(),
+                Nclusters = 50*parallel::detectCores(),
   verbose=TRUE),
   control_inner=list(report.level=0),
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
@@ -110,7 +110,7 @@ resTempPmFixed <- hpolcc::hnlm(
   dirichlet= TRUE, 
                 boundary_is_random = FALSE,
                 num_threads=parallel::detectCores(),
-                Nclusters = 10*parallel::detectCores()),
+                Nclusters = 50*parallel::detectCores()),
   control_inner=list(report.level=0),
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
   for_dev=TRUE, verbose=TRUE
