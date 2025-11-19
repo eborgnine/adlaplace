@@ -144,14 +144,6 @@ if(file.exists(get("file", res$cache))) file.remove(get("file", res$cache))
 for_rep = c(length(res$config$beta), length(res$config$theta)-1, 1)
 start_par = rep(c(0,-4, -1), for_rep)
 
-bob = loglik(
-  start_par,
-  gamma_start = get("gamma_start", res$cache),
- data=res$tmb_data, config = res$config, control = res$control_inner,
- deriv = 1)
-
-
-
 mleT = trustOptim::trust.optim(
     start_par,
     fn =outer_fn,
@@ -170,7 +162,7 @@ mleT$extra = loglik(
 saveRDS(mleT, file=gsub("^res", "mleT", theFile))
 
 mleX = optim(
-    rep(c(0,-4, -1), forRep),
+    mleT$solutino,
     fn = outer_fn,
     gr = outer_gr,
     method = 'L-BFGS-B', 
