@@ -101,6 +101,12 @@ CppAD::vector<double> traceHinvT(
     # pragma omp for nowait
         for(int Dgroup = 0; Dgroup < Ngroup; ++Dgroup) {
             const int colEnd = LinvPtColumns.p[Dgroup+1];
+
+        if(config.verbose) {
+            Rcpp::Rcout << " " << Dgroup << " " << colEnd  << " \n";
+        }        
+
+
             for( int Dp = 0; Dp < colEnd; Dp++) {
               const int Dcol = LinvPtColumns.i[Dp];
               std::fill(direction.begin(), direction.end(), 0.0);
@@ -127,7 +133,7 @@ CppAD::vector<double> traceHinvT(
           for(int D = LinvPt.p[Dcol];D<endHere;D++) {
             const int Ihere = LinvPt.i[D];
             direction[Ihere + Nbeta] = LinvPt.x[D];            
-          }
+        }
         Qfun.fun.Forward(0, x_val);
         Qfun.fun.Forward(1, direction);
         Qfun.fun.Forward(2, directionZeros);
@@ -139,14 +145,21 @@ CppAD::vector<double> traceHinvT(
 
     } // single
 
-        #pragma omp critical(accum)
-    for (int Dk = 0; Dk < Nparams; ++Dk) {
-        result[Dk] += outHere[Dk];
-    }
+        #pragma omp critical(accum) 
+    {
+        for (int Dk = 0; Dk < Nparams; ++Dk) {
+            result[Dk] += outHere[Dk];
+        }
+        if(config.verbose) {
+            Rcpp::Rcout << " " << omp_get_thread_num()  << " \n";
+        }        
 
+    } // critical
     }// parallel
     return(result);
 }
+
+
 
 //' @export
 // [[Rcpp::export]]
@@ -158,13 +171,13 @@ Rcpp::NumericVector traceHinvT(
   SEXP adFun = R_NilValue
   ) {
 
- const Data   dataC(data);
- const Config configC(config);
- const size_t Nparams = parameters.size();
- CppAD::vector<double> parametersC(Nparams);
+   const Data   dataC(data);
+   const Config configC(config);
+   const size_t Nparams = parameters.size();
+   CppAD::vector<double> parametersC(Nparams);
 
 
- for(size_t D=0; D<Nparams; D++) {
+   for(size_t D=0; D<Nparams; D++) {
     parametersC[D] = parameters[D];
 }
 
@@ -175,12 +188,15 @@ std::vector<GroupPack>* fun = ad.ptr;
 auto Qfun = getAdFunQ(parametersC, dataC, configC);
 
 CSCMatrix LinvPtColumns =
-    config.containsElementNamed("LinvPtColumns")
-        ? makeCSC(Rcpp::S4(config["LinvPtColumns"]))
-        : makeFullPatternCSC(
-              static_cast<int>(Nparams),
-              static_cast<int>(fun->size())
-          );
+config.containsElementNamed("LinvPtColumns")
+? makeCSC(Rcpp::S4(config["LinvPtColumns"]))
+: makeFullPatternCSC(
+  static_cast<int>(Nparams),
+  static_cast<int>(fun->size())
+  );
+if(configC.verbose) {
+    Rcpp::Rcout << "third, columns " << config.containsElementNamed("LinvPtColumns") << "\n";
+}        
 
 auto resultC = traceHinvT(parametersC, LinvPtC, configC, *fun, Qfun, LinvPtColumns);
 
@@ -259,13 +275,13 @@ Rcpp::NumericVector thirdPolarization(
   ) {
 
 
- const Data   dataC(data);
- const Config configC(config);
- const size_t Nparams = parameters.size();
- CppAD::vector<double> parametersC(Nparams), ApB(Nparams), AmB(Nparams);
+   const Data   dataC(data);
+   const Config configC(config);
+   const size_t Nparams = parameters.size();
+   CppAD::vector<double> parametersC(Nparams), ApB(Nparams), AmB(Nparams);
 
 
- for(size_t D=0; D<Nparams; D++) {
+   for(size_t D=0; D<Nparams; D++) {
     parametersC[D] = parameters[D];
     ApB[D] = A[D] + B[D];
     AmB[D] = A[D] - B[D];

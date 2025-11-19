@@ -119,6 +119,22 @@ getOptimalPairs = function(hessian, Sparams, Sgamma1,
         p=as(hessianRandomNS, "CsparseMatrix")@p)
     )
   )
+    if(!missing(hessianPairs)) 
+    sparsity$second$full$match =  try(match(paste(hessianT@i, hessianT@j, sep='_'), hessianPairs))-1L
+  if(!missing(hessianPairsR)) {
+    sparsity$second$random$match =  try(match(paste(hessianRandom@i, hessianRandom@j, sep='_'), hessianPairsR))-1L
+#    if(any(is.na(sparsity$second$random$match))) warning("missing random match")
+  }
+
+  if(!missing(hessianPairsNs))
+    sparsity$second$nonSymmetric$match =  try(match(paste(nonsymmetric$i, nonsymmetric$j, sep='_'), hessianPairsNs))-1L
+
+  if(!missing(hessianPairsRns))
+    sparsity$second$randomNS$match =  try(match(paste(sparsity$second$randomNS$i, sparsity$second$randomNS$j, sep='_'), hessianPairsRns))-1L
+
+  if(!is.null(grad)) 
+    sparsity$first = grad
+
 
   if(!third) 
     return(sparsity)
@@ -204,21 +220,6 @@ getOptimalPairs = function(hessian, Sparams, Sgamma1,
       pairs = as.data.frame(pairs)
     )
 
-  if(!missing(hessianPairs)) 
-    sparsity$second$full$match =  try(match(paste(hessianT@i, hessianT@j, sep='_'), hessianPairs))-1L
-  if(!missing(hessianPairsR)) {
-    sparsity$second$random$match =  try(match(paste(hessianRandom@i, hessianRandom@j, sep='_'), hessianPairsR))-1L
-#    if(any(is.na(sparsity$second$random$match))) warning("missing random match")
-  }
-
-  if(!missing(hessianPairsNs))
-    sparsity$second$nonSymmetric$match =  try(match(paste(nonsymmetric$i, nonsymmetric$j, sep='_'), hessianPairsNs))-1L
-
-  if(!missing(hessianPairsRns))
-    sparsity$second$randomNS$match =  try(match(paste(sparsity$second$randomNS$i, sparsity$second$randomNS$j, sep='_'), hessianPairsRns))-1L
-
-  if(!is.null(grad)) 
-    sparsity$first = grad
 
   sparsity
 }

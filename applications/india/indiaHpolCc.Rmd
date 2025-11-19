@@ -268,7 +268,7 @@ matlines(theX, theYq, lty=c(2,2,1), lwd=c(1,1,2), col='blue')
 ```{r checkThree, eval=FALSE, include=FALSE}
 res = readRDS("res.rds")
 library('hpolcc')
-res$config$verbose=FALSE
+res$config$verbose=TRUE
 
 adFun = getAdFun(res$parameters_and_gamma, res$tmb_data, res$config)
 adFunInner = getAdFun(res$gamma_start, res$tmb_data, res$config)
@@ -298,7 +298,8 @@ plot(Sx, Sdet)
 DsDet = diff(Sdet)/diff(Sx)
 
 plot(SxD, DsDet, type='o')
-abline(h=resM$deriv[Dpar,'dDet'])
+abline(h=resM$deriv[Dpar,'dDet'],col='grey',lwd=4)
+abline(h=resM2$deriv[Dpar,'dDet'])
 abline(v=resM$parameters[Dpar])
 
 

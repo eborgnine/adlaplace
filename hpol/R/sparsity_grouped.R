@@ -60,9 +60,9 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 	)
 	firstDerivBlock = firstDeriv %*% strataMatrix
 	sparsityByBlockFirst = function(x, Sgamma0) {
-		 whichAll = which(x != 0)-1L
-  		whichRandom = as.vector(na.omit(match(whichAll, Sgamma0))-1L)
-  		list(full = whichAll, random=whichRandom)
+		whichAll = which(x != 0)-1L
+		whichRandom = as.vector(na.omit(match(whichAll, Sgamma0))-1L)
+		list(full = whichAll, random=whichRandom)
 	}
 	sparsityFirst = apply(firstDerivBlock, 2,sparsityByBlockFirst, Sgamma0)
 
@@ -96,7 +96,7 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 		xout@x = rep(1, length(xout@x))
 		xout
 	}
-	)
+)
 	if(!all(unlist(lapply(hessianByBlock2, class)) == 'dsCMatrix')) {
 		warning("some hessians not symmetric")
 	} 
@@ -118,17 +118,9 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 		sparse=TRUE), uplo='U')
 	hessianQT = as(as(hessianQ$hessian, 'generalMatrix'),'TsparseMatrix')
 	hessianQns = as(hessianQ$hessian, 'generalMatrix')
-	if(verbose) 
-		cat("getting third sparsity...")
 
-	ijkQ = hpolcc:::getThirdFromHessian(hessianQ$hessian)
 
-	if(verbose) {
-		cat("done\n")
-	}
-	if(any(ijkQ[,'Nunique'] == 3)) {
-		warning("need to implement non-diagonal Q third")
-	}
+
 	fullHessian=do.call(rbind, lapply(hessianByBlock2, function(xx) cbind(xx@i,as(xx, "TsparseMatrix")@j)))
 	fullHessian = fullHessian[!duplicated(fullHessian), ]
 	fullHessian = hpolcc:::rowSortP(fullHessian) #t(apply(fullHessian, 1, sort))
@@ -197,78 +189,83 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 	# find full hessian sparsity
 	# for each strata, get index in full hessian
 	if(verbose) {
-		cat("getting sparsity by block (this can take a while)...")				
+		cat("getting sparsity by block...")				
 	}
 #				save(hessianByBlock2, Sparams, Sgamma1, fullHessianPairs, fullHessianPairsR, fullHessianPairsNs, fullHessianPairsRNs, file='todebug.Rdata')
 
 
-	sparsityList = parallel::mcmapply(
+	doThird = FALSE
+	sparsityList = #parallel::mc
+	mapply(
 		hpolcc:::getOptimalPairs,
 		hessian = hessianByBlock2,
 		grad = sparsityFirst,
-		MoreArgs = list(Sparams = Sparams, Sgamma1=Sgamma1, 
+		MoreArgs = list(Sparams = Sparams, Sgamma1=Sgamma1, third=doThird,
 			hessianPairs = fullHessianPairs,
 			hessianPairsR = fullHessianPairsR, 
 			hessianPairsNs = fullHessianPairsNs,
 			hessianPairsRns = fullHessianPairsRNs
-		), SIMPLIFY=FALSE, mc.cores=n_workers)
+		), SIMPLIFY=FALSE#, mc.cores=n_workers
+	)
 
 	if(verbose) {
 		cat("done\n")
 	}
+	if(doThird) {
 
-	theTijk = lapply(sparsityList, function(xx) xx$third$ijk[,c('i','j','k')])
-	theTijk = as.matrix(do.call(rbind, theTijk))
-	theTijk = theTijk[!duplicated(theTijk), ]
-	theTijk = rowSortP(theTijk)
-	theTijk = theTijk[!duplicated(theTijk), ]
-	colnames(theTijk) = c('i','j','k')
-	theTijk = theTijk[
-	order(theTijk[,'i'], theTijk[,'j'], theTijk[,'k']), 
-	]
-	fullList$third = list(ijk = theTijk)
+		if(verbose) 
+			cat("getting third sparsity...")
 
-	ijkChar = apply(theTijk, 1, paste, collapse='_')
-	for(D in 1:length(sparsityList)) {
-		ijkHere = rowSortP(as.matrix(sparsityList[[D]]$third$ijk[,c('i','j','k')]))
-		sparsityList[[D]]$third$ijk$match =
-		match(
-			apply(ijkHere, 1, paste, collapse='_'),
-			ijkChar
-		) -1L
-		if(any(is.na(sparsityList[[D]]$third$ijk$match))) {
-			warning(D, "unmatched ijk")
+		ijkQ = hpolcc:::getThirdFromHessian(hessianQ$hessian)
+
+		if(any(ijkQ[,'Nunique'] == 3)) {
+			warning("need to implement non-diagonal Q third")
 		}
+
+		theTijk = lapply(sparsityList, function(xx) xx$third$ijk[,c('i','j','k')])
+		theTijk = as.matrix(do.call(rbind, theTijk))
+		theTijk = theTijk[!duplicated(theTijk), ]
+		theTijk = rowSortP(theTijk)
+		theTijk = theTijk[!duplicated(theTijk), ]
+		colnames(theTijk) = c('i','j','k')
+		theTijk = theTijk[
+		order(theTijk[,'i'], theTijk[,'j'], theTijk[,'k']), 
+		]
+		fullList$third = list(ijk = theTijk)
+
+		ijkChar = apply(theTijk, 1, paste, collapse='_')
+		for(D in 1:length(sparsityList)) {
+			ijkHere = rowSortP(as.matrix(sparsityList[[D]]$third$ijk[,c('i','j','k')]))
+			sparsityList[[D]]$third$ijk$match =
+			match(
+				apply(ijkHere, 1, paste, collapse='_'),
+				ijkChar
+			) -1L
+			if(any(is.na(sparsityList[[D]]$third$ijk$match))) {
+				warning(D, "unmatched ijk")
+			}
+		}
+		indexForThird = mapply(
+			indexThirdTensor,
+			i = seq(0L, len=Ntotal),
+			MoreArgs = list(ijk = fullList$third$ijk),
+			SIMPLIFY=FALSE
+		)
+		indexForDiag = mapply(
+			indexThirdTensorDiag,
+			i = seq(0L, len=Ntotal),
+			MoreArgs = list(nonSymmetric = fullList$second$nonSymmetric),
+			SIMPLIFY=FALSE
+		)
+
+		fullList$third$index = list(
+			diag = indexForDiag,
+			offDiag = indexForThird
+		)
+
 	}
 
 
-	if('try-error' %in% class(sparsityList)) {
-		sparsityList = list(
-			hessianByBlock2=hessianByBlock2, Sparams= Sparams, Sgamma1=Sgamma1,
-			hessianPairs = fullHessianPairs,
-			hessianPairsR = fullHessianPairsR, 
-			hessianPairsNs = fullHessianPairsNs,
-			hessianPairsRns = fullHessianPairsRNs)
-	}
-
-	indexForThird = mapply(
-		indexThirdTensor,
-		i = seq(0L, len=Ntotal),
-		MoreArgs = list(ijk = fullList$third$ijk),
-		SIMPLIFY=FALSE
-	)
-
-	indexForDiag = mapply(
-		indexThirdTensorDiag,
-		i = seq(0L, len=Ntotal),
-		MoreArgs = list(nonSymmetric = fullList$second$nonSymmetric),
-		SIMPLIFY=FALSE
-	)
-
-	fullList$third$index = list(
-		diag = indexForDiag,
-		offDiag = indexForThird
-	)
 
 	result = list(
 		group_sparsity = sparsityList,
