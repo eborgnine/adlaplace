@@ -79,6 +79,7 @@ load("dataMedSimple.RData")
 # add day iid
 resTempPm <- hpolcc::hnlm(
   formula= medical ~ #f(date, model='iid') +
+    humidity + 
     f(sqrtPm, model='hiwp', ref_value = 8, p=2, 
       knots = seq(0,32, by=2),
       group_var = ecoRegion) + 
@@ -99,6 +100,7 @@ resTempPm <- hpolcc::hnlm(
 saveRDS(resTempPm, file='resTempPm.rds')
 resTempPmFixed <- hpolcc::hnlm(
   formula= medical ~ #f(date, model='iid') +
+    humidity + 
     f(sqrtPm, model='hiwp', ref_value = 8, p=2, 
       knots = seq(0,32, by=2),
       group_var = ecoRegion) + 
