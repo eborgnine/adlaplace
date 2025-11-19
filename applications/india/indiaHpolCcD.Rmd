@@ -132,8 +132,8 @@ abline(v = resTempPm$groups$groups$p,
 ```
 
 ```{r fitModel, eval=FALSE}
-#theFile = 'resTempPm.rds'
-theFile = 'resTempPmFixed.rds'
+theFile = 'resTempPm.rds'
+#theFile = 'resTempPmFixed.rds'
 res = readRDS(theFile)
 library('hpolcc')
 adFunFull = getAdFun(res$parameters_and_gamma, res$tmb_data, modifyList(res$config, list(verbose=TRUE)))
