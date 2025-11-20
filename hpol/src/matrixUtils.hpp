@@ -19,8 +19,8 @@ Rcpp::IntegerVector  compute_p_vector(
   const Rcpp::IntegerVector & j, int ncol);
 
 
-
-Rcpp::S4 assembleHessian(
-      std::vector<GroupPack>& adpack, 
-      GroupPack& qPack, 
-      const Config& config);
+Rcpp::RObject make_convert_gCmatrix(
+  const std::vector<double>& x, 
+  const Rcpp::IntegerVector& i,
+  const Rcpp::IntegerVector& j,
+  const size_t N);

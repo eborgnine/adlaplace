@@ -47,11 +47,11 @@ static const char* HESS_COLOR = "colpack.symmetric";
           Dstrata, data, etaHere, latent, config);
 
 #ifdef DEBUG        
-    if(config.verbose) {
-      if(CppAD::isnan(contrib[0])) {        
-        Rcpp::Rcout << "_" << Dstrata << "_";
-      }
-    }
+        if(config.verbose) {
+          if(CppAD::isnan(contrib[0])) {        
+            Rcpp::Rcout << "_" << Dstrata << "_";
+          }
+        }
 #endif
 
         logLikSum += contrib[0];
@@ -60,19 +60,19 @@ static const char* HESS_COLOR = "colpack.symmetric";
 
   // Q diag.   map could be smaller than gamma.  the first Ngamma-Nmap entries don't have a theta
       if(NqDiag) {
-      int NgammaNoMap = data.Ngamma - data.Nmap;
+        int NgammaNoMap = data.Ngamma - data.Nmap;
       # pragma omp for
-      for(int Dgamma = 0;Dgamma<NgammaNoMap;Dgamma++) {
-        gammaScaled[Dgamma] = latent.gamma[Dgamma];
-        QpartSum += gammaScaled[Dgamma]*gammaScaled[Dgamma]*(0.5*data.Qdiag[Dgamma]);
-      }
+        for(int Dgamma = 0;Dgamma<NgammaNoMap;Dgamma++) {
+          gammaScaled[Dgamma] = latent.gamma[Dgamma];
+          QpartSum += gammaScaled[Dgamma]*gammaScaled[Dgamma]*(0.5*data.Qdiag[Dgamma]);
+        }
       #pragma omp for
-      for(int Dmap = 0;Dmap<data.Nmap;Dmap++) {
-        int Dgamma=NgammaNoMap + Dmap;
-        size_t mapHere = data.map[Dmap];
-        gammaScaled[Dgamma] = latent.gamma[Dgamma] / latent.theta[mapHere];
-        QpartSum += latent.logTheta[mapHere] + gammaScaled[Dgamma]*gammaScaled[Dgamma]*(0.5*data.Qdiag[Dgamma]);
-      }
+        for(int Dmap = 0;Dmap<data.Nmap;Dmap++) {
+          int Dgamma=NgammaNoMap + Dmap;
+          size_t mapHere = data.map[Dmap];
+          gammaScaled[Dgamma] = latent.gamma[Dgamma] / latent.theta[mapHere];
+          QpartSum += latent.logTheta[mapHere] + gammaScaled[Dgamma]*gammaScaled[Dgamma]*(0.5*data.Qdiag[Dgamma]);
+        }
     }// if NqDiag
   } // end parallel block
 
@@ -161,9 +161,23 @@ Rcpp::RObject hessian(
   const Config& config
   ) {
 
-  Rcpp::RObject result;
   const Rcpp::List sparsity = config.group_sparsity;
   const size_t Ngroup = adpack.size();
+
+
+  const int N = adpack[0].out_hess.nr();
+  const Rcpp::List secondAll = config.sparsity["second"];
+  const Rcpp::List secondRandom = secondAll["random"];
+  const Rcpp::List secondFull = secondAll["full"];
+  const Rcpp::IntegerVector pRandom = secondRandom["p"];
+  const Rcpp::IntegerVector pFull= secondFull["p"];
+  const int Nrandom = pRandom.size()-1, Nfull = pFull.size()-1;
+  const bool onlyRandom = Nrandom == N;
+
+  const Rcpp::IntegerVector iOut = onlyRandom?secondRandom["i"]:secondFull["i"];
+  const Rcpp::IntegerVector jOut = onlyRandom?secondRandom["j"]:secondFull["j"];
+  const int Nnonzero = iOut.size();
+  std::vector<double> hessianOut(Nnonzero);
 
   if(config.verbose){
     Rcpp::Rcout << "hessian colour " << HESS_COLOR << "\n";
@@ -182,6 +196,7 @@ Rcpp::RObject hessian(
 
     CppAD::vector<double> w(1);
     w[0] = 1.0;
+    std::vector<double> outHereAll(Nnonzero, 0.0);
 
   #pragma omp for nowait
     for(size_t Dgroup = 0; Dgroup < Ngroup; ++Dgroup) {
@@ -189,42 +204,45 @@ Rcpp::RObject hessian(
       adpack[Dgroup].fun.sparse_hes(parameters, w, 
         adpack[Dgroup].out_hess, adpack[Dgroup].pattern_hess, 
         HESS_COLOR, adpack[Dgroup].work_hess);
-      } //Dgroup
 
-    } //parallel
+      const std::vector<size_t>& matchHere = adpack[Dgroup].outRowCol[2];
+      const size_t Nhere = matchHere.size();
+      const CppAD::vector<double>& hessianOutHere = adpack[Dgroup].out_hess.val();
 
-// assemble
-    if (config.verbose ) 
-      Rcpp::Rcout << "q..";
-    auto qRes = hessianQsparse(parameters, data, config);
-
-    if (config.verbose ) 
-      Rcpp::Rcout << "assemble hessian debug " << config.debug << "..";
-
-    if(config.debug) {
-      Rcpp::List debugList(Ngroup);
-      for(size_t D=0;D<Ngroup;D++) {
-        Rcpp::NumericVector resultHere(adpack[D].out_hess.val().size());
-        for(size_t D2=0;D2<resultHere.size();D2++) {
-          resultHere[D2] = adpack[D].out_hess.val()[D2];
-        }
-        debugList[D] = resultHere;
+      for(size_t D=0;D < Nhere; D++) {
+        const size_t indexHere = matchHere[D];
+        outHereAll[indexHere] += hessianOutHere[D];
       }
-      result = debugList;
-    } else {
-      Rcpp::S4 resultMat=assembleHessian(adpack, qRes, config);
-      result = resultMat;
+    } //Dgroup
+
+#pragma omp critical
+    {
+      for(size_t D=0;D<Nnonzero;D++) {
+        hessianOut[D] +=  outHereAll[D];
+      }  
+    } // critical
+
+  } //parallel
+    // to do: make Q ad fun part of adpack
+  auto qRes = hessianQsparse(parameters, data, config);
+  const std::vector<size_t>& matchHere = qRes.outRowCol[2];
+  const size_t Nhere = matchHere.size();
+  const CppAD::vector<double>& hessianOutHere = qRes.out_hess.val();
+
+    for(size_t D=0;D < Nhere; D++) {
+      const size_t indexHere = matchHere[D];
+      hessianOut[indexHere] += hessianOutHere[D];
     }
 
-    if (config.verbose ) 
-      Rcpp::Rcout << "done\n";
+    auto result = make_convert_gCmatrix(hessianOut, iOut, jOut, N);
+
 
     return(result);
   }
 
 
 
-Rcpp::RObject hessian(
+  Rcpp::RObject hessian(
     const CppAD::vector<double>& parameters,
     const Data& data,
     const Config& config
@@ -241,52 +259,52 @@ Rcpp::RObject hessian(
     return(result);
   }
 
-Rcpp::LogicalMatrix hessianDenseLogical(
+  Rcpp::LogicalMatrix hessianDenseLogical(
     const CppAD::vector<double> parameters,
     const Data& data,
     const Config& config
-) {
+    ) {
   // single threaded, no Q
-  using CppAD::AD;
+    using CppAD::AD;
 
-  const Rcpp::List strata = config.groups;
-  const Rcpp::IntegerVector strataI = strata["i"], strataP = strata["p"];
+    const Rcpp::List strata = config.groups;
+    const Rcpp::IntegerVector strataI = strata["i"], strataP = strata["p"];
 
-  const size_t Nparams = parameters.size();
-  const size_t Ngroup  = static_cast<size_t>(strataP.size() - 1);
+    const size_t Nparams = parameters.size();
+    const size_t Ngroup  = static_cast<size_t>(strataP.size() - 1);
 
   // full logical Hessian (we'll OR contributions from each group)
-  Rcpp::LogicalMatrix result(Nparams, Nparams);
-
-  if (config.verbose) {
-    Rcpp::Rcout << "getting structural Hessian sparsity via for_hes_sparsity\n";
-  }
-
-  // loop over groups
-  for (size_t Dgroup = 0; Dgroup < Ngroup; ++Dgroup) {
+    Rcpp::LogicalMatrix result(Nparams, Nparams);
 
     if (config.verbose) {
-      Rcpp::Rcout << "  group " << Dgroup <<  " N " << Nparams;
+      Rcpp::Rcout << "getting structural Hessian sparsity via for_hes_sparsity\n";
     }
+
+  // loop over groups
+    for (size_t Dgroup = 0; Dgroup < Ngroup; ++Dgroup) {
+
+      if (config.verbose) {
+        Rcpp::Rcout << "  group " << Dgroup <<  " N " << Nparams;
+      }
 
     // build ADFun for this group's contribution
-    CppAD::ADFun<double> fun = adFunGroup(
-      parameters, data, config,
-      strataI,
-      strataP[Dgroup],
-      strataP[Dgroup + 1]
-    );
+      CppAD::ADFun<double> fun = adFunGroup(
+        parameters, data, config,
+        strataI,
+        strataP[Dgroup],
+        strataP[Dgroup + 1]
+        );
 
-    const size_t n = fun.Domain();
-    if (n != Nparams) {
-      Rcpp::stop("hessianDenseLogical: fun.Domain() != Nparams");
-    }
+      const size_t n = fun.Domain();
+      if (n != Nparams) {
+        Rcpp::stop("hessianDenseLogical: fun.Domain() != Nparams");
+      }
 
     // select all domain variables and the single range component
-    CPPAD_TESTVECTOR(bool) select_domain(n), select_range(1);
-    for (size_t j = 0; j < n; ++j) {
-      select_domain[j] = true;
-    }
+      CPPAD_TESTVECTOR(bool) select_domain(n), select_range(1);
+      for (size_t j = 0; j < n; ++j) {
+        select_domain[j] = true;
+      }
     select_range[0] = true; // scalar output
 
     // structural Hessian sparsity pattern for this group
@@ -297,7 +315,7 @@ Rcpp::LogicalMatrix hessianDenseLogical(
       select_range,
       internal_bool,
       pattern
-    );
+      );
 
     const CppAD::vector<size_t>& row = pattern.row();
     const CppAD::vector<size_t>& col = pattern.col();
@@ -305,7 +323,7 @@ Rcpp::LogicalMatrix hessianDenseLogical(
 
     // mark all structurally nonzero entries as TRUE;
     // Hessian is symmetric, so set both (i,j) and (j,i)
-        if (config.verbose) {
+    if (config.verbose) {
       Rcpp::Rcout << "  size " << K << "\n";
     }
 
@@ -456,8 +474,8 @@ std::vector<double> grad(
 
     CppAD::vector<double> x = parameters;
     std::vector<double> gradHere(Nparams, 0);
-  CppAD::vector<double> w(1);  
-  w[0] = 1.0;
+    CppAD::vector<double> w(1);  
+    w[0] = 1.0;
 
       #pragma omp for schedule(dynamic,1) nowait
     for(size_t Dgroup = 0; Dgroup < Ngroup; ++Dgroup) {
@@ -784,7 +802,7 @@ Rcpp::RObject gradLogical(
   const Rcpp::NumericVector parameters,
   const Rcpp::List& data,
   const Rcpp::List& config
-) {
+  ) {
   const Data   dataC(data);
   const Config configC(config);
 
@@ -822,7 +840,7 @@ Rcpp::RObject gradLogical(
 
     auto etaHere = compute_eta_for_stratum(
       Dstrata, dataC, latent.gamma, latent.beta
-    );
+      );
 
     auto out = accumulate_contrib_for_stratum(
       Dstrata, dataC, etaHere, latent, configC
@@ -853,7 +871,7 @@ Rcpp::RObject gradLogical(
       dependency,
       internal_bool,
       pattern_out
-    );
+      );
 
 //    const CppAD::vector<size_t>& row = pattern_out.row();
     const CppAD::vector<size_t>& col = pattern_out.col();

@@ -31,9 +31,9 @@ hnlm <- function(
  tmb_parameters = NULL,
  optim_parameters = list(eval.max = 2000, iter.max = 2000),
  optimizer = c('nlminb', 'optim'),
- config=list(dirichlet = TRUE, boundary_is_random=FALSE),
- control=list(),
- control_inner = control,
+ config=list(dirichlet = TRUE, boundary_is_random=FALSE, transform_theta=TRUE),
+ control=list(start.trust.radius = 0.1, report.level=4, report.freq=1, report.header.freq=10, report.precision=5),
+ control_inner = list(report.level=0),
  for_dev = FALSE,
  ...) {
 
@@ -60,17 +60,17 @@ hnlm <- function(
     cc_design = ccDesign(strat_vars = cc_design)
   }
   if (is.null(cc_design$strat_vars) &
-    is.null(cc_design$time_var))
-  stop("Provide a valid stratification (or time) variable.")
-  
+    is.null(cc_design$time_var)) {
+    stop("Provide a valid stratification (or time) variable.")
+  }
 
   data.table::setDT(data)
   strat_time_vars <- c(cc_design$strat_vars, cc_design$time_var)
 
   strat_time_vars = strat_time_vars[
-    order(sapply(data[, strat_time_vars, with = FALSE],
-     function(xx) length(unique(xx))), decreasing=FALSE)
-    ]
+  order(sapply(data[, strat_time_vars, with = FALSE],
+   function(xx) length(unique(xx))), decreasing=FALSE)
+  ]
 
 
   data.table::setorderv(data, strat_time_vars)
@@ -211,7 +211,7 @@ hnlm <- function(
   NAtheta = which(is.na(gamma_theta$matchTheta))
   if(!all(NAtheta == 
     c(seq(1,len=length(NAtheta) - config$dirichlet), nrow(gamma_theta)[config$dirichlet])
-    )) {
+  )) {
     warning("fpoly thetas not at top")
   }
 
@@ -229,7 +229,7 @@ hnlm <- function(
   )
   tmb_data = formatHpolData(tmb_data)
 
-verboseOrig = config$verbose
+  verboseOrig = config$verbose
   config$verbose = config$verbose > 1
 
   Sgamma = seq(nrow(tmb_data$XTp)+1, len=nrow(tmb_data$ATp))
@@ -291,26 +291,96 @@ verboseOrig = config$verbose
 
     mle = trustOptim::trust.optim(
       x = parameters,
-    fn = outer_fn,
-    gr = outer_gr,
+      fn = outer_fn,
+      gr = outer_gr,
       method = 'SR1',
       control = control,
       data=tmb_data, config = config, cache =  cache, control_inner = control_inner,
       adFunFull = adFunFull
     )
 
+  result = list(opt = mle, 
+    objects = list(
+      tmb_data=tmb_data, config=config, formula=formula, terms = terms,
+      theta_info = theta_info, gamma_info = gamma_info))
+
 
   if(verboseOrig) cat("done")
 
-    mle$extra = try(loglik(
+    result$extra = try(loglik(
       mle$solution, 
       get("gamma_start", cache), 
       tmb_data, config, control = control_inner, adFunFull=adFunFull,
-      deriv=0,
-      check=TRUE))
+      deriv=0))
 
-  mle$gamma_hat = mle$extra$solution
-  mle$formula = formula
 
-  return(mle)
+  result$extra$parameters = formatParameters(result$extra$fullParameters, result$objects)
+
+#  mle$parameters = hpolcc::formatParameters(mle$extra$fullParameters, listres, TRUE)
+
+  HtildeCholEx  = result$extra$HtildeCholEx = Matrix::expand2(result$extra$cholHessian)
+
+  Nsim = 500
+simInd = matrix(
+  rnorm(Nsim * nrow(result$extra$hessian)),
+  nrow(result$extra$hessian), Nsim)
+simInd1 = simInd/sqrt(HtildeCholEx$D@x)
+
+simSolve = Matrix::solve(HtildeCholEx$L1., simInd1)
+simGamma = as.matrix(HtildeCholEx$P1. %*% simSolve + result$extra$solution)
+rownames(simGamma) = rownames(tmb_data$ATp)
+
+
+
+Sref = unlist(lapply(terms, '[[', "ref_value"))
+Svar = unlist(lapply(terms, '[[', "var"))
+Smodel = unlist(lapply(terms, '[[', "model"))
+
+isHiwp = which(Smodel == 'hiwp')
+Sref = Sref[isHiwp]
+Svar = Svar[isHiwp]
+Srange = lapply(terms[isHiwp], '[[', 'range')
+predSeq = lapply(Srange, function(xx) seq(min(xx), max(xx), len=100))
+Sgroup = lapply(terms[isHiwp], '[[', 'group_var')
+
+names(predSeq) =names(Sgroup) = names(Sref) = Svar
+
+newConstr = Sref # replace by new constraints
+
+
+newXA = fixedPart = newConstrIndex= simGlobal = simF= list()
+
+for(D in names(predSeq)) {
+  newDf = data.frame(x = predSeq[[D]], group = NA)
+  names(newDf)[2] = Sgroup[D]
+  colnames(newDf)[1] = D
+  newXA[[D]] = hpolcc:::getNewXA(
+    terms = terms, 
+    df= newDf
+  )
+
+  newColNamesBeta = 
+    gsub("_fpoly_", "", names(result$extra$parameters$beta))
+  namesBoth = intersect(newColNamesBeta, colnames(newXA[[D]]$X))    
+
+  fixedPart[[D]] = as.vector(newXA[[D]]$X[,namesBoth, drop=FALSE] %*% 
+    result$extra$parameters$beta[match(namesBoth, newColNamesBeta)])
+
+  colsA = grep(paste0(D, "_hiwp_(global|GLOBAL)_"), colnames(newXA[[D]]$A), value=TRUE)
+  gammaHere = simGamma[colsA,]
+  simF[[D]] = as.matrix(newXA[[D]]$A[,colsA] %*% gammaHere)
+
+  simGlobalHere= simF[[D]] + fixedPart[[D]]
+  newConstrIndex[[D]] = which.min(abs(predSeq[[D]] - newConstr[D]))
+  toSubtract = matrix(simGlobalHere[newConstrIndex[[D]],],
+    nrow(simGlobalHere), ncol(simGlobalHere), byrow=TRUE)
+  simGlobal[[D]] = simGlobalHere - toSubtract
+}
+
+Sregions1 = unique(gsub("_[[:digit:]]+$", "", rownames(simGamma)))
+Sregions = setdiff(unique(gsub(".*_", "", Sregions1)), "global")
+
+result$sample = list(gamma=simGamma, global=simGlobal, groups = Sregions, newXA = newXA)
+
+  return(result)
 }

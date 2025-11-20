@@ -1,9 +1,10 @@
 # cache must have gamma_start, Nfun, Nge
 #' @export
-outer_fn = function(x, data, config, adFunFull, control_inner, cache) {
+outer_fn = function(x, data, config, adFunFull, control_inner, cache, parscale = rep(1, length(x))) {
     assign("Nfun", get("Nfun", cache)+1, cache)
     assign("last.par", x, envir=cache)
-    result=try(loglik(x,
+    xScale = x*parscale
+    result=try(loglik(xScale,
       gamma_start = get("gamma_start", envir=cache), 
       data=data, config=config, 
         adFunFull = adFunFull,
@@ -17,9 +18,10 @@ outer_fn = function(x, data, config, adFunFull, control_inner, cache) {
       result$minusLogLik
     }
 #' @export
-outer_gr = function(x, data, config, adFunFull, control_inner, cache) {
+outer_gr = function(x, data, config, adFunFull, control_inner, cache, parscale = rep(1, length(x))) {
     assign("Ngr", get("Ngr", cache)+1, cache)
-    result= try(loglik(x,
+    xScale = x*parscale
+    result= try(loglik(xScale,
         gamma_start = get("gamma_start", envir=cache), 
         adFunFull = adFunFull,
         data=data, config=config, control=control_inner))
@@ -28,7 +30,7 @@ outer_gr = function(x, data, config, adFunFull, control_inner, cache) {
         cat(c(get("Ngr", cache), result$minusLogLik, sqrt(sum(result$deriv$dL^2)), formatC(x, format = "f", digits = 5), '\n'), file = get('file', cache), append=TRUE)
       }
   if(length(result$solution)) assign("gamma_start", result$solution, envir=cache)
-  result$deriv$dL
+  result$deriv$dL * parscale
 }
  
 

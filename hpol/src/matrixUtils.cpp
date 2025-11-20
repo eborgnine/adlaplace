@@ -93,7 +93,8 @@ Rcpp::S4 make_gCMatrix(
 }
 
 
-Rcpp::S4 make_convert_gCmatrix(const Rcpp::NumericVector& x,
+Rcpp::RObject make_convert_gCmatrix(
+  const std::vector<double>& x, 
   const Rcpp::IntegerVector& i,
   const Rcpp::IntegerVector& j,
   const size_t N)
@@ -139,10 +140,11 @@ Rcpp::S4 make_convert_gCmatrix(const Rcpp::NumericVector& x,
   }
   Rcpp::IntegerVector p1 = compute_p_vector(j1, N);
   Rcpp::S4 result = make_gCMatrix(x1, i1, p1);
-  return(result);
+  return(Rcpp::RObject(result));
 }
 
-Rcpp::S4 assembleHessian(
+#ifdef UNDEF
+Rcpp::RObject assembleHessian(
   std::vector<GroupPack>& adpack, 
   GroupPack& qPack, 
   const Config& config) {
@@ -200,10 +202,10 @@ Rcpp::S4 assembleHessian(
     if (config.verbose ) {
       Rcpp::Rcout << "convert to gCmatrix\n";
     }
-    Rcpp::S4 result = make_convert_gCmatrix(hessianSum, iAll, jAll, N);
+    auto result = make_convert_gCmatrix(hessianSum, iAll, jAll, N);
 
-    return(result);
+    return result;
     
   }
-
+#endif
 

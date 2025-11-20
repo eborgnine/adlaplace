@@ -83,27 +83,27 @@ library('hpolcc')
 load("dataMedSimple.RData")
 
 res <- hpolcc::hnlm(
-  formula= medical ~ humidity + #f(date, model='iid') +
-    f(sqrtPm, model='hiwp', ref_value = 8, p=2, 
-      knots = seq(0,32, by=2),
-      group_var = ecoRegion, init = 0.1) + 
-    f(tempClean, model='hiwp',ref_value = 25, p=3, 
+  formula= medical ~ #humidity + #f(date, model='iid') +
+ #   f(sqrtPm, model='hiwp', ref_value = 8, p=2, 
+ #     knots = seq(0,32, by=2),
+ #     group_var = ecoRegion, init = 0.1) 
+  #    +
+   f(tempClean, model='hiwp',ref_value = 25, p=3, 
       knots = seq(0, 45, by=2.5), 
-    group_var = ecoRegion), 
-  data=dataMedSimple[dataMedSimple$date > as.Date('2012/1/1'),], 
+    group_var = ecoRegion)
+  , 
+  data=dataMedSimple[dataMedSimple$date > as.Date('2013/1/1'),], 
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
-  config = list(transform_theta = TRUE, 
+  config = list(
+    transform_theta = TRUE, 
     boundary_is_random= FALSE,
-    dense = FALSE, dirichlet= TRUE, verbose=TRUE,
+    dirichlet= TRUE, verbose=FALSE,
     num_threads=parallel::detectCores(), 
     Nclusters = 50*parallel::detectCores()
     ),
- control=list(maxit=1000, start.trust.radius = 1, prec=1e-6, stop.trust.radius = 1e-9,
-        cg.tol = 1e-6, report.level=4, report.freq=1, report.header.freq=10, report.precision=7),
-  control_inner=list(report.level=0),
-  for_dev=TRUE
+  for_dev=FALSE
   )
-saveRDS(res, file='res.rds')
+saveRDS(res, file='resTemp.rds')
 #rm(dataMedSimple)
 ```
 
@@ -118,65 +118,12 @@ abline(v = res$groups$groups$p,
 ```
 
 
-```{r mle}
-res = readRDS("res.rds")
-library('hpolcc')
-adFunFull = getAdFun(res$parameters_and_gamma, res$tmb_data, res$config)
-
-
-assign("file", "india.txt", res$cache)
-if(file.exists(get("file", res$cache))) file.remove(get("file", res$cache))
-
-mleX1 = optim(
-    rep(c(0,-3), 
-      c(length(res$config$beta), length(res$config$theta))),
-    fn = outer_fn,
-    gr = outer_gr,
-    method = 'L-BFGS-B',#'SR1',
-    lower = rep(c(-0.5, -Inf), c(length(res$config$beta), length(res$config$theta))),
-    upper = rep(c(0.5, 1), c(length(res$config$beta), length(res$config$theta))),
-    control = list(trace=3, REPORT=1, 
-      parscale = rep(c(1e-3, 10), c(length(res$config$beta), length(res$config$theta)))
-      ),#start.trust.radius = 0.05, REPORT=1, trace=10),
-    data=res$tmb_data, config = res$config, cache =  res$cache, control_inner = res$control_inner,
-    adFunFull = adFunFull
-  )
-saveRDS(mleX1, file='mleX1.rds')  
-mleX = trustOptim::trust.optim(
-    mleX1$par,
-    fn = outer_fn,
-    gr = outer_gr,
-    method = 'SR1',
-    control = list(start.trust.radius = 0.05, REPORT=1, trace=10),
-    data=res$tmb_data, config = res$config, cache =  res$cache, control_inner = res$control_inner,
-    adFunFull = adFunFull
-  )  
-saveRDS(mleX, file='mleX.rds')  
-  mleB <- BB::spg(par = mleX1$par, 
-    fn = outer_fn,
-    gr = outer_gr,
-    alertConvergence=FALSE, 
-  data=res$tmb_data, config = res$config, cache =  res$cache, control_inner = res$control_inner,
-    adFunFull = adFunFull,
-    control = list(maxit = 1e3, M = 10, trace=TRUE)
-)
-```
-
-
 
 ```{r theResults}
 library('hpolcc')
-res = readRDS("res.rds")
-result =  readRDS("mleX1.rds")
-adFunFull = getAdFun(res$parameters_and_gamma, res$tmb_data, res$config)
+res = readRDS("resTemp.rds")
 
-result$extra = loglik(
-  parameters = result[[intersect(c("par","solution"), names(result))[1] ]], 
-  gamma_start = get("gamma_start", res$cache),
-  config=res$config, data=res$tmb_data, adFunFull=adFunFull, deriv=0)
-
-result$parameters = hpolcc::formatParameters(result$extra$fullParameters, res, TRUE)
-result$parameters$theta
+res$parameters$theta
 
 
 
@@ -285,6 +232,7 @@ system.time(resM2 <- loglik(res$parameters, res$gamma_start, res$tmb_data,
   res$config[setdiff(names(res$config), "first")], 
   adFun, res$control, deriv=1))
 
+bob = Matrix::expand2(resM2$extra$hessian)
 
 Dpar=length(resM$parameters)
 Sx = seq(-0.1, 0.1, len=5) + resM$parameters[Dpar]
