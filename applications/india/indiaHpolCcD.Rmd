@@ -90,7 +90,7 @@ resTempPm <- hpolcc::hnlm(
   dirichlet= TRUE, 
                 boundary_is_random = TRUE,
                 num_threads=parallel::detectCores(),
-                Nclusters = 10*parallel::detectCores(),
+                Nclusters = 50*parallel::detectCores(),
   verbose=TRUE),
   control_inner=list(report.level=0),
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
@@ -110,7 +110,7 @@ resTempPmFixed <- hpolcc::hnlm(
   dirichlet= TRUE, 
                 boundary_is_random = FALSE,
                 num_threads=parallel::detectCores(),
-                Nclusters = 10*parallel::detectCores()),
+                Nclusters = 50*parallel::detectCores()),
   control_inner=list(report.level=0),
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
   for_dev=TRUE, verbose=TRUE
@@ -141,10 +141,11 @@ adFunFull = getAdFun(res$parameters_and_gamma, res$tmb_data, modifyList(res$conf
 assign("file", gsub("rds$", "txt", theFile), res$cache)
 if(file.exists(get("file", res$cache))) file.remove(get("file", res$cache))
 
-forRep = c(length(res$config$beta), length(res$config$theta)-1, 1)
+for_rep = c(length(res$config$beta), length(res$config$theta)-1, 1)
+start_par = rep(c(0,-4, -1), for_rep)
 
 mleT = trustOptim::trust.optim(
-    rep(c(0,-4, -1), forRep),
+    start_par,
     fn =outer_fn,
     gr = outer_gr,
     method = 'SR1', 
@@ -161,7 +162,7 @@ mleT$extra = loglik(
 saveRDS(mleT, file=gsub("^res", "mleT", theFile))
 
 mleX = optim(
-    rep(c(0,-4, -1), forRep),
+    mleT$solutino,
     fn = outer_fn,
     gr = outer_gr,
     method = 'L-BFGS-B', 
