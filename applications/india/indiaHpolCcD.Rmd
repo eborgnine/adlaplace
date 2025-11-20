@@ -77,12 +77,12 @@ library('hpolcc')
 load("dataMedSimple.RData")
 
 # add day iid
-resTempPm <- hpolcc::hnlm(
+res <- hpolcc::hnlm(
   formula= medical ~ #f(date, model='iid') +
-    humidity + 
-    f(sqrtPm, model='hiwp', ref_value = 8, p=2, 
-      knots = seq(0,32, by=2),
-      group_var = ecoRegion) + 
+#    humidity + 
+#    f(sqrtPm, model='hiwp', ref_value = 8, p=2, 
+#      knots = seq(0,32, by=2),
+#      group_var = ecoRegion) + 
     f(tempClean, model='hiwp',ref_value = 20, p=3, 
       knots = seq(0, 45, by=2.5), 
     group_var = ecoRegion), 
@@ -94,8 +94,7 @@ resTempPm <- hpolcc::hnlm(
                 Nclusters = 50*parallel::detectCores(),
   verbose=TRUE),
   control_inner=list(report.level=0),
-  cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
-  for_dev=TRUE
+  cc_design =  c("cell","ecoRegion", "yearWeek3Dow")
   )
 saveRDS(resTempPm, file='resTempPm.rds')
 resTempPmFixed <- hpolcc::hnlm(
@@ -134,8 +133,8 @@ abline(v = resTempPm$groups$groups$p,
 ```
 
 ```{r fitModel, eval=FALSE}
-#theFile = 'resTempPm.rds'
-theFile = 'resTempPmFixed.rds'
+theFile = 'resTempPm.rds'
+#theFile = 'resTempPmFixed.rds'
 res = readRDS(theFile)
 library('hpolcc')
 adFunFull = getAdFun(res$parameters_and_gamma, res$tmb_data, modifyList(res$config, list(verbose=TRUE)))
@@ -164,14 +163,14 @@ mleT$extra = loglik(
 saveRDS(mleT, file=gsub("^res", "mleT", theFile))
 
 mleX = optim(
-    mleT$solutino,
+    mleT$solution,
     fn = outer_fn,
     gr = outer_gr,
     method = 'L-BFGS-B', 
-    lower = rep(c(-0.5, -15,-5), forRep),
-    upper = rep(c(0.5, 0, 0), forRep),
+    lower = rep(c(-0.5, log(1e-5),log(1e-3)), for_rep),
+    upper = rep(c(0.5, 0, 0), for_rep),
     control = list(trace=3, REPORT=1, 
-      parscale = rep(c(1e-2, 10, 1), forRep)
+      parscale = rep(c(1e-3, 10, 1), for_rep)
       ),#start.trust.radius = 0.05, REPORT=1, trace=10),
     data=res$tmb_data, config = res$config, cache =  res$cache, 
     control_inner = res$control_inner,
@@ -188,9 +187,27 @@ saveRDS(mleX, file=gsub("^res", "mleX", theFile))
 
 ```{r checkDeriv}
 mleX$par
-Dpar = 1;N=5
-parMat = data.frame(res$parameters)[,rep(1, N)]
-Sx = seq(-0.5,0.5, len=ncol(parMat)) + parMat[Dpar,1]
+configInner = res$config
+Nbeta = nrow(res$tmb_data$XTp)
+configInner$beta = mleX$par[seq(1, len=Nbeta)]
+configInner$theta = mleX$par[seq(Nbeta+1, length(mleX$par))]
+
+adFunInner = getAdFun(mleX$extra$solution, data=res$tmb_data, config=configInner)
+bob = grad(mleX$extra$solution, data=res$tmb_data, config=res$config, adFun = adFunInner)
+gradFn2 = function(x, xSeq) {
+  newx = mleX$extra$solution
+  newx[xSeq] = x
+  grad(newx, data=res$tmb_data, config=res$config, adFun=adFunInner)
+}
+xSeq = 1:4
+numDeriv::hessian(gradFn2, mle$extra$solution[xSeq], xSeq = xSeq)
+mleX$extra$hessian[xSeq, xSeq]
+
+
+
+Dpar = 4;N=5
+parMat = data.frame(mleX$par)[,rep(1, N)]
+Sx = seq(-0.01,0.01, len=ncol(parMat)) + mleX$par[Dpar]
 Sx1 = Sx[-1] - diff(Sx)/2
 parMat[Dpar,] = Sx
 
@@ -209,7 +226,7 @@ baseLik = loglik(
   mleX$par,
   gamma_start = get("gamma_start", res$cache),
  data=res$tmb_data, config = res$config, control = control1, 
- deriv=0, check=FALSE)
+ deriv=1, check=FALSE)
 assign("gamma_start", baseLik$solution, envir=res$cache)
 
 rx = mapply(
@@ -226,7 +243,24 @@ rx = mapply(
 
 Slik = unlist(lapply(rx, "[[", "minusLogLik"))
 plot(Sx, Slik)
-plot(Sx1, diff(Slik)/mean(diff(Sx)),  pch=16, xlim = range(Sx))
+plot(Sx1, diff(Slik)/mean(diff(Sx)),  pch=16, xlim = range(Sx), type='o')
+abline(h=baseLik$deriv[Dpar, 'dL'])
+abline(v=baseLik$parameters[Dpar])
+
+
+Sdet = unlist(lapply(rx, "[[", "halfLogDet"))
+plot(Sx, Sdet)
+Sy = diff(Sdet)/mean(diff(Sx))
+plot(Sx1, Sy,  pch=16, xlim = range(Sx),type='o', 
+     ylim = range(c(Sy, baseLik$deriv[Dpar, 'dDet'])))
+abline(h=baseLik$deriv[Dpar, 'dDet'])
+abline(v=baseLik$parameters[Dpar])
+
+Sdens = unlist(lapply(rx, '[[', 'fval'))
+Ddens = diff(Sdens)/diff(Sx)
+plot(Sx1, Ddens,type='o')
+abline(v=baseLik$parameters[Dpar])
+abline(h=baseLik$deriv[Dpar,'gradTheta'])
 
 ```
 
@@ -239,25 +273,28 @@ theFile = 'resTempPm.rds'
 #theFile = 'resCvd.rds'
 
 theData = readRDS(theFile)
-result = readRDS(gsub("^res", "mle", theFile))
+result = readRDS(gsub("^res", "mleT", theFile))
 
-result$parameters = hpolcc::formatParameters(
-  result$extra$fullParameters, 
-  theData, TRUE)
+result$parameters = formatParameters(
+  x=result$extra$fullParameters, 
+  obj=theData, TRUE)
 result$parameters$theta
 result$parameters$beta
 
-HtildeChol = Matrix::Cholesky(result$extra$hessian, LDL=TRUE)
-HtildeCholEx = list(Lt = Matrix::expand1(HtildeChol, "L1."),
-                    D = Matrix::expand1(HtildeChol, "D"),
-                    Pt = Matrix::expand1(HtildeChol, "P1.")
-)
-
-quantile(result$extra$hessian - HtildeCholEx$Pt %*% Matrix::t(HtildeCholEx$Lt) %*% HtildeCholEx$D %*% HtildeCholEx$L %*% Matrix::t(HtildeCholEx$P))
+HtildeChol = result$extra$cholHessian
+#HtildeChol = Matrix::Cholesky(result$extra$hessian, LDL=TRUE, perm=TRUE)
+HtildeCholEx = Matrix::expand2(HtildeChol)
 
 
-# H = Pt L D Lt P 
-# V = Pt Ltinv Dinv Linv P
+Hrecon = HtildeCholEx$P1. %*% (HtildeCholEx$L1 %*% HtildeCholEx$D %*% HtildeCholEx$L1.) %*% HtildeCholEx$P1
+
+#quantile(Matrix::diag(Hrecon) - Matrix::diag(result$extra$hessian))
+#plot(Matrix::diag(Hrecon) , Matrix::diag(result$extra$hessian), log='xy')
+#abline(0,1)
+
+
+HtildeCholHard= Matrix::chol(result$extra$hessian)
+HtildeCholInv = Matrix::solve(HtildeCholHard)
 
 Nsim = 500
 predSeq = list(
@@ -271,10 +308,15 @@ predSeq = predSeq[names(predSeq) %in% unlist(lapply(theData$terms, '[[', 'var'))
 simInd = matrix(
   rnorm(Nsim * nrow(result$extra$hessian)),
   nrow(result$extra$hessian), Nsim)
-simInd1 = simInd/sqrt(HtildeCholEx$D@x)
-simGamma = HtildeCholEx$Pt %*% Matrix::solve(HtildeCholEx$Lt, simInd1) +
-  result$extra$solution
-rownames(simGamma) = rownames(theData$tmb_data$ATp)
+
+# H = Pt L D Lt P 
+# V = Pt Ltinv Dinv Linv P
+
+#simInd1 = simInd/sqrt(HtildeCholEx$D@x)
+#simGamma = HtildeCholEx$P1. %*% Matrix::solve(HtildeCholEx$L1., simInd1) +
+#  result$extra$solution
+simGamma = HtildeCholInv %*% simInd
+rownames(simGamma) = rownames(result$parameters$gamma)
 
 
 Sref = unlist(lapply(theData$terms, '[[', "ref_value"))
@@ -284,6 +326,8 @@ simGlobal = newConstrIndex = simF = fixedPart = predX = list()
 
     
 simGlobal = simF = fixedPart = predX = newXA = list()
+colsBetaClean = gsub("_fpoly_", "", names(result$parameters$beta))
+
 for(D in names(predSeq)) {
   newDf = data.frame(x = predSeq[[D]], ecoRegion = NA)
   colnames(newDf)[1] = D
@@ -291,12 +335,11 @@ for(D in names(predSeq)) {
     terms = theData$terms, 
     df= newDf
   )
-  xColId = as.numeric(gsub( paste0("^", D, "([[:digit:]]+)$"), "\\1", 
-  colnames(newXA[[D]]$X)))
-  newColNames = paste0(D, c("", seq(1, len=length(xColId)-1)[xColId])[xColId])
-  fixedPart[[D]] = newXA[[D]]$X %*% result$parameters$beta[newColNames]
+  theCols = intersect(colnames(newXA[[D]]$X), colsBetaClean)
+  fixedPart[[D]] = newXA[[D]]$X[,theCols,drop=FALSE] %*% 
+    result$parameters$beta[match(theCols, colsBetaClean)]
 
-  colsA = grep(paste0(D, "_hiwp_global_"), colnames(newXA[[D]]$A), value=TRUE)
+  colsA = grep(paste0(D, "_hiwp_GLOBAL_"), colnames(newXA[[D]]$A), value=TRUE, ignore.case=TRUE)
   simF[[D]] = newXA[[D]]$A[,colsA] %*% simGamma[colsA,]
 
   simGlobalHere= simF[[D]] + fixedPart[[D]]
@@ -305,9 +348,7 @@ for(D in names(predSeq)) {
     nrow(simGlobalHere), ncol(simGlobalHere), byrow=TRUE)
   simGlobal[[D]] = simGlobalHere - toSubtract
 }
-Sregions1 = unique(gsub("_[[:digit:]]+$", "", rownames(simGamma)))
-Sregions = setdiff(unique(gsub(".*_", "", Sregions1)), "global")
-Sregions = sort(as.numeric(Sregions))
+Sregions = levels(result$parameters$gamma$group)
 ```
 
 ```{r params}
