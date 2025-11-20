@@ -76,7 +76,6 @@ result$fullParameters = c(
   theta)
 
 result$cholHessian = Matrix::Cholesky(result$hessian)
-result$invHessian = Matrix::solve(result$cholHessian)
 
 result$halfLogDet = try(Matrix::determinant(
   result$cholHessian, log=TRUE, sqrt=TRUE
@@ -87,18 +86,18 @@ if(is.na(result$halfLogDet)) {
 }
 
 result$minusLogLik = result$fval +
-as.numeric(result$halfLogDet) + 
-0.5 * length(result$solution) * 1.8378770664093454835606594728  # log 2 pi
+  as.numeric(result$halfLogDet) + 
+  0.5 * length(result$solution) * 1.8378770664093454835606594728  # log 2 pi
 
 if(identical(deriv, 0)) { # return log lik
 return(result)
 }
 
+result$invHessian = Matrix::solve(result$cholHessian)
 
 if(missing(adFunFull)) {
   adFunFull = getAdFun(result$fullParameters, data=data, config=config)
 }
-
 
 result$fullHessian = hessian(
   result$fullParameters, data, config, adFunFull

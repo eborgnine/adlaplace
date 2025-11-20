@@ -295,7 +295,7 @@ verboseOrig = config$verbose
     gr = outer_gr,
       method = 'SR1',
       control = control,
-      data=tmb_data, config = config, cache =  cache, contro_inner = control_inner,
+      data=tmb_data, config = config, cache =  cache, control_inner = control_inner,
       adFunFull = adFunFull
     )
 

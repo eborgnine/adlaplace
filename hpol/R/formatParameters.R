@@ -1,5 +1,5 @@
 #' @export
-formatParameters = function(x, obj, logscale_theta = FALSE) {
+formatParameters = function(x, obj, logscale_theta = obj$config$transform_theta) {
   Ntheta = length(obj$theta_info$name)
   Nbeta = nrow(obj$tmb_data$XTp)
   Ngamma = nrow(obj$tmb_data$ATp)
@@ -10,7 +10,7 @@ formatParameters = function(x, obj, logscale_theta = FALSE) {
     )
   names(result$beta) = rownames(obj$tmb_data$XTp)
   names(result$theta) = obj$theta_info$name
-  if(logscale_theta | any(result$theta < 0)) {
+  if(logscale_theta ) {
     result$theta = exp(result$theta)
   }
 
@@ -24,17 +24,18 @@ formatParameters = function(x, obj, logscale_theta = FALSE) {
 
     gammaCat = strsplit(theGamma$ext, '_')
   gammaCatN <- lapply(gammaCat, function(x) {
-    length(x) <- 2  # this will pad with NAs
-    x
+    c(NA,x)[seq(to=length(x)+1, by=1, len=2)]
   })
   gammaCat = as.data.frame(do.call(rbind, gammaCatN))
   names(gammaCat) = c('group','index')
   theGamma = cbind(theGamma, gammaCat)
 
+
   rownames(theGamma) = theGamma$name
   theGamma$index = as.numeric(theGamma$index)
+  theGamma[is.na(theGamma$group), 'group'] = 'global'
   theGamma$group = factor(theGamma$group,
-      levels= c('global', sort(as.numeric(setdiff(unique(theGamma$group), 'global')))))
+      levels= c('global', sort(setdiff(unique(theGamma$group), 'global'))))
 
   theGamma = theGamma[order(theGamma$term, theGamma$index, theGamma$group),]
 
