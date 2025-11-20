@@ -32,7 +32,7 @@ hnlm <- function(
  optim_parameters = list(eval.max = 2000, iter.max = 2000),
  optimizer = c('nlminb', 'optim'),
  config=list(dirichlet = TRUE, boundary_is_random=FALSE, transform_theta=TRUE),
- control=list(start.trust.radius = 0.1, report.level=4, report.freq=1, report.header.freq=10, report.precision=5),
+ control=list(maxit=2000, start.trust.radius = 0.1, report.level=4, report.freq=1, report.header.freq=10, report.precision=5),
  control_inner = list(report.level=0),
  for_dev = FALSE,
  ...) {
@@ -380,7 +380,7 @@ for(D in names(predSeq)) {
 Sregions1 = unique(gsub("_[[:digit:]]+$", "", rownames(simGamma)))
 Sregions = setdiff(unique(gsub(".*_", "", Sregions1)), "global")
 
-result$sample = list(gamma=simGamma, global=simGlobal, groups = Sregions, newXA = newXA)
+result$sample = list(gamma=simGamma, global=simGlobal, groups = Sregions, newXA = newXA, x = predSeq)
 
   return(result)
 }

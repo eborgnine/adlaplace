@@ -104,17 +104,34 @@ res <- hpolcc::hnlm(
   for_dev=FALSE
   )
 saveRDS(res, file='resTemp.rds')
-#rm(dataMedSimple)
-```
 
-```{r sparsePlot}
-par(mar=c(3,3,0,0), bty='n')
-bob= terra::rast(as.matrix(1.1*res$groups$firstDeriv[, 
-  1 + res$groups$groups$i]))
-terra::plot(bob, asp=FALSE, col=c('white','black'), maxcell = 1e8)
-abline(v = res$groups$groups$p,
-       col = 'blue',
-       lty = 1)
+resPm <- hpolcc::hnlm(
+  formula= medical ~ #humidity + #f(date, model='iid') +
+   f(sqrtPm, model='hiwp', ref_value = 8, p=2, 
+     knots = seq(0,32, by=2),
+     group_var = ecoRegion, init = 0.1) 
+  #    +
+#   f(tempClean, model='hiwp',ref_value = 25, p=3, 
+#      knots = seq(0, 45, by=2.5), 
+#    group_var = ecoRegion)
+  , 
+  data=dataMedSimple[dataMedSimple$date > as.Date('2013/1/1'),], 
+  cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
+   control=list(
+    maxit= 2000,
+    start.trust.radius = 0.1, report.level=4, report.freq=10, report.header.freq=10, report.precision=5),
+  config = list(
+    transform_theta = TRUE, 
+    boundary_is_random= FALSE,
+    dirichlet= TRUE, verbose=FALSE,
+    num_threads=parallel::detectCores(), 
+    Nclusters = 50*parallel::detectCores()
+    ),
+  for_dev=FALSE
+  )
+saveRDS(resPm, file='resPm.rds')
+
+
 ```
 
 
@@ -122,71 +139,8 @@ abline(v = res$groups$groups$p,
 ```{r theResults}
 library('hpolcc')
 res = readRDS("resTemp.rds")
-
-res$parameters$theta
-
-
-
-HtildeChol = Matrix::Cholesky(result$extra$hessian, LDL=TRUE)
-HtildeCholEx = list(Lt = Matrix::expand1(HtildeChol, "L1."),
-                    D = Matrix::expand1(HtildeChol, "D"),
-                    Pt = Matrix::expand1(HtildeChol, "P1.")
-)
-
-
-# H = Pt L D Lt P 
-# V = Pt Ltinv Dinv Linv P
-
-Nsim = 500
-predSeq = list(
-  tempClean = seq(0,45,by=0.2),
-  sqrtPm = sqrt(seq(0,1000, by=2))
-)
-newConstr = list(tempClean = 25, sqrtPm = sqrt(25))
-
-predSeq = predSeq[names(predSeq) %in% unlist(lapply(res$terms, '[[', 'var'))]
-
-simInd = matrix(
-  rnorm(Nsim * nrow(result$extra$hessian)),
-  nrow(result$extra$hessian), Nsim)
-simInd1 = simInd/sqrt(HtildeCholEx$D@x)
-simGamma = HtildeCholEx$Pt %*% Matrix::solve(HtildeCholEx$Lt, simInd1) +
-  result$extra$solution
-rownames(simGamma) = rownames(res$tmb_data$ATp)
-
-
-Sref = unlist(lapply(res$terms, '[[', "ref_value"))
-Svar = unlist(lapply(res$terms, '[[', "var"))
-
-simGlobal = newConstrIndex = simF = fixedPart = predX = list()
-
-    
-simGlobal = simF = fixedPart = predX = newXA = list()
-for(D in names(predSeq)) {
-  newDf = data.frame(x = predSeq[[D]], ecoRegion = NA)
-  colnames(newDf)[1] = D
-  newXA[[D]] = hpolcc:::getNewXA(
-    terms = res$terms, 
-    df= newDf
-  )
-  xColId = as.numeric(gsub( paste0("^", D, "([[:digit:]]+)$"), "\\1", 
-  colnames(newXA[[D]]$X)))
-  newColNames = paste0(D, c("", seq(1, len=length(xColId)-1)[xColId])[xColId])
-  fixedPart[[D]] = newXA[[D]]$X %*% result$parameters$beta[newColNames]
-
-  colsA = grep(paste0(D, "_hiwp_global_"), colnames(newXA[[D]]$A), value=TRUE)
-  simF[[D]] = newXA[[D]]$A[,colsA] %*% simGamma[colsA,]
-
-  simGlobalHere= simF[[D]] + fixedPart[[D]]
-  newConstrIndex[[D]] = which.min(abs(predSeq[[D]] - newConstr[[D]]))
-  toSubtract = matrix(simGlobalHere[newConstrIndex[[D]],],
-    nrow(simGlobalHere), ncol(simGlobalHere), byrow=TRUE)
-  simGlobal[[D]] = simGlobalHere - toSubtract
-}
-Sregions1 = unique(gsub("_[[:digit:]]+$", "", rownames(simGamma)))
-Sregions = setdiff(unique(gsub(".*_", "", Sregions1)), "global")
-Sregions = sort(as.numeric(Sregions))
-
+simGlobal = res$sample$global
+predSeq = res$sample$x
 ```
 
 
@@ -199,7 +153,7 @@ theY = 100*(exp(simGlobal[["tempClean"]])-1)
 matplot(predSeq[["tempClean"]], theY, type='l',
   col='#00000010', lty=1, xaxs='i',
   xlab='degrees C', ylab = '100 x (RR-1)',
-  ylim = c(-1/3, 31), xlim = c(6, 38))
+  ylim = c(-1/3, 36), xlim = c(6, 41))
 theYq = t(apply(theY, 1, quantile, probs=c(0.025, 0.975, 0.5)))
 matlines(predSeq[["tempClean"]], theYq, lty=c(2,2,1), lwd=c(1,1,2), col='blue')
 }
