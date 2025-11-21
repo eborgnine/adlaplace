@@ -6,7 +6,7 @@ formatParameters = function(x, obj, logscale_theta = obj$config$transform_theta)
 
   result = list(
     theta = x[seq(to=length(x), len=Ntheta)],
-    beta = x[seq(1, Nbeta)]
+    beta = x[seq(1, len=Nbeta)]
     )
   names(result$beta) = rownames(obj$tmb_data$XTp)
   names(result$theta) = obj$theta_info$name

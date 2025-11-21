@@ -7,9 +7,9 @@
 #'
 #' @return A list containing X and A, the fixed and random effects design matrices.
 #'
-getNewXA <- function(terms, df){
-  X <- NULL
-  A <- NULL
+getNewXA <- function(terms, df, boundary_is_random=FALSE){
+  X <- list()
+  A <- list()
   k <- 1
   while(k <= length(terms)){
     term <- terms[[k]]
@@ -24,16 +24,26 @@ getNewXA <- function(terms, df){
       if(is.factor(df[[term$var]])) {
         Xsub = Xsub[,-1] 
       }
-      X <- cbind(X, Xsub)
+      X <- c(X, list(Xsub))
       k <- k+1
       next
     }
     
     if(term$model %in% "fpoly"){
       Xsub <- poly(df[[term$var]] - term$ref_value, raw = T, simple = T,
-                   degree = term$p) |> as("TsparseMatrix")
-      colnames(Xsub) <- paste0(term$var,  seq(from=1, by=1, len=ncol(Xsub)))
-      X <- cbind(X, Xsub)
+       degree = term$p) |> as("TsparseMatrix")
+      if(boundary_is_random) {
+        colnames(Xsub) <- paste0(term$var, "_fpoly_GLOBAL_",seq(
+         from = 1,
+         len = ncol(Xsub)
+       ))
+        
+        A = c(A, list(Xsub))
+      } else {
+        colnames(Xsub) <- paste0(term$var,  seq(from=1, by=1, len=ncol(Xsub)))
+
+        X <- c(X, list(Xsub))
+      }
       k <- k+1
       next
     }    
@@ -42,8 +52,8 @@ getNewXA <- function(terms, df){
       # problem: doesn't use df
       Asub <- Diagonal(nrow(df))
       colnames(Asub) <- paste0('factor(',term$var,')',
-                               df[[term$var]])
-      A <- cbind(A, Asub)
+       df[[term$var]])
+      A = c(A, list(Xsub))
       k <- k+1
       next
     }    
@@ -52,10 +62,16 @@ getNewXA <- function(terms, df){
     # below takes care of random effects
     # design matrix
     Asub <- getDesign(term, df)
-    A <- cbind(A, Asub)
+    A <- c(A, list(Asub))
 
     k <- k+1
   }
+  A = do.call(cbind, A)
+  X = do.call(cbind, X)
+  if(is.null(X)) {
+    X = matrix(nrow=nrow(A), ncol=0)
+  }
+
   return(list(X = X, A = A))
 }
 
@@ -90,7 +106,7 @@ getEffect <- function(fit, exposure_var, group_var, group, values, ref_values){
   
   df <- data.frame(row.names = 1:(length(values)*length(group)))
   for(v in vars) df[[v]] <- ifelse(is.null(ref_values[[v]]), 0, ref_values[[v]])
-  df[[group_var]] <- rep(group, each = length(values)) |> unlist()
+    df[[group_var]] <- rep(group, each = length(values)) |> unlist()
   df[[exposure_var]] <- rep(values, times = max(1,length(group)))
   
   # # takes care of overdispersion
@@ -105,8 +121,8 @@ getEffect <- function(fit, exposure_var, group_var, group, values, ref_values){
   #
   
   data.frame(variable = exposure_var, var_value = values, 
-             effect_value = as.numeric(X %*% beta + A %*% gamma), 
-             group = df[[group_var]])
+   effect_value = as.numeric(X %*% beta + A %*% gamma), 
+   group = df[[group_var]])
 }
 
 
@@ -124,10 +140,10 @@ formatResult = function(obj) {
   names(fitList$random$est) = colnames(obj$env$.data$A)
   if(! 'try-error' %in% class(fitList$random$hessian))     
     colnames(fitList$random$hessian) = 
-      rownames(fitList$random$hessian) = colnames(obj$env$.data$A)
+  rownames(fitList$random$hessian) = colnames(obj$env$.data$A)
 
   names(fitList$param$est)[grep("beta", names(fitList$param$est))] = 
-    colnames(obj$env$.data$X)
+  colnames(obj$env$.data$X)
 
-    fitList
-  }
+  fitList
+}

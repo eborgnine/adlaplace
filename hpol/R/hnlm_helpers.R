@@ -124,6 +124,10 @@ getGammaSetup <- function(term){
   } else {
     term$order = NA
   }
+  if(term$model == "fpoly") {
+    term$groups = 'GLOBAL'
+  }
+
 
   if(term$model %in% c("iwp","hiwp")) {
     term$basis = seq(1, len=term$nknots-1)

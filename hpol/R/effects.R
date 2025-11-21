@@ -97,12 +97,12 @@ iwp <- function(x, p = 2,
 iwpDesign <- function(term, data){
   list2env(term, envir = environment())
   
-  ref_pos <- which(knots == ref_value)
+  ref_pos <- which(term$knots == term$ref_value)
   
   # should not happen
   if(length(ref_pos) == 0) stop("ref_value of", var, "cannot be found in the corresponding knots vector. \n")
   if(range[1] < knots[1] & range[2] > rev(knots)[1]) warning("knots for ", var, " do not span its range. Continuing anyway. \n")
-  res=local_poly(knots = knots-ref_value, refined_x = data[[var]]-ref_value, p = p)
+  res=local_poly(knots = term$knots-term$ref_value, refined_x = data[[term$var]]-term$ref_value, p = term$p)
   res = methods::as(res, "TsparseMatrix")
 
   dimnames(res) = list(
@@ -164,7 +164,7 @@ hiwp <- function(x, p = 2, ref_value, knots, range = NULL,
 }
 
 #' @rdname effects_and_utilities 
-hiwpDesign <- function(term, data, use_dev_version = F){
+hiwpDesign <- function(term, data){
   list2env(term, envir = environment())
   
   A0 <- iwpDesign(term, data)
@@ -173,7 +173,6 @@ hiwpDesign <- function(term, data, use_dev_version = F){
                     drop = F)
   if(term$include_global) id_split <- c(list(GLOBAL=1:nrow(data)), id_split)
   
-  if(!use_dev_version){
     # fixed
     A0split = mapply(function(AA, xx) {
       res = as(AA[xx, ], "TsparseMatrix")
@@ -182,9 +181,9 @@ hiwpDesign <- function(term, data, use_dev_version = F){
     xx = id_split, MoreArgs = list(AA=A0), SIMPLIFY=FALSE)
     A0combine = cbind(
       as.data.frame(do.call(rbind, A0split)), 
-      split = rep(1:length(A0split), unlist(lapply(A0split, nrow)))
+      split = rep(seq(0,len=length(A0split)), unlist(lapply(A0split, nrow)))
     )
-    A0combine[,'j2'] = A0combine[,'j'] + ncol(A0) * (A0combine[,'split']-1)
+    A0combine[,'j2'] = A0combine[,'j'] + ncol(A0) * (A0combine[,'split'])
     Afinal = Matrix::sparseMatrix(i=A0combine$i, j=A0combine$j2, x=A0combine$x,
       dims = c(nrow(data), ncol(A0)*length(id_split)),
       dimnames = list(rownames(data), 
@@ -192,15 +191,7 @@ hiwpDesign <- function(term, data, use_dev_version = F){
           rep(names(id_split), each=ncol(A0)),
           rep(formatC(1:ncol(A0), width=ceiling(log10(ncol(A0))), flag='0'), 
             length(id_split)), sep='_')))
-  }else{
-    
-    # the slow way
-    Afinal <- Matrix::Matrix(0, nrow=nrow(data), ncol=ncol(A0)*length(id_split)) |> as("TsparseMatrix")
-    for(k in seq_along(id_split)) 
-      Afinal[id_split[[k]], (k-1)*ncol(A0) + 1:ncol(A0)] <- A0[id_split[[k]],]
-    AfinalOld = Afinal
-  }
-  
+
   Afinal
 }
 

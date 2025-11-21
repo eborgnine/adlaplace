@@ -149,7 +149,9 @@ hnlm <- function(
     QfPoly = lapply(XfPoly, function(xx, prec) Matrix::Diagonal(ncol(xx), x=prec), prec= config$prec_boundary)
     isBoundary = isFpoly
     Xlist = XasIs
-    Alist = c(XfPoly, Arandom)
+    XfPoly = do.call(cbind, XfPoly)    
+    colnames(XfPoly) = gsub("_fpoly_", "_fpoly_GLOBAL_", colnames(XfPoly))
+    Alist = c(list(XfPoly), Arandom)
     Qs = c(QfPoly, Qs)
 
   } else {
@@ -196,7 +198,6 @@ hnlm <- function(
   }
 
   gamma_info$global = gamma_info$group == 'GLOBAL'
-  gamma_info[gamma_info$model != 'hiwp','global'] = NA
 
   gamma_theta = merge(gamma_info, theta_info, 
     by = c('var','model','global','order'), all.x=TRUE, all.y=TRUE,
@@ -287,17 +288,18 @@ hnlm <- function(
   adFunFull = getAdFun(full_parameters, tmb_data, config)
 
 
-  if(verboseOrig) cat("optimizing")
-
-    mle = trustOptim::trust.optim(
-      x = parameters,
-      fn = outer_fn,
-      gr = outer_gr,
-      method = 'SR1',
-      control = control,
-      data=tmb_data, config = config, cache =  cache, control_inner = control_inner,
-      adFunFull = adFunFull
-    )
+  if(verboseOrig) {
+    cat("optimizing")
+  }
+  mle = trustOptim::trust.optim(
+    x = parameters,
+    fn = outer_fn,
+    gr = outer_gr,
+    method = 'SR1',
+    control = control,
+    data=tmb_data, config = config, cache =  cache, control_inner = control_inner,
+    adFunFull = adFunFull
+  )
 
   result = list(opt = mle, 
     objects = list(
@@ -305,13 +307,14 @@ hnlm <- function(
       theta_info = theta_info, gamma_info = gamma_info))
 
 
-  if(verboseOrig) cat("done")
-
-    result$extra = try(loglik(
-      mle$solution, 
-      get("gamma_start", cache), 
-      tmb_data, config, control = control_inner, adFunFull=adFunFull,
-      deriv=0))
+  if(verboseOrig) {
+    cat("done")
+  }
+  result$extra = try(loglik(
+    mle$solution, 
+    get("gamma_start", cache), 
+    tmb_data, config, control = control_inner, adFunFull=adFunFull,
+    deriv=0))
 
 
   result$extra$parameters = formatParameters(result$extra$fullParameters, result$objects)
@@ -321,66 +324,79 @@ hnlm <- function(
   HtildeCholEx  = result$extra$HtildeCholEx = Matrix::expand2(result$extra$cholHessian)
 
   Nsim = 500
-simInd = matrix(
-  rnorm(Nsim * nrow(result$extra$hessian)),
-  nrow(result$extra$hessian), Nsim)
-simInd1 = simInd/sqrt(HtildeCholEx$D@x)
+  simInd = matrix(
+    rnorm(Nsim * nrow(result$extra$hessian)),
+    nrow(result$extra$hessian), Nsim)
+  simInd1 = simInd/sqrt(HtildeCholEx$D@x)
 
-simSolve = Matrix::solve(HtildeCholEx$L1., simInd1)
-simGamma = as.matrix(HtildeCholEx$P1. %*% simSolve + result$extra$solution)
-rownames(simGamma) = rownames(tmb_data$ATp)
-
-
-
-Sref = unlist(lapply(terms, '[[', "ref_value"))
-Svar = unlist(lapply(terms, '[[', "var"))
-Smodel = unlist(lapply(terms, '[[', "model"))
-
-isHiwp = which(Smodel == 'hiwp')
-Sref = Sref[isHiwp]
-Svar = Svar[isHiwp]
-Srange = lapply(terms[isHiwp], '[[', 'range')
-predSeq = lapply(Srange, function(xx) seq(min(xx), max(xx), len=100))
-Sgroup = lapply(terms[isHiwp], '[[', 'group_var')
-
-names(predSeq) =names(Sgroup) = names(Sref) = Svar
-
-newConstr = Sref # replace by new constraints
+  simSolve = Matrix::solve(HtildeCholEx$L1., simInd1)
+  simGamma = as.matrix(HtildeCholEx$P1. %*% simSolve + result$extra$solution)
+  rownames(simGamma) = rownames(tmb_data$ATp)
 
 
-newXA = fixedPart = newConstrIndex= simGlobal = simF= list()
 
-for(D in names(predSeq)) {
-  newDf = data.frame(x = predSeq[[D]], group = NA)
-  names(newDf)[2] = Sgroup[D]
-  colnames(newDf)[1] = D
-  newXA[[D]] = hpolcc:::getNewXA(
-    terms = terms, 
-    df= newDf
-  )
+  Sref = unlist(lapply(terms, '[[', "ref_value"))
+  Svar = unlist(lapply(terms, '[[', "var"))
+  Smodel = unlist(lapply(terms, '[[', "model"))
 
-  newColNamesBeta = 
+  isHiwp = which(Smodel == 'hiwp')
+  Sref = Sref[isHiwp]
+  Svar = Svar[isHiwp]
+  Srange = lapply(terms[isHiwp], '[[', 'range')
+  predSeq = lapply(Srange, function(xx) seq(min(xx), max(xx), len=100))
+  Sgroup = lapply(terms[isHiwp], '[[', 'group_var')
+
+  names(predSeq) =names(Sgroup) = names(Sref) = Svar
+
+  newConstr = Sref # replace by new constraints
+
+
+  newXA = fixedPart = newConstrIndex= simGlobal = simF= list()
+
+  for(D in names(predSeq)) {
+    newDf = data.frame(x = predSeq[[D]], group = NA)
+    names(newDf)[2] = Sgroup[D]
+    colnames(newDf)[1] = D
+    newXA[[D]] = getNewXA(
+      terms = terms,
+      df= newDf,
+      boundary_is_random= result$objects$config$boundary_is_random
+    )
+
+    newColNamesBeta = 
     gsub("_fpoly_", "", names(result$extra$parameters$beta))
-  namesBoth = intersect(newColNamesBeta, colnames(newXA[[D]]$X))    
+    namesBoth = intersect(newColNamesBeta, colnames(newXA[[D]]$X))    
 
-  fixedPart[[D]] = as.vector(newXA[[D]]$X[,namesBoth, drop=FALSE] %*% 
-    result$extra$parameters$beta[match(namesBoth, newColNamesBeta)])
+    fixedPart[[D]] = as.vector(newXA[[D]]$X[,namesBoth, drop=FALSE] %*% 
+      result$extra$parameters$beta[match(namesBoth, newColNamesBeta)])
 
-  colsA = grep(paste0(D, "_hiwp_(global|GLOBAL)_"), colnames(newXA[[D]]$A), value=TRUE)
-  gammaHere = simGamma[colsA,]
-  simF[[D]] = as.matrix(newXA[[D]]$A[,colsA] %*% gammaHere)
 
-  simGlobalHere= simF[[D]] + fixedPart[[D]]
-  newConstrIndex[[D]] = which.min(abs(predSeq[[D]] - newConstr[D]))
-  toSubtract = matrix(simGlobalHere[newConstrIndex[[D]],],
-    nrow(simGlobalHere), ncol(simGlobalHere), byrow=TRUE)
-  simGlobal[[D]] = simGlobalHere - toSubtract
-}
+    colsA = gamma_info[gamma_info$var == D & gamma_info$global,'name']
 
-Sregions1 = unique(gsub("_[[:digit:]]+$", "", rownames(simGamma)))
-Sregions = setdiff(unique(gsub(".*_", "", Sregions1)), "global")
+    testA = setdiff(colsA, colnames(newXA[[D]]$A))
+    if(length(testA)) {
+      warning("missing A ", paste(testA, collapse=','))
+    }
+    testA = setdiff(colsA, rownames(simGamma))
+    if(length(testA)) {
+      warning("missing A ", paste(testA, collapse=','))
+    }
 
-result$sample = list(gamma=simGamma, global=simGlobal, groups = Sregions, newXA = newXA, x = predSeq)
+
+    gammaHere = simGamma[colsA,]
+    simF[[D]] = as.matrix(newXA[[D]]$A[,colsA] %*% gammaHere)
+
+    simGlobalHere= simF[[D]] + fixedPart[[D]]
+    newConstrIndex[[D]] = which.min(abs(predSeq[[D]] - newConstr[D]))
+    toSubtract = matrix(simGlobalHere[newConstrIndex[[D]],],
+      nrow(simGlobalHere), ncol(simGlobalHere), byrow=TRUE)
+    simGlobal[[D]] = simGlobalHere - toSubtract
+  }
+
+  Sregions1 = unique(gsub("_[[:digit:]]+$", "", rownames(simGamma)))
+  Sregions = setdiff(unique(gsub(".*_", "", Sregions1)), "global")
+
+  result$sample = list(gamma=simGamma, global=simGlobal, groups = Sregions, newXA = newXA, x = predSeq)
 
   return(result)
 }
