@@ -40,7 +40,7 @@ if(missing(gamma_start)) {
 adFun = getAdFun(gamma_start, data=data, config=config)
 
   # inner opt
-result <- trustOptim::trust.optim(
+result <- try(trustOptim::trust.optim(
   x = gamma_start,
   fn = jointLogDens,
   gr = grad,
@@ -48,7 +48,13 @@ result <- trustOptim::trust.optim(
   method = "Sparse",
   control = control,
   data=data, config = config, adFun=adFun
-)
+))
+if('try-error' %in% class(result)) {
+  return(list(
+    minusLogLik = NA, 
+    deriv=data.frame(dL = rep(NA, length(parameters)))
+  ))
+}
 
 
 if(check) {

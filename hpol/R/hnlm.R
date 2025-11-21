@@ -57,7 +57,7 @@ hnlm <- function(
 
   # Order the rows of data appropriately.
   if (is.character(cc_design)) {
-    cc_design = ccDesign(strat_vars = cc_design)
+    cc_design = hpolcc:::ccDesign(strat_vars = cc_design)
   }
   if (is.null(cc_design$strat_vars) &
     is.null(cc_design$time_var)) {
@@ -229,6 +229,8 @@ hnlm <- function(
     cc_matrix = cc_matrix
   )
   tmb_data = formatHpolData(tmb_data)
+  gamma_info$matchA = match(gamma_info$name, rownames(tmb_data$ATp))
+
 
   verboseOrig = config$verbose
   config$verbose = config$verbose > 1
@@ -316,6 +318,14 @@ hnlm <- function(
     tmb_data, config, control = control_inner, adFunFull=adFunFull,
     deriv=0))
 
+  result$hessian_parameters = try(
+    numDeriv::jacobian(
+      outer_gr,
+      x= mle$solution,
+      data = tmb_data, config=config, control=control_inner, adFunFull=adFunFull
+    )
+  )
+
 
   result$extra$parameters = formatParameters(result$extra$fullParameters, result$objects)
 
@@ -357,7 +367,7 @@ hnlm <- function(
     newDf = data.frame(x = predSeq[[D]], group = NA)
     names(newDf)[2] = Sgroup[D]
     colnames(newDf)[1] = D
-    newXA[[D]] = getNewXA(
+    newXA[[D]] = hpolcc:::getNewXA(
       terms = terms,
       df= newDf,
       boundary_is_random= result$objects$config$boundary_is_random

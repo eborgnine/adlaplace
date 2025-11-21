@@ -65,14 +65,8 @@ deaths[format(deaths$date, '%m%d') == '0101', 'dom'] = 0
 deaths$dom = relevel(factor(deaths$dom), '1')
 deaths$month = format(deaths$date, '%m')
 
-
-dataMedSimple =
-  deaths[
-    deaths$date >= as.Date('2010/1/1') &
-    format(deaths$date, '%b%d') != 'Jan01'
-    & deaths$tempClean >= (0) # & deaths$ecoRegion %in% 1:10 #setdiff(1:20, c(1,7,19)) # regions 1, 7, 19 have some very low temperatures.
-    , ]
-save(dataMedSimple, file='dataMedSimple.RData')
+deaths = deaths[format(deaths$date, '%b%d') != 'Jan01', ]
+save(deaths, file='deaths.RData')
 ```
 
 
@@ -80,24 +74,23 @@ save(dataMedSimple, file='dataMedSimple.RData')
 
 ```{r fit}
 library('hpolcc')
-load("dataMedSimple.RData")
-dataMedSimple$date5 = as.numeric(dataMedSimple$dom %in% seq(5,30,by=5))
+load("deaths.RData")
 
 res <- hpolcc::hnlm(
-  formula= medical ~ humidity + date5 + #f(date, model='iid') +
- #   f(sqrtPm, model='hiwp', ref_value = 8, p=2, 
- #     knots = seq(0,32, by=2),
- #     group_var = ecoRegion, init = 0.1) 
-  #    +
-   f(tempClean, model='hiwp',ref_value = 25, p=3, 
-      knots = seq(0, 45, by=2.5), 
+  formula= medical ~ dom + 
+  f(temp, model='hiwp',ref_value = 25, p=3, 
+      knots = seq(0, 42.5, by=2.5), 
     group_var = ecoRegion)
   , 
-  data=dataMedSimple[dataMedSimple$date > as.Date('2010/1/1'),], 
+  data=deaths[
+    which(
+      deaths$date > as.Date("2010/1/1") & 
+      deaths$temp >=0
+      ), ],
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
   config = list(
     transform_theta = TRUE, 
-    boundary_is_random= FALSE,
+    boundary_is_random= TRUE,
     dirichlet= TRUE, verbose=FALSE,
     num_threads=parallel::detectCores(), 
     Nclusters = 50*parallel::detectCores()
@@ -140,9 +133,51 @@ saveRDS(resPm, file='resPm.rds')
 ```{r theResults}
 library('hpolcc')
 res = readRDS("resPm.rds")
-#res = readRDS("resTemp.rds")
+res = readRDS("resTemp.rds")
 simGlobal = res$sample$global
+
 predSeq = res$sample$x
+simGlobalSumToZero = simGlobal[[1]] - 
+  matrix(apply(simGlobal[[1]][predSeq[[1]]>15 & predSeq[[1]]<30 ,], 2, mean), nrow(simGlobal[[1]]), ncol(simGlobal[[1]]), byrow=TRUE)
+```
+
+
+
+
+
+```{r globalRes, fig.cap='Common component', fig.subcap = c("temperature", "PM 2.5")}
+par(mar=c(3,3,0,0), bty='l', oma=c(0,0,0,0))
+if("tempClean" %in% names(simGlobal)) {
+theY = 100*(exp(simGlobal[["tempClean"]])-1)
+matplot(predSeq[["tempClean"]], theY, type='l',
+  col='#00000010', lty=1, xaxs='i',
+  xlab='degrees C', ylab = '100 x (RR-1)',
+  ylim = c(-40, 86), xlim = c(6, 41))
+theYq = t(apply(theY, 1, quantile, probs=c(0.025, 0.975, 0.5)))
+matlines(predSeq[["tempClean"]], theYq, lty=c(2,2,1), lwd=c(1,1,2), col='blue')
+
+theYZero = 100*(exp(simGlobalSumToZero)-1)
+matplot(predSeq[["tempClean"]], theYZero, type='l',
+  col='#00000010', lty=1, xaxs='i',
+  xlab='degrees C', ylab = '100 x (RR-1)',
+  ylim = c(-40, 86), xlim = c(6, 41))
+theYq = t(apply(theYZero, 1, quantile, probs=c(0.025, 0.975, 0.5)))
+matlines(predSeq[["tempClean"]], theYq, lty=c(2,2,1), lwd=c(1,1,2), col='blue')
+
+
+}
+
+if("sqrtPm" %in% names(simGlobal)) {
+
+theY =  100*(exp(simGlobal[["sqrtPm"]])-1)
+theX = predSeq[["sqrtPm"]]^2
+matplot(theX, theY , type='l',
+  col='#00000010', lty=1, xaxs='i',
+  xlim = c(0,600), ylim = c(-4, 12),
+  xlab = 'PM 2.5', ylab = '100 (RR-1)')
+theYq = t(apply(theY, 1, quantile, probs=c(0.025, 0.975, 0.5)))
+matlines(theX, theYq, lty=c(2,2,1), lwd=c(1,1,2), col='blue')
+}
 ```
 
 ```{r check}
@@ -179,37 +214,6 @@ abline(v= res$extra$fullParameters[Dpar])
 ```
 
 
-
-
-
-
-
-
-
-```{r globalRes, fig.cap='Common component', fig.subcap = c("temperature", "PM 2.5")}
-par(mar=c(3,3,0,0), bty='l')
-if("tempClean" %in% names(simGlobal)) {
-theY = 100*(exp(simGlobal[["tempClean"]])-1)
-matplot(predSeq[["tempClean"]], theY, type='l',
-  col='#00000010', lty=1, xaxs='i',
-  xlab='degrees C', ylab = '100 x (RR-1)',
-  ylim = c(-1/3, 36), xlim = c(6, 41))
-theYq = t(apply(theY, 1, quantile, probs=c(0.025, 0.975, 0.5)))
-matlines(predSeq[["tempClean"]], theYq, lty=c(2,2,1), lwd=c(1,1,2), col='blue')
-}
-
-if("sqrtPm" %in% names(simGlobal)) {
-
-theY =  100*(exp(simGlobal[["sqrtPm"]])-1)
-theX = predSeq[["sqrtPm"]]^2
-matplot(theX, theY , type='l',
-  col='#00000010', lty=1, xaxs='i',
-  xlim = c(0,600), ylim = c(-4, 12),
-  xlab = 'PM 2.5', ylab = '100 (RR-1)')
-theYq = t(apply(theY, 1, quantile, probs=c(0.025, 0.975, 0.5)))
-matlines(theX, theYq, lty=c(2,2,1), lwd=c(1,1,2), col='blue')
-}
-```
 
 
 
