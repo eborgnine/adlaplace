@@ -10,6 +10,19 @@ Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
 Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
+// getAdFun
+SEXP getAdFun(Rcpp::NumericVector x, const Rcpp::List data, const Rcpp::List config);
+RcppExport SEXP _hpolcc_getAdFun(SEXP xSEXP, SEXP dataSEXP, SEXP configSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type x(xSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List >::type data(dataSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List >::type config(configSEXP);
+    rcpp_result_gen = Rcpp::wrap(getAdFun(x, data, config));
+    return rcpp_result_gen;
+END_RCPP
+}
 // traceHinvT
 Rcpp::NumericVector traceHinvT(const Rcpp::NumericVector parameters, const Rcpp::S4& LinvPt, const Rcpp::List data, const Rcpp::List config, SEXP adFun);
 RcppExport SEXP _hpolcc_traceHinvT(SEXP parametersSEXP, SEXP LinvPtSEXP, SEXP dataSEXP, SEXP configSEXP, SEXP adFunSEXP) {
@@ -25,22 +38,6 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
-// thirdPolarization
-Rcpp::NumericVector thirdPolarization(const Rcpp::NumericVector parameters, const Rcpp::NumericVector A, const Rcpp::NumericVector B, const Rcpp::List data, const Rcpp::List config, SEXP adFun);
-RcppExport SEXP _hpolcc_thirdPolarization(SEXP parametersSEXP, SEXP ASEXP, SEXP BSEXP, SEXP dataSEXP, SEXP configSEXP, SEXP adFunSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const Rcpp::NumericVector >::type parameters(parametersSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::NumericVector >::type A(ASEXP);
-    Rcpp::traits::input_parameter< const Rcpp::NumericVector >::type B(BSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::List >::type data(dataSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::List >::type config(configSEXP);
-    Rcpp::traits::input_parameter< SEXP >::type adFun(adFunSEXP);
-    rcpp_result_gen = Rcpp::wrap(thirdPolarization(parameters, A, B, data, config, adFun));
-    return rcpp_result_gen;
-END_RCPP
-}
 // thirdStrata
 Rcpp::List thirdStrata(const Rcpp::NumericVector parameters, const Rcpp::List data, const Rcpp::List config, SEXP adFun);
 RcppExport SEXP _hpolcc_thirdStrata(SEXP parametersSEXP, SEXP dataSEXP, SEXP configSEXP, SEXP adFunSEXP) {
@@ -52,19 +49,6 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const Rcpp::List >::type config(configSEXP);
     Rcpp::traits::input_parameter< SEXP >::type adFun(adFunSEXP);
     rcpp_result_gen = Rcpp::wrap(thirdStrata(parameters, data, config, adFun));
-    return rcpp_result_gen;
-END_RCPP
-}
-// getAdFun
-SEXP getAdFun(Rcpp::NumericVector x, const Rcpp::List data, const Rcpp::List config);
-RcppExport SEXP _hpolcc_getAdFun(SEXP xSEXP, SEXP dataSEXP, SEXP configSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type x(xSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::List >::type data(dataSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::List >::type config(configSEXP);
-    rcpp_result_gen = Rcpp::wrap(getAdFun(x, data, config));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -136,6 +120,19 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// hessianQdenseLogical
+Rcpp::LogicalMatrix hessianQdenseLogical(const Rcpp::NumericVector parameters, const Rcpp::List& data, const Rcpp::List& config);
+RcppExport SEXP _hpolcc_hessianQdenseLogical(SEXP parametersSEXP, SEXP dataSEXP, SEXP configSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::NumericVector >::type parameters(parametersSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type data(dataSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type config(configSEXP);
+    rcpp_result_gen = Rcpp::wrap(hessianQdenseLogical(parameters, data, config));
+    return rcpp_result_gen;
+END_RCPP
+}
 // hessianDenseLogical
 Rcpp::LogicalMatrix hessianDenseLogical(const Rcpp::NumericVector parameters, const Rcpp::List& data, const Rcpp::List& config);
 RcppExport SEXP _hpolcc_hessianDenseLogical(SEXP parametersSEXP, SEXP dataSEXP, SEXP configSEXP) {
@@ -146,6 +143,19 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const Rcpp::List& >::type data(dataSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List& >::type config(configSEXP);
     rcpp_result_gen = Rcpp::wrap(hessianDenseLogical(parameters, data, config));
+    return rcpp_result_gen;
+END_RCPP
+}
+// gradQLogical
+Rcpp::LogicalVector gradQLogical(const Rcpp::NumericVector parameters, const Rcpp::List& data, const Rcpp::List& config);
+RcppExport SEXP _hpolcc_gradQLogical(SEXP parametersSEXP, SEXP dataSEXP, SEXP configSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::NumericVector >::type parameters(parametersSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type data(dataSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type config(configSEXP);
+    rcpp_result_gen = Rcpp::wrap(gradQLogical(parameters, data, config));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -162,19 +172,35 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// jointLogDensDense
+double jointLogDensDense(Rcpp::NumericVector parameters, const Rcpp::List data, const Rcpp::List config, SEXP adFun);
+RcppExport SEXP _hpolcc_jointLogDensDense(SEXP parametersSEXP, SEXP dataSEXP, SEXP configSEXP, SEXP adFunSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type parameters(parametersSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List >::type data(dataSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List >::type config(configSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type adFun(adFunSEXP);
+    rcpp_result_gen = Rcpp::wrap(jointLogDensDense(parameters, data, config, adFun));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_hpolcc_traceHinvT", (DL_FUNC) &_hpolcc_traceHinvT, 5},
-    {"_hpolcc_thirdPolarization", (DL_FUNC) &_hpolcc_thirdPolarization, 6},
-    {"_hpolcc_thirdStrata", (DL_FUNC) &_hpolcc_thirdStrata, 4},
     {"_hpolcc_getAdFun", (DL_FUNC) &_hpolcc_getAdFun, 3},
+    {"_hpolcc_traceHinvT", (DL_FUNC) &_hpolcc_traceHinvT, 5},
+    {"_hpolcc_thirdStrata", (DL_FUNC) &_hpolcc_thirdStrata, 4},
     {"_hpolcc_jointLogDens", (DL_FUNC) &_hpolcc_jointLogDens, 4},
     {"_hpolcc_grad", (DL_FUNC) &_hpolcc_grad, 4},
     {"_hpolcc_hessian", (DL_FUNC) &_hpolcc_hessian, 4},
     {"_hpolcc_hessianQdense", (DL_FUNC) &_hpolcc_hessianQdense, 3},
     {"_hpolcc_hessianDense", (DL_FUNC) &_hpolcc_hessianDense, 3},
+    {"_hpolcc_hessianQdenseLogical", (DL_FUNC) &_hpolcc_hessianQdenseLogical, 3},
     {"_hpolcc_hessianDenseLogical", (DL_FUNC) &_hpolcc_hessianDenseLogical, 3},
+    {"_hpolcc_gradQLogical", (DL_FUNC) &_hpolcc_gradQLogical, 3},
     {"_hpolcc_gradLogical", (DL_FUNC) &_hpolcc_gradLogical, 3},
+    {"_hpolcc_jointLogDensDense", (DL_FUNC) &_hpolcc_jointLogDensDense, 4},
     {NULL, NULL, 0}
 };
 

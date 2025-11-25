@@ -57,7 +57,11 @@ CppAD::ADFun<double> adFunQ(
   const Config& config) {
 
   const size_t Nparams = parameters.size();
-  const size_t Nq = data.Qdiag.size();
+  const size_t Nq = data.Qdiag.size();  
+
+  if(Nq == 0) {
+    //return ADfun that always returns zero
+  }
 
   CppAD::vector<CppAD::AD<double>> ad_params(Nparams);
   for(size_t D=0;D<Nparams;D++) {
@@ -86,7 +90,7 @@ CppAD::ADFun<double> adFunQ(
       // Q offdiag    
   for(size_t D = 0; D < data.Nq; D++) {
     result0 += gammaScaled[data.QsansDiag.i[D]] * gammaScaled[data.QsansDiag.j[D]] 
-      * data.QsansDiag.x[D];
+    * data.QsansDiag.x[D];
   }
 
   result[0] = result0;
@@ -137,134 +141,201 @@ inline CppAD::sparse_rc< CppAD::vector<size_t> > build_gradient_pattern_from_R(
     return pattern;
 }
 
-
-GroupPack getAdFunQ(
-  const CppAD::vector<double>& parameters,
-  const Data&                data,
-  const Config&              config)
-{
-
-  const Rcpp::List sparsityQ = config.sparsity["Q"];
-
+GroupPack emptyAdFun(  
+  const CppAD::vector<double>& parameters
+  ) {
+  GroupPack result;
   const size_t Nparams = parameters.size();
-  const bool onlyRandom = (Nparams == data.Ngamma);
+    // Build a dummy ADFun f(theta) = 0, domain = Nparams, range = 1
+  CppAD::vector< CppAD::AD<double> > ax(Nparams);
+  for (size_t j = 0; j < Nparams; ++j)
+    ax[j] = parameters[j];
+
+  CppAD::Independent(ax);
+
+  CppAD::vector< CppAD::AD<double> > ay(1);
+    ay[0] = 0.0;   // identically zero function
+
+    result.fun = CppAD::ADFun<double>(ax, ay);
+
+    // --- Hessian sparsity: all zeros -> empty pattern ----------------------
+    {
+      CppAD::sparse_rc< CppAD::vector<size_t> > pat;
+      pat.resize(Nparams, Nparams, 0); // nnz = 0
+      result.pattern_hess = pat;
+      result.out_hess = CppAD::sparse_rcv<
+      CppAD::vector<size_t>, CppAD::vector<double>
+      >(result.pattern_hess);
+      result.work_hess = CppAD::sparse_hes_work();
+    }
+
+    // --- Gradient sparsity: all zeros -> empty pattern ---------------------
+    {
+      CppAD::sparse_rc< CppAD::vector<size_t> > pat;
+      // gradient is size 1 wrt Nparams; no non-zeros
+      pat.resize(1, Nparams, 0);
+      result.pattern_grad = pat;
+      result.out_grad = CppAD::sparse_rcv<
+      CppAD::vector<size_t>, CppAD::vector<double>
+      >(result.pattern_grad);
+      result.work_grad = CppAD::sparse_jac_work();
+    }
+
+    // --- indexing metadata: empty ------------------------------------------
+    for (auto &v : result.outRowCol) v.clear();
+      for (auto &v : result.nsRowCol)  v.clear();
+        result.outP.clear();
+      result.nsP.clear();
+
+      return result;
+    }
+
+    GroupPack getAdFunQ(
+      const CppAD::vector<double>& parameters,
+      const Data&                data,
+      const Config&              config)
+    {
+
+      const size_t Nq = data.Qdiag.size();  
+      if(Nq == 0) {
+    // return AD fun that always returns zero
+        auto result = emptyAdFun(parameters);
+        return(result);
+      }
+
+      const Rcpp::List sparsityQ = config.sparsity["Q"];
+
+      const size_t Nparams = parameters.size();
+      const bool onlyRandom = (Nparams == data.Ngamma);
 
 //  if(config.verbose) Rcpp::Rcout << "q random " << onlyRandom << " Nparams " << Nparams;
 
-  const Rcpp::List outList = onlyRandom?sparsityQ["random"]:sparsityQ["full"];
-  const Rcpp::IntegerVector rowOut = outList["i"]; 
-  const Rcpp::IntegerVector colOut = outList["j"]; 
+      const Rcpp::List outList = onlyRandom?sparsityQ["random"]:sparsityQ["full"];
+      const Rcpp::IntegerVector rowOut = outList["i"]; 
+      const Rcpp::IntegerVector colOut = outList["j"]; 
 
-  CppAD::ADFun<double>  fun = adFunQ(parameters, data, config);
+      CppAD::ADFun<double>  fun = adFunQ(parameters, data, config);
 
-  GroupPack result;
-  result.fun=fun;
-  result.work_hess= CppAD::sparse_hes_work();
-  result.pattern_hess=build_hessian_pattern_from_pairs(rowOut, colOut, Nparams);
-  result.out_hess = CppAD::sparse_rcv< CppAD::vector<size_t>, CppAD::vector<double> >(result.pattern_hess);
+      GroupPack result;
+      result.fun=fun;
+      result.work_hess= CppAD::sparse_hes_work();
+      result.pattern_hess=build_hessian_pattern_from_pairs(rowOut, colOut, Nparams);
+      result.out_hess = CppAD::sparse_rcv< CppAD::vector<size_t>, CppAD::vector<double> >(result.pattern_hess);
 
-  const Rcpp::List nsQ =  onlyRandom?sparsityQ["randomNS"]:sparsityQ["nonSymmetric"]; 
-  const Rcpp::IntegerVector rowQns = nsQ["i"]; 
-  const Rcpp::IntegerVector colQns = nsQ["j"]; 
-  const Rcpp::IntegerVector pNs = nsQ["p"]; 
-  const Rcpp::IntegerVector matchQns = nsQ["match"]; 
-  const Rcpp::IntegerVector pOut = outList["p"]; 
-  const Rcpp::IntegerVector matchOut = outList["match"]; 
+      const Rcpp::List nsQ =  onlyRandom?sparsityQ["randomNS"]:sparsityQ["nonSymmetric"]; 
+      const Rcpp::IntegerVector rowQns = nsQ["i"]; 
+      const Rcpp::IntegerVector colQns = nsQ["j"]; 
+      const Rcpp::IntegerVector pNs = nsQ["p"]; 
+      const Rcpp::IntegerVector matchQns = nsQ["match"]; 
+      const Rcpp::IntegerVector pOut = outList["p"]; 
+      const Rcpp::IntegerVector matchOut = outList["match"]; 
 
-  std::vector<size_t> pvec = Rcpp::as<std::vector<size_t>>(pOut);
-  std::vector<size_t> pvecNs = Rcpp::as<std::vector<size_t>>(pNs);
+      std::vector<size_t> pvec = Rcpp::as<std::vector<size_t>>(pOut);
+      std::vector<size_t> pvecNs = Rcpp::as<std::vector<size_t>>(pNs);
 
-  std::array< std::vector<size_t>, 3 > outRowCol, nsRowCol;
+      std::array< std::vector<size_t>, 3 > outRowCol, nsRowCol;
 
-  outRowCol[0] = Rcpp::as<std::vector<size_t>>(rowOut);
-  outRowCol[1] = Rcpp::as<std::vector<size_t>>(colOut);
-  outRowCol[2] = Rcpp::as<std::vector<size_t>>(matchOut);
+      outRowCol[0] = Rcpp::as<std::vector<size_t>>(rowOut);
+      outRowCol[1] = Rcpp::as<std::vector<size_t>>(colOut);
+      outRowCol[2] = Rcpp::as<std::vector<size_t>>(matchOut);
 
-  nsRowCol[0] = Rcpp::as<std::vector<size_t>>(rowQns);
-  nsRowCol[1] = Rcpp::as<std::vector<size_t>>(colQns);
-  nsRowCol[2] = Rcpp::as<std::vector<size_t>>(matchQns);
+      nsRowCol[0] = Rcpp::as<std::vector<size_t>>(rowQns);
+      nsRowCol[1] = Rcpp::as<std::vector<size_t>>(colQns);
+      nsRowCol[2] = Rcpp::as<std::vector<size_t>>(matchQns);
 
-  result.outRowCol =  outRowCol;
-  result.nsRowCol = nsRowCol;
-  result.outP = pvec;
-  result.nsP = pvecNs;
+      result.outRowCol =  outRowCol;
+      result.nsRowCol = nsRowCol;
+      result.outP = pvec;
+      result.nsP = pvecNs;
 
-
-  return(result);
-}
-
-
-
-inline std::vector<GroupPack>
-getAdFun(
-  const CppAD::vector<double>& parameters,
-  const Data&                data,
-  const Config&              config)
-{
-  const Rcpp::List sparsityList = config.group_sparsity;
-  const Rcpp::List strata = config.groups;
-  const size_t Nparams = parameters.size();
-  const bool onlyRandom = Nparams == data.Ngamma;
-  const Rcpp::IntegerVector strataI = strata["i"], strataP = strata["p"];
-
-
-  const size_t Ngroup  = static_cast<size_t>(strataP.size() - 1);
-
-  if(config.verbose) {
-    Rcpp::Rcout << "lik: random " << onlyRandom << " Nparams " << Nparams << " Ngroup " << Ngroup <<
-    "\n";
-  }
-
-  std::vector<GroupPack> packs(Ngroup);
-
-  if(sparsityList.size()) {
-    for (size_t g = 0; g < Ngroup; ++g) {
-      const Rcpp::List sparsityHere = sparsityList[g];
-
-    // first
-      const bool haveFirst = sparsityHere.containsElementNamed("first");
-      const Rcpp::List first = haveFirst?sparsityHere["first"]:Rcpp::List();
+      const bool haveFirst = sparsityQ.containsElementNamed("first");
+      const Rcpp::List first = haveFirst?sparsityQ["first"]:Rcpp::List();
       const Rcpp::IntegerVector sparseGrad = haveFirst?(onlyRandom?first["random"]:first["full"]):Rcpp::IntegerVector();
 
       if(haveFirst) {
-        packs[g].work_grad = CppAD::sparse_jac_work();
-        packs[g].pattern_grad = build_gradient_pattern_from_R(sparseGrad, Nparams);
-        packs[g].out_grad = CppAD::sparse_rcv< 
+        result.work_grad = CppAD::sparse_jac_work();
+        result.pattern_grad = build_gradient_pattern_from_R(sparseGrad, Nparams);
+        result.out_grad = CppAD::sparse_rcv< 
         CppAD::vector<size_t>, CppAD::vector<double> 
-        >(packs[g].pattern_grad); 
+        >(result.pattern_grad); 
       }
 
+      return(result);
+    }
+
+
+
+    inline std::vector<GroupPack>
+    getAdFun(
+      const CppAD::vector<double>& parameters,
+      const Data&                data,
+      const Config&              config)
+    {
+      const Rcpp::List sparsityList = config.group_sparsity;
+      const Rcpp::List strata = config.groups;
+      const size_t Nparams = parameters.size();
+      const bool onlyRandom = Nparams == data.Ngamma;
+      const Rcpp::IntegerVector strataI = strata["i"], strataP = strata["p"];
+
+
+      const size_t Ngroup  = static_cast<size_t>(strataP.size() - 1);
+      const size_t NgroupAndQ = Ngroup + 1;
+
+      if(config.verbose) {
+        Rcpp::Rcout << "lik: random " << onlyRandom << " Nparams " << Nparams << " Ngroup " << Ngroup <<
+        "\n";
+      }
+
+      std::vector<GroupPack> packs(NgroupAndQ);
+
+      if(sparsityList.size()) {
+        for (size_t g = 0; g < Ngroup; ++g) {
+          const Rcpp::List sparsityHere = sparsityList[g];
+
+    // first
+          const bool haveFirst = sparsityHere.containsElementNamed("first");
+          const Rcpp::List first = haveFirst?sparsityHere["first"]:Rcpp::List();
+          const Rcpp::IntegerVector sparseGrad = haveFirst?(onlyRandom?first["random"]:first["full"]):Rcpp::IntegerVector();
+
+          if(haveFirst) {
+            packs[g].work_grad = CppAD::sparse_jac_work();
+            packs[g].pattern_grad = build_gradient_pattern_from_R(sparseGrad, Nparams);
+            packs[g].out_grad = CppAD::sparse_rcv< 
+            CppAD::vector<size_t>, CppAD::vector<double> 
+            >(packs[g].pattern_grad); 
+          }
+
     // second
-      const Rcpp::List second       = sparsityHere["second"];
-      const Rcpp::List outList          = onlyRandom ? second["random"] : second["full"];
-      const Rcpp::List nonSymmetric = onlyRandom ? second["randomNS"] : second["nonSymmetric"];
+          const Rcpp::List second       = sparsityHere["second"];
+          const Rcpp::List outList          = onlyRandom ? second["random"] : second["full"];
+          const Rcpp::List nonSymmetric = onlyRandom ? second["randomNS"] : second["nonSymmetric"];
 
-      const Rcpp::IntegerVector rowOutR = outList["i"];
-      packs[g].outRowCol[0] = Rcpp::as<std::vector<size_t>>(rowOutR);
-      const Rcpp::IntegerVector Srow = nonSymmetric["i"];
-      packs[g].nsRowCol[0] = Rcpp::as<std::vector<size_t>>(Srow);
+          const Rcpp::IntegerVector rowOutR = outList["i"];
+          packs[g].outRowCol[0] = Rcpp::as<std::vector<size_t>>(rowOutR);
+          const Rcpp::IntegerVector Srow = nonSymmetric["i"];
+          packs[g].nsRowCol[0] = Rcpp::as<std::vector<size_t>>(Srow);
 
-      const Rcpp::IntegerVector colOutR = outList["j"];
-      packs[g].outRowCol[1] = Rcpp::as<std::vector<size_t>>(colOutR);
-      const Rcpp::IntegerVector Scol = nonSymmetric["j"];
-      packs[g].nsRowCol[1]  = Rcpp::as<std::vector<size_t>>(Scol);
+          const Rcpp::IntegerVector colOutR = outList["j"];
+          packs[g].outRowCol[1] = Rcpp::as<std::vector<size_t>>(colOutR);
+          const Rcpp::IntegerVector Scol = nonSymmetric["j"];
+          packs[g].nsRowCol[1]  = Rcpp::as<std::vector<size_t>>(Scol);
 
-      const Rcpp::IntegerVector matchOutR = outList["match"];
-      packs[g].outRowCol[2] = Rcpp::as<std::vector<size_t>>(matchOutR);
-      const Rcpp::IntegerVector matchNs = nonSymmetric["match"];
-      packs[g].nsRowCol[2] = Rcpp::as<std::vector<size_t>>(matchNs);
+          const Rcpp::IntegerVector matchOutR = outList["match"];
+          packs[g].outRowCol[2] = Rcpp::as<std::vector<size_t>>(matchOutR);
+          const Rcpp::IntegerVector matchNs = nonSymmetric["match"];
+          packs[g].nsRowCol[2] = Rcpp::as<std::vector<size_t>>(matchNs);
 
-      const Rcpp::IntegerVector pOutR = outList["p"];
-      packs[g].outP = Rcpp::as<std::vector<size_t>>(pOutR);
-      const Rcpp::IntegerVector pNs = nonSymmetric["p"];
-      packs[g].nsP = Rcpp::as<std::vector<size_t>>(pNs);
+          const Rcpp::IntegerVector pOutR = outList["p"];
+          packs[g].outP = Rcpp::as<std::vector<size_t>>(pOutR);
+          const Rcpp::IntegerVector pNs = nonSymmetric["p"];
+          packs[g].nsP = Rcpp::as<std::vector<size_t>>(pNs);
 
 
-      packs[g].work_hess = CppAD::sparse_hes_work();
-      packs[g].pattern_hess = build_hessian_pattern_from_pairs(rowOutR, colOutR, Nparams);
-      packs[g].out_hess = CppAD::sparse_rcv< 
-      CppAD::vector<size_t>, CppAD::vector<double> 
-      >(packs[g].pattern_hess);
+          packs[g].work_hess = CppAD::sparse_hes_work();
+          packs[g].pattern_hess = build_hessian_pattern_from_pairs(rowOutR, colOutR, Nparams);
+          packs[g].out_hess = CppAD::sparse_rcv< 
+          CppAD::vector<size_t>, CppAD::vector<double> 
+          >(packs[g].pattern_hess);
 
   } //gropu loop
   } // sparsity list size
@@ -288,6 +359,9 @@ getAdFun(
      static_cast<size_t>(strataP[g + 1]));
     packs[g].fun = std::move(f); // move-assign into the bundle
   }
+
+  // Q
+  packs[Ngroup] = getAdFunQ(parameters, data, config);
 
   return packs;
 }
@@ -332,4 +406,39 @@ AdpackHandle getAdpackFromR(
 
   return h;
 }
+
+
+/* R exported stuff */
+//' @export
+// [[Rcpp::export]]
+SEXP getAdFun(
+  Rcpp::NumericVector x, 
+  const Rcpp::List data, 
+  const Rcpp::List config
+  ) {
+
+  Data   dataC(data);
+  Config configC(config);
+  const size_t N = x.size();
+  CppAD::vector<double> parametersC(N);
+  for(size_t D=0; D<N;D++) {
+    parametersC[D] = x[D];
+  }
+
+
+  std::vector<GroupPack> adpack = getAdFun(
+    parametersC, dataC, configC);
+  if(configC.verbose) {
+    Rcpp::Rcout << "adfun size " << adpack.size() << "\n";
+  }
+
+  auto* ptr = new std::vector<GroupPack>(std::move(adpack));
+
+  Rcpp::XPtr<std::vector<GroupPack>> xp(ptr, /*deleteOnFinalizer=*/true);
+
+  // (Optional) tag a class so you can validate on the R side
+  xp.attr("class") = "adpack_ptr";
+  return xp;
+}
+
 

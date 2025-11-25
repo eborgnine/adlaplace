@@ -253,6 +253,13 @@ unpack_params(const CppAD::vector<Type>& params,
   const auto theta = cfg.theta;
   const size_t cfgThetaSize = theta.size();
 
+  if(cfg.verbose) {
+    if(Nparams < data.Ngamma) {
+    Rcpp::Rcout << "parameters too small " << Nparams  << "\n";
+    }
+  }
+
+
   PackedParams<Type> out;
   out.Nbeta = data.Nbeta;
   out.Ngamma = data.Ngamma;
@@ -260,10 +267,10 @@ unpack_params(const CppAD::vector<Type>& params,
   out.dirichlet = cfg.dirichlet;
   out.transform_theta = cfg.transform_theta;
 
-/*  if(cfg.verbose) 
+  if(cfg.verbose) {
     Rcpp::Rcout << "Nparams " << Nparams << " theta size " << cfgThetaSize << " Ngamma " << 
-    out.Ngamma << " Ntheta " << out.Ntheta << " Nbeta " << out.Nbeta << " onlyrandom " << onlyRandom << "\n";
-*/
+    out.Ngamma <<  " data.Ngamma " << data.Ngamma << " Ntheta "  << out.Ntheta << " Nbeta " << out.Nbeta << " onlyrandom " << onlyRandom << "\n";
+  }
 
   out.beta     = CppAD::vector<Type>(out.Nbeta);
   out.gamma    = CppAD::vector<Type>(out.Ngamma);

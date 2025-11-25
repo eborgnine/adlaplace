@@ -9,15 +9,14 @@ hnlm(
   data,
   cc_design = ccDesign(),
   weight_var,
-  dirichlet = FALSE,
   tmb_parameters = NULL,
   optim_parameters = list(eval.max = 2000, iter.max = 2000),
   optimizer = c("nlminb", "optim"),
-  config = list(),
-  control = list(),
-  control_inner = control,
+  config = list(dirichlet = TRUE, boundary_is_random = FALSE, transform_theta = TRUE),
+  control = list(maxit = 2000, start.trust.radius = 0.1, report.level = 4, report.freq =
+    1, report.header.freq = 10, report.precision = 5),
+  control_inner = list(report.level = 0),
   for_dev = FALSE,
-  verbose = FALSE,
   ...
 )
 }
@@ -30,13 +29,13 @@ hnlm(
 
 \item{weight_var}{(Optional) A character string specifying the column in the data frame used for weights. If provided, it must exist in \code{data}.}
 
-\item{dirichlet}{if TRUE, fit dirichlet-multinomial model, with time-within-strata gamma random effect, otherwise multinomial.}
-
 \item{tmb_parameters}{(Optional) A list of initial parameter values for the TMB optimization, including \code{beta}, \code{gamma}, and \code{theta}.}
 
 \item{optim_parameters}{(Optional) A list of   parameters passed to \code{nlminb}}
 
 \item{for_dev}{Logical; if \code{TRUE}, the function returns intermediate objects for development purposes. Defaults to \code{FALSE}.}
+
+\item{dirichlet}{if TRUE, fit dirichlet-multinomial model, with time-within-strata gamma random effect, otherwise multinomial.}
 
 \item{verbose}{logical, if \code{TRUE} occasional information is printed}
 }

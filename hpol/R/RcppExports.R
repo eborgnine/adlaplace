@@ -2,23 +2,18 @@
 # Generator token: 10BE3573-1514-4C36-9D1C-5A225CD40393
 
 #' @export
+getAdFun <- function(x, data, config) {
+    .Call('_hpolcc_getAdFun', PACKAGE = 'hpolcc', x, data, config)
+}
+
+#' @export
 traceHinvT <- function(parameters, LinvPt, data, config, adFun = NULL) {
     .Call('_hpolcc_traceHinvT', PACKAGE = 'hpolcc', parameters, LinvPt, data, config, adFun)
 }
 
 #' @export
-thirdPolarization <- function(parameters, A, B, data, config, adFun = NULL) {
-    .Call('_hpolcc_thirdPolarization', PACKAGE = 'hpolcc', parameters, A, B, data, config, adFun)
-}
-
-#' @export
 thirdStrata <- function(parameters, data, config, adFun = NULL) {
     .Call('_hpolcc_thirdStrata', PACKAGE = 'hpolcc', parameters, data, config, adFun)
-}
-
-#' @export
-getAdFun <- function(x, data, config) {
-    .Call('_hpolcc_getAdFun', PACKAGE = 'hpolcc', x, data, config)
 }
 
 #' @export
@@ -47,12 +42,27 @@ hessianDense <- function(parameters, data, config) {
 }
 
 #' @export
+hessianQdenseLogical <- function(parameters, data, config) {
+    .Call('_hpolcc_hessianQdenseLogical', PACKAGE = 'hpolcc', parameters, data, config)
+}
+
+#' @export
 hessianDenseLogical <- function(parameters, data, config) {
     .Call('_hpolcc_hessianDenseLogical', PACKAGE = 'hpolcc', parameters, data, config)
 }
 
 #' @export
+gradQLogical <- function(parameters, data, config) {
+    .Call('_hpolcc_gradQLogical', PACKAGE = 'hpolcc', parameters, data, config)
+}
+
+#' @export
 gradLogical <- function(parameters, data, config) {
     .Call('_hpolcc_gradLogical', PACKAGE = 'hpolcc', parameters, data, config)
+}
+
+#' @export
+jointLogDensDense <- function(parameters, data, config, adFun = NULL) {
+    .Call('_hpolcc_jointLogDensDense', PACKAGE = 'hpolcc', parameters, data, config, adFun)
 }
 

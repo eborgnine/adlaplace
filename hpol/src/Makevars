@@ -12,13 +12,20 @@ ifeq ($(UNAME_S),Darwin)
   CC   = $(HB)/opt/llvm/bin/clang
   CXX  = $(HB)/opt/llvm/bin/clang++
 
-  # libomp (already working)
-  OMPPREFIX := $(HB)/opt/libomp
-  PKG_CPPFLAGS += -I$(OMPPREFIX)/include 
+    OMPPREFIX := $(HB)/opt/libomp
 
-  PKG_CXXFLAGS += -fopenmp
-  PKG_LIBS     += -L$(OMPPREFIX)/lib -Wl,-rpath,$(OMPPREFIX)/lib 
-  
+    # CppAD (headers + compiled library)
+    CPPADPREFIX := $(HB)
+
+    # include paths
+    PKG_CPPFLAGS += -I$(OMPPREFIX)/include -I$(CPPADPREFIX)/include
+
+    # OpenMP flags
+    PKG_CXXFLAGS += -fopenmp
+
+    # link against libomp and libcppad_lib
+    PKG_LIBS += -L$(OMPPREFIX)/lib -Wl,-rpath,$(OMPPREFIX)/lib  \
+                -L$(CPPADPREFIX)/lib -lcppad_lib  
 # -----------------------------------------------------------------------
 # === Linux: choose Intel oneAPI if icpx is present =====================
 # -----------------------------------------------------------------------

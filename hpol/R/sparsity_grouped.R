@@ -91,12 +91,13 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 			config = modifyList(config, list(verbose=FALSE, num_threads=1))),
 		SIMPLIFY=FALSE#, mc.cores=config$num_threads
 	)	
-	hessianByBlock2 = lapply(hessianByBlock, function(xx) {
-		xout = Matrix::Matrix(xx + t(xx), sparse=TRUE)
-		xout@x = rep(1, length(xout@x))
-		xout
-	}
-)
+	hessianByBlock2 = lapply(hessianByBlock, 
+		function(xx) {
+			xout = Matrix::Matrix(xx + t(xx), sparse=TRUE)
+			xout@x = rep(1, length(xout@x))
+			xout
+		}
+	)
 	if(!all(unlist(lapply(hessianByBlock2, class)) == 'dsCMatrix')) {
 		warning("some hessians not symmetric")
 	} 
@@ -109,12 +110,12 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 		cat("getting Q hessian")
 	}
 
-	hessianQ = list(dense=hessianQdense(parameters=x, data=data, config=config))
+	hessianQ = list(dense=hessianQdenseLogical(parameters=x, data=data, config=config))
 
 
 # get non-zeros of tensor
 
-	hessianQ$hessian = Matrix::forceSymmetric(Matrix::Matrix(hessianQ$dense + t(hessianQ$dense), 
+	hessianQ$hessian = Matrix::forceSymmetric(Matrix::Matrix(hessianQ$dense, 
 		sparse=TRUE), uplo='U')
 	hessianQT = as(as(hessianQ$hessian, 'generalMatrix'),'TsparseMatrix')
 	hessianQns = as(hessianQ$hessian, 'generalMatrix')
@@ -184,6 +185,13 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 		paste(sparsityQ$randomNS$i, sparsityQ$randomNS$j, sep='_'), 
 		fullHessianPairsRNs
 	)-1L)
+
+	gradQ = gradQLogical(x, data, config)
+
+	sparsityQ$first = list(
+		full = which(gradQ)-1L,
+		random = which(gradQ[Sgamma1])-1L
+	)
 
 
 	# find full hessian sparsity

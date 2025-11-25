@@ -32,7 +32,16 @@ f(
   ...
 )
 
-iwp(x, p = 2, ref_value, knots, range = NULL, rpoly_p = 0, fpoly_p = p - 1)
+iwp(
+  x,
+  p = 2,
+  ref_value,
+  knots,
+  range = NULL,
+  rpoly_p = 0,
+  fpoly_p = p - 1,
+  init = .my_theta_init
+)
 
 iwpDesign(term, data)
 
@@ -51,10 +60,11 @@ hiwp(
   hrpoly_p = p - 1,
   hfpoly_p = 0,
   rpoly_p = 0,
-  fpoly_p = include_global * (p - 1)
+  fpoly_p = include_global * (p - 1),
+  init = .my_theta_init
 )
 
-hiwpDesign(term, data, use_dev_version = F)
+hiwpDesign(term, data)
 
 hiwpPrecision(term)
 
@@ -72,7 +82,14 @@ rpolyPrecision(term)
 
 rpolyTheta(theta_info, term)
 
-hrpoly(x, p = 1, ref_value, group_var, include_global = T)
+hrpoly(
+  x,
+  p = 1,
+  ref_value,
+  group_var,
+  include_global = T,
+  init = .my_theta_init
+)
 
 hrpolyDesign(term, data)
 
@@ -80,7 +97,7 @@ hrpolyPrecision(term)
 
 hrpolyTheta(theta_info, term)
 
-iid(x)
+iid(x, init = .my_theta_init)
 
 iidDesign(term, data)
 

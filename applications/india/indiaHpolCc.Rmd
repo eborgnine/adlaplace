@@ -79,23 +79,23 @@ load("deaths.RData")
 res <- hpolcc::hnlm(
   formula= medical ~ dom + 
   f(temp, model='hiwp',ref_value = 25, p=3, 
-      knots = seq(0, 42.5, by=2.5), 
+      knots = seq(-5, 42.5, by=2.5), 
     group_var = ecoRegion)
   , 
   data=deaths[
     which(
-      deaths$date > as.Date("2010/1/1") & 
-      deaths$temp >=0
+      deaths$date > as.Date("2008/1/1") & 
+      deaths$temp >= -5
       ), ],
-  cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
+  cc_design =  c("cell","ecoRegion", "yearMonthDow"),
   config = list(
     transform_theta = TRUE, 
     boundary_is_random= TRUE,
     dirichlet= TRUE, verbose=FALSE,
     num_threads=parallel::detectCores(), 
-    Nclusters = 50*parallel::detectCores()
+    Nclusters = 100*parallel::detectCores()
     ),
-  for_dev=FALSE
+  for_dev=TRUE
   )
 saveRDS(res, file='resTemp.rds')
 
@@ -147,14 +147,14 @@ simGlobalSumToZero = simGlobal[[1]] -
 
 ```{r globalRes, fig.cap='Common component', fig.subcap = c("temperature", "PM 2.5")}
 par(mar=c(3,3,0,0), bty='l', oma=c(0,0,0,0))
-if("tempClean" %in% names(simGlobal)) {
-theY = 100*(exp(simGlobal[["tempClean"]])-1)
-matplot(predSeq[["tempClean"]], theY, type='l',
+if("temp" %in% names(simGlobal)) {
+theY = 100*(exp(simGlobal[["temp"]])-1)
+matplot(predSeq[["temp"]], theY, type='l',
   col='#00000010', lty=1, xaxs='i',
   xlab='degrees C', ylab = '100 x (RR-1)',
   ylim = c(-40, 86), xlim = c(6, 41))
 theYq = t(apply(theY, 1, quantile, probs=c(0.025, 0.975, 0.5)))
-matlines(predSeq[["tempClean"]], theYq, lty=c(2,2,1), lwd=c(1,1,2), col='blue')
+matlines(predSeq[["temp"]], theYq, lty=c(2,2,1), lwd=c(1,1,2), col='blue')
 
 theYZero = 100*(exp(simGlobalSumToZero)-1)
 matplot(predSeq[["tempClean"]], theYZero, type='l',
