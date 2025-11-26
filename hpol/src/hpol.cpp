@@ -14,72 +14,60 @@ static const char* HESS_COLOR = "colpack.symmetric";
 
 
 
-double jointLogDens( //is this slower?  woudl be convenient if not
-  const CppAD::vector<double> parameters,
-  std::vector<GroupPack>& adpack
-  ) {
-  const size_t Ngroup = adpack.size();
-  double result=0.0;
+  double jointLogDens(
+    const CppAD::vector<double> parameters,
+    std::vector<GroupPack>& adpack
+    ) {
+    const size_t Ngroup = adpack.size();
+    double result=0.0;
 
-#ifdef DEBUG
-  Rcpp::Rcout << "here ";
-#endif
   #pragma omp parallel
-  {
+    {
 
-    CppAD::vector<double> x = parameters;
-    double resultHere = 0.0;
+      CppAD::vector<double> x = parameters;
+      double resultHere = 0.0;
 
     #pragma omp for nowait
-    for(size_t Dgroup = 0; Dgroup < Ngroup; ++Dgroup) {
-#ifdef DEBUG
-  Rcpp::Rcout << "G " << Dgroup << " ";
-#endif
-
-      auto resultHere1 = adpack[Dgroup].fun.Forward(0, x);
-      resultHere += resultHere1[0];
-    }
+      for(size_t Dgroup = 0; Dgroup < Ngroup; ++Dgroup) {
+        auto resultHere1 = adpack[Dgroup].fun.Forward(0, x);
+        resultHere += resultHere1[0];
+      }
       #  pragma omp critical 
-    {
-      result += resultHere;
+      {
+        result += resultHere;
+      }
+
     }
 
+    return(result);
   }
-#ifdef DEBUG
-  Rcpp::Rcout << "here2 \n";
-#endif
 
-  return(result);
-}
+  void grad(
+    const CppAD::vector<double> parameters,
+    std::vector<GroupPack>& adpack, 
+    std::vector<double>& result
+    ) {
 
-void grad(
-  const CppAD::vector<double> parameters,
-  std::vector<GroupPack>& adpack, 
-  std::vector<double>& result
-  ) {
-
-  const size_t Nparams = parameters.size();
-  const size_t Ngroup = adpack.size();
+    const size_t Nparams = parameters.size();
+    const size_t Ngroup = adpack.size();
 
   #pragma omp parallel
-  {
+    {
 
-    CppAD::vector<double> x = parameters;
-    std::vector<double> gradHere(Nparams, 0);
-    CppAD::vector<double> w(1);  
-    w[0] = 1.0;
+      CppAD::vector<double> x = parameters;
+      std::vector<double> gradHere(Nparams, 0);
+      CppAD::vector<double> w(1);  
+      w[0] = 1.0;
 
       #pragma omp for nowait
-    for(size_t Dgroup = 0; Dgroup < Ngroup; ++Dgroup) {
-      auto& gp = adpack[Dgroup];
+      for(size_t Dgroup = 0; Dgroup < Ngroup; ++Dgroup) {
+        auto& gp = adpack[Dgroup];
 
-//      gp.fun.Forward(0,x);
-      gp.fun.sparse_jac_rev(
-        x,
-        gp.out_grad,         // CppAD::sparse_rcv<...>, values overwritten
-        gp.pattern_grad,
-        JAC_COLOR,      
-        gp.work_grad);
+        gp.fun.sparse_jac_rev(x,
+          gp.out_grad,   
+          gp.pattern_grad,
+          JAC_COLOR,      
+          gp.work_grad);
 
     const auto& index = gp.out_grad.col();   // indices of nonzero gradient components
     const auto& value = gp.out_grad.val();   // corresponding values
@@ -225,7 +213,6 @@ double jointLogDens(
   double result= jointLogDens(parametersC, *packsPtr);
 
   return(result);
-
 }
 
 //' @export
@@ -283,12 +270,12 @@ Rcpp::RObject hessian(
   parametersC[D] = parameters[D];
 }
 
-  omp_set_num_threads(configC.num_threads);
-  CppAD::thread_alloc::parallel_setup(
-    configC.num_threads,
-    [](){ return in_parallel_wrapper(); },
-    [](){ return static_cast<size_t>(thread_num_wrapper()); }
-    );
+omp_set_num_threads(configC.num_threads);
+CppAD::thread_alloc::parallel_setup(
+  configC.num_threads,
+  [](){ return in_parallel_wrapper(); },
+  [](){ return static_cast<size_t>(thread_num_wrapper()); }
+  );
 
 AdpackHandle ad = getAdpackFromR(adFun, parametersC, dataC, configC);
 std::vector<GroupPack>* packsPtr = ad.ptr;

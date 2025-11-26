@@ -107,16 +107,31 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
-// hessianDense
-Rcpp::NumericMatrix hessianDense(const Rcpp::NumericVector parameters, const Rcpp::List& data, const Rcpp::List& config);
-RcppExport SEXP _hpolcc_hessianDense(SEXP parametersSEXP, SEXP dataSEXP, SEXP configSEXP) {
+// gradDense
+Rcpp::NumericVector gradDense(const Rcpp::NumericVector parameters, const Rcpp::List& data, const Rcpp::List& config, SEXP adFun);
+RcppExport SEXP _hpolcc_gradDense(SEXP parametersSEXP, SEXP dataSEXP, SEXP configSEXP, SEXP adFunSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< const Rcpp::NumericVector >::type parameters(parametersSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List& >::type data(dataSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List& >::type config(configSEXP);
-    rcpp_result_gen = Rcpp::wrap(hessianDense(parameters, data, config));
+    Rcpp::traits::input_parameter< SEXP >::type adFun(adFunSEXP);
+    rcpp_result_gen = Rcpp::wrap(gradDense(parameters, data, config, adFun));
+    return rcpp_result_gen;
+END_RCPP
+}
+// hessianDense
+Rcpp::NumericMatrix hessianDense(const Rcpp::NumericVector parameters, const Rcpp::List& data, const Rcpp::List& config, SEXP adFun);
+RcppExport SEXP _hpolcc_hessianDense(SEXP parametersSEXP, SEXP dataSEXP, SEXP configSEXP, SEXP adFunSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::NumericVector >::type parameters(parametersSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type data(dataSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type config(configSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type adFun(adFunSEXP);
+    rcpp_result_gen = Rcpp::wrap(hessianDense(parameters, data, config, adFun));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -195,7 +210,8 @@ static const R_CallMethodDef CallEntries[] = {
     {"_hpolcc_grad", (DL_FUNC) &_hpolcc_grad, 4},
     {"_hpolcc_hessian", (DL_FUNC) &_hpolcc_hessian, 4},
     {"_hpolcc_hessianQdense", (DL_FUNC) &_hpolcc_hessianQdense, 3},
-    {"_hpolcc_hessianDense", (DL_FUNC) &_hpolcc_hessianDense, 3},
+    {"_hpolcc_gradDense", (DL_FUNC) &_hpolcc_gradDense, 4},
+    {"_hpolcc_hessianDense", (DL_FUNC) &_hpolcc_hessianDense, 4},
     {"_hpolcc_hessianQdenseLogical", (DL_FUNC) &_hpolcc_hessianQdenseLogical, 3},
     {"_hpolcc_hessianDenseLogical", (DL_FUNC) &_hpolcc_hessianDenseLogical, 3},
     {"_hpolcc_gradQLogical", (DL_FUNC) &_hpolcc_gradQLogical, 3},

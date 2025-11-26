@@ -37,8 +37,13 @@ hessianQdense <- function(parameters, data, config) {
 }
 
 #' @export
-hessianDense <- function(parameters, data, config) {
-    .Call('_hpolcc_hessianDense', PACKAGE = 'hpolcc', parameters, data, config)
+gradDense <- function(parameters, data, config, adFun = NULL) {
+    .Call('_hpolcc_gradDense', PACKAGE = 'hpolcc', parameters, data, config, adFun)
+}
+
+#' @export
+hessianDense <- function(parameters, data, config, adFun = NULL) {
+    .Call('_hpolcc_hessianDense', PACKAGE = 'hpolcc', parameters, data, config, adFun)
 }
 
 #' @export

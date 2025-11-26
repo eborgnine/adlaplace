@@ -94,8 +94,7 @@ res <- hpolcc::hnlm(
     dirichlet= TRUE, verbose=FALSE,
     num_threads=parallel::detectCores(), 
     Nclusters = 100*parallel::detectCores()
-    ),
-  for_dev=TRUE
+    )#,  for_dev=TRUE
   )
 saveRDS(res, file='resTemp.rds')
 
@@ -225,17 +224,61 @@ res$config$verbose=FALSE
 adFun = getAdFun(res$parameters_and_gamma, res$tmb_data, res$config)
 adFunInner = getAdFun(res$gamma_start, res$tmb_data, res$config)
 
-system.time(resM <- loglik(res$parameters, res$gamma_start, res$tmb_data, res$config, adFun, res$control, deriv=1))
-system.time(resM2 <- loglik(res$parameters, res$gamma_start, res$tmb_data, 
-  res$config[setdiff(names(res$config), "first")], 
-  adFun, res$control, deriv=1))
-
-bob = Matrix::expand2(resM2$extra$hessian)
-
-Dpar=length(resM$parameters)
-Sx = seq(-0.1, 0.1, len=5) + resM$parameters[Dpar]
+Dpar = 1
+Sx = seq(-0.1, 0.1, len=9) + res$gamma_start[Dpar]
 SxD = Sx[-1] - diff(Sx)/2
-parDf = data.frame(resM$parameters)[,rep(1, length(Sx))]
+parDf = data.frame(res$gamma_start)[,rep(1, length(Sx))]
+parDf[Dpar,] = Sx
+
+dens1 = mapply(
+  jointLogDens,
+  parameters = as.list(parDf),
+  MoreArgs = list(data=res$tmb_data, config=res$config, adFun = adFunInner),
+  SIMPLIFY=TRUE
+  )
+dens2 = mapply(
+  jointLogDensDense,
+  parameters = as.list(parDf),
+  MoreArgs = list(data=res$tmb_data, config=res$config, adFun = adFunInner),
+  SIMPLIFY=TRUE
+  )
+grad1 = do.call(rbind,mapply(
+  hpolcc::grad,
+  parameters = as.list(parDf),
+  MoreArgs = list(data=res$tmb_data, config=res$config, adFun = adFunInner),
+  SIMPLIFY=FALSE
+  ))
+grad2 = do.call(rbind,mapply(
+  hpolcc::gradDense,
+  parameters = as.list(parDf),
+  MoreArgs = list(data=res$tmb_data, config=res$config),
+  SIMPLIFY=FALSE
+  ))
+h1 = mapply(
+  hpolcc::hessian,
+  parameters = as.list(parDf),
+  MoreArgs = list(data=res$tmb_data, config=res$config, adFun = adFunInner),
+  SIMPLIFY=FALSE)
+
+matplot(Sx, cbind(dens1, dens2), type='l', lwd=c(3,1))
+
+matplot(Sx, cbind(grad1[,Dpar], grad2[,Dpar]), type='l', lwd=c(3,1))
+points(SxD, diff(dens1)/diff(Sx), col='green')
+
+sort(sample(which(h1[[1]][Dpar,] != 0), 6))
+Dpar2 = 42
+matplot(Sx, unlist(lapply(h1, function(xx) xx[Dpar, Dpar2])), type='l')
+points(SxD, diff(grad1[,Dpar2])/diff(Sx), col='green')
+
+
+system.time(resM <- loglik(res$parameters, res$gamma_start, res$tmb_data, 
+  res$config, adFun, res$control, deriv=1))
+
+
+Dpar = 1
+Sx = seq(-0.1, 0.1, len=9) + res$parameters[Dpar]
+SxD = Sx[-1] - diff(Sx)/2
+parDf = data.frame(res$parameters)[,rep(1, length(Sx))]
 parDf[Dpar,] = Sx
 
 allLik = mapply(
@@ -252,7 +295,6 @@ DsDet = diff(Sdet)/diff(Sx)
 
 plot(SxD, DsDet, type='o')
 abline(h=resM$deriv[Dpar,'dDet'],col='grey',lwd=4)
-abline(h=resM2$deriv[Dpar,'dDet'])
 abline(v=resM$parameters[Dpar])
 
 
@@ -262,14 +304,13 @@ Ddens = diff(Sdens)/diff(Sx)
 plot(SxD, Ddens,type='o')
 abline(v=resM$parameters[Dpar])
 abline(h=resM$deriv[Dpar,'gradTheta'],col='grey',lwd=4)
-abline(h=resM2$deriv[Dpar,'gradTheta'])
+
 
 Sl = unlist(lapply(allLik, '[[', 'minusLogLik'))
 Dl = diff(Sl)/diff(Sx)
 plot(SxD, Dl, type='o')
 abline(v=resM$parameters[Dpar])
 abline(h=resM$deriv[Dpar,'dL'],col='grey',lwd=4)
-abline(h=resM2$deriv[Dpar,'dL'])
 
 
 

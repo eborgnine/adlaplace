@@ -138,36 +138,28 @@ return(result);
 
 std::vector<double> gradDense(
 	const CppAD::vector<double> parameters,
-	std::vector<GroupPack>& adpack, 
 	const Data& data,
 	const Config& config
 	) {
 
+	const Rcpp::List strata=config.groups;
+	const Rcpp::IntegerVector strataI = strata["i"], strataP = strata["p"];
+
 	const size_t Nparams = parameters.size();
-	const size_t Ngroup = adpack.size();
+	const size_t Ngroup = strataP.size()-1;
 	const bool useQ = data.Qdiag.size()>0;
 
-	std::vector<double> gradOut(Nparams, 0);
-
-	omp_set_num_threads(config.num_threads);
-	CppAD::thread_alloc::parallel_setup(
-		config.num_threads,
-		[](){ return in_parallel_wrapper(); },
-		[](){ return static_cast<size_t>(thread_num_wrapper()); }
-		);
-
-  #pragma omp parallel
-	{
-		CppAD::thread_alloc::hold_memory(true); 
 		std::vector<double> gradHere(Nparams, 0);
 		CppAD::vector<double> w(1);
 		w[0] = 1.0;
 
-      #pragma omp for schedule(dynamic,1) nowait
 		for(size_t Dgroup = 0; Dgroup < Ngroup; ++Dgroup) {
 
-			adpack[Dgroup].fun.Forward(0, parameters);
-			auto gradThisGroup = adpack[Dgroup].fun.Reverse(1, w);
+			auto fun=adFunGroup(
+				parameters, data, config, strataI, 
+				strataP[Dgroup], strataP[Dgroup+1]);
+			fun.Forward(0, parameters);
+			auto gradThisGroup = fun.Reverse(1, w);
 
 			for(size_t D=0;D<Nparams;D++) {
 				gradHere[D] += gradThisGroup[D];
@@ -176,8 +168,6 @@ std::vector<double> gradDense(
     } // group
 
 
-#pragma omp single 
-    {
       // Q likelihood
     	if(useQ) {
     		auto fun = adFunQ(parameters, data, config);
@@ -187,22 +177,9 @@ std::vector<double> gradDense(
     			gradHere[D]+= gradQ[D];
     		}
       } // useQ
-    } // single Q
 
-    double* out = gradOut.data();
-    const double* here = gradHere.data();
-    int n = static_cast<int>(Nparams);
 
-    // Every thread runs this whole loop; OpenMP reduces elementwise
-  //parallel reduction(+: out[:n])
-    #pragma omp critical 
-    {
-    	for (int d = 0; d < n; ++d) out[d] += here[d];
-    }
-
-  }// parallel
-
-  return(gradOut);
+  return(gradHere);
 }
 //' @export
 // [[Rcpp::export]]
@@ -226,10 +203,39 @@ Rcpp::NumericMatrix hessianQdense(
 
 //' @export
 // [[Rcpp::export]]
+Rcpp::NumericVector gradDense(
+	const Rcpp::NumericVector parameters,
+	const Rcpp::List& data,
+	const Rcpp::List& config,
+	SEXP adFun = R_NilValue
+	) {
+	const Data dataC(data);
+	const Config configC(config);
+
+	const size_t N = parameters.size();
+	CppAD::vector<double> parametersC(N);
+	for(size_t D=0; D<N;D++) {
+		parametersC[D] = parameters[D];
+	}
+
+	auto result = gradDense(
+		parametersC, dataC, configC
+		);
+	Rcpp::NumericVector resultR(N);
+	for(size_t D=0; D<N;D++) {
+		resultR[D] = result[D];
+	}
+	return(resultR);
+}
+
+
+//' @export
+// [[Rcpp::export]]
 Rcpp::NumericMatrix hessianDense(
 	const Rcpp::NumericVector parameters,
 	const Rcpp::List& data,
-	const Rcpp::List& config
+	const Rcpp::List& config,
+	SEXP adFun = R_NilValue
 	) {
 
 	const Data dataC(data);
@@ -589,17 +595,8 @@ double jointLogDensDense(
 	const Config& config
 	) {
 
-	if(config.verbose) {
-		Rcpp::Rcout << "ee ";
-	}
 	auto latent = unpack_params<double>(parameters, data, config);
-	if(config.verbose) {
-		Rcpp::Rcout << "an ";
-	}
 	CppAD::vector<double> gammaScaled(data.Ngamma);
-	if(config.verbose) {
-		Rcpp::Rcout << "bn";
-	}
 
 	const size_t NqDiag = data.Qdiag.size();
 

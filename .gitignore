@@ -38,3 +38,6 @@ todebug.Rdata
 *.pdf
 *.xml
 applications/india/indiaHpolCcD.tex
+adlaplace_0.1.tar.gz
+*.rds
+*.so

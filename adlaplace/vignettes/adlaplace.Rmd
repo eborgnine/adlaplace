@@ -1,0 +1,94 @@
+
+
+Neg Binoma, $E(y) = \mu$, $\theta$ is size, $1/\sqrt(\theta)$ is sd of Gamma random effect
+
+$$
+\begin{aligned}
+f(y;\mu,\theta) =  & \log\Gamma(y + r) - \log\Gamma(r) - \log\Gamma(y + 1) 
+	+ r \log(\frac{r}{r + \mu})
+	+ y \log(\frac{\mu}{r + \mu}) \\
+	= &  \log\Gamma(y + r) - \log\Gamma(r) - \log\Gamma(y + 1)  + r \log r - r \log(r + \mu) + y \log(\mu) - y\log(r + \mu)
+\end{aligned}
+$$
+
+```{r theData}
+Nobs = 10000;Ngroup1=100;Ngroup2=20
+set.seed(0)
+X = Matrix::Matrix(cbind(1, rbinom(Nobs,1, prob= 0.5)))
+AmatList = list(
+	Matrix::sparseMatrix(
+	i = 1:Nobs,
+	j= sample(Ngroup1, Nobs, replace=TRUE)
+	),
+	Matrix::sparseMatrix(
+	i = 1:Nobs,
+	j= sample(Ngroup2, Nobs, replace=TRUE)
+	)
+	)
+Amat = do.call(cbind, AmatList)	
+beta = rep(1, ncol(X))
+thetaOrig = 0.1;theta = log(thetaOrig)
+gamma = rnorm(ncol(Amat), sd=thetaOrig)
+eta = as.vector(X %*% beta + Amat %*% gamma)
+etaT = exp(eta)
+Z = rgamma(length(etaT), 0.1^(-2), 0.1^(-2))
+c(mean(Z), sd(Z))
+y = rpois(length(etaT), etaT*Z)
+```
+
+
+
+```{r forAd}
+NperEffect = unlist(lapply(AmatList, ncol))   
+data = list(y = y, 
+	ATp = as(Matrix::t(Amat), 'dMatrix'),
+	XTp = as(Matrix::t(X), 'CsparseMatrix'),
+	map = rep(seq(0, len=length(NperEffect)), NperEffect), 
+	Qdiag = rep(1, ncol(Amat)))
+config = list(beta = rep(0, ncol(X)), 
+	theta = c(rep(-1, length(NperEffect)), -1), 
+	transform_theta=TRUE, start_gamma = rep(0, nrow(data$ATp)),
+	verbose=TRUE)	
+
+adFun = adlaplace::getAdFun(
+	config$start_gamma, 
+	data, config)
+
+grad_sparsity_list = adlaplace::sparsity_grad(adFun,config$start_gamma)
+str(grad_sparsity_list[1:5])
+```
+
+
+```{r eval}
+adlaplace::jointLogDens(config$start_gamma, adFun)
+x = adlaplace::grad(config$start_gamma, adFun)
+
+forNumDeriv = function(xx, ...) {
+	adlaplace::jointLogDens(c(xx, config$start_gamma[-(1:length(xx))]), ...)
+}
+x2 = numDeriv::grad(forNumDeriv, config$start_gamma[1:5], adFun = adFun)
+plot(x2, x[1:length(x2)])
+```
+
+```{r opt}
+system.time(res <- trustOptim::trust.optim(
+	config$start_gamma,
+	adlaplace::jointLogDens,
+	adlaplace::grad,
+	method='SR1',
+	adFun = adFun
+	))
+
+system.time(res2 <- adlaplace::inner_opt(
+	config$start_gamma, adFun,
+	control = list(report.level=4, report.freq=1)))
+```
+
+to do: 
+
+- adpack, parallel, omp
+- hessian, requires sparse
+- loglik, 
+- third
+- link from hpolcc
+
