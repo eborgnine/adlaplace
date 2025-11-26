@@ -2,6 +2,8 @@
 #define MATRIXUTILS_HPP
 
 #include<Rcpp.h>
+#include <RcppEigen.h>
+
 
 // ----- safe getters -----
 inline bool get_bool(const Rcpp::List& cfg, const char* key, bool def=false) {
@@ -224,6 +226,39 @@ inline Rcpp::RObject make_convert_gCmatrix(
   Rcpp::IntegerVector p1 = compute_p_vector(j1, N);
   Rcpp::S4 result = make_gCMatrix(x1, i1, p1);
   return(Rcpp::RObject(result));
+}
+
+// assumes you already have:
+// inline Rcpp::S4 make_gCMatrix(
+//   const Rcpp::NumericVector& x,
+//   const Rcpp::IntegerVector& i,
+//   const Rcpp::IntegerVector& p);
+
+inline Rcpp::S4 eigen_to_dgC(const Eigen::SparseMatrix<double> &M) {
+    using Eigen::Index;
+
+    const Index nnz  = M.nonZeros();
+    const Index ncol = M.cols();          // = outerSize() for ColMajor
+
+    Rcpp::NumericVector x(nnz);
+    Rcpp::IntegerVector i(nnz);
+    Rcpp::IntegerVector p(ncol + 1);
+
+    // copy from Eigen into R vectors
+    std::copy(M.valuePtr(),
+              M.valuePtr() + nnz,
+              x.begin());
+
+    std::copy(M.innerIndexPtr(),
+              M.innerIndexPtr() + nnz,
+              i.begin());
+
+    std::copy(M.outerIndexPtr(),
+              M.outerIndexPtr() + (ncol + 1),
+              p.begin());
+
+    // reuse your helper to build the S4 dgCMatrix
+    return make_gCMatrix(x, i, p);
 }
 
 #endif

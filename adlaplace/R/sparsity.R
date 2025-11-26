@@ -26,7 +26,7 @@ sparsity_by_group = function(xx, template, dims) {
 #' @export
 group_sparsity = function(adFun, config) {
 
-	sparsity_list = sparsity(adFun, config$start_gamma)
+	sparsity_list = adlaplace:::sparsity(adFun, config$start_gamma)
 	allRow = lapply(sparsity_list, '[[', 'row')
 	allCol = lapply(sparsity_list, '[[', 'col')
 	allIJ = cbind(i=unlist(allRow), j=unlist(allCol))
@@ -35,10 +35,13 @@ group_sparsity = function(adFun, config) {
 	allIJ = allIJ[order(allIJ[,'j'], allIJ[,'i']),]
 	hessianTemplate = Matrix::sparseMatrix(
 		i=allIJ[,'i'], j=allIJ[,'j'],
+		x = seq(0L, len=nrow(allIJ)),
 		symmetric=TRUE, index1=FALSE,
 		dims = rep(length(config$start_gamma),2)
 	)
+	hessianTemplateL = Matrix::t(hessianTemplate) # lower triangle version
 	hessianTemplateT = as(hessianTemplate, 'TsparseMatrix')
+
 	templateIJ = paste0(hessianTemplateT@i, '_', hessianTemplateT@j)
 	sparsity_list2 = parallel::mclapply(sparsity_list, 
 		sparsity_by_group, 
@@ -47,5 +50,5 @@ group_sparsity = function(adFun, config) {
 		mc.cores = 
 			max(c(config$num_threads, 1), na.rm=TRUE)
 	)
-	return(list(hessian = hessianTemplate, group = sparsity_list2))
+	return(list(hessian = hessianTemplate, hessianL = hessianTemplateL, group = sparsity_list2))
 }

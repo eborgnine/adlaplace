@@ -218,6 +218,45 @@ Rcpp::NumericVector grad(
 
 }
 
+//' @export
+// [[Rcpp::export]]
+Rcpp::S4 hessian(
+	Rcpp::NumericVector parameters, 
+	SEXP adPack,
+	Rcpp::List config)
+{
+
+    if (adPack == R_NilValue) {
+    	return(R_NilValue);
+    }
+
+		Config configC(config);
+
+	const size_t Nparams = parameters.size();
+
+    // Rehydrate external pointer
+	Rcpp::XPtr<std::vector<GroupPack>> xp(adPack);
+
+	AD_Func_Opt funObj(*xp, configC.hessianIPLower);
+
+	Eigen::VectorXd parametersC(Nparams);
+	
+	for(size_t D=0; D<Nparams;D++) {
+		parametersC[D] = parameters[D];
+	}
+
+Eigen::SparseMatrix<double> resultC = funObj.Htemplate.cast<double>();
+// or equivalently:
+// Eigen::SparseMatrix<double> resultC(funObj.Htemplate.cast<double>());
+
+	funObj.get_hess(parametersC, resultC);
+
+resultC.makeCompressed();
+
+Rcpp::S4 out = eigen_to_dgC(resultC);
+	return(out);
+
+}
 
 
 //' @export
@@ -241,13 +280,12 @@ Rcpp::List inner_opt(
 		parametersC[D] = parameters[D];
 	}
 
-	Rcpp::XPtr<std::vector<GroupPack>> xp(adPack);
-	std::vector<GroupPack>& adPackC = *xp;
 
-	AD_Func_Opt funObj(adPackC);
+
+	Rcpp::XPtr<std::vector<GroupPack>> xp(adPack);
+	AD_Func_Opt funObj(*xp, configC.hessianIPLower);
 
 	TrustControl ctrl(control); 
-	
 
 	Trust_CG_Optimizer<Tvec, AD_Func_Opt, THess, TPreLLt> opt(
 		funObj, 

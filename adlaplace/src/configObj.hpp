@@ -8,6 +8,9 @@ struct Config {
   bool verbose;
   bool transform_theta;
   int num_threads=1;
+  std::vector<std::vector<int>> hessianIP = std::vector<std::vector<int>>(2);
+  std::vector<std::vector<int>> hessianIPLower = std::vector<std::vector<int>>(3);
+
 
   std::vector<double> beta;
 
@@ -22,12 +25,29 @@ struct Config {
 
   explicit Config(const Rcpp::List& cfg)
   : verbose(get_bool(cfg, "verbose", false)),
-    transform_theta(get_bool(cfg, "transform_theta", false)),
-     num_threads(get_int(cfg, "num_threads", 1)),           
+  transform_theta(get_bool(cfg, "transform_theta", false)),
+  num_threads(get_int(cfg, "num_threads", 1)),           
+  beta(get_numvec_copy(cfg, "beta")) 
+  {
 
-    beta(get_numvec_copy(cfg, "beta")) 
-    {
-    // grab whatever the user passed as "theta"
+    if(cfg.containsElementNamed("hessian")) {
+  const Rcpp::S4 sm = cfg["hessian"];
+  const Rcpp::IntegerVector i = sm.slot("i");
+  const Rcpp::IntegerVector p = sm.slot("p");
+  hessianIP[0] = std::vector<int>(i.begin(), i.end());
+  hessianIP[1] = std::vector<int>(p.begin(), p.end());
+    }
+    if(cfg.containsElementNamed("hessianL")) {
+  const Rcpp::S4 sm = cfg["hessianL"];
+  const Rcpp::IntegerVector i = sm.slot("i");
+  const Rcpp::IntegerVector p = sm.slot("p");
+  const Rcpp::IntegerVector x = sm.slot("x");
+  hessianIPLower[0] = std::vector<int>(i.begin(), i.end());
+  hessianIPLower[1] = std::vector<int>(p.begin(), p.end());
+  hessianIPLower[2] = std::vector<int>(x.begin(), x.end());
+    }
+
+
     std::vector<double> theta_input = get_numvec_copy(cfg, "theta");
 
     if (transform_theta) {
@@ -49,14 +69,14 @@ struct Config {
     // last element is 1/sqrt(nbSize)
     logNbSize = -0.5*logTheta[logTheta.size()-1];
     nbSize = std::exp(logNbSize);
-	lgammaNbSize = std::lgamma(nbSize);    
-	sizeLogSize = nbSize * logNbSize;
-	if(verbose) {
-		Rcpp::Rcout << "last theta " << theta[theta.size()-1] <<
-		" log theta " << logTheta[theta.size()-1] <<
-		 " nbSize " <<
-			nbSize << " lgammaNbSize " << lgammaNbSize << "\n";
-	}
+    lgammaNbSize = std::lgamma(nbSize);    
+    sizeLogSize = nbSize * logNbSize;
+    if(verbose) {
+      Rcpp::Rcout << "last theta " << theta[theta.size()-1] <<
+      " log theta " << logTheta[theta.size()-1] <<
+      " nbSize " <<
+      nbSize << " lgammaNbSize " << lgammaNbSize << "\n";
+    }
   }
 };
 #endif

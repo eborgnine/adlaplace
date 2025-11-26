@@ -25,7 +25,7 @@ AmatList = list(
 	j= sample(Ngroup2, Nobs, replace=TRUE)
 	)
 	)
-Amat = do.call(cbind, AmatList)	
+Amat = do.call(cbind, AmatList)
 beta = rep(1, ncol(X))
 thetaOrig = 0.1;theta = log(thetaOrig)
 gamma = rnorm(ncol(Amat), sd=thetaOrig)
@@ -56,8 +56,13 @@ config1 = list(beta = rep(0, nrow(data$XTp)),
 adFun1 = adlaplace::getAdFun(data, config1)
 sparsity_list = adlaplace::group_sparsity(adFun1, config1)
 
+str(sparsity_list$hessian)
+str(sparsity_list$hessianL)
+
+
 # add hessian, group sparsity list
 config = c(config1, sparsity_list)
+
 adFun = adlaplace::getAdFun(data, config)
 ```
 
@@ -91,10 +96,12 @@ system.time(res2 <- adlaplace::inner_opt(
 
 to do: 
 
-- sparse, hessian
-- parallel, omp
-- loglik, 
-- outer opt, full derivs
+- hessian
+- parallelize ADfun creation (do in inner_opt)
+- move config to include, remove nbsize stuff
+- loglik
+- full derivs
 - third
+- outer opt, 
 - link from hpolcc
 
