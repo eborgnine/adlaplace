@@ -143,6 +143,7 @@ hnlm <- function(
 
 
   if(identical(config$boundary_is_random, TRUE) ) {
+    # boundary X's go in A
     if(is.null(config$prec_boundary)){
       config$prec_boundary = 0
     }
@@ -318,14 +319,15 @@ hnlm <- function(
     tmb_data, config, control = control_inner, adFunFull=adFunFull,
     deriv=0))
 
+if(FALSE) {
   result$hessian_parameters = try(
     numDeriv::jacobian(
       outer_gr,
       x= mle$solution,
-      data = tmb_data, config=config, control=control_inner, adFunFull=adFunFull
+      data = tmb_data, config=config, control=control_inner, adFunFull=adFunFull, cache=cache
     )
   )
-
+}
 
   result$extra$parameters = formatParameters(result$extra$fullParameters, result$objects)
 

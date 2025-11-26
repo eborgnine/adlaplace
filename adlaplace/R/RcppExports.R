@@ -2,27 +2,27 @@
 # Generator token: 10BE3573-1514-4C36-9D1C-5A225CD40393
 
 #' @export
-getAdFun <- function(parameters, data, config) {
-    .Call(`_adlaplace_getAdFun`, parameters, data, config)
+getAdFun <- function(data, config) {
+    .Call(`_adlaplace_getAdFun`, data, config)
 }
 
 #' @export
-jointLogDens <- function(parameters, adPack) {
-    .Call(`_adlaplace_jointLogDens`, parameters, adPack)
+jointLogDens <- function(parameters, adPack, config) {
+    .Call(`_adlaplace_jointLogDens`, parameters, adPack, config)
 }
 
 #' @export
-grad <- function(parameters, adPack) {
-    .Call(`_adlaplace_grad`, parameters, adPack)
+grad <- function(parameters, adPack, config) {
+    .Call(`_adlaplace_grad`, parameters, adPack, config)
 }
 
 #' @export
-inner_opt <- function(parameters, adPack, control) {
-    .Call(`_adlaplace_inner_opt`, parameters, adPack, control)
+inner_opt <- function(parameters, adPack, control, config) {
+    .Call(`_adlaplace_inner_opt`, parameters, adPack, control, config)
 }
 
 #' @export
-sparsity_grad <- function(adPack, parameters) {
-    .Call(`_adlaplace_sparsity_grad`, adPack, parameters)
+sparsity <- function(adPack, parameters) {
+    .Call(`_adlaplace_sparsity`, adPack, parameters)
 }
 

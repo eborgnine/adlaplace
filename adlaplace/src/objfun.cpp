@@ -1,9 +1,9 @@
 #include "adlaplace/adlaplace.hpp"
-#include "adlaplace/trustOptimUtils.hpp"
-#include "adlaplace/lgamma.hpp"
-#include "adlaplace/adfun.hpp"
+#include "adlaplace/functions.hpp"
+#include "adlaplace/foromp.hpp"
 
 #include "configObj.hpp"
+
 
 // [[Rcpp::depends(RcppEigen)]]
 #include <RcppEigen.h>
@@ -13,7 +13,6 @@
 #include <CG-base.h>
 #include <CG-quasi.h> 
 
-#define DEBUG
 
 CppAD::vector<CppAD::AD<double>> logDensObs(
 	const CppAD::vector<CppAD::AD<double>>& gamma,
@@ -115,13 +114,13 @@ std::vector<GroupPack> getAdFun(
 //' @export
 // [[Rcpp::export]]
 SEXP getAdFun(
-	Rcpp::NumericVector parameters, 
 	Rcpp::List data, 
 	Rcpp::List config)
 {
 
 	Data dataC(data);
 	Config configC(config);
+	Rcpp::NumericVector parameters = config["start_gamma"];
 
 	const size_t Nparams = parameters.size();
 
@@ -130,118 +129,33 @@ SEXP getAdFun(
 		parametersC[D] = parameters[D];
 	}
 
-	std::vector<GroupPack> adpack = getAdFun(parametersC, dataC, configC);
-	auto* ptr = new std::vector<GroupPack>(std::move(adpack));
+	std::vector<GroupPack> adPack = getAdFun(parametersC, dataC, configC);
+
+	if(config.containsElementNamed("group")) {
+		if(configC.verbose) {
+			Rcpp::Rcout << "adding sparsity patterns\n";	 
+		}
+		Rcpp::List group_sparsity_list = config["group"];
+		addSparsityToAdFun(adPack, group_sparsity_list);
+	}
+
+	auto* ptr = new std::vector<GroupPack>(std::move(adPack));
   Rcpp::XPtr<std::vector<GroupPack>> xp(ptr, /*deleteOnFinalizer=*/true);
 
 	xp.attr("class") = "adpack_ptr";
 	return xp;
 }
 
-void grad(
-	const CppAD::vector<double> &x,
-	double &f,
-	std::vector<double> &g, 
-	std::vector<GroupPack>& adpack
-	) {
-
-	const std::size_t n = static_cast<std::size_t>(x.size());
-
-	double fOut = 0.0;
-	std::vector<double> gOut(n,0.0);
-	CppAD::vector<double> w(1);
-	w[0] = 1.0;
-
-	for(size_t D=0;D<adpack.size();D++) {
-		CppAD::vector<double> y = adpack[D].fun.Forward(0, x);
-		fOut += y[0];
-		CppAD::vector<double> gradHere = adpack[D].fun.Reverse(1, w);
-		for(size_t Dpar=0;Dpar<n;Dpar++) {
-			gOut[Dpar] += gradHere[Dpar];
-		}
-	}
-
-	f = fOut;
-	for(size_t Dpar=0;Dpar<n;Dpar++) {
-		g[Dpar] = gOut[Dpar];
-	}
-}
-
-double jointLogDens(
-	const CppAD::vector<double> &x,
-	std::vector<GroupPack>& adpack
-	) {
-
-	double fOut = 0.0;
-
-	for(size_t D=0;D<adpack.size();D++) {
-		CppAD::vector<double> y = adpack[D].fun.Forward(0, x);
-		fOut += y[0];
-	}
-	return(fOut);
-}
-
-struct AD_Func_Opt {
-	std::vector<GroupPack> &tape;
-
-	AD_Func_Opt(std::vector<GroupPack> &tape_) : tape(tape_) {}
-
-    // f and g together
-    template <class DerivedX, class DerivedG>
-	void get_fdf(const Eigen::MatrixBase<DerivedX> &x,
-		double &f,
-		Eigen::MatrixBase<DerivedG> &g) {
-		const std::size_t n = static_cast<std::size_t>(x.size());
-		std::vector<double> gOut(n,0.0);
-		CppAD::vector<double> xp(n);
-		for (std::size_t i = 0; i < n; ++i) {
-			xp[i] = x[i];
-		}
-
-		grad(xp, f, gOut, tape);
-		for (std::size_t i = 0; i < n; ++i) {
-			g[i] = gOut[i];
-		}
-	}
-
-    // f only
-    template <class DerivedX>
-	void get_f(const Eigen::MatrixBase<DerivedX> &x,
-		double &f) {
-		const std::size_t n = static_cast<std::size_t>(x.size());
-		CppAD::vector<double> xp(n);
-		for (std::size_t i = 0; i < n; ++i) {
-			xp[i] = x[i];
-		}
-		f = jointLogDens(xp, tape);
-
-	}
-
-    // g only
-    template <class DerivedX, class DerivedG>
-	void get_df(const Eigen::MatrixBase<DerivedX> &x,
-		Eigen::MatrixBase<DerivedG> &g) {
-		const std::size_t n = static_cast<std::size_t>(x.size());
-		std::vector<double> gOut(n,0.0);
-		CppAD::vector<double> xp(n);
-		for (std::size_t i = 0; i < n; ++i) {
-			xp[i] = x[i];
-		}
-		double f;
-		grad(xp, f, gOut, tape);
-		for (std::size_t i = 0; i < n; ++i) {
-			g[i] = gOut[i];
-		}
-	}
-};
-
 
 //' @export
 // [[Rcpp::export]]
 double jointLogDens(
 	Rcpp::NumericVector parameters, 
-	SEXP adPack)
+	SEXP adPack,
+	Rcpp::List config)
 {
+
+	Config configC(config);
 	double result = 0.0;
 	if (adPack == R_NilValue) {
 		return(result);
@@ -259,6 +173,7 @@ double jointLogDens(
 		parametersC[D] = parameters[D];
 	}
 
+
 	funObj.get_f(parametersC, result);
 
 	return(result);
@@ -269,8 +184,11 @@ double jointLogDens(
 // [[Rcpp::export]]
 Rcpp::NumericVector grad(
 	Rcpp::NumericVector parameters, 
-	SEXP adPack)
+	SEXP adPack,
+	Rcpp::List config)
 {
+		Config configC(config);
+
 	const size_t Nparams = parameters.size();
 	Rcpp::NumericVector result(Nparams);
 	if (adPack == R_NilValue) {
@@ -279,9 +197,9 @@ Rcpp::NumericVector grad(
 
     // Rehydrate external pointer
 	Rcpp::XPtr<std::vector<GroupPack>> xp(adPack);
-	std::vector<GroupPack>& adPackC = *xp;
+//	std::vector<GroupPack>& adPackC = *xp;
 
-	AD_Func_Opt funObj(adPackC);
+	AD_Func_Opt funObj(*xp);
 
 
 	Eigen::VectorXd parametersC(Nparams);
@@ -307,8 +225,11 @@ Rcpp::NumericVector grad(
 Rcpp::List inner_opt(
 	Rcpp::NumericVector parameters, 
 	SEXP adPack,
-	Rcpp::List control)
+	Rcpp::List control, 
+	Rcpp::List config)
 {
+
+		Config configC(config);
 
 	using Tvec   = Eigen::VectorXd;
 	using THess   = Eigen::MatrixXd;
@@ -351,6 +272,15 @@ Rcpp::List inner_opt(
 		ctrl.quasi_newton_method,
 		ctrl.trust_iter
 		);
+
+
+  omp_set_num_threads(configC.num_threads);
+  CppAD::thread_alloc::parallel_setup(
+    configC.num_threads,
+    [](){ return in_parallel_wrapper(); },
+    [](){ return static_cast<size_t>(thread_num_wrapper()); }
+    );
+
 	opt.run();
 
     // collect results and return

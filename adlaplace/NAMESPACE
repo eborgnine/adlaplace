@@ -2,8 +2,9 @@
 
 export(getAdFun)
 export(grad)
+export(group_sparsity)
 export(inner_opt)
 export(jointLogDens)
-export(sparsity_grad)
+export(sparsity)
 importFrom(Rcpp,evalCpp)
 useDynLib(adlaplace, .registration = TRUE)

@@ -51,7 +51,7 @@ static const char* HESS_COLOR = "colpack.symmetric";
     const size_t Nparams = parameters.size();
     const size_t Ngroup = adpack.size();
 
-  #pragma omp parallel
+  #pragma omp parallel 
     {
 
       CppAD::vector<double> x = parameters;

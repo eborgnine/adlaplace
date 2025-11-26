@@ -1,11 +1,13 @@
 #ifndef CONFIGOBJ_HPP
 #define CONFIGOBJ_HPP
 
+#include"adlaplace/matrixUtils.hpp"
 
 // ----- config bundle -----
 struct Config {
   bool verbose;
   bool transform_theta;
+  int num_threads=1;
 
   std::vector<double> beta;
 
@@ -17,11 +19,14 @@ struct Config {
   double lgammaNbSize;
   double sizeLogSize;
 
+
   explicit Config(const Rcpp::List& cfg)
   : verbose(get_bool(cfg, "verbose", false)),
     transform_theta(get_bool(cfg, "transform_theta", false)),
-    beta(get_numvec_copy(cfg, "beta"))
-  {
+     num_threads(get_int(cfg, "num_threads", 1)),           
+
+    beta(get_numvec_copy(cfg, "beta")) 
+    {
     // grab whatever the user passed as "theta"
     std::vector<double> theta_input = get_numvec_copy(cfg, "theta");
 

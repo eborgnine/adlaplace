@@ -12,7 +12,7 @@ f(y;\mu,\theta) =  & \log\Gamma(y + r) - \log\Gamma(r) - \log\Gamma(y + 1)
 $$
 
 ```{r theData}
-Nobs = 10000;Ngroup1=100;Ngroup2=20
+Nobs = 100000;Ngroup1=100;Ngroup2=200
 set.seed(0)
 X = Matrix::Matrix(cbind(1, rbinom(Nobs,1, prob= 0.5)))
 AmatList = list(
@@ -34,39 +34,43 @@ etaT = exp(eta)
 Z = rgamma(length(etaT), 0.1^(-2), 0.1^(-2))
 c(mean(Z), sd(Z))
 y = rpois(length(etaT), etaT*Z)
-```
 
-
-
-```{r forAd}
 NperEffect = unlist(lapply(AmatList, ncol))   
 data = list(y = y, 
 	ATp = as(Matrix::t(Amat), 'dMatrix'),
 	XTp = as(Matrix::t(X), 'CsparseMatrix'),
 	map = rep(seq(0, len=length(NperEffect)), NperEffect), 
 	Qdiag = rep(1, ncol(Amat)))
-config = list(beta = rep(0, ncol(X)), 
+
+config1 = list(beta = rep(0, nrow(data$XTp)), 
 	theta = c(rep(-1, length(NperEffect)), -1), 
 	transform_theta=TRUE, start_gamma = rep(0, nrow(data$ATp)),
-	verbose=TRUE)	
-
-adFun = adlaplace::getAdFun(
-	config$start_gamma, 
-	data, config)
-
-grad_sparsity_list = adlaplace::sparsity_grad(adFun,config$start_gamma)
-str(grad_sparsity_list[1:5])
+	num_threads=parallel::detectCores(),
+	verbose=FALSE)	
 ```
 
 
+
+
+```{r getAdstuff}
+adFun1 = adlaplace::getAdFun(data, config1)
+sparsity_list = adlaplace::group_sparsity(adFun1, config1)
+
+# add hessian, group sparsity list
+config = c(config1, sparsity_list)
+adFun = adlaplace::getAdFun(data, config)
+```
+
+
+
 ```{r eval}
-adlaplace::jointLogDens(config$start_gamma, adFun)
-x = adlaplace::grad(config$start_gamma, adFun)
+adlaplace::jointLogDens(config$start_gamma, adFun, config)
+x = adlaplace::grad(config$start_gamma, adFun, config)
 
 forNumDeriv = function(xx, ...) {
 	adlaplace::jointLogDens(c(xx, config$start_gamma[-(1:length(xx))]), ...)
 }
-x2 = numDeriv::grad(forNumDeriv, config$start_gamma[1:5], adFun = adFun)
+x2 = numDeriv::grad(forNumDeriv, config$start_gamma[1:50], adPack = adFun, config=config)
 plot(x2, x[1:length(x2)])
 ```
 
@@ -76,19 +80,21 @@ system.time(res <- trustOptim::trust.optim(
 	adlaplace::jointLogDens,
 	adlaplace::grad,
 	method='SR1',
-	adFun = adFun
+	adPack = adFun, config=config
 	))
 
+config$num_threads 
 system.time(res2 <- adlaplace::inner_opt(
-	config$start_gamma, adFun,
+	config$start_gamma, adPack=adFun,config=config,
 	control = list(report.level=4, report.freq=1)))
 ```
 
 to do: 
 
-- adpack, parallel, omp
-- hessian, requires sparse
+- sparse, hessian
+- parallel, omp
 - loglik, 
+- outer opt, full derivs
 - third
 - link from hpolcc
 

@@ -15,7 +15,8 @@ Suggests:
     knitr, numDeriv
 Imports:
     Matrix (>= 1.2.18),
-    Rcpp (>= 1.0.3)
+    Rcpp (>= 1.0.3),
+    parallel
 LinkingTo: Rcpp, RcppEigen, trustOptim
 Encoding: UTF-8
 VignetteBuilder: knitr

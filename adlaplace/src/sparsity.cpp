@@ -4,7 +4,7 @@
 
 //' @export
 // [[Rcpp::export]]
-Rcpp::List sparsity_grad(
+Rcpp::List sparsity(
 	SEXP adPack,
 	const Rcpp::NumericVector parameters
 	) {
@@ -30,16 +30,16 @@ Rcpp::List sparsity_grad(
     bool dependency   = false;   // standard Jacobian sparsity (not dependency)
     bool internal_bool = false;  // let CppAD choose representation; updated on return
 
-	CPPAD_TESTVECTOR(bool) select_domain(Nparams), select_range(1);
-		for (size_t j = 0; j < Nparams; ++j) {
-			select_domain[j] = true;
-		}
+    CPPAD_TESTVECTOR(bool) select_domain(Nparams), select_range(1);
+    for (size_t j = 0; j < Nparams; ++j) {
+    	select_domain[j] = true;
+    }
     select_range[0] = true; // scalar output
 
 
     for(size_t D=0;D<Nfun;D++) {
     	CppAD::sparse_rc< CppAD::vector<size_t> > pattern_out_grad;
-	    CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t) > pattern_out_hess;
+    	CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t) > pattern_out_hess;
 
     	adPackC[D].fun.for_jac_sparsity(
     		pattern_in,
@@ -49,20 +49,20 @@ Rcpp::List sparsity_grad(
     		pattern_out_grad);
 
     	adPackC[D].fun.for_hes_sparsity(
-    	select_domain,
-    	select_range,
-    	internal_bool,
-    	pattern_out_hess
-    	);
+    		select_domain,
+    		select_range,
+    		internal_bool,
+    		pattern_out_hess
+    		);
 
 
     	const CppAD::vector<size_t>& col_grad = pattern_out_grad.col();
     	const size_t Kgrad = pattern_out_grad.nnz();
     	Rcpp::IntegerVector resultHereGrad(Kgrad);
 
-    const CppAD::vector<size_t>& row = pattern_out_hess.row();
-    const CppAD::vector<size_t>& col = pattern_out_hess.col();
-    const size_t K = pattern_out_hess.nnz();
+    	const CppAD::vector<size_t>& row = pattern_out_hess.row();
+    	const CppAD::vector<size_t>& col = pattern_out_hess.col();
+    	const size_t K = pattern_out_hess.nnz();
     	Rcpp::IntegerVector resultHereRow(K);
     	Rcpp::IntegerVector resultHereCol(K);
 
@@ -84,18 +84,3 @@ Rcpp::List sparsity_grad(
 }
 
 
-//' @export
-// [[Rcpp::export]]
-SEXP addSparsityToAdFun(
-	SEXP adPack,
-	Rcpp::List sparsity)
-{
-	Rcpp::XPtr<std::vector<GroupPack>> xp(adPack);
-	std::vector<GroupPack>& adPackC = *xp;
-
-	const size_t Nfun = adPackC.size();
-	for(size_t D=0;D<Nfun;D++) {
-		
-	}
-
-}

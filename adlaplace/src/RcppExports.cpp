@@ -12,74 +12,76 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
 // getAdFun
-SEXP getAdFun(Rcpp::NumericVector parameters, Rcpp::List data, Rcpp::List config);
-RcppExport SEXP _adlaplace_getAdFun(SEXP parametersSEXP, SEXP dataSEXP, SEXP configSEXP) {
+SEXP getAdFun(Rcpp::List data, Rcpp::List config);
+RcppExport SEXP _adlaplace_getAdFun(SEXP dataSEXP, SEXP configSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type parameters(parametersSEXP);
     Rcpp::traits::input_parameter< Rcpp::List >::type data(dataSEXP);
     Rcpp::traits::input_parameter< Rcpp::List >::type config(configSEXP);
-    rcpp_result_gen = Rcpp::wrap(getAdFun(parameters, data, config));
+    rcpp_result_gen = Rcpp::wrap(getAdFun(data, config));
     return rcpp_result_gen;
 END_RCPP
 }
 // jointLogDens
-double jointLogDens(Rcpp::NumericVector parameters, SEXP adPack);
-RcppExport SEXP _adlaplace_jointLogDens(SEXP parametersSEXP, SEXP adPackSEXP) {
+double jointLogDens(Rcpp::NumericVector parameters, SEXP adPack, Rcpp::List config);
+RcppExport SEXP _adlaplace_jointLogDens(SEXP parametersSEXP, SEXP adPackSEXP, SEXP configSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< Rcpp::NumericVector >::type parameters(parametersSEXP);
     Rcpp::traits::input_parameter< SEXP >::type adPack(adPackSEXP);
-    rcpp_result_gen = Rcpp::wrap(jointLogDens(parameters, adPack));
+    Rcpp::traits::input_parameter< Rcpp::List >::type config(configSEXP);
+    rcpp_result_gen = Rcpp::wrap(jointLogDens(parameters, adPack, config));
     return rcpp_result_gen;
 END_RCPP
 }
 // grad
-Rcpp::NumericVector grad(Rcpp::NumericVector parameters, SEXP adPack);
-RcppExport SEXP _adlaplace_grad(SEXP parametersSEXP, SEXP adPackSEXP) {
+Rcpp::NumericVector grad(Rcpp::NumericVector parameters, SEXP adPack, Rcpp::List config);
+RcppExport SEXP _adlaplace_grad(SEXP parametersSEXP, SEXP adPackSEXP, SEXP configSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< Rcpp::NumericVector >::type parameters(parametersSEXP);
     Rcpp::traits::input_parameter< SEXP >::type adPack(adPackSEXP);
-    rcpp_result_gen = Rcpp::wrap(grad(parameters, adPack));
+    Rcpp::traits::input_parameter< Rcpp::List >::type config(configSEXP);
+    rcpp_result_gen = Rcpp::wrap(grad(parameters, adPack, config));
     return rcpp_result_gen;
 END_RCPP
 }
 // inner_opt
-Rcpp::List inner_opt(Rcpp::NumericVector parameters, SEXP adPack, Rcpp::List control);
-RcppExport SEXP _adlaplace_inner_opt(SEXP parametersSEXP, SEXP adPackSEXP, SEXP controlSEXP) {
+Rcpp::List inner_opt(Rcpp::NumericVector parameters, SEXP adPack, Rcpp::List control, Rcpp::List config);
+RcppExport SEXP _adlaplace_inner_opt(SEXP parametersSEXP, SEXP adPackSEXP, SEXP controlSEXP, SEXP configSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< Rcpp::NumericVector >::type parameters(parametersSEXP);
     Rcpp::traits::input_parameter< SEXP >::type adPack(adPackSEXP);
     Rcpp::traits::input_parameter< Rcpp::List >::type control(controlSEXP);
-    rcpp_result_gen = Rcpp::wrap(inner_opt(parameters, adPack, control));
+    Rcpp::traits::input_parameter< Rcpp::List >::type config(configSEXP);
+    rcpp_result_gen = Rcpp::wrap(inner_opt(parameters, adPack, control, config));
     return rcpp_result_gen;
 END_RCPP
 }
-// sparsity_grad
-Rcpp::List sparsity_grad(SEXP adPack, const Rcpp::NumericVector parameters);
-RcppExport SEXP _adlaplace_sparsity_grad(SEXP adPackSEXP, SEXP parametersSEXP) {
+// sparsity
+Rcpp::List sparsity(SEXP adPack, const Rcpp::NumericVector parameters);
+RcppExport SEXP _adlaplace_sparsity(SEXP adPackSEXP, SEXP parametersSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< SEXP >::type adPack(adPackSEXP);
     Rcpp::traits::input_parameter< const Rcpp::NumericVector >::type parameters(parametersSEXP);
-    rcpp_result_gen = Rcpp::wrap(sparsity_grad(adPack, parameters));
+    rcpp_result_gen = Rcpp::wrap(sparsity(adPack, parameters));
     return rcpp_result_gen;
 END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_adlaplace_getAdFun", (DL_FUNC) &_adlaplace_getAdFun, 3},
-    {"_adlaplace_jointLogDens", (DL_FUNC) &_adlaplace_jointLogDens, 2},
-    {"_adlaplace_grad", (DL_FUNC) &_adlaplace_grad, 2},
-    {"_adlaplace_inner_opt", (DL_FUNC) &_adlaplace_inner_opt, 3},
-    {"_adlaplace_sparsity_grad", (DL_FUNC) &_adlaplace_sparsity_grad, 2},
+    {"_adlaplace_getAdFun", (DL_FUNC) &_adlaplace_getAdFun, 2},
+    {"_adlaplace_jointLogDens", (DL_FUNC) &_adlaplace_jointLogDens, 3},
+    {"_adlaplace_grad", (DL_FUNC) &_adlaplace_grad, 3},
+    {"_adlaplace_inner_opt", (DL_FUNC) &_adlaplace_inner_opt, 4},
+    {"_adlaplace_sparsity", (DL_FUNC) &_adlaplace_sparsity, 2},
     {NULL, NULL, 0}
 };
 
