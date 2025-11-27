@@ -49,17 +49,44 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
-// inner_opt
-Rcpp::List inner_opt(Rcpp::NumericVector parameters, SEXP adPack, Rcpp::List control, Rcpp::List config);
-RcppExport SEXP _adlaplace_inner_opt(SEXP parametersSEXP, SEXP adPackSEXP, SEXP controlSEXP, SEXP configSEXP) {
+// hessian
+Rcpp::S4 hessian(Rcpp::NumericVector parameters, SEXP adPack, Rcpp::List config);
+RcppExport SEXP _adlaplace_hessian(SEXP parametersSEXP, SEXP adPackSEXP, SEXP configSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< Rcpp::NumericVector >::type parameters(parametersSEXP);
     Rcpp::traits::input_parameter< SEXP >::type adPack(adPackSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type config(configSEXP);
+    rcpp_result_gen = Rcpp::wrap(hessian(parameters, adPack, config));
+    return rcpp_result_gen;
+END_RCPP
+}
+// inner_opt
+Rcpp::List inner_opt(Rcpp::NumericVector parameters, Rcpp::List data, Rcpp::List control, Rcpp::List config);
+RcppExport SEXP _adlaplace_inner_opt(SEXP parametersSEXP, SEXP dataSEXP, SEXP controlSEXP, SEXP configSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type parameters(parametersSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type data(dataSEXP);
     Rcpp::traits::input_parameter< Rcpp::List >::type control(controlSEXP);
     Rcpp::traits::input_parameter< Rcpp::List >::type config(configSEXP);
-    rcpp_result_gen = Rcpp::wrap(inner_opt(parameters, adPack, control, config));
+    rcpp_result_gen = Rcpp::wrap(inner_opt(parameters, data, control, config));
+    return rcpp_result_gen;
+END_RCPP
+}
+// inner_opt_adpack
+Rcpp::List inner_opt_adpack(Rcpp::NumericVector parameters, SEXP adPack, const Rcpp::List control, const Rcpp::List config);
+RcppExport SEXP _adlaplace_inner_opt_adpack(SEXP parametersSEXP, SEXP adPackSEXP, SEXP controlSEXP, SEXP configSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type parameters(parametersSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type adPack(adPackSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List >::type control(controlSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List >::type config(configSEXP);
+    rcpp_result_gen = Rcpp::wrap(inner_opt_adpack(parameters, adPack, control, config));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -80,7 +107,9 @@ static const R_CallMethodDef CallEntries[] = {
     {"_adlaplace_getAdFun", (DL_FUNC) &_adlaplace_getAdFun, 2},
     {"_adlaplace_jointLogDens", (DL_FUNC) &_adlaplace_jointLogDens, 3},
     {"_adlaplace_grad", (DL_FUNC) &_adlaplace_grad, 3},
+    {"_adlaplace_hessian", (DL_FUNC) &_adlaplace_hessian, 3},
     {"_adlaplace_inner_opt", (DL_FUNC) &_adlaplace_inner_opt, 4},
+    {"_adlaplace_inner_opt_adpack", (DL_FUNC) &_adlaplace_inner_opt_adpack, 4},
     {"_adlaplace_sparsity", (DL_FUNC) &_adlaplace_sparsity, 2},
     {NULL, NULL, 0}
 };

@@ -17,8 +17,18 @@ grad <- function(parameters, adPack, config) {
 }
 
 #' @export
-inner_opt <- function(parameters, adPack, control, config) {
-    .Call(`_adlaplace_inner_opt`, parameters, adPack, control, config)
+hessian <- function(parameters, adPack, config) {
+    .Call(`_adlaplace_hessian`, parameters, adPack, config)
+}
+
+#' @export
+inner_opt <- function(parameters, data, control, config) {
+    .Call(`_adlaplace_inner_opt`, parameters, data, control, config)
+}
+
+#' @export
+inner_opt_adpack <- function(parameters, adPack, control, config) {
+    .Call(`_adlaplace_inner_opt_adpack`, parameters, adPack, control, config)
 }
 
 #' @export

@@ -55,50 +55,47 @@ config1 = list(beta = rep(0, nrow(data$XTp)),
 ```{r getAdstuff}
 adFun1 = adlaplace::getAdFun(data, config1)
 sparsity_list = adlaplace::group_sparsity(adFun1, config1)
-
-str(sparsity_list$hessian)
-str(sparsity_list$hessianL)
-
-
-# add hessian, group sparsity list
 config = c(config1, sparsity_list)
-
-adFun = adlaplace::getAdFun(data, config)
+system.time(res2 <- adlaplace::inner_opt(
+	config$start_gamma, data=data, config=config,
+	control = list(report.level=4, report.freq=1)))
+unlist(res2[c('minusLogLik', 'halfLogDet','fval')]	)
+quantile(res2$gradient)
 ```
 
 
 
 ```{r eval}
+# get adFun again, with sparsity
+adFun = adlaplace::getAdFun(data, config)
 adlaplace::jointLogDens(config$start_gamma, adFun, config)
 x = adlaplace::grad(config$start_gamma, adFun, config)
+x2 = adlaplace::hessian(config$start_gamma, adFun, config)
 
 forNumDeriv = function(xx, ...) {
 	adlaplace::jointLogDens(c(xx, config$start_gamma[-(1:length(xx))]), ...)
 }
-x2 = numDeriv::grad(forNumDeriv, config$start_gamma[1:50], adPack = adFun, config=config)
+x2 = numDeriv::grad(forNumDeriv, config$start_gamma[1:20], adPack = adFun, config=config)
 plot(x2, x[1:length(x2)])
 ```
 
 ```{r opt}
-system.time(res <- trustOptim::trust.optim(
+system.time(
+	res1 <- trustOptim::trust.optim(
 	config$start_gamma,
 	adlaplace::jointLogDens,
 	adlaplace::grad,
-	method='SR1',
-	adPack = adFun, config=config
+	adlaplace::hessian,
+	method='Sparse',
+	control = list(report.level=4, report.freq=1),
+	adPack = adlaplace::getAdFun(data, config), config=config
 	))
 
-config$num_threads 
-system.time(res2 <- adlaplace::inner_opt(
-	config$start_gamma, adPack=adFun,config=config,
-	control = list(report.level=4, report.freq=1)))
+
 ```
 
 to do: 
 
-- hessian
-- parallelize ADfun creation (do in inner_opt)
-- move config to include, remove nbsize stuff
 - loglik
 - full derivs
 - third

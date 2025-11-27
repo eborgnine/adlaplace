@@ -11,16 +11,14 @@ struct Config {
   std::vector<std::vector<int>> hessianIP = std::vector<std::vector<int>>(2);
   std::vector<std::vector<int>> hessianIPLower = std::vector<std::vector<int>>(3);
 
-
   std::vector<double> beta;
+  Rcpp::List group_sparsity;
+  std::vector<double> start_gamma;
 
   // always available:
   std::vector<double> theta;     // natural scale  (theta > 0)
   std::vector<double> logTheta;  // log(theta)
-  double nbSize;
-  double logNbSize;
-  double lgammaNbSize;
-  double sizeLogSize;
+
 
 
   explicit Config(const Rcpp::List& cfg)
@@ -47,6 +45,23 @@ struct Config {
   hessianIPLower[2] = std::vector<int>(x.begin(), x.end());
     }
 
+    if(cfg.containsElementNamed("group")) {
+      group_sparsity = cfg["group"];
+    } else {
+      group_sparsity = Rcpp::List();
+    }
+
+    if(cfg.containsElementNamed("start_gamma")) {
+        const Rcpp::NumericVector start_gamma_here = cfg["start_gamma"];
+        const size_t Nparams = start_gamma_here.size();
+         start_gamma = std::vector<double>(Nparams);
+         for(size_t D=0;D<Nparams;D++) {
+            start_gamma[D] = start_gamma_here[D];
+         }
+  } else {
+    const size_t Nparams = hessianIP[1].size()-1;
+    start_gamma = std::vector<double>(Nparams, 0.0);
+  }    
 
     std::vector<double> theta_input = get_numvec_copy(cfg, "theta");
 
@@ -66,17 +81,7 @@ struct Config {
         logTheta[i] = std::log(theta[i]);
       }
     }
-    // last element is 1/sqrt(nbSize)
-    logNbSize = -0.5*logTheta[logTheta.size()-1];
-    nbSize = std::exp(logNbSize);
-    lgammaNbSize = std::lgamma(nbSize);    
-    sizeLogSize = nbSize * logNbSize;
-    if(verbose) {
-      Rcpp::Rcout << "last theta " << theta[theta.size()-1] <<
-      " log theta " << logTheta[theta.size()-1] <<
-      " nbSize " <<
-      nbSize << " lgammaNbSize " << lgammaNbSize << "\n";
-    }
+
   }
 };
 #endif

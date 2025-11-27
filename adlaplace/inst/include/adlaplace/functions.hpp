@@ -12,7 +12,6 @@ static const std::string HESS_COLOR = "cppad.symmetric";
 #include<Rcpp.h>
 #endif			
 
-
 inline void grad(
 	const CppAD::vector<double> &x,
 	double &f,
@@ -124,64 +123,21 @@ inline void grad(
 }
 
 
+inline void get_hess_function(
+		const CppAD::vector<double> &x,
+    	Eigen::SparseMatrix<double> &H,
+    	std::vector<GroupPack>& tape,
+    	Eigen::SparseMatrix<int> &Htemplate) {
 
+    	const size_t n         = x.size();
+    	const size_t NnonZero  = Htemplate.nonZeros();
 
-struct AD_Func_Opt {
-	std::vector<GroupPack> &tape;
-	Eigen::SparseMatrix<int> Htemplate;
-
-    // ctor with no hessian pattern -> use empty storage
-	AD_Func_Opt(std::vector<GroupPack> &tape_)
-	: tape(tape_),
-          Htemplate()     // bind ref to empty
-          {}
-
-    // ctor with hessian pattern
-          AD_Func_Opt(std::vector<GroupPack> &tape_,
-                std::vector<std::vector<int>> &hessianIJ) // i, p, x, lower triangle
-          : tape(tape_), Htemplate()
-          {
-        // sanity check
-          	if (hessianIJ.size() < 3) {
-          		throw std::runtime_error("hessianIJ must have at least 3 components: row, colPtr, values");
-          	}
-
-        const int n    = static_cast<int>(hessianIJ[1].size()) - 1; // ncols (and nrows if square)
-        const int nnz  = static_cast<int>(hessianIJ[0].size());
-
-        // Map over the pattern data
-        Eigen::Map<
-        const Eigen::SparseMatrix<int, Eigen::ColMajor, int>
-        > Hmap(
-        	n, n, nnz,
-            hessianIJ[1].data(),   // outerIndexPtr (p)
-            hessianIJ[0].data(),   // innerIndexPtr (i)
-            hessianIJ[2].data()    // valuePtr (x)
-            );
-
-        // copy pattern into H (so H owns its memory)
-        Htemplate = Hmap;
-    }
-
-  template<class DerivedX>
-    void get_hess(const Eigen::MatrixBase<DerivedX> &x,
-    	Eigen::SparseMatrix<double> &H) {
-
-    	using Index = Eigen::Index;
-
-    	const Index n         = static_cast<Index>(x.size());
-    	const Index NnonZero  = static_cast<Index>(Htemplate.nonZeros());
     	std::vector<double> outAll(NnonZero);
 
     	Eigen::Map<const Eigen::VectorXi> remapVec(
     		Htemplate.valuePtr(),
     		Htemplate.nonZeros()
     		);
-
-    	CppAD::vector<double> xp(int(x.size()));
-    	for (std::size_t i = 0; i < n; ++i) {
-    		xp[i] = x[i];
-    	}
 
  #pragma omp parallel 
     	{
@@ -194,8 +150,10 @@ struct AD_Func_Opt {
     		for (int g = 0; g < Ngroups; ++g) {
     			GroupPack &gp = tape[g];
 
+				gp.fun.Forward(0, x);
+
     			gp.fun.sparse_hes(
-    				xp,
+    			x,
                 w,                         // weighting of outputs
                 gp.out_hess,               // output container (sparse_rcv)
                 gp.pattern_hess,           // sparsity pattern
@@ -231,7 +189,107 @@ struct AD_Func_Opt {
     H.makeCompressed();
 
     Eigen::Map<Eigen::VectorXd>(H.valuePtr(), NnonZero) =
-    Eigen::Map<const Eigen::VectorXd>(outAll.data(), NnonZero);
+	    Eigen::Map<const Eigen::VectorXd>(outAll.data(), NnonZero);
+}
+
+struct AD_Func_Opt {
+	std::vector<GroupPack> &tape;
+	Eigen::SparseMatrix<int> Htemplate;
+
+    // ctor with no hessian pattern -> use empty storage
+	AD_Func_Opt(std::vector<GroupPack> &tape_)
+	: tape(tape_),
+          Htemplate()     // bind ref to empty
+          {}
+
+    // ctor with hessian pattern
+          AD_Func_Opt(std::vector<GroupPack> &tape_,
+                const std::vector<std::vector<int>> &hessianIJ) // i, p, x, lower triangle
+          : tape(tape_), Htemplate()
+          {
+        // sanity check
+          	if (hessianIJ.size() < 3) {
+          		throw std::runtime_error("hessianIJ must have at least 3 components: row, colPtr, values");
+          	}
+
+        const int n    = static_cast<int>(hessianIJ[1].size()) - 1; // ncols (and nrows if square)
+        const int nnz  = static_cast<int>(hessianIJ[0].size());
+
+        // Map over the pattern data
+        Eigen::Map<
+        const Eigen::SparseMatrix<int, Eigen::ColMajor, int>
+        > Hmap(
+        	n, n, nnz,
+            hessianIJ[1].data(),   // outerIndexPtr (p)
+            hessianIJ[0].data(),   // innerIndexPtr (i)
+            hessianIJ[2].data()    // valuePtr (x)
+            );
+
+        // copy pattern into H (so H owns its memory)
+        Htemplate = Hmap;
+    }
+
+    int get_nvars() const {
+        // trustOptim uses this to size vectors; domain of the first tape
+        if (tape.empty()) return 0;
+        return static_cast<int>(tape[0].fun.Domain());
+    }
+
+    int get_nnz() const {
+        // trustOptim uses this to size the sparse Hessian
+        return static_cast<int>(Htemplate.nonZeros());
+    }
+
+
+  template<class DerivedX, class DerivedH>
+    void get_hessian(
+    	const Eigen::MatrixBase<DerivedX> &x,
+        Eigen::SparseMatrixBase<DerivedH>      &Hbase
+        //Eigen::SparseMatrix<double> &H
+        ) 
+        {	
+
+	const std::size_t n = static_cast<std::size_t>(x.size());
+	CppAD::vector<double> xp(n);
+	for (std::size_t i = 0; i < n; ++i) {
+		xp[i] = x[i];
+	}
+
+	Eigen::SparseMatrix<double> Htmp(Htemplate.rows(), Htemplate.cols());
+
+	get_hess_function(
+		xp,
+		Htmp,
+		tape,
+		Htemplate
+		);
+	    Hbase = Htmp;
+}
+
+template<class DerivedX, class DerivedG>
+void get_fdfh(const Eigen::MatrixBase<DerivedX> &x,
+              double &f,
+              Eigen::MatrixBase<DerivedG> &g,
+              Eigen::SparseMatrix<double> &H)
+{
+	const std::size_t n = static_cast<std::size_t>(x.size());
+	CppAD::vector<double> xp(n);
+	for (std::size_t i = 0; i < n; ++i) {
+		xp[i] = x[i];
+	}
+	std::vector<double> gOut(n,0.0);
+
+    grad(xp, f, gOut, tape);
+	get_hess_function(
+		xp,
+		H,
+		tape,
+		Htemplate
+		);
+
+	for (std::size_t i = 0; i < n; ++i) {
+		g[i] = gOut[i];
+	}
 }
 
     // f and g together

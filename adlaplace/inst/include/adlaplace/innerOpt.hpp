@@ -1,0 +1,99 @@
+#ifndef INNER_OPT_HPP
+#define INNER_OPT_HPP
+#include "adlaplace/configObj.hpp"
+#include "adlaplace/matrixUtils.hpp"
+#include "adlaplace/TrustOptimUtils.hpp"
+
+// from trustOptim
+#include <common_R.hpp>
+#include <CG-base.h>
+#include <CG-sparse.h> 
+
+Rcpp::List inner_opt(
+	Eigen::VectorXd& parameters, 
+	std::vector<GroupPack>& adPack,
+	const TrustControl& ctrl, 
+	const Config& config)
+{
+	using Tvec   = Eigen::VectorXd;
+	using THess   = Eigen::SparseMatrix<double>; 
+	using TPreLLt = Eigen::SimplicialLLT<THess>;
+
+	AD_Func_Opt funObj(adPack, config.hessianIPLower);
+
+	Trust_CG_Sparse<Tvec, AD_Func_Opt, THess, TPreLLt> opt(
+		funObj, 
+		parameters,
+		ctrl.rad,
+		ctrl.min_rad,
+		ctrl.tol,
+		ctrl.prec,
+		ctrl.report_freq,
+		ctrl.report_level,
+		ctrl.header_freq,
+		ctrl.report_precision,
+		ctrl.maxit,
+		ctrl.contract_factor,
+		ctrl.expand_factor,
+		ctrl.contract_threshold,
+		ctrl.expand_threshold_rad,
+		ctrl.expand_threshold_ap,
+		ctrl.function_scale_factor,
+		ctrl.precond_refresh_freq,
+		ctrl.precond_ID,
+//		ctrl.quasi_newton_method,
+		ctrl.trust_iter
+		);
+
+
+	opt.run();
+
+	const size_t Nparams = parameters.size();
+	Tvec P(Nparams);
+	Tvec grad(Nparams);
+	Eigen::SparseMatrix<double> H(Nparams, Nparams);
+	H.reserve(funObj.Htemplate.nonZeros());
+// = funObj.Htemplate.cast<double>();
+
+	double fval, radius;
+	int iterations;
+	MB_Status status;
+
+
+	status = opt.get_current_state(P, fval, grad, H, iterations, radius);
+
+	// get log determinant of hessian
+	Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> ldlt;
+	ldlt.compute(H);
+	if (ldlt.info() != Eigen::Success) {
+		Rcpp::warning("LLT factorization failed; H may not be SPD");
+	}
+	const auto& D = ldlt.vectorD();
+
+	double logdetH = 0.0;
+	for (int k = 0; k < D.size(); ++k) {
+		logdetH += std::log(D[k]);
+	}
+	const double halfLogDet = logdetH/2;
+
+	const double minusLogLik = fval + halfLogDet +
+ 	 Nparams * 0.918938533204672669541; // format(log(2*pi)/2, digits=22) 
+
+
+ 	 Rcpp::List res = Rcpp::List::create(
+ 	 	Rcpp::Named("minusLogLik") = Rcpp::wrap(minusLogLik),
+ 	 	Rcpp::Named("fval") = Rcpp::wrap(fval),
+ 	 	Rcpp::Named("halfLogDet") = Rcpp::wrap(halfLogDet),
+ 	 	Rcpp::Named("solution") = Rcpp::wrap(P),
+ 	 	Rcpp::Named("gradient") = Rcpp::wrap(grad),	
+ 	 	Rcpp::Named("hessian") = eigen_to_dgC(H),
+ 	 	Rcpp::Named("iterations") = Rcpp::wrap(iterations),
+ 	 	Rcpp::Named("status") = Rcpp::wrap((std::string) MB_strerror(status)),
+ 	 	Rcpp::Named("trust.radius") = Rcpp::wrap(radius),
+ 	 	Rcpp::Named("method") = Rcpp::wrap("Sparse")
+ 	 	);
+
+ 	 return(res);
+ 	}
+
+#endif
