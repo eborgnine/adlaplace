@@ -32,7 +32,7 @@ inner_opt_adpack <- function(parameters, adPack, control, config) {
 }
 
 #' @export
-sparsity <- function(adPack, parameters) {
-    .Call(`_adlaplace_sparsity`, adPack, parameters)
+sparsity <- function(adPack, parameters, verbose = FALSE) {
+    .Call(`_adlaplace_sparsity`, adPack, parameters, verbose)
 }
 

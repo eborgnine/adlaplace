@@ -261,5 +261,24 @@ inline Rcpp::S4 eigen_to_dgC(const Eigen::SparseMatrix<double> &M) {
     return make_gCMatrix(x, i, p);
 }
 
+// Construct an N x N identity matrix as dgCMatrix layout.
+inline DgCView identityMatrix(std::size_t N)
+{
+    const int n = static_cast<int>(N);
+
+    const Rcpp::IntegerVector i = Rcpp::seq(0, n-1);       // row indices
+    const Rcpp::IntegerVector p = Rcpp::seq(0, n);   // column pointers
+    const Rcpp::NumericVector x = Rcpp::rep(1.0, n);  // all ones on the diagonal
+    const Rcpp::IntegerVector Dim = Rcpp::rep(n, 2);
+
+    Rcpp::S4 mat("dgCMatrix");
+    mat.slot("i")   = i;
+    mat.slot("p")   = p;
+    mat.slot("x")   = x;
+    mat.slot("Dim") = Dim;
+
+    return DgCView(mat);
+}
+
 #endif
 

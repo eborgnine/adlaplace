@@ -91,14 +91,15 @@ BEGIN_RCPP
 END_RCPP
 }
 // sparsity
-Rcpp::List sparsity(SEXP adPack, const Rcpp::NumericVector parameters);
-RcppExport SEXP _adlaplace_sparsity(SEXP adPackSEXP, SEXP parametersSEXP) {
+Rcpp::List sparsity(SEXP adPack, const Rcpp::NumericVector parameters, const bool verbose);
+RcppExport SEXP _adlaplace_sparsity(SEXP adPackSEXP, SEXP parametersSEXP, SEXP verboseSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< SEXP >::type adPack(adPackSEXP);
     Rcpp::traits::input_parameter< const Rcpp::NumericVector >::type parameters(parametersSEXP);
-    rcpp_result_gen = Rcpp::wrap(sparsity(adPack, parameters));
+    Rcpp::traits::input_parameter< const bool >::type verbose(verboseSEXP);
+    rcpp_result_gen = Rcpp::wrap(sparsity(adPack, parameters, verbose));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -110,7 +111,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_adlaplace_hessian", (DL_FUNC) &_adlaplace_hessian, 3},
     {"_adlaplace_inner_opt", (DL_FUNC) &_adlaplace_inner_opt, 4},
     {"_adlaplace_inner_opt_adpack", (DL_FUNC) &_adlaplace_inner_opt_adpack, 4},
-    {"_adlaplace_sparsity", (DL_FUNC) &_adlaplace_sparsity, 2},
+    {"_adlaplace_sparsity", (DL_FUNC) &_adlaplace_sparsity, 3},
     {NULL, NULL, 0}
 };
 

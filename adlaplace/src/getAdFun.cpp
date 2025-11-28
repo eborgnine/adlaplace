@@ -24,13 +24,16 @@ CppAD::vector<CppAD::AD<double>> logDensObs(
 	const CppAD::vector<CppAD::AD<double>>& gamma,
 	const Data& data,
 	const Config& config,
-	const size_t start, const size_t end
+	const size_t Dgroup
 	){
 	nbSizeValues nbSize(config.logTheta[config.logTheta.size()-1L]);
 	CppAD::AD<double> logDens = 0.0;
 	CppAD::vector<CppAD::AD<double>> result(1, 0.0);
 
-	for(size_t Dobs=start;Dobs < end; Dobs++) {
+	const size_t startP = data.groups.p[Dgroup];
+	const size_t endP = data.groups.p[Dgroup+1];
+	for(size_t DI=startP;DI < endP; DI++) {
+		const size_t Dobs = data.groups.i[DI];
 
 		CppAD::AD<double>  eta = 0.0;
 		const size_t p0x = data.X.p[Dobs];
@@ -73,11 +76,21 @@ CppAD::vector<CppAD::AD<double>> logDensRandom(
 	CppAD::AD<double> qpart = 0.0;
 
 	CppAD::vector<CppAD::AD<double>> gammaScaled(data.Ngamma);
+
+
+	if(config.verbose) {
+		Rcpp::Rcout << "q, ngamma  " << data.Ngamma << " nmap " << data.map.size() << " ntheta " << config.theta.size() << " log " << config.logTheta.size() << "\n";
+	}
+
+
 	for(size_t D=0;D<data.Ngamma;D++) {
+
+
 		size_t mapHere = data.map[D];
 		gammaScaled[D] = gamma[D] / config.theta[mapHere];
 		qpart += config.logTheta[mapHere] + 
 		gammaScaled[D]*gammaScaled[D]*(0.5*data.Qdiag[D]);
+
 	}
 
 	// Warning, no offdiag of Q implemented
@@ -92,11 +105,13 @@ std::vector<GroupPack> getAdFun(
 
 	auto parameters = config.start_gamma;
 
+
+	std::vector<GroupPack> result(data.Ngroups+1L);
+
 	if(config.verbose) {
-		Rcpp::Rcout << " adfun Nparams " << parameters.size() << " ";
+		Rcpp::Rcout << " adfun Nparams " << parameters.size() << " groups " << data.Ngroups << " ";
 	}
 
-	std::vector<GroupPack> result(data.Ny+1L);
 
 # pragma omp parallel
 	{
@@ -108,24 +123,31 @@ std::vector<GroupPack> getAdFun(
 
 
 # pragma omp for nowait
-		for(size_t D=0;D<data.Ny;D++) {
+		for(size_t D=0;D<data.Ngroups;D++) {
+
 
 			CppAD::Independent(ad_params);   
-			auto resultHere = logDensObs(ad_params, data, config, D, D+1L);
+			auto resultHere = logDensObs(ad_params, data, config, D);
 			CppAD::ADFun<double> fun(ad_params, resultHere);
 			result[D].fun = std::move(fun);
 		}
+
+
 
 # pragma omp single
 		{
 			CppAD::Independent(ad_params);
 			auto resultHere = logDensRandom(ad_params, data, config);   
 			CppAD::ADFun<double> fun(ad_params, resultHere);
-			result[data.Ny].fun = std::move(fun);
+			result[data.Ngroups].fun = std::move(fun);
+
 		}
 	} // parallel
 
 	if(config.group_sparsity.size()) {
+		if(config.verbose) {
+			Rcpp::Rcout << "add sparse\n";
+		}
 
 		addSparsityToAdFun(result, config.group_sparsity);
 

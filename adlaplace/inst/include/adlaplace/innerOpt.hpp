@@ -68,8 +68,9 @@ Rcpp::List inner_opt(
 	if (ldlt.info() != Eigen::Success) {
 		Rcpp::warning("LLT factorization failed; H may not be SPD");
 	}
-	const auto& D = ldlt.vectorD();
 
+	// log likelhood
+	const auto& D = ldlt.vectorD();
 	double logdetH = 0.0;
 	for (int k = 0; k < D.size(); ++k) {
 		logdetH += std::log(D[k]);
@@ -79,6 +80,24 @@ Rcpp::List inner_opt(
 	const double minusLogLik = fval + halfLogDet +
  	 Nparams * 0.918938533204672669541; // format(log(2*pi)/2, digits=22) 
 
+ 	 // save chol
+	const auto& Pidx = ldlt.permutationP().indices();    
+ 	const Eigen::SparseMatrix<double> L = ldlt.matrixL();
+
+	Rcpp::NumericVector D_R(D.size());
+  	for (int k = 0; k < D.size(); ++k) D_R[k] = D[k];
+
+  	Rcpp::IntegerVector P_R(Pidx.size());
+  	for (int k = 0; k < Pidx.size(); ++k) P_R[k] = Pidx[k];  
+
+ 	Rcpp::List cholHessian = Rcpp::List::create(
+		Rcpp::Named("P") = P_R,
+		Rcpp::Named("D") = D_R,
+		Rcpp::Named("L") = eigen_to_dgC(L)	
+ 		);
+
+
+
 
  	 Rcpp::List res = Rcpp::List::create(
  	 	Rcpp::Named("minusLogLik") = Rcpp::wrap(minusLogLik),
@@ -87,6 +106,7 @@ Rcpp::List inner_opt(
  	 	Rcpp::Named("solution") = Rcpp::wrap(P),
  	 	Rcpp::Named("gradient") = Rcpp::wrap(grad),	
  	 	Rcpp::Named("hessian") = eigen_to_dgC(H),
+ 	 	Rcpp::Named("cholHessian") = cholHessian,
  	 	Rcpp::Named("iterations") = Rcpp::wrap(iterations),
  	 	Rcpp::Named("status") = Rcpp::wrap((std::string) MB_strerror(status)),
  	 	Rcpp::Named("trust.radius") = Rcpp::wrap(radius),

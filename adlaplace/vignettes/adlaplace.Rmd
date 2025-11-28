@@ -17,14 +17,14 @@ set.seed(0)
 X = Matrix::Matrix(cbind(1, rbinom(Nobs,1, prob= 0.5)))
 AmatList = list(
 	Matrix::sparseMatrix(
-	i = 1:Nobs,
-	j= sample(Ngroup1, Nobs, replace=TRUE)
+		i = 1:Nobs,
+		j= sample(Ngroup1, Nobs, replace=TRUE)
 	),
 	Matrix::sparseMatrix(
-	i = 1:Nobs,
-	j= sample(Ngroup2, Nobs, replace=TRUE)
+		i = 1:Nobs,
+		j= sample(Ngroup2, Nobs, replace=TRUE)
 	)
-	)
+)
 Amat = do.call(cbind, AmatList)
 beta = rep(1, ncol(X))
 thetaOrig = 0.1;theta = log(thetaOrig)
@@ -35,27 +35,47 @@ Z = rgamma(length(etaT), 0.1^(-2), 0.1^(-2))
 c(mean(Z), sd(Z))
 y = rpois(length(etaT), etaT*Z)
 
+if(requireNamespace("RSpectra", quietly=TRUE) ) {
+	loadings <- RSpectra::svds(as(Matrix::t(Amat), "dMatrix"), k = 1)$v
+} else {
+	sv <- svd(as.matrix(Amat))
+	loadings <- sv$v                  # equals prcomp(...)$rotation
+}
+theOrder <- order(loadings[, 1])
+Ngroups = ceiling(Nobs/10)
+groupCut = seq(0, length(loadings)+1, len=Ngroups+1)
+
+groupMat = Matrix::sparseMatrix(
+	i = seq(0,len=length(loadings)),
+	j = as.integer(cut(theOrder, groupCut))-1L,
+	x=rep(1, length(loadings)), index1=FALSE)
+
 NperEffect = unlist(lapply(AmatList, ncol))   
+
 data = list(y = y, 
 	ATp = as(Matrix::t(Amat), 'dMatrix'),
 	XTp = as(Matrix::t(X), 'CsparseMatrix'),
 	map = rep(seq(0, len=length(NperEffect)), NperEffect), 
+	groups = groupMat,
 	Qdiag = rep(1, ncol(Amat)))
 
 config1 = list(beta = rep(0, nrow(data$XTp)), 
 	theta = c(rep(-1, length(NperEffect)), -1), 
 	transform_theta=TRUE, start_gamma = rep(0, nrow(data$ATp)),
 	num_threads=parallel::detectCores(),
-	verbose=FALSE)	
+	verbose=TRUE)	
 ```
+
+
+
 
 
 
 
 ```{r getAdstuff}
 adFun1 = adlaplace::getAdFun(data, config1)
-sparsity_list = adlaplace::group_sparsity(adFun1, config1)
-config = c(config1, sparsity_list)
+sparsity_list = adlaplace::group_sparsity(adFun1, config1, verbose=TRUE)
+config = modifyList(config1, sparsity_list)
 system.time(res2 <- adlaplace::inner_opt(
 	config$start_gamma, data=data, config=config,
 	control = list(report.level=4, report.freq=1)))
@@ -90,15 +110,14 @@ system.time(
 	control = list(report.level=4, report.freq=1),
 	adPack = adlaplace::getAdFun(data, config), config=config
 	))
-
-
 ```
+
 
 to do: 
 
-- loglik
+
 - full derivs
-- third
+- third, logLik.R
 - outer opt, 
 - link from hpolcc
 

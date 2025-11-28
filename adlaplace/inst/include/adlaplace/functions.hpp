@@ -8,6 +8,7 @@ static const std::string JAC_COLOR = "cppad";
 static const std::string HESS_COLOR = "cppad.symmetric";
 
 
+//#define DEBUG
 #ifdef DEBUG
 #include<Rcpp.h>
 #endif			
@@ -49,28 +50,31 @@ inline void grad(
 				<< " nc=" << pat.nc() 
 				<< " nnz=" << pat.nnz() << "\n";
 
+#ifdef EXTRADEBUG
 				for (size_t k = 0; k < pat.nnz(); ++k) {
 					Rcpp::Rcout << "  pattern[" << k << "]: row=" 
 					<< pat.row()[k] 
 					<< " col=" << pat.col()[k] << "\n";
 				}
+#endif				
 			}
-
     // out_grad info
 			{
 				const auto& out = adPack[D].out_grad;
 				Rcpp::Rcout << "out_grad: nr=" << out.nr() 
 				<< " nc=" << out.nc() 
 				<< " nnz=" << out.nnz() << "\n";
-
+#ifdef EXTRADEBUG
 				for (size_t k = 0; k < out.nnz(); ++k) {
 					Rcpp::Rcout << "  out_grad[" << k 
 					<< "]: row=" << out.row()[k]
 					<< " col=" << out.col()[k]
 					<< " val=" << out.val()[k] << "\n";
 				}
+#endif				
 			}
 
+#ifdef EXTRADEBUG
     // Check for index overflows
 			{
 				const auto& out = adPack[D].out_grad;
@@ -82,7 +86,7 @@ inline void grad(
 					}
 				}
 			}
-
+#endif
 			Rcpp::Rcout << "=== END DEBUG GROUP " << D << " ===\n";
 #endif			
 
@@ -139,18 +143,46 @@ inline void get_hess_function(
     		Htemplate.nonZeros()
     		);
 
+   		const int Ngroups = tape.size();
+ 
+#ifdef DEBUG
+    Rcpp::Rcout << "hess Ngroups " << Ngroups << "\n";
+#endif
+
  #pragma omp parallel 
     	{
     		CppAD::vector<double> w(1);
     		w[0] = 1.0;
-    		const int Ngroups = tape.size();
     		std::vector<double> outHereAll(NnonZero, 0.0);
+
+
 
       #pragma omp for nowait
     		for (int g = 0; g < Ngroups; ++g) {
     			GroupPack &gp = tape[g];
 
 				gp.fun.Forward(0, x);
+#ifdef DEBUG
+            Rcpp::Rcout << "\n=== HESS DEBUG: Group " << g << " ===\n";
+            Rcpp::Rcout << "fun.Domain() = " << gp.fun.Domain()
+                        << " fun.Range() = " << gp.fun.Range() << "\n";
+
+            // pattern_hess info
+            {
+                const auto& patH = gp.pattern_hess;
+                Rcpp::Rcout << "pattern_hess: nr=" << patH.nr()
+                            << " nc=" << patH.nc()
+                            << " nnz=" << patH.nnz() << "\n";
+#ifdef EXTRADEBUG
+                for (size_t k = 0; k < patH.nnz(); ++k) {
+                    Rcpp::Rcout << "  patH[" << k << "]: row="
+                                << patH.row()[k]
+                                << " col=" << patH.col()[k] << "\n";
+                }
+#endif            
+            }
+#endif
+
 
     			gp.fun.sparse_hes(
     			x,
@@ -160,6 +192,41 @@ inline void get_hess_function(
                 HESS_COLOR,                // typically "cppad.symmetric"
                 gp.work_hess               // work space
                 );
+
+#ifdef DEBUG    			
+            // out_hess info
+            {
+                const auto& outH = gp.out_hess;
+                Rcpp::Rcout << "out_hess: nr=" << outH.nr()
+                            << " nc=" << outH.nc()
+                            << " nnz=" << outH.nnz() << "\n";
+#ifdef EXTRADEBUG
+                for (size_t k = 0; k < outH.nnz(); ++k) {
+                    Rcpp::Rcout << "  out_hess[" << k << "]: row="
+                                << outH.row()[k]
+                                << " col=" << outH.col()[k]
+                                << " val=" << outH.val()[k] << "\n";
+                }
+
+                // simple index sanity check
+                for (size_t k = 0; k < outH.nnz(); ++k) {
+                    if (outH.col()[k] >= gp.fun.Domain()) {
+                        Rcpp::Rcout << "!!! HESS ERROR: out_hess.col[" << k
+                                    << "] = " << outH.col()[k]
+                                    << " exceeds domain size!\n";
+                    }
+                    if (outH.row()[k] >= outH.nr()) {
+                        Rcpp::Rcout << "!!! HESS ERROR: out_hess.row[" << k
+                                    << "] = " << outH.row()[k]
+                                    << " exceeds nr()!\n";
+                    }
+                }
+#endif                
+            }
+                Rcpp::Rcout << "=== END HESS DEBUG GROUP " << g << " ===\n";
+
+#endif
+
     			const std::vector<size_t>& matchHere = gp.match_hess;
     			const size_t Nhere = matchHere.size();
     			const CppAD::vector<double>& hessianOutHere = gp.out_hess.val();
@@ -176,6 +243,10 @@ inline void get_hess_function(
     			}
     		}
     } // parallel
+
+#ifdef DEBUG
+    Rcpp::Rcout << "hess here";
+#endif
 
     // 1. Make sure H has the same sparsity pattern as Htemplate
     if (H.rows()    != Htemplate.rows() ||

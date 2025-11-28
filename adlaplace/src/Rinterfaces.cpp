@@ -37,9 +37,6 @@ SEXP getAdFun(
     );
 
 	std::vector<GroupPack> adPack = getAdFun(dataC, configC);
-	if(configC.verbose) {
-		Rcpp::Rcout << "x";
-	}
 	auto* ptr = new std::vector<GroupPack>(std::move(adPack));
   Rcpp::XPtr<std::vector<GroupPack>> xp(ptr, /*deleteOnFinalizer=*/true);
 
@@ -148,6 +145,8 @@ Rcpp::S4 hessian(
 
 	AD_Func_Opt funObj(*xp, configC.hessianIPLower);
 
+
+
 	Eigen::VectorXd parametersC(Nparams);
 	
 	for(size_t D=0; D<Nparams;D++) {
@@ -162,8 +161,16 @@ Rcpp::S4 hessian(
     [](){ return in_parallel_wrapper(); },
     [](){ return static_cast<size_t>(thread_num_wrapper()); }
     );
-	funObj.get_hessian(parametersC, resultC);
 
+	if(configC.verbose) {
+		Rcpp::Rcout << "hessian params " << parametersC.size() << " groups "	<< (*xp).size();
+	}
+
+	funObj.get_hessian(parametersC, resultC);
+	if(configC.verbose) {
+		Rcpp::Rcout  << "\n";
+	}
+	
 	resultC.makeCompressed();
 
 	Rcpp::S4 out = eigen_to_dgC(resultC);
