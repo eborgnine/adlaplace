@@ -12,17 +12,18 @@ f(y;\mu,\theta) =  & \log\Gamma(y + r) - \log\Gamma(r) - \log\Gamma(y + 1)
 $$
 
 ```{r theData}
-Nobs = 100000;Ngroup1=100;Ngroup2=200
+Nobs = 100000;Nrandom1=100;Nrandom2=200
+
 set.seed(0)
 X = Matrix::Matrix(cbind(1, rbinom(Nobs,1, prob= 0.5)))
 AmatList = list(
 	Matrix::sparseMatrix(
 		i = 1:Nobs,
-		j= sample(Ngroup1, Nobs, replace=TRUE)
+		j= sample(Nrandom1, Nobs, replace=TRUE)
 	),
 	Matrix::sparseMatrix(
 		i = 1:Nobs,
-		j= sample(Ngroup2, Nobs, replace=TRUE)
+		j= sample(Nrandom2, Nobs, replace=TRUE)
 	)
 )
 Amat = do.call(cbind, AmatList)
@@ -35,29 +36,19 @@ Z = rgamma(length(etaT), 0.1^(-2), 0.1^(-2))
 c(mean(Z), sd(Z))
 y = rpois(length(etaT), etaT*Z)
 
-if(requireNamespace("RSpectra", quietly=TRUE) ) {
-	loadings <- RSpectra::svds(as(Matrix::t(Amat), "dMatrix"), k = 1)$v
-} else {
-	sv <- svd(as.matrix(Amat))
-	loadings <- sv$v                  # equals prcomp(...)$rotation
-}
-theOrder <- order(loadings[, 1])
-Ngroups = ceiling(Nobs/10)
-groupCut = seq(0, length(loadings)+1, len=Ngroups+1)
-
-groupMat = Matrix::sparseMatrix(
-	i = seq(0,len=length(loadings)),
-	j = as.integer(cut(theOrder, groupCut))-1L,
-	x=rep(1, length(loadings)), index1=FALSE)
 
 NperEffect = unlist(lapply(AmatList, ncol))   
+map = rep(seq(0, len=length(NperEffect)), NperEffect)
 
 data = list(y = y, 
 	ATp = as(Matrix::t(Amat), 'dMatrix'),
 	XTp = as(Matrix::t(X), 'CsparseMatrix'),
-	map = rep(seq(0, len=length(NperEffect)), NperEffect), 
-	groups = groupMat,
+	map = map, 
 	Qdiag = rep(1, ncol(Amat)))
+
+Ngroups = ceiling(Nobs/10)
+data$groups = adlaplace::adFun_groups(Ngroups, data$ATp)
+
 
 config1 = list(beta = rep(0, nrow(data$XTp)), 
 	theta = c(rep(-1, length(NperEffect)), -1), 
