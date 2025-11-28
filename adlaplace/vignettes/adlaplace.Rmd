@@ -54,7 +54,7 @@ config1 = list(beta = rep(0, nrow(data$XTp)),
 	theta = c(rep(-1, length(NperEffect)), -1), 
 	transform_theta=TRUE, start_gamma = rep(0, nrow(data$ATp)),
 	num_threads=parallel::detectCores(),
-	verbose=TRUE)	
+	verbose=FALSE)	
 ```
 
 
@@ -64,8 +64,7 @@ config1 = list(beta = rep(0, nrow(data$XTp)),
 
 
 ```{r getAdstuff}
-adFun1 = adlaplace::getAdFun(data, config1)
-sparsity_list = adlaplace::group_sparsity(adFun1, config1, verbose=TRUE)
+sparsity_list = adlaplace::group_sparsity(data=data, config=config1)
 config = modifyList(config1, sparsity_list)
 system.time(res2 <- adlaplace::inner_opt(
 	config$start_gamma, data=data, config=config,
