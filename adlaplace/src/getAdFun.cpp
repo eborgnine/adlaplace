@@ -182,12 +182,12 @@ logDensObs<CppAD::AD<double>>(
     const Data&, const Config&, const size_t);
 
 
-template CppAD::vector<CppAD::AD<double>>
+template CppAD::vector<double>
 logDensExtra<double>(
     const CppAD::vector<double>&,
     const Data&, const Config&);
 
-template CppAD::vector<double>
+template CppAD::vector<CppAD::AD<double>>
 logDensExtra<CppAD::AD<double>>(
     const CppAD::vector<CppAD::AD<double>>&,
     const Data&, const Config&);
