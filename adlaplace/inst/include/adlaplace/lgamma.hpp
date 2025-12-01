@@ -210,20 +210,6 @@ inline CppAD::AD<double> lgamma_any< CppAD::AD<double> >(CppAD::AD<double> x) {
   return lgamma_ad(x);
 }
 
-// declare primary template
-template<class T>
-inline T exp_any(T x);
-
-// specializations (MUST be in a header)
-template<>
-inline double exp_any<double>(double x) {
-  return std::exp(x);
-}
-
-template<>
-inline CppAD::AD<double> exp_any< CppAD::AD<double> >(CppAD::AD<double> x) {
-  return CppAD::exp(x);
-}
 
 
 #endif

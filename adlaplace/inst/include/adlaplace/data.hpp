@@ -6,7 +6,9 @@
 
 #include <vector>
 #include <cmath>
-#include "matrixUtils.hpp"
+
+#include"adlaplace/matrixUtils.hpp"
+
 
 
 inline DgCView makeGroups(const Rcpp::List& data) {

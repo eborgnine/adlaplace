@@ -1,76 +1,142 @@
+
 #include "adlaplace/adlaplace.hpp"
-#include "adlaplace/adfun.hpp"
 #include "adlaplace/lgamma.hpp"
 
 
-
-template <class T>
-struct nbSizeValues{
-	T logNbSize;
-	T nbSize;
-	T lgammaNbSize;
-	T sizeLogSize;
-
-	explicit nbSizeValues<T>(const T logTheta) {
-		logNbSize = -0.5*logTheta;
-		nbSize = exp_any(logNbSize);
-		lgammaNbSize = lgamma_any(nbSize); 
-		sizeLogSize = nbSize * logNbSize;
-	}
-
-};
-
+template <class Type>
 CppAD::vector<CppAD::AD<double>> logDensObs(
 	const CppAD::vector<CppAD::AD<double>>& gamma,
+	const CppAD::vector<Type> &beta,
+	const CppAD::vector<Type> &theta,
 	const Data& data,
 	const Config& config,
 	const size_t Dgroup
 	){
-	nbSizeValues nbSize(config.logTheta[config.logTheta.size()-1L]);
+
 	CppAD::AD<double> logDens = 0.0;
 	CppAD::vector<CppAD::AD<double>> result(1, 0.0);
 
+	Type logNbSizeTheta = config.transform_theta?
+		theta[theta.size()]:log_any(theta[theta.size()]);
+
+	Type logNbSize = -0.5*logNbSizeTheta;
+	Type nbSize = exp_any(logNbSize);
+
+	double logNbSizeValue = to_double(logNbSize);
+
+
 	const size_t startP = data.groups.p[Dgroup];
 	const size_t endP = data.groups.p[Dgroup+1];
+
 	for(size_t DI=startP;DI < endP; DI++) {
 		const size_t Dobs = data.groups.i[DI];
 
-		CppAD::AD<double>  eta = 0.0;
+		CppAD::AD<double>  etaRandom = 0.0;
+		Type  etaFixed = 0.0;
 		const size_t p0x = data.X.p[Dobs];
 		const size_t p1x = data.X.p[Dobs + 1];
 		const size_t p0a = data.A.p[Dobs];
 		const size_t p1a = data.A.p[Dobs + 1];
 		for(size_t D =p0x;D < p1x; D++) {
-			eta += data.X.x[D] * config.beta[data.X.i[D]];
+			etaFixed += data.X.x[D] * beta[data.X.i[D]];
 		}
 		for(size_t D =p0a;D < p1a; D++) {
-			eta += data.A.x[D] * gamma[data.A.i[D]];
+			etaRandom += data.A.x[D] * gamma[data.A.i[D]];
 		}
-		// poissondens = lambda^y exp(-lambda)/y!, lambda = exp(eta)
-//		logDens += data.y[Dobs] * eta - CppAD::exp(eta);
 
+		const CppAD::AD<double> eta = etaFixed + etaRandom;
 
-		const double expScale = eta > nbSize.logNbSize?-1.0:1.0;
-		const double maxValue = eta > nbSize.logNbSize?CppAD::Value(eta):nbSize.logNbSize;
-		CppAD::AD<double> diffEtaLogNbSize = eta - nbSize.logNbSize;
-		CppAD::AD<double> logRplusMu = maxValue + CppAD::log1p(CppAD::exp(expScale*diffEtaLogNbSize));
+		const bool etaIsBigger = eta > logNbSize;
+		const double expScale = etaIsBigger?-1.0:1.0;
+		const double max_value = etaIsBigger?CppAD::Value(eta):logNbSizeValue;
 
-		logDens += std::lgamma(data.y[Dobs] + nbSize.nbSize) 
-		- std::lgamma(data.y[Dobs]  + 1.0)
-		- nbSize.lgammaNbSize + nbSize.sizeLogSize 
-		+ data.y[Dobs]  * eta
-		- (nbSize.nbSize + data.y[Dobs]) * logRplusMu;
+		const CppAD::AD<double> diffEtaLogNbSize = eta - logNbSize;
+		const CppAD::AD<double> logRplusMu = max_value + CppAD::log1p(CppAD::exp(expScale*diffEtaLogNbSize));
 
-	}
+		logDens += data.y[Dobs]  * eta
+			 + (data.y[Dobs] - nbSize) * logRplusMu;
+// this bit is done in logDensExtra
+/*		logDens +=
+			+ lgamma(data.y[Dobs] + nbSize.nbSize) 
+			- std::lgamma(data.y[Dobs]  + 1.0)
+			- nbSize.lgammaNbSize + nbSize.sizeLogSize 
+*/
+
+		}
+
 	result[0] = -logDens;
 	return(result);
 }
 
+// dummy funciton if there is no logDensExtra
+#ifdef NOLOGDENSEXTRA
+template <class Type>
+CppAD::vector<Type> logDensExtra(
+	const CppAD::vector<Type> &theta,
+	const Data& data,
+	const Config& config
+	) {
+	CppAD::vector<Type> result(1);
+	result[0] = 0.0;
+	return(result);
+}
+#endif
+
+
+template <class Type>
+CppAD::vector<Type> logDensExtra(
+	const CppAD::vector<Type> &theta,
+	const Data& data,
+	const Config& config
+	) {
+
+	Type logTheta = config.transform_theta?
+		theta[theta.size()]:log_any(theta[theta.size()]);
+
+	Type logNbSize = -0.5*logTheta;
+	Type nbSize = exp_any(logNbSize);
+	Type lgammaNbSize = lgamma_any(nbSize); 
+	Type sizeLogSize = nbSize * logNbSize;
+
+
+	Type logDens=0.0;
+
+	const size_t N=data.y.size();
+	for(size_t D=0; D <N;D++) {
+		logDens += lgamma_any(data.y[D] + nbSize); 
+	}
+	logDens += N*(- lgammaNbSize + sizeLogSize);
+
+// always constant	- std::lgamma(data.y[Dobs]  + 1.0)
+
+
+	CppAD::vector<Type> result(1);
+	result[0] = -logDens;
+	return(result);
+}
+
+
+template <class Type>
 CppAD::vector<CppAD::AD<double>> logDensRandom(
 	const CppAD::vector<CppAD::AD<double>>& gamma,
+	const CppAD::vector<Type> &theta,
 	const Data& data,
 	const Config& config
 	){
+
+	CppAD::vector<Type> logTheta(theta.size()), expTheta(theta.size());
+	if(config.transform_theta) {
+		for(size_t D=0;D<theta.size();++D) {
+			logTheta[D] = theta[D];
+			expTheta[D] = exp_any(theta[D]);
+		}
+	} else {
+		for(size_t D=0;D<theta.size();++D) {
+			logTheta[D] = log_any(theta[D]);
+			expTheta[D] = theta[D];
+		}
+	}
+
 
 	CppAD::vector<CppAD::AD<double>> result(1, 0.0);
 	CppAD::AD<double> qpart = 0.0;
@@ -79,7 +145,7 @@ CppAD::vector<CppAD::AD<double>> logDensRandom(
 
 
 	if(config.verbose) {
-		Rcpp::Rcout << "q, ngamma  " << data.Ngamma << " nmap " << data.map.size() << " ntheta " << config.theta.size() << " log " << config.logTheta.size() << "\n";
+		Rcpp::Rcout << "q, ngamma  " << data.Ngamma << " nmap " << data.map.size() << " ntheta " << config.theta.size() << "\n";
 	}
 
 
@@ -87,72 +153,15 @@ CppAD::vector<CppAD::AD<double>> logDensRandom(
 
 
 		size_t mapHere = data.map[D];
-		gammaScaled[D] = gamma[D] / config.theta[mapHere];
-		qpart += config.logTheta[mapHere] + 
-		gammaScaled[D]*gammaScaled[D]*(0.5*data.Qdiag[D]);
+		gammaScaled[D] = gamma[D] / theta[mapHere];
+		qpart += logTheta[mapHere] + 
+			gammaScaled[D]*gammaScaled[D]*(0.5*data.Qdiag[D]);
 
 	}
 
 	// Warning, no offdiag of Q implemented
 
 	result[0] = qpart;
-	return(result);
-}
-
-std::vector<GroupPack> getAdFun(
-	const Data& data,
-	const Config& config) {
-
-	auto parameters = config.start_gamma;
-
-
-	std::vector<GroupPack> result(data.Ngroups+1L);
-
-	if(config.verbose) {
-		Rcpp::Rcout << " adfun Nparams " << parameters.size() << " groups " << data.Ngroups << " ";
-	}
-
-
-# pragma omp parallel
-	{
-		const size_t Nparams = parameters.size();
-		CppAD::vector<CppAD::AD<double>> ad_params(Nparams);
-		for(size_t D=0;D<Nparams;D++) {
-			ad_params[D] = parameters[D];
-		}
-
-
-# pragma omp for nowait
-		for(size_t D=0;D<data.Ngroups;D++) {
-
-
-			CppAD::Independent(ad_params);   
-			auto resultHere = logDensObs(ad_params, data, config, D);
-			CppAD::ADFun<double> fun(ad_params, resultHere);
-			result[D].fun = std::move(fun);
-		}
-
-
-
-# pragma omp single
-		{
-			CppAD::Independent(ad_params);
-			auto resultHere = logDensRandom(ad_params, data, config);   
-			CppAD::ADFun<double> fun(ad_params, resultHere);
-			result[data.Ngroups].fun = std::move(fun);
-
-		}
-	} // parallel
-
-	if(config.group_sparsity.size()) {
-		if(config.verbose) {
-			Rcpp::Rcout << "add sparse\n";
-		}
-
-		addSparsityToAdFun(result, config.group_sparsity);
-
-	}
-
 	return(result);
 }
 

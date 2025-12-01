@@ -1,8 +1,9 @@
 #ifndef INNER_OPT_HPP
 #define INNER_OPT_HPP
-#include "adlaplace/configObj.hpp"
+#include "adlaplace/config.hpp"
 #include "adlaplace/matrixUtils.hpp"
 #include "adlaplace/TrustOptimUtils.hpp"
+#include "adlaplace/functions.hpp"
 
 // from trustOptim
 #include <common_R.hpp>
@@ -95,9 +96,6 @@ Rcpp::List inner_opt(
 		Rcpp::Named("D") = D_R,
 		Rcpp::Named("L") = eigen_to_dgC(L)	
  		);
-
-
-
 
  	 Rcpp::List res = Rcpp::List::create(
  	 	Rcpp::Named("minusLogLik") = Rcpp::wrap(minusLogLik),

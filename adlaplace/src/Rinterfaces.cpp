@@ -1,32 +1,34 @@
 #include "adlaplace/adlaplace.hpp"
-
 #include "adlaplace/adfun.hpp"
-#include "adlaplace/functions.hpp"
 #include "adlaplace/foromp.hpp"
-
 #include "adlaplace/innerOpt.hpp"
 
 // [[Rcpp::depends(RcppEigen)]]
 #include <RcppEigen.h>
 
+/*
+These functions must be defined somewhere
+std::vector<GroupPack> getAdFunInner(
+  const Data& data,
+  const Config& config);
 
-// this must be defined somewhere
-std::vector<GroupPack> getAdFun(
-	const Data& data,
-	const Config& config);
-
+std::vector<GroupPack> getAdFunOuter(
+  const Data& data,
+  const Config& config);
+*/
 
 //' @export
 // [[Rcpp::export]]
 SEXP getAdFun(
 	Rcpp::List data, 
-	Rcpp::List config)
+	Rcpp::List config,
+	const bool inner=false)
 {
 
 	Data dataC(data);
 	Config configC(config);
 	if(configC.verbose) {
-		Rcpp::Rcout << "here";
+		Rcpp::Rcout << "getting ad function";
 	}
 
 	omp_set_num_threads(configC.num_threads);
@@ -36,7 +38,8 @@ SEXP getAdFun(
     [](){ return static_cast<size_t>(thread_num_wrapper()); }
     );
 
-	std::vector<GroupPack> adPack = getAdFun(dataC, configC);
+	std::vector<GroupPack> adPack = inner?
+		getAdFunInner(dataC, configC):getAdFunOuter(dataC, configC);
 	auto* ptr = new std::vector<GroupPack>(std::move(adPack));
   Rcpp::XPtr<std::vector<GroupPack>> xp(ptr, /*deleteOnFinalizer=*/true);
 
@@ -205,7 +208,7 @@ Rcpp::List inner_opt(
     [](){ return static_cast<size_t>(thread_num_wrapper()); }
     );
 
-	std::vector<GroupPack> adPack = getAdFun(dataC, configC);
+	std::vector<GroupPack> adPack = getAdFunInner(dataC, configC);
 
 	Rcpp::List res = inner_opt(parametersC, adPack, ctrl, configC);
 

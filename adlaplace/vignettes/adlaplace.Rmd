@@ -46,7 +46,7 @@ data = list(y = y,
 	map = map, 
 	Qdiag = rep(1, ncol(Amat)))
 
-Ngroups = ceiling(Nobs/10)
+Ngroups = ceiling(Nobs/3)
 data$groups = adlaplace::adFun_groups(Ngroups, data$ATp)
 
 

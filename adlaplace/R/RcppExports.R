@@ -2,8 +2,8 @@
 # Generator token: 10BE3573-1514-4C36-9D1C-5A225CD40393
 
 #' @export
-getAdFun <- function(data, config) {
-    .Call(`_adlaplace_getAdFun`, data, config)
+getAdFun <- function(data, config, inner = FALSE) {
+    .Call(`_adlaplace_getAdFun`, data, config, inner)
 }
 
 #' @export

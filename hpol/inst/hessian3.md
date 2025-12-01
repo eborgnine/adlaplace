@@ -2,10 +2,135 @@
 title: deriv of laplace approx
 ---
 
+# Intro
+
+
+Ad gives derivatives of $\log\pi(Y, U;\theta)$.  We need $\log\pi(Y;\theta)$.
+
+Laplace approximation $h(\theta) = \log |H(\hat U(\theta), \theta)|$ deriv of $h(\theta)$ is a third order derivative.  
+
+Goal: do it in a way that's compatible with special functions.  clear separation of general-purpose backend and minimal frontend, suitable for modification and extension.  modular, combine with aghq, rstan.
+
+## Motivating example
+
+Neg binom glmm, log gamma function.  know derivatives, psi gamma
+
+
+# Preliminaries
+
+## AD
+
+- chain rule, tape
+- Atomics, code analytitcal derivatives i.e. cosines, reduce tape size
+- Reverse steps, contractions: compute $A^T H$, specify $A = e_p$ for $p$ th row of H
+- Sparsity, algorithms to get $H$ for a specified sparsity pattern
+
+## GLMM
+
+$\hat U(\theta)$ no analytical expression.  AD of N-R optimization
+
+Identities. $\partial \log |X| = \text{Tr}(X^{-1} \partial X)|$
+
+Double taping.  Atomics need to be compatible
+
+# Methods
+
+1. Decompose $X^{-1} = B B^T$. $\partial \log |X| = \text{Tr}(B \partial X B^T)|$, efficient using contractions
+2. Parallelization, sparse shards of data, 
+
+
+## Inner optimization $\hat U(\theta)$
+
+$$
+\begin{aligned}
+ U^{(1)}(\theta, U^{(0)}) = & U^{(0)} + H\left( U^{(0)}, \theta\right)^{-1}  G\left( U^{(0)}, \theta\right) \\
+ \frac{\partial}{\partial  \theta} \hat U^{(1)}(\theta, U^{(0)}) = & 
+ \frac{\partial}{\partial  \theta} \left\{H\left( U^{(0)}, \theta\right)^{-1} \right\}
+    G\left( U^{(0)}, \theta\right) + 
+  H\left( U^{(0)}, \theta\right)^{-1} H^{(0)}_{U\theta} \\
+ \frac{\partial}{\partial  \theta_p} \hat U^{(1)}(\theta, U^{(0)})   = & - H^{-1}  T_{\cdot \cdot p} H^{-1} 
+    G\left( U^{(0)}, \theta_p\right) + 
+  H^{-1} H_{U\theta_p} \\
+  = & - H_{UU}^{-1} H_{Up}
+\end{aligned}
+$$
+
+$G=0$ and we can ignore
+
+
+# Determinant $\log|H(\hat U(\theta), \theta)|$
+
+
+$$
+\begin{aligned}
+  \frac{\partial}{\partial \theta_p} \log \left| H\left(\hat U(\theta), \theta\right) \right|  = &
+    \frac{\partial}{\partial U} 
+        \log \left| H\left(U, \theta\right) \right| \bigg|_{U = \hat U(\theta)} 
+            \frac{\partial}{\partial  \theta_p} \hat U(\theta)  + 
+  \frac{\partial}{\partial \theta_p} 
+    \log \left| H\left( U, \theta\right) \right| \bigg|_{U = \hat U(\theta)} \\
+\frac{\partial}{\partial U_i} 
+        \log \left| H\left(U, \theta\right) \right| \bigg|_{U = \hat U(\theta)} = & \text{trace}\{
+       H_{UU}^{-1} \cdot T_{UUi} \} \\
+         \frac{\partial}{\partial \theta_p} 
+    \log \left| H\left(U, \theta\right) \right| \bigg|_{U = \hat U(\theta)} =&
+     \text{trace}\{ H_{UU}^{-1} \cdot T_{U U p }\}\\
+       \frac{\partial}{\partial \theta_p} \log \left| H\left(\hat U(\theta), \theta\right) \right|  = & \sum_i  \text{trace}\{
+       H_{UU}^{-1} \cdot T_{UUi} \}  e_i H_{UU}^{-1} H_{Up} +      \text{trace}\{ H_{UU}^{-1} \cdot T_{U U p }\} \\
+       V_i = &   \text{trace}\{
+       H_{UU}^{-1} \cdot T_{UUU_i} \} \\
+       W_p = &  \text{trace}\{ H_{UU}^{-1} \cdot T_{U U \theta_p }\}\\
+\frac{\partial}{\partial \theta} \log \left| H\left(\hat U(\theta), \theta\right) \right| = &
+V H_{UU}^{-1} H_{U\theta} + W
+\end{aligned}
+$$
+
+# Contractions
+
+$H_{UU}^{-1} = B B^T$ 
+
+$$
+\begin{aligned}
+\text{trace}\{H_{UU}^{-1} T_{UU\cdot}\} = & \text{trace}\{B T_{UU\cdot}B^T\} \\
+ = & \sum_i B_i^T T_{UU\cdot} B_i\\
+\end{aligned}
+$$
+
+
+# Parallelization and sparsity
+
+$$
+\log \pi(Y, U; \theta) = \sum_\ell \log \pi (Y^{(\ell)}| U; \theta) + \sum_m \log \pi(U^{(m)};\theta)
+$$
+
+
+
+$$
+\text{trace}\{H_{UU}^{-1} T_{UU\cdot}\}  =  \sum_{i\ell} B^{ T}_i T^{(\ell)}_{UU\cdot} B_i + \sum_{im} B^{ T}_i T^{(m)}_{UU\cdot} B_i\\
+$$
+
+# Discussion
+
+- Deriv of likelihood using third derivatives, compatible with atomics
+- Efficient use of contractions, avoid direct computation of third tensor
+- combination of sparsity and parallelization 
+- common framework, clear back end
+
+
+
+
+# References
+
 
 [TMB](https://www.jstatsoft.org/article/view/v070i05) page 8
 
 [matrix cookbook](https://www.math.uwaterloo.ca/~hwolkowi/matrixcookbook.pdf) section 2
+
+
+
+# Appendix
+
+
 
 Derivatives and tensor
 $$
@@ -39,22 +164,6 @@ $$
 
 Consider
 
-$$
-\begin{aligned}
- U^{(1)}(\theta, U^{(0)}) = & U^{(0)} + H\left( U^{(0)}, \theta\right)^{-1}  G\left( U^{(0)}, \theta\right) \\
- \frac{\partial}{\partial  \theta} \hat U^{(1)}(\theta, U^{(0)}) = & 
- \frac{\partial}{\partial  \theta} \left\{H\left( U^{(0)}, \theta\right)^{-1} \right\}
-    G\left( U^{(0)}, \theta\right) + 
-  H\left( U^{(0)}, \theta\right)^{-1} H^{(0)}_{U\theta} \\
- \frac{\partial}{\partial  \theta_p} \hat U^{(1)}(\theta, U^{(0)})   = & - H^{-1}  T_{\cdot \cdot p} H^{-1} 
-    G\left( U^{(0)}, \theta_p\right) + 
-  H^{-1} H_{U\theta_p} \\
-  = & - H^{-1} \left[ T_{\cdot \cdot p}  H^{-1} 
-    G\left( U^{(0)}, \theta_p\right)  + H_{U\theta_p} \right]
-\end{aligned}
-$$
-
-$G=0$ and we can ignore
 
 
 Hessian
@@ -105,30 +214,7 @@ $$
 
 That ignores changes in $\hat U(\theta)$.  Consider
 
-$$
-\begin{aligned}
-  \frac{\partial}{\partial \theta_p} \log \left| H\left(\hat U(\theta), \theta\right) \right|  = &
-    \frac{\partial}{\partial U} 
-        \log \left| H\left(U, \theta\right) \right| \bigg|_{U = \hat U(\theta)} 
-            \frac{\partial}{\partial  \theta_p} \hat U(\theta)  + 
-  \frac{\partial}{\partial \theta_p} 
-    \log \left| H\left( U, \theta\right) \right| \bigg|_{U = \hat U(\theta)} \\
-\frac{\partial}{\partial U_i} 
-        \log \left| H\left(U, \theta\right) \right| \bigg|_{U = \hat U(\theta)} = & \text{trace}\{
-       H_{UU}^{-1} \cdot T_{UUU_i} \} \\
-         \frac{\partial}{\partial \theta_p} 
-    \log \left| H\left(U, \theta\right) \right| \bigg|_{U = \hat U(\theta)} =&
-     \text{trace}\{ H_{UU}^{-1} \cdot T_{U U \theta_p }\}\\
-       \frac{\partial}{\partial \theta_p} \log \left| H\left(\hat U(\theta), \theta\right) \right|  = & \sum_i  \text{trace}\{
-       H_{UU}^{-1} \cdot T_{UUU_i} \}  e_i H_{UU}^{-1} H_{U\theta_p} +      \text{trace}\{ H_{UU}^{-1} \cdot T_{U U \theta_p }\} \\
-    %   = & V^T H_{UU}^{-1} H_{U\theta_p} + \text{trace}\{ H_{UU}^{-1} \cdot T_{U U \theta_p }\}\\
-       V_i = &   \text{trace}\{
-       H_{UU}^{-1} \cdot T_{UUU_i} \} \\
-       W_p = &  \text{trace}\{ H_{UU}^{-1} \cdot T_{U U \theta_p }\}\\
-\frac{\partial}{\partial \theta} \log \left| H\left(\hat U(\theta), \theta\right) \right| = &
-V H_{UU}^{-1} H_{U\theta} + W
-\end{aligned}
-$$
+
 
 Data component
 $$

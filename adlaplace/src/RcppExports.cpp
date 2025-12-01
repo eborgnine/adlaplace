@@ -12,14 +12,15 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
 // getAdFun
-SEXP getAdFun(Rcpp::List data, Rcpp::List config);
-RcppExport SEXP _adlaplace_getAdFun(SEXP dataSEXP, SEXP configSEXP) {
+SEXP getAdFun(Rcpp::List data, Rcpp::List config, const bool inner);
+RcppExport SEXP _adlaplace_getAdFun(SEXP dataSEXP, SEXP configSEXP, SEXP innerSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< Rcpp::List >::type data(dataSEXP);
     Rcpp::traits::input_parameter< Rcpp::List >::type config(configSEXP);
-    rcpp_result_gen = Rcpp::wrap(getAdFun(data, config));
+    Rcpp::traits::input_parameter< const bool >::type inner(innerSEXP);
+    rcpp_result_gen = Rcpp::wrap(getAdFun(data, config, inner));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -105,7 +106,7 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_adlaplace_getAdFun", (DL_FUNC) &_adlaplace_getAdFun, 2},
+    {"_adlaplace_getAdFun", (DL_FUNC) &_adlaplace_getAdFun, 3},
     {"_adlaplace_jointLogDens", (DL_FUNC) &_adlaplace_jointLogDens, 3},
     {"_adlaplace_grad", (DL_FUNC) &_adlaplace_grad, 3},
     {"_adlaplace_hessian", (DL_FUNC) &_adlaplace_hessian, 3},
