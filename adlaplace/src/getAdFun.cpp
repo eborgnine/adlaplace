@@ -167,4 +167,40 @@ CppAD::vector<CppAD::AD<double>> logDensRandom(
 
 
 
+template CppAD::vector<CppAD::AD<double>>
+logDensObs<double>(
+    const CppAD::vector<CppAD::AD<double>>&,
+    const CppAD::vector<double>&,
+    const CppAD::vector<double>&,
+    const Data&, const Config&, const size_t);
 
+template CppAD::vector<CppAD::AD<double>>
+logDensObs<CppAD::AD<double>>(
+    const CppAD::vector<CppAD::AD<double>>&,
+    const CppAD::vector<CppAD::AD<double>>&,
+    const CppAD::vector<CppAD::AD<double>>&,
+    const Data&, const Config&, const size_t);
+
+
+template CppAD::vector<CppAD::AD<double>>
+logDensExtra<double>(
+    const CppAD::vector<double>&,
+    const Data&, const Config&);
+
+template CppAD::vector<double>
+logDensExtra<CppAD::AD<double>>(
+    const CppAD::vector<CppAD::AD<double>>&,
+    const Data&, const Config&);
+
+
+template CppAD::vector<CppAD::AD<double>>
+logDensRandom<double>(
+    const CppAD::vector<CppAD::AD<double>>&,
+    const CppAD::vector<double>&,
+    const Data&, const Config&);
+
+template CppAD::vector<CppAD::AD<double>>
+logDensRandom<CppAD::AD<double>>(
+    const CppAD::vector<CppAD::AD<double>>&,
+    const CppAD::vector<CppAD::AD<double>>&,
+    const Data&, const Config&);
