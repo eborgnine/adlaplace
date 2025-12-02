@@ -17,35 +17,7 @@ std::vector<GroupPack> getAdFunOuter(
   const Config& config);
 */
 
-//' @export
-// [[Rcpp::export]]
-SEXP getAdFun(
-	Rcpp::List data, 
-	Rcpp::List config,
-	const bool inner=false)
-{
 
-	Data dataC(data);
-	Config configC(config);
-	if(configC.verbose) {
-		Rcpp::Rcout << "getting ad function";
-	}
-
-	omp_set_num_threads(configC.num_threads);
-  CppAD::thread_alloc::parallel_setup(
-    configC.num_threads,
-    [](){ return in_parallel_wrapper(); },
-    [](){ return static_cast<size_t>(thread_num_wrapper()); }
-    );
-
-	std::vector<GroupPack> adPack = inner?
-		getAdFunInner(dataC, configC):getAdFunOuter(dataC, configC);
-	auto* ptr = new std::vector<GroupPack>(std::move(adPack));
-  Rcpp::XPtr<std::vector<GroupPack>> xp(ptr, /*deleteOnFinalizer=*/true);
-
-	xp.attr("class") = "adpack_ptr";
-	return xp;
-}
 
 //' @export
 // [[Rcpp::export]]
@@ -63,9 +35,18 @@ double jointLogDens(
     // Rehydrate external pointer
 	Rcpp::XPtr<std::vector<GroupPack>> xp(adPack);
 
-	AD_Func_Opt funObj(*xp, configC.hessianIPLower);
 
 	const size_t Nparams = parameters.size();
+	const size_t NparamsFun = (*xp)[0].fun.Domain();
+	if(Nparams != NparamsFun) {
+		Rcpp::Rcout << "Warning parameters in " << Nparams << " parameters in AD fun " << NparamsFun << "\n";
+	}
+	const bool inner = (Nparams == configC.start_gamma.size());
+	auto hessianIPLowerHere = inner?configC.hessianIPLower_inner:configC.hessianIPLower_outer;
+
+	AD_Func_Opt funObj(*xp, hessianIPLowerHere);
+
+
 	Eigen::VectorXd parametersC(Nparams);
 	for(size_t D=0; D<Nparams;D++) {
 		parametersC[D] = parameters[D];
@@ -93,15 +74,25 @@ Rcpp::NumericVector grad(
 {
 	Config configC(config);
 
-	const size_t Nparams = parameters.size();
-	Rcpp::NumericVector result(Nparams);
 	if (adPack == R_NilValue) {
 		return(Rcpp::NumericVector());
 	}
 
     // Rehydrate external pointer
 	Rcpp::XPtr<std::vector<GroupPack>> xp(adPack);
-	AD_Func_Opt funObj(*xp, configC.hessianIPLower);
+
+
+	const size_t Nparams = parameters.size();
+	const size_t NparamsFun = (*xp)[0].fun.Domain();
+	if(Nparams != NparamsFun) {
+		Rcpp::Rcout << "Warning parameters in " << Nparams << " parameters in AD fun " << NparamsFun << "\n";
+	}
+	const bool inner = (Nparams == configC.start_gamma.size());
+	auto hessianIPLowerHere = inner?configC.hessianIPLower_inner:configC.hessianIPLower_outer;
+
+	AD_Func_Opt funObj(*xp, hessianIPLowerHere);
+
+	Rcpp::NumericVector result(Nparams);
 
 
 	Eigen::VectorXd parametersC(Nparams);
@@ -141,13 +132,20 @@ Rcpp::S4 hessian(
 
 	Config configC(config);
 
-	const size_t Nparams = parameters.size();
-
     // Rehydrate external pointer
 	Rcpp::XPtr<std::vector<GroupPack>> xp(adPack);
 
-	AD_Func_Opt funObj(*xp, configC.hessianIPLower);
 
+	const size_t Nparams = parameters.size();
+	const size_t NparamsFun = (*xp)[0].fun.Domain();
+	if(Nparams != NparamsFun) {
+		Rcpp::Rcout << "Warning parameters in " << Nparams << " parameters in AD fun " << NparamsFun << "\n";
+	}
+
+	const bool inner = (Nparams == configC.start_gamma.size());
+	auto hessianIPLowerHere = inner?configC.hessianIPLower_inner:configC.hessianIPLower_outer;
+
+	AD_Func_Opt funObj(*xp, hessianIPLowerHere);
 
 
 	Eigen::VectorXd parametersC(Nparams);
@@ -230,13 +228,18 @@ Rcpp::List inner_opt_adpack(
 
 	using Tvec  = Eigen::VectorXd;
 
+	Rcpp::XPtr<std::vector<GroupPack>> xp(adPack);
+
 	const size_t Nparams = parameters.size();
+	const size_t NparamsFun = (*xp)[0].fun.Domain();
+	if(Nparams != NparamsFun) {
+		Rcpp::Rcout << "Warning parameters in " << Nparams << " parameters in AD fun " << NparamsFun << "\n";
+	}
+
 	Tvec parametersC(Nparams);
 	for(size_t D=0;D<Nparams;D++) {
 		parametersC[D] = parameters[D];
 	}
-
-	Rcpp::XPtr<std::vector<GroupPack>> xp(adPack);
 
 	omp_set_num_threads(configC.num_threads);
 

@@ -64,6 +64,9 @@ CppAD::vector<CppAD::AD<double>> logDensObs(
 
 		}
 
+
+
+
 	result[0] = -logDens;
 	return(result);
 }
@@ -101,15 +104,18 @@ CppAD::vector<Type> logDensExtra(
 
 	Type logDens=0.0;
 
-	const size_t N=data.y.size();
+	const size_t N=data.groups.i.size();
 	for(size_t D=0; D <N;D++) {
-		logDens += lgamma_any(data.y[D] + nbSize); 
+		const size_t indexHere = data.groups.i[D];
+		logDens += lgamma_any(data.y[indexHere] + nbSize); 
 	}
 	logDens += N*(- lgammaNbSize + sizeLogSize);
 
 // always constant	- std::lgamma(data.y[Dobs]  + 1.0)
 
-
+	if(config.verbose) {
+		Rcpp::Rcout << "logDensExtra " << logDens << "\n";
+	}
 	CppAD::vector<Type> result(1);
 	result[0] = -logDens;
 	return(result);
@@ -159,6 +165,10 @@ CppAD::vector<CppAD::AD<double>> logDensRandom(
 
 	}
 
+	if(config.verbose) {
+		Rcpp::Rcout << "logDensRandom " << qpart << "\n";
+	}
+
 	// Warning, no offdiag of Q implemented
 
 	result[0] = qpart;
@@ -204,3 +214,35 @@ logDensRandom<CppAD::AD<double>>(
     const CppAD::vector<CppAD::AD<double>>&,
     const CppAD::vector<CppAD::AD<double>>&,
     const Data&, const Config&);
+
+
+
+
+// [[Rcpp::export]]
+SEXP getAdFun(
+	Rcpp::List data, 
+	Rcpp::List config,
+	const bool inner=false)
+{
+
+	Data dataC(data);
+	Config configC(config);
+	if(configC.verbose) {
+		Rcpp::Rcout << "getting ad function, inner " << inner << " ";
+	}
+
+	omp_set_num_threads(configC.num_threads);
+  CppAD::thread_alloc::parallel_setup(
+    configC.num_threads,
+    [](){ return in_parallel_wrapper(); },
+    [](){ return static_cast<size_t>(thread_num_wrapper()); }
+    );
+
+	std::vector<GroupPack> adPack = inner?
+		getAdFunInner(dataC, configC):getAdFunOuter(dataC, configC);
+	auto* ptr = new std::vector<GroupPack>(std::move(adPack));
+  Rcpp::XPtr<std::vector<GroupPack>> xp(ptr, /*deleteOnFinalizer=*/true);
+
+	xp.attr("class") = "adpack_ptr";
+	return xp;
+}

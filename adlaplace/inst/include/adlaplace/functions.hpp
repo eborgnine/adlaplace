@@ -9,6 +9,8 @@ static const std::string HESS_COLOR = "cppad.symmetric";
 
 
 //#define DEBUG
+//#define EXTRADEBUG
+
 #ifdef DEBUG
 #include<Rcpp.h>
 #endif			
@@ -205,6 +207,7 @@ inline void get_hess_function(
                     Rcpp::Rcout << "  out_hess[" << k << "]: row="
                                 << outH.row()[k]
                                 << " col=" << outH.col()[k]
+								<< " map=" << gp.match_hess[k]                                
                                 << " val=" << outH.val()[k] << "\n";
                 }
 
@@ -234,7 +237,7 @@ inline void get_hess_function(
     				const size_t indexHere = matchHere[D];
     				outHereAll[indexHere] += hessianOutHere[D];
     			}
-    		}
+    		} // loop through shards
 
           #  pragma omp critical 
     		{	
@@ -400,6 +403,9 @@ void get_f(const Eigen::MatrixBase<DerivedX> &x,
 	      #pragma omp for nowait
 		for(int D=0;D<tape.size();D++) {
 			CppAD::vector<double> y = tape[D].fun.Forward(0, xp);
+#ifdef DEBUG
+			Rcpp::Rcout << "l, D=" << D << ", y=" << y[0] << "\n"; 
+#endif			
 			fOutHere += y[0];
 		}
 

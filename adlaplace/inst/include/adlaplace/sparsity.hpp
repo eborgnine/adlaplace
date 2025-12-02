@@ -5,6 +5,9 @@
 #include <cppad/cppad.hpp>
 #include "adlaplace/adpack.hpp"
 
+//#define DEBUG
+
+
 
 
 inline CppAD::sparse_rc< CppAD::vector<size_t> > build_gradient_pattern_from_R(
@@ -56,8 +59,8 @@ inline void addSparsityToAdFun(
   const size_t Nfun = adPack.size();
   const size_t Nparams = adPack[0].fun.Domain();
 
-  if(sparsity.size() != Nfun) {
-    Rcpp::warning("sparsity size smaller than adPack ", sparsity.size(), " ", Nfun);
+  if(sparsity.size() != Nfun & sparsity.size() != (Nfun-1) ) {
+    Rcpp::Rcout << "sparsity size smaller than adPack " << sparsity.size() << " " << Nfun << "\n";
   }
   for(size_t D=0;D<Nfun;D++) {
     const Rcpp::List sparseHere = sparsity[D];
@@ -66,6 +69,12 @@ inline void addSparsityToAdFun(
     const Rcpp::IntegerVector colOut = sparseHere["j"];
     const Rcpp::IntegerVector matchHere = sparseHere["match"];
     const Rcpp::IntegerVector pHere = sparseHere["p"];
+
+#ifdef DEBUG
+    const int sparseGradSize = sparseGrad.size();
+    Rcpp::Rcout << "sparsity group " << D;
+    Rcpp::Rcout << " grad size " << sparseGradSize << "\n";
+#endif    
 
     adPack[D].work_grad = CppAD::sparse_jac_work();
     adPack[D].pattern_grad = build_gradient_pattern_from_R(sparseGrad, Nparams);
@@ -98,7 +107,7 @@ inline Rcpp::List sparsity(
 	const size_t Nparams = parameters.size();
 
 	if(verbose) {
-		Rcpp::Rcout << "Nparams " << Nparams << " Nfun " << Nfun << "\n";
+		Rcpp::Rcout << "sparsity Nparams " << Nparams << " Nfun " << Nfun << "\n";
 	}
 
 	Rcpp::List result(Nfun);

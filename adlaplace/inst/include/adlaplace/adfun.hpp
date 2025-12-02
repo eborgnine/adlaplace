@@ -30,21 +30,22 @@ CppAD::vector<CppAD::AD<double>> logDensRandom(
 	const Config& config
 	);
 
-std::vector<GroupPack> getAdFunOuter(
+inline std::vector<GroupPack> getAdFunOuter(
 	const Data& data,
 	const Config& config) {
 
 	std::vector<GroupPack> result(data.Ngroups+2L);
 
-	if(config.verbose) {
-		Rcpp::Rcout << " groups " << data.Ngroups << " ";
-	}
 
 		const size_t Ngamma = config.start_gamma.size();
 		const size_t Nbeta = config.beta.size();
 		const size_t Ntheta = config.theta.size();
 		const size_t Nparams = Nbeta + Ngamma + Ntheta;
 		const size_t nbSizeIndex = Nparams-1;
+
+	if(config.verbose) {
+		Rcpp::Rcout << "outer, groups " << data.Ngroups << " Nbeta " << Nbeta << " Ntheta " << Ntheta << " Nparams " << Nparams << "\n";
+	}
 
 # pragma omp parallel
 	{
@@ -102,27 +103,29 @@ std::vector<GroupPack> getAdFunOuter(
 
 	} // parallel
 
-	if(config.group_sparsity.size()) {
+	if(config.group_sparsity_outer.size()) {
 		if(config.verbose) {
 			Rcpp::Rcout << "add sparse\n";
 		}
-
-		addSparsityToAdFun(result, config.group_sparsity);
-
+		addSparsityToAdFun(result, config.group_sparsity_outer);
+	} else {
+		if(config.verbose) {
+			Rcpp::Rcout << "no sparse pattern provided\n";
+		}
 	}
 
 	return(result);
 }
 
 
-std::vector<GroupPack> getAdFunInner(
+inline std::vector<GroupPack> getAdFunInner(
 	const Data& data,
 	const Config& config) {
 
 	auto parameters = config.start_gamma;
 
 
-	std::vector<GroupPack> result(data.Ngroups+1L);
+	std::vector<GroupPack> result(data.Ngroups+2L);
 
 	if(config.verbose) {
 		Rcpp::Rcout << " adfun Nparams " << parameters.size() << " groups " << data.Ngroups << " ";
@@ -159,7 +162,6 @@ std::vector<GroupPack> getAdFunInner(
 				config.theta, data, config);   
 			CppAD::ADFun<double> fun(ad_params, resultHere);
 			result[data.Ngroups].fun = std::move(fun);
-
 		}
 
 		# pragma omp single nowait
@@ -170,8 +172,8 @@ std::vector<GroupPack> getAdFunInner(
 			CppAD::vector<double> resultExtra = logDensExtra(
 				config.theta, 
 				data, config);   
-			CppAD::vector<CppAD::AD<double>> resultHere(1);
-			resultHere[0] = resultExtra[0];
+			CppAD::vector<CppAD::AD<double>> resultHere(1, 0.0);
+			resultHere[0] += resultExtra[0];
 			CppAD::ADFun<double> fun(ad_params, resultHere);
 			result[data.Ngroups+1].fun = std::move(fun);
 
@@ -179,13 +181,15 @@ std::vector<GroupPack> getAdFunInner(
 
 	} // parallel
 
-	if(config.group_sparsity.size()) {
+	if(config.group_sparsity_inner.size()) {
 		if(config.verbose) {
-			Rcpp::Rcout << "add sparse\n";
+			Rcpp::Rcout << "add sparse " <<  config.group_sparsity_inner.size() << "\n";
 		}
-
-		addSparsityToAdFun(result, config.group_sparsity);
-
+		addSparsityToAdFun(result, config.group_sparsity_inner);
+	} else {
+		if(config.verbose) {
+			Rcpp::Rcout << "no sparse pattern provided\n";
+		}
 	}
 
 	return(result);

@@ -5,8 +5,6 @@
 #include <cppad/cppad.hpp>
 
 
-
-
 // ----- config bundle -----
 struct Config {
   bool verbose;
@@ -18,10 +16,14 @@ struct Config {
   CppAD::vector<double> theta;    
 
 
-  std::vector<std::vector<int>> hessianIP = std::vector<std::vector<int>>(2);
-  std::vector<std::vector<int>> hessianIPLower = std::vector<std::vector<int>>(3);
+  std::vector<std::vector<int>> hessianIP_outer = std::vector<std::vector<int>>(2);
+  std::vector<std::vector<int>> hessianIPLower_outer = std::vector<std::vector<int>>(3);
 
-  Rcpp::List group_sparsity;
+  std::vector<std::vector<int>> hessianIP_inner = std::vector<std::vector<int>>(2);
+  std::vector<std::vector<int>> hessianIPLower_inner = std::vector<std::vector<int>>(3);
+
+  Rcpp::List group_sparsity_inner;
+  Rcpp::List group_sparsity_outer;
 
 
   explicit Config(const Rcpp::List& cfg)
@@ -44,39 +46,59 @@ struct Config {
     }
 
     if(cfg.containsElementNamed("beta")) {
-    std::vector<double> beta_input = get_numvec_copy(cfg, "beta");
-    beta = CppAD::vector<double>(beta_input.size());
-    for (std::size_t i = 0; i < theta.size(); ++i) {
-      beta[i] = beta_input[i];
-    }
+      std::vector<double> beta_input = get_numvec_copy(cfg, "beta");
+      beta = CppAD::vector<double>(beta_input.size());
+      for (std::size_t i = 0; i < theta.size(); ++i) {
+        beta[i] = beta_input[i];
+      }
     } else {
       beta = CppAD::vector<double>(0);
     }
 
-    if(cfg.containsElementNamed("hessian")) {
-  const Rcpp::S4 sm = cfg["hessian"];
-  const Rcpp::IntegerVector i = sm.slot("i");
-  const Rcpp::IntegerVector p = sm.slot("p");
-  hessianIP[0] = std::vector<int>(i.begin(), i.end());
-  hessianIP[1] = std::vector<int>(p.begin(), p.end());
+    if(cfg.containsElementNamed("hessian_inner")) {
+      const Rcpp::S4 sm = cfg["hessian_inner"];
+      const Rcpp::IntegerVector i = sm.slot("i");
+      const Rcpp::IntegerVector p = sm.slot("p");
+      hessianIP_inner[0] = std::vector<int>(i.begin(), i.end());
+      hessianIP_inner[1] = std::vector<int>(p.begin(), p.end());
     }
-    if(cfg.containsElementNamed("hessianL")) {
-  const Rcpp::S4 sm = cfg["hessianL"];
-  const Rcpp::IntegerVector i = sm.slot("i");
-  const Rcpp::IntegerVector p = sm.slot("p");
-  const Rcpp::IntegerVector x = sm.slot("x");
-  hessianIPLower[0] = std::vector<int>(i.begin(), i.end());
-  hessianIPLower[1] = std::vector<int>(p.begin(), p.end());
-  hessianIPLower[2] = std::vector<int>(x.begin(), x.end());
+    if(cfg.containsElementNamed("hessian_outer")) {
+      const Rcpp::S4 sm = cfg["hessian_outer"];
+      const Rcpp::IntegerVector i = sm.slot("i");
+      const Rcpp::IntegerVector p = sm.slot("p");
+      hessianIP_outer[0] = std::vector<int>(i.begin(), i.end());
+      hessianIP_outer[1] = std::vector<int>(p.begin(), p.end());
     }
 
-    if(cfg.containsElementNamed("group")) {
-      group_sparsity = cfg["group"];
+    if(cfg.containsElementNamed("hessianL_inner")) {
+      const Rcpp::S4 sm = cfg["hessianL_inner"];
+      const Rcpp::IntegerVector i = sm.slot("i");
+      const Rcpp::IntegerVector p = sm.slot("p");
+      const Rcpp::IntegerVector x = sm.slot("x");
+      hessianIPLower_inner[0] = std::vector<int>(i.begin(), i.end());
+      hessianIPLower_inner[1] = std::vector<int>(p.begin(), p.end());
+      hessianIPLower_inner[2] = std::vector<int>(x.begin(), x.end());
+    }
+    if(cfg.containsElementNamed("hessianL_outer")) {
+      const Rcpp::S4 sm = cfg["hessianL_outer"];
+      const Rcpp::IntegerVector i = sm.slot("i");
+      const Rcpp::IntegerVector p = sm.slot("p");
+      const Rcpp::IntegerVector x = sm.slot("x");
+      hessianIPLower_outer[0] = std::vector<int>(i.begin(), i.end());
+      hessianIPLower_outer[1] = std::vector<int>(p.begin(), p.end());
+      hessianIPLower_outer[2] = std::vector<int>(x.begin(), x.end());
+    }
+
+    if(cfg.containsElementNamed("group_outer")) {
+      group_sparsity_outer = cfg["group_outer"];
     } else {
-      group_sparsity = Rcpp::List();
+      group_sparsity_outer = Rcpp::List();
     }
-
-
+    if(cfg.containsElementNamed("group_inner")) {
+      group_sparsity_inner = cfg["group_inner"];
+    } else {
+      group_sparsity_inner = Rcpp::List();
+    }
 
   }
 };

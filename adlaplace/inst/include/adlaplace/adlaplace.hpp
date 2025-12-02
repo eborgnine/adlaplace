@@ -11,6 +11,7 @@
 #include "adlaplace/config.hpp"
 #include "adlaplace/adpack.hpp"
 #include "adlaplace/sparsity.hpp"
-
+#include "adlaplace/adfun.hpp"
+#include "adlaplace/foromp.hpp"
 
 #endif

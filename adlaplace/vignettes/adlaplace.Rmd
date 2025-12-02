@@ -12,7 +12,7 @@ f(y;\mu,\theta) =  & \log\Gamma(y + r) - \log\Gamma(r) - \log\Gamma(y + 1)
 $$
 
 ```{r theData}
-Nobs = 100000;Nrandom1=100;Nrandom2=200
+Nobs = 100;Nrandom1=10;Nrandom2=20
 
 set.seed(0)
 X = Matrix::Matrix(cbind(1, rbinom(Nobs,1, prob= 0.5)))
@@ -49,12 +49,11 @@ data = list(y = y,
 Ngroups = ceiling(Nobs/3)
 data$groups = adlaplace::adFun_groups(Ngroups, data$ATp)
 
-
-config1 = list(beta = rep(0, nrow(data$XTp)), 
+config = list(beta = rep(0, nrow(data$XTp)), 
 	theta = c(rep(-1, length(NperEffect)), -1), 
 	transform_theta=TRUE, start_gamma = rep(0, nrow(data$ATp)),
 	num_threads=parallel::detectCores(),
-	verbose=FALSE)	
+	verbose=TRUE)	
 ```
 
 
@@ -63,9 +62,10 @@ config1 = list(beta = rep(0, nrow(data$XTp)),
 
 
 
+
 ```{r getAdstuff}
-sparsity_list = adlaplace::group_sparsity(data=data, config=config1)
-config = modifyList(config1, sparsity_list)
+sparsity_list = adlaplace::group_sparsity(data=data, config=config)
+config = modifyList(config, sparsity_list)
 system.time(res2 <- adlaplace::inner_opt(
 	config$start_gamma, data=data, config=config,
 	control = list(report.level=4, report.freq=1)))
@@ -77,10 +77,58 @@ quantile(res2$gradient)
 
 ```{r eval}
 # get adFun again, with sparsity
-adFun = adlaplace::getAdFun(data, config)
-adlaplace::jointLogDens(config$start_gamma, adFun, config)
-x = adlaplace::grad(config$start_gamma, adFun, config)
-x2 = adlaplace::hessian(config$start_gamma, adFun, config)
+#data2 = modifyList(data, list(groups = data$groups[,1,drop=FALSE]))
+sparsity_list = adlaplace::group_sparsity(
+	data= data,
+	config=config)
+config = modifyList(config, sparsity_list)
+config$num_threads = 1
+adFunInner = adlaplace::getAdFun(data, config, inner=TRUE)
+adFun = adlaplace::getAdFun(data, config, inner=FALSE)
+
+adlaplace::jointLogDens(config$start_gamma, adFunInner, config)
+adlaplace::jointLogDens(c(config$beta, config$start_gamma, config$theta), adFun, config)
+
+Sgamma = seq(length(config$beta)+1, len=length(config$start_gamma))
+gInner = adlaplace::grad(config$start_gamma, adFunInner, config)
+g = adlaplace::grad(c(config$beta, config$start_gamma, config$theta), adFun, config)
+
+plot(gInner, g[Sgamma])
+abline(0,1)
+
+hesOuter = adlaplace::hessian(c(config$beta, config$start_gamma, config$theta), adFun, config)
+hesInner = adlaplace::hessian(config$start_gamma, adFunInner, config)
+
+rbind(hesOuter[Sgamma, Sgamma]@x,hesInner@x)
+
+cbind(Matrix::diag(hesOuter)[Sgamma],Matrix::diag(hesInner))
+
+sparsity_list$group_inner[[1]][c('i','j','match')]
+sparsity_list$group_outer[[1]][c('i','j','match')]
+
+sparsity_list$group_inner[[2]]
+sparsity_list$group_outer[[2]]
+
+
+str(sparsity_list$hessian_outer[Sgamma,Sgamma])
+str(sparsity_list$hessian_inner)
+
+hesN = numDeriv::jacobian(adlaplace::grad, x=config$start_gamma, adPack=adFunInner, config=config)
+
+rbind(
+	hesN[1:5,1:5],NA,
+hesInner[1:5,1:5],NA,
+hesOuter[Sgamma[1:5], Sgamma[1:5]]
+)
+
+which(unlist(lapply(sparsity_list$group_outer, function(xx) any(xx$match == 9))))
+which(unlist(lapply(sparsity_list$group_inner, function(xx) any(xx$match == 2))))
+
+sparsity_list$group_inner[[5]][c('i','j','match')]
+bob = as(sparsity_list$hessian_inner, 'TsparseMatrix');rbind(bob@i, bob@j)
+
+sparsity_list$group_outer[[5]][c('i','j','match')]
+bob = as(sparsity_list$hessian_outer, 'TsparseMatrix');rbind(bob@i, bob@j)[,1:13]
 
 forNumDeriv = function(xx, ...) {
 	adlaplace::jointLogDens(c(xx, config$start_gamma[-(1:length(xx))]), ...)

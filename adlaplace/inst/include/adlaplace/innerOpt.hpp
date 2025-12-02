@@ -2,7 +2,7 @@
 #define INNER_OPT_HPP
 #include "adlaplace/config.hpp"
 #include "adlaplace/matrixUtils.hpp"
-#include "adlaplace/TrustOptimUtils.hpp"
+#include "adlaplace/trustOptimUtils.hpp"
 #include "adlaplace/functions.hpp"
 
 // from trustOptim
@@ -10,7 +10,7 @@
 #include <CG-base.h>
 #include <CG-sparse.h> 
 
-Rcpp::List inner_opt(
+inline Rcpp::List inner_opt(
 	Eigen::VectorXd& parameters, 
 	std::vector<GroupPack>& adPack,
 	const TrustControl& ctrl, 
@@ -20,7 +20,7 @@ Rcpp::List inner_opt(
 	using THess   = Eigen::SparseMatrix<double>; 
 	using TPreLLt = Eigen::SimplicialLLT<THess>;
 
-	AD_Func_Opt funObj(adPack, config.hessianIPLower);
+	AD_Func_Opt funObj(adPack, config.hessianIPLower_inner);
 
 	Trust_CG_Sparse<Tvec, AD_Func_Opt, THess, TPreLLt> opt(
 		funObj, 
@@ -71,6 +71,7 @@ Rcpp::List inner_opt(
 	}
 
 	// log likelhood
+
 	const auto& D = ldlt.vectorD();
 	double logdetH = 0.0;
 	for (int k = 0; k < D.size(); ++k) {
