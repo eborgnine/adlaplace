@@ -2,6 +2,7 @@
 #include "adlaplace/adfun.hpp"
 #include "adlaplace/foromp.hpp"
 #include "adlaplace/innerOpt.hpp"
+#include "adlaplace/third.hpp"
 
 // [[Rcpp::depends(RcppEigen)]]
 #include <RcppEigen.h>
@@ -249,4 +250,57 @@ Rcpp::List inner_opt_adpack(
 }
 
 
+
+//' @export
+// [[Rcpp::export]]
+Rcpp::NumericVector traceHinvT(
+  const Rcpp::NumericVector parameters,
+  const Rcpp::S4& LinvPt,
+  const Rcpp::List data, 
+  const Rcpp::List config,
+  SEXP adFun = R_NilValue
+  ) {
+
+ const Data   dataC(data);
+ const Config configC(config);
+ const size_t Nparams = parameters.size();
+ CppAD::vector<double> parametersC(Nparams);
+
+
+ for(size_t D=0; D<Nparams; D++) {
+    parametersC[D] = parameters[D];
+}
+
+CSCMatrix LinvPtC = makeCSC(LinvPt);
+
+    omp_set_num_threads(configC.num_threads);
+    CppAD::thread_alloc::parallel_setup(
+        configC.num_threads,
+        [](){ return in_parallel_wrapper(); },
+        [](){ return static_cast<size_t>(thread_num_wrapper()); }
+        );
+
+
+AdpackHandle ad = getAdpackFromR(adFun, parametersC, dataC, configC);
+std::vector<GroupPack>* fun = ad.ptr;
+
+CSCMatrix LinvPtColumns =
+config.containsElementNamed("LinvPtColumns")
+? makeCSC(Rcpp::S4(config["LinvPtColumns"]))
+: makeFullPatternCSC(
+  static_cast<int>(Nparams),
+  static_cast<int>(fun->size())
+  );
+if(configC.verbose) {
+    Rcpp::Rcout << "third, columns " << config.containsElementNamed("LinvPtColumns") << "\n";
+}        
+
+auto resultC = traceHinvT(parametersC, LinvPtC, configC, *fun, LinvPtColumns);
+
+Rcpp::NumericVector result(Nparams);
+for(size_t D=0; D<Nparams; D++) {
+    result[D] = resultC[D];
+}
+return(result);
+}
 

@@ -280,5 +280,72 @@ inline DgCView identityMatrix(std::size_t N)
     return DgCView(mat);
 }
 
+// Simple CSC container suitable for OpenMP use
+struct CSCMatrix {
+    int nrow;
+    int ncol;
+    std::vector<int>    p;  // column pointers (size ncol + 1)
+    std::vector<int>    i;  // row indices (size nnz)
+    std::vector<double> x;  // values      (size nnz)
+};
+
+// Construct CSCMatrix from an R "dgCMatrix"
+inline CSCMatrix makeCSC(const Rcpp::S4& M)
+{
+    CSCMatrix out;
+
+    Rcpp::IntegerVector Dim = M.slot("Dim");
+    Rcpp::IntegerVector pR  = M.slot("p");
+    Rcpp::IntegerVector iR  = M.slot("i");
+
+    out.nrow = Dim[0];
+    out.ncol = Dim[1];
+
+    const int nnz = iR.size();
+
+    out.p.assign(pR.begin(), pR.end());
+    out.i.assign(iR.begin(), iR.end());
+
+    if (M.hasSlot("x")) {
+        Rcpp::NumericVector xR = M.slot("x");
+        out.x.assign(xR.begin(), xR.end());
+    } else {
+        out.x.clear();  // empty
+    }
+
+
+    return out;
+}
+
+inline CSCMatrix makeFullPatternCSC(int nrow, int ncol)
+{
+    CSCMatrix out;
+    out.nrow = nrow;
+    out.ncol = ncol;
+
+    const int nnz = nrow * ncol;
+
+    // Column pointers: p[0] = 0, p[j+1] = p[j] + nrow
+    out.p.resize(ncol + 1);
+    out.p[0] = 0;
+    for (int j = 0; j < ncol; ++j) {
+        out.p[j + 1] = out.p[j] + nrow;
+    }
+
+    // Row indices: for each column j, rows 0..(nrow-1)
+    out.i.resize(nnz);
+    int idx = 0;
+    for (int j = 0; j < ncol; ++j) {
+        for (int r = 0; r < nrow; ++r) {
+            out.i[idx++] = r;  // 0-based row index
+        }
+    }
+
+    // No x slot (empty values)
+    out.x.clear();
+
+    return out;
+}
+
 #endif
 

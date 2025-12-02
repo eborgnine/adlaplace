@@ -49,13 +49,8 @@ logLik = function(x, data, config,
 		dims = c(nrow(Hinv), length(whichColumnsByGroup1))
 	)
 
-	if(FALSE) {
-		result$fullHessian = hessian(
-  result$fullParameters, data, config, adFunFull
-)
-result$fullGrad = grad(
-  result$fullParameters, data, config, adFunFull
-)
+	result$fullHessian = hessian(result$fullParameters, data, config, adFunFull)
+	result$fullGrad = grad(result$fullParameters, data, config, adFunFull)
 
 
 

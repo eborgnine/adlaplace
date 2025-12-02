@@ -154,8 +154,7 @@ system.time(
 to do: 
 
 
-- full derivs
 - third, logLik.R
-- outer opt, 
+- outer opt, cache
 - link from hpolcc
 
