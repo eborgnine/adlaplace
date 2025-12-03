@@ -24,6 +24,77 @@ std::vector<GroupPack> getAdFunOuter(
 // [[Rcpp::export]]
 double jointLogDens(
 	Rcpp::NumericVector parameters, 
+	Rcpp::List data,
+	Rcpp::List config)
+{
+
+	Config configC(config);
+	Data dataC(data);
+
+	const size_t Nparams = parameters.size();
+	const size_t Nbeta = configC.beta.size();
+	const size_t Ntheta = configC.theta.size();
+	const size_t Ngamma = configC.start_gamma.size();
+
+	const bool inner = (Nparams == Ngamma);
+
+	CppAD::vector<CppAD::AD<double>> parametersC(Nparams);
+	for(size_t D=0; D<Nparams;D++) {
+		double parHere = parameters[D];
+		parametersC[D] = parHere;
+	}
+
+	CppAD::AD<double> dataPart=0.0, extraPart, randomPart;
+	if(inner) {
+		for(size_t D=0;D<dataC.Ngroups;D++) {
+			auto dataPartHere= logDensObs(parametersC, configC.beta, configC.theta, dataC, configC, D);
+			dataPart += dataPartHere[0];
+		}
+		auto randomHere = logDensRandom(
+			parametersC,
+			configC.theta, dataC, configC);   
+		randomPart = randomHere[0];
+
+		auto extraHere = logDensExtra(
+			configC.theta, dataC, configC);   
+		extraPart = extraHere[0];
+	} else {
+		for(size_t D=0;D<dataC.Ngroups;D++) {
+			auto dataPartHere= logDensObs(
+				slice(parametersC, Nbeta, Nbeta + Ngamma), //gamma
+								slice(parametersC, 0, Nbeta), // beta
+								slice(parametersC, Nbeta + Ngamma, Nparams), //theta
+								dataC, configC, D);
+			dataPart += dataPartHere[0];
+		}
+		auto randomHere = logDensRandom(
+				slice(parametersC, Nbeta, Nbeta + Ngamma), //gamma
+												slice(parametersC, Nbeta + Ngamma, Nparams), //theta
+												dataC, configC);   
+		randomPart = randomHere[0];
+
+		auto extraHere = logDensExtra(
+			slice(parametersC, Nbeta + Ngamma, Nparams), //theta
+			dataC, configC);   
+		extraPart = extraHere[0];
+
+	}
+	CppAD::AD<double> result1 = dataPart + randomPart + extraPart;
+	double result = CppAD::Value(result1);
+
+
+	if(configC.verbose) {
+		Rcpp::Rcout << "Ngroups " << dataC.Ngroups << "inner " << inner <<  " d " << dataPart << " r " << randomPart << " e " << extraPart << "\n";
+	}
+
+	return(result);
+}
+
+
+//' @export
+// [[Rcpp::export]]
+double jointLogDensOpt(
+	Rcpp::NumericVector parameters, 
 	SEXP adPack,
 	Rcpp::List config)
 {
@@ -54,11 +125,11 @@ double jointLogDens(
 	}
 
 	omp_set_num_threads(configC.num_threads);
-  CppAD::thread_alloc::parallel_setup(
-    configC.num_threads,
-    [](){ return in_parallel_wrapper(); },
-    [](){ return static_cast<size_t>(thread_num_wrapper()); }
-    );
+	CppAD::thread_alloc::parallel_setup(
+		configC.num_threads,
+		[](){ return in_parallel_wrapper(); },
+		[](){ return static_cast<size_t>(thread_num_wrapper()); }
+		);
 
 	funObj.get_f(parametersC, result);
 
@@ -104,11 +175,11 @@ Rcpp::NumericVector grad(
 	}
 
 	omp_set_num_threads(configC.num_threads);
-	  CppAD::thread_alloc::parallel_setup(
-    configC.num_threads,
-    [](){ return in_parallel_wrapper(); },
-    [](){ return static_cast<size_t>(thread_num_wrapper()); }
-    );
+	CppAD::thread_alloc::parallel_setup(
+		configC.num_threads,
+		[](){ return in_parallel_wrapper(); },
+		[](){ return static_cast<size_t>(thread_num_wrapper()); }
+		);
 
 	funObj.get_df(parametersC, resultC);
 
@@ -158,11 +229,11 @@ Rcpp::S4 hessian(
 	Eigen::SparseMatrix<double> resultC = funObj.Htemplate.cast<double>();
 
 	omp_set_num_threads(configC.num_threads);
-  CppAD::thread_alloc::parallel_setup(
-    configC.num_threads,
-    [](){ return in_parallel_wrapper(); },
-    [](){ return static_cast<size_t>(thread_num_wrapper()); }
-    );
+	CppAD::thread_alloc::parallel_setup(
+		configC.num_threads,
+		[](){ return in_parallel_wrapper(); },
+		[](){ return static_cast<size_t>(thread_num_wrapper()); }
+		);
 
 	if(configC.verbose) {
 		Rcpp::Rcout << "hessian params " << parametersC.size() << " groups "	<< (*xp).size();
@@ -175,7 +246,11 @@ Rcpp::S4 hessian(
 	
 	resultC.makeCompressed();
 
-	Rcpp::S4 out = eigen_to_dgC(resultC);
+	Eigen::SparseMatrix<double> Hfull(
+		resultC.selfadjointView<Eigen::Lower>()
+		);
+	Rcpp::S4 out = eigen_to_dgC(Hfull);
+
 	return(out);
 }
 
@@ -201,11 +276,11 @@ Rcpp::List inner_opt(
 	}
 
 	omp_set_num_threads(configC.num_threads);
-  CppAD::thread_alloc::parallel_setup(
-    configC.num_threads,
-    [](){ return in_parallel_wrapper(); },
-    [](){ return static_cast<size_t>(thread_num_wrapper()); }
-    );
+	CppAD::thread_alloc::parallel_setup(
+		configC.num_threads,
+		[](){ return in_parallel_wrapper(); },
+		[](){ return static_cast<size_t>(thread_num_wrapper()); }
+		);
 
 	std::vector<GroupPack> adPack = getAdFunInner(dataC, configC);
 
@@ -254,53 +329,48 @@ Rcpp::List inner_opt_adpack(
 //' @export
 // [[Rcpp::export]]
 Rcpp::NumericVector traceHinvT(
-  const Rcpp::NumericVector parameters,
-  const Rcpp::S4& LinvPt,
-  const Rcpp::List data, 
-  const Rcpp::List config,
-  SEXP adFun = R_NilValue
-  ) {
+	const Rcpp::NumericVector parameters,
+	const Rcpp::S4& LinvPt,
+	const Rcpp::S4& LinvPtColumns,
+	const Rcpp::List config,
+	SEXP adPack = R_NilValue
+	) {
 
- const Data   dataC(data);
- const Config configC(config);
- const size_t Nparams = parameters.size();
- CppAD::vector<double> parametersC(Nparams);
-
-
- for(size_t D=0; D<Nparams; D++) {
-    parametersC[D] = parameters[D];
-}
-
-CSCMatrix LinvPtC = makeCSC(LinvPt);
-
-    omp_set_num_threads(configC.num_threads);
-    CppAD::thread_alloc::parallel_setup(
-        configC.num_threads,
-        [](){ return in_parallel_wrapper(); },
-        [](){ return static_cast<size_t>(thread_num_wrapper()); }
-        );
+	const Config configC(config);
+	const size_t Nparams = parameters.size();
+	CppAD::vector<double> parametersC(Nparams);
 
 
-AdpackHandle ad = getAdpackFromR(adFun, parametersC, dataC, configC);
-std::vector<GroupPack>* fun = ad.ptr;
+	for(size_t D=0; D<Nparams; D++) {
+		parametersC[D] = parameters[D];
+	}
 
-CSCMatrix LinvPtColumns =
-config.containsElementNamed("LinvPtColumns")
-? makeCSC(Rcpp::S4(config["LinvPtColumns"]))
-: makeFullPatternCSC(
-  static_cast<int>(Nparams),
-  static_cast<int>(fun->size())
-  );
-if(configC.verbose) {
-    Rcpp::Rcout << "third, columns " << config.containsElementNamed("LinvPtColumns") << "\n";
-}        
+	CSCMatrix LinvPtC = makeCSC(LinvPt);
+	CSCMatrix LinvPtColumnsC = makeCSC(LinvPtColumns);
 
-auto resultC = traceHinvT(parametersC, LinvPtC, configC, *fun, LinvPtColumns);
+	Rcpp::XPtr<std::vector<GroupPack>> xp(adPack);
 
-Rcpp::NumericVector result(Nparams);
-for(size_t D=0; D<Nparams; D++) {
-    result[D] = resultC[D];
-}
-return(result);
+
+	omp_set_num_threads(configC.num_threads);
+	CppAD::thread_alloc::parallel_setup(
+		configC.num_threads,
+		[](){ return in_parallel_wrapper(); },
+		[](){ return static_cast<size_t>(thread_num_wrapper()); }
+		);
+
+	if(configC.verbose) {
+		Rcpp::Rcout << ".";
+	}
+
+	auto resultC = traceHinvT(parametersC, LinvPtC, LinvPtColumnsC, configC, *xp);
+	if(configC.verbose) {
+		Rcpp::Rcout << ".";
+	}
+
+	Rcpp::NumericVector result(Nparams);
+	for(size_t D=0; D<Nparams; D++) {
+		result[D] = resultC[D];
+	}
+	return(result);
 }
 

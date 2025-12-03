@@ -301,8 +301,6 @@ inline CSCMatrix makeCSC(const Rcpp::S4& M)
     out.nrow = Dim[0];
     out.ncol = Dim[1];
 
-    const int nnz = iR.size();
-
     out.p.assign(pR.begin(), pR.end());
     out.i.assign(iR.begin(), iR.end());
 

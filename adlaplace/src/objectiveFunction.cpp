@@ -2,6 +2,7 @@
 #include "adlaplace/adlaplace.hpp"
 #include "adlaplace/lgamma.hpp"
 
+#define COMPUTE_CONSTANTS
 
 template <class Type>
 CppAD::vector<CppAD::AD<double>> logDensObs(
@@ -13,13 +14,13 @@ CppAD::vector<CppAD::AD<double>> logDensObs(
 	const size_t Dgroup
 	){
 
-	CppAD::AD<double> logDens = 0.0;
+	CppAD::AD<double> logDens1 = 0.0, logDens2 = 0.0;
 	CppAD::vector<CppAD::AD<double>> result(1, 0.0);
 
-	Type logNbSizeTheta = config.transform_theta?
-		theta[theta.size()]:log_any(theta[theta.size()]);
+	Type logTheta = config.transform_theta?
+		theta[theta.size()-1]:log_any<Type>(theta[theta.size()-1]);
 
-	Type logNbSize = -0.5*logNbSizeTheta;
+	Type logNbSize = -2*logTheta;
 	Type nbSize = exp_any(logNbSize);
 
 	double logNbSizeValue = to_double(logNbSize);
@@ -46,15 +47,16 @@ CppAD::vector<CppAD::AD<double>> logDensObs(
 
 		const CppAD::AD<double> eta = etaFixed + etaRandom;
 
-		const bool etaIsBigger = eta > logNbSize;
-		const double expScale = etaIsBigger?-1.0:1.0;
-		const double max_value = etaIsBigger?CppAD::Value(eta):logNbSizeValue;
-
+//		const bool etaIsBigger = eta > logNbSize;
+//		const double expScale = etaIsBigger?-1.0:1.0;
+//		const double max_value = etaIsBigger?CppAD::Value(eta):logNbSizeValue;
+//		const CppAD::AD<double> logRplusMu = max_value + CppAD::log1p(CppAD::exp(expScale*diffEtaLogNbSize));
+		// logNbSize is usually large
 		const CppAD::AD<double> diffEtaLogNbSize = eta - logNbSize;
-		const CppAD::AD<double> logRplusMu = max_value + CppAD::log1p(CppAD::exp(expScale*diffEtaLogNbSize));
+		const CppAD::AD<double> logRplusMu = logNbSize + CppAD::log1p(CppAD::exp(diffEtaLogNbSize));
 
-		logDens += data.y[Dobs]  * eta
-			 + (data.y[Dobs] - nbSize) * logRplusMu;
+		logDens1 += data.y[Dobs]  * eta;
+		logDens2 += - logRplusMu * (data.y[Dobs] + nbSize);
 // this bit is done in logDensExtra
 /*		logDens +=
 			+ lgamma(data.y[Dobs] + nbSize.nbSize) 
@@ -63,11 +65,9 @@ CppAD::vector<CppAD::AD<double>> logDensObs(
 */
 
 		}
+//Rcpp::Rcout << "ld1 " << logDens1 << " ld2 " << logDens2 << "\n";		
 
-
-
-
-	result[0] = -logDens;
+	result[0] = -logDens1 - logDens2;
 	return(result);
 }
 
@@ -94,27 +94,35 @@ CppAD::vector<Type> logDensExtra(
 	) {
 
 	Type logTheta = config.transform_theta?
-		theta[theta.size()]:log_any(theta[theta.size()]);
+		theta[theta.size()-1]:log_any<Type>(theta[theta.size()-1]);
 
-	Type logNbSize = -0.5*logTheta;
-	Type nbSize = exp_any(logNbSize);
-	Type lgammaNbSize = lgamma_any(nbSize); 
+	Type logNbSize = -2*logTheta;
+	Type nbSize = exp_any<Type>(logNbSize);
+	Type lgammaNbSize = lgamma_any<Type>(nbSize); 
 	Type sizeLogSize = nbSize * logNbSize;
 
 
-	Type logDens=0.0;
+	Type logDens1=0.0;
 
 	const size_t N=data.groups.i.size();
 	for(size_t D=0; D <N;D++) {
 		const size_t indexHere = data.groups.i[D];
-		logDens += lgamma_any(data.y[indexHere] + nbSize); 
+		logDens1 += lgamma_any<Type>(data.y[indexHere] + nbSize); 
 	}
-	logDens += N*(- lgammaNbSize + sizeLogSize);
 
+	Type logDens2 = N*(sizeLogSize - lgammaNbSize);
+
+#ifdef COMPUTE_CONSTANTS
 // always constant	- std::lgamma(data.y[Dobs]  + 1.0)
-
+	for(size_t D=0; D <N;D++) {
+		const size_t indexHere = data.groups.i[D];
+		logDens2 -= std::lgamma(data.y[indexHere] + 1.0); 
+	}	
+#endif
+	Type logDens = logDens1 + logDens2;
 	if(config.verbose) {
-		Rcpp::Rcout << "logDensExtra " << logDens << "\n";
+		Rcpp::Rcout << "logDensExtra " << logDens << " " << logDens1 << " " << logDens2 << " nbSize " << nbSize << 
+			" logTheta " << logTheta << " tr " << config.transform_theta << "\n";
 	}
 	CppAD::vector<Type> result(1);
 	result[0] = -logDens;
@@ -217,7 +225,7 @@ logDensRandom<CppAD::AD<double>>(
 
 
 
-
+//' @export	
 // [[Rcpp::export]]
 SEXP getAdFun(
 	Rcpp::List data, 

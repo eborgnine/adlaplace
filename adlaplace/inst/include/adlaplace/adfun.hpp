@@ -41,7 +41,6 @@ inline std::vector<GroupPack> getAdFunOuter(
 		const size_t Nbeta = config.beta.size();
 		const size_t Ntheta = config.theta.size();
 		const size_t Nparams = Nbeta + Ngamma + Ntheta;
-		const size_t nbSizeIndex = Nparams-1;
 
 	if(config.verbose) {
 		Rcpp::Rcout << "outer, groups " << data.Ngroups << " Nbeta " << Nbeta << " Ntheta " << Ntheta << " Nparams " << Nparams << "\n";
@@ -93,7 +92,7 @@ inline std::vector<GroupPack> getAdFunOuter(
 		{
 			CppAD::Independent(ad_params);
 
-			auto resultHere = logDensExtra(
+			auto resultHere = logDensExtra<CppAD::AD<double>>(
 				slice(ad_params, Nbeta + Ngamma, Nparams), // theta
 				data, config);   
 			CppAD::ADFun<double> fun(ad_params, resultHere);
@@ -107,7 +106,7 @@ inline std::vector<GroupPack> getAdFunOuter(
 		if(config.verbose) {
 			Rcpp::Rcout << "add sparse\n";
 		}
-		addSparsityToAdFun(result, config.group_sparsity_outer);
+		addSparsityToAdFun(result, config.group_sparsity_outer, config.verbose);
 	} else {
 		if(config.verbose) {
 			Rcpp::Rcout << "no sparse pattern provided\n";

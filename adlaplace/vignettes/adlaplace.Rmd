@@ -12,7 +12,7 @@ f(y;\mu,\theta) =  & \log\Gamma(y + r) - \log\Gamma(r) - \log\Gamma(y + 1)
 $$
 
 ```{r theData}
-Nobs = 100;Nrandom1=10;Nrandom2=20
+Nobs = 10000;Nrandom1=70;Nrandom2=50
 
 set.seed(0)
 X = Matrix::Matrix(cbind(1, rbinom(Nobs,1, prob= 0.5)))
@@ -36,7 +36,6 @@ Z = rgamma(length(etaT), 0.1^(-2), 0.1^(-2))
 c(mean(Z), sd(Z))
 y = rpois(length(etaT), etaT*Z)
 
-
 NperEffect = unlist(lapply(AmatList, ncol))   
 map = rep(seq(0, len=length(NperEffect)), NperEffect)
 
@@ -49,42 +48,101 @@ data = list(y = y,
 Ngroups = ceiling(Nobs/3)
 data$groups = adlaplace::adFun_groups(Ngroups, data$ATp)
 
-config = list(beta = rep(0, nrow(data$XTp)), 
+config = list(beta = rep(1, nrow(data$XTp)), 
 	theta = c(rep(-1, length(NperEffect)), -1), 
 	transform_theta=TRUE, start_gamma = rep(0, nrow(data$ATp)),
 	num_threads=parallel::detectCores(),
-	verbose=TRUE)	
+	verbose=FALSE)	
 ```
 
 
+```{r loglik}
+sparsity_list = adlaplace::group_sparsity(data=data, config=config)
+config = modifyList(config, sparsity_list)
+adFunFull = adlaplace::getAdFun(data, modifyList(config, list(verbose=TRUE)), inner=FALSE)
+ll1 = adlaplace::logLik(
+	x=c(config$beta, config$theta),
+	data, config,
+	deriv=TRUE
+	)
+```
 
+```{r outerOpt}
+cache = new.env()
+assign('start_gamma', config$start_gamma, cache)
+outer_fn = function(..., control_inner = list(), cache) {
+	result = adlaplace::logLik(..., control = control_inner, start_gamma = cache$start_gamma, deriv=FALSE)
+	assign('start_gamma', result$solution,  cache)
+	result$minusLogLik
+}
+outer_gr = function(..., control_inner = list(), cache) {
+	result = adlaplace::logLik(..., control = control_inner, start_gamma = cache$start_gamma, deriv=TRUE)
+	assign('start_gamma', result$inner$solution, cache)
+	result$dLogLik
+}
+adFunFull = adlaplace::getAdFun(data, modifyList(config, list(verbose=TRUE)), inner=FALSE)
+
+outer_fn(c(config$beta, config$theta), data=data, config=config, cache=cache, adPack = adFunFull)
+outer_gr(c(config$beta, config$theta), data=data, config=config, cache=cache, adPack = adFunFull)
+
+
+mle = trustOptim::trust.optim(
+	c(config$beta, config$theta),
+	outer_fn, outer_gr,
+	method='SR1',
+	data=data, config=config, cache=cache, adPack = adFunFull,
+	control_inner = list()
+	)
+```
 
 
 
 
 
 ```{r getAdstuff}
-sparsity_list = adlaplace::group_sparsity(data=data, config=config)
-config = modifyList(config, sparsity_list)
 system.time(res2 <- adlaplace::inner_opt(
 	config$start_gamma, data=data, config=config,
 	control = list(report.level=4, report.freq=1)))
 unlist(res2[c('minusLogLik', 'halfLogDet','fval')]	)
 quantile(res2$gradient)
+
+
+adFunInner = adlaplace::getAdFun(data, config, inner=TRUE)
+res1 = trustOptim::trust.optim(
+	config$start_gamma, 
+	adlaplace::jointLogDens,
+	adlaplace::grad,
+#	adlaplace::hessian,
+	adPack = adFunInner, config=config,
+	method='SR1'#'Sparse'
+	)
 ```
 
+
+```{r logLik}
+adPack = adlaplace::getAdFun(data, config, inner=FALSE)
+stuff = adlaplace:::logLik(
+	x = c(config$beta, config$theta), 
+	data, config, 
+	start_gamma = config$start_gamma, 	
+	adPack = adPack, 
+	deriv=TRUE)
+stuff$deriv	
+```
 
 
 ```{r eval}
 # get adFun again, with sparsity
-#data2 = modifyList(data, list(groups = data$groups[,1,drop=FALSE]))
+data2 = data#modifyList(data, list(groups = data$groups[,1:200,drop=FALSE]))
+config2 = config[grep("group|hessian", names(config), invert=TRUE)]
+config2$start_gamma = res2$solution
 sparsity_list = adlaplace::group_sparsity(
-	data= data,
-	config=config)
-config = modifyList(config, sparsity_list)
+	data= data2,
+	config=config2)
+config = modifyList(config2, sparsity_list)
 config$num_threads = 1
-adFunInner = adlaplace::getAdFun(data, config, inner=TRUE)
-adFun = adlaplace::getAdFun(data, config, inner=FALSE)
+adFunInner = adlaplace::getAdFun(data2, config, inner=TRUE)
+adFun = adlaplace::getAdFun(data2, config, inner=FALSE)
 
 adlaplace::jointLogDens(config$start_gamma, adFunInner, config)
 adlaplace::jointLogDens(c(config$beta, config$start_gamma, config$theta), adFun, config)
@@ -92,34 +150,20 @@ adlaplace::jointLogDens(c(config$beta, config$start_gamma, config$theta), adFun,
 Sgamma = seq(length(config$beta)+1, len=length(config$start_gamma))
 gInner = adlaplace::grad(config$start_gamma, adFunInner, config)
 g = adlaplace::grad(c(config$beta, config$start_gamma, config$theta), adFun, config)
+gNum = numDeriv::grad(adlaplace::jointLogDens, config$start_gamma, adPack = adFunInner, config=config)
 
-plot(gInner, g[Sgamma])
+matplot(gNum, cbind(gInner,g[Sgamma]), col=c('red','blue'), cex=c(1, 0.4), pch=15)
 abline(0,1)
 
 hesOuter = adlaplace::hessian(c(config$beta, config$start_gamma, config$theta), adFun, config)
 hesInner = adlaplace::hessian(config$start_gamma, adFunInner, config)
-
-rbind(hesOuter[Sgamma, Sgamma]@x,hesInner@x)
-
-cbind(Matrix::diag(hesOuter)[Sgamma],Matrix::diag(hesInner))
-
-sparsity_list$group_inner[[1]][c('i','j','match')]
-sparsity_list$group_outer[[1]][c('i','j','match')]
-
-sparsity_list$group_inner[[2]]
-sparsity_list$group_outer[[2]]
-
-
-str(sparsity_list$hessian_outer[Sgamma,Sgamma])
-str(sparsity_list$hessian_inner)
-
 hesN = numDeriv::jacobian(adlaplace::grad, x=config$start_gamma, adPack=adFunInner, config=config)
 
-rbind(
-	hesN[1:5,1:5],NA,
-hesInner[1:5,1:5],NA,
-hesOuter[Sgamma[1:5], Sgamma[1:5]]
-)
+matplot(cbind(
+	apply(abs(hesInner-hesN), 2, sum),
+	apply(abs(hesOuter[Sgamma,Sgamma]-hesN), 2, sum)))
+
+
 
 which(unlist(lapply(sparsity_list$group_outer, function(xx) any(xx$match == 9))))
 which(unlist(lapply(sparsity_list$group_inner, function(xx) any(xx$match == 2))))
@@ -150,6 +194,162 @@ system.time(
 	))
 ```
 
+
+```{r llPlain}
+llPlain = function(x, data, config) {
+	Nbeta = length(config$beta)
+	Ngamma = length(config$start_gamma)
+	Ntheta = length(config$theta)
+
+	Sobs = data$groups@i+1
+
+	beta = x[1:Nbeta]
+	gamma = x[seq(Nbeta+1, len=Ngamma)]
+	theta = x[seq(Nbeta + Ngamma+1, len=Ntheta)]
+	if(config$transform_theta) {
+		theta = exp(theta)
+	}
+
+
+
+	eta = as.vector(X[Sobs,] %*% beta + Amat[Sobs,] %*% gamma)
+	yHere = data$y[Sobs]
+
+	mu = exp(eta)
+	dataPart = sum(dnbinom(
+		yHere,
+		mu = mu,
+		size = theta[length(theta)]^(-2),
+		log=TRUE
+		))
+
+		r = theta[length(theta)]^(-2)
+		loglik_vec1a <-  - r * log(r + mu) + yHere * (log(mu) - log(r + mu))
+		loglik_vec1dd <-  - log(r + mu) * (r + yHere) 
+		loglik_vec1ee <- yHere * log(mu)
+		loglik_vec1b <-  loglik_vec1dd + loglik_vec1ee
+		if(any(abs(loglik_vec1a - loglik_vec1b)>1e-6)) {
+			cat("stuff")
+		}
+
+		loglik_vec2 = lgamma(yHere + r) 
+		loglik_vec3 =  - lgamma(yHere + 1) - lgamma(r) + r * log(r)
+
+		gamma_scaled = gamma / theta[data$map + 1L]
+		qpart = 0.5 * sum(gamma_scaled^2 * data$Qdiag)
+		qpartDet = sum(log(theta[data$map +1L]))
+
+		c(random = qpart, 
+			ranodmDet = qpartDet,
+		 	obs=-sum(loglik_vec1b) ,
+		 	extra=  - sum(loglik_vec2) - sum(loglik_vec3), 
+			dd=sum(loglik_vec1dd), ee=sum(loglik_vec1ee), 
+			R = -dataPart)
+	}
+```
+
+
+```{r checkGrad}
+Npar=13;Dpar = 4
+x = c(config$beta, config$theta)
+parDf = data.frame(x)[,rep(1, Npar)]
+Sx = seq(-0.01, 0.01, len=13) + parDf[Dpar,1]
+SxD = Sx[-1] - diff(Sx)/2
+parDf[Dpar,] = Sx
+
+adFun = adlaplace::getAdFun(data, modifyList(config, 
+	list(verbose=TRUE, num_threads = 1)), inner=FALSE)
+
+dens1 = mapply(
+  adlaplace::logLik,
+  x = as.list(parDf),
+  MoreArgs = list(data=data, config=config, deriv=TRUE, adPack = adFun),
+  SIMPLIFY=FALSE
+  )
+
+deriv1 = do.call(abind::abind, c(lapply(dens1, '[[', "deriv"), list(along=3)))
+
+round(deriv1[Dpar,,],2)
+
+sL = unlist(lapply(dens1, function(xx) xx$inner$minusLogLik))
+
+plot(Sx, sL)
+
+sDet = unlist(lapply(dens1, function(xx) xx$inner$halfLogDet))
+plot(Sx, sDet)
+plot(Sx, deriv1[Dpar,'dDet', ])
+lines(SxD, diff(sDet)/diff(Sx))
+
+
+plot(Sx, deriv1[Dpar,'dL', ])
+lines(SxD, diff(sL)/diff(Sx))
+
+
+ dens3 = mapply(
+  adlaplace::jointLogDensOpt,
+  parameters = as.list(parDf),
+  MoreArgs = list(adPack = adFun, config=config),
+  SIMPLIFY=TRUE
+  )
+
+dens2a = mapply(
+  llPlain,
+  x = as.list(parDf),
+  MoreArgs = list(data = data, config=config),
+  SIMPLIFY=TRUE
+  )
+
+adFun2 = adlaplace::getAdFun(
+	 data=modifyList(data, list(groups = data$groups[,1,drop=FALSE])), 
+	config=modifyList(config, list(verbose=TRUE, num_threads = 1
+			)), 
+	inner=FALSE)
+
+adlaplace::jointLogDensOpt(
+	parDf[,9], adPack = adFun2, 
+		config=modifyList(config, 
+		list(verbose=TRUE, num_threads = 1))
+	)
+
+  adlaplace::jointLogDens(
+  	parDf[,9], 
+  	data=modifyList(data, list(groups = data$groups[,1,drop=FALSE])), 
+	config=modifyList(config, 
+		list(verbose=TRUE, num_threads = 1)))
+(bob =   llPlain(parDf[,1],
+	data=modifyList(data, list(groups = data$groups[,1,drop=FALSE])), 
+	config=config))
+sum(bob[c('random', 'ranodmDet','obs','extra')])	
+sum(bob[c('random', 'ranodmDet','R')])	
+sum(bob[5:6])
+sum(bob[1:3])
+
+
+dens2 = apply(dens2a[c('random', 'ranodmDet','obs','extra'), ], 2, sum)
+matplot(Sx, cbind(dens1,dens2, dens3))
+quantile(dens1 - dens3)
+llPlain(x, data, config)
+
+grad1 = mapply(
+  adlaplace::grad,
+  parameters = as.list(parDf),
+  MoreArgs = list(adPack = adFun, config=config),
+  SIMPLIFY=TRUE
+  )
+hes1 = mapply(
+  adlaplace::hessian,
+  parameters = as.list(parDf),
+  MoreArgs = list(adPack = adFun, config=config),
+  SIMPLIFY=FALSE
+  )
+
+plot(Sx, grad1[Dpar,])
+lines(SxD, diff(dens1)/diff(Sx))
+
+plot(Sx, lapply(hes1, function(xx) xx[Dpar, Dpar]))
+lines(SxD, diff(grad1[Dpar,])/diff(Sx))
+
+````
 
 to do: 
 

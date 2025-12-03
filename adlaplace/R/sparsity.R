@@ -9,9 +9,9 @@ sparsity_by_group = function(xx, template, dims, Sgamma0) {
 		allIJ = allIJ[which(!(is.na(allIJ[,'i']) | is.na(allIJ[,'j']))), ]
 		xx$grad = as.vector(na.omit(match(xx$grad, Sgamma0) -1L))
 	}
-	allIJ = allIJ[!duplicated(allIJ), ]
-	allIJ = allIJ[which(allIJ[,'j'] >= allIJ[,'i']),]
-	allIJ = allIJ[order(allIJ[,'j'], allIJ[,'i']),]
+	allIJ = allIJ[!duplicated(allIJ), ,drop=FALSE]
+	allIJ = allIJ[which(allIJ[,'j'] >= allIJ[,'i']),,drop=FALSE]
+	allIJ = allIJ[order(allIJ[,'j'], allIJ[,'i']),,drop=FALSE]
 
 	hessianTemplateHere = Matrix::sparseMatrix(
 		i=allIJ[,'i'], j=allIJ[,'j'],
@@ -78,8 +78,7 @@ group_sparsity = function(data, config, adFun) {
 		sparsity_by_group, 
 		template = templateIJ,
 		dims = dim(hessianTemplate),
-		mc.cores = 
-			max(c(config$num_threads, 1), na.rm=TRUE)
+		mc.cores = max(c(config$num_threads, 1), na.rm=TRUE)
 	)
 	sparsity_list_inner = parallel::mclapply(
 		sparsity_list, 

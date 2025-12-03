@@ -53,16 +53,22 @@ inline CppAD::sparse_rc< CppAD::vector<size_t> > build_hessian_pattern_from_pair
 
 inline void addSparsityToAdFun(
   std::vector<GroupPack>& adPack,
-  const Rcpp::List& sparsity)
+  const Rcpp::List& sparsity,
+  const bool verbose=false)
 {
 
   const size_t Nfun = adPack.size();
   const size_t Nparams = adPack[0].fun.Domain();
 
-  if(sparsity.size() != Nfun & sparsity.size() != (Nfun-1) ) {
+  if(verbose) {
+    Rcpp::Rcout << "sparsity " << sparsity.size() << " adpack " << adPack.size() << "\n";
+  }
+
+  if(sparsity.size() != Nfun  ) {
     Rcpp::Rcout << "sparsity size smaller than adPack " << sparsity.size() << " " << Nfun << "\n";
   }
   for(size_t D=0;D<Nfun;D++) {
+
     const Rcpp::List sparseHere = sparsity[D];
     const Rcpp::IntegerVector sparseGrad = sparseHere["grad"];
     const Rcpp::IntegerVector rowOut = sparseHere["i"];
@@ -71,11 +77,12 @@ inline void addSparsityToAdFun(
     const Rcpp::IntegerVector pHere = sparseHere["p"];
 
 #ifdef DEBUG
+if(verbose) {
     const int sparseGradSize = sparseGrad.size();
     Rcpp::Rcout << "sparsity group " << D;
     Rcpp::Rcout << " grad size " << sparseGradSize << "\n";
-#endif    
-
+}
+#endif
     adPack[D].work_grad = CppAD::sparse_jac_work();
     adPack[D].pattern_grad = build_gradient_pattern_from_R(sparseGrad, Nparams);
     adPack[D].out_grad = 
@@ -89,7 +96,6 @@ inline void addSparsityToAdFun(
             adPack[D].pattern_hess);
     adPack[D].match_hess = Rcpp::as<std::vector<size_t>>(matchHere);
     adPack[D].p_hess = Rcpp::as<std::vector<size_t>>(pHere);
-
 
   }
 

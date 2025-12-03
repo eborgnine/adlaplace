@@ -98,11 +98,16 @@ inline Rcpp::List inner_opt(
 		Rcpp::Named("L") = eigen_to_dgC(L)	
  		);
 
+	 Rcpp::NumericVector solution(P.size());
+	for(size_t D=0;D<solution.size();D++) {
+		solution[D] = P[D];
+	}
+
  	 Rcpp::List res = Rcpp::List::create(
  	 	Rcpp::Named("minusLogLik") = Rcpp::wrap(minusLogLik),
  	 	Rcpp::Named("fval") = Rcpp::wrap(fval),
  	 	Rcpp::Named("halfLogDet") = Rcpp::wrap(halfLogDet),
- 	 	Rcpp::Named("solution") = Rcpp::wrap(P),
+ 	 	Rcpp::Named("solution") = Rcpp::wrap(solution),
  	 	Rcpp::Named("gradient") = Rcpp::wrap(grad),	
  	 	Rcpp::Named("hessian") = eigen_to_dgC(H),
  	 	Rcpp::Named("cholHessian") = cholHessian,

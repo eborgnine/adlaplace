@@ -6,9 +6,9 @@
 inline CppAD::vector<double> traceHinvT(
     const CppAD::vector<double>&  parameters,
     const CSCMatrix& LinvPt,
+    const CSCMatrix& LinvPtColumns,
     const Config& config,
-    std::vector<GroupPack>& fun,
-    const CSCMatrix LinvPtColumns
+    std::vector<GroupPack>& fun
     ) {
 
     const size_t Nparams = parameters.size();

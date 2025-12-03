@@ -2,13 +2,13 @@
 # Generator token: 10BE3573-1514-4C36-9D1C-5A225CD40393
 
 #' @export
-getAdFun <- function(data, config, inner = FALSE) {
-    .Call(`_adlaplace_getAdFun`, data, config, inner)
+jointLogDens <- function(parameters, data, config) {
+    .Call(`_adlaplace_jointLogDens`, parameters, data, config)
 }
 
 #' @export
-jointLogDens <- function(parameters, adPack, config) {
-    .Call(`_adlaplace_jointLogDens`, parameters, adPack, config)
+jointLogDensOpt <- function(parameters, adPack, config) {
+    .Call(`_adlaplace_jointLogDensOpt`, parameters, adPack, config)
 }
 
 #' @export
@@ -29,6 +29,16 @@ inner_opt <- function(parameters, data, control, config) {
 #' @export
 inner_opt_adpack <- function(parameters, adPack, control, config) {
     .Call(`_adlaplace_inner_opt_adpack`, parameters, adPack, control, config)
+}
+
+#' @export
+traceHinvT <- function(parameters, LinvPt, LinvPtColumns, config, adPack = NULL) {
+    .Call(`_adlaplace_traceHinvT`, parameters, LinvPt, LinvPtColumns, config, adPack)
+}
+
+#' @export	
+getAdFun <- function(data, config, inner = FALSE) {
+    .Call(`_adlaplace_getAdFun`, data, config, inner)
 }
 
 #' @export

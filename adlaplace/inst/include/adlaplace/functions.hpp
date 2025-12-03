@@ -135,7 +135,6 @@ inline void get_hess_function(
     	std::vector<GroupPack>& tape,
     	Eigen::SparseMatrix<int> &Htemplate) {
 
-    	const size_t n         = x.size();
     	const size_t NnonZero  = Htemplate.nonZeros();
 
     	std::vector<double> outAll(NnonZero);
