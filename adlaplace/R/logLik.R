@@ -10,12 +10,16 @@ logLik = function(x, data, config,
 	config_inner$theta = x[seq(Nbeta+1, len=length(x) - Nbeta)]
 	Sgamma1 = seq(Nbeta+1, len=length(start_gamma))
 
+	if((1+length(unique(data$map))) != length(config_inner$theta)) {
+		warning("x is the wrong size")
+	} 
+
+	  adlaplace::jointLogDens(start_gamma, data, config_inner)
 
 	inner_res = adlaplace::inner_opt(
 		start_gamma,
 		data=data, config=config_inner, 
 		control=control)
-
 
 	inner_res$parameters = x
 	inner_res$fullParameters = c(config_inner$beta, inner_res$solution, config_inner$theta)
@@ -39,14 +43,48 @@ logLik = function(x, data, config,
 	)
 
 
+
+
 	Linv = Matrix::solve(inner_res$cholHessian$L)
+
+	if(FALSE) {
+		hessianAgain = adlaplace::hessian(inner_res$fullParameters, adPack, config)[Sgamma1, Sgamma1]
+		mys = 65+1:10;inner_res$hessian[mys, mys]  
+		hessianAgain[mys, mys]
+		# check hessian
+		checkHessian1 = 
+		inner_res$cholHessian$L %*% Matrix::Diagonal(length(inner_res$cholHessian$D), inner_res$cholHessian$D) %*%
+			Matrix::t(inner_res$cholHessian$L) 
+		checkHessian2 = checkHessian1[1+inner_res$cholHessian$P, inner_res$cholHessian$P+1]
+
+		round(checkHessian2[mys, mys],2)
+		round(hessianAgain[mys, mys],2)
+
+
+		check3 = (hessianAgain - checkHessian2)
+		quantile(check3@x)
+
+
+		invHessian = Matrix::t(Linv) %*% Matrix::Diagonal(length(inner_res$cholHessian$D), 1/inner_res$cholHessian$D) %*%
+			Linv 
+		table(round( (invHessian %*% checkHessian1)@x,3))
+		invHessian2 = invHessian[1+inner_res$cholHessian$P, inner_res$cholHessian$P+1] 
+		table(round( (invHessian2 %*% hessianAgain)@x, 3))
+
+		inner_res$cholHessian$L %*% Matrix::Diagonal(length(inner_res$cholHessian$D), inner_res$cholHessian$D) %*%
+			Matrix::t(inner_res$cholHessian$L) 
+
+	}
+
 	#Linv[theseq, theseq]
 		# H = Pt L D Lt P
 		# Hinv = Pt LinvT Dinv Linv P
 	halfDinv = Matrix::Diagonal(length(inner_res$cholHessian$D), (inner_res$cholHessian$D)^(-0.5))
 	halfH = (halfDinv %*% Linv)[,1+inner_res$cholHessian$P] 
 	LinvPt = Matrix::t(halfH)
-	Hinv =  halfH %*% LinvPt
+	Hinv =  LinvPt %*% halfH 
+
+	# str(Hinv %*% hessianAgain)
 
 	linvL = as(LinvPt, 'lMatrix')
 

@@ -1,0 +1,44 @@
+```{r stuff}
+data = readRDS("~/research/india-climate-maternal-study-2025/allData.rds")
+
+data$domInt = as.numeric(format(data$date, '%d'))
+data[data$domInt == Hmisc::monthDays(data$date), 'domInt'] = 30
+data$dom5 = 1+((data$domInt %% 5) == 0)
+data[format(data$date, '%m%d') == '0101', 'dom5'] = 3
+
+#alldat$dom5 = factor(alldat$dom5, labels =c(' ', '5', 'nyd'))
+
+data$dom5 <- factor(data$dom5,
+                      levels = c(1, 2, 3),
+                      labels = c(' ', '5', 'nyd'),
+                      exclude = NULL)
+
+
+NinStrata = aggregate(data[,'y'], data[,'uniqueStrata'], sum)
+colnames(NinStrata) = gsub("^y$", "NinStrata", colnames(NinStrata))
+data = merge(data, NinStrata, all=TRUE)
+
+res <- hpolcc::hnlm(
+  formula= y ~ dom5 + 
+  f(temp_value_lag01, model='iwp',ref_value = 25, p=3, 
+      knots = seq(0, 40, by=2.5)), 
+  data=data,
+  cc_design =  c("cell", "timeStrata"),
+  config = list(
+    transform_theta = TRUE, 
+    boundary_is_random= TRUE,
+    dirichlet= TRUE, verbose=FALSE,
+    num_threads=parallel::detectCores(), 
+    Nclusters = 100*parallel::detectCores()
+  ),
+  for_dev = TRUE
+  )
+
+Dpar = 1
+Sx = seq(-0.1, 0.1, len=9) + res$parameters[Dpar]
+SxD = Sx[-1] - diff(Sx)/2
+parDf = data.frame(res$parameters)[,rep(1, length(Sx))]
+parDf[Dpar,] = Sx
+
+
+```

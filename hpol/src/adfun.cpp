@@ -340,6 +340,9 @@ GroupPack emptyAdFun(
   } //gropu loop
   } // sparsity list size
 
+      if(config.verbose) {
+        Rcpp::Rcout << "sparsity done" <<"\n";
+      }
 
 
   // ---- Phase 2: build ADFun per group (parallel, no Rcpp touched) ----

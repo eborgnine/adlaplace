@@ -153,33 +153,35 @@ CppAD::vector<CppAD::AD<double>> logDensRandom(
 
 
 	CppAD::vector<CppAD::AD<double>> result(1, 0.0);
-	CppAD::AD<double> qpart = 0.0;
+	CppAD::AD<double> qpart = 0.0, qDet=0.0;
 
 	CppAD::vector<CppAD::AD<double>> gammaScaled(data.Ngamma);
 
 
 	if(config.verbose) {
-		Rcpp::Rcout << "q, ngamma  " << data.Ngamma << " nmap " << data.map.size() << " ntheta " << config.theta.size() << "\n";
+		Rcpp::Rcout << "q, ngamma  " << data.Ngamma << " nmap " << data.map.size() << 
+		" ntheta " << config.theta.size() << 
+		" exp theta map 0 " <<  expTheta[data.map[0]] << " gamma0 " << gamma[0] << "\n";
 	}
 
 
 	for(size_t D=0;D<data.Ngamma;D++) {
 
-
 		size_t mapHere = data.map[D];
-		gammaScaled[D] = gamma[D] / theta[mapHere];
-		qpart += logTheta[mapHere] + 
-			gammaScaled[D]*gammaScaled[D]*(0.5*data.Qdiag[D]);
-
+		gammaScaled[D] = gamma[D] / expTheta[mapHere];
+		qpart += 
+			gammaScaled[D]*gammaScaled[D]*data.Qdiag[D];
+		qDet += logTheta[mapHere];
 	}
+		qpart *= 0.5;
 
 	if(config.verbose) {
-		Rcpp::Rcout << "logDensRandom " << qpart << "\n";
+		Rcpp::Rcout << "logDensRandom " << qpart << " det "<< qDet << "\n";
 	}
 
 	// Warning, no offdiag of Q implemented
 
-	result[0] = qpart;
+	result[0] = qpart + qDet;
 	return(result);
 }
 

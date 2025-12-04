@@ -132,9 +132,10 @@ if(!is.null(config$first)) {
   theFirst = as(config$first, 'lMatrix')[Sgamma1,]
 
   whichColumnsByGroup1 = apply(theFirst, 2, function(xx) {
-    linvHere = linvL[which(xx), ]
-    which(diff(linvHere@p)>0)-1L
+    linvHere = linvL[which(as.vector(xx)), ,drop=FALSE]
+    try(which(diff(linvHere@p)>0)-1L)
   })
+
   whichColumnsByGroup = Matrix::sparseMatrix(
     i = unlist(whichColumnsByGroup1),
     j = rep(seq(0, len=length(whichColumnsByGroup1)), unlist(lapply(whichColumnsByGroup1, length))),

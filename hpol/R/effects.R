@@ -105,9 +105,12 @@ iwpDesign <- function(term, data){
   res=local_poly(knots = term$knots-term$ref_value, refined_x = data[[term$var]]-term$ref_value, p = term$p)
   res = methods::as(res, "TsparseMatrix")
 
+
+  bnumPad = formatC(1:ncol(res), width = max(ceiling(c(1,log10(ncol(res)))), na.rm=TRUE), flag='0')  
   dimnames(res) = list(
     rownames(data), 
-    paste(term$var, term$model, 1:ncol(res), sep='_')
+    paste(term$var, term$model, bnumPad, sep='_')
+
   )
   res
 }

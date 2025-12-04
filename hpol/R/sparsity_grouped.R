@@ -33,7 +33,7 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 	if(verbose) {
 		cat("getting first deriv...")
 	}
-	firstDeriv = gradLogical(x, dataNoMap, config)
+	firstDeriv = hpolcc::gradLogical(x, dataNoMap, config)
 	firstDeriv = Matrix::Matrix(firstDeriv)
 
 	if(verbose) {
@@ -83,7 +83,7 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 	}
 	hessianByBlock = mapply(
 		function(strata, config, ...) {
-			hessianDenseLogical(..., config = modifyList(config, list(groups = strata)))
+			hpolcc:::hessianDenseLogical(..., config = modifyList(config, list(groups = strata)))
 		},
 		strata = strataListForHessian,
 		MoreArgs = list(
@@ -110,7 +110,7 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 		cat("getting Q hessian")
 	}
 
-	hessianQ = list(dense=hessianQdenseLogical(parameters=x, data=data, config=config))
+	hessianQ = list(dense=hpolcc:::hessianQdenseLogical(parameters=x, data=data, config=config))
 
 
 # get non-zeros of tensor
@@ -186,7 +186,7 @@ sparsity_grouped = function(x, data, config, verbose=FALSE) {
 		fullHessianPairsRNs
 	)-1L)
 
-	gradQ = gradQLogical(x, data, config)
+	gradQ = hpolcc:::gradQLogical(x, data, config)
 
 	sparsityQ$first = list(
 		full = which(gradQ)-1L,

@@ -28,8 +28,8 @@ AmatList = list(
 )
 Amat = do.call(cbind, AmatList)
 beta = rep(1, ncol(X))
-thetaOrig = 0.1;theta = log(thetaOrig)
-gamma = rnorm(ncol(Amat), sd=thetaOrig)
+thetaOrig = c(0.1, 0.1, 0.1);theta = log(thetaOrig)
+gamma = rnorm(ncol(Amat), sd=rep(thetaOrig[1:2], c(Nrandom1, Nrandom2)))
 eta = as.vector(X %*% beta + Amat %*% gamma)
 etaT = exp(eta)
 Z = rgamma(length(etaT), 0.1^(-2), 0.1^(-2))
@@ -53,18 +53,18 @@ config = list(beta = rep(1, nrow(data$XTp)),
 	transform_theta=TRUE, start_gamma = rep(0, nrow(data$ATp)),
 	num_threads=parallel::detectCores(),
 	verbose=FALSE)	
+sparsity_list = adlaplace::group_sparsity(data=data, config=config)
+config = modifyList(config, sparsity_list)
 ```
 
 
+
 ```{r loglik}
-sparsity_list = adlaplace::group_sparsity(data=data, config=config)
-config = modifyList(config, sparsity_list)
 adFunFull = adlaplace::getAdFun(data, modifyList(config, list(verbose=TRUE)), inner=FALSE)
 ll1 = adlaplace::logLik(
 	x=c(config$beta, config$theta),
 	data, config,
-	deriv=TRUE
-	)
+	deriv=TRUE)
 ```
 
 ```{r outerOpt}
@@ -73,6 +73,7 @@ assign('start_gamma', config$start_gamma, cache)
 outer_fn = function(..., control_inner = list(), cache) {
 	result = adlaplace::logLik(..., control = control_inner, start_gamma = cache$start_gamma, deriv=FALSE)
 	assign('start_gamma', result$solution,  cache)
+	assign('x', result$parameters,  cache)
 	result$minusLogLik
 }
 outer_gr = function(..., control_inner = list(), cache) {
@@ -82,16 +83,13 @@ outer_gr = function(..., control_inner = list(), cache) {
 }
 adFunFull = adlaplace::getAdFun(data, modifyList(config, list(verbose=TRUE)), inner=FALSE)
 
-outer_fn(c(config$beta, config$theta), data=data, config=config, cache=cache, adPack = adFunFull)
-outer_gr(c(config$beta, config$theta), data=data, config=config, cache=cache, adPack = adFunFull)
-
-
 mle = trustOptim::trust.optim(
 	c(config$beta, config$theta),
 	outer_fn, outer_gr,
 	method='SR1',
 	data=data, config=config, cache=cache, adPack = adFunFull,
-	control_inner = list()
+	control_inner = list(),
+	control = list(report.level=4, report.freq=1)
 	)
 ```
 
@@ -235,25 +233,28 @@ llPlain = function(x, data, config) {
 		loglik_vec2 = lgamma(yHere + r) 
 		loglik_vec3 =  - lgamma(yHere + 1) - lgamma(r) + r * log(r)
 
-		gamma_scaled = gamma / theta[data$map + 1L]
+		thetaMap = theta[data$map +1L]
+		gamma_scaled = gamma / thetaMap
 		qpart = 0.5 * sum(gamma_scaled^2 * data$Qdiag)
-		qpartDet = sum(log(theta[data$map +1L]))
+		qpartDet = sum(log(thetaMap))
 
 		c(random = qpart, 
-			ranodmDet = qpartDet,
+			randomDet = qpartDet,
 		 	obs=-sum(loglik_vec1b) ,
 		 	extra=  - sum(loglik_vec2) - sum(loglik_vec3), 
 			dd=sum(loglik_vec1dd), ee=sum(loglik_vec1ee), 
-			R = -dataPart)
+			R = -dataPart,
+			minusLogLik = -dataPart + qpart + qpartDet)
 	}
 ```
 
 
 ```{r checkGrad}
-Npar=13;Dpar = 4
+Npar=13;Dpar = 3
 x = c(config$beta, config$theta)
+x = c(beta, theta)
 parDf = data.frame(x)[,rep(1, Npar)]
-Sx = seq(-0.01, 0.01, len=13) + parDf[Dpar,1]
+Sx = seq(-1.5, 1.5, len=13) + parDf[Dpar,1]
 SxD = Sx[-1] - diff(Sx)/2
 parDf[Dpar,] = Sx
 
@@ -268,12 +269,14 @@ dens1 = mapply(
   )
 
 deriv1 = do.call(abind::abind, c(lapply(dens1, '[[', "deriv"), list(along=3)))
-
-round(deriv1[Dpar,,],2)
-
 sL = unlist(lapply(dens1, function(xx) xx$inner$minusLogLik))
 
-plot(Sx, sL)
+plot(Sx, deriv1[Dpar,'dL', ])
+lines(SxD, diff(sL)/diff(Sx))
+
+
+
+
 
 sDet = unlist(lapply(dens1, function(xx) xx$inner$halfLogDet))
 plot(Sx, sDet)
@@ -281,8 +284,30 @@ plot(Sx, deriv1[Dpar,'dDet', ])
 lines(SxD, diff(sDet)/diff(Sx))
 
 
-plot(Sx, deriv1[Dpar,'dL', ])
-lines(SxD, diff(sL)/diff(Sx))
+adFun = adlaplace::getAdFun(data, modifyList(config, 
+	list(verbose=TRUE, num_threads = 1)), inner=FALSE)
+
+
+ll1 = adlaplace::logLik(
+	x=c(beta, theta),
+	data, config,
+	adPack = adFun,
+	deriv=FALSE)
+
+
+x = c(beta, ll1$solution, theta)
+Npar=13;Dpar = length(x)
+parDf = data.frame(x)[,rep(1, Npar)]
+Sx = seq(-1.5, 1.5, len=13) + parDf[Dpar,1]
+SxD = Sx[-1] - diff(Sx)/2
+parDf[Dpar,] = Sx
+
+ dens1 = mapply(
+  adlaplace::jointLogDens,
+  parameters = as.list(parDf),
+  MoreArgs = list(data=data, config=config),
+  SIMPLIFY=TRUE
+  )
 
 
  dens3 = mapply(
@@ -298,6 +323,10 @@ dens2a = mapply(
   MoreArgs = list(data = data, config=config),
   SIMPLIFY=TRUE
   )
+
+dens2 = apply(dens2a, 2,'[', "minusLogLik")
+matplot(Sx, cbind(dens1,dens2, dens3))
+
 
 adFun2 = adlaplace::getAdFun(
 	 data=modifyList(data, list(groups = data$groups[,1,drop=FALSE])), 
@@ -316,17 +345,14 @@ adlaplace::jointLogDensOpt(
   	data=modifyList(data, list(groups = data$groups[,1,drop=FALSE])), 
 	config=modifyList(config, 
 		list(verbose=TRUE, num_threads = 1)))
-(bob =   llPlain(parDf[,1],
+
+(bob =   llPlain(x=parDf[,9],
 	data=modifyList(data, list(groups = data$groups[,1,drop=FALSE])), 
 	config=config))
-sum(bob[c('random', 'ranodmDet','obs','extra')])	
-sum(bob[c('random', 'ranodmDet','R')])	
-sum(bob[5:6])
-sum(bob[1:3])
+sum(bob[1:4])
 
 
-dens2 = apply(dens2a[c('random', 'ranodmDet','obs','extra'), ], 2, sum)
-matplot(Sx, cbind(dens1,dens2, dens3))
+
 quantile(dens1 - dens3)
 llPlain(x, data, config)
 

@@ -57,7 +57,7 @@ getOptimalPairs = function(hessian, Sparams, Sgamma1,
     # find optimal indieces for evaluating hessian
   pairsRandom = data.frame(i=hessianRandom@i, j=hessianRandom@j)
   pairsHessian = pairsRandom[pairsRandom$j > pairsRandom$i, ]
-  pairsHessian$pair = pairsHessian$other = NA
+  pairsHessian$pair = pairsHessian$other = rep(NA, nrow(pairsHessian))
   Nna=1;Niter = 0
   Sdim = c('i','j')
   while(Nna > 0 & Niter < nrow(pairsHessian)) {

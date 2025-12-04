@@ -102,7 +102,7 @@ hnlm <- function(
   isRandom = setdiff(1:length(terms), c(isFpoly, isHrpoly, isAsis))
 
   XasIs = lapply(terms[isAsis], function(xx, data) {
-    res = Matrix::sparse.model.matrix(xx$f, data, drop.unused.levels=TRUE)
+    res = Matrix::sparse.model.matrix(xx$f, data, drop.unused.levels=FALSE)
     if(is.factor(data[[xx$var]])) {
       res = res[,-1, drop=FALSE]
     }
@@ -150,9 +150,13 @@ hnlm <- function(
     QfPoly = lapply(XfPoly, function(xx, prec) Matrix::Diagonal(ncol(xx), x=prec), prec= config$prec_boundary)
     isBoundary = isFpoly
     Xlist = XasIs
-    XfPoly = do.call(cbind, XfPoly)    
-    colnames(XfPoly) = gsub("_fpoly_", "_fpoly_GLOBAL_", colnames(XfPoly))
-    Alist = c(list(XfPoly), Arandom)
+    XfPoly = do.call(cbind, XfPoly)
+    if(!is.null(XfPoly)) {
+      colnames(XfPoly) = gsub("_fpoly_", "_fpoly_GLOBAL_", colnames(XfPoly))
+      Alist = c(list(XfPoly), Arandom)
+    } else {
+      Alist = Arandom      
+    }
     Qs = c(QfPoly, Qs)
 
   } else {
@@ -229,7 +233,7 @@ hnlm <- function(
     map = na.omit(gamma_theta$matchTheta)-1,
     cc_matrix = cc_matrix
   )
-  tmb_data = formatHpolData(tmb_data)
+  tmb_data = hpolcc:::formatHpolData(tmb_data)
   gamma_info$matchA = match(gamma_info$name, rownames(tmb_data$ATp))
 
 
@@ -251,7 +255,7 @@ hnlm <- function(
   if(verboseOrig) {
     cat("getting groups..")
   }
-  groups = sparsity_grouped(x=full_parameters, data=tmb_data, config, verbose=verboseOrig)
+  groups = hpolcc::sparsity_grouped(x=full_parameters, data=tmb_data, config, verbose=verboseOrig)
   if(verboseOrig) {
     cat("done\n")
   }
@@ -288,7 +292,7 @@ hnlm <- function(
       )
     )
 
-  adFunFull = getAdFun(full_parameters, tmb_data, config)
+  adFunFull = hpolcc::getAdFun(full_parameters, tmb_data, config)
 
 
   if(verboseOrig) {
