@@ -18,9 +18,11 @@ NinStrata = aggregate(data[,'y'], data[,'uniqueStrata'], sum)
 colnames(NinStrata) = gsub("^y$", "NinStrata", colnames(NinStrata))
 data = merge(data, NinStrata, all=TRUE)
 
+data$temp_value_lagzero = data$temp_value_lag0
+
 res <- hpolcc::hnlm(
   formula= y ~ dom5 + 
-  f(temp_value_lag01, model='iwp',ref_value = 25, p=3, 
+  f(temp_value_lagzero, model='iwp',ref_value = 25, p=3, 
       knots = seq(0, 40, by=2.5)), 
   data=data,
   cc_design =  c("cell", "timeStrata"),
@@ -29,21 +31,22 @@ res <- hpolcc::hnlm(
     boundary_is_random= TRUE,
     dirichlet= TRUE, verbose=TRUE,
     num_threads=parallel::detectCores(), 
-    Nclusters = 100*parallel::detectCores()
+    Nclusters = 100*parallel::detectCores(),
+    Nsim = 1000
   )
   )
 
-par(mar=c(3,3,0,0), bty='l')
+par(mar=c(4,4,0,0), bty='l')
 toPlot = 100*(exp(res$sample$global[[1]])-1)
  matplot(
   res$sample$x[[1]], 
-  toPlot, type='l', lty=1, col='#00000020', ylim = 100*c(-0.5, 2),
+  toPlot, type='l', lty=1, col='#00000004', ylim = 100*c(-0.5, 1.5),
     xlab = 'mean temp', ylab='pct rr', xaxs='i'
 ) 
 matlines(
   res$sample$x[[1]], 
   t(apply(toPlot, 1, quantile, prob=c(0.025, 0.975, 0.5))),
-  lty=1, col='red'
+  lty=c(2,2,1), col='red'
   )
 
 

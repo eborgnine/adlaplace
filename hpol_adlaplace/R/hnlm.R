@@ -366,7 +366,7 @@ mle = trustOptim::trust.optim(
   Nparams = nrow(result$extra$parameters$gamma)
 
 
-  Nsim = 500
+  Nsim = pmin(500, config$Nsim, na.rm=TRUE)
   simInd = matrix(
     rnorm(Nsim * Nparams),
     Nparams, Nsim)
