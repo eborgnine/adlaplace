@@ -181,7 +181,7 @@ hnlm <- function(
 
   theta_setup = lapply(terms[c(isHrpoly, isRandom)], hpolcc:::getThetaSetup, theta_info = list())
 
-#  if (config$dirichlet) {
+  if (config$dirichlet) {
     if(is.null(config$dirichlet_init)) {
       config$dirichlet_init = 0.1
     }
@@ -189,7 +189,7 @@ hnlm <- function(
       list(data.frame(var='overdisp', 
         model='overdisp', global=NA, order=NA, 
         init=config$dirichlet_init, name='overdisp')))
-
+  } 
   theta_info = do.call(rbind, theta_setup)
 
   gamma_setup <- lapply(terms[c(isBoundary, isHrpoly, isRandom)], hpolcc:::getGammaSetup)
@@ -243,53 +243,25 @@ hnlm <- function(
   Sgamma = seq(nrow(tmb_data$XTp)+1, len=nrow(tmb_data$ATp))
 
   start_beta = rep(0, nrow(tmb_data$XTp))
-  config$start_gamma=    rep(0, nrow(tmb_data$ATp)) 
+  start_gamma=    rep(0, nrow(tmb_data$ATp)) 
   start_theta = theta_info$init
   config$beta = start_beta
   config$theta = start_theta
 
   parameters = c(start_beta, start_theta)
-  full_parameters = c(start_beta, config$start_gamma, start_theta)
+  full_parameters = c(start_beta, start_gamma, start_theta)
+
 
   if(verboseOrig) {
     cat("getting groups..")
   }
 
-  sparsity_raw = hpolcc::sparsity(tmb_data, config)
-  # last two are Q and extra
-  sparsity_raw = sparsity_raw[seq(1, len=length(sparsity_raw)-2)]
-
-  firstDerivList = lapply(sparsity_raw, '[[', 'grad')
-  firstDeriv = Matrix::sparseMatrix(
-    i = unlist(firstDerivList),
-    j = rep(seq(0, len=length(firstDerivList)), unlist(lapply(firstDerivList, length))),
-    x = rep(1, length(unlist(firstDerivList))),
-    dims = c(length(full_parameters), length(firstDerivList)),
-    index1=FALSE
-  )
-
-  config$groups = adlaplace::adFun_groups(ncol(firstDeriv), firstDeriv)
-  sparsity_raw = hpolcc::sparsity(tmb_data, config)
-  sparsity_list = adlaplace::group_sparsity(data=tmb_data, config=config, sparsity_raw)
-
+  sparsity_list = adlaplace::group_sparsity(data=tmb_data, config=config)
   config = modifyList(config, sparsity_list)
+
 
   cache = new.env()
   assign('start_gamma', config$start_gamma, cache)
-
-  theInner = hpolcc::inner_opt(
-    config$start_gamma,
-    tmb_data,
-    control = control_inner, 
-    config=config 
-  )
-
-  # loglik takes 'package' argument
-  # inner_opt produces LinvPt
-  # ... and whichColumnsByGroup and 
-  # outer adpack argument, compute trace
-  # ... and full hessian, gradient 
-
 
 
   if(for_dev)

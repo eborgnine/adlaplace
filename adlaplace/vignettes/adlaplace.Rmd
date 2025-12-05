@@ -45,26 +45,29 @@ data = list(y = y,
 	map = map, 
 	Qdiag = rep(1, ncol(Amat)))
 
-Ngroups = ceiling(Nobs/3)
-data$groups = adlaplace::adFun_groups(Ngroups, data$ATp)
 
 config = list(beta = rep(1, nrow(data$XTp)), 
 	theta = c(rep(-1, length(NperEffect)), -1), 
 	transform_theta=TRUE, start_gamma = rep(0, nrow(data$ATp)),
+	groups = adlaplace::adFun_groups(100, data$ATp),
 	num_threads=parallel::detectCores(),
 	verbose=FALSE)	
-sparsity_list = adlaplace::group_sparsity(data=data, config=config)
+
+sparsity_raw = adlaplace::sparsity(data, config)
+sparsity_list = adlaplace::group_sparsity(data=data, config=config, sparsity_raw)
+
 config = modifyList(config, sparsity_list)
 ```
 
 
 
+
 ```{r loglik}
-adFunFull = adlaplace::getAdFun(data, modifyList(config, list(verbose=TRUE)), inner=FALSE)
 ll1 = adlaplace::logLik(
 	x=c(config$beta, config$theta),
 	data, config,
 	deriv=TRUE)
+ll1$deriv	
 ```
 
 ```{r outerOpt}
@@ -94,42 +97,7 @@ mle = trustOptim::trust.optim(
 ```
 
 
-
-
-
-```{r getAdstuff}
-system.time(res2 <- adlaplace::inner_opt(
-	config$start_gamma, data=data, config=config,
-	control = list(report.level=4, report.freq=1)))
-unlist(res2[c('minusLogLik', 'halfLogDet','fval')]	)
-quantile(res2$gradient)
-
-
-adFunInner = adlaplace::getAdFun(data, config, inner=TRUE)
-res1 = trustOptim::trust.optim(
-	config$start_gamma, 
-	adlaplace::jointLogDens,
-	adlaplace::grad,
-#	adlaplace::hessian,
-	adPack = adFunInner, config=config,
-	method='SR1'#'Sparse'
-	)
-```
-
-
-```{r logLik}
-adPack = adlaplace::getAdFun(data, config, inner=FALSE)
-stuff = adlaplace:::logLik(
-	x = c(config$beta, config$theta), 
-	data, config, 
-	start_gamma = config$start_gamma, 	
-	adPack = adPack, 
-	deriv=TRUE)
-stuff$deriv	
-```
-
-
-```{r eval}
+```{r checkDerivatives}
 # get adFun again, with sparsity
 data2 = data#modifyList(data, list(groups = data$groups[,1:200,drop=FALSE]))
 config2 = config[grep("group|hessian", names(config), invert=TRUE)]
@@ -179,18 +147,7 @@ x2 = numDeriv::grad(forNumDeriv, config$start_gamma[1:20], adPack = adFun, confi
 plot(x2, x[1:length(x2)])
 ```
 
-```{r opt}
-system.time(
-	res1 <- trustOptim::trust.optim(
-	config$start_gamma,
-	adlaplace::jointLogDens,
-	adlaplace::grad,
-	adlaplace::hessian,
-	method='Sparse',
-	control = list(report.level=4, report.freq=1),
-	adPack = adlaplace::getAdFun(data, config), config=config
-	))
-```
+
 
 
 ```{r llPlain}
@@ -376,11 +333,4 @@ plot(Sx, lapply(hes1, function(xx) xx[Dpar, Dpar]))
 lines(SxD, diff(grad1[Dpar,])/diff(Sx))
 
 ````
-
-to do: 
-
-
-- third, logLik.R
-- outer opt, cache
-- link from hpolcc
 

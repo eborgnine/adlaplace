@@ -1,8 +1,6 @@
 #ifndef CPPADUTILS_HPP
 #define CPPADUTILS_HPP
 
-#include <cppad/cppad.hpp>
-
 
 inline CppAD::vector<CppAD::AD<double>> slice(
   const CppAD::vector<CppAD::AD<double>>& x,

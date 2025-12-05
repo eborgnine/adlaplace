@@ -1,12 +1,6 @@
 #ifndef ADPACK_HPP
 #define ADPACK_HPP
 
-#include <cppad/cppad.hpp>
-
-#include "adlaplace/data.hpp"
-#include "adlaplace/config.hpp"
-
-
 struct GroupPack {
   CppAD::ADFun<double>                    fun;       // taped function for the group
   CppAD::sparse_hes_work              work_hess;      // reusable work cache

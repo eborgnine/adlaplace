@@ -3,46 +3,46 @@
 
 #' @export	
 getAdFun <- function(data, config, inner = FALSE) {
-    .Call(`_adlaplace_getAdFun`, data, config, inner)
+    .Call(`_hpolcc_getAdFun`, data, config, inner)
 }
 
 #' @export
 jointLogDensNoAdfun <- function(parameters, data, config) {
-    .Call(`_adlaplace_jointLogDensNoAdfun`, parameters, data, config)
+    .Call(`_hpolcc_jointLogDensNoAdfun`, parameters, data, config)
 }
 
 #' @export
 jointLogDens <- function(parameters, adPack, config) {
-    .Call(`_adlaplace_jointLogDens`, parameters, adPack, config)
+    .Call(`_hpolcc_jointLogDens`, parameters, adPack, config)
 }
 
 #' @export
 grad <- function(parameters, adPack, config) {
-    .Call(`_adlaplace_grad`, parameters, adPack, config)
+    .Call(`_hpolcc_grad`, parameters, adPack, config)
 }
 
 #' @export
 hessian <- function(parameters, adPack, config) {
-    .Call(`_adlaplace_hessian`, parameters, adPack, config)
+    .Call(`_hpolcc_hessian`, parameters, adPack, config)
 }
 
 #' @export
 inner_opt <- function(parameters, data, control, config) {
-    .Call(`_adlaplace_inner_opt`, parameters, data, control, config)
+    .Call(`_hpolcc_inner_opt`, parameters, data, control, config)
 }
 
 #' @export
 inner_opt_adpack <- function(parameters, adPack, control, config) {
-    .Call(`_adlaplace_inner_opt_adpack`, parameters, adPack, control, config)
+    .Call(`_hpolcc_inner_opt_adpack`, parameters, adPack, control, config)
 }
 
 #' @export
 traceHinvT <- function(parameters, LinvPt, LinvPtColumns, config, adPack = NULL) {
-    .Call(`_adlaplace_traceHinvT`, parameters, LinvPt, LinvPtColumns, config, adPack)
+    .Call(`_hpolcc_traceHinvT`, parameters, LinvPt, LinvPtColumns, config, adPack)
 }
 
 #' @export
 sparsity <- function(data, config) {
-    .Call(`_adlaplace_sparsity`, data, config)
+    .Call(`_hpolcc_sparsity`, data, config)
 }
 

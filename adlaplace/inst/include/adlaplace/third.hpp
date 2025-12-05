@@ -1,8 +1,6 @@
 #ifndef THIRD_HPP
 #define THIRD_HPP
 
-#include "adlaplace/adpack.hpp"
-
 inline CppAD::vector<double> traceHinvT(
     const CppAD::vector<double>&  parameters,
     const CSCMatrix& LinvPt,

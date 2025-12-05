@@ -1,9 +1,6 @@
 #ifndef SPARSITY_HPP
 #define SPARSITY_HPP
 
-#include<Rcpp.h>
-#include <cppad/cppad.hpp>
-#include "adlaplace/adpack.hpp"
 
 //#define DEBUG
 
@@ -101,8 +98,6 @@ if(verbose) {
 
 }
 
-
-
 inline Rcpp::List sparsity(
 	std::vector<GroupPack>& adPack,
 	const CppAD::vector<double>& parameters,
@@ -146,13 +141,13 @@ inline Rcpp::List sparsity(
     		internal_bool,
     		pattern_out_grad);
 
+
     	adPack[D].fun.for_hes_sparsity(
     		select_domain,
     		select_range,
     		internal_bool,
     		pattern_out_hess
     		);
-
 
     	const CppAD::vector<size_t>& col_grad = pattern_out_grad.col();
     	const size_t Kgrad = pattern_out_grad.nnz();
@@ -180,4 +175,5 @@ inline Rcpp::List sparsity(
     }
     return(result);
 }
+
 #endif

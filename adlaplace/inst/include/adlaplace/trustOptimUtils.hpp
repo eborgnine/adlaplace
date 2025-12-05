@@ -1,6 +1,5 @@
 #ifndef TRUSTOPTIMUTILS_HPP
 #define TRUSTOPTIMUTILS_HPP
-#include <Rcpp.h>
 
 // Small helpers with defaults
 inline double get_double_ctrl(const Rcpp::List& ctl,

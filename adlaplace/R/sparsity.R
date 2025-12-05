@@ -35,20 +35,13 @@ sparsity_by_group = function(xx, template, dims, Sgamma0) {
 }
 
 #' @export
-group_sparsity = function(data, config, adFun) {
+group_sparsity = function(data, config, sparsity_list) {
 
 	Sgamma0 = seq.int(length(config$beta), length.out=length(config$start_gamma))
 	Sgamma1 = Sgamma0+1L
 	Nparams = length(config$beta) + length(config$start_gamma) + length(config$theta)
 
-	if(missing(adFun)) {
-		adFun = adlaplace::getAdFun(data, config, inner=FALSE)
-	}
 
-	sparsity_list = adlaplace:::sparsity(
-		adFun, 
-		c(config$beta, config$start_gamma, config$theta),
-		verbose=pmax(FALSE,config$verbose, na.rm=TRUE))
 	allRow = lapply(sparsity_list, '[[', 'row')
 	allCol = lapply(sparsity_list, '[[', 'col')
 	allIJ = cbind(i=unlist(allRow), j=unlist(allCol))

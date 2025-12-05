@@ -1,5 +1,3 @@
-
-
 #include<omp.h>
 
 #ifndef FOROMP_HPP

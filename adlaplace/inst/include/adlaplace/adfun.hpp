@@ -1,9 +1,6 @@
 #ifndef ADFUN_HPP
 #define ADFUN_HPP
 
-#include "adlaplace/adpack.hpp"
-#include "adlaplace/cppadUtils.hpp"
-#include "adlaplace/sparsity.hpp"
 
 template <class Type>
 CppAD::vector<CppAD::AD<double>> logDensObs(
@@ -34,8 +31,19 @@ inline std::vector<GroupPack> getAdFunOuter(
 	const Data& data,
 	const Config& config) {
 
-	std::vector<GroupPack> result(data.Ngroups+2L);
 
+	size_t Ngroups = config.groups.ncol();
+	if(Ngroups==0) {
+		// groups not provided, check for elgm matrix
+		Ngroups = data.elgm_matrix.ncol();
+		if(Ngroups == 0) {
+			// no elgm matrix, use y
+			Ngroups = data.y.size();
+		}
+	}
+
+
+	std::vector<GroupPack> result(Ngroups+2L);
 
 		const size_t Ngamma = config.start_gamma.size();
 		const size_t Nbeta = config.beta.size();
@@ -43,12 +51,10 @@ inline std::vector<GroupPack> getAdFunOuter(
 		const size_t Nparams = Nbeta + Ngamma + Ntheta;
 
 	if(config.verbose) {
-		Rcpp::Rcout << "outer, groups " << data.Ngroups << " Nbeta " << Nbeta << " Ntheta " << Ntheta << " Nparams " << Nparams << "\n";
+		Rcpp::Rcout << "outer, groups " << Ngroups << " Nbeta " << Nbeta << " Ntheta " << Ntheta << " Nparams " << Nparams << "\n";
 	}
 
-# pragma omp parallel
-	{
-		CppAD::vector<CppAD::AD<double>> ad_params(Nparams);
+		CppAD::vector<CppAD::AD<double>> ad_params_G(Nparams);
 		for(size_t D=0;D<Nbeta;D++) {
 			ad_params[D] = config.beta[D];
 		}
@@ -59,9 +65,16 @@ inline std::vector<GroupPack> getAdFunOuter(
 				ad_params[Dtheta+Nbeta+Ngamma] = config.theta[Dtheta];
 		} 
 
+	if(config.verbose) {
+		Rcpp::Rcout << ".";
+	}
+# pragma omp parallel
+	{
+			CppAD::vector<CppAD::AD<double>> ad_params = ad_params_G;
 
 # pragma omp for nowait
-		for(size_t D=0;D<data.Ngroups;D++) {
+		for(size_t D=0;D<Ngroups;D++) {
+
 
 			CppAD::Independent(ad_params);
 			auto resultHere = logDensObs(
@@ -70,6 +83,7 @@ inline std::vector<GroupPack> getAdFunOuter(
 				slice(ad_params, Nbeta + Ngamma, Nparams), // theta
 				data, config, D);
 			CppAD::ADFun<double> fun(ad_params, resultHere);
+
 			result[D].fun = std::move(fun);
 		}
 
@@ -84,7 +98,7 @@ inline std::vector<GroupPack> getAdFunOuter(
 				slice(ad_params, Nbeta + Ngamma, Nparams), // theta
 				data, config);   
 			CppAD::ADFun<double> fun(ad_params, resultHere);
-			result[data.Ngroups].fun = std::move(fun);
+			result[Ngroups].fun = std::move(fun);
 
 		}
 
@@ -96,7 +110,7 @@ inline std::vector<GroupPack> getAdFunOuter(
 				slice(ad_params, Nbeta + Ngamma, Nparams), // theta
 				data, config);   
 			CppAD::ADFun<double> fun(ad_params, resultHere);
-			result[data.Ngroups+1].fun = std::move(fun);
+			result[Ngroups+1].fun = std::move(fun);
 
 		}
 
@@ -123,11 +137,20 @@ inline std::vector<GroupPack> getAdFunInner(
 
 	auto parameters = config.start_gamma;
 
+	size_t Ngroups = config.groups.ncol();
+	if(Ngroups==0) {
+		// groups not provided, check for elgm matrix
+		Ngroups = data.elgm_matrix.ncol();
+		if(Ngroups == 0) {
+			// no elgm matrix, use y
+			Ngroups = data.y.size();
+		}
+	}
 
-	std::vector<GroupPack> result(data.Ngroups+2L);
+	std::vector<GroupPack> result(Ngroups+2L);
 
 	if(config.verbose) {
-		Rcpp::Rcout << " adfun Nparams " << parameters.size() << " groups " << data.Ngroups << " ";
+		Rcpp::Rcout << " adfun Nparams " << parameters.size() << " groups " << Ngroups << " ";
 	}
 
 # pragma omp parallel
@@ -140,7 +163,7 @@ inline std::vector<GroupPack> getAdFunInner(
 
 
 # pragma omp for nowait
-		for(size_t D=0;D<data.Ngroups;D++) {
+		for(size_t D=0;D<Ngroups;D++) {
 
 			CppAD::Independent(ad_params);   
 			auto resultHere = logDensObs(
@@ -160,7 +183,7 @@ inline std::vector<GroupPack> getAdFunInner(
 			auto resultHere = logDensRandom(ad_params, 
 				config.theta, data, config);   
 			CppAD::ADFun<double> fun(ad_params, resultHere);
-			result[data.Ngroups].fun = std::move(fun);
+			result[Ngroups].fun = std::move(fun);
 		}
 
 		# pragma omp single nowait
@@ -174,7 +197,7 @@ inline std::vector<GroupPack> getAdFunInner(
 			CppAD::vector<CppAD::AD<double>> resultHere(1, 0.0);
 			resultHere[0] += resultExtra[0];
 			CppAD::ADFun<double> fun(ad_params, resultHere);
-			result[data.Ngroups+1].fun = std::move(fun);
+			result[Ngroups+1].fun = std::move(fun);
 
 		}
 
@@ -193,6 +216,94 @@ inline std::vector<GroupPack> getAdFunInner(
 
 	return(result);
 }
+
+inline double jointLogDensNoAdfun_backend(
+	Rcpp::NumericVector parameters, 
+	Rcpp::List dataR,
+	Rcpp::List configR)
+{
+
+	Config config(configR);
+	Data data(dataR);
+
+
+	const size_t Nparams = parameters.size();
+	const size_t Nbeta = config.beta.size();
+	const size_t Ntheta = config.theta.size();
+	const size_t Ngamma = config.start_gamma.size();
+
+	size_t Ngroups = config.groups.ncol();
+	if(Ngroups==0) {
+		// groups not provided, check for elgm matrix
+		Ngroups = data.elgm_matrix.ncol();
+		if(Ngroups == 0) {
+			// no elgm matrix, use y
+			Ngroups = data.y.size();
+		}
+	}
+
+	const bool inner = (Nparams == Ngamma);
+
+	CppAD::vector<CppAD::AD<double>> parametersC(Nparams);
+	for(size_t D=0; D<Nparams;D++) {
+		double parHere = parameters[D];
+		parametersC[D] = parHere;
+	}
+
+	CppAD::AD<double> dataPart=0.0, extraPart, randomPart;
+	if(inner) {
+		for(size_t D=0;D<Ngroups;D++) {
+			if(config.verbose) {
+				Rcpp::Rcout << D << " ";
+			}
+			auto dataPartHere= logDensObs(parametersC, config.beta, config.theta, data, config, D);
+			dataPart += dataPartHere[0];
+		}
+		auto randomHere = logDensRandom(
+			parametersC,
+			config.theta, data, config);   
+		randomPart = randomHere[0];
+
+		auto extraHere = logDensExtra(
+			config.theta, data, config);   
+		extraPart = extraHere[0];
+	} else {
+		for(size_t D=0;D<Ngroups;D++) {
+			auto dataPartHere= logDensObs(
+				slice(parametersC, Nbeta, Nbeta + Ngamma), //gamma
+								slice(parametersC, 0, Nbeta), // beta
+								slice(parametersC, Nbeta + Ngamma, Nparams), //theta
+								data, config, D);
+			dataPart += dataPartHere[0];
+		}
+		auto randomHere = logDensRandom(
+				slice(parametersC, Nbeta, Nbeta + Ngamma), //gamma
+												slice(parametersC, Nbeta + Ngamma, Nparams), //theta
+												data, config);   
+		randomPart = randomHere[0];
+
+		auto extraHere = logDensExtra(
+			slice(parametersC, Nbeta + Ngamma, Nparams), //theta
+			data, config);   
+		extraPart = extraHere[0];
+
+	}
+	CppAD::AD<double> result1 = dataPart + randomPart + extraPart;
+
+
+
+	double result = CppAD::Value(result1);
+
+	if(config.verbose) {
+		Rcpp::Rcout << "Ngroups " << Ngroups << "inner " << inner <<  " d " << dataPart << " r " << randomPart << " e " 
+			<< extraPart << " result1 " << result1 << " result " << result << "\n";
+	}
+
+
+	return(result);
+
+}
+
 
 
 #endif

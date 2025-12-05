@@ -14,8 +14,6 @@ logLik = function(x, data, config,
 		warning("x is the wrong size")
 	} 
 
-	  adlaplace::jointLogDens(start_gamma, data, config_inner)
-
 	inner_res = adlaplace::inner_opt(
 		start_gamma,
 		data=data, config=config_inner, 
@@ -82,7 +80,7 @@ logLik = function(x, data, config,
 	halfDinv = Matrix::Diagonal(length(inner_res$cholHessian$D), (inner_res$cholHessian$D)^(-0.5))
 	halfH = (halfDinv %*% Linv)[,1+inner_res$cholHessian$P] 
 	LinvPt = Matrix::t(halfH)
-	Hinv =  LinvPt %*% halfH 
+	Hinv =  LinvPt %*% halfH # use crossprod instead
 
 	# str(Hinv %*% hessianAgain)
 

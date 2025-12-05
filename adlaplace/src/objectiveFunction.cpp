@@ -1,9 +1,9 @@
-
-#include "adlaplace/adlaplace.hpp"
+#include "adlaplace/adlaplace_base.hpp"
 #include "adlaplace/lgamma.hpp"
 
 #define COMPUTE_CONSTANTS
 
+// returns minus log density
 template <class Type>
 CppAD::vector<CppAD::AD<double>> logDensObs(
 	const CppAD::vector<CppAD::AD<double>>& gamma,
@@ -26,11 +26,12 @@ CppAD::vector<CppAD::AD<double>> logDensObs(
 	double logNbSizeValue = to_double(logNbSize);
 
 
-	const size_t startP = data.groups.p[Dgroup];
-	const size_t endP = data.groups.p[Dgroup+1];
+	const bool have_groups = config.groups.ncol() > 0;
+	const size_t startP = have_groups?config.groups.p[Dgroup]:Dgroup;
+	const size_t endP = have_groups?config.groups.p[Dgroup+1]:Dgroup+1;
 
 	for(size_t DI=startP;DI < endP; DI++) {
-		const size_t Dobs = data.groups.i[DI];
+		const size_t Dobs = have_groups?config.groups.i[DI]:DI;
 
 		CppAD::AD<double>  etaRandom = 0.0;
 		Type  etaFixed = 0.0;
@@ -104,10 +105,9 @@ CppAD::vector<Type> logDensExtra(
 
 	Type logDens1=0.0;
 
-	const size_t N=data.groups.i.size();
+	const size_t N=data.y.size();
 	for(size_t D=0; D <N;D++) {
-		const size_t indexHere = data.groups.i[D];
-		logDens1 += lgamma_any<Type>(data.y[indexHere] + nbSize); 
+		logDens1 += lgamma_any<Type>(data.y[D] + nbSize); 
 	}
 
 	Type logDens2 = N*(sizeLogSize - lgammaNbSize);
@@ -115,8 +115,7 @@ CppAD::vector<Type> logDensExtra(
 #ifdef COMPUTE_CONSTANTS
 // always constant	- std::lgamma(data.y[Dobs]  + 1.0)
 	for(size_t D=0; D <N;D++) {
-		const size_t indexHere = data.groups.i[D];
-		logDens2 -= std::lgamma(data.y[indexHere] + 1.0); 
+		logDens2 -= std::lgamma(data.y[D] + 1.0); 
 	}	
 #endif
 	Type logDens = logDens1 + logDens2;
@@ -186,6 +185,7 @@ CppAD::vector<CppAD::AD<double>> logDensRandom(
 }
 
 
+// declare
 
 template CppAD::vector<CppAD::AD<double>>
 logDensObs<double>(
@@ -226,33 +226,3 @@ logDensRandom<CppAD::AD<double>>(
     const Data&, const Config&);
 
 
-
-//' @export	
-// [[Rcpp::export]]
-SEXP getAdFun(
-	Rcpp::List data, 
-	Rcpp::List config,
-	const bool inner=false)
-{
-
-	Data dataC(data);
-	Config configC(config);
-	if(configC.verbose) {
-		Rcpp::Rcout << "getting ad function, inner " << inner << " ";
-	}
-
-	omp_set_num_threads(configC.num_threads);
-  CppAD::thread_alloc::parallel_setup(
-    configC.num_threads,
-    [](){ return in_parallel_wrapper(); },
-    [](){ return static_cast<size_t>(thread_num_wrapper()); }
-    );
-
-	std::vector<GroupPack> adPack = inner?
-		getAdFunInner(dataC, configC):getAdFunOuter(dataC, configC);
-	auto* ptr = new std::vector<GroupPack>(std::move(adPack));
-  Rcpp::XPtr<std::vector<GroupPack>> xp(ptr, /*deleteOnFinalizer=*/true);
-
-	xp.attr("class") = "adpack_ptr";
-	return xp;
-}

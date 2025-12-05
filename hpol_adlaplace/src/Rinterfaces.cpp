@@ -1,6 +1,7 @@
+// a direct copy of adlaplace's Rinterfaces.cpp
+
 #include "adlaplace/adlaplace.hpp"
 
-// [[Rcpp::depends(RcppEigen)]]
 
 //' @export	
 // [[Rcpp::export]]
@@ -109,6 +110,7 @@ Rcpp::NumericVector traceHinvT(
 	auto result = traceHinvT_backend(parameters, LinvPt, LinvPtColumns, config, adPack);
 	return(result);
 }
+
 
 //' @export
 // [[Rcpp::export]]

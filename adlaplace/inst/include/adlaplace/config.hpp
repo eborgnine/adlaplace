@@ -1,9 +1,6 @@
 #ifndef CONFIGOBJ_HPP
 #define CONFIGOBJ_HPP
 
-#include"adlaplace/matrixUtils.hpp"
-#include <cppad/cppad.hpp>
-
 
 // ----- config bundle -----
 struct Config {
@@ -14,6 +11,8 @@ struct Config {
   CppAD::vector<double> beta;
   CppAD::vector<double> start_gamma;
   CppAD::vector<double> theta;    
+
+  DgCView groups;
 
 
   std::vector<std::vector<int>> hessianIP_outer = std::vector<std::vector<int>>(2);
@@ -54,6 +53,10 @@ struct Config {
     } else {
       beta = CppAD::vector<double>(0);
     }
+
+    if(cfg.containsElementNamed("groups")) {
+      groups = DgCView(Rcpp::S4(cfg["groups"]));
+    } 
 
     if(cfg.containsElementNamed("hessian_inner")) {
       const Rcpp::S4 sm = cfg["hessian_inner"];

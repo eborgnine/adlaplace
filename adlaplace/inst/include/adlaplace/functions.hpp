@@ -1,8 +1,8 @@
 #ifndef FUNCTIONS_HPP
 #define FUNCTIONS_HPP
 
-#include "adlaplace/adpack.hpp"
-#include <RcppEigen.h>
+//#include "adlaplace/adpack.hpp"
+//#include <RcppEigen.h>
 
 static const std::string JAC_COLOR = "cppad";  
 static const std::string HESS_COLOR = "cppad.symmetric";
@@ -285,7 +285,7 @@ struct AD_Func_Opt {
           		throw std::runtime_error("hessianIJ must have at least 3 components: row, colPtr, values");
           	}
 
-        const int n    = static_cast<int>(hessianIJ[1].size()) - 1; // ncols (and nrows if square)
+        const int n    = hessianIJ[1].size()==0?0:static_cast<int>(hessianIJ[1].size()) - 1; // ncols (and nrows if square)
         const int nnz  = static_cast<int>(hessianIJ[0].size());
 
         // Map over the pattern data
@@ -388,6 +388,12 @@ void get_fdf(const Eigen::MatrixBase<DerivedX> &x,
 void get_f(const Eigen::MatrixBase<DerivedX> &x,
 	double &f) {
 
+#ifdef DEBUG
+Rcpp::Rcout << "get_f: tape.size() = " << tape.size()
+            << " Domain = " << (tape.empty() ? -1 : tape[0].fun.Domain())
+            << "\n";
+#endif
+
 	const std::size_t n = static_cast<std::size_t>(x.size());
 	CppAD::vector<double> xp(n);
 	for (std::size_t i = 0; i < n; ++i) {
@@ -401,9 +407,12 @@ void get_f(const Eigen::MatrixBase<DerivedX> &x,
 
 	      #pragma omp for nowait
 		for(int D=0;D<tape.size();D++) {
+#ifdef EXTRADEBUG
+			Rcpp::Rcout << "l, D=" << D;
+#endif			
 			CppAD::vector<double> y = tape[D].fun.Forward(0, xp);
-#ifdef DEBUG
-			Rcpp::Rcout << "l, D=" << D << ", y=" << y[0] << "\n"; 
+#ifdef EXTRADEBUG
+			Rcpp::Rcout << ", y=" << y[0] << "\n"; 
 #endif			
 			fOutHere += y[0];
 		}

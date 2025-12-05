@@ -13,7 +13,7 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 
 // getAdFun
 SEXP getAdFun(Rcpp::List data, Rcpp::List config, const bool inner);
-RcppExport SEXP _adlaplace_getAdFun(SEXP dataSEXP, SEXP configSEXP, SEXP innerSEXP) {
+RcppExport SEXP _hpolcc_getAdFun(SEXP dataSEXP, SEXP configSEXP, SEXP innerSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -26,7 +26,7 @@ END_RCPP
 }
 // jointLogDensNoAdfun
 double jointLogDensNoAdfun(Rcpp::NumericVector parameters, Rcpp::List data, Rcpp::List config);
-RcppExport SEXP _adlaplace_jointLogDensNoAdfun(SEXP parametersSEXP, SEXP dataSEXP, SEXP configSEXP) {
+RcppExport SEXP _hpolcc_jointLogDensNoAdfun(SEXP parametersSEXP, SEXP dataSEXP, SEXP configSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -39,7 +39,7 @@ END_RCPP
 }
 // jointLogDens
 double jointLogDens(Rcpp::NumericVector parameters, SEXP adPack, Rcpp::List config);
-RcppExport SEXP _adlaplace_jointLogDens(SEXP parametersSEXP, SEXP adPackSEXP, SEXP configSEXP) {
+RcppExport SEXP _hpolcc_jointLogDens(SEXP parametersSEXP, SEXP adPackSEXP, SEXP configSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -52,7 +52,7 @@ END_RCPP
 }
 // grad
 Rcpp::NumericVector grad(Rcpp::NumericVector parameters, SEXP adPack, Rcpp::List config);
-RcppExport SEXP _adlaplace_grad(SEXP parametersSEXP, SEXP adPackSEXP, SEXP configSEXP) {
+RcppExport SEXP _hpolcc_grad(SEXP parametersSEXP, SEXP adPackSEXP, SEXP configSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -65,7 +65,7 @@ END_RCPP
 }
 // hessian
 Rcpp::S4 hessian(Rcpp::NumericVector parameters, SEXP adPack, Rcpp::List config);
-RcppExport SEXP _adlaplace_hessian(SEXP parametersSEXP, SEXP adPackSEXP, SEXP configSEXP) {
+RcppExport SEXP _hpolcc_hessian(SEXP parametersSEXP, SEXP adPackSEXP, SEXP configSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -78,7 +78,7 @@ END_RCPP
 }
 // inner_opt
 Rcpp::List inner_opt(Rcpp::NumericVector parameters, Rcpp::List data, Rcpp::List control, Rcpp::List config);
-RcppExport SEXP _adlaplace_inner_opt(SEXP parametersSEXP, SEXP dataSEXP, SEXP controlSEXP, SEXP configSEXP) {
+RcppExport SEXP _hpolcc_inner_opt(SEXP parametersSEXP, SEXP dataSEXP, SEXP controlSEXP, SEXP configSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -92,7 +92,7 @@ END_RCPP
 }
 // inner_opt_adpack
 Rcpp::List inner_opt_adpack(Rcpp::NumericVector parameters, SEXP adPack, const Rcpp::List control, const Rcpp::List config);
-RcppExport SEXP _adlaplace_inner_opt_adpack(SEXP parametersSEXP, SEXP adPackSEXP, SEXP controlSEXP, SEXP configSEXP) {
+RcppExport SEXP _hpolcc_inner_opt_adpack(SEXP parametersSEXP, SEXP adPackSEXP, SEXP controlSEXP, SEXP configSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -106,7 +106,7 @@ END_RCPP
 }
 // traceHinvT
 Rcpp::NumericVector traceHinvT(const Rcpp::NumericVector parameters, const Rcpp::S4& LinvPt, const Rcpp::S4& LinvPtColumns, const Rcpp::List config, SEXP adPack);
-RcppExport SEXP _adlaplace_traceHinvT(SEXP parametersSEXP, SEXP LinvPtSEXP, SEXP LinvPtColumnsSEXP, SEXP configSEXP, SEXP adPackSEXP) {
+RcppExport SEXP _hpolcc_traceHinvT(SEXP parametersSEXP, SEXP LinvPtSEXP, SEXP LinvPtColumnsSEXP, SEXP configSEXP, SEXP adPackSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -121,7 +121,7 @@ END_RCPP
 }
 // sparsity
 Rcpp::List sparsity(Rcpp::List data, Rcpp::List config);
-RcppExport SEXP _adlaplace_sparsity(SEXP dataSEXP, SEXP configSEXP) {
+RcppExport SEXP _hpolcc_sparsity(SEXP dataSEXP, SEXP configSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -133,19 +133,19 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_adlaplace_getAdFun", (DL_FUNC) &_adlaplace_getAdFun, 3},
-    {"_adlaplace_jointLogDensNoAdfun", (DL_FUNC) &_adlaplace_jointLogDensNoAdfun, 3},
-    {"_adlaplace_jointLogDens", (DL_FUNC) &_adlaplace_jointLogDens, 3},
-    {"_adlaplace_grad", (DL_FUNC) &_adlaplace_grad, 3},
-    {"_adlaplace_hessian", (DL_FUNC) &_adlaplace_hessian, 3},
-    {"_adlaplace_inner_opt", (DL_FUNC) &_adlaplace_inner_opt, 4},
-    {"_adlaplace_inner_opt_adpack", (DL_FUNC) &_adlaplace_inner_opt_adpack, 4},
-    {"_adlaplace_traceHinvT", (DL_FUNC) &_adlaplace_traceHinvT, 5},
-    {"_adlaplace_sparsity", (DL_FUNC) &_adlaplace_sparsity, 2},
+    {"_hpolcc_getAdFun", (DL_FUNC) &_hpolcc_getAdFun, 3},
+    {"_hpolcc_jointLogDensNoAdfun", (DL_FUNC) &_hpolcc_jointLogDensNoAdfun, 3},
+    {"_hpolcc_jointLogDens", (DL_FUNC) &_hpolcc_jointLogDens, 3},
+    {"_hpolcc_grad", (DL_FUNC) &_hpolcc_grad, 3},
+    {"_hpolcc_hessian", (DL_FUNC) &_hpolcc_hessian, 3},
+    {"_hpolcc_inner_opt", (DL_FUNC) &_hpolcc_inner_opt, 4},
+    {"_hpolcc_inner_opt_adpack", (DL_FUNC) &_hpolcc_inner_opt_adpack, 4},
+    {"_hpolcc_traceHinvT", (DL_FUNC) &_hpolcc_traceHinvT, 5},
+    {"_hpolcc_sparsity", (DL_FUNC) &_hpolcc_sparsity, 2},
     {NULL, NULL, 0}
 };
 
-RcppExport void R_init_adlaplace(DllInfo *dll) {
+RcppExport void R_init_hpolcc(DllInfo *dll) {
     R_registerRoutines(dll, NULL, CallEntries, NULL, NULL);
     R_useDynamicSymbols(dll, FALSE);
 }

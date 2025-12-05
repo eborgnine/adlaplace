@@ -1,9 +1,6 @@
 #ifndef MATRIXUTILS_HPP
 #define MATRIXUTILS_HPP
 
-#include<Rcpp.h>
-#include <RcppEigen.h>
-
 
 // ----- safe getters -----
 inline bool get_bool(const Rcpp::List& cfg, const char* key, bool def=false) {
@@ -37,6 +34,10 @@ struct DgCView {
   Rcpp::NumericVector x;    // may be length 0 for ngCMatrix
   Rcpp::IntegerVector Dim;  // c(nrow, ncol)
   bool has_x;               // true if numeric/logical 'x' present
+
+  DgCView()
+    : i(), p(), x(), Dim(Rcpp::IntegerVector::create(0, 0)), has_x(false)
+  {}
 
   explicit DgCView(const Rcpp::S4& obj)
   : i(obj.slot("i")),

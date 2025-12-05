@@ -6,9 +6,9 @@
 
 #include <cppad/cppad.hpp>
 #include <Rcpp.h>
-#include <string>
-#include <cmath>
-#include <algorithm> 
+//#include <string>
+//#include <cmath>
+//#include <algorithm> 
 
 class atomic_lgamma_ad : public CppAD::atomic_four<double> {
 public:
