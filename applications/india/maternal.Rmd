@@ -27,18 +27,25 @@ res <- hpolcc::hnlm(
   config = list(
     transform_theta = TRUE, 
     boundary_is_random= TRUE,
-    dirichlet= TRUE, verbose=FALSE,
+    dirichlet= TRUE, verbose=TRUE,
     num_threads=parallel::detectCores(), 
     Nclusters = 100*parallel::detectCores()
-  ),
-  for_dev = TRUE
+  )
   )
 
-Dpar = 1
-Sx = seq(-0.1, 0.1, len=9) + res$parameters[Dpar]
-SxD = Sx[-1] - diff(Sx)/2
-parDf = data.frame(res$parameters)[,rep(1, length(Sx))]
-parDf[Dpar,] = Sx
+par(mar=c(3,3,0,0), bty='l')
+toPlot = 100*(exp(res$sample$global[[1]])-1)
+ matplot(
+  res$sample$x[[1]], 
+  toPlot, type='l', lty=1, col='#00000020', ylim = 100*c(-0.5, 2),
+    xlab = 'mean temp', ylab='pct rr', xaxs='i'
+) 
+matlines(
+  res$sample$x[[1]], 
+  t(apply(toPlot, 1, quantile, prob=c(0.025, 0.975, 0.5))),
+  lty=1, col='red'
+  )
+
 
 
 ```

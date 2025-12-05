@@ -262,7 +262,6 @@ CppAD::vector<CppAD::AD<double>> logDensRandom(
 			gammaScaled[D]*gammaScaled[D]*data.Qdiag[D];
 	}
 	for(size_t D=startGamma,Dmap=0;D<Ngamma;D++,Dmap++) {
-		Rcpp::Rcout << D;
 		size_t mapHere = data.map[Dmap];
 		gammaScaled[D] = gamma[D] / expTheta[mapHere];
 		qpart += 

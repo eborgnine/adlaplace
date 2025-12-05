@@ -27,10 +27,7 @@ hnlm <- function(
  formula,
  data,
  cc_design = ccDesign(),
- weight_var,
- tmb_parameters = NULL,
  optim_parameters = list(eval.max = 2000, iter.max = 2000),
- optimizer = c('nlminb', 'optim'),
  config=list(dirichlet = TRUE, boundary_is_random=FALSE, transform_theta=TRUE),
  control=list(maxit=2000, start.trust.radius = 0.1, report.level=4, report.freq=1, report.header.freq=10, report.precision=5),
  control_inner = list(report.level=0),
@@ -41,10 +38,6 @@ hnlm <- function(
   if (!is(formula, "formula"))
     stop("formula must be a formula.")
   #  if (!is.data.frame(data)) stop("data must be a data.frame.")
-  if (!missing(weight_var) &&
-    !is.character(weight_var) &&
-    !(weight_var %in% colnames(data)))
-  stop("weight_var must be a character vector.")
   
 
   configDefaults = list(
@@ -181,7 +174,7 @@ hnlm <- function(
 
   theta_setup = lapply(terms[c(isHrpoly, isRandom)], hpolcc:::getThetaSetup, theta_info = list())
 
-  if (config$dirichlet) {
+#  if (config$dirichlet) {
     if(is.null(config$dirichlet_init)) {
       config$dirichlet_init = 0.1
     }
@@ -189,7 +182,7 @@ hnlm <- function(
       list(data.frame(var='overdisp', 
         model='overdisp', global=NA, order=NA, 
         init=config$dirichlet_init, name='overdisp')))
-  } 
+
   theta_info = do.call(rbind, theta_setup)
 
   gamma_setup <- lapply(terms[c(isBoundary, isHrpoly, isRandom)], hpolcc:::getGammaSetup)
@@ -243,26 +236,66 @@ hnlm <- function(
   Sgamma = seq(nrow(tmb_data$XTp)+1, len=nrow(tmb_data$ATp))
 
   start_beta = rep(0, nrow(tmb_data$XTp))
-  start_gamma=    rep(0, nrow(tmb_data$ATp)) 
+  config$start_gamma=    rep(0, nrow(tmb_data$ATp)) 
   start_theta = theta_info$init
   config$beta = start_beta
   config$theta = start_theta
 
   parameters = c(start_beta, start_theta)
-  full_parameters = c(start_beta, start_gamma, start_theta)
-
+  full_parameters = c(start_beta, config$start_gamma, start_theta)
 
   if(verboseOrig) {
-    cat("getting groups..")
+    cat("getting groups...")
   }
 
-  sparsity_list = adlaplace::group_sparsity(data=tmb_data, config=config)
-  config = modifyList(config, sparsity_list)
+  sparsity_raw = hpolcc::sparsity(tmb_data, config)
+  # last two are Q and extra
+  sparsity_raw = sparsity_raw[seq(1, len=length(sparsity_raw)-2)]
 
+  firstDerivList = lapply(sparsity_raw, '[[', 'grad')
+  firstDeriv = Matrix::sparseMatrix(
+    i = unlist(firstDerivList),
+    j = rep(seq(0, len=length(firstDerivList)), unlist(lapply(firstDerivList, length))),
+    x = rep(1, length(unlist(firstDerivList))),
+    dims = c(length(full_parameters), length(firstDerivList)),
+    index1=FALSE
+  )
+
+ if(verboseOrig) {
+    cat(",")
+  }
+  config$groups = adlaplace::adFun_groups(ncol(firstDeriv), firstDeriv)
+  sparsity_raw = hpolcc::sparsity(tmb_data, config)
+  sparsity_list = adlaplace::group_sparsity(
+    data=tmb_data,  
+    config=config, 
+    sparsity_list = sparsity_raw)
+
+  config = modifyList(config, sparsity_list)
 
   cache = new.env()
   assign('start_gamma', config$start_gamma, cache)
 
+
+
+if(FALSE) {
+  theInner = hpolcc::inner_opt(
+    config$start_gamma,
+    tmb_data,
+    control = control_inner, 
+    config=config 
+  )
+
+  onel = adlaplace::logLik(
+    parameters, tmb_data, config,
+    config$start_gamma,
+    control = control_inner,
+    deriv=TRUE, 
+    package='hpolcc'
+  )
+}
+
+  # todo: outer wrappers
 
   if(for_dev)
     return(
@@ -280,19 +313,22 @@ hnlm <- function(
     )
 
 
-
   if(verboseOrig) {
     cat("optimizing")
   }
-  mle = trustOptim::trust.optim(
-    x = parameters,
-    fn = outer_fn,
-    gr = outer_gr,
-    method = 'SR1',
-    control = control,
-    data=tmb_data, config = config, cache =  cache, control_inner = control_inner,
-    adFunFull = adFunFull
+
+adFunFull = hpolcc::getAdFun(tmb_data, config,  inner=FALSE)
+
+mle = trustOptim::trust.optim(
+  c(config$beta, config$theta),
+  adlaplace::outer_fn, adlaplace::outer_gr,
+  method='SR1',
+  data=tmb_data, config=config, cache=cache, 
+  adPack = adFunFull, package = 'hpolcc',
+  control_inner = control_inner,
+  control = list(report.level=4, report.freq=1)
   )
+
 
   result = list(opt = mle, 
     objects = list(
@@ -303,45 +339,48 @@ hnlm <- function(
   if(verboseOrig) {
     cat("done")
   }
-  result$extra = try(loglik(
+  result$extra = try(adlaplace::logLik(
     mle$solution, 
-    get("gamma_start", cache), 
-    tmb_data, config, control = control_inner, adFunFull=adFunFull,
+    start_gamma=get("start_gamma", cache), 
+    data=tmb_data, config=config, control = control_inner, 
+    package = 'hpolcc',
     deriv=0))
 
-if(FALSE) {
+  if(FALSE) {
   result$hessian_parameters = try(
     numDeriv::jacobian(
-      outer_gr,
+      adlaplace::outer_gr,
       x= mle$solution,
-      data = tmb_data, config=config, control=control_inner, adFunFull=adFunFull, cache=cache
+      package='hpolcc',
+      data = tmb_data, config=config, control_inner=control_inner, adPack=adFunFull, cache=cache
     )
   )
-}
+  }
 
-  result$extra$parameters = formatParameters(result$extra$fullParameters, result$objects)
+  result$extra$parameters = hpolcc::formatParameters(result$extra$fullParameters, result$objects)
 
 #  mle$parameters = hpolcc::formatParameters(mle$extra$fullParameters, listres, TRUE)
 
-  HtildeCholEx  = result$extra$HtildeCholEx = Matrix::expand2(result$extra$cholHessian)
+  HtildeCholEx  = result$extra$cholHessian
+
+  Nparams = nrow(result$extra$parameters$gamma)
+
 
   Nsim = 500
   simInd = matrix(
-    rnorm(Nsim * nrow(result$extra$hessian)),
-    nrow(result$extra$hessian), Nsim)
-  simInd1 = simInd/sqrt(HtildeCholEx$D@x)
+    rnorm(Nsim * Nparams),
+    Nparams, Nsim)
+  simInd1 = simInd/sqrt(HtildeCholEx$D)
 
-  simSolve = Matrix::solve(HtildeCholEx$L1., simInd1)
-  simGamma = as.matrix(HtildeCholEx$P1. %*% simSolve + result$extra$solution)
+  simSolve = Matrix::solve(Matrix::t(HtildeCholEx$L), simInd1)
+  simGamma = as.matrix(simSolve[1L+HtildeCholEx$P,] + result$extra$solution)
   rownames(simGamma) = rownames(tmb_data$ATp)
-
-
 
   Sref = unlist(lapply(terms, '[[', "ref_value"))
   Svar = unlist(lapply(terms, '[[', "var"))
   Smodel = unlist(lapply(terms, '[[', "model"))
 
-  isHiwp = which(Smodel == 'hiwp')
+  isHiwp = which(Smodel %in% c('iwp', 'hiwp'))
   Sref = Sref[isHiwp]
   Svar = Svar[isHiwp]
   Srange = lapply(terms[isHiwp], '[[', 'range')
@@ -365,14 +404,14 @@ if(FALSE) {
       boundary_is_random= result$objects$config$boundary_is_random
     )
 
-    newColNamesBeta = 
-    gsub("_fpoly_", "", names(result$extra$parameters$beta))
+    newColNamesBeta = gsub("_fpoly_", "", names(result$extra$parameters$beta))
     namesBoth = intersect(newColNamesBeta, colnames(newXA[[D]]$X))    
 
     fixedPart[[D]] = as.vector(newXA[[D]]$X[,namesBoth, drop=FALSE] %*% 
       result$extra$parameters$beta[match(namesBoth, newColNamesBeta)])
 
 
+    gamma_info[gamma_info$model == 'iwp','global'] = TRUE
     colsA = gamma_info[gamma_info$var == D & gamma_info$global,'name']
 
     testA = setdiff(colsA, colnames(newXA[[D]]$A))
@@ -384,9 +423,8 @@ if(FALSE) {
       warning("missing A ", paste(testA, collapse=','))
     }
 
-
-    gammaHere = simGamma[colsA,]
-    simF[[D]] = as.matrix(newXA[[D]]$A[,colsA] %*% gammaHere)
+    colsA = colsA[1:2]
+    simF[[D]] = as.matrix(newXA[[D]]$A[,colsA,drop=FALSE] %*% simGamma[colsA,,drop=FALSE])
 
     simGlobalHere= simF[[D]] + fixedPart[[D]]
     newConstrIndex[[D]] = which.min(abs(predSeq[[D]] - newConstr[D]))
@@ -399,6 +437,8 @@ if(FALSE) {
   Sregions = setdiff(unique(gsub(".*_", "", Sregions1)), "global")
 
   result$sample = list(gamma=simGamma, global=simGlobal, groups = Sregions, newXA = newXA, x = predSeq)
+
+# matplot(result$sample$x[[1]], exp(result$sample$global[[1]])-1, type='l', lty=1, col='#00000020', ylim = c(-0.25, 1)) 
 
   return(result)
 }

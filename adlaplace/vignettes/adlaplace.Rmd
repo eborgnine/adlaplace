@@ -11,6 +11,16 @@ f(y;\mu,\theta) =  & \log\Gamma(y + r) - \log\Gamma(r) - \log\Gamma(y + 1)
 \end{aligned}
 $$
 
+# to do
+
+- outer wrappers in adlaplace
+- inner_opt produces LinvPt
+- ... and whichColumnsByGroup and 
+- outer adpack argument, compute trace
+- ... and full hessian, gradient 
+- all with same omp threads, 
+
+
 ```{r theData}
 Nobs = 10000;Nrandom1=70;Nrandom2=50
 
@@ -73,22 +83,12 @@ ll1$deriv
 ```{r outerOpt}
 cache = new.env()
 assign('start_gamma', config$start_gamma, cache)
-outer_fn = function(..., control_inner = list(), cache) {
-	result = adlaplace::logLik(..., control = control_inner, start_gamma = cache$start_gamma, deriv=FALSE)
-	assign('start_gamma', result$solution,  cache)
-	assign('x', result$parameters,  cache)
-	result$minusLogLik
-}
-outer_gr = function(..., control_inner = list(), cache) {
-	result = adlaplace::logLik(..., control = control_inner, start_gamma = cache$start_gamma, deriv=TRUE)
-	assign('start_gamma', result$inner$solution, cache)
-	result$dLogLik
-}
+
 adFunFull = adlaplace::getAdFun(data, modifyList(config, list(verbose=TRUE)), inner=FALSE)
 
 mle = trustOptim::trust.optim(
 	c(config$beta, config$theta),
-	outer_fn, outer_gr,
+	adlaplace::outer_fn, adlaplace::outer_gr,
 	method='SR1',
 	data=data, config=config, cache=cache, adPack = adFunFull,
 	control_inner = list(),

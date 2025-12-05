@@ -56,13 +56,13 @@ inline std::vector<GroupPack> getAdFunOuter(
 
 		CppAD::vector<CppAD::AD<double>> ad_params_G(Nparams);
 		for(size_t D=0;D<Nbeta;D++) {
-			ad_params[D] = config.beta[D];
+			ad_params_G[D] = config.beta[D];
 		}
 		for(size_t Dgamma=0;Dgamma<Ngamma;Dgamma++) {
-			ad_params[Dgamma+Nbeta] = config.start_gamma[Dgamma];
+			ad_params_G[Dgamma+Nbeta] = config.start_gamma[Dgamma];
 		}
 		for(size_t Dtheta=0;Dtheta<Ntheta;Dtheta++) {
-				ad_params[Dtheta+Nbeta+Ngamma] = config.theta[Dtheta];
+				ad_params_G[Dtheta+Nbeta+Ngamma] = config.theta[Dtheta];
 		} 
 
 	if(config.verbose) {

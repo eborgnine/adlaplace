@@ -2,7 +2,8 @@
 logLik = function(x, data, config, 
 	start_gamma = config$start_gamma, 	
 	control = list(report.level=4, report.freq=1), 
-	adPack, deriv=TRUE) {
+	adPack, deriv=TRUE, 
+	package = 'adlaplace') {
 
 	Nbeta = nrow(data$XTp)
 	config_inner = config
@@ -14,7 +15,7 @@ logLik = function(x, data, config,
 		warning("x is the wrong size")
 	} 
 
-	inner_res = adlaplace::inner_opt(
+	inner_res = getExportedValue(package, "inner_opt")(
 		start_gamma,
 		data=data, config=config_inner, 
 		control=control)
@@ -27,14 +28,15 @@ logLik = function(x, data, config,
 	}
 
 	if(missing(adPack)) {
-		adPack = adlaplace::getAdFun(data, config, inner=FALSE)
+		adPack = getExportedValue(package, "getAdFun")(data, config, inner=FALSE)
 	}
 
 	result = c(
 		list(
 			inner = inner_res[grep("[pP]arameters", names(inner_res), invert=TRUE)],
-			outer = list(hessian = adlaplace::hessian(inner_res$fullParameters, adPack, config),
-				grad = adlaplace::grad(inner_res$fullParameters, adPack, config)
+			outer = list(hessian =  
+				getExportedValue(package, "hessian")(inner_res$fullParameters, adPack, config),
+				grad = getExportedValue(package, "grad")(inner_res$fullParameters, adPack, config)
 			)
 		),
 		inner_res[grep("[pP]arameters|minusLogLik", names(inner_res))]
@@ -100,7 +102,7 @@ logLik = function(x, data, config,
 		dims = c(nrow(Hinv), length(whichColumnsByGroup1))
 	)
 
-	theTrace = adlaplace::traceHinvT(
+	theTrace = getExportedValue(package, "traceHinvT")(
 		inner_res$fullParameters, 
 		LinvPt, 
 		whichColumnsByGroup,
