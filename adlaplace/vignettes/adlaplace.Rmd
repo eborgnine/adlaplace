@@ -13,11 +13,10 @@ $$
 
 # to do
 
-- outer wrappers in adlaplace
+
+- inner_opt outer adpack argument, get full hessian, gradient 
 - inner_opt produces LinvPt
-- ... and whichColumnsByGroup and 
-- outer adpack argument, compute trace
-- ... and full hessian, gradient 
+- ... and whichColumnsByGroup and trace
 - all with same omp threads, 
 
 

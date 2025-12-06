@@ -14,7 +14,9 @@ uniqueLoadings = unique(loadings)
 Ngroups = pmin(length(uniqueLoadings), Ngroups)
 groupCut = unique(quantile(uniqueLoadings, seq(0,1,len=Ngroups+1)))
 groupCut[1] = groupCut[1]-1;groupCut[length(groupCut)] = groupCut[length(groupCut)]+1
-theJ = as.integer(cut(loadings, groupCut))-1L
+loadingsCut = cut(loadings, groupCut)
+loadingsCut2 = factor(loadingsCut, names(sort(table(loadingsCut), decreasing=TRUE)))
+theJ = as.integer(loadingsCut2)-1L
 
 # order the groups from most heterogeneous to most homogeneous
 theSd = pmax(tapply(loadings, theJ, sd),0, na.rm=TRUE)
