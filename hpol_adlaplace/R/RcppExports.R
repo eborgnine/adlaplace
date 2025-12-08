@@ -27,13 +27,13 @@ hessian <- function(parameters, adPack, config) {
 }
 
 #' @export
-inner_opt <- function(parameters, data, control, config) {
-    .Call(`_hpolcc_inner_opt`, parameters, data, control, config)
+inner_opt <- function(parameters, data, control, config, adPackFull = NULL) {
+    .Call(`_hpolcc_inner_opt`, parameters, data, control, config, adPackFull)
 }
 
 #' @export
-inner_opt_adpack <- function(parameters, adPack, control, config) {
-    .Call(`_hpolcc_inner_opt_adpack`, parameters, adPack, control, config)
+inner_opt_adpack <- function(parameters, adPack, control, config, adPackFull = NULL) {
+    .Call(`_hpolcc_inner_opt_adpack`, parameters, adPack, control, config, adPackFull)
 }
 
 #' @export

@@ -73,9 +73,10 @@ Rcpp::List inner_opt(
 	Rcpp::NumericVector parameters, 
 	Rcpp::List data,
 	Rcpp::List control, 
-	Rcpp::List config)
+	Rcpp::List config,
+	SEXP adPackFull = R_NilValue)
 {
-	auto res = inner_opt_backend(parameters, data, control, config);
+	auto res = inner_opt_backend(parameters, data, control, config, adPackFull);
 	return(res);
 }
 
@@ -86,11 +87,12 @@ Rcpp::List inner_opt_adpack(
 	Rcpp::NumericVector parameters, 
 	SEXP adPack,
 	const Rcpp::List control, 
-	const Rcpp::List config)
+	const Rcpp::List config,
+	SEXP adPackFull = R_NilValue)
 {
 
 
-	auto res = inner_opt_adpack_backend(parameters, adPack, control, config);
+	auto res = inner_opt_adpack_backend(parameters, adPack, control, config, adPackFull);
 	return(res);
 }
 

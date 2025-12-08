@@ -250,19 +250,27 @@ CppAD::vector<CppAD::AD<double>> logDensRandom(
 
 
 	if(config.verbose) {
-		Rcpp::Rcout << "q, Ngamma  " << Ngamma << " nmap " << data.map.size() << 
+		Rcpp::Rcout << "q adlaplace, Ngamma  " << Ngamma << " nmap " << data.map.size() << 
 		" ntheta " << config.theta.size() << 
-		" exp theta map 0 " <<  expTheta[data.map[0]] << " gamma0 " << gamma[0] << "\n";
+		" exp theta map 0 " <<  expTheta[data.map[0]] << " gamma0 " << gamma[0] << "!\n";
 	}
 
 
 	for(size_t D=0;D<startGamma;D++) {
+		Rcpp::Rcout << D << " ";
 		gammaScaled[D] = gamma[D];
 		qpart += 
 			gammaScaled[D]*gammaScaled[D]*data.Qdiag[D];
 	}
+
+	if(config.verbose) {
+		Rcpp::Rcout << ".";
+	}
+
 	for(size_t D=startGamma,Dmap=0;D<Ngamma;D++,Dmap++) {
 		size_t mapHere = data.map[Dmap];
+		Rcpp::Rcout << D << " " << " m " << Dmap << " ";
+
 		gammaScaled[D] = gamma[D] / expTheta[mapHere];
 		qpart += 
 			gammaScaled[D]*gammaScaled[D]*data.Qdiag[D];

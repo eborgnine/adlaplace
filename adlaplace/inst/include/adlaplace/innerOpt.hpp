@@ -15,13 +15,23 @@ inline Rcpp::List inner_opt(
 	Eigen::VectorXd& parameters, 
 	std::vector<GroupPack>& adPack,
 	const TrustControl& ctrl, 
-	const Config& config)
+	const Config& config,
+	std::vector<GroupPack>* adPackFull = nullptr)
 {
 	using Tvec   = Eigen::VectorXd;
 	using THess   = Eigen::SparseMatrix<double>; 
 	using TPreLLt = Eigen::SimplicialLLT<THess>;
 
+	if(config.verbose) {
+		Rcpp::Rcout << "getting ad fun object ";
+	}
+
+
 	AD_Func_Opt funObj(adPack, config.hessianIPLower_inner);
+
+	if(config.verbose) {
+		Rcpp::Rcout << "starting opt ";
+	}
 
 	Trust_CG_Sparse<Tvec, AD_Func_Opt, THess, TPreLLt> opt(
 		funObj, 
@@ -96,7 +106,7 @@ inline Rcpp::List inner_opt(
  	Rcpp::List cholHessian = Rcpp::List::create(
 		Rcpp::Named("P") = P_R,
 		Rcpp::Named("D") = D_R,
-		Rcpp::Named("L") = eigen_to_dgC(L)	
+		Rcpp::Named("L") = eigen_to_dgC(L, true)	// true for lower triangle only
  		);
 
 	 Rcpp::NumericVector solution(P.size());
@@ -117,6 +127,52 @@ inline Rcpp::List inner_opt(
  	 	Rcpp::Named("trust.radius") = Rcpp::wrap(radius),
  	 	Rcpp::Named("method") = Rcpp::wrap("Sparse")
  	 	);
+
+	if(!adPackFull) {
+ 	 return(res);		
+	}
+
+	if(config.verbose) {
+		Rcpp::Rcout << "computing full hess";
+	}
+
+	const size_t Nbeta = config.beta.size(), Ntheta = config.theta.size();
+	Eigen::VectorXd fullParameters(Nparams + Nbeta + Ntheta);
+	for(size_t D=0;D<Nbeta;D++) {
+		fullParameters[D] = config.beta[D];
+	}
+	for(size_t D=0;D<Nparams;D++) {
+		fullParameters[D+Nbeta] = P[D];
+	}
+	for(size_t D=0;D<Ntheta;D++) {
+		fullParameters[D+Nbeta+Nparams] = config.theta[D];
+	}
+
+	auto hessianIPLowerHere = config.hessianIPLower_outer;
+
+	AD_Func_Opt funObjOuter(*adPackFull, hessianIPLowerHere);
+	if(config.verbose) {
+		Rcpp::Rcout << ".";
+	}
+
+
+	Eigen::SparseMatrix<double> hessianFull = funObj.Htemplate.cast<double>();
+	Eigen::VectorXd gradFull(fullParameters);
+	double f;
+
+	if(config.verbose) {
+		Rcpp::Rcout << ".";
+	}
+
+
+
+	funObjOuter.get_fdfh(fullParameters, f, gradFull, hessianFull);
+	if(config.verbose) {
+		Rcpp::Rcout << ".\n";
+	}
+
+ 	 res["hessian_full"] = eigen_to_dgC(hessianFull);
+	 res["gradient_full"] = Rcpp::wrap(gradFull);	
 
  	 return(res);
  	}

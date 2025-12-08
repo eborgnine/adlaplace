@@ -15,103 +15,86 @@ logLik = function(x, data, config,
 		warning("x is the wrong size")
 	} 
 
+	if(config$verbose) {
+		cat("logLik using package ", package, "for objective funcion\n")
+	}
+
+	if(missing(adPack)) {
+		if(deriv) {
+			adPack = getExportedValue(package, "getAdFun")(data, config, inner=FALSE)
+		} else {
+			adPack = NULL
+		}
+	}
+
+
 	inner_res = getExportedValue(package, "inner_opt")(
 		start_gamma,
-		data=data, config=config_inner, 
-		control=control)
+		data=data, 
+		config=config_inner, 
+		control=control,
+		adPackFull = adPack)
+
+	if(FALSE) {
+		# check hessian chol
+
+	checkHessian1 = 
+		inner_res$cholHessian$L %*% Matrix::Diagonal(length(inner_res$cholHessian$D), inner_res$cholHessian$D) %*%
+			Matrix::t(inner_res$cholHessian$L) 
+		checkHessian2 = checkHessian1[1+inner_res$cholHessian$P, inner_res$cholHessian$P+1]
+		check3 = (inner_res$hessian - checkHessian2)
+	quantile(check3@x)
+
+	}
 
 	inner_res$parameters = x
 	inner_res$fullParameters = c(config_inner$beta, inner_res$solution, config_inner$theta)
 
-	if(!deriv) {
+	if(!deriv & is.null(adPack)) {
 		return(inner_res)
 	}
 
-	if(missing(adPack)) {
-		adPack = getExportedValue(package, "getAdFun")(data, config, inner=FALSE)
-	}
+	inner_res$cholHessian$halfH = reformatChol(inner_res$cholHessian)
+	inner_res$cholHessian$Hinv = Matrix::crossprod(inner_res$cholHessian$halfH) 
 
 	result = c(
 		list(
-			inner = inner_res[grep("[pP]arameters", names(inner_res), invert=TRUE)],
-			outer = list(hessian =  
-				getExportedValue(package, "hessian")(inner_res$fullParameters, adPack, config),
-				grad = getExportedValue(package, "grad")(inner_res$fullParameters, adPack, config)
-			)
+			inner = inner_res[grep("[pP]arameters|_full$", names(inner_res), invert=TRUE)],
+			outer = inner_res[grep("_full$", names(inner_res))]
 		),
 		inner_res[grep("[pP]arameters|minusLogLik", names(inner_res))]
 	)
+	names(result$outer) = gsub("_outer$", "", names(result$outer))
 
-
-
-
-	Linv = Matrix::solve(inner_res$cholHessian$L)
-
-	if(FALSE) {
-		hessianAgain = adlaplace::hessian(inner_res$fullParameters, adPack, config)[Sgamma1, Sgamma1]
-		mys = 65+1:10;inner_res$hessian[mys, mys]  
-		hessianAgain[mys, mys]
-		# check hessian
-		checkHessian1 = 
-		inner_res$cholHessian$L %*% Matrix::Diagonal(length(inner_res$cholHessian$D), inner_res$cholHessian$D) %*%
-			Matrix::t(inner_res$cholHessian$L) 
-		checkHessian2 = checkHessian1[1+inner_res$cholHessian$P, inner_res$cholHessian$P+1]
-
-		round(checkHessian2[mys, mys],2)
-		round(hessianAgain[mys, mys],2)
-
-
-		check3 = (hessianAgain - checkHessian2)
-		quantile(check3@x)
-
-
-		invHessian = Matrix::t(Linv) %*% Matrix::Diagonal(length(inner_res$cholHessian$D), 1/inner_res$cholHessian$D) %*%
-			Linv 
-		table(round( (invHessian %*% checkHessian1)@x,3))
-		invHessian2 = invHessian[1+inner_res$cholHessian$P, inner_res$cholHessian$P+1] 
-		table(round( (invHessian2 %*% hessianAgain)@x, 3))
-
-		inner_res$cholHessian$L %*% Matrix::Diagonal(length(inner_res$cholHessian$D), inner_res$cholHessian$D) %*%
-			Matrix::t(inner_res$cholHessian$L) 
-
+	if(!deriv) {
+		return(result)
 	}
 
-	#Linv[theseq, theseq]
-		# H = Pt L D Lt P
-		# Hinv = Pt LinvT Dinv Linv P
-	halfDinv = Matrix::Diagonal(length(inner_res$cholHessian$D), (inner_res$cholHessian$D)^(-0.5))
-	halfH = (halfDinv %*% Linv)[,1+inner_res$cholHessian$P] 
-	LinvPt = Matrix::t(halfH)
-	Hinv =  LinvPt %*% halfH # use crossprod instead
-
-	# str(Hinv %*% hessianAgain)
-
-	linvL = as(LinvPt, 'lMatrix')
-
-	whichColumnsByGroup1 = #parallel::mc
-	lapply(
-		config$group_inner, function(xx) {
-			linvHere = linvL[1+xx$grad, ,drop=FALSE]
+	whichColumnsByGroup1 = lapply(
+		config$group_inner, function(xx, refmat) {
+			linvHere = refmat[1+xx$grad, ,drop=FALSE]
 			which(diff(linvHere@p)>0)-1L
-		}#, mc.cores = max(c(config$num_threads, 1), na.rm=TRUE)
+		}, 
+		refmat = inner_res$cholHessian$halfH
 	)
+
 	whichColumnsByGroup = Matrix::sparseMatrix(
 		i = unlist(whichColumnsByGroup1),
 		j = rep(seq(0, len=length(whichColumnsByGroup1)), unlist(lapply(whichColumnsByGroup1, length))),
 		index1=FALSE,
-		dims = c(nrow(Hinv), length(whichColumnsByGroup1))
+		dims = c(ncol(inner_res$cholHessian$halfH), length(whichColumnsByGroup1))
 	)
 
 	theTrace = getExportedValue(package, "traceHinvT")(
 		inner_res$fullParameters, 
-		LinvPt, 
+		inner_res$cholHessian$halfH, 
 		whichColumnsByGroup,
 		config,
 		adPack
 	)
 
 
-	dU = -Hinv %*% result$outer$hessian[Sgamma1, -Sgamma1]
+	dU = -result$inner$cholHessian$Hinv %*% result$outer$hessian[Sgamma1, -Sgamma1]
 
 	result$deriv = data.frame(
 		dDetUpart = as.vector(theTrace[Sgamma1] %*% dU),

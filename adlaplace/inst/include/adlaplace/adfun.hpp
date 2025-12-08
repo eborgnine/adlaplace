@@ -203,6 +203,11 @@ inline std::vector<GroupPack> getAdFunInner(
 
 	} // parallel
 
+		if(config.verbose) {
+			Rcpp::Rcout << "done adfun inner\n";
+		}
+
+
 	if(config.group_sparsity_inner.size()) {
 		if(config.verbose) {
 			Rcpp::Rcout << "add sparse " <<  config.group_sparsity_inner.size() << "\n";

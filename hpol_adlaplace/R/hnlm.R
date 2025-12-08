@@ -295,8 +295,6 @@ if(FALSE) {
   )
 }
 
-  # todo: outer wrappers
-
   if(for_dev)
     return(
       list( 
@@ -344,6 +342,7 @@ mle = trustOptim::trust.optim(
     start_gamma=get("start_gamma", cache), 
     data=tmb_data, config=config, control = control_inner, 
     package = 'hpolcc',
+    adPack = adFunFull,
     deriv=0))
 
   if(FALSE) {
@@ -361,19 +360,13 @@ mle = trustOptim::trust.optim(
 
 #  mle$parameters = hpolcc::formatParameters(mle$extra$fullParameters, listres, TRUE)
 
-  HtildeCholEx  = result$extra$cholHessian
-
-  Nparams = nrow(result$extra$parameters$gamma)
+  Ngamma = nrow(result$extra$parameters$gamma)
 
 
-  Nsim = pmin(500, config$Nsim, na.rm=TRUE)
-  simInd = matrix(
-    rnorm(Nsim * Nparams),
-    Nparams, Nsim)
-  simInd1 = simInd/sqrt(HtildeCholEx$D)
+  Nsim = c(config$Nsim, 500)[1]
+  simInd = matrix(rnorm(Nsim * Nparams), Nparams, Nsim)
 
-  simSolve = Matrix::solve(Matrix::t(HtildeCholEx$L), simInd1)
-  simGamma = as.matrix(simSolve[1L+HtildeCholEx$P,] + result$extra$solution)
+  simGamma = as.matrix(Matrix::crossprod(result$extra$inner$cholHessian$halfH, simInd))
   rownames(simGamma) = rownames(tmb_data$ATp)
 
   Sref = unlist(lapply(terms, '[[', "ref_value"))

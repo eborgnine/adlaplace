@@ -142,7 +142,8 @@ inline Rcpp::S4 make_TMatrix(
 inline Rcpp::S4 make_CMatrix(
   const Rcpp::NumericVector& x,
   const Rcpp::IntegerVector& i,
-  const Rcpp::IntegerVector& p)
+  const Rcpp::IntegerVector& p,
+  const bool uploU = true)
 {
 
   int Ni = p.size()-1;
@@ -153,10 +154,8 @@ inline Rcpp::S4 make_CMatrix(
   mat.slot("p") = p;
   mat.slot("x") = x;
   mat.slot("Dim") = dims;
-  mat.slot("uplo") =  Rcpp::wrap('U');
+  mat.slot("uplo") =  uploU?Rcpp::wrap('U'):Rcpp::wrap('L');
   return mat;
-
-
 
 }
 
@@ -235,7 +234,9 @@ inline Rcpp::RObject make_convert_gCmatrix(
 //   const Rcpp::IntegerVector& i,
 //   const Rcpp::IntegerVector& p);
 
-inline Rcpp::S4 eigen_to_dgC(const Eigen::SparseMatrix<double> &M) {
+inline Rcpp::S4 eigen_to_dgC(
+  const Eigen::SparseMatrix<double> &M,
+  const bool lower=false) {
     using Eigen::Index;
 
     const Index nnz  = M.nonZeros();
@@ -259,7 +260,8 @@ inline Rcpp::S4 eigen_to_dgC(const Eigen::SparseMatrix<double> &M) {
               p.begin());
 
     // reuse your helper to build the S4 dgCMatrix
-    return make_gCMatrix(x, i, p);
+    Rcpp::S4 result = lower?make_gCMatrix(x, i, p):make_CMatrix(x, i, p, false);
+    return(result);
 }
 
 // Construct an N x N identity matrix as dgCMatrix layout.

@@ -77,8 +77,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // inner_opt
-Rcpp::List inner_opt(Rcpp::NumericVector parameters, Rcpp::List data, Rcpp::List control, Rcpp::List config);
-RcppExport SEXP _hpolcc_inner_opt(SEXP parametersSEXP, SEXP dataSEXP, SEXP controlSEXP, SEXP configSEXP) {
+Rcpp::List inner_opt(Rcpp::NumericVector parameters, Rcpp::List data, Rcpp::List control, Rcpp::List config, SEXP adPackFull);
+RcppExport SEXP _hpolcc_inner_opt(SEXP parametersSEXP, SEXP dataSEXP, SEXP controlSEXP, SEXP configSEXP, SEXP adPackFullSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -86,13 +86,14 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< Rcpp::List >::type data(dataSEXP);
     Rcpp::traits::input_parameter< Rcpp::List >::type control(controlSEXP);
     Rcpp::traits::input_parameter< Rcpp::List >::type config(configSEXP);
-    rcpp_result_gen = Rcpp::wrap(inner_opt(parameters, data, control, config));
+    Rcpp::traits::input_parameter< SEXP >::type adPackFull(adPackFullSEXP);
+    rcpp_result_gen = Rcpp::wrap(inner_opt(parameters, data, control, config, adPackFull));
     return rcpp_result_gen;
 END_RCPP
 }
 // inner_opt_adpack
-Rcpp::List inner_opt_adpack(Rcpp::NumericVector parameters, SEXP adPack, const Rcpp::List control, const Rcpp::List config);
-RcppExport SEXP _hpolcc_inner_opt_adpack(SEXP parametersSEXP, SEXP adPackSEXP, SEXP controlSEXP, SEXP configSEXP) {
+Rcpp::List inner_opt_adpack(Rcpp::NumericVector parameters, SEXP adPack, const Rcpp::List control, const Rcpp::List config, SEXP adPackFull);
+RcppExport SEXP _hpolcc_inner_opt_adpack(SEXP parametersSEXP, SEXP adPackSEXP, SEXP controlSEXP, SEXP configSEXP, SEXP adPackFullSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -100,7 +101,8 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< SEXP >::type adPack(adPackSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List >::type control(controlSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List >::type config(configSEXP);
-    rcpp_result_gen = Rcpp::wrap(inner_opt_adpack(parameters, adPack, control, config));
+    Rcpp::traits::input_parameter< SEXP >::type adPackFull(adPackFullSEXP);
+    rcpp_result_gen = Rcpp::wrap(inner_opt_adpack(parameters, adPack, control, config, adPackFull));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -138,8 +140,8 @@ static const R_CallMethodDef CallEntries[] = {
     {"_hpolcc_jointLogDens", (DL_FUNC) &_hpolcc_jointLogDens, 3},
     {"_hpolcc_grad", (DL_FUNC) &_hpolcc_grad, 3},
     {"_hpolcc_hessian", (DL_FUNC) &_hpolcc_hessian, 3},
-    {"_hpolcc_inner_opt", (DL_FUNC) &_hpolcc_inner_opt, 4},
-    {"_hpolcc_inner_opt_adpack", (DL_FUNC) &_hpolcc_inner_opt_adpack, 4},
+    {"_hpolcc_inner_opt", (DL_FUNC) &_hpolcc_inner_opt, 5},
+    {"_hpolcc_inner_opt_adpack", (DL_FUNC) &_hpolcc_inner_opt_adpack, 5},
     {"_hpolcc_traceHinvT", (DL_FUNC) &_hpolcc_traceHinvT, 5},
     {"_hpolcc_sparsity", (DL_FUNC) &_hpolcc_sparsity, 2},
     {NULL, NULL, 0}

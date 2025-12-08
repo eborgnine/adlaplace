@@ -52,3 +52,23 @@ matlines(
 
 
 ```
+
+
+```{r check}
+stuff <- hpolcc::hnlm(
+  formula= y ~ dom5 + 
+  f(temp_value_lagzero, model='iwp',ref_value = 25, p=3, 
+      knots = seq(0, 40, by=2.5)), 
+  data=data,
+  cc_design =  c("cell", "timeStrata"),
+  config = list(
+    transform_theta = TRUE, 
+    boundary_is_random= TRUE,
+    dirichlet= TRUE, verbose=TRUE,
+    num_threads=parallel::detectCores(), 
+    Nclusters = 100*parallel::detectCores(),
+    Nsim = 1000
+  ), for_debug=TRUE
+  )
+
+```

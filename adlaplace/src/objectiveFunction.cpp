@@ -158,9 +158,9 @@ CppAD::vector<CppAD::AD<double>> logDensRandom(
 
 
 	if(config.verbose) {
-		Rcpp::Rcout << "q, ngamma  " << data.Ngamma << " nmap " << data.map.size() << 
+		Rcpp::Rcout << "q adlaplace, ngamma  " << data.Ngamma << " nmap " << data.map.size() << 
 		" ntheta " << config.theta.size() << 
-		" exp theta map 0 " <<  expTheta[data.map[0]] << " gamma0 " << gamma[0] << "\n";
+		" exp theta map 0 " <<  expTheta[data.map[0]] << " gamma0 " << gamma[0] << ".\n";
 	}
 
 

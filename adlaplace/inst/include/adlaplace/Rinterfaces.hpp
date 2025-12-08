@@ -249,12 +249,33 @@ Rcpp::List inner_opt_backend(
 	Rcpp::NumericVector parameters, 
 	Rcpp::List data,
 	Rcpp::List control, 
-	Rcpp::List config)
+	Rcpp::List config,
+	SEXP adPackFull = R_NilValue)
 {
 
 	Config configC(config);
 	Data dataC(data);
 	TrustControl ctrl(control); 
+
+    // Optional full pack pointer
+    std::vector<GroupPack>* adPackFullPtr = nullptr;
+
+    if (adPackFull != R_NilValue) {
+
+    		if(configC.verbose) {
+					Rcpp::Rcout << "outer adpack provided";
+				}
+
+        // Construct a *temporary* XPtr from adPackFull…
+        Rcpp::XPtr<std::vector<GroupPack>> xpFull(adPackFull);
+        // …and grab the raw pointer. The memory is owned by R, not by xpFull,
+        // so this pointer remains valid after xpFull goes out of scope.
+        adPackFullPtr = xpFull.get();
+    } else {
+    		if(configC.verbose) {
+					Rcpp::Rcout << "no outer adpack";
+				}
+    }
 
 	using Tvec  = Eigen::VectorXd;
 
@@ -273,7 +294,11 @@ Rcpp::List inner_opt_backend(
 
 	std::vector<GroupPack> adPack = getAdFunInner(dataC, configC);
 
-	Rcpp::List res = inner_opt(parametersC, adPack, ctrl, configC);
+    		if(configC.verbose) {
+					Rcpp::Rcout << "got inner adpack";
+				}
+
+	Rcpp::List res = inner_opt(parametersC, adPack, ctrl, configC, adPackFullPtr);
 
 	return(res);
 }
@@ -283,7 +308,8 @@ Rcpp::List inner_opt_adpack_backend(
 	Rcpp::NumericVector parameters, 
 	SEXP adPack,
 	const Rcpp::List control, 
-	const Rcpp::List config)
+	const Rcpp::List config,
+	SEXP adPackFull = R_NilValue)
 {
 
 	const Config configC(config);
@@ -292,6 +318,16 @@ Rcpp::List inner_opt_adpack_backend(
 	using Tvec  = Eigen::VectorXd;
 
 	Rcpp::XPtr<std::vector<GroupPack>> xp(adPack);
+    // Optional full pack pointer
+    std::vector<GroupPack>* adPackFullPtr = nullptr;
+    if (adPackFull != R_NilValue) {
+        // Construct a *temporary* XPtr from adPackFull…
+        Rcpp::XPtr<std::vector<GroupPack>> xpFull(adPackFull);
+        // …and grab the raw pointer. The memory is owned by R, not by xpFull,
+        // so this pointer remains valid after xpFull goes out of scope.
+        adPackFullPtr = xpFull.get();
+    }
+
 
 	const size_t Nparams = parameters.size();
 	const size_t NparamsFun = (*xp)[0].fun.Domain();
@@ -312,7 +348,7 @@ Rcpp::List inner_opt_adpack_backend(
 		);
 
 
-	Rcpp::List res = inner_opt(parametersC, *xp, ctrl, configC);
+	Rcpp::List res = inner_opt(parametersC, *xp, ctrl, configC, adPackFullPtr);
 
 	return(res);
 }
