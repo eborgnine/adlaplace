@@ -269,7 +269,6 @@ CppAD::vector<CppAD::AD<double>> logDensRandom(
 
 	for(size_t D=startGamma,Dmap=0;D<Ngamma;D++,Dmap++) {
 		size_t mapHere = data.map[Dmap];
-		Rcpp::Rcout << D << " " << " m " << Dmap << " ";
 
 		gammaScaled[D] = gamma[D] / expTheta[mapHere];
 		qpart += 

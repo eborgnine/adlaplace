@@ -68,7 +68,12 @@ stuff <- hpolcc::hnlm(
     num_threads=parallel::detectCores(), 
     Nclusters = 100*parallel::detectCores(),
     Nsim = 1000
-  ), for_debug=TRUE
+  ), for_dev=TRUE
   )
+  x = c(stuff$config$beta, stuff$config$theta)
+  data = stuff$tmb_data
+  config=stuff$config
+  
+
 
 ```
