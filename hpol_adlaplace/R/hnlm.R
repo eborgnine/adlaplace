@@ -403,7 +403,6 @@ mle = trustOptim::trust.optim(
     fixedPart[[D]] = as.vector(newXA[[D]]$X[,namesBoth, drop=FALSE] %*% 
       result$extra$parameters$beta[match(namesBoth, newColNamesBeta)])
 
-
     gamma_info[gamma_info$model == 'iwp','global'] = TRUE
     colsA = gamma_info[gamma_info$var == D & gamma_info$global,'name']
 
@@ -416,7 +415,6 @@ mle = trustOptim::trust.optim(
       warning("missing A ", paste(testA, collapse=','))
     }
 
-    colsA = colsA[1:2]
     simF[[D]] = as.matrix(newXA[[D]]$A[,colsA,drop=FALSE] %*% simGamma[colsA,,drop=FALSE])
 
     simGlobalHere= simF[[D]] + fixedPart[[D]]
