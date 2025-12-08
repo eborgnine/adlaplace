@@ -6,9 +6,6 @@
 #' @param data A data frame containing the variables specified in the formula and any additional variables required for the model.
 #' @param cc_design An object specifying the case-crossover design, including stratification and time variables. Defaults to the output of `ccDesign()`.
 #' @param dirichlet if TRUE, fit dirichlet-multinomial model, with time-within-strata gamma random effect, otherwise multinomial.
-#' @param weight_var (Optional) A character string specifying the column in the data frame used for weights. If provided, it must exist in `data`.
-#' @param tmb_parameters (Optional) A list of initial parameter values for the TMB optimization, including `beta`, `gamma`, and `theta`.
-#' @param optim_parameters (Optional) A list of   parameters passed to `nlminb`
 #' @param for_dev Logical; if `TRUE`, the function returns intermediate objects for development purposes. Defaults to `FALSE`.
 #' @param verbose logical, if `TRUE` occasional information is printed
 #'
@@ -27,7 +24,6 @@ hnlm <- function(
  formula,
  data,
  cc_design = ccDesign(),
- optim_parameters = list(eval.max = 2000, iter.max = 2000),
  config=list(dirichlet = TRUE, boundary_is_random=FALSE, transform_theta=TRUE),
  control=list(maxit=2000, start.trust.radius = 0.1, report.level=4, report.freq=1, report.header.freq=10, report.precision=5),
  control_inner = list(report.level=0),
@@ -280,19 +276,37 @@ hnlm <- function(
 
 if(FALSE) {
   theInner = hpolcc::inner_opt(
-    config$start_gamma,
-    tmb_data,
+    parameters= get('start_gamma', cache),
+    data=tmb_data,
     control = control_inner, 
     config=config 
   )
 
   onel = adlaplace::logLik(
-    parameters, tmb_data, config,
-    config$start_gamma,
+    parameters, 
+    data=tmb_data,
+    config = config,
+    start_gamma = cache$start_gamma,
     control = control_inner,
+    adPack = adFunFull, 
     deriv=TRUE, 
     package='hpolcc'
   )
+
+ adlaplace::outer_fn(
+  x = c(config$beta, config$theta),
+    data=tmb_data, config=config, cache=cache, 
+  adPack = adFunFull,
+#  control_inner=control_inner,
+  package = 'hpolcc'
+) 
+
+ adlaplace::outer_gr(
+  x = c(config$beta, config$theta),
+    data=tmb_data, config=config, cache=cache, 
+  adPack = adFunFull,
+  package = 'hpolcc'
+)  
 }
 
   if(for_dev)
@@ -319,12 +333,14 @@ adFunFull = hpolcc::getAdFun(tmb_data, config,  inner=FALSE)
 
 mle = trustOptim::trust.optim(
   c(config$beta, config$theta),
-  adlaplace::outer_fn, adlaplace::outer_gr,
+  adlaplace::outer_fn, 
+  adlaplace::outer_gr,
   method='SR1',
   data=tmb_data, config=config, cache=cache, 
-  adPack = adFunFull, package = 'hpolcc',
+  adPack = adFunFull, 
+  package = 'hpolcc',
   control_inner = control_inner,
-  control = list(report.level=4, report.freq=1)
+  control =  control
   )
 
 

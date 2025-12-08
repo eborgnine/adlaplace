@@ -11,6 +11,10 @@ logLik = function(x, data, config,
 	config_inner$theta = x[seq(Nbeta+1, len=length(x) - Nbeta)]
 	Sgamma1 = seq(Nbeta+1, len=length(start_gamma))
 
+	if(length(start_gamma) != nrow(data$ATp)) {
+		warning("start_gamma is the wrong size")
+	}
+
 	if((1+length(unique(data$map))) != length(config_inner$theta)) {
 		warning("x is the wrong size")
 	} 

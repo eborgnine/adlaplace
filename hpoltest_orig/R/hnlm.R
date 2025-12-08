@@ -27,11 +27,8 @@
 hnlm <- function(formula,
                  data,
                  cc_design = ccDesign(),
-                 weight_var,
-                 dirichlet = FALSE,
-                 tmb_parameters = NULL,
+                 dirichlet = TRUE,
                  optim_parameters = list(eval.max = 2000, iter.max = 2000),
-                 optimizer = c('nlminb', 'optim'),
                  for_dev = FALSE,
                  verbose = FALSE,
                  ...) {
@@ -41,10 +38,6 @@ hnlm <- function(formula,
   if (!is(formula, "formula"))
     stop("formula must be a formula.")
   #  if (!is.data.frame(data)) stop("data must be a data.frame.")
-  if (!missing(weight_var) &&
-      !is.character(weight_var) &&
-      !(weight_var %in% colnames(data)))
-    stop("weight_var must be a character vector.")
   
   # Order the rows of data appropriately.
   if (is.character(cc_design)) {
