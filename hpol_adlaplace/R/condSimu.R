@@ -18,7 +18,7 @@
   for(D in names(predSeq)) {
     newdf = data.frame(x=predSeq[[D]])
     colnames(newdf) = D
-    if(!is.na(Sgroup[[D]])) {
+    if(!all(is.na(Sgroup[[D]]))) {
       newdf[[Sgroup[[D]]]]= rep(NA, nrow(newdf))
     }
     predDf[[D]] = newdf
@@ -64,7 +64,7 @@ condSim = function(fit, term, newx, Nsim=500) {
   result  
   
 }
-
+#' @export
 condSimIwp = function(fit, terms, parameters_info, Nsim, newx, newConstr) {
  
   # fit needs full_parameters, inner (all of it), 
@@ -84,11 +84,11 @@ condSimIwp = function(fit, terms, parameters_info, Nsim, newx, newConstr) {
   }
 
   newXA = mapply(
-    hpolcc:::getNewXA,
+    getNewXA,
     df= termsPred$predDf,
     MoreArgs = list(
-      terms = terms,
-      boundary_is_random= any(parameters_info$theta$log)),
+      terms = terms
+    ),
     SIMPLIFY=FALSE
   )
 

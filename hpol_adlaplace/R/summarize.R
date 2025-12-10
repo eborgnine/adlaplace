@@ -7,7 +7,7 @@
 #'
 #' @return A list containing X and A, the fixed and random effects design matrices.
 #'
-getNewXA <- function(terms, df, boundary_is_random=FALSE){
+getNewXA <- function(terms, df){
 
   X <- list()
   A <- list()
@@ -33,7 +33,7 @@ getNewXA <- function(terms, df, boundary_is_random=FALSE){
     if(term$model %in% "fpoly"){
       Xsub <- poly(df[[term$var]] - term$ref_value, raw = T, simple = T,
        degree = term$p) |> as("TsparseMatrix")
-      if(boundary_is_random) {
+      if(identical(term$boundary_is_random, TRUE)) {
         colnames(Xsub) <- paste0(term$var, "_fpoly_GLOBAL_",seq(
          from = 1,
          len = ncol(Xsub)
@@ -68,6 +68,7 @@ getNewXA <- function(terms, df, boundary_is_random=FALSE){
     k <- k+1
   }
   A = do.call(cbind, A)
+  A = as(A, "CsparseMatrix")
   A = A[,which(diff(A@p)>0), drop=FALSE]
   if(length(X)) {
     X = do.call(cbind, X)

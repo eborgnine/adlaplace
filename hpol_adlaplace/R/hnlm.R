@@ -80,7 +80,7 @@ hnlm <- function(
   # setup of the design matrices and other parameters
   # terms carries all the information throughout
   terms1 <- hpolcc:::collectTerms(formula)
-  terms = lapply(terms1, hpolcc:::getExtra, data=data, cc_matrix=ccMatrix)
+  terms = lapply(terms1, hpolcc:::getExtra, data=data, cc_matrix=cc_matrix)
   for(D in 1:length(terms)) {
     terms[[D]]$id = D
   }
@@ -162,7 +162,7 @@ hnlm <- function(
 
   gamma_setup <- lapply(terms[c(isBoundary, isHrpoly, isRandom)], hpolcc:::getGammaSetup)
   gamma_info = do.call(rbind, gamma_setup)
-  gamma_info$global = as.logical(pmax(gamma_info$group == 'GLOBAL', FALSE, na.rm=TRUE))
+  gamma_info$global = as.logical(pmin(gamma_info$group == 'GLOBAL', TRUE, na.rm=TRUE))
 
   missingGammaInfo = setdiff(colnames(A), gamma_info$name)
   missingGammaA = setdiff(gamma_info$name, colnames(A))
@@ -212,6 +212,10 @@ hnlm <- function(
     by = c('var','model','order','global'), all.x=TRUE, all.y=TRUE,
     suffixes = c("_gamma","_theta"))
 
+  if(sum(is.na(gamma_theta$theta_id))>10){
+    warning("problem matching gamma and theta")
+  }
+
 
   anyNA = is.na(gamma_theta$theta_id) | is.na(gamma_theta$gamma_id)
 #  gamma_theta[anyNA,]
@@ -232,7 +236,7 @@ hnlm <- function(
     y = data[[all.vars(formula)[1]]],
     Q =  Q,
     map = gamma_theta_map,
-    cc_matrix = cc_matrix
+    elgm_matrix = cc_matrix
   )
   tmb_data = hpolcc:::formatHpolData(tmb_data)
   gamma_info$matchA = match(gamma_info$name, rownames(tmb_data$ATp))
@@ -401,7 +405,8 @@ hnlm <- function(
 
 
   result$sample = try(condSimIwp(
-    fit=result$extra, terms = result$objects$terms, 
+    fit=result$extra, 
+    terms = result$objects$terms, 
     parameters_info = result$objects$parameters_info,
     Nsim = c(config$Nsim, 500)[1]
   ))

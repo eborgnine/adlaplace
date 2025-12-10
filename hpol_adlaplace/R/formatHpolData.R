@@ -3,7 +3,7 @@ formatHpolData = function(data) {
 	for(Ddata in c('X', 'A')) {
       data[[paste0(Ddata, 'Tp')]] = as(Matrix::t(data[[Ddata]]), 'CsparseMatrix')
   	}
-  	data$elgm_matrix = as(data$cc_matrix, 'CsparseMatrix')
+  	data$elgm_matrix = as(data$elgm_matrix, 'CsparseMatrix')
 	if(!'Qdiag' %in% names(data)) {
 		data$Qdiag = Matrix::diag(data$Q)
 	}
@@ -20,5 +20,5 @@ formatHpolData = function(data) {
 	data$y = as.integer(data$y)
 	if(length(data$y) != ncol(data$ATp)) warning("data wrong length")
 	 	
-	return(data[setdiff(names(data), c('X','A','cc_matrix'))])
+	return(data[setdiff(names(data), c('X','A'))])
 }

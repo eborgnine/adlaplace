@@ -78,6 +78,9 @@ getExtra <- function(term, data, cc_matrix){
     term$nknots <- length(knots)
   }
   
+  if(!term$var %in% names(data)) {
+    warning("cant find ", term$var, "in data")
+  }
   term$range <- range(data[[term$var]])
 
   return(term)

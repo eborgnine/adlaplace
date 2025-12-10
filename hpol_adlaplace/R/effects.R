@@ -125,8 +125,7 @@ iwpPrecision <- function(term){
 #' @rdname effects_and_utilities 
 iwpTheta <- function(theta_info, term){
 
-
-  result = data.frame(var=term$var, model=term$model, global=NA, order=NA, init=term$init)
+  result = data.frame(var=term$var, model=term$model, global=TRUE, order=NA, init=term$init)
   result$name = apply(result[,c('var','model')],1,paste, collapse='_')
   return(result)
 
