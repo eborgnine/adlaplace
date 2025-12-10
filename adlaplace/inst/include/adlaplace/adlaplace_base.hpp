@@ -2,6 +2,7 @@
 
 #include<Rcpp.h>
 #include <cppad/cppad.hpp>
+#include "adlaplace/foromp.hpp"
 #include <RcppEigen.h>
 
 // needs cppad

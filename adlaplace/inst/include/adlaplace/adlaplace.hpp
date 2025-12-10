@@ -6,7 +6,6 @@
 
 
 // these only need Rcpp, RcppEigen, cppad
-#include "adlaplace/foromp.hpp"
 #include "adlaplace/trustOptimUtils.hpp"
 
 // needs data, config
