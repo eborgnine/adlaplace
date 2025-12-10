@@ -15,6 +15,9 @@ inline CppAD::vector<double> traceHinvT(
     const size_t Ngroup = fun.size();
     CppAD::vector<double> result(Nparams, 0.0);
 
+    if(config.verbose) {
+        Rcpp::Rcout << ".";
+    }
 
   #pragma omp parallel
     {

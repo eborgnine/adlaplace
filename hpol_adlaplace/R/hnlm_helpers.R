@@ -40,6 +40,7 @@ collectTerms <- function(formula){
     
     return(term)
   })
+
   # add fpoly, rpoly terms
   SaddPoly = which(unlist(lapply(terms1, '[[', 'model')) %in%  c('iwp','hiwp'))
   SaddRPoly = which(unlist(lapply(terms1, '[[', 'model')) == 'hiwp')
@@ -125,10 +126,6 @@ getGammaSetup <- function(term){
   } else {
     term$order = NA
   }
-  if(term$model == "fpoly") {
-    term$groups = 'GLOBAL'
-  }
-
 
   if(term$model %in% c("iwp","hiwp")) {
     term$basis = seq(1, len=term$nknots-1)
@@ -212,23 +209,15 @@ addFPoly <- function(term){
   
   # standard poly stuff
   if(!is.null(term$fpoly_p) && term$fpoly_p > 0){
-    new_f <- "~ f(__var__, model = 'fpoly', ref_value = __rv__, p = __p__)" |> 
+    new_f <- "~ f(__var__, model = 'fpoly', ref_value = __rv__, p = __p__, boundary_is_random = __bound__)" |> 
       gsub(pattern = "__var__", replacement = term$var) |>
       gsub(pattern = "__rv__", replacement = term$ref_value) |>
       gsub(pattern = "__p__", replacement = term$fpoly_p) |>
+      gsub(pattern = "__bound__", replacement = c(term$boundary_is_random,TRUE)[1]) |>
       as.formula()
-    new_terms[[length(new_terms)+1]] <- collectTerms(new_f)[[1]]
-  }
-  
-  if(!is.null(term$hfpoly_p) && term$hfpoly_p > 0){
-    stop("hfpoly_p not yet implemented")
-    # include additional fixed polynomial effects in the model
-    new_f <- "~ f(__var__, model = 'hfpoly', ref_value = __rv__, p = __p__, include_global = F)" |> 
-      gsub(pattern = "__var__", replacement = term$var) |>
-      gsub(pattern = "__rv__", replacement = term$ref_value) |>
-      gsub(pattern = "__p__", replacement = term$hfpoly_p) |>
-      as.formula(env)
-    new_terms[[length(new_terms)+1]] <- collectTerms(new_f)[[1]]
+    new_terms[[length(new_terms)+1]] <- hpolcc:::collectTerms(new_f)[[1]]
+  } else {
+    warning("fpoly_p must be positive")
   }
   
   new_terms

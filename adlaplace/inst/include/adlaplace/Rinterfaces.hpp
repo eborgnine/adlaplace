@@ -188,13 +188,13 @@ Rcpp::S4 hessian_backend(
 	if(configC.verbose) {
 		Rcpp::Rcout  << "\n";
 	}
-	
+
 	resultC.makeCompressed();
 
-	Eigen::SparseMatrix<double> Hfull(
+/*	Eigen::SparseMatrix<double> Hfull(
 		resultC.selfadjointView<Eigen::Lower>()
-		);
-	Rcpp::S4 out = eigen_to_dgC(Hfull);
+		);*/
+	Rcpp::S4 out = eigen_to_dgC(resultC);
 
 	return(out);
 }

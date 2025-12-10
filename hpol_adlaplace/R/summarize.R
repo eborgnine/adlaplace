@@ -8,6 +8,7 @@
 #' @return A list containing X and A, the fixed and random effects design matrices.
 #'
 getNewXA <- function(terms, df, boundary_is_random=FALSE){
+
   X <- list()
   A <- list()
   k <- 1
@@ -61,15 +62,17 @@ getNewXA <- function(terms, df, boundary_is_random=FALSE){
     
     # below takes care of random effects
     # design matrix
-    Asub <- getDesign(term, df)
+    Asub <- hpolcc:::getDesign(term, df)
     A <- c(A, list(Asub))
 
     k <- k+1
   }
   A = do.call(cbind, A)
-  X = do.call(cbind, X)
-  if(is.null(X)) {
-    X = matrix(nrow=nrow(A), ncol=0)
+  A = A[,which(diff(A@p)>0), drop=FALSE]
+  if(length(X)) {
+    X = do.call(cbind, X)
+  } else {
+    X = matrix(nrow = nrow(A), ncol=0)
   }
 
   return(list(X = X, A = A))

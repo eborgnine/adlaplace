@@ -34,8 +34,13 @@ sparsity_by_group = function(xx, template, dims, Sgamma0) {
 	)
 }
 
+
 #' @export
 group_sparsity = function(data, config, sparsity_list) {
+
+	if(missing(sparsity_list)) {
+		sparsity_list = adlaplace::sparsity(data, config)
+	}
 
 	Sgamma0 = seq.int(length(config$beta), length.out=length(config$start_gamma))
 	Sgamma1 = Sgamma0+1L

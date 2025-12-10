@@ -3,6 +3,10 @@
 
 #define COMPUTE_CONSTANTS
 
+// use logDensRandom from logDensRandom.hpp
+#include "adlaplace/logDensRandom.hpp"
+
+
 // returns minus log density
 template <class Type>
 CppAD::vector<CppAD::AD<double>> logDensObs(
@@ -72,19 +76,6 @@ CppAD::vector<CppAD::AD<double>> logDensObs(
 	return(result);
 }
 
-// dummy funciton if there is no logDensExtra
-#ifdef NOLOGDENSEXTRA
-template <class Type>
-CppAD::vector<Type> logDensExtra(
-	const CppAD::vector<Type> &theta,
-	const Data& data,
-	const Config& config
-	) {
-	CppAD::vector<Type> result(1);
-	result[0] = 0.0;
-	return(result);
-}
-#endif
 
 
 template <class Type>
@@ -129,61 +120,6 @@ CppAD::vector<Type> logDensExtra(
 }
 
 
-template <class Type>
-CppAD::vector<CppAD::AD<double>> logDensRandom(
-	const CppAD::vector<CppAD::AD<double>>& gamma,
-	const CppAD::vector<Type> &theta,
-	const Data& data,
-	const Config& config
-	){
-
-	CppAD::vector<Type> logTheta(theta.size()), expTheta(theta.size());
-	if(config.transform_theta) {
-		for(size_t D=0;D<theta.size();++D) {
-			logTheta[D] = theta[D];
-			expTheta[D] = exp_any(theta[D]);
-		}
-	} else {
-		for(size_t D=0;D<theta.size();++D) {
-			logTheta[D] = log_any(theta[D]);
-			expTheta[D] = theta[D];
-		}
-	}
-
-
-	CppAD::vector<CppAD::AD<double>> result(1, 0.0);
-	CppAD::AD<double> qpart = 0.0, qDet=0.0;
-
-	CppAD::vector<CppAD::AD<double>> gammaScaled(data.Ngamma);
-
-
-	if(config.verbose) {
-		Rcpp::Rcout << "q adlaplace, ngamma  " << data.Ngamma << " nmap " << data.map.size() << 
-		" ntheta " << config.theta.size() << 
-		" exp theta map 0 " <<  expTheta[data.map[0]] << " gamma0 " << gamma[0] << ".\n";
-	}
-
-
-	for(size_t D=0;D<data.Ngamma;D++) {
-
-		size_t mapHere = data.map[D];
-		gammaScaled[D] = gamma[D] / expTheta[mapHere];
-		qpart += 
-			gammaScaled[D]*gammaScaled[D]*data.Qdiag[D];
-		qDet += logTheta[mapHere];
-	}
-		qpart *= 0.5;
-
-	if(config.verbose) {
-		Rcpp::Rcout << "logDensRandom " << qpart << " det "<< qDet << "\n";
-	}
-
-	// Warning, no offdiag of Q implemented
-
-	result[0] = qpart + qDet;
-	return(result);
-}
-
 
 // declare
 
@@ -213,16 +149,5 @@ logDensExtra<CppAD::AD<double>>(
     const Data&, const Config&);
 
 
-template CppAD::vector<CppAD::AD<double>>
-logDensRandom<double>(
-    const CppAD::vector<CppAD::AD<double>>&,
-    const CppAD::vector<double>&,
-    const Data&, const Config&);
-
-template CppAD::vector<CppAD::AD<double>>
-logDensRandom<CppAD::AD<double>>(
-    const CppAD::vector<CppAD::AD<double>>&,
-    const CppAD::vector<CppAD::AD<double>>&,
-    const Data&, const Config&);
 
 

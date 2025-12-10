@@ -2,15 +2,12 @@
 #define ADLAPLACE_HPP
 
 
-
-
 #include "adlaplace/adlaplace_base.hpp"
 
 
 // these only need Rcpp, RcppEigen, cppad
 #include "adlaplace/foromp.hpp"
 #include "adlaplace/trustOptimUtils.hpp"
-
 
 // needs data, config
 #include "adlaplace/adpack.hpp"

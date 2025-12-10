@@ -38,7 +38,8 @@ hnlm <- function(
 
   configDefaults = list(
     verbose=FALSE, transform_theta=TRUE,
-    num_threads = 1, dirichlet=TRUE
+    num_threads = 1, dirichlet=TRUE,
+    dirichlet_init = 0.1
   )
 
   configDefaults = configDefaults[setdiff(names(configDefaults), names(config))]
@@ -54,13 +55,12 @@ hnlm <- function(
   }
 
   data.table::setDT(data)
-  strat_time_vars <- c(cc_design$strat_vars, cc_design$time_var)
+  strat_time_vars <- unique(c(cc_design$strat_vars, cc_design$time_var))
 
   strat_time_vars = strat_time_vars[
   order(sapply(data[, strat_time_vars, with = FALSE],
    function(xx) length(unique(xx))), decreasing=FALSE)
   ]
-
 
   data.table::setorderv(data, strat_time_vars)
   
@@ -119,7 +119,6 @@ hnlm <- function(
 )
   names(XfPoly) = unlist(lapply(terms[isFpoly], '[[', 'var'))
 
-
   Arandom <- parallel::mclapply(
     terms[c(isHrpoly, isRandom)],
     hpolcc:::getDesign,
@@ -131,100 +130,113 @@ hnlm <- function(
     unlist(lapply(terms[isRandom], '[[', 'model')), sep='_')
 
 
-  if(identical(config$boundary_is_random, TRUE) ) {
-    # boundary X's go in A
-    if(is.null(config$prec_boundary)){
-      config$prec_boundary = 0
-    }
-    QfPoly = lapply(XfPoly, function(xx, prec) Matrix::Diagonal(ncol(xx), x=prec), prec= config$prec_boundary)
-    isBoundary = isFpoly
-    Xlist = XasIs
-    XfPoly = do.call(cbind, XfPoly)
-    if(!is.null(XfPoly)) {
-      colnames(XfPoly) = gsub("_fpoly_", "_fpoly_GLOBAL_", colnames(XfPoly))
-      Alist = c(list(XfPoly), Arandom)
-    } else {
-      Alist = Arandom      
-    }
-    Qs = c(QfPoly, Qs)
+  fPolyRandom = unlist(lapply(terms[isFpoly], '[[', "boundary_is_random") )
+  isBoundary = isFpoly[fPolyRandom]
+  XfPolyRandom = XfPoly[fPolyRandom]
+  XfPolyFixed = XfPoly[!fPolyRandom]
 
-  } else {
-    isBoundary = c()
-    Xlist = c(XasIs, XfPoly)
-    Alist = Arandom
-    Qall = Qs
+  if(any(fPolyRandom) & is.null(config$prec_boundary)){
+    config$prec_boundary = 0
   }
 
+    # random boundary X's go in A
+  QfPoly = lapply(XfPolyRandom, function(xx, prec) Matrix::Diagonal(ncol(xx), x=prec), prec= config$prec_boundary)
+  isBoundary = isFpoly
+  Xlist = XasIs
+
+
+  Alist = c(XfPolyRandom, Arandom)
+  Qall = c(QfPoly, Qs)
+
+  Xlist = c(XasIs, XfPolyFixed)
+
+
+# A, Gamma
   if (length(Alist)) {
     A = do.call(cbind, Alist) |> as("TsparseMatrix")
   } else {
     A = matrix(nrow = 0, ncol = 0) |> as("TsparseMatrix")
   }
+
+  gamma_setup <- lapply(terms[c(isBoundary, isHrpoly, isRandom)], hpolcc:::getGammaSetup)
+  gamma_info = do.call(rbind, gamma_setup)
+  gamma_info$global = as.logical(pmax(gamma_info$group == 'GLOBAL', FALSE, na.rm=TRUE))
+
+  missingGammaInfo = setdiff(colnames(A), gamma_info$name)
+  missingGammaA = setdiff(gamma_info$name, colnames(A))
+  if(length(missingGammaInfo)) {
+    warning(" missing gamma info ", paste(missingGammaInfo, collapse=','))
+  }
+  if(length(missingGammaA)) {
+    warning(" missing gamma A ", paste(missingGammaA, collapse=','))
+  }
+
+  gamma_info = gamma_info[match(gamma_info$name, colnames(A)), ]
+  gamma_info$gamma_id = seq(0L, len=nrow(gamma_info))
+  if(any(is.na(gamma_info$var))) {
+    warning("some columns of design matrix not found in gamma")
+  }
+
   if (length(Xlist)) {
     X = do.call(cbind, Xlist)
+    beta_info = data.frame(
+      var = rep(names(Xlist), unlist(lapply(Xlist, ncol))),
+      name = colnames(X)
+    )
   } else {
     X = matrix(nrow = nrow(data), ncol = 0)
+    beta_info = data.frame()
   }
 
   Q =  Matrix::bdiag(Qs[!sapply(Qs, is.null)])
 
+
+# theta setup
   theta_setup = lapply(terms[c(isHrpoly, isRandom)], hpolcc:::getThetaSetup, theta_info = list())
 
-#  if (config$dirichlet) {
-    if(is.null(config$dirichlet_init)) {
-      config$dirichlet_init = 0.1
-    }
-    theta_setup = c(theta_setup, 
-      list(data.frame(var='overdisp', 
-        model='overdisp', global=NA, order=NA, 
-        init=config$dirichlet_init, name='overdisp')))
+  theta_setup = c(theta_setup, 
+    list(data.frame(var='overdisp', 
+      model='overdisp', global=TRUE, order=NA, 
+      init=config$dirichlet_init, name='overdisp')))
 
   theta_info = do.call(rbind, theta_setup)
-
-  gamma_setup <- lapply(terms[c(isBoundary, isHrpoly, isRandom)], hpolcc:::getGammaSetup)
-  if(!all(unlist(lapply(gamma_setup, nrow)) == unlist(lapply(Alist, ncol)))) {
-    warning("gamma and A dont match")
-  }
-  gamma_info = do.call(rbind, gamma_setup)
-
-  if(length(setdiff(colnames(A), gamma_info$name)) | length(setdiff(gamma_info$name, colnames(A)))) {
-    warning("some columns of design matrix not found in gamma")
-  }
-
-  gamma_info$global = gamma_info$group == 'GLOBAL'
-
-  gamma_theta = merge(gamma_info, theta_info, 
-    by = c('var','model','global','order'), all.x=TRUE, all.y=TRUE,
-    suffixes = c("_gamma","_theta"))
-
-  gamma_theta$matchA = match(gamma_theta$name_gamma, colnames(A))
-  gamma_theta = gamma_theta[order(gamma_theta$matchA),]
-  gamma_theta$matchTheta = match(gamma_theta$name_theta, theta_info$name)
-  gamma_theta[gamma_theta$var == 'overdisp','matchTheta'] = NA
-
-
-  NAtheta = which(is.na(gamma_theta$matchTheta))
-  if(!all(NAtheta == 
-    c(seq(1,len=length(NAtheta) - config$dirichlet), nrow(gamma_theta)[config$dirichlet])
-  )) {
-    warning("fpoly thetas not at top")
-  }
-
   if(config$transform_theta) {
     theta_info$init = pmax(-15, log(theta_info$init))
+    theta_info$log = TRUE
+  } else {
+    theta_info$log = FALSE
   }
+  theta_info$theta_id = seq(0L, len=nrow(theta_info))
+
+  gamma_theta = merge(gamma_info, theta_info, 
+    by = c('var','model','order','global'), all.x=TRUE, all.y=TRUE,
+    suffixes = c("_gamma","_theta"))
+
+
+  anyNA = is.na(gamma_theta$theta_id) | is.na(gamma_theta$gamma_id)
+#  gamma_theta[anyNA,]
+
+  gamma_theta_both = gamma_theta[!anyNA,]
+  #map matrix column theta, row gamma 
+  gamma_theta_map = Matrix::sparseMatrix(
+    i = gamma_theta_both$gamma_id,
+    j = gamma_theta_both$theta_id,
+    x = rep(1L, nrow(gamma_theta_both)),
+    index1 = FALSE,
+    dims = c(nrow(gamma_info), nrow(theta_info))
+  )
+
 
   tmb_data <- list(
     X = X,
     A = A,
     y = data[[all.vars(formula)[1]]],
     Q =  Q,
-    map = na.omit(gamma_theta$matchTheta)-1,
+    map = gamma_theta_map,
     cc_matrix = cc_matrix
   )
   tmb_data = hpolcc:::formatHpolData(tmb_data)
   gamma_info$matchA = match(gamma_info$name, rownames(tmb_data$ATp))
-
 
   verboseOrig = config$verbose
   config$verbose = config$verbose > 1
@@ -239,6 +251,12 @@ hnlm <- function(
 
   parameters = c(start_beta, start_theta)
   full_parameters = c(start_beta, config$start_gamma, start_theta)
+
+  parameters_info = list(
+    beta = beta_info,
+    gamma= gamma_info,
+    theta = theta_info
+  )
 
   if(verboseOrig) {
     cat("getting groups...")
@@ -257,7 +275,7 @@ hnlm <- function(
     index1=FALSE
   )
 
- if(verboseOrig) {
+  if(verboseOrig) {
     cat(",")
   }
   config$groups = adlaplace::adFun_groups(ncol(firstDeriv), firstDeriv)
@@ -274,40 +292,45 @@ hnlm <- function(
 
 
 
-if(FALSE) {
-  theInner = hpolcc::inner_opt(
-    parameters= get('start_gamma', cache),
-    data=tmb_data,
-    control = control_inner, 
-    config=config 
-  )
+  if(FALSE) {
+    theInner = hpolcc::inner_opt(
+      parameters= get('start_gamma', cache),
+      data=tmb_data,
+      control = control_inner, 
+      config=config 
+    )
 
-  onel = adlaplace::logLik(
-    parameters, 
-    data=tmb_data,
-    config = config,
-    start_gamma = cache$start_gamma,
-    control = control_inner,
-    adPack = adFunFull, 
-    deriv=TRUE, 
-    package='hpolcc'
-  )
+    onel = adlaplace::logLik(
+      parameters, 
+      data=tmb_data,
+      config = config,
+      start_gamma = cache$start_gamma,
+      control = control_inner,
+      adPack = adFunFull, 
+      deriv=TRUE, 
+      package='hpolcc'
+    )
 
- adlaplace::outer_fn(
-  x = c(config$beta, config$theta),
-    data=tmb_data, config=config, cache=cache, 
-  adPack = adFunFull,
+    adlaplace::outer_fn(
+      x = c(config$beta, config$theta),
+      data=tmb_data, config=config, cache=cache, 
+      adPack = adFunFull,
 #  control_inner=control_inner,
-  package = 'hpolcc'
-) 
+      package = 'hpolcc'
+    ) 
 
- adlaplace::outer_gr(
-  x = c(config$beta, config$theta),
-    data=tmb_data, config=config, cache=cache, 
-  adPack = adFunFull,
-  package = 'hpolcc'
-)  
-}
+    adlaplace::outer_gr(
+      x = c(config$beta, config$theta),
+      data=tmb_data, config=config, cache=cache, 
+      adPack = adFunFull,
+      package = 'hpolcc'
+    )  
+  }
+
+  # some checks
+  if(!all(parameters_info$gamma$name == rownames(tmb_data$ATp))) {
+    warning("names of gamma don't match up")
+  }
 
   if(for_dev)
     return(
@@ -320,7 +343,8 @@ if(FALSE) {
         gamma_info = gamma_info,
         control = control,
         control_inner = control_inner,
-        cache = cache
+        cache = cache,
+        parameters_info = parameters_info
       )
     )
 
@@ -329,27 +353,26 @@ if(FALSE) {
     cat("optimizing")
   }
 
-adFunFull = hpolcc::getAdFun(tmb_data, config,  inner=FALSE)
+  adFunFull = hpolcc::getAdFun(tmb_data, config,  inner=FALSE)
 
-mle = trustOptim::trust.optim(
-  c(config$beta, config$theta),
-  adlaplace::outer_fn, 
-  adlaplace::outer_gr,
-  method='SR1',
-  data=tmb_data, config=config, cache=cache, 
-  adPack = adFunFull, 
-  package = 'hpolcc',
-  control_inner = control_inner,
-  control =  control
+  mle = trustOptim::trust.optim(
+    c(config$beta, config$theta),
+    adlaplace::outer_fn, 
+    adlaplace::outer_gr,
+    method='SR1',
+    data=tmb_data, config=config, cache=cache, 
+    adPack = adFunFull, 
+    package = 'hpolcc',
+    control_inner = control_inner,
+    control =  control
   )
 
 
   result = list(opt = mle, 
     objects = list(
       tmb_data=tmb_data, config=config, formula=formula, terms = terms,
-      theta_info = theta_info, gamma_info = gamma_info))
-
-
+      theta_info = theta_info, gamma_info = gamma_info)
+  )
   if(verboseOrig) {
     cat("done")
   }
@@ -361,91 +384,25 @@ mle = trustOptim::trust.optim(
     adPack = adFunFull,
     deriv=0))
 
+  result$parameters = formatParameters(
+    result$extra$full_parameters, 
+    parameters_info)
+
   if(FALSE) {
-  result$hessian_parameters = try(
-    numDeriv::jacobian(
-      adlaplace::outer_gr,
-      x= mle$solution,
-      package='hpolcc',
-      data = tmb_data, config=config, control_inner=control_inner, adPack=adFunFull, cache=cache
+    result$hessian_parameters = try(
+      numDeriv::jacobian(
+        adlaplace::outer_gr,
+        x= mle$solution,
+        package='hpolcc',
+        data = tmb_data, config=config, control_inner=control_inner, adPack=adFunFull, cache=cache
+      )
     )
-  )
   }
 
-  result$extra$parameters = hpolcc::formatParameters(result$extra$fullParameters, result$objects)
 
-#  mle$parameters = hpolcc::formatParameters(mle$extra$fullParameters, listres, TRUE)
-
-  Ngamma = nrow(result$extra$parameters$gamma)
-
-
-  Nsim = c(config$Nsim, 500)[1]
-  simInd = matrix(rnorm(Nsim * Nparams), Nparams, Nsim)
-
-  simGamma = as.matrix(Matrix::crossprod(result$extra$inner$cholHessian$halfH, simInd))
-  rownames(simGamma) = rownames(tmb_data$ATp)
-
-  Sref = unlist(lapply(terms, '[[', "ref_value"))
-  Svar = unlist(lapply(terms, '[[', "var"))
-  Smodel = unlist(lapply(terms, '[[', "model"))
-
-  isHiwp = which(Smodel %in% c('iwp', 'hiwp'))
-  Sref = Sref[isHiwp]
-  Svar = Svar[isHiwp]
-  Srange = lapply(terms[isHiwp], '[[', 'range')
-  predSeq = lapply(Srange, function(xx) seq(min(xx), max(xx), len=100))
-  Sgroup = lapply(terms[isHiwp], '[[', 'group_var')
-
-  names(predSeq) =names(Sgroup) = names(Sref) = Svar
-
-  newConstr = Sref # replace by new constraints
-
-
-  newXA = fixedPart = newConstrIndex= simGlobal = simF= list()
-
-  for(D in names(predSeq)) {
-    newDf = data.frame(x = predSeq[[D]], group = NA)
-    names(newDf)[2] = Sgroup[D]
-    colnames(newDf)[1] = D
-    newXA[[D]] = hpolcc:::getNewXA(
-      terms = terms,
-      df= newDf,
-      boundary_is_random= result$objects$config$boundary_is_random
-    )
-
-    newColNamesBeta = gsub("_fpoly_", "", names(result$extra$parameters$beta))
-    namesBoth = intersect(newColNamesBeta, colnames(newXA[[D]]$X))    
-
-    fixedPart[[D]] = as.vector(newXA[[D]]$X[,namesBoth, drop=FALSE] %*% 
-      result$extra$parameters$beta[match(namesBoth, newColNamesBeta)])
-
-    gamma_info[gamma_info$model == 'iwp','global'] = TRUE
-    colsA = gamma_info[gamma_info$var == D & gamma_info$global,'name']
-
-    testA = setdiff(colsA, colnames(newXA[[D]]$A))
-    if(length(testA)) {
-      warning("missing A ", paste(testA, collapse=','))
-    }
-    testA = setdiff(colsA, rownames(simGamma))
-    if(length(testA)) {
-      warning("missing A ", paste(testA, collapse=','))
-    }
-
-    simF[[D]] = as.matrix(newXA[[D]]$A[,colsA,drop=FALSE] %*% simGamma[colsA,,drop=FALSE])
-
-    simGlobalHere= simF[[D]] + fixedPart[[D]]
-    newConstrIndex[[D]] = which.min(abs(predSeq[[D]] - newConstr[D]))
-    toSubtract = matrix(simGlobalHere[newConstrIndex[[D]],],
-      nrow(simGlobalHere), ncol(simGlobalHere), byrow=TRUE)
-    simGlobal[[D]] = simGlobalHere - toSubtract
-  }
-
-  Sregions1 = unique(gsub("_[[:digit:]]+$", "", rownames(simGamma)))
-  Sregions = setdiff(unique(gsub(".*_", "", Sregions1)), "global")
-
-  result$sample = list(gamma=simGamma, global=simGlobal, groups = Sregions, newXA = newXA, x = predSeq)
-
-# matplot(result$sample$x[[1]], exp(result$sample$global[[1]])-1, type='l', lty=1, col='#00000020', ylim = c(-0.25, 1)) 
+  result$sample = try(condSimIwp(
+    result$extra, result$objects, c(config$Nsim, 500)[1]
+  ))
 
   return(result)
 }

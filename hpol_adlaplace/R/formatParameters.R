@@ -1,20 +1,31 @@
+#' parameters_info is a list with elements beta, gamma, theta
+#' each needs columns var, name, theta needs log
+
 #' @export
-formatParameters = function(x, obj, logscale_theta = obj$config$transform_theta) {
-  Ntheta = length(obj$theta_info$name)
-  Nbeta = nrow(obj$tmb_data$XTp)
-  Ngamma = nrow(obj$tmb_data$ATp)
+formatParameters = function(x, parameters_info) {
+
+
+
+  Ntheta = nrow(parameters_info$theta)
+  Nbeta = nrow(parameters_info$beta)
+  Ngamma = nrow(parameters_info$gamma)
+
+  betaNames =gsub("_fpoly_", "", parameters_info$beta$name)
+  thetaNames = parameters_info$theta$name
+  gammaNames = parameters_info$gamma$name
 
   result = list(
     theta = x[seq(to=length(x), len=Ntheta)],
     beta = x[seq(1, len=Nbeta)]
     )
-  names(result$beta) = rownames(obj$tmb_data$XTp)
-  names(result$theta) = obj$theta_info$name
+
+  names(result$beta) = betaNames
+  names(result$theta) = thetaNames
+
   if(logscale_theta ) {
     result$theta = exp(result$theta)
   }
 
-  gammaNames = rownames(obj$tmb_data$ATp)
   theGamma = data.frame(
     name = gammaNames, 
     value = x[seq(Nbeta+1, len=Ngamma)], 
@@ -41,6 +52,7 @@ formatParameters = function(x, obj, logscale_theta = obj$config$transform_theta)
 
   result$gamma = theGamma[,c('term','group','index','value')]
 
+  result$info = parameters_info
   result
 
 }

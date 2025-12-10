@@ -13,11 +13,8 @@ $$
 
 # to do
 
-
-- inner_opt outer adpack argument, get full hessian, gradient 
-- inner_opt produces LinvPt
-- ... and whichColumnsByGroup and trace
-- all with same omp threads, 
+- add hpp files for a few models in inst (i.e. neg binom)
+- put Rinterfaces, rcppexports in inst somehow?  
 
 
 ```{r theData}
@@ -46,7 +43,14 @@ c(mean(Z), sd(Z))
 y = rpois(length(etaT), etaT*Z)
 
 NperEffect = unlist(lapply(AmatList, ncol))   
-map = rep(seq(0, len=length(NperEffect)), NperEffect)
+#map = rep(seq(0, len=length(NperEffect)), NperEffect)
+map = Matrix::sparseMatrix(
+	i = seq(0L, len=ncol(Amat)),
+	j = rep(seq(0L, len=length(NperEffect)), NperEffect),
+	x = 1L,
+	index1=FALSE,
+	dims = c(ncol(Amat), length(thetaOrig))
+	)
 
 data = list(y = y, 
 	ATp = as(Matrix::t(Amat), 'dMatrix'),
@@ -58,12 +62,11 @@ data = list(y = y,
 config = list(beta = rep(1, nrow(data$XTp)), 
 	theta = c(rep(-1, length(NperEffect)), -1), 
 	transform_theta=TRUE, start_gamma = rep(0, nrow(data$ATp)),
-	groups = adlaplace::adFun_groups(100, data$ATp),
+	groups = adlaplace::adFun_groups(1000, data$ATp),
 	num_threads=parallel::detectCores(),
-	verbose=FALSE)	
+	verbose=FALSE, package='adlaplace')	
 
-sparsity_raw = adlaplace::sparsity(data, config)
-sparsity_list = adlaplace::group_sparsity(data=data, config=config, sparsity_raw)
+sparsity_list = adlaplace::group_sparsity(data=data, config=config)
 
 config = modifyList(config, sparsity_list)
 ```
@@ -71,19 +74,21 @@ config = modifyList(config, sparsity_list)
 
 
 
-```{r loglik}
-ll1 = adlaplace::logLik(
-	x=c(config$beta, config$theta),
-	data, config,
-	deriv=TRUE)
-ll1$deriv	
-```
+
 
 ```{r outerOpt}
 cache = new.env()
 assign('start_gamma', config$start_gamma, cache)
 
 adFunFull = adlaplace::getAdFun(data, modifyList(config, list(verbose=TRUE)), inner=FALSE)
+
+ll0 = adlaplace::logLik(
+	x= c(config$beta, config$theta),
+	data, config,
+	start_gamma = cache$start_gamma,
+	adPack = adFunFull,
+	deriv=TRUE)
+ll0$dL
 
 mle = trustOptim::trust.optim(
 	c(config$beta, config$theta),
@@ -96,58 +101,51 @@ mle = trustOptim::trust.optim(
 ```
 
 
-```{r checkDerivatives}
-# get adFun again, with sparsity
-data2 = data#modifyList(data, list(groups = data$groups[,1:200,drop=FALSE]))
-config2 = config[grep("group|hessian", names(config), invert=TRUE)]
-config2$start_gamma = res2$solution
-sparsity_list = adlaplace::group_sparsity(
-	data= data2,
-	config=config2)
-config = modifyList(config2, sparsity_list)
-config$num_threads = 1
-adFunInner = adlaplace::getAdFun(data2, config, inner=TRUE)
-adFun = adlaplace::getAdFun(data2, config, inner=FALSE)
+```{r checkDeriv}
 
-adlaplace::jointLogDens(config$start_gamma, adFunInner, config)
-adlaplace::jointLogDens(c(config$beta, config$start_gamma, config$theta), adFun, config)
+Npar=13;Dpar = 1
+x = c(mle$solution[seq(1, len=length(config$beta))], mle$solution[seq(length(config$beta)+1, len=length(config$theta))])
+parDf = data.frame(x)[,rep(1, Npar)]
+Sx = seq(-0.1, 0.1, len=13) + parDf[Dpar,1]
+SxD = Sx[-1] - diff(Sx)/2
+parDf[Dpar,] = Sx
 
 Sgamma = seq(length(config$beta)+1, len=length(config$start_gamma))
-gInner = adlaplace::grad(config$start_gamma, adFunInner, config)
-g = adlaplace::grad(c(config$beta, config$start_gamma, config$theta), adFun, config)
-gNum = numDeriv::grad(adlaplace::jointLogDens, config$start_gamma, adPack = adFunInner, config=config)
 
-matplot(gNum, cbind(gInner,g[Sgamma]), col=c('red','blue'), cex=c(1, 0.4), pch=15)
-abline(0,1)
+dens1 = mapply(
+  adlaplace::logLik,
+  x = as.list(parDf),
+  MoreArgs = list(data=data, config=config, deriv=TRUE, adPack = adFunFull),
+  SIMPLIFY=FALSE
+  )
 
-hesOuter = adlaplace::hessian(c(config$beta, config$start_gamma, config$theta), adFun, config)
-hesInner = adlaplace::hessian(config$start_gamma, adFunInner, config)
-hesN = numDeriv::jacobian(adlaplace::grad, x=config$start_gamma, adPack=adFunInner, config=config)
-
-matplot(cbind(
-	apply(abs(hesInner-hesN), 2, sum),
-	apply(abs(hesOuter[Sgamma,Sgamma]-hesN), 2, sum)))
+deriv1 = do.call(abind::abind, c(lapply(lapply(dens1, '[[', "deriv"), '[[', 'deriv'), list(along=3)))
+sL = unlist(lapply(dens1, function(xx) xx$inner$minusLogLik))
 
 
+plot(Sx, sL, #ylim = min(sL)+c(0, 20), 
+	type='o');abline(v=x[Dpar])
 
-which(unlist(lapply(sparsity_list$group_outer, function(xx) any(xx$match == 9))))
-which(unlist(lapply(sparsity_list$group_inner, function(xx) any(xx$match == 2))))
 
-sparsity_list$group_inner[[5]][c('i','j','match')]
-bob = as(sparsity_list$hessian_inner, 'TsparseMatrix');rbind(bob@i, bob@j)
+plot(Sx, deriv1[Dpar,'dL', ], xlab=Dpar)
+lines(SxD, diff(sL)/diff(Sx))
+abline(v=x[Dpar]);abline(h=0)
 
-sparsity_list$group_outer[[5]][c('i','j','match')]
-bob = as(sparsity_list$hessian_outer, 'TsparseMatrix');rbind(bob@i, bob@j)[,1:13]
 
-forNumDeriv = function(xx, ...) {
-	adlaplace::jointLogDens(c(xx, config$start_gamma[-(1:length(xx))]), ...)
-}
-x2 = numDeriv::grad(forNumDeriv, config$start_gamma[1:20], adPack = adFun, config=config)
-plot(x2, x[1:length(x2)])
+sDet = unlist(lapply(dens1, function(xx) xx$inner$halfLogDet))
+dDet = diff(sDet)/diff(Sx)
+plot(Sx, deriv1[Dpar,'dDet', ], ylim = range(c(dDet, deriv1[Dpar,'dDet', ])))
+lines(SxD, dDet)
+
+
+dens1[[ceiling(length(dens1)/2)]]$deriv
+
+
 ```
 
 
 
+log likelihood in R, for debugging
 
 ```{r llPlain}
 llPlain = function(x, data, config) {
@@ -155,7 +153,7 @@ llPlain = function(x, data, config) {
 	Ngamma = length(config$start_gamma)
 	Ntheta = length(config$theta)
 
-	Sobs = data$groups@i+1
+	Sobs = config$groups@i+1
 
 	beta = x[1:Nbeta]
 	gamma = x[seq(Nbeta+1, len=Ngamma)]
@@ -163,8 +161,6 @@ llPlain = function(x, data, config) {
 	if(config$transform_theta) {
 		theta = exp(theta)
 	}
-
-
 
 	eta = as.vector(X[Sobs,] %*% beta + Amat[Sobs,] %*% gamma)
 	yHere = data$y[Sobs]
@@ -189,7 +185,8 @@ llPlain = function(x, data, config) {
 		loglik_vec2 = lgamma(yHere + r) 
 		loglik_vec3 =  - lgamma(yHere + 1) - lgamma(r) + r * log(r)
 
-		thetaMap = theta[data$map +1L]
+		dataMapJ = as(data$map, 'TsparseMatrix')
+		thetaMap = theta[dataMapJ@j +1L]
 		gamma_scaled = gamma / thetaMap
 		qpart = 0.5 * sum(gamma_scaled^2 * data$Qdiag)
 		qpartDet = sum(log(thetaMap))
@@ -205,73 +202,100 @@ llPlain = function(x, data, config) {
 ```
 
 
-```{r checkGrad}
-Npar=13;Dpar = 3
-x = c(config$beta, config$theta)
-x = c(beta, theta)
-parDf = data.frame(x)[,rep(1, Npar)]
-Sx = seq(-1.5, 1.5, len=13) + parDf[Dpar,1]
-SxD = Sx[-1] - diff(Sx)/2
-parDf[Dpar,] = Sx
 
-adFun = adlaplace::getAdFun(data, modifyList(config, 
-	list(verbose=TRUE, num_threads = 1)), inner=FALSE)
+```{r checkThird}
 
-dens1 = mapply(
-  adlaplace::logLik,
-  x = as.list(parDf),
-  MoreArgs = list(data=data, config=config, deriv=TRUE, adPack = adFun),
-  SIMPLIFY=FALSE
-  )
-
-deriv1 = do.call(abind::abind, c(lapply(dens1, '[[', "deriv"), list(along=3)))
-sL = unlist(lapply(dens1, function(xx) xx$inner$minusLogLik))
-
-plot(Sx, deriv1[Dpar,'dL', ])
-lines(SxD, diff(sL)/diff(Sx))
-
-
-
-
-
-sDet = unlist(lapply(dens1, function(xx) xx$inner$halfLogDet))
-plot(Sx, sDet)
-plot(Sx, deriv1[Dpar,'dDet', ])
-lines(SxD, diff(sDet)/diff(Sx))
-
-
-adFun = adlaplace::getAdFun(data, modifyList(config, 
-	list(verbose=TRUE, num_threads = 1)), inner=FALSE)
-
+adPack = adlaplace::getAdFun(data, modifyList(config, 
+	list(verbose=FALSE, num_threads = 1)), inner=FALSE)
 
 ll1 = adlaplace::logLik(
-	x=c(beta, theta),
+	mle$solution,
+	data, config,
+	adPack = adPack,
+	deriv=TRUE)
+
+
+newd = adlaplace:::logLikDeriv(
+    x = ll1$full_parameters,
+    cholHessian=ll1$inner$cholHessian,
+    hessian_full = ll1$outer$hessian_full,
+    gradient_full = ll1$outer$gradient_full,
+    config= modifyList(config, list(verbose=TRUE)),
+    adPack = adPack,
+    package =  'adlaplace' 
+  )
+
+forThird = function(x, ...) {
+  adlaplace::hessian(parameters = x, ...)@x
+}
+hes1 =  numDeriv::jacobian(
+  forThird,
+  x = ll1$full_parameters,
+  adPack = adPack, config=modifyList(config, list(verbose=FALSE))
+  )
+
+Hinv = Matrix::crossprod(ll1$deriv$extra$halfH)
+Sgamma = seq(length(config$beta)+1, len=length(config$start_gamma))
+
+newTrace = apply(hes1, 2, function(xx) {
+	thirdHere = config$hessian_outer
+	thirdHere@x = xx
+	sum(Matrix::diag(Hinv %*% thirdHere[Sgamma, Sgamma]))
+	})
+
+```
+
+
+
+```{r derivJointDens}
+
+adFun = adlaplace::getAdFun(data, modifyList(config, 
+	list(verbose=TRUE, num_threads = 1)), inner=FALSE)
+
+ll1 = adlaplace::logLik(
+	mle$solution,
 	data, config,
 	adPack = adFun,
-	deriv=FALSE)
+	deriv=TRUE)
 
-
-x = c(beta, ll1$solution, theta)
-Npar=13;Dpar = length(x)
+x = ll1$full_parameters
+Npar=13;Dpar = 100
 parDf = data.frame(x)[,rep(1, Npar)]
-Sx = seq(-1.5, 1.5, len=13) + parDf[Dpar,1]
+Sx = seq(-0.01, 0.01, len=13) + parDf[Dpar,1]
 SxD = Sx[-1] - diff(Sx)/2
 parDf[Dpar,] = Sx
+Sgamma = seq(length(config$beta)+1, len=length(config$start_gamma))
+DparInner = match(Dpar, Sgamma)
+
+config_inner = config
+config_inner$beta = ll1$parameters[1:length(config$beta)]
+config_inner$theta = ll1$parameters[-(1:length(config$beta))]
+
+
+adFunInner = adlaplace::getAdFun(data, modifyList(config_inner, 
+	list(verbose=TRUE, num_threads = 1)), inner=TRUE)
+
+adFunOuter = adlaplace::getAdFun(data, modifyList(config, 
+	list(verbose=TRUE, num_threads = 1)), inner=FALSE)
+
 
  dens1 = mapply(
   adlaplace::jointLogDens,
   parameters = as.list(parDf),
-  MoreArgs = list(data=data, config=config),
+  MoreArgs = list(adPack=adFunOuter, config=config),
   SIMPLIFY=TRUE
   )
 
-
+if(!is.na(DparInner)) {
  dens3 = mapply(
-  adlaplace::jointLogDensOpt,
-  parameters = as.list(parDf),
-  MoreArgs = list(adPack = adFun, config=config),
+  adlaplace::jointLogDens,
+  parameters = as.list(parDf[Sgamma,]),
+  MoreArgs = list(adPack = adFunInner, config=config_inner),
   SIMPLIFY=TRUE
   )
+  } else {
+  	dens3 = rep(NA, ncol(parDf))
+  }
 
 dens2a = mapply(
   llPlain,
@@ -281,55 +305,73 @@ dens2a = mapply(
   )
 
 dens2 = apply(dens2a, 2,'[', "minusLogLik")
-matplot(Sx, cbind(dens1,dens2, dens3))
+matplot(Sx, cbind(dens1,dens2, dens3), type='o')
 
 
-adFun2 = adlaplace::getAdFun(
-	 data=modifyList(data, list(groups = data$groups[,1,drop=FALSE])), 
-	config=modifyList(config, list(verbose=TRUE, num_threads = 1
-			)), 
-	inner=FALSE)
-
-adlaplace::jointLogDensOpt(
-	parDf[,9], adPack = adFun2, 
-		config=modifyList(config, 
-		list(verbose=TRUE, num_threads = 1))
-	)
-
-  adlaplace::jointLogDens(
-  	parDf[,9], 
-  	data=modifyList(data, list(groups = data$groups[,1,drop=FALSE])), 
-	config=modifyList(config, 
-		list(verbose=TRUE, num_threads = 1)))
-
-(bob =   llPlain(x=parDf[,9],
-	data=modifyList(data, list(groups = data$groups[,1,drop=FALSE])), 
-	config=config))
-sum(bob[1:4])
-
-
-
-quantile(dens1 - dens3)
-llPlain(x, data, config)
 
 grad1 = mapply(
   adlaplace::grad,
   parameters = as.list(parDf),
-  MoreArgs = list(adPack = adFun, config=config),
+  MoreArgs = list(adPack = adFunOuter, config=config),
   SIMPLIFY=TRUE
   )
+
+if(!is.na(DparInner)) {
+grad3 = mapply(
+  adlaplace::grad,
+  parameters = as.list(parDf[Sgamma,]),
+  MoreArgs = list(adPack = adFunInner, config=config_inner),
+  SIMPLIFY=TRUE
+  )  
+  } else {
+  	grad3 = matrix(NA, length(Sgamma), ncol(parDf))
+  }
+
+
+matplot(Sx, cbind(
+	grad1[Dpar,],
+	grad3[DparInner,]
+	))
+lines(SxD, diff(dens2)/diff(Sx))
+abline(v=parDf[Dpar, ceiling(ncol(parDf)/2)])
+abline(h=0)
+
+quantile(grad1[Sgamma,] - grad3)
+
 hes1 = mapply(
   adlaplace::hessian,
   parameters = as.list(parDf),
-  MoreArgs = list(adPack = adFun, config=config),
+  MoreArgs = list(adPack = adFunOuter, config=config),
+  SIMPLIFY=FALSE)
+
+  if(!is.na(DparInner)) {
+hes3 = mapply(
+  adlaplace::hessian,
+  parameters = as.list(parDf[Sgamma,]),
+  MoreArgs = list(adPack = adFunInner, config=config_inner),
   SIMPLIFY=FALSE
   )
+  } else {
+  	hes3 = list(
+  		Matrix::Diagonal(length(Sgamma))
+  		)[rep(1, ncol(parDf))]
+  }
 
-plot(Sx, grad1[Dpar,])
-lines(SxD, diff(dens1)/diff(Sx))
+quantile( (hes1[[6]][Sgamma, Sgamma] - hes3[[6]])@x)
 
-plot(Sx, lapply(hes1, function(xx) xx[Dpar, Dpar]))
-lines(SxD, diff(grad1[Dpar,])/diff(Sx))
+Dpar2 = Dpar;DparInner2 = match(Dpar2, Sgamma)
+
+if(!any(is.na(c(DparInner, DparInner2)))) {
+	h3plot = unlist(lapply(hes3, function(xx) xx[DparInner, DparInner2]))	
+} else {
+	h3plot = rep(NA, ncol(parDf))
+}
+matplot(Sx, cbind(
+	unlist(lapply(hes1, function(xx) xx[Dpar, Dpar2])),
+	h3plot
+	))
+lines(SxD, diff(grad1[Dpar2,])/diff(Sx))
 
 ````
+
 

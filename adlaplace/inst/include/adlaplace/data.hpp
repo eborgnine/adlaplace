@@ -12,8 +12,7 @@ struct Data {
   DgCView X;
 
   Rcpp::NumericVector Qdiag, y;
-  Rcpp::IntegerVector map;
-
+  DgCView map;
   DgCView elgm_matrix;
 
   size_t Nmap, Nbeta, Ngamma, Ny;
@@ -23,13 +22,13 @@ struct Data {
     , X(         DgCView(Rcpp::S4(data["XTp"])) )
     , Qdiag(     data["Qdiag"] )
     , y(         data["y"] )
-    , map(       data["map"] )
+    , map(       DgCView(Rcpp::S4(data["map"])) )
   {
 
     if(data.containsElementNamed("elgm_matrix")) {
       elgm_matrix = DgCView(Rcpp::S4(data["elgm_matrix"]));
     } 
-    Nmap      = static_cast<std::size_t>(map.size());
+    Nmap = map.ncol();
     Nbeta   = static_cast<std::size_t>(X.nrow());
     Ngamma  = static_cast<std::size_t>(A.nrow());
     Ny    = static_cast<std::size_t>(X.ncol());   // == A.ncol()

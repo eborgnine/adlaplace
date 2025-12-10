@@ -6,6 +6,8 @@
 
 //#define COMPUTE_CONSTANTS
 
+// use the standard logDensRandom
+#include "adlaplace/logDensRandom.hpp"
 
 
 CppAD::AD<double> stable_logsumexp(const CppAD::vector<CppAD::AD<double>>& eta) {
@@ -215,6 +217,7 @@ CppAD::vector<Type> logDensExtra(
 	return(result);
 }
  
+ // standard form of random effect distribution, from adlaplace
 template <class Type>
 CppAD::vector<CppAD::AD<double>> logDensRandom(
 	const CppAD::vector<CppAD::AD<double>>& gamma,
@@ -223,66 +226,8 @@ CppAD::vector<CppAD::AD<double>> logDensRandom(
 	const Config& config
 	){
 
-	const size_t Ngamma = gamma.size();
-	const size_t Nmap = data.map.size();
-	const size_t startGamma = Ngamma - Nmap;
+	auto result = logDensRandomStandard(gamma, theta, data, config);
 
-	CppAD::vector<Type> logTheta(theta.size()), expTheta(theta.size());
-	if(config.transform_theta) {
-		for(size_t D=0;D<theta.size();++D) {
-			logTheta[D] = theta[D];
-			expTheta[D] = exp_any(theta[D]);
-		}
-	} else {
-		for(size_t D=0;D<theta.size();++D) {
-			logTheta[D] = log_any(theta[D]);
-			expTheta[D] = theta[D];
-		}
-	}
-
-
-	CppAD::vector<CppAD::AD<double>> result(1, 0.0);
-	CppAD::AD<double> qpart = 0.0, qDet=0.0;
-
-
-
-	CppAD::vector<CppAD::AD<double>> gammaScaled(Ngamma);
-
-
-	if(config.verbose) {
-		Rcpp::Rcout << "q adlaplace, Ngamma  " << Ngamma << " nmap " << data.map.size() << 
-		" ntheta " << config.theta.size() << 
-		" exp theta map 0 " <<  expTheta[data.map[0]] << " gamma0 " << gamma[0] << "!\n";
-	}
-
-
-	for(size_t D=0;D<startGamma;D++) {
-		gammaScaled[D] = gamma[D];
-		qpart += 
-			gammaScaled[D]*gammaScaled[D]*data.Qdiag[D];
-	}
-
-	if(config.verbose) {
-		Rcpp::Rcout << ".";
-	}
-
-	for(size_t D=startGamma,Dmap=0;D<Ngamma;D++,Dmap++) {
-		size_t mapHere = data.map[Dmap];
-
-		gammaScaled[D] = gamma[D] / expTheta[mapHere];
-		qpart += 
-			gammaScaled[D]*gammaScaled[D]*data.Qdiag[D];
-		qDet += logTheta[mapHere];
-	}
-		qpart *= 0.5;
-
-	if(config.verbose) {
-		Rcpp::Rcout << "logDensRandom " << qpart << " det "<< qDet << "\n";
-	}
-
-	// Warning, no offdiag of Q implemented
-
-	result[0] = qpart + qDet;
 	return(result);
 }
 
@@ -314,17 +259,5 @@ logDensExtra<CppAD::AD<double>>(
     const CppAD::vector<CppAD::AD<double>>&,
     const Data&, const Config&);
 
-
-template CppAD::vector<CppAD::AD<double>>
-logDensRandom<double>(
-    const CppAD::vector<CppAD::AD<double>>&,
-    const CppAD::vector<double>&,
-    const Data&, const Config&);
-
-template CppAD::vector<CppAD::AD<double>>
-logDensRandom<CppAD::AD<double>>(
-    const CppAD::vector<CppAD::AD<double>>&,
-    const CppAD::vector<CppAD::AD<double>>&,
-    const Data&, const Config&);
 
 
