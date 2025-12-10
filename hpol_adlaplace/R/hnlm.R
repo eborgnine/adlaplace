@@ -147,6 +147,8 @@ hnlm <- function(
 
   Alist = c(XfPolyRandom, Arandom)
   Qall = c(QfPoly, Qs)
+  Q =  Matrix::bdiag(Qall[!sapply(Qall, is.null)])
+
 
   Xlist = c(XasIs, XfPolyFixed)
 
@@ -171,7 +173,7 @@ hnlm <- function(
     warning(" missing gamma A ", paste(missingGammaA, collapse=','))
   }
 
-  gamma_info = gamma_info[match(gamma_info$name, colnames(A)), ]
+  gamma_info = gamma_info[order(match(gamma_info$name, colnames(A))), ]
   gamma_info$gamma_id = seq(0L, len=nrow(gamma_info))
   if(any(is.na(gamma_info$var))) {
     warning("some columns of design matrix not found in gamma")
@@ -187,8 +189,6 @@ hnlm <- function(
     X = matrix(nrow = nrow(data), ncol = 0)
     beta_info = data.frame()
   }
-
-  Q =  Matrix::bdiag(Qs[!sapply(Qs, is.null)])
 
 
 # theta setup
@@ -225,7 +225,6 @@ hnlm <- function(
     index1 = FALSE,
     dims = c(nrow(gamma_info), nrow(theta_info))
   )
-
 
   tmb_data <- list(
     X = X,
@@ -330,6 +329,7 @@ hnlm <- function(
   # some checks
   if(!all(parameters_info$gamma$name == rownames(tmb_data$ATp))) {
     warning("names of gamma don't match up")
+    setdiff(parameters_info$gamma$name, rownames(tmb_data$ATp))
   }
 
   if(for_dev)
@@ -371,7 +371,7 @@ hnlm <- function(
   result = list(opt = mle, 
     objects = list(
       tmb_data=tmb_data, config=config, formula=formula, terms = terms,
-      theta_info = theta_info, gamma_info = gamma_info)
+      parameters_info = parameters_info, gamma_info = gamma_info)
   )
   if(verboseOrig) {
     cat("done")
@@ -382,10 +382,10 @@ hnlm <- function(
     data=tmb_data, config=config, control = control_inner, 
     package = 'hpolcc',
     adPack = adFunFull,
-    deriv=0))
+    deriv=1))
 
   result$parameters = formatParameters(
-    result$extra$full_parameters, 
+    x=result$extra$full_parameters, 
     parameters_info)
 
   if(FALSE) {
@@ -401,7 +401,9 @@ hnlm <- function(
 
 
   result$sample = try(condSimIwp(
-    result$extra, result$objects, c(config$Nsim, 500)[1]
+    fit=result$extra, terms = result$objects$terms, 
+    parameters_info = result$objects$parameters_info,
+    Nsim = c(config$Nsim, 500)[1]
   ))
 
   return(result)

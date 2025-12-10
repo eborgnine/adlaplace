@@ -217,19 +217,7 @@ CppAD::vector<Type> logDensExtra(
 	return(result);
 }
  
- // standard form of random effect distribution, from adlaplace
-template <class Type>
-CppAD::vector<CppAD::AD<double>> logDensRandom(
-	const CppAD::vector<CppAD::AD<double>>& gamma,
-	const CppAD::vector<Type> &theta,
-	const Data& data,
-	const Config& config
-	){
 
-	auto result = logDensRandomStandard(gamma, theta, data, config);
-
-	return(result);
-}
 
 
 // declare

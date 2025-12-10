@@ -4,8 +4,6 @@
 #' @export
 formatParameters = function(x, parameters_info) {
 
-
-
   Ntheta = nrow(parameters_info$theta)
   Nbeta = nrow(parameters_info$beta)
   Ngamma = nrow(parameters_info$gamma)
@@ -22,9 +20,11 @@ formatParameters = function(x, parameters_info) {
   names(result$beta) = betaNames
   names(result$theta) = thetaNames
 
-  if(logscale_theta ) {
-    result$theta = exp(result$theta)
+  isLogged = parameters_info$theta$log
+  if(any(isLogged)) {
+    result$theta[isLogged] = exp(result$theta[isLogged])
   }
+
 
   theGamma = data.frame(
     name = gammaNames, 

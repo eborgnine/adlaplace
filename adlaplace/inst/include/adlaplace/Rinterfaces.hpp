@@ -379,10 +379,6 @@ Rcpp::List sparsity_backend(
   Data dataC(data);
   Config configC(config);
 
-    if(configC.verbose) {
-    	Rcpp::Rcout << ",,";
-    }
-
 	omp_set_num_threads(configC.num_threads);
 	CppAD::thread_alloc::parallel_setup(
 		configC.num_threads,
@@ -414,7 +410,6 @@ Rcpp::List sparsity_backend(
     if(configC.verbose) {
     	Rcpp::Rcout << "getting sparse\n";
     }
-
   Rcpp::List result = sparsity(adFun, ad_params, configC.verbose);
 
   return(result);

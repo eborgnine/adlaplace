@@ -17,7 +17,6 @@
 #include "adlaplace/third.hpp"
 #include "adlaplace/functions.hpp"
 
-
 // needs sparsity
 #include "adlaplace/adfun.hpp"
 

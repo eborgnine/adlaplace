@@ -31,7 +31,6 @@ inline std::vector<GroupPack> getAdFunOuter(
 	const Data& data,
 	const Config& config) {
 
-
 	size_t Ngroups = config.groups.ncol();
 	if(Ngroups==0) {
 		// groups not provided, check for elgm matrix
@@ -51,7 +50,8 @@ inline std::vector<GroupPack> getAdFunOuter(
 		const size_t Nparams = Nbeta + Ngamma + Ntheta;
 
 	if(config.verbose) {
-		Rcpp::Rcout << "outer, groups " << Ngroups << " Nbeta " << Nbeta << " Ntheta " << Ntheta << " Nparams " << Nparams << "\n";
+		Rcpp::Rcout << "outer, groups " << Ngroups << " Nbeta " << Nbeta << " Ntheta " <<
+		 Ntheta << " Ngamma " << Ngamma << " Nparams " << Nparams << "\n";
 	}
 
 		CppAD::vector<CppAD::AD<double>> ad_params_G(Nparams);
@@ -86,7 +86,6 @@ inline std::vector<GroupPack> getAdFunOuter(
 
 			result[D].fun = std::move(fun);
 		}
-
 
 
 # pragma omp single nowait

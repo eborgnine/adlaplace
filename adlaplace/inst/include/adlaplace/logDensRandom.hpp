@@ -2,6 +2,11 @@
 #define LOGDENSRANDOM_HPP
 
 
+/*
+	the standard log density for random effects
+	include with #include "adlaplace/logDensRandom.hpp"
+*/
+
 template <class Type>
 CppAD::vector<CppAD::AD<double>> logDensRandom(
 	const CppAD::vector<CppAD::AD<double>>& gamma,
@@ -32,8 +37,10 @@ CppAD::vector<CppAD::AD<double>> logDensRandom(
 
 	if(config.verbose) {
 		Rcpp::Rcout << "q adlaplace, ngamma  " << data.Ngamma << " nmap " << data.map.ncol() << 
+		" map@i.size " << data.map.i.size() << 
 		" ntheta " << config.theta.size() << 
 		" exp theta map 0 " <<  expTheta[data.map.i[0]] << " gamma0 " << gamma[0] << ".\n";
+
 	}
 
 
