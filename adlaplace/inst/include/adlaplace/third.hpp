@@ -27,12 +27,12 @@ inline CppAD::vector<double> traceHinvT(
         CppAD::vector<double> direction(Nparams, 0.0);
         CppAD::vector<double> outHere(Nparams, 0.0);
 
-    # pragma omp for nowait
+    # pragma omp for schedule(dynamic,1) nowait
         for(int Dgroup = 0; Dgroup < Ngroup; ++Dgroup) {
             const int colEnd = LinvPtColumns.p[Dgroup+1];
 
             if(config.verbose) {
-                Rcpp::Rcout << " " << Dgroup << " " << colEnd  << " \n";
+                Rcpp::Rcout << " " << omp_get_thread_num()  << " " << Dgroup << " " << colEnd -LinvPtColumns.p[Dgroup] << " \n";
             }        
 
             for( int Dp = LinvPtColumns.p[Dgroup]; Dp < colEnd; Dp++) {

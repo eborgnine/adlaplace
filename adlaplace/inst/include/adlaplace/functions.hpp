@@ -34,7 +34,7 @@ inline void grad(
 		CppAD::vector<double> w(1);
 		w[0] = 1.0;
 
-      #pragma omp for nowait
+    # pragma omp for schedule(dynamic,1) nowait
 		for(int D=0;D<Npack;D++) {
 
 			CppAD::vector<double> y = adPack[D].fun.Forward(0, x);
@@ -156,9 +156,7 @@ inline void get_hess_function(
     		w[0] = 1.0;
     		std::vector<double> outHereAll(NnonZero, 0.0);
 
-
-
-      #pragma omp for nowait
+    # pragma omp for schedule(dynamic,1) nowait
     		for (int g = 0; g < Ngroups; ++g) {
     			GroupPack &gp = tape[g];
 
@@ -405,7 +403,7 @@ Rcpp::Rcout << "get_f: tape.size() = " << tape.size()
 	{
 		double fOutHere=0.0;
 
-	      #pragma omp for nowait
+    # pragma omp for schedule(dynamic,1) nowait
 		for(int D=0;D<tape.size();D++) {
 #ifdef EXTRADEBUG
 			Rcpp::Rcout << "l, D=" << D;

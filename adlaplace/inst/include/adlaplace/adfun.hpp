@@ -72,7 +72,7 @@ inline std::vector<GroupPack> getAdFunOuter(
 	{
 			CppAD::vector<CppAD::AD<double>> ad_params = ad_params_G;
 
-# pragma omp for nowait
+    # pragma omp for schedule(dynamic,1) nowait
 		for(size_t D=0;D<Ngroups;D++) {
 
 
@@ -161,7 +161,7 @@ inline std::vector<GroupPack> getAdFunInner(
 		}
 
 
-# pragma omp for nowait
+    # pragma omp for schedule(dynamic,1) nowait
 		for(size_t D=0;D<Ngroups;D++) {
 
 			CppAD::Independent(ad_params);   
