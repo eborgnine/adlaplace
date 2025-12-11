@@ -20,5 +20,5 @@ Imports:
 LinkingTo: Rcpp, RcppEigen, trustOptim
 Encoding: UTF-8
 VignetteBuilder: knitr
-SystemRequirements: cppad, openmp
+SystemRequirements: CppAD, OpenMP
 RoxygenNote: 7.3.3

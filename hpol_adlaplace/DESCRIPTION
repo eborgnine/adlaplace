@@ -5,7 +5,7 @@ Version: 0.2.0
 Author: Patrick Brown
 Maintainer: Patrick Brown <patrick.borgnine@gmail.com>
 Description: hierarchical functional case crossover
-SystemRequirements: cppad, OpenMP
+SystemRequirements: CppAD, OpenMP
 License: GPL-3
 Depends: R (>= 4.1.0)
 LinkingTo: Rcpp, adlaplace, RcppEigen, trustOptim

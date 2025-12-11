@@ -18,7 +18,7 @@ $$
 
 
 ```{r theData}
-Nobs = 10000;Nrandom1=70;Nrandom2=50
+Nobs = 100000;Nrandom1=100;Nrandom2=250
 
 set.seed(0)
 X = Matrix::Matrix(cbind(1, rbinom(Nobs,1, prob= 0.5)))

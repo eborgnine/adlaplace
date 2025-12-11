@@ -34,7 +34,7 @@ getNewXA <- function(terms, df){
       Xsub <- poly(df[[term$var]] - term$ref_value, raw = T, simple = T,
        degree = term$p) |> as("TsparseMatrix")
       if(identical(term$boundary_is_random, TRUE)) {
-        colnames(Xsub) <- paste0(term$var, "_fpoly_GLOBAL_",seq(
+        colnames(Xsub) <- paste0(term$var, "_fpoly_",seq(
          from = 1,
          len = ncol(Xsub)
        ))
