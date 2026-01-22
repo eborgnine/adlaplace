@@ -1,4 +1,9 @@
+#pragma once
 
+// We do NOT support ColPack in this package.
+#ifndef CPPAD_HAS_COLPACK
+#  define CPPAD_HAS_COLPACK 0
+#endif
 
 #include<Rcpp.h>
 #include <cppad/cppad.hpp>
