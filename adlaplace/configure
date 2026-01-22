@@ -3,6 +3,7 @@
 # configure: generate src/Makevars from src/Makevars.in with optional OpenMP
 # Portable POSIX sh (CRAN-friendly)
 
+
 set -eu
 
 OPENMP_CPPFLAGS=""
@@ -29,10 +30,14 @@ check_cxxflag () {
   cat > "$tmpdir/conftest.cpp" <<'EOF'
 int main() { return 0; }
 EOF
-  if "$CXX" $flag -c "$tmpdir/conftest.cpp" -o "$tmpdir/conftest.o" >/dev/null 2>&1; then
+
+  # IMPORTANT: eval so CXX_CMD like "g++ -std=gnu++17" works
+  if eval "$CXX_CMD $CPPFLAGS_CMD $CXXFLAGS_CMD $flag -c $tmpdir/conftest.cpp -o $tmpdir/conftest.o" \
+       >/dev/null 2>&1; then
     rm -rf "$tmpdir"
     return 0
   fi
+
   rm -rf "$tmpdir"
   return 1
 }
