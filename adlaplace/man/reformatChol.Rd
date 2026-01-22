@@ -2,7 +2,7 @@
 % Please edit documentation in R/utils.R
 \name{reformatChol}
 \alias{reformatChol}
-\title{Reformat a Cholesky–LDLᵀ Decomposition for Efficient Use}
+\title{Reformat a Cholesky–LDLt Decomposition for Efficient Use}
 \usage{
 reformatChol(x)
 }
@@ -11,10 +11,10 @@ reformatChol(x)
 typically from \code{inner_opt()} or a trust-region optimization step.}
 }
 \value{
-A \code{dgCMatrix} giving \(H^{-1/2}\).
+A \code{dgCMatrix} giving \eqn{H^{-1/2}}.
 }
 \description{
-Given an LDLᵀ Cholesky factorisation returned from the C++ optimizer,
+Given an LDLt Cholesky factorisation returned from the C++ optimizer,
 this function reconstructs the matrix
 \deqn{ H^{-1/2} = P^\top L^{-1} D^{-1/2}, }
 where the original Hessian satisfies:
@@ -32,7 +32,7 @@ The returned \code{halfH} matrix is useful for:
 The input \code{x} must be a list containing:
 \describe{
   \item{\code{L}}{A lower–triangular Cholesky factor (\code{dgCMatrix}).}
-  \item{\code{D}}{A numeric vector of diagonal elements from the LDLᵀ decomposition.}
+  \item{\code{D}}{A numeric vector of diagonal elements from the LDLt decomposition.}
   \item{\code{P}}{A permutation vector (0-based, as returned from Eigen).}
 }
 
@@ -50,18 +50,18 @@ The object returned by \code{reformatChol()} is the matrix
 which satisfies:
 \itemize{
   \item \code{crossprod(halfH)} gives \eqn{H^{-1}},
-  \item \code{halfH \%*\% H \%*\% t(halfH)} ≈ \eqn{I}.
+  \item \code{halfH \%*\% H \%*\% t(halfH)}  \eqn{\approx I}.
 }
 }
 \examples{
 \dontrun{
-  # Suppose inner_res$cholHessian contains the LDLᵀ factors:
+  # Suppose inner_res$cholHessian contains the LDLt factors:
   halfH <- reformatChol(inner_res$cholHessian)
 
   # Recover the inverse Hessian:
   Hinv <- Matrix::crossprod(halfH)
 
-  # Sanity check: Hinv \%*\% H ≈ I
+  # Sanity check: Hinv \%*\% H approx I
   check <- Hinv \%*\% inner_res$hessian
   summary(as.numeric(check))
 }
