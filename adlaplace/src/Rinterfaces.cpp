@@ -2,7 +2,41 @@
 
 // [[Rcpp::depends(RcppEigen)]]
 
-//' @export	
+/*
+ *' Construct and return an AD function object (external pointer)
+ *'
+ *' Creates (or retrieves) an internal automatic-differentiation (AD) function
+ *' object used by \pkg{adlaplace} for evaluating the objective, gradients, and
+ *' (optionally sparse) derivative structures. The returned object is an
+ *' external pointer that is intended to be passed back to other \pkg{adlaplace}
+ *' routines (e.g., inner/outer optimization and derivative evaluation).
+ *'
+ *' This is a low-level interface. Most users should call higher-level R
+ *' functions (e.g., \code{logLik()} or \code{inner_opt()}) rather than using
+ *' \code{getAdFun()} directly.
+ *'
+ *' @param data An R list containing model data and matrices required by the AD
+ *'   construction. The required fields depend on your model setup (see package
+ *'   vignette).
+ *' @param config An R list of configuration options (e.g., parameter vectors,
+ *'   sparsity options, threading options). The expected entries depend on the
+ *'   model and backend.
+ *' @param inner Logical; if \code{TRUE}, build the "inner" AD function (typically
+ *'   corresponding to the random-effect subproblem). If \code{FALSE} (default),
+ *'   build the "outer" AD function.
+ *'
+ *' @return An external pointer (\code{externalptr}) to an internal AD object.
+ *'   This pointer is meant to be used only by \pkg{adlaplace} functions and is
+ *'   not stable across sessions.
+ *'
+ *' @details
+ *' The returned pointer is not human-readable and should not be modified.
+ *' It may hold substantial memory (tapes, sparsity patterns, caches). Use
+ *' package-level functions to manage lifecycle and computation.
+ *'
+ *'
+ *' @export
+ */
 // [[Rcpp::export]]
 SEXP getAdFun(
 	Rcpp::List data, 
