@@ -1,0 +1,132 @@
+#!/bin/sh
+
+# configure: generate src/Makevars from src/Makevars.in with optional OpenMP
+# Portable POSIX sh (CRAN-friendly)
+
+set -eu
+
+OPENMP_CPPFLAGS=""
+OPENMP_CXXFLAGS=""
+OPENMP_LIBS=""
+
+BREW_CPPFLAGS=""
+
+# Always: CppAD headers if installed via brew (optional)
+# We'll try to discover brew prefix, but do not fail if brew absent.
+BREW_PREFIX=""
+if command -v brew >/dev/null 2>&1; then
+  BREW_PREFIX="$(brew --prefix 2>/dev/null || true)"
+fi
+
+CXX_CMD="$(R CMD config CXX 2>/dev/null || echo c++)"
+CXXFLAGS_CMD="$(R CMD config CXXFLAGS 2>/dev/null || true)"
+CPPFLAGS_CMD="$(R CMD config CPPFLAGS 2>/dev/null || true)"
+
+check_cxxflag () {
+  flag="$1"
+  tmpdir="config.$$"
+  mkdir "$tmpdir"
+  cat > "$tmpdir/conftest.cpp" <<'EOF'
+int main() { return 0; }
+EOF
+  if "$CXX" $flag -c "$tmpdir/conftest.cpp" -o "$tmpdir/conftest.o" >/dev/null 2>&1; then
+    rm -rf "$tmpdir"
+    return 0
+  fi
+  rm -rf "$tmpdir"
+  return 1
+}
+
+check_openmp_darwin () {
+  tmpdir="config.$$"
+  mkdir "$tmpdir"
+  cat > "$tmpdir/conftest.cpp" <<'EOF'
+#include <omp.h>
+int main() {
+  int n = 1;
+  omp_set_num_threads(n);
+  return omp_get_max_threads() >= 1 ? 0 : 1;
+}
+EOF
+
+  # brew include + openmp compile flag + link against libomp
+  if eval "$CXX_CMD $CPPFLAGS_CMD $CXXFLAGS_CMD -I$BREW_PREFIX/opt/libomp/include -Xpreprocessor -fopenmp \
+      $tmpdir/conftest.cpp $BREW_PREFIX/opt/libomp/lib/libomp.dylib -o $tmpdir/conftest" \
+      >/dev/null 2>&1; then
+    rm -rf "$tmpdir"
+    return 0
+  fi
+
+  rm -rf "$tmpdir"
+  return 1
+}
+# ---- Optional CppAD include via brew ----
+# If you want to require CppAD, don't do this; instead ensure it is vendored
+# or installed in a standard include path. For now, we add brew include if present.
+if [ -n "$BREW_PREFIX" ] && [ -d "$BREW_PREFIX/include" ]; then
+  BREW_CPPFLAGS="-I$BREW_PREFIX/include"
+fi
+
+# ---- Optional OpenMP ----
+UNAME_S="$(uname -s 2>/dev/null || echo unknown)"
+
+if [ "$UNAME_S" = "Darwin" ]; then
+  # macOS: try to use Homebrew libomp if available
+  if [ -n "$BREW_PREFIX" ] \
+     && [ -f "$BREW_PREFIX/opt/libomp/include/omp.h" ] \
+     && [ -f "$BREW_PREFIX/opt/libomp/lib/libomp.dylib" ]; then
+
+    # Apple clang OpenMP compile flag
+if check_openmp_darwin; then
+      OPENMP_CPPFLAGS="-I$BREW_PREFIX/opt/libomp/include"
+      OPENMP_CXXFLAGS="-Xpreprocessor -fopenmp"
+      # Link explicitly to the dylib; add rpath so it loads at runtime
+      OPENMP_LIBS="$BREW_PREFIX/opt/libomp/lib/libomp.dylib -Wl,-rpath,$BREW_PREFIX/opt/libomp/lib"
+      echo "configure: OpenMP enabled on macOS using Homebrew libomp"
+    else
+      echo "configure: OpenMP not enabled (compiler does not accept -Xpreprocessor -fopenmp)"
+    fi
+  else
+    echo "configure: OpenMP not enabled on macOS (Homebrew libomp not found)"
+  fi
+
+else
+  # Linux (and others): try standard -fopenmp
+  if check_cxxflag "-fopenmp"; then
+    OPENMP_CXXFLAGS="-fopenmp"
+    OPENMP_LIBS="-fopenmp"
+    echo "configure: OpenMP enabled using -fopenmp"
+  else
+    echo "configure: OpenMP not enabled (compiler does not accept -fopenmp)"
+  fi
+fi
+
+# ---- Substitute into src/Makevars from src/Makevars.in ----
+infile="src/Makevars.in"
+outfile="src/Makevars"
+
+if [ ! -f "$infile" ]; then
+  echo "configure: ERROR: $infile not found" >&2
+  exit 1
+fi
+
+# Escape backslashes and ampersands for sed replacement safety
+esc_sed () {
+  printf '%s' "$1" | sed 's/[\/&]/\\&/g'
+}
+
+OPENMP_CPPFLAGS_ESC="$(esc_sed "$OPENMP_CPPFLAGS")"
+OPENMP_CXXFLAGS_ESC="$(esc_sed "$OPENMP_CXXFLAGS")"
+OPENMP_LIBS_ESC="$(esc_sed "$OPENMP_LIBS")"
+BREW_CPPFLAGS_ESC="$(esc_sed "$BREW_CPPFLAGS")"
+
+sed \
+  -e "s/@OPENMP_CPPFLAGS@/$OPENMP_CPPFLAGS_ESC/g" \
+  -e "s/@OPENMP_CXXFLAGS@/$OPENMP_CXXFLAGS_ESC/g" \
+  -e "s/@OPENMP_LIBS@/$OPENMP_LIBS_ESC/g" \
+  -e "s/@BREW_CPPFLAGS@/$BREW_CPPFLAGS_ESC/g" \
+  "$infile" > "$outfile"
+
+chmod 644 "$outfile"
+
+exit 0

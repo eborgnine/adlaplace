@@ -10,7 +10,7 @@ inline CppAD::vector<double> traceHinvT(
     ) {
 
     const size_t Nparams = parameters.size();
-    const size_t NcolsL = LinvPt.ncol;
+//    const size_t NcolsL = LinvPt.ncol;
     const size_t Nbeta = config.beta.size();
     const size_t Ngroup = fun.size();
     CppAD::vector<double> result(Nparams, 0.0);
@@ -32,7 +32,7 @@ inline CppAD::vector<double> traceHinvT(
             const int colEnd = LinvPtColumns.p[Dgroup+1];
 
             if(config.verbose) {
-                Rcpp::Rcout << " " << omp_get_thread_num()  << " " << Dgroup << " " << colEnd -LinvPtColumns.p[Dgroup] << " \n";
+                Rcpp::Rcout << " " << thread_num_wrapper() << " " << Dgroup <<  " " << colEnd -LinvPtColumns.p[Dgroup] << " \n";
             }        
 
             for( int Dp = LinvPtColumns.p[Dgroup]; Dp < colEnd; Dp++) {
@@ -59,7 +59,7 @@ inline CppAD::vector<double> traceHinvT(
             result[Dk] += outHere[Dk];
         }
         if(config.verbose) {
-            Rcpp::Rcout << " " << omp_get_thread_num()  << " \n";
+            Rcpp::Rcout << " " << thread_num_wrapper() <<  " \n";
         }        
 
     } // critical

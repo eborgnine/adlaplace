@@ -14,7 +14,7 @@ SEXP getAdFun_backend(
 		Rcpp::Rcout << "getting ad function, inner " << inner << " ";
 	}
 
-	omp_set_num_threads(configC.num_threads);
+	set_num_threads_wrapper(configC.num_threads);
 	CppAD::thread_alloc::parallel_setup(
 		configC.num_threads,
 		[](){ return in_parallel_wrapper(); },
@@ -62,7 +62,7 @@ double jointLogDens_backend(
 		parametersC[D] = parameters[D];
 	}
 
-	omp_set_num_threads(configC.num_threads);
+	set_num_threads_wrapper(configC.num_threads);
 	CppAD::thread_alloc::parallel_setup(
 		configC.num_threads,
 		[](){ return in_parallel_wrapper(); },
@@ -121,7 +121,7 @@ Rcpp::NumericVector grad_backend(
 		parametersC[D] = parameters[D];
 	}
 
-	omp_set_num_threads(configC.num_threads);
+	set_num_threads_wrapper(configC.num_threads);
 	CppAD::thread_alloc::parallel_setup(
 		configC.num_threads,
 		[](){ return in_parallel_wrapper(); },
@@ -173,7 +173,7 @@ Rcpp::S4 hessian_backend(
 
 	Eigen::SparseMatrix<double> resultC = funObj.Htemplate.cast<double>();
 
-	omp_set_num_threads(configC.num_threads);
+	set_num_threads_wrapper(configC.num_threads);
 	CppAD::thread_alloc::parallel_setup(
 		configC.num_threads,
 		[](){ return in_parallel_wrapper(); },
@@ -222,7 +222,7 @@ Rcpp::NumericVector traceHinvT_backend(
 	Rcpp::XPtr<std::vector<GroupPack>> xp(adPack);
 
 
-	omp_set_num_threads(configC.num_threads);
+	set_num_threads_wrapper(configC.num_threads);
 	CppAD::thread_alloc::parallel_setup(
 		configC.num_threads,
 		[](){ return in_parallel_wrapper(); },
@@ -285,7 +285,7 @@ Rcpp::List inner_opt_backend(
 		parametersC[D] = parameters[D];
 	}
 
-	omp_set_num_threads(configC.num_threads);
+	set_num_threads_wrapper(configC.num_threads);
 	CppAD::thread_alloc::parallel_setup(
 		configC.num_threads,
 		[](){ return in_parallel_wrapper(); },
@@ -340,7 +340,7 @@ Rcpp::List inner_opt_adpack_backend(
 		parametersC[D] = parameters[D];
 	}
 
-	omp_set_num_threads(configC.num_threads);
+	set_num_threads_wrapper(configC.num_threads);
 	CppAD::thread_alloc::parallel_setup(
 		configC.num_threads,
 		[](){ return in_parallel_wrapper(); },
@@ -379,7 +379,7 @@ Rcpp::List sparsity_backend(
 	Data dataC(data);
 	Config configC(config);
 
-	omp_set_num_threads(configC.num_threads);
+	set_num_threads_wrapper(configC.num_threads);
 	CppAD::thread_alloc::parallel_setup(
 		configC.num_threads,
 		[](){ return in_parallel_wrapper(); },

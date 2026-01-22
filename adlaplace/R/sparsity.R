@@ -1,4 +1,3 @@
-
 sparsity_by_group = function(xx, template, dims, Sgamma0) {
 	allIJ = cbind(i=xx$row, j=xx$col)
 	if(!missing(Sgamma0)) {
@@ -7,7 +6,7 @@ sparsity_by_group = function(xx, template, dims, Sgamma0) {
 			j=match(allIJ[,'j'], Sgamma0)-1L
 		)
 		allIJ = allIJ[which(!(is.na(allIJ[,'i']) | is.na(allIJ[,'j']))), ]
-		xx$grad = as.vector(na.omit(match(xx$grad, Sgamma0) -1L))
+		xx$grad = as.vector(stats::na.omit(match(xx$grad, Sgamma0) -1L))
 	}
 	allIJ = allIJ[!duplicated(allIJ), ,drop=FALSE]
 	allIJ = allIJ[which(allIJ[,'j'] >= allIJ[,'i']),,drop=FALSE]
@@ -18,11 +17,11 @@ sparsity_by_group = function(xx, template, dims, Sgamma0) {
 		symmetric=TRUE, index1=FALSE,
 		dims = dims
 	)
-	hessianTemplateHereT = as(hessianTemplateHere, 'TsparseMatrix')
+	hessianTemplateHereT = methods::as(hessianTemplateHere, 'TsparseMatrix')
 	ijHere = paste0(hessianTemplateHereT@i, rep('_', length(hessianTemplateHereT@i)),
 		hessianTemplateHereT@j)
 
-	matchHere = as.vector(na.omit(match(ijHere, template)))-1L
+	matchHere = as.vector(stats::na.omit(match(ijHere, template)))-1L
 
 
 	list(
@@ -60,12 +59,12 @@ group_sparsity = function(data, config, sparsity_list) {
 		dims = rep(Nparams,2)
 	)
 	hessianTemplateL = Matrix::t(hessianTemplate) # lower triangle version
-	hessianTemplateT = as(hessianTemplate, 'TsparseMatrix')
+	hessianTemplateT = methods::as(hessianTemplate, 'TsparseMatrix')
 
 	hessianTemplateInner = hessianTemplate[Sgamma1, Sgamma1]
 	hessianTemplateInner@x = seq(0L, len=length(hessianTemplateInner@x))
 	hessianTemplateInnerL = Matrix::t(hessianTemplateInner)
-	hessianTemplateInnerT = as(hessianTemplateInner, 'TsparseMatrix')
+	hessianTemplateInnerT = methods::as(hessianTemplateInner, 'TsparseMatrix')
 
 
 	templateIJ = paste0(hessianTemplateT@i, '_', hessianTemplateT@j)

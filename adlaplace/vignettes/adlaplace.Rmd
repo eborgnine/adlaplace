@@ -73,6 +73,7 @@ config = modifyList(config, sparsity_list)
 
 
 
+model is defined in the file `src/objectiveFunction.cpp`
 
 
 
@@ -98,6 +99,9 @@ mle = trustOptim::trust.optim(
 	control_inner = list(),
 	control = list(report.level=4, report.freq=1)
 	)
+mle$solution
+exp(mle$solution[-(1:length(beta))])
+
 ```
 
 

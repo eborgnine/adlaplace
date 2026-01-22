@@ -12,14 +12,14 @@ if(requireNamespace("RSpectra", quietly=TRUE) ) {
 
 uniqueLoadings = unique(loadings)
 Ngroups = pmin(length(uniqueLoadings), Ngroups)
-groupCut = unique(quantile(uniqueLoadings, seq(0,1,len=Ngroups+1)))
+groupCut = unique(stats::quantile(uniqueLoadings, seq(0,1,len=Ngroups+1)))
 groupCut[1] = groupCut[1]-1;groupCut[length(groupCut)] = groupCut[length(groupCut)]+1
 loadingsCut = cut(loadings, groupCut)
 loadingsCut2 = factor(loadingsCut, names(sort(table(loadingsCut), decreasing=TRUE)))
 theJ = as.integer(loadingsCut2)-1L
 
 # order the groups from most heterogeneous to most homogeneous
-theSd = pmax(tapply(loadings, theJ, sd),0, na.rm=TRUE)
+theSd = pmax(tapply(loadings, theJ, stats::sd),0, na.rm=TRUE)
 orderSd = order(theSd, decreasing=TRUE)-1L
 theJ2 = match(theJ, orderSd) -1L
 

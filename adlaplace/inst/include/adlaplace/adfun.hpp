@@ -233,7 +233,7 @@ inline double jointLogDensNoAdfun_backend(
 
 	const size_t Nparams = parameters.size();
 	const size_t Nbeta = config.beta.size();
-	const size_t Ntheta = config.theta.size();
+//	const size_t Ntheta = config.theta.size();
 	const size_t Ngamma = config.start_gamma.size();
 
 	size_t Ngroups = config.groups.ncol();

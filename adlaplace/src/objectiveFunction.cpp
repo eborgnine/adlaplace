@@ -27,8 +27,7 @@ CppAD::vector<CppAD::AD<double>> logDensObs(
 	Type logNbSize = -2*logTheta;
 	Type nbSize = exp_any(logNbSize);
 
-	double logNbSizeValue = to_double(logNbSize);
-
+//	double logNbSizeValue = to_double(logNbSize);
 
 	const bool have_groups = config.groups.ncol() > 0;
 	const size_t startP = have_groups?config.groups.p[Dgroup]:Dgroup;

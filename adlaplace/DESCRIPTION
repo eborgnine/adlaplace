@@ -1,24 +1,24 @@
 Package: adlaplace
 Type: Package
-Title: Laplace approximations using automatic differentiation
+Title: Laplace Approximations Using Automatic Differentiation
 Version: 0.1
 Date: 2025-11-24
 Authors@R: person(given="Patrick", family="Brown", email="patrick.borgnine@gmail.com", role=c("aut","cre","cph"))
 Maintainer: Patrick Brown <patrick.borgnine@gmail.com>
 URL: https://github.com/eborgnine/trustOptim
-Description: Performs Laplace approximations for hierarchical models using cppad and trustOptim
-License: MPL (>= 2.0)
+Description: Computes Laplace approximations for hierarchical models using
+    automatic differentiation (CppAD) and trust-region optimization.
+License: MPL-2.0
 Depends:
-    R (>= 3.6),
-    trustOptim
-Suggests:
-    knitr, numDeriv
+    R (>= 3.6)
 Imports:
     Matrix (>= 1.2.18),
     Rcpp (>= 1.0.3),
     parallel
+Suggests:
+    knitr, numDeriv, methods, RSpectra, trustOptim
 LinkingTo: Rcpp, RcppEigen, trustOptim
 Encoding: UTF-8
 VignetteBuilder: knitr
-SystemRequirements: CppAD, OpenMP
+SystemRequirements: CppAD, OpenMP (optional)
 RoxygenNote: 7.3.3

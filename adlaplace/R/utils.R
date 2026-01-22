@@ -41,7 +41,7 @@
 #' @param x A list with components \code{L}, \code{D}, and \code{P},
 #'          typically from \code{inner_opt()} or a trust-region optimization step.
 #'
-#' @return A \code{dgCMatrix} giving \(H^{-1/2}\).
+#' @return A \code{dgCMatrix} giving \(H^(-1/2)\).
 #'
 #' @examples
 #' \dontrun{
