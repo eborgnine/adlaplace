@@ -71,7 +71,6 @@ reformatChol <- function(x) {
   halfH
 }
 
-#' @export
 logLikDeriv = function(
   x,
   inner_res,
