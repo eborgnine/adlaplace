@@ -9,16 +9,14 @@ URL: https://github.com/eborgnine/trustOptim
 Description: Computes Laplace approximations for hierarchical models using
     automatic differentiation (CppAD) and trust-region optimization.
 License: MPL-2.0
-Depends:
-    R (>= 3.6)
-Imports:
-    Matrix (>= 1.2.18),
-    Rcpp (>= 1.0.3),
-    parallel
-Suggests:
-    knitr, numDeriv, methods, RSpectra, trustOptim
+Depends: R (>= 3.6)
+Imports: Matrix (>= 1.2.18), Rcpp (>= 1.0.3), parallel
+Suggests: knitr, numDeriv, methods, RSpectra, trustOptim
 LinkingTo: Rcpp, RcppEigen, trustOptim
 Encoding: UTF-8
 VignetteBuilder: knitr
 SystemRequirements: CppAD, OpenMP (optional)
 RoxygenNote: 7.3.3
+NeedsCompilation: yes
+Packaged: 2026-01-22 18:49:30 UTC; patrick
+Author: Patrick Brown [aut, cre, cph]
