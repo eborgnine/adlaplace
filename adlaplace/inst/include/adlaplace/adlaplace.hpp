@@ -4,8 +4,7 @@
 
 #include "adlaplace/adlaplace_base.hpp"
 
-
-// these only need Rcpp, RcppEigen, cppad
+//  only needs Rcpp, RcppEigen, cppad
 #include "adlaplace/trustOptimUtils.hpp"
 
 // needs data, config
@@ -13,11 +12,11 @@
 
 // needs adpack
 #include "adlaplace/sparsity.hpp"
-#include "adlaplace/third.hpp"
 #include "adlaplace/functions.hpp"
+#include "adlaplace/adfun.hpp"
 
 // needs sparsity
-#include "adlaplace/adfun.hpp"
+#include "adlaplace/third.hpp"
 
 // needs functions.hpp, stuff in trustOptim package
 #include "adlaplace/innerOpt.hpp"

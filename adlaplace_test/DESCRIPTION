@@ -1,0 +1,17 @@
+Package: adlaplace_test
+Type: Package
+Title: Testing linking to adlaplace
+Version: 0.1.0
+Author: Patrick Brown
+Maintainer: Patrick Brown <patrick.borgnine@gmail.com>
+Description: Links to the adlaplace package to differentiate the Laplace approximation, this package is intended as a useful example as well as testing.
+SystemRequirements: CppAD, OpenMP
+License: GPL-3
+Depends: R (>= 4.1.0)
+LinkingTo: Rcpp, adlaplace, RcppEigen, trustOptim
+Imports: Rcpp, Matrix, data
+Suggests: knitr, trustOptim
+VignetteBuilder: knitr
+Encoding: UTF-8
+RoxygenNote: 7.3.3
+Roxygen: list(markdown = TRUE)

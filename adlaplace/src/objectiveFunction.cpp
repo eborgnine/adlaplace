@@ -1,7 +1,9 @@
 #include "adlaplace/adlaplace_base.hpp"
-#include "adlaplace/lgamma.hpp"
 
 #define COMPUTE_CONSTANTS
+
+// header for the lgamma function
+#include "adlaplace/lgamma.hpp"
 
 // use logDensRandom from logDensRandom.hpp
 #include "adlaplace/logDensRandom.hpp"

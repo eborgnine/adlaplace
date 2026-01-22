@@ -48,58 +48,8 @@ SEXP getAdFun(
 	return xp;
 }
 
-//' @export
-// [[Rcpp::export]]
-double jointLogDensNoAdfun(
-	Rcpp::NumericVector parameters, 
-	Rcpp::List data,
-	Rcpp::List config)
-{
-
-	double result = jointLogDensNoAdfun_backend(parameters, data, config);
-	return(result);
-}
 
 
-//' @export
-// [[Rcpp::export]]
-double jointLogDens(
-	Rcpp::NumericVector parameters, 
-	SEXP adPack,
-	Rcpp::List config)
-{
-
-	double result = jointLogDens_backend(parameters, adPack, config);
-
-	return(result);
-
-}
-
-//' @export
-// [[Rcpp::export]]
-Rcpp::NumericVector grad(
-	Rcpp::NumericVector parameters, 
-	SEXP adPack,
-	Rcpp::List config)
-{
-
-	auto result = grad_backend(parameters, adPack, config);
-	return(result);
-
-}
-
-//' @export
-// [[Rcpp::export]]
-Rcpp::S4 hessian(
-	Rcpp::NumericVector parameters, 
-	SEXP adPack,
-	Rcpp::List config)
-{
-
-	auto result = hessian_backend(parameters, adPack, config);
-
-	return(result);
-}
 
 //' @export
 // [[Rcpp::export]]
