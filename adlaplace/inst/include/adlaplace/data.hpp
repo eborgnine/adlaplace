@@ -1,10 +1,5 @@
-
 #ifndef DATACONFIG_HPP
 #define DATACONFIG_HPP
-
-
-//#include <vector>
-//#include <cmath>
 
 
 struct Data {

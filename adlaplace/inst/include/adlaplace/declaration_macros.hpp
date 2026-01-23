@@ -1,3 +1,6 @@
+// macros to declare log density functions, for double and CppAD::AD<double>
+// used in objectiveFunction.cpp
+
 #ifndef INSTANTIATE_LOGDENS
 #define INSTANTIATE_LOGDENS
 

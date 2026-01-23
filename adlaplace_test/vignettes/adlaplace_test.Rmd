@@ -7,6 +7,17 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
+# To make a package using adlaplace
+
+- copy configure, src/Makevars.in, and src/Rinterfaces.cpp from adlaplace source
+- copy src/objectiveFunction.cpp and change it 
+
+# System requirements
+
+- cppad
+- omp (optional)
+
+# Skew normal model
 
 Skew normal, parameters location, scale, skew
 

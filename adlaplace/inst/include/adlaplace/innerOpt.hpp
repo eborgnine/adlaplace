@@ -1,15 +1,6 @@
 #ifndef INNER_OPT_HPP
 #define INNER_OPT_HPP
 
-//#include "adlaplace/config.hpp"
-//#include "adlaplace/matrixUtils.hpp"
-//#include "adlaplace/trustOptimUtils.hpp"
-//#include "adlaplace/functions.hpp"
-
-// from trustOptim
-#include <common_R.hpp>
-#include <CG-base.h>
-#include <CG-sparse.h> 
 
 inline Rcpp::List inner_opt(
 	Eigen::VectorXd& parameters, 

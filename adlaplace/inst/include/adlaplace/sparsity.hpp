@@ -5,8 +5,6 @@
 //#define DEBUG
 
 
-
-
 inline CppAD::sparse_rc< CppAD::vector<size_t> > build_gradient_pattern_from_R(
   const Rcpp::IntegerVector& grad_index, const size_t N)
 {

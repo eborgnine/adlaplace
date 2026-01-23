@@ -1,12 +1,10 @@
-#include "adlaplace/adlaplace_base.hpp"
-
-#define COMPUTE_CONSTANTS
+// [[Rcpp::depends(RcppEigen)]]
+#include "adlaplace/adlaplace.hpp"
 
 // header for the lgamma function
 #include "adlaplace/lgamma.hpp"
 
-
-// use logDensRandom from logDensRandom.hpp
+// use the standard logDensRandom from logDensRandom.hpp
 #include "adlaplace/logDensRandom.hpp"
 
 // returns minus log density

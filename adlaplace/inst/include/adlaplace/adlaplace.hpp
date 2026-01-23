@@ -1,30 +1,58 @@
+#pragma once
+
 #ifndef ADLAPLACE_HPP
 #define ADLAPLACE_HPP
 
+// We do NOT support ColPack in this package.#ifndef CPPAD_HAS_COLPACK
+#define CPPAD_HAS_COLPACK 0
 
-#include "adlaplace/adlaplace_base.hpp"
+#include <cppad/cppad.hpp>
 
-//  only needs Rcpp, RcppEigen, cppad
-#include "adlaplace/trustOptimUtils.hpp"
+// needs cppad but not Rcpp
+#include "adlaplace/cppadUtils.hpp"
+#include "adlaplace/logexp.hpp"
 
-// needs data, config
 #include "adlaplace/adpack.hpp"
+#include "adlaplace/foromp.hpp"
 
+// needs Eigen, adpack
+#include <Eigen/Core>
+#include <Eigen/SparseCore>   
+#include "adlaplace/functions.hpp"
+
+
+// for what follows need rcpp
+
+#include <Rcpp.h>
+#include "adlaplace/trustOptimUtils.hpp"
 // needs adpack
 #include "adlaplace/sparsity.hpp"
-#include "adlaplace/functions.hpp"
-#include "adlaplace/adfun.hpp"
 
-// needs sparsity
+// need Eigen 
+#include "adlaplace/matrixUtils.hpp"
+
+// needs matrixUtils 
+#include "adlaplace/data.hpp"
+#include "adlaplace/config.hpp"
+
+// needs omp, config
 #include "adlaplace/third.hpp"
 
-// needs functions.hpp, stuff in trustOptim package
+// needs config, data, sparsity
+#include "adlaplace/adfun.hpp"
+
+// needs adfun
+#include "adlaplace/debugging.hpp"
+
+
+// from trustOptim
+#include <CG-sparse.h> 
+
+// needs functions.hpp and trustoptim
 #include "adlaplace/innerOpt.hpp"
 
 // needs everything
-#include "adlaplace/Rinterfaces.hpp"
-
-// not done lgamma 
+#include "adlaplace/Rinterfaces_backend.hpp"
 
 
 #endif

@@ -1,6 +1,5 @@
-#include "adlaplace/adlaplace.hpp"
 
-// [[Rcpp::depends(RcppEigen)]]
+#include "adlaplace/Rinterfaces.hpp"
 
 //' Low-level C++ entry points (Rcpp exports)
 //'

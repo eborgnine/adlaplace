@@ -3,12 +3,10 @@
 #ifndef LGAMMA_AD_HPP
 #define LGAMMA_AD_HPP
 
-
+#ifndef ADLAPLACE_HPP
 #include <cppad/cppad.hpp>
 #include <Rcpp.h>
-//#include <string>
-//#include <cmath>
-//#include <algorithm> 
+#endif
 
 class atomic_lgamma_ad : public CppAD::atomic_four<double> {
 public:

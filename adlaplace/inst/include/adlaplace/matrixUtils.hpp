@@ -1,6 +1,14 @@
 #ifndef MATRIXUTILS_HPP
 #define MATRIXUTILS_HPP
 
+// Simple CSC container suitable for OpenMP use
+struct CSCMatrix {
+    int nrow;
+    int ncol;
+    std::vector<int>    p;  // column pointers (size ncol + 1)
+    std::vector<int>    i;  // row indices (size nnz)
+    std::vector<double> x;  // values      (size nnz)
+};
 
 // ----- safe getters -----
 inline bool get_bool(const Rcpp::List& cfg, const char* key, bool def=false) {
@@ -283,14 +291,7 @@ inline DgCView identityMatrix(std::size_t N)
     return DgCView(mat);
 }
 
-// Simple CSC container suitable for OpenMP use
-struct CSCMatrix {
-    int nrow;
-    int ncol;
-    std::vector<int>    p;  // column pointers (size ncol + 1)
-    std::vector<int>    i;  // row indices (size nnz)
-    std::vector<double> x;  // values      (size nnz)
-};
+
 
 // Construct CSCMatrix from an R "dgCMatrix"
 inline CSCMatrix makeCSC(const Rcpp::S4& M)

@@ -1,8 +1,6 @@
 #ifndef FUNCTIONS_HPP
 #define FUNCTIONS_HPP
 
-//#include "adlaplace/adpack.hpp"
-//#include <RcppEigen.h>
 
 static const std::string JAC_COLOR = "cppad";  
 static const std::string HESS_COLOR = "cppad.symmetric";

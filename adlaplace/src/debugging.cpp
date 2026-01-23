@@ -1,6 +1,4 @@
-
-
-#include "adlaplace/debugging.hpp"
+#include "adlaplace/Rinterfaces.hpp"
 
 //' Joint log-density and derivatives
 //'

@@ -1,35 +1,59 @@
+// utilities for setting up omp threads
+
 #ifndef ADLAPLACE_FOROMP_HPP
 #define ADLAPLACE_FOROMP_HPP
 
-#include <cstddef>  // for size_t
+#include <cstddef>
+
+#include <cppad/utility/thread_alloc.hpp>
+// If that header path doesn't exist in your setup, fall back to:
+// #include <cppad/cppad.hpp>
 
 #ifdef _OPENMP
   #include <omp.h>
-
-  static inline bool in_parallel_wrapper() {
-    return omp_in_parallel() != 0;
-  }
-
-  static inline std::size_t thread_num_wrapper() {
-    return static_cast<std::size_t>(omp_get_thread_num());
-  }
-
-  static inline std::size_t max_threads_wrapper() {
-    return static_cast<std::size_t>(omp_get_max_threads());
-  }
-
-  static inline void set_num_threads_wrapper(std::size_t n) {
-    // omp_set_num_threads takes int
-    omp_set_num_threads(static_cast<int>(n));
-  }
-
-
-#else
-  // OpenMP not enabled: provide single-thread fallbacks
-  static inline bool in_parallel_wrapper() { return false; }
-  static inline std::size_t thread_num_wrapper() { return 0; }
-  static inline std::size_t max_threads_wrapper() { return 1; }
-  static inline void set_num_threads_wrapper(std::size_t) { /* no-op */ }
 #endif
 
-#endif // ADLAPLACE_FOROMP_HPP
+static inline bool in_parallel_wrapper() {
+#ifdef _OPENMP
+  return omp_in_parallel() != 0;
+#else
+  return false;
+#endif
+}
+
+static inline std::size_t thread_num_wrapper() {
+#ifdef _OPENMP
+  return static_cast<std::size_t>(omp_get_thread_num());
+#else
+  return 0;
+#endif
+}
+
+static inline std::size_t max_threads_wrapper() {
+#ifdef _OPENMP
+  return static_cast<std::size_t>(omp_get_max_threads());
+#else
+  return 1;
+#endif
+}
+
+static inline void set_num_threads_wrapper(std::size_t n) {
+#ifdef _OPENMP
+  omp_set_num_threads(static_cast<int>(n));
+#else
+  (void)n;
+#endif
+}
+
+// New: one-call setup for CppAD + OpenMP
+static inline void cppad_parallel_setup(std::size_t nthreads) {
+  set_num_threads_wrapper(nthreads);
+
+  CppAD::thread_alloc::parallel_setup(
+    nthreads,
+    []() { return in_parallel_wrapper(); },
+    []() { return thread_num_wrapper(); }
+  );
+}
+
+#endif
