@@ -36,6 +36,7 @@
 #' }
 #'
 #' @name outer_optim_wrappers
+#' @rdname outer_optim_wrappers
 #' @export
 outer_fn = function(..., control_inner = list(), cache) {
 	result = adlaplace::logLik(..., control = control_inner, start_gamma = cache$start_gamma, deriv=FALSE)
@@ -44,6 +45,7 @@ outer_fn = function(..., control_inner = list(), cache) {
 	result$minusLogLik
 }
 
+#' @rdname outer_optim_wrappers
 #' @export
 outer_gr = function(..., control_inner = list(), cache) {
 	result = adlaplace::logLik(..., control = control_inner, start_gamma = cache$start_gamma, deriv=TRUE)

@@ -2,55 +2,51 @@
 
 // [[Rcpp::depends(RcppEigen)]]
 
-/*
- *' Construct and return an AD function object (external pointer)
- *'
- *' Creates (or retrieves) an internal automatic-differentiation (AD) function
- *' object used by \pkg{adlaplace} for evaluating the objective, gradients, and
- *' (optionally sparse) derivative structures. The returned object is an
- *' external pointer that is intended to be passed back to other \pkg{adlaplace}
- *' routines (e.g., inner/outer optimization and derivative evaluation).
- *'
- *' This is a low-level interface. Most users should call higher-level R
- *' functions (e.g., \code{logLik()} or \code{inner_opt()}) rather than using
- *' \code{getAdFun()} directly.
- *'
- *' @param data An R list containing model data and matrices required by the AD
- *'   construction. The required fields depend on your model setup (see package
- *'   vignette).
- *' @param config An R list of configuration options (e.g., parameter vectors,
- *'   sparsity options, threading options). The expected entries depend on the
- *'   model and backend.
- *' @param inner Logical; if \code{TRUE}, build the "inner" AD function (typically
- *'   corresponding to the random-effect subproblem). If \code{FALSE} (default),
- *'   build the "outer" AD function.
- *'
- *' @return An external pointer (\code{externalptr}) to an internal AD object.
- *'   This pointer is meant to be used only by \pkg{adlaplace} functions and is
- *'   not stable across sessions.
- *'
- *' @details
- *' The returned pointer is not human-readable and should not be modified.
- *' It may hold substantial memory (tapes, sparsity patterns, caches). Use
- *' package-level functions to manage lifecycle and computation.
- *'
- *'
- *' @export
- */
+//' Low-level C++ entry points (Rcpp exports)
+//'
+//' @param data An R list containing model data and matrices required by the AD
+//'   construction. Required fields depend on the model (see vignette).
+//' @param config An R list of configuration options (e.g., parameter vectors,
+//'   sparsity options, threading options).
+//' @param inner Logical; if TRUE, build the inner AD function; otherwise build
+//'   the outer AD function.
+//'
+//' @param parameters Numeric vector of parameters for the requested operation
+//'   (e.g., inner optimization or trace calculation). Interpretation depends on
+//'   the backend/model.
+//' @param control Control list for the optimizer (e.g., trust region settings,
+//'   tolerances, max iterations). Used by `inner_opt()`.
+//' @param adPackFull,adPack Optional external pointer (`externalptr`) returned by
+//'   `getAdFun()`. If provided, reuse cached AD objects / sparsity structures.
+//'
+//' @param LinvPt,LinvPtColumns Sparse matrix objects (S4, typically from Matrix)
+//'   used by `traceHinvT()`; see package documentation/vignette for required
+//'   classes and dimensions.
+//'
+//' @return `getAdFun()` returns an external pointer (`externalptr`) to an
+//'   internal AD object. 
+//'
+//'
+//' @details
+//' The returned pointer is not human-readable and should not be modified.
+//' It may hold substantial memory (tapes, sparsity patterns, caches). Use
+//' package-level functions to manage lifecycle and computation.
+//'
+//' @rdname adlaplace_cpp
+//' @export
 // [[Rcpp::export]]
 SEXP getAdFun(
 	Rcpp::List data, 
 	Rcpp::List config,
 	const bool inner=false)
 {
-
 	auto xp = getAdFun_backend(data, config, inner);
 	return xp;
 }
 
 
 
-
+//' @rdname adlaplace_cpp
 //' @export
 // [[Rcpp::export]]
 Rcpp::List inner_opt(
@@ -64,7 +60,7 @@ Rcpp::List inner_opt(
 	return(res);
 }
 
-
+//' @rdname adlaplace_cpp
 //' @export
 // [[Rcpp::export]]
 Rcpp::List inner_opt_adpack(
@@ -82,6 +78,7 @@ Rcpp::List inner_opt_adpack(
 
 
 
+//' @rdname adlaplace_cpp
 //' @export
 // [[Rcpp::export]]
 Rcpp::NumericVector traceHinvT(
@@ -92,10 +89,12 @@ Rcpp::NumericVector traceHinvT(
 	SEXP adPack = R_NilValue
 	) {
 
-	auto result = traceHinvT_backend(parameters, LinvPt, LinvPtColumns, config, adPack);
+	auto result = traceHinvT_backend(parameters, 
+		LinvPt, LinvPtColumns, config, adPack);
 	return(result);
 }
 
+//' @rdname adlaplace_cpp
 //' @export
 // [[Rcpp::export]]
 Rcpp::List sparsity(

@@ -1,29 +1,24 @@
 ---
-title: "Laplace Approximations with adlaplace"
+title: "Testing adlaplace with Skew Normal"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Laplace Approximations with adlaplace}
+  %\VignetteIndexEntry{Testing adlaplace with Skew Normal}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
 
 
-Neg Binoma, $E(y) = \mu$, $\theta$ is size, $1/\sqrt(\theta)$ is sd of Gamma random effect
+Skew normal, parameters location, scale, skew
 
 $$
 \begin{aligned}
-f(y;\mu,\theta) =  & \log\Gamma(y + r) - \log\Gamma(r) - \log\Gamma(y + 1) 
-	+ r \log(\frac{r}{r + \mu})
-	+ y \log(\frac{\mu}{r + \mu}) \\
-	= &  \log\Gamma(y + r) - \log\Gamma(r) - \log\Gamma(y + 1)  + r \log r - r \log(r + \mu) + y \log(\mu) - y\log(r + \mu)
+f(y;\xi,\omega,\alpha)
+&= -\log\omega
+-\frac12\log(2\pi)
+-\frac12\left(\frac{y-\xi}{\omega}\right)^2
++\log\!\left[\operatorname{erfc}\!\left(-\frac{\alpha (y-\xi)}{\sqrt2\,\omega}\right)\right].
 \end{aligned}
 $$
-
-# to do
-
-- add hpp files for a few models in inst (i.e. neg binom)
-- put Rinterfaces, rcppexports in inst somehow?  
-
 
 ```{r theData}
 Nobs = 1000;Nrandom1=10;Nrandom2=25
@@ -42,13 +37,12 @@ AmatList = list(
 )
 Amat = do.call(cbind, AmatList)
 beta = rep(1, ncol(X))
-thetaOrig = c(0.1, 0.1, 0.1);theta = log(thetaOrig)
+thetaOrig = c(0.1, 0.1);theta = log(thetaOrig)
 gamma = rnorm(ncol(Amat), sd=rep(thetaOrig[1:2], c(Nrandom1, Nrandom2)))
 eta = as.vector(X %*% beta + Amat %*% gamma)
-etaT = exp(eta)
-Z = rgamma(length(etaT), 0.1^(-2), 0.1^(-2))
-c(mean(Z), sd(Z))
-y = rpois(length(etaT), etaT*Z)
+
+y = sn::rsn(length(eta), xi=eta, omega=0.1^(-2), alpha = 0.5)
+
 
 NperEffect = unlist(lapply(AmatList, ncol))   
 #map = rep(seq(0, len=length(NperEffect)), NperEffect)
@@ -69,8 +63,7 @@ data = list(y = y,
 
 config = list(beta = rep(1, nrow(data$XTp)), 
 	theta = c(rep(-1, length(NperEffect)), -1), 
-	transform_theta=TRUE, 
-	start_gamma = rep(0, nrow(data$ATp)),
+	transform_theta=TRUE, start_gamma = rep(0, nrow(data$ATp)),
 	groups = adlaplace::adFun_groups(1000, data$ATp),
 	num_threads=parallel::detectCores(),
 	verbose=FALSE, package='adlaplace')	

@@ -3,9 +3,12 @@
 \name{outer_optim_wrappers}
 \alias{outer_optim_wrappers}
 \alias{outer_fn}
+\alias{outer_gr}
 \title{Outer objective and gradient wrappers}
 \usage{
 outer_fn(..., control_inner = list(), cache)
+
+outer_gr(..., control_inner = list(), cache)
 }
 \arguments{
 \item{...}{Arguments forwarded to \code{\link{logLik}} (e.g. \code{x}, \code{data},

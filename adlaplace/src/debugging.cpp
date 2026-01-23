@@ -70,6 +70,7 @@ double jointLogDensNoAdfun(
 }
 
 
+
 //' @rdname jointLogDens
 //' @export
 // [[Rcpp::export]]

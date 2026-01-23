@@ -5,9 +5,9 @@
 // header for the lgamma function
 #include "adlaplace/lgamma.hpp"
 
+
 // use logDensRandom from logDensRandom.hpp
 #include "adlaplace/logDensRandom.hpp"
-
 
 // returns minus log density
 template <class Type>
@@ -120,35 +120,7 @@ CppAD::vector<Type> logDensExtra(
 	return(result);
 }
 
-
-
 // declare
-
-template CppAD::vector<CppAD::AD<double>>
-logDensObs<double>(
-    const CppAD::vector<CppAD::AD<double>>&,
-    const CppAD::vector<double>&,
-    const CppAD::vector<double>&,
-    const Data&, const Config&, const size_t);
-
-template CppAD::vector<CppAD::AD<double>>
-logDensObs<CppAD::AD<double>>(
-    const CppAD::vector<CppAD::AD<double>>&,
-    const CppAD::vector<CppAD::AD<double>>&,
-    const CppAD::vector<CppAD::AD<double>>&,
-    const Data&, const Config&, const size_t);
-
-
-template CppAD::vector<double>
-logDensExtra<double>(
-    const CppAD::vector<double>&,
-    const Data&, const Config&);
-
-template CppAD::vector<CppAD::AD<double>>
-logDensExtra<CppAD::AD<double>>(
-    const CppAD::vector<CppAD::AD<double>>&,
-    const Data&, const Config&);
-
-
+#include"adlaplace/declaration_macros.hpp"
 
 

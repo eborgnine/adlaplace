@@ -1,0 +1,131 @@
+#!/bin/sh
+# configure: generate src/Makevars from src/Makevars.in with optional OpenMP
+# Portable POSIX sh (CRAN-friendly)
+
+set -eu
+
+# Quiet by default (set ADLAPLACE_CONFIGURE_VERBOSE=1 to show messages)
+VERBOSE="${ADLAPLACE_CONFIGURE_VERBOSE:-0}"
+msg() {
+  if [ "$VERBOSE" = "1" ]; then
+    echo "$@"
+  fi
+  return 0
+}
+
+# Force: do not use ColPack paths
+CPPAD_CPPFLAGS="-DCPPAD_HAS_COLPACK=0"
+
+OPENMP_CPPFLAGS=""
+OPENMP_CXXFLAGS=""
+OPENMP_LIBS=""
+BREW_CPPFLAGS=""
+BREW_PREFIX=""
+
+UNAME_S="$(uname -s 2>/dev/null || echo unknown)"
+
+CXX_CMD="$(R CMD config CXX 2>/dev/null || echo c++)"
+CXXFLAGS_CMD="$(R CMD config CXXFLAGS 2>/dev/null || true)"
+CPPFLAGS_CMD="$(R CMD config CPPFLAGS 2>/dev/null || true)"
+
+EIGEN_SYSTEM_CPPFLAGS=""
+RCPP_EIGEN_INCLUDE_DIR="$(Rscript -e 'cat(system.file("include", package="RcppEigen"))' 2>/dev/null || true)"
+if [ -n "$RCPP_EIGEN_INCLUDE_DIR" ]; then
+  EIGEN_SYSTEM_CPPFLAGS="-isystem $RCPP_EIGEN_INCLUDE_DIR"
+fi
+
+check_cxxflag () {
+  flag="$1"
+  tmpdir="config.$$"
+  mkdir "$tmpdir"
+  cat > "$tmpdir/conftest.cpp" <<'EOF'
+int main() { return 0; }
+EOF
+  if eval "$CXX_CMD $CPPFLAGS_CMD $CXXFLAGS_CMD $flag -c $tmpdir/conftest.cpp -o $tmpdir/conftest.o" \
+       >/dev/null 2>&1; then
+    rm -rf "$tmpdir"
+    return 0
+  fi
+  rm -rf "$tmpdir"
+  return 1
+}
+
+check_openmp_darwin () {
+  tmpdir="config.$$"
+  mkdir "$tmpdir"
+  cat > "$tmpdir/conftest.cpp" <<'EOF'
+#include <omp.h>
+int main() {
+  omp_set_num_threads(1);
+  return omp_get_max_threads() >= 1 ? 0 : 1;
+}
+EOF
+  if eval "$CXX_CMD $CPPFLAGS_CMD $CXXFLAGS_CMD -I$BREW_PREFIX/opt/libomp/include -Xpreprocessor -fopenmp \
+      $tmpdir/conftest.cpp $BREW_PREFIX/opt/libomp/lib/libomp.dylib -o $tmpdir/conftest" \
+      >/dev/null 2>&1; then
+    rm -rf "$tmpdir"
+    return 0
+  fi
+  rm -rf "$tmpdir"
+  return 1
+}
+
+# ---- Brew discovery (macOS only) ----
+if [ "$UNAME_S" = "Darwin" ] && command -v brew >/dev/null 2>&1; then
+  BREW_PREFIX="$(brew --prefix 2>/dev/null || true)"
+  if [ -n "$BREW_PREFIX" ] && [ -d "$BREW_PREFIX/include" ]; then
+    BREW_CPPFLAGS="-I$BREW_PREFIX/include"
+  fi
+fi
+
+# ---- Optional OpenMP ----
+if [ "$UNAME_S" = "Darwin" ]; then
+  if [ -n "$BREW_PREFIX" ] \
+     && [ -f "$BREW_PREFIX/opt/libomp/include/omp.h" ] \
+     && [ -f "$BREW_PREFIX/opt/libomp/lib/libomp.dylib" ]; then
+    if check_openmp_darwin; then
+      OPENMP_CPPFLAGS="-I$BREW_PREFIX/opt/libomp/include"
+      OPENMP_CXXFLAGS="-Xpreprocessor -fopenmp"
+      OPENMP_LIBS="$BREW_PREFIX/opt/libomp/lib/libomp.dylib -Wl,-rpath,$BREW_PREFIX/opt/libomp/lib"
+      msg "configure: OpenMP enabled on macOS using Homebrew libomp"
+    else
+      msg "configure: OpenMP not enabled (compiler does not accept -Xpreprocessor -fopenmp)"
+    fi
+  else
+    msg "configure: OpenMP not enabled on macOS (Homebrew libomp not found)"
+  fi
+else
+  if check_cxxflag "-fopenmp"; then
+    OPENMP_CXXFLAGS="-fopenmp"
+    OPENMP_LIBS="-fopenmp"
+    msg "configure: OpenMP enabled using -fopenmp"
+  else
+    msg "configure: OpenMP not enabled (compiler does not accept -fopenmp)"
+  fi
+fi
+
+# Always true because we force it
+msg "configure: CppAD ColPack: DISABLED (forced via CPPAD_HAS_COLPACK=0)"
+
+# ---- Substitute into src/Makevars from src/Makevars.in ----
+infile="src/Makevars.in"
+outfile="src/Makevars"
+
+if [ ! -f "$infile" ]; then
+  echo "configure: ERROR: $infile not found" >&2
+  exit 1
+fi
+
+esc_sed () { printf '%s' "$1" | sed 's/[\/&]/\\&/g'; }
+
+sed \
+  -e "s/@OPENMP_CPPFLAGS@/$(esc_sed "$OPENMP_CPPFLAGS")/g" \
+  -e "s/@OPENMP_CXXFLAGS@/$(esc_sed "$OPENMP_CXXFLAGS")/g" \
+  -e "s/@OPENMP_LIBS@/$(esc_sed "$OPENMP_LIBS")/g" \
+  -e "s/@BREW_CPPFLAGS@/$(esc_sed "$BREW_CPPFLAGS")/g" \
+  -e "s/@CPPAD_CPPFLAGS@/$(esc_sed "$CPPAD_CPPFLAGS")/g" \
+  -e "s/@EIGEN_SYSTEM_CPPFLAGS@/$(esc_sed "$EIGEN_SYSTEM_CPPFLAGS")/g" \
+"$infile" > "$outfile"
+
+chmod 644 "$outfile"
+exit 0

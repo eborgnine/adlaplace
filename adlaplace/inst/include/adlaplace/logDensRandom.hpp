@@ -1,7 +1,6 @@
 #ifndef LOGDENSRANDOM_HPP
 #define LOGDENSRANDOM_HPP
 
-
 /*
 	the standard log density for random effects
 	include with #include "adlaplace/logDensRandom.hpp"
@@ -78,21 +77,6 @@ CppAD::vector<CppAD::AD<double>> logDensRandom(
 	result[0] = qpart + qDet;
 	return(result);
 }
-
-// declare
-template CppAD::vector<CppAD::AD<double>>
-logDensRandom<double>(
-    const CppAD::vector<CppAD::AD<double>>&,
-    const CppAD::vector<double>&,
-    const Data&, const Config&);
-
-template CppAD::vector<CppAD::AD<double>>
-logDensRandom<CppAD::AD<double>>(
-    const CppAD::vector<CppAD::AD<double>>&,
-    const CppAD::vector<CppAD::AD<double>>&,
-    const Data&, const Config&);
-
-
 
 #endif
 
