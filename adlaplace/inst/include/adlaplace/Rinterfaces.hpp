@@ -1,8 +1,6 @@
 #ifndef RINTERFACES_HPP
 #define RINTERFACES_HPP
 
-// a true header file, includes forward declarations only
-
 #include <Rcpp.h>
 
 // ---- Forward declarations only (no CppAD types here) ----

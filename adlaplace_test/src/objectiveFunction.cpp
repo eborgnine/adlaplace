@@ -1,10 +1,10 @@
-#include "adlaplace/adlaplace_base.hpp"
+#include "adlaplace/adlaplace.hpp"
 
-#define COMPUTE_CONSTANTS
 
 // 0.5 * log(2*pi)
 const double ONEHALFLOGTWOPI = 0.9189385332046727417803297364056176398613974736377834128171515404;
-// also use std::numbers::sqrt2
+//  std::numbers::sqrt2 isn't always available
+const double SQRTTWO = 1.414213562373095048801688724209698078569671875376948073176679737990732478462107;
 
 // use logDensRandom from logDensRandom.hpp
 #include "adlaplace/logDensRandom.hpp"
@@ -28,7 +28,7 @@ CppAD::vector<CppAD::AD<double>> logDensObs(
 		exp_any(theta[theta.size()-2L]) : 
 		theta[theta.size()-2L];
 
-	Type omegaTimesSqrtTwo = omega * Type(std::numbers::sqrt2);
+	Type omegaTimesSqrtTwo = omega * Type(SQRTTWO);
 
 	Type alpha = theta[theta.size()-1L];
 
@@ -76,11 +76,8 @@ CppAD::vector<Type> logDensExtra(
 
 	const size_t N=data.y.size();
 
-	Type logDens = N*logOmega;
+	Type logDens = N*logOmega + Type(N*ONEHALFLOGTWOPI);
 
-#ifdef COMPUTE_CONSTANTS
-	logDens += Type(N*ONEHALFLOGTWOPI);
-#endif
 	if(config.verbose) {
 		Rcpp::Rcout << "logDensExtra " << logDens << " " <<
 		" logOmega " << logOmega << " tr " << config.transform_theta << "\n";

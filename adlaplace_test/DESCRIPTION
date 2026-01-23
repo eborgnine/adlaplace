@@ -1,4 +1,4 @@
-Package: adlaplace_test
+Package: adlaplaceExample
 Type: Package
 Title: Testing linking to adlaplace
 Version: 0.1.0
@@ -9,8 +9,8 @@ SystemRequirements: CppAD, OpenMP
 License: GPL-3
 Depends: R (>= 4.1.0)
 LinkingTo: Rcpp, adlaplace, RcppEigen, trustOptim
-Imports: Rcpp, Matrix, data
-Suggests: knitr, trustOptim
+Imports: Rcpp
+Suggests: knitr, Matrix, trustOptim
 VignetteBuilder: knitr
 Encoding: UTF-8
 RoxygenNote: 7.3.3

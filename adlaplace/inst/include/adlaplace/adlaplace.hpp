@@ -16,7 +16,6 @@
 #include "adlaplace/foromp.hpp"
 
 // needs Eigen, adpack
-#include <Eigen/Core>
 #include <Eigen/SparseCore>   
 #include "adlaplace/functions.hpp"
 
@@ -25,17 +24,17 @@
 
 #include <Rcpp.h>
 #include "adlaplace/trustOptimUtils.hpp"
-// needs adpack
-#include "adlaplace/sparsity.hpp"
-
 // need Eigen 
 #include "adlaplace/matrixUtils.hpp"
-
 // needs matrixUtils 
 #include "adlaplace/data.hpp"
 #include "adlaplace/config.hpp"
 
-// needs omp, config
+
+// needs adpack
+#include "adlaplace/sparsity.hpp"
+
+// needs adpack, omp, config
 #include "adlaplace/third.hpp"
 
 // needs config, data, sparsity

@@ -1,4 +1,5 @@
-// [[Rcpp::depends(RcppEigen)]]
+/*  Rcpp::depends(RcppEigen)]] */
+
 #include "adlaplace/adlaplace.hpp"
 
 // header for the lgamma function
