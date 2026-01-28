@@ -7,7 +7,7 @@ Description: Contains the code implementing the model proposed in Brown, Huang, 
 License: use_mit_license()
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.2
-Depends:  R (>= 4.1.0), TMB, RcppEigen, data.table
+RoxygenNote: 7.3.3
+Depends: R (>= 4.1.0), TMB, RcppEigen, data.table
 Imports: Matrix
 LinkingTo: TMB, RcppEigen, Rcpp

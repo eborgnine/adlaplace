@@ -61,3 +61,66 @@ sparsity <- function(data, config) {
     .Call(`_adlaplaceExample_sparsity`, data, config)
 }
 
+#' Joint log-density and derivatives
+#'
+#' Compute the joint log-density of a hierarchical model and its first- and
+#' second-order derivatives using automatic differentiation.  
+#'
+#' These functions are low-level computational backends intended for deugging.
+#' They operate on a vector of parameters and
+#' a pre-constructed automatic differentiation object (`adPack`).
+#'
+#' @param parameters Numeric vector of model parameters. The ordering must
+#'   match the structure expected by the automatic differentiation object.
+#' @param adPack An external pointer (SEXP) to an automatic differentiation
+#'   object created by \code{getAdFun()}.
+#' @param config A list of configuration options controlling model structure
+#'   and computation.
+#'
+#' @return
+#' \describe{
+#'   \item{\code{jointLogDens()}}{A scalar numeric value giving the joint
+#'     log-density.}
+#'   \item{\code{jointLogDensNoAdfun()}}{As above, but takes data rather than adPack.}
+#'   \item{\code{grad()}}{A numeric vector giving the gradient of the joint
+#'     log-density with respect to \code{parameters}.}
+#'   \item{\code{hessian()}}{A sparse symmetric matrix (as a
+#'     \code{dgCMatrix}) giving the Hessian of the joint log-density.}
+#' }
+#'
+#' @details
+#' These functions rely on CppAD-based automatic differentiation. The
+#' \code{adPack} object encapsulates the taped computation graph and must be
+#' compatible with the supplied \code{parameters} and \code{config}.
+#'
+#' Users should generally call higher-level R wrappers rather than invoking
+#' these functions directly.
+#'
+#' @seealso \code{\link{getAdFun}}, \code{\link{logLik}}
+#'
+#' @name jointLogDens
+#' @rdname jointLogDens
+#' @export
+jointLogDens <- function(parameters, adPack, config) {
+    .Call(`_adlaplaceExample_jointLogDens`, parameters, adPack, config)
+}
+
+#' @param data List of data objects used to construct the AD function.
+#' @rdname jointLogDens
+#' @export
+jointLogDensNoAdfun <- function(parameters, data, config) {
+    .Call(`_adlaplaceExample_jointLogDensNoAdfun`, parameters, data, config)
+}
+
+#' @rdname jointLogDens
+#' @export
+grad <- function(parameters, adPack, config) {
+    .Call(`_adlaplaceExample_grad`, parameters, adPack, config)
+}
+
+#' @rdname jointLogDens
+#' @export
+hessian <- function(parameters, adPack, config) {
+    .Call(`_adlaplaceExample_hessian`, parameters, adPack, config)
+}
+

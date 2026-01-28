@@ -36,7 +36,9 @@
 group_sparsity = function(data, config, sparsity_list) {
 
 	if(missing(sparsity_list)) {
-		sparsity_list = sparsity(data, config)
+		package = c(config$package, 'adlaplace')[1]
+		sparsity_list = 
+			getExportedValue(package, "sparsity")(data, config)
 	}
 
 	Sgamma0 = seq.int(length(config$beta), length.out=length(config$start_gamma))
@@ -98,7 +100,7 @@ sparsity_by_group = function(xx, template, dims, Sgamma0) {
 			i=match(allIJ[,'i'], Sgamma0)-1L,
 			j=match(allIJ[,'j'], Sgamma0)-1L
 		)
-		allIJ = allIJ[which(!(is.na(allIJ[,'i']) | is.na(allIJ[,'j']))), ]
+		allIJ = allIJ[which(!(is.na(allIJ[,'i']) | is.na(allIJ[,'j']))), ,drop=FALSE]
 		xx$grad = as.vector(stats::na.omit(match(xx$grad, Sgamma0) -1L))
 	}
 	allIJ = allIJ[!duplicated(allIJ), ,drop=FALSE]

@@ -81,6 +81,58 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// jointLogDens
+double jointLogDens(Rcpp::NumericVector parameters, SEXP adPack, Rcpp::List config);
+RcppExport SEXP _adlaplaceExample_jointLogDens(SEXP parametersSEXP, SEXP adPackSEXP, SEXP configSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type parameters(parametersSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type adPack(adPackSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type config(configSEXP);
+    rcpp_result_gen = Rcpp::wrap(jointLogDens(parameters, adPack, config));
+    return rcpp_result_gen;
+END_RCPP
+}
+// jointLogDensNoAdfun
+double jointLogDensNoAdfun(Rcpp::NumericVector parameters, Rcpp::List data, Rcpp::List config);
+RcppExport SEXP _adlaplaceExample_jointLogDensNoAdfun(SEXP parametersSEXP, SEXP dataSEXP, SEXP configSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type parameters(parametersSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type data(dataSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type config(configSEXP);
+    rcpp_result_gen = Rcpp::wrap(jointLogDensNoAdfun(parameters, data, config));
+    return rcpp_result_gen;
+END_RCPP
+}
+// grad
+Rcpp::NumericVector grad(Rcpp::NumericVector parameters, SEXP adPack, Rcpp::List config);
+RcppExport SEXP _adlaplaceExample_grad(SEXP parametersSEXP, SEXP adPackSEXP, SEXP configSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type parameters(parametersSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type adPack(adPackSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type config(configSEXP);
+    rcpp_result_gen = Rcpp::wrap(grad(parameters, adPack, config));
+    return rcpp_result_gen;
+END_RCPP
+}
+// hessian
+Rcpp::S4 hessian(Rcpp::NumericVector parameters, SEXP adPack, Rcpp::List config);
+RcppExport SEXP _adlaplaceExample_hessian(SEXP parametersSEXP, SEXP adPackSEXP, SEXP configSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type parameters(parametersSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type adPack(adPackSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type config(configSEXP);
+    rcpp_result_gen = Rcpp::wrap(hessian(parameters, adPack, config));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_adlaplaceExample_getAdFun", (DL_FUNC) &_adlaplaceExample_getAdFun, 3},
@@ -88,6 +140,10 @@ static const R_CallMethodDef CallEntries[] = {
     {"_adlaplaceExample_inner_opt_adpack", (DL_FUNC) &_adlaplaceExample_inner_opt_adpack, 5},
     {"_adlaplaceExample_traceHinvT", (DL_FUNC) &_adlaplaceExample_traceHinvT, 5},
     {"_adlaplaceExample_sparsity", (DL_FUNC) &_adlaplaceExample_sparsity, 2},
+    {"_adlaplaceExample_jointLogDens", (DL_FUNC) &_adlaplaceExample_jointLogDens, 3},
+    {"_adlaplaceExample_jointLogDensNoAdfun", (DL_FUNC) &_adlaplaceExample_jointLogDensNoAdfun, 3},
+    {"_adlaplaceExample_grad", (DL_FUNC) &_adlaplaceExample_grad, 3},
+    {"_adlaplaceExample_hessian", (DL_FUNC) &_adlaplaceExample_hessian, 3},
     {NULL, NULL, 0}
 };
 

@@ -78,7 +78,7 @@ logLik = function(x, data, config,
 		warning("start_gamma is the wrong size")
 	}
 
-	if(config$verbose) {
+	if(any(config$verbose)) {
 		cat("logLik using package ", package, "for objective funcion\n")
 	}
 
@@ -91,12 +91,26 @@ logLik = function(x, data, config,
 	}
 
 
-	inner_res = getExportedValue(package, "inner_opt")(
+	inner_res = try(getExportedValue(package, "inner_opt")(
 		start_gamma,
 		data=data, 
 		config=config_inner, 
 		control=control,
-		adPackFull = adPack)
+		adPackFull = adPack))
+	if(any(class(inner_res) == 'try-error')) {
+		cat("resetting starting values to all zero\n")
+		cat("theta ", paste(x, collapse=" "), "\n")
+		inner_res = try(getExportedValue(package, "inner_opt")(
+		rep(0.0, length(start_gamma)),
+		data=data, 
+		config=config_inner, 
+		control=control,
+		adPackFull = adPack))		
+	}
+
+	if(any(config$verbose)) {
+		cat("done inner opt\n")
+	}
 
 	names(inner_res$solution) = rownames(data$ATp)
 	inner_res$parameters = x

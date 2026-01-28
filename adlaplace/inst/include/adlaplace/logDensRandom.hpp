@@ -1,8 +1,10 @@
 #ifndef LOGDENSRANDOM_HPP
 #define LOGDENSRANDOM_HPP
 
+const double ONEHALFLOGTWOPIRANDOM = 0.9189385332046727417803297364056176398613974736377834128171515404;
+
 /*
-	the standard log density for random effects
+	the standard (negative) log density for random effects
 	include with #include "adlaplace/logDensRandom.hpp"
 */
 
@@ -35,7 +37,7 @@ CppAD::vector<CppAD::AD<double>> logDensRandom(
 
 
 	if(config.verbose) {
-		Rcpp::Rcout << "q adlaplace, ngamma  " << data.Ngamma << " nmap " << data.map.ncol() << 
+		Rcpp::Rcout << "q ngamma  " << data.Ngamma << " map.ncol " << data.map.ncol() << 
 		" map@i.size " << data.map.i.size() << 
 		" ntheta " << config.theta.size() << 
 		" exp theta map 0 " <<  expTheta[data.map.i[0]] << " gamma0 " << gamma[0] << ".\n";
@@ -68,13 +70,16 @@ CppAD::vector<CppAD::AD<double>> logDensRandom(
 	}
 	qpart *= 0.5;
 
-	if(config.verbose) {
-		Rcpp::Rcout << "logDensRandom " << qpart << " det "<< qDet << "\n";
-	}
-
 	// Warning, no offdiag of Q implemented
 
-	result[0] = qpart + qDet;
+	result[0] = qpart + qDet + CppAD::AD<double>(data.Ngamma * ONEHALFLOGTWOPIRANDOM);
+
+	if(config.verbose) {
+		Rcpp::Rcout << "logDensRandom " << result[0] << " qpart " << qpart << " det "<< qDet << "\n";
+	}
+
+
+
 	return(result);
 }
 

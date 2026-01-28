@@ -39,14 +39,14 @@ double jointLogDens_backend(
 	cppad_parallel_setup(configC.num_threads);
 
 	if(configC.verbose) {
-		Rcpp::Rcout << "d";
+		Rcpp::Rcout << "eval..";
 	}
 
 
 	funObj.get_f(parametersC, result);
 
 	if(configC.verbose) {
-		Rcpp::Rcout << "e " << result << "\n";
+		Rcpp::Rcout << " result " << result << "\n";
 	}
 
 
@@ -237,8 +237,8 @@ double jointLogDensNoAdfun_backend(
 	double result = CppAD::Value(result1);
 
 	if(config.verbose) {
-		Rcpp::Rcout << "Ngroups " << Ngroups << "inner " << inner <<  " d " << dataPart << " r " << randomPart << " e " 
-			<< extraPart << " result1 " << result1 << " result " << result << "\n";
+		Rcpp::Rcout << "Ngroups " << Ngroups << " inner " << inner <<  " dataPart " << dataPart << " r " << randomPart << 
+		" e " << extraPart << " result1 " << result1 << " result " << result << "\n";
 	}
 
 

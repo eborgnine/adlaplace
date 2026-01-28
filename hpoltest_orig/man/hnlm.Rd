@@ -8,9 +8,11 @@ hnlm(
   formula,
   data,
   cc_design = ccDesign(),
-  weight_var,
-  tmb_parameters = NULL,
-  for_dev = F
+  dirichlet = TRUE,
+  optim_parameters = list(eval.max = 2000, iter.max = 2000),
+  for_dev = FALSE,
+  verbose = FALSE,
+  ...
 )
 }
 \arguments{
@@ -20,11 +22,17 @@ hnlm(
 
 \item{cc_design}{An object specifying the case-crossover design, including stratification and time variables. Defaults to the output of \code{ccDesign()}.}
 
+\item{dirichlet}{if TRUE, fit dirichlet-multinomial model, with time-within-strata gamma random effect, otherwise multinomial.}
+
+\item{optim_parameters}{(Optional) A list of   parameters passed to \code{nlminb}}
+
+\item{for_dev}{Logical; if \code{TRUE}, the function returns intermediate objects for development purposes. Defaults to \code{FALSE}.}
+
+\item{verbose}{logical, if \code{TRUE} occasional information is printed}
+
 \item{weight_var}{(Optional) A character string specifying the column in the data frame used for weights. If provided, it must exist in \code{data}.}
 
 \item{tmb_parameters}{(Optional) A list of initial parameter values for the TMB optimization, including \code{beta}, \code{gamma}, and \code{theta}.}
-
-\item{for_dev}{Logical; if \code{TRUE}, the function returns intermediate objects for development purposes. Defaults to \code{FALSE}.}
 }
 \value{
 A list containing the fitted TMB object, the formula, terms used in the model, the case-crossover design, and information about the gamma and theta parameters.

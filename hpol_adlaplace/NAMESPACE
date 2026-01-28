@@ -2,6 +2,7 @@
 
 export(ccDesign)
 export(condSim)
+export(condSimIwp)
 export(f)
 export(formatHpolData)
 export(formatParameters)

@@ -149,7 +149,7 @@ inline std::vector<GroupPack> getAdFunInner(
 	std::vector<GroupPack> result(Ngroups+2L);
 
 	if(config.verbose) {
-		Rcpp::Rcout << " adfun Nparams " << parameters.size() << " groups " << Ngroups << " ";
+		Rcpp::Rcout << " adfun Nparams " << parameters.size() << " groups " << Ngroups << "\n";
 	}
 
 # pragma omp parallel

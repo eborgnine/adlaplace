@@ -40,7 +40,8 @@ iwp(
   range = NULL,
   rpoly_p = 0,
   fpoly_p = p - 1,
-  init = .my_theta_init
+  init = .my_theta_init,
+  boundary_is_random = TRUE
 )
 
 iwpDesign(term, data)
@@ -61,7 +62,8 @@ hiwp(
   hfpoly_p = 0,
   rpoly_p = 0,
   fpoly_p = include_global * (p - 1),
-  init = .my_theta_init
+  init = .my_theta_init,
+  boundary_is_random = TRUE
 )
 
 hiwpDesign(term, data)
@@ -70,7 +72,7 @@ hiwpPrecision(term)
 
 hiwpTheta(theta_info, term)
 
-fpoly(x, p = 2, ref_value = 0)
+fpoly(x, p = 2, ref_value = 0, boundary_is_random = TRUE)
 
 fpolyDesign(term, data)
 

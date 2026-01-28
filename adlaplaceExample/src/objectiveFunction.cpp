@@ -1,9 +1,11 @@
 #include "adlaplace/adlaplace.hpp"
 
+//#define DEBUG
 
+// some constants
 // 0.5 * log(2*pi)
 const double ONEHALFLOGTWOPI = 0.9189385332046727417803297364056176398613974736377834128171515404;
-//  std::numbers::sqrt2 isn't always available
+//  sqrt(2), std::numbers::sqrt2 isn't always available
 const double SQRTTWO = 1.414213562373095048801688724209698078569671875376948073176679737990732478462107;
 
 // use logDensRandom from logDensRandom.hpp
@@ -54,8 +56,17 @@ CppAD::vector<CppAD::AD<double>> logDensObs(
 		const CppAD::AD<double> z = (data.y[Dobs] - eta) / omegaTimesSqrtTwo;
     	const CppAD::AD<double> erfcArg = -alpha * z;
     	const CppAD::AD<double> erfcVal = CppAD::erfc(erfcArg);
-    	result += z*z - CppAD::log(erfcVal); 
+    	const CppAD::AD<double> toAdd = z*z - CppAD::log(erfcVal);
+
+#ifdef DEBUG
+    	Rcpp::Rcout << "Dobs " << Dobs << " eta " << eta << " z " << z << " erfcArg " << erfcArg <<
+    		" erfcVal " << erfcVal << " toAdd " << toAdd << "\n";
+#endif
+    	result += toAdd; 
 	}
+#ifdef DEBUG
+    	Rcpp::Rcout << "Dgroup " << Dgroup << "result " << result << "\n";
+#endif
 
 	resultV[0] = result;
 	return(resultV);
@@ -76,14 +87,14 @@ CppAD::vector<Type> logDensExtra(
 
 	const size_t N=data.y.size();
 
-	Type logDens = N*logOmega + Type(N*ONEHALFLOGTWOPI);
+	Type logDens = Type(N)*logOmega + Type(N*ONEHALFLOGTWOPI);
 
 	if(config.verbose) {
 		Rcpp::Rcout << "logDensExtra " << logDens << " " <<
 		" logOmega " << logOmega << " tr " << config.transform_theta << "\n";
 	}
 	CppAD::vector<Type> result(1);
-	result[0] = -logDens;
+	result[0] = logDens;
 	return(result);
 }
 

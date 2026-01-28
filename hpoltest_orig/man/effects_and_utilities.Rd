@@ -32,7 +32,7 @@ f(
   ...
 )
 
-iwp(x, p = 2, ref_value, knots, range = NULL, rpoly_p = 0, fpoly_p = 1)
+iwp(x, p = 2, ref_value, knots, range = NULL, rpoly_p = 0, fpoly_p = p - 1)
 
 iwpDesign(term, data)
 
@@ -54,7 +54,7 @@ hiwp(
   fpoly_p = include_global * (p - 1)
 )
 
-hiwpDesign(term, data)
+hiwpDesign(term, data, use_dev_version = F)
 
 hiwpPrecision(term)
 

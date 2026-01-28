@@ -41,7 +41,6 @@
 outer_fn = function(..., control_inner = list(), cache) {
 	result = adlaplace::logLik(..., control = control_inner, start_gamma = cache$start_gamma, deriv=FALSE)
 	assign('start_gamma', result$inner$solution,  cache)
-	assign('x', result$inner$solution,  cache)
 	result$minusLogLik
 }
 

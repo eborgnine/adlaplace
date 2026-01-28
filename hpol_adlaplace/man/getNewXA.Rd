@@ -4,7 +4,7 @@
 \alias{getNewXA}
 \title{Post-fit design matrices constructor.}
 \usage{
-getNewXA(terms, df, boundary_is_random = FALSE)
+getNewXA(terms, df)
 }
 \arguments{
 \item{terms}{The output \code{terms} of \code{hlnm}.}
