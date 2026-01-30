@@ -1,109 +1,121 @@
+#include <Rcpp.h>
 
-#include "adlaplace/Rinterfaces.hpp"
+Rcpp::List getAdFun_backend(
+	Rcpp::List data, 
+	Rcpp::List config);
+double funH_backend(
+	const Rcpp::NumericVector& x,
+	const int i,
+	SEXP& adPack);
+Rcpp::NumericVector gradH_backend(
+	const Rcpp::NumericVector& x,
+	const int i,
+	SEXP  adPack,
+	const Rcpp::IntegerVector &pattern);
+Rcpp::NumericVector hessH_backend(
+  const Rcpp::NumericVector& x,
+  const int i,
+  SEXP adPack,
+  const Rcpp::IntegerVector& row_index,   
+  const Rcpp::IntegerVector& col_index  
+);
 
-//' Low-level C++ entry points (Rcpp exports)
+//' C++ backend entry points
 //'
-//' @param data An R list containing model data and matrices required by the AD
-//'   construction. Required fields depend on the model (see vignette).
-//' @param config An R list of configuration options (e.g., parameter vectors,
-//'   sparsity options, threading options).
-//' @param inner Logical; if TRUE, build the inner AD function; otherwise build
-//'   the outer AD function.
+//' Low-level C++ entry points exposed to R via Rcpp. These create and operate on
+//' an opaque AD “pack” (external pointer) used to evaluate the objective,
+//' sparse gradient values, and sparse Hessian values for a selected group.
 //'
-//' @param parameters Numeric vector of parameters for the requested operation
-//'   (e.g., inner optimization or trace calculation). Interpretation depends on
-//'   the backend/model.
-//' @param control Control list for the optimizer (e.g., trust region settings,
-//'   tolerances, max iterations). Used by `inner_opt()`.
-//' @param adPackFull,adPack Optional external pointer (`externalptr`) returned by
-//'   `getAdFun()`. If provided, reuse cached AD objects / sparsity structures.
+//' Indices passed in `pattern`, `row`, and `col` are **0-based** and must be
+//' sorted with no duplicates (for gradients) or paired consistently (for Hessians).
 //'
-//' @param LinvPt,LinvPtColumns Sparse matrix objects (S4, typically from Matrix)
-//'   used by `traceHinvT()`; see package documentation/vignette for required
-//'   classes and dimensions.
+//' @param data An R list containing model data objects required by the backend.
+//' @param config An R list of configuration options required by the backend.
+//' @param parameters Numeric vector of parameters.
+//' @param i Integer index selecting which group/tape to evaluate.
+//' @param adPack External pointer (`externalptr`) returned by \code{getAdFun()}.
+//' @param pattern Integer vector of 0-based column indices specifying which
+//'   gradient entries to compute (sorted, unique).
+//' @param row Integer vector of 0-based row indices for Hessian entries.
+//' @param col Integer vector of 0-based column indices for Hessian entries;
+//'   must have the same length as \code{row}.
 //'
-//' @return `getAdFun()` returns an external pointer (`externalptr`) to an
-//'   internal AD object. 
-//'
+//' @return
+//' \itemize{
+//'   \item \code{getAdFun}: a list containing an opaque external pointer and
+//'     associated metadata.
+//'   \item \code{jointLogDens}: a scalar objective value for group \code{i}.
+//'   \item \code{grad}: numeric vector of length \code{length(pattern)} with
+//'     gradient values in the same order as \code{pattern}.
+//'   \item \code{hess}: numeric vector of length \code{length(row)} with Hessian
+//'     values in the same order as the \code{(row, col)} pairs.
+//' }
 //'
 //' @details
-//' The returned pointer is not human-readable and should not be modified.
-//' It may hold substantial memory (tapes, sparsity patterns, caches). Use
-//' package-level functions to manage lifecycle and computation.
+//' The external pointer returned by \code{getAdFun} is opaque and not
+//' user-modifiable. It may hold substantial memory (AD tapes, sparsity patterns,
+//' work caches). Do not save it across R sessions.
 //'
+//' @name adlaplace_cpp
+
+
+
 //' @rdname adlaplace_cpp
 //' @export
 // [[Rcpp::export]]
-SEXP getAdFun(
+Rcpp::List getAdFun(
 	Rcpp::List data, 
-	Rcpp::List config,
-	const bool inner=false)
+	Rcpp::List config)
 {
-	auto xp = getAdFun_backend(data, config, inner);
-	return xp;
-}
 
+	Rcpp::List result = getAdFun_backend(data, config);
+
+	return result;
+}
 
 
 //' @rdname adlaplace_cpp
 //' @export
 // [[Rcpp::export]]
-Rcpp::List inner_opt(
-	Rcpp::NumericVector parameters, 
-	Rcpp::List data,
-	Rcpp::List control, 
-	Rcpp::List config,
-	SEXP adPackFull = R_NilValue)
+double jointLogDens(
+	const Rcpp::NumericVector parameters, 
+	const int i,
+	SEXP adPack)
 {
-	auto res = inner_opt_backend(parameters, data, control, config, adPackFull);
-	return(res);
+	double result = funH_backend(parameters, i, adPack);
+
+	return(result);
 }
+
 
 //' @rdname adlaplace_cpp
 //' @export
 // [[Rcpp::export]]
-Rcpp::List inner_opt_adpack(
-	Rcpp::NumericVector parameters, 
+Rcpp::NumericVector grad(
+	const Rcpp::NumericVector& parameters, 
+	const int i,
 	SEXP adPack,
-	const Rcpp::List control, 
-	const Rcpp::List config,
-	SEXP adPackFull = R_NilValue)
+	const Rcpp::IntegerVector& pattern)
 {
 
+	Rcpp::NumericVector result = gradH_backend(parameters, i, adPack, pattern);
 
-	auto res = inner_opt_adpack_backend(parameters, adPack, control, config, adPackFull);
-	return(res);
-}
-
-
-
-//' @rdname adlaplace_cpp
-//' @export
-// [[Rcpp::export]]
-Rcpp::NumericVector traceHinvT(
-	const Rcpp::NumericVector parameters,
-	const Rcpp::S4& LinvPt,
-	const Rcpp::S4& LinvPtColumns,
-	const Rcpp::List config,
-	SEXP adPack = R_NilValue
-	) {
-
-	auto result = traceHinvT_backend(parameters, 
-		LinvPt, LinvPtColumns, config, adPack);
 	return(result);
 }
 
 //' @rdname adlaplace_cpp
 //' @export
 // [[Rcpp::export]]
-Rcpp::List sparsity(
-   Rcpp::List data,
-   Rcpp::List config
-	) {
-	
-	auto result=sparsity_backend(data, config);
+Rcpp::NumericVector hess(
+	const Rcpp::NumericVector& parameters, 
+	const int i,
+	SEXP adPack,
+	const Rcpp::IntegerVector &row,
+	const Rcpp::IntegerVector &col)
+{
+
+	Rcpp::NumericVector result = hessH_backend(parameters, i, adPack, row, col);
 
 	return(result);
+
 }
-
-

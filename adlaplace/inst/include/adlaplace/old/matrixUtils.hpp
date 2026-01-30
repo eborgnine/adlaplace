@@ -10,69 +10,19 @@ struct CSCMatrix {
     std::vector<double> x;  // values      (size nnz)
 };
 
-// ----- safe getters -----
-inline bool get_bool(const Rcpp::List& cfg, const char* key, bool def=false) {
-  return cfg.containsElementNamed(key) ? Rcpp::as<bool>(cfg[key]) : def;
-}
-// helper to fetch int from R list with default
-inline int get_int(const Rcpp::List& cfg, const char* key, int def = 1) {
-  return cfg.containsElementNamed(key) ? Rcpp::as<int>(cfg[key]) : def;
-}
+
 inline double get_double(const Rcpp::List& cfg, const char* key, double def = 0.0) {
   return cfg.containsElementNamed(key) ? Rcpp::as<double>(cfg[key]) : def;
 }
 
-inline std::vector<double> get_numvec_copy(const Rcpp::List& cfg, const char* key) {
-  if (!cfg.containsElementNamed(key)) return {};
-  Rcpp::NumericVector v = cfg[key];
-  return std::vector<double>(v.begin(), v.end());
-}
+
 inline std::vector<int> get_intvec_copy(const Rcpp::List& cfg, const char* key) {
   if (!cfg.containsElementNamed(key)) return {};
   Rcpp::IntegerVector v = cfg[key];
   return std::vector<int>(v.begin(), v.end());
 }
 
-// ----- a lightweight view of a dgCMatrix (no copies; just SEXP handles) -----
-// Lightweight view for Matrix::*gCMatrix (column-compressed)
-// Works for dgCMatrix (numeric x) and ngCMatrix (no x: pattern-only).
-struct DgCView {
-  Rcpp::IntegerVector i;    // row indices (0-based)
-  Rcpp::IntegerVector p;    // column pointers (length ncol+1)
-  Rcpp::NumericVector x;    // may be length 0 for ngCMatrix
-  Rcpp::IntegerVector Dim;  // c(nrow, ncol)
-  bool has_x;               // true if numeric/logical 'x' present
 
-  DgCView()
-    : i(), p(), x(), Dim(Rcpp::IntegerVector::create(0, 0)), has_x(false)
-  {}
-
-  explicit DgCView(const Rcpp::S4& obj)
-  : i(obj.slot("i")),
-  p(obj.slot("p")),
-  Dim(obj.slot("Dim"))
-  {
-    // ngCMatrix has no 'x' slot; others do (dgCMatrix: numeric, lgCMatrix: logical)
-    if (obj.inherits("ngCMatrix")) {
-      x = Rcpp::NumericVector();   // empty
-      has_x = false;
-    } else {
-      // coerce any existing x (numeric/logical) to NumericVector
-      x = Rcpp::as<Rcpp::NumericVector>(obj.slot("x"));
-      has_x = true;
-    }
-  }
-
-  inline int nrow() const { return Dim[0]; }
-  inline int ncol() const { return Dim[1]; }
-  inline R_xlen_t nnz() const { return i.size(); } // structural nnz
-
-  // Get numeric value for kth stored nonzero; returns 1 for pattern matrices.
-  template <class T = double>
-  inline T value(R_xlen_t k) const {
-    return has_x ? static_cast<T>(x[k]) : static_cast<T>(1);
-  }
-};
 // Lightweight view for Matrix::dsTMatrix (symmetric triplet), no uplo logic.
 struct DgTView {
   Rcpp::IntegerVector i;    // row indices (0-based), as-is

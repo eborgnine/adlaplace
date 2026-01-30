@@ -2,13 +2,13 @@
 #define LOGDENSEXTRAEMPTY_HPP
 
 // dummy funciton if there is no logDensExtra
-template <class Type>
-CppAD::vector<Type> logDensExtra(
-	const CppAD::vector<Type> &theta,
+
+CppAD::vector<CppAD::AD<double>> logDensExtra(
+	const CppAD::vector<CppAD::AD<double>> &theta,
 	const Data& data,
 	const Config& config
 	) {
-	CppAD::vector<Type> result(1);
+	CppAD::vector<CppAD::AD<double>> result(1);
 	result[0] = 0.0;
 	return(result);
 }

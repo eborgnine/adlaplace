@@ -119,7 +119,13 @@ create AD function
 ```{r adFunFull}
 adFunFull = adlaplaceExample::getAdFun(
 	data, modifyList(config, list(verbose=TRUE)), inner=FALSE)
+
+r1 = adlaplaceExample::funH(adFunFull, 1)	
+grad1 = adlaplaceExample::gradH(adFunFull, 1)	
+hes1 = adlaplaceExample::hessH(adFunFull, 1)	
 ```
+
+
 
 fit
 

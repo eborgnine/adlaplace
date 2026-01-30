@@ -26,9 +26,8 @@
 #include "adlaplace/trustOptimUtils.hpp"
 // need Eigen 
 #include "adlaplace/matrixUtils.hpp"
-// needs matrixUtils 
+// needs matrixUtils (DGCVIEW)
 #include "adlaplace/data.hpp"
-#include "adlaplace/config.hpp"
 
 
 // needs adpack

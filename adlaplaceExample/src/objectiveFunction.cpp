@@ -7,6 +7,9 @@
 const double ONEHALFLOGTWOPI = 0.9189385332046727417803297364056176398613974736377834128171515404;
 //  sqrt(2), std::numbers::sqrt2 isn't always available
 const double SQRTTWO = 1.414213562373095048801688724209698078569671875376948073176679737990732478462107;
+static const std::string JAC_COLOR = "cppad";  
+static const std::string HESS_COLOR = "cppad.symmetric";
+
 
 // use logDensRandom from logDensRandom.hpp
 #include "adlaplace/logDensRandom.hpp"
@@ -27,8 +30,8 @@ CppAD::vector<CppAD::AD<double>> logDensObs(
 
 	// last two elements omega and alpha
 	Type omega = config.transform_theta ? 
-		exp_any(theta[theta.size()-2L]) : 
-		theta[theta.size()-2L];
+	exp_any(theta[theta.size()-2L]) : 
+	theta[theta.size()-2L];
 
 	Type omegaTimesSqrtTwo = omega * Type(SQRTTWO);
 
@@ -54,18 +57,18 @@ CppAD::vector<CppAD::AD<double>> logDensObs(
 
 		const CppAD::AD<double> eta = etaFixed + etaRandom;
 		const CppAD::AD<double> z = (data.y[Dobs] - eta) / omegaTimesSqrtTwo;
-    	const CppAD::AD<double> erfcArg = -alpha * z;
-    	const CppAD::AD<double> erfcVal = CppAD::erfc(erfcArg);
-    	const CppAD::AD<double> toAdd = z*z - CppAD::log(erfcVal);
+		const CppAD::AD<double> erfcArg = -alpha * z;
+		const CppAD::AD<double> erfcVal = CppAD::erfc(erfcArg);
+		const CppAD::AD<double> toAdd = z*z - CppAD::log(erfcVal);
 
 #ifdef DEBUG
-    	Rcpp::Rcout << "Dobs " << Dobs << " eta " << eta << " z " << z << " erfcArg " << erfcArg <<
-    		" erfcVal " << erfcVal << " toAdd " << toAdd << "\n";
+		Rcpp::Rcout << "Dobs " << Dobs << " eta " << eta << " z " << z << " erfcArg " << erfcArg <<
+		" erfcVal " << erfcVal << " toAdd " << toAdd << "\n";
 #endif
-    	result += toAdd; 
+		result += toAdd; 
 	}
 #ifdef DEBUG
-    	Rcpp::Rcout << "Dgroup " << Dgroup << "result " << result << "\n";
+	Rcpp::Rcout << "Dgroup " << Dgroup << "result " << result << "\n";
 #endif
 
 	resultV[0] = result;
@@ -82,8 +85,8 @@ CppAD::vector<Type> logDensExtra(
 	) {
 
 	Type logOmega = config.transform_theta?
-		theta[theta.size()-2L]:
-		log_any(theta[theta.size()-2L]);
+	theta[theta.size()-2L]:
+	log_any(theta[theta.size()-2L]);
 
 	const size_t N=data.y.size();
 
@@ -101,6 +104,5 @@ CppAD::vector<Type> logDensExtra(
 
 // declare
 #include"adlaplace/declaration_macros.hpp"
-
 
 

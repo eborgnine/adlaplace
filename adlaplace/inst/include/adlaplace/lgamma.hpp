@@ -3,10 +3,9 @@
 #ifndef LGAMMA_AD_HPP
 #define LGAMMA_AD_HPP
 
-#ifndef ADLAPLACE_HPP
 #include <cppad/cppad.hpp>
 #include <Rcpp.h>
-#endif
+
 
 class atomic_lgamma_ad : public CppAD::atomic_four<double> {
 public:
@@ -188,24 +187,6 @@ inline CppAD::AD<double> lgamma_ad(const CppAD::AD<double>& x) {
     ax[0] = x;
   op(ax, ay);   // calls your atomic_four op
   return ay[0];
-}
-
-
-// declare primary template
-template<class T>
-inline T lgamma_any(T x);
-
-// specializations (MUST be in a header)
-template<>
-inline double lgamma_any<double>(double x) {
-  return std::lgamma(x);
-}
-
-template<>
-inline CppAD::AD<double> lgamma_any< CppAD::AD<double> >(CppAD::AD<double> x) {
-  // call your atomic wrapper (header-only, function-local static)
-  extern CppAD::AD<double> lgamma_ad(const CppAD::AD<double>&);
-  return lgamma_ad(x);
 }
 
 

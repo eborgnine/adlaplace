@@ -121,7 +121,7 @@ inline Rcpp::List sparsity(
     bool dependency   = false;   // standard Jacobian sparsity (not dependency)
     bool internal_bool = false;  // let CppAD choose representation; updated on return
 
-    CPPAD_TESTVECTOR(bool) select_domain(Nparams), select_range(1);
+    CppAD::vector(bool) select_domain(Nparams), select_range(1);
     for (size_t j = 0; j < Nparams; ++j) {
     	select_domain[j] = true;
     }
