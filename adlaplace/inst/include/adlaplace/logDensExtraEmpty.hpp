@@ -4,7 +4,7 @@
 // dummy funciton if there is no logDensExtra
 
 CppAD::vector<CppAD::AD<double>> logDensExtra(
-	const CppAD::vector<CppAD::AD<double>> &theta,
+	const CppAD::vector<CppAD::AD<double>> &x,
 	const Data& data,
 	const Config& config
 	) {

@@ -48,19 +48,19 @@ getAdFun <- function(data, config) {
 
 #' @rdname adlaplace_cpp
 #' @export
-jointLogDens <- function(parameters, i, adPack) {
-    .Call(`_adlaplace_jointLogDens`, parameters, i, adPack)
+jointLogDens <- function(parameters, config, adPack) {
+    .Call(`_adlaplace_jointLogDens`, parameters, config, adPack)
 }
 
 #' @rdname adlaplace_cpp
 #' @export
-grad <- function(parameters, i, adPack, pattern) {
-    .Call(`_adlaplace_grad`, parameters, i, adPack, pattern)
+grad <- function(parameters, config, adPack, inner) {
+    .Call(`_adlaplace_grad`, parameters, config, adPack, inner)
 }
 
 #' @rdname adlaplace_cpp
 #' @export
-hess <- function(parameters, i, adPack, row, col) {
-    .Call(`_adlaplace_hess`, parameters, i, adPack, row, col)
+hess <- function(parameters, config, adPack, inner) {
+    .Call(`_adlaplace_hess`, parameters, config, adPack, inner)
 }
 

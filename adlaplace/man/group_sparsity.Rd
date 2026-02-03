@@ -4,39 +4,18 @@
 \alias{group_sparsity}
 \title{Build grouped Hessian sparsity structures}
 \usage{
-group_sparsity(data, config, sparsity_list)
+group_sparsity(config, sparsity_list)
 }
 \arguments{
-\item{data}{A list containing model matrices and metadata required by
-\code{sparsity()} and by downstream code. (Backend-dependent.)}
-
 \item{config}{A list of configuration options. This function expects at least
-\code{beta}, \code{start_gamma}, \code{theta}, and optionally \code{num_threads}.}
+\code{beta}, \code{gamma}, \code{theta}.}
 
-\item{sparsity_list}{Optional list describing sparsity per group. Each element
-is expected to contain integer vectors \code{row} and \code{col} giving
-Hessian nonzero coordinates (0-based indices) for that group.}
+\item{sparsity_list}{List describing sparsity obtained from \link{getAdFun}.}
 }
 \value{
-A list with components:
-\describe{
-  \item{hessian_outer}{Symmetric sparse matrix template (\code{dgCMatrix}) for the full parameter Hessian (upper triangle).}
-  \item{hessianL_outer}{Lower-triangular variant of \code{hessian_outer}.}
-  \item{group_outer}{List of per-group sparsity objects aligned to \code{hessian_outer}.}
-  \item{hessian_inner}{Sparse matrix template for the \code{gamma} block of the Hessian.}
-  \item{hessianL_inner}{Lower-triangular variant of \code{hessian_inner}.}
-  \item{group_inner}{List of per-group sparsity objects aligned to \code{hessian_inner}.}
-}
+A list with components \code{hessian, hessian_inner}, and \code{match} to be added to \code{config$sparsity}
 }
 \description{
 Constructs Hessian sparsity “templates” (global/outer and inner-\code{gamma})
 and then derives per-group sparsity objects aligned to those templates.
-}
-\examples{
-\dontrun{
-# sp <- group_sparsity(data, config)
-# str(sp$hessian_outer)
-# length(sp$group_outer)
-}
-
 }

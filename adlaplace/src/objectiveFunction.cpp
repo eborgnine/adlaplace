@@ -1,21 +1,20 @@
-/*  Rcpp::depends(RcppEigen)]] */
-
 #include "adlaplace/data.hpp"
 
 // header for the lgamma function
 #include "adlaplace/lgamma.hpp"
 
-// use the standard logDensRandom from logDensRandom.hpp
-#include "adlaplace/logDensRandom.hpp"
 
 // returns log density of observations conditional on random effects
 
 #define COMPUTE_CONSTANTS
+#define DEBUG
+
+// use the standard logDensRandom from logDensRandom.hpp
+#include "adlaplace/logDensRandom.hpp"
+
 
 CppAD::vector<CppAD::AD<double>> logDensObs(
-	const CppAD::vector<CppAD::AD<double>>& gamma,
-	const CppAD::vector<CppAD::AD<double>> &beta,
-	const CppAD::vector<CppAD::AD<double>> &theta,
+	const CppAD::vector<CppAD::AD<double>>& x,
 	const Data& data,
 	const Config& config,
 	const size_t Dgroup
@@ -23,8 +22,8 @@ CppAD::vector<CppAD::AD<double>> logDensObs(
 
 	CppAD::AD<double> logDens1 = 0.0, logDens2 = 0.0;
 
-	CppAD::AD<double> logTheta = config.transform_theta?
-	theta[theta.size()-1]:CppAD::log(theta[theta.size()-1]);
+	CppAD::AD<double> thetaIn = x[config.theta_end-1];
+	CppAD::AD<double> logTheta = config.transform_theta?thetaIn:CppAD::log(thetaIn);
 
 	CppAD::AD<double> logNbSize = -2*logTheta;
 	CppAD::AD<double> nbSize = CppAD::exp(logNbSize);
@@ -42,18 +41,26 @@ CppAD::vector<CppAD::AD<double>> logDensObs(
 		const size_t p1a = data.A.p[Dobs + 1];
 		CppAD::AD<double>  etaFixed = 0.0;
 		for(size_t D =p0x;D < p1x; D++) {
-			etaFixed += data.X.x[D] * beta[data.X.i[D]];
+			etaFixed += data.X.x[D] * x[config.beta_begin + data.X.i[D]];
 		}
 		CppAD::AD<double> etaRandom = 0.0;
 		for(size_t D =p0a;D < p1a; D++) {
-			etaRandom += data.A.x[D] * gamma[data.A.i[D]];
+			etaRandom += data.A.x[D] * x[config.gamma_begin + data.A.i[D]];
 		}
 
 		const CppAD::AD<double> eta = etaRandom + etaFixed;
 
-		// logNbSize is usually large
-		const CppAD::AD<double> diffEtaLogNbSize = eta - logNbSize;
-		const CppAD::AD<double> logRplusMu = logNbSize + CppAD::log1p(CppAD::exp(diffEtaLogNbSize));
+		const CppAD::AD<double> diff = eta - logNbSize;
+//		const CppAD::AD<double> logRplusMu = logNbSize + CppAD::log1p(CppAD::exp(diffEtaLogNbSize));
+// softplus(diff) = log(1 + exp(diff)) computed stably
+		const CppAD::AD<double> softplus = CppAD::CondExpGt(
+			diff, CppAD::AD<double>(0.0),
+			diff + CppAD::log1p(CppAD::exp(-diff)),   
+			CppAD::log1p(CppAD::exp(diff))     
+			);
+
+		const CppAD::AD<double> logRplusMu = logNbSize + softplus;
+
 
 		logDens1 += data.y[Dobs] * eta;
 		logDens2 += - logRplusMu * (data.y[Dobs] + nbSize);
@@ -70,16 +77,14 @@ CppAD::vector<CppAD::AD<double>> logDensObs(
 }
 
 
-
-
 CppAD::vector<CppAD::AD<double>> logDensExtra(
-	const CppAD::vector<CppAD::AD<double>> &theta,
+	const CppAD::vector<CppAD::AD<double>> &x,
 	const Data& data,
 	const Config& config
 	) {
 
-	CppAD::AD<double> logTheta = config.transform_theta?
-	theta[theta.size()-1]:CppAD::log(theta[theta.size()-1]);
+	CppAD::AD<double> thetaIn = x[config.theta_end-1];
+	CppAD::AD<double> logTheta = config.transform_theta?thetaIn:CppAD::log(thetaIn);
 
 	CppAD::AD<double> logNbSize = -2*logTheta;
 	CppAD::AD<double> nbSize = CppAD::exp(logNbSize);
@@ -88,17 +93,16 @@ CppAD::vector<CppAD::AD<double>> logDensExtra(
 
 	CppAD::AD<double>  logDens1=0.0;
 
-	const size_t N=data.y.size();
-	for(size_t D=0; D <N;D++) {
+	for(size_t D=0; D < data.Ny; D++) {
 		logDens1 += lgamma_ad(data.y[D] + nbSize); 
 	}
 
-	CppAD::AD<double>  logDens2 = N*(sizeLogSize - lgammaNbSize);
+	CppAD::AD<double>  logDens2 = data.Ny*(sizeLogSize - lgammaNbSize);
 
 // always constant	- std::lgamma(data.y[Dobs]  + 1.0)
 #ifdef COMPUTE_CONSTANTS	
 	double constants=0.0;
-	for(size_t D=0; D <N;D++) {
+	for(size_t D=0; D <data.Ny; D++) {
 		constants += std::lgamma(data.y[D] + 1.0); 
 	}	
 	logDens2 -= constants;
@@ -115,5 +119,6 @@ CppAD::vector<CppAD::AD<double>> logDensExtra(
 
 // ADfun and interfaces
 #include"adlaplace/adlaplace_api.hpp"
+
 
 

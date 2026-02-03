@@ -4,126 +4,103 @@
 #' and then derives per-group sparsity objects aligned to those templates.
 #'
 #'
-#' @param data A list containing model matrices and metadata required by
-#'   \code{sparsity()} and by downstream code. (Backend-dependent.)
 #' @param config A list of configuration options. This function expects at least
-#'   \code{beta}, \code{start_gamma}, \code{theta}, and optionally \code{num_threads}.
-#' @param sparsity_list Optional list describing sparsity per group. Each element
-#'   is expected to contain integer vectors \code{row} and \code{col} giving
-#'   Hessian nonzero coordinates (0-based indices) for that group.
+#'   \code{beta}, \code{gamma}, \code{theta}.
+#' @param sparsity_list List describing sparsity obtained from \link{getAdFun}.
 #'
 #'
-#' @return A list with components:
-#' \describe{
-#'   \item{hessian_outer}{Symmetric sparse matrix template (\code{dgCMatrix}) for the full parameter Hessian (upper triangle).}
-#'   \item{hessianL_outer}{Lower-triangular variant of \code{hessian_outer}.}
-#'   \item{group_outer}{List of per-group sparsity objects aligned to \code{hessian_outer}.}
-#'   \item{hessian_inner}{Sparse matrix template for the \code{gamma} block of the Hessian.}
-#'   \item{hessianL_inner}{Lower-triangular variant of \code{hessian_inner}.}
-#'   \item{group_inner}{List of per-group sparsity objects aligned to \code{hessian_inner}.}
-#' }
+#' @return A list with components \code{hessian, hessian_inner}, and \code{match} to be added to \code{config$sparsity}
 #'
-#' @examples
-#' \dontrun{
-#' # sp <- group_sparsity(data, config)
-#' # str(sp$hessian_outer)
-#' # length(sp$group_outer)
-#' }
 #'
 
 
 #' @export
-group_sparsity = function(data, config, sparsity_list) {
-
-	if(missing(sparsity_list)) {
-		package = c(config$package, 'adlaplace')[1]
-		sparsity_list = 
-			getExportedValue(package, "sparsity")(data, config)
-	}
-
-	Sgamma0 = seq.int(length(config$beta), length.out=length(config$start_gamma))
+group_sparsity = function(config, sparsity_list) {
+	Ngroups = length(sparsity_list)
+	Nparams = length(config$beta) + length(config$gamma)+ length(config$theta)
+	Sgamma0 = seq.int(length(config$beta), length.out=length(config$gamma))
 	Sgamma1 = Sgamma0+1L
-	Nparams = length(config$beta) + length(config$start_gamma) + length(config$theta)
 
-
-	allRow = lapply(sparsity_list, '[[', 'row')
-	allCol = lapply(sparsity_list, '[[', 'col')
-	allIJ = cbind(i=unlist(allRow), j=unlist(allCol))
-	allIJ = allIJ[!duplicated(allIJ), ]
-	allIJ = allIJ[allIJ[,'j'] >= allIJ[,'i'],]
-	allIJ = allIJ[order(allIJ[,'j'], allIJ[,'i']),]
-	hessianTemplate = Matrix::sparseMatrix(
-		i=allIJ[,'i'], j=allIJ[,'j'],
-		x = seq(0L, len=nrow(allIJ)),
-		symmetric=TRUE, index1=FALSE,
-		dims = rep(Nparams,2)
-	)
-	hessianTemplateL = Matrix::t(hessianTemplate) # lower triangle version
-	hessianTemplateT = methods::as(hessianTemplate, 'TsparseMatrix')
-
-	hessianTemplateInner = hessianTemplate[Sgamma1, Sgamma1]
-	hessianTemplateInner@x = seq(0L, len=length(hessianTemplateInner@x))
-	hessianTemplateInnerL = Matrix::t(hessianTemplateInner)
-	hessianTemplateInnerT = methods::as(hessianTemplateInner, 'TsparseMatrix')
-
-
-	templateIJ = paste0(hessianTemplateT@i, '_', hessianTemplateT@j)
-	templateIJinner = paste0(hessianTemplateInnerT@i, '_', hessianTemplateInnerT@j)
-
-	sparsity_list_outer = parallel::mclapply(
-		sparsity_list, 
-		sparsity_by_group, 
-		template = templateIJ,
-		dims = dim(hessianTemplate),
-		mc.cores = max(c(config$num_threads, 1), na.rm=TRUE)
-	)
-	sparsity_list_inner = parallel::mclapply(
-		sparsity_list, 
-		sparsity_by_group, 
-		template = templateIJinner,
-		dims = dim(hessianTemplateInner),
-		Sgamma0 = Sgamma0,
-		mc.cores = 
-			max(c(config$num_threads, 1), na.rm=TRUE)
-	)
-	return(list(
-		hessian_outer = hessianTemplate, hessianL_outer = hessianTemplateL, group_outer = sparsity_list_outer,
-		hessian_inner = hessianTemplateInner, hessianL_inner = hessianTemplateInnerL, group_inner = sparsity_list_inner
-	))
-}
-
-
-sparsity_by_group = function(xx, template, dims, Sgamma0) {
-	allIJ = cbind(i=xx$row, j=xx$col)
-	if(!missing(Sgamma0)) {
-		allIJ = cbind(
-			i=match(allIJ[,'i'], Sgamma0)-1L,
-			j=match(allIJ[,'j'], Sgamma0)-1L
+	sparsity_grad = lapply(sparsity_list, '[', c('grad','grad_inner'))
+	sparsity_list2 = list()
+	for(D in 1:Ngroups) {
+		Nhere = lapply(sparsity_list[[D]], length)
+		repZero = lapply(Nhere, rep, x=0L)
+		sparsity_list2[[D]] = cbind(
+			shard = rep(D-1L, Nhere$col_hess + Nhere$col_hess_inner),
+			rbind(
+				cbind(
+					inner=repZero$col_hess, 
+					row=sparsity_list[[D]]$row_hess, 
+					col=sparsity_list[[D]]$col_hess,
+					local = seq.int(0L, length.out=Nhere$row_hess)),
+				cbind(
+					inner=1L + repZero$col_hess_inner, 
+					row=sparsity_list[[D]]$row_hess_inner, 
+					col=sparsity_list[[D]]$col_hess_inner,
+					local = seq.int(0L, length.out=Nhere$row_hess_inner))
+			)
 		)
-		allIJ = allIJ[which(!(is.na(allIJ[,'i']) | is.na(allIJ[,'j']))), ,drop=FALSE]
-		xx$grad = as.vector(stats::na.omit(match(xx$grad, Sgamma0) -1L))
 	}
-	allIJ = allIJ[!duplicated(allIJ), ,drop=FALSE]
-	allIJ = allIJ[which(allIJ[,'j'] >= allIJ[,'i']),,drop=FALSE]
-	allIJ = allIJ[order(allIJ[,'j'], allIJ[,'i']),,drop=FALSE]
+	sparsityDf = do.call(rbind, sparsity_list2)
+	sparsityDf = array(as.integer(sparsityDf), dim=dim(sparsityDf), dimnames = dimnames(sparsityDf))
+	fullMat = sparsityDf[, c('inner','row','col')] 
+	fullMat = fullMat[!duplicated(fullMat),]
 
-	hessianTemplateHere = Matrix::sparseMatrix(
-		i=allIJ[,'i'], j=allIJ[,'j'],
-		symmetric=TRUE, index1=FALSE,
-		dims = dims
+	outerMat = fullMat[fullMat[,'inner'] == 0, ]
+
+
+	hessian = Matrix::sparseMatrix(
+		i=outerMat[,'row'], j=outerMat[,'col'],
+		x = seq.int(0L, length.out=nrow(outerMat)),
+		symmetric=TRUE, index1=0, dims = rep(Nparams,2))
+	hessian_inner = hessian[Sgamma1, Sgamma1]
+
+	hessianT = as(hessian, "TsparseMatrix")
+	indexMat = data.frame(index=as.integer(hessianT@x), row=hessianT@i, col=hessianT@j)
+	indexMat$index_inner = match(indexMat$index, as.integer(hessian_inner@x)) -1L
+
+	indexDf = merge(indexMat, sparsityDf, all=TRUE)
+	if(any(is.na(unlist(indexDf[c('index','shard')])))) {
+		warning("problem merging hessian indices")
+	}
+	whichInner = which(indexDf$inner == 1)
+	indexDf[whichInner, 'index'] = 	indexDf[whichInner, 'index_inner']
+
+	indexDf$shardFac = factor(indexDf$shard, seq.int(0L, length.out=Ngroups))
+	indexDf$innerFac = factor(indexDf$inner, levels = c(0L, 1L), labels = c('outer','inner'))
+	indexDf = indexDf[order(indexDf$innerFac, indexDf$shard, indexDf$local), 
+		c('index','innerFac','shardFac','local')]
+
+	indexHessianSplit = split(indexDf, indexDf$innerFac)
+	hessianSparsity = lapply(
+		indexHessianSplit, function(xx) {
+			theTable = as.integer(table(xx$shardFac))
+#			c(as.list(xx), list(p=c(0, cumsum(theTable))))
+			Matrix::sparseMatrix(
+				p = c(0L, cumsum(theTable)), 
+				i = xx$index, index1=FALSE,
+				dims = c(length(hessian@x), Ngroups))
+		}
 	)
-	hessianTemplateHereT = methods::as(hessianTemplateHere, 'TsparseMatrix')
-	ijHere = paste0(hessianTemplateHereT@i, rep('_', length(hessianTemplateHereT@i)),
-		hessianTemplateHereT@j)
-
-	matchHere = as.vector(stats::na.omit(match(ijHere, template)))-1L
-
+	names(hessianSparsity) = gsub("outer", "hessian",names(hessianSparsity))
+	names(hessianSparsity) = gsub("^inner$", "hessian_inner",names(hessianSparsity))
+	# D=2;bob = Matrix::sparseMatrix(i = hessianSparsity[[D]]$local, p=hessianSparsity[[D]]$p, x = as.numeric(hessianSparsity[[D]]$index), index1=0)
+	grad2 = list(grad = lapply(sparsity_grad, '[[', 'grad'), grad_inner = lapply(sparsity_grad, '[[', 'grad_inner'))
+	grad3 = lapply(grad2, function(xx) {
+		xxN = unlist(lapply(xx, length))
+		Matrix::sparseMatrix(i = as.integer(unlist(xx)), 
+			p = as.integer(c(0, cumsum(xxN))), index1=FALSE,
+			dims = c(Nparams, Ngroups))
+	})
+	grad3$grad_inner@i = as.integer(match(
+		grad3$grad_inner@i, Sgamma0
+	) - 1L)
 
 	list(
-			grad = xx$grad,
-			i=hessianTemplateHereT@i, 
-			j=hessianTemplateHereT@j,
-			match = matchHere,
-		p = hessianTemplateHere@p
+		hessian = hessian, hessian_inner = hessian_inner,
+		match = c(grad3, hessianSparsity)
 	)
 }
+
+

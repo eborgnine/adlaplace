@@ -70,14 +70,13 @@ data = list(y = y,
 config = list(beta = rep(1, nrow(data$XTp)), 
 	theta = c(rep(-1, length(NperEffect)), -1), 
 	transform_theta=TRUE, 
-	start_gamma = rep(0, nrow(data$ATp)),
+	gamma = rep(0, nrow(data$ATp)),
 	groups = adlaplace::adFun_groups(1000, data$ATp),
 	num_threads=parallel::detectCores(),
 	verbose=FALSE, package='adlaplace')	
 
-sparsity_list = adlaplace::group_sparsity(data=data, config=config)
-
-config = modifyList(config, sparsity_list)
+#sparsity_list = adlaplace::group_sparsity(data=data, config=config)
+#config = modifyList(config, sparsity_list)
 ```
 
 
@@ -87,10 +86,62 @@ model is defined in the file `src/objectiveFunction.cpp`
 
 
 ```{r outerOpt}
+x = c(config$beta, config$sgamma, config$theta)
+adFunList = adlaplace::getAdFun(data, modifyList(config, list(verbose=TRUE)))
+config$sparsity = #adlaplace::
+	group_sparsity(config, adFunList$sparsity)
+
+
+
+
+adlaplace::jointLogDens(x, 0L, adFunList[[1]])
+
+rbind(
+	adFunList[[2]][[1]]$grad,
+	adlaplace::grad(x, 0L, adFunList[[1]], adFunList[[2]][[1]]$grad)
+	)
+adlaplace::grad(x, 0L, adFunList[[1]], c(0,1,2,3,8,9,10))
+adlaplace::grad(x, 0L, adFunList[[1]], rep(0, length(adFunList[[2]][[1]]$grad)))
+
+hessMatrix = as(Matrix::forceSymmetric(Matrix::sparseMatrix(
+	i = adFunList[[2]][[1]]$row_hess,
+	j = adFunList[[2]][[1]]$col_hess,
+	x = 0.0,
+	index1=FALSE, dims = rep(length(x), 2)
+	)), 'TsparseMatrix')
+
+adlaplace::hess(x, 0L, adFunList[[1]], hessMatrix@i, hessMatrix@j)
+
+
+rbind(adFunList[[2]][[1]]$row_hess,
+	adFunList[[2]][[1]]$col_hess,
+adlaplace::hess(x, 0L, adFunList[[1]], adFunList[[2]][[1]]$row_hess,
+	adFunList[[2]][[1]]$col_hess))[,1:12]
+
+r1=c(0,0,1);c1= c(0,1,1)
+rbind(r1, c1,adlaplace::hess(x, 0L, adFunList[[1]], r1, c1))
+
+rbind(hessMatrix@i, hessMatrix@j)
+rbind(adFunList[[2]][[1]]$row_hess,
+	adFunList[[2]][[1]]$col_hess)[,1:12]
+
+	hessMatrix@x=adlaplace::hess(x, 0L, adFunList[[1]], hessMatrix@i, hessMatrix@j)
+	round(hessMatrix, 1)
+
+iseq = seq(from=0L, len=25)
+adlaplace::hess(x, 0L, adFunList[[1]], iseq, rep(0L, length(iseq)))
+iseq = rep(0L, 25)
+adlaplace::hess(x, 0L, adFunList[[1]], iseq, iseq)
+
+
+
+adFunList[[2]][[1]]$row_hess
+hessMatrix@i
+
+
 cache = new.env()
 assign('start_gamma', config$start_gamma, cache)
 
-adFunFull = adlaplace::getAdFun(data, modifyList(config, list(verbose=TRUE)), inner=FALSE)
 
 ll0 = adlaplace::logLik(
 	x= c(config$beta, config$theta),

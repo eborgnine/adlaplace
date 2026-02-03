@@ -10,11 +10,11 @@
 \usage{
 getAdFun(data, config)
 
-jointLogDens(parameters, i, adPack)
+jointLogDens(parameters, config, adPack)
 
-grad(parameters, i, adPack, pattern)
+grad(parameters, config, adPack, inner)
 
-hess(parameters, i, adPack, row, col)
+hess(parameters, config, adPack, inner)
 }
 \arguments{
 \item{data}{An R list containing model data objects required by the backend.}
@@ -23,9 +23,9 @@ hess(parameters, i, adPack, row, col)
 
 \item{parameters}{Numeric vector of parameters.}
 
-\item{i}{Integer index selecting which group/tape to evaluate.}
-
 \item{adPack}{External pointer (`externalptr`) returned by \code{getAdFun()}.}
+
+\item{i}{Integer index selecting which group/tape to evaluate.}
 
 \item{pattern}{Integer vector of 0-based column indices specifying which
 gradient entries to compute (sorted, unique).}

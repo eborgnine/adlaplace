@@ -9,41 +9,36 @@
 */
 
 CppAD::vector<CppAD::AD<double>> logDensRandom(
-	const CppAD::vector<CppAD::AD<double>>& gamma,
-	const CppAD::vector<CppAD::AD<double>> &theta,
+	const CppAD::vector<CppAD::AD<double>>& x,
 	const Data& data,
 	const Config& config
 	){
 
-	CppAD::vector<CppAD::AD<double>> logTheta(theta.size()), expTheta(theta.size());
+	CppAD::vector<CppAD::AD<double>> logTheta(config.Ntheta), expTheta(config.Ntheta), gammaScaled(config.Ngamma);
+
 	if(config.transform_theta) {
-		for(size_t D=0;D<theta.size();++D) {
-			logTheta[D] = theta[D];
-			expTheta[D] = CppAD::exp(theta[D]);
+		for(size_t D=0,Dtheta=config.theta_begin;D<config.Ntheta;++D,Dtheta++) {
+			logTheta[D] = x[Dtheta];
+			expTheta[D] = CppAD::exp(logTheta[D]);
 		}
 	} else {
-		for(size_t D=0;D<theta.size();++D) {
-			logTheta[D] = CppAD::log(theta[D]);
-			expTheta[D] = theta[D];
+		for(size_t D=0,Dtheta=config.theta_begin;D<config.Ntheta;++D,Dtheta++) {
+			expTheta[D] = x[Dtheta];
+			logTheta[D] = CppAD::log(expTheta[D]);
 		}
 	}
 
 	CppAD::AD<double> qpart = 0.0, qDet=0.0;
 
-	CppAD::vector<CppAD::AD<double>> gammaScaled(data.Ngamma);
-
-
 	if(config.verbose) {
 		Rcpp::Rcout << "q ngamma  " << data.Ngamma << " map.ncol " << data.map.ncol() << 
 		" map@i.size " << data.map.i.size() << 
 		" ntheta " << config.theta.size() << 
-		" exp theta map 0 " <<  expTheta[data.map.i[0]] << " gamma0 " << gamma[0] << ".\n";
-
+		" exp theta map 0 " <<  expTheta[data.map.i[0]] << " gamma0 " << x[config.gamma_begin] << ".\n";
 	}
 
-
-	for(size_t D=0;D<data.Ngamma;D++) {
-		gammaScaled[D] = gamma[D];
+	for(size_t D=0,Dgamma=config.gamma_begin;D<config.Ngamma;D++,Dgamma++) {
+		gammaScaled[D] = x[Dgamma];
 	}
 
 	for(size_t Dtheta=0;Dtheta<data.Nmap;Dtheta++) {
@@ -69,7 +64,7 @@ CppAD::vector<CppAD::AD<double>> logDensRandom(
 
 	// Warning, no offdiag of Q implemented
 #ifdef COMPUTE_CONSTANTS	
-	qDet += CppAD::AD<double>(data.Ngamma * ONEHALFLOGTWOPI)
+	qDet += CppAD::AD<double>(data.Ngamma * ONEHALFLOGTWOPI);
 #endif	
 
 	CppAD::vector<CppAD::AD<double>> result(1, 0.0);
