@@ -205,12 +205,14 @@ void get_fdfh(const Eigen::MatrixBase<DerivedX> &x,
 
   const Eigen::Index Nout = H.nonZeros();
 
+#ifdef DEBUG
 // H must already have the same sparsity structure/order as Htemplate.cast<double>()
   if (Nout != Htemplate.nonZeros()) {
     Rcpp::Rcout << "Hnonzeros " << H.nonZeros() << " Htemplate " << Htemplate.nonZeros() << "\n";
     Rcpp::stop("H structure mismatch: nonZeros differ");
   }
-
+#endif
+  
   double* Hx = H.valuePtr();
   const int* map = Htemplate.valuePtr();
 

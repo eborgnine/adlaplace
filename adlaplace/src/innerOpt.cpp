@@ -95,40 +95,33 @@ Rcpp::List innerOptTest(
 {
 
 	const Config configC(config);
-
-	using Tvec   = Eigen::VectorXd;
-	using THess   = Eigen::SparseMatrix<double>; 
-	using TPreLLt = Eigen::SimplicialLLT<THess>;
-
 	const size_t Nparams = configC.Ngamma;
 
-
-	Tvec parameters(Nparams); 
+	Eigen::VectorXd parameters(Nparams); 
 	for(size_t D=0;D<Nparams;D++) {
 		parameters[D] = configC.gamma[D];
 	}
 
 	AD_Func_Opt funObj(adPack, configC);
 
-// Evaluate objective / grad / hess at 'parameters'
 	double fval = NA_REAL;
-	Tvec grad(Nparams);
-  THess H = funObj.Htemplate.cast<double>();  // same pattern as innerOpt()
-
-  {
-  	cppad_parallel_setup(configC.num_threads);
-  	funObj.get_fdfh(parameters, fval, grad, H);
-  }
+	Eigen::VectorXd grad(Nparams);
+	Eigen::SparseMatrix<double> H = funObj.Htemplate.cast<double>();
+	
+	{
+		auto guard=cppad_parallel_setup(configC.num_threads);
+		funObj.get_fdfh(parameters, fval, grad, H);
+	}
 
 
   // mirror innerOpt list structure as closely as possible
-  Rcpp::List res = Rcpp::List::create(
-  	Rcpp::Named("fval")          = Rcpp::wrap(fval),
-  	Rcpp::Named("gradient")      = Rcpp::wrap(grad),
-  	Rcpp::Named("hessian")       = eigen_to_list(H)
-  	);
+	Rcpp::List res = Rcpp::List::create(
+		Rcpp::Named("fval")          = Rcpp::wrap(fval),
+		Rcpp::Named("gradient")      = Rcpp::wrap(grad),
+		Rcpp::Named("hessian")       = eigen_to_list(H)
+		);
 
-  return res;
+	return res;
 }
 
 //' @rdname innerOpt
@@ -189,7 +182,7 @@ Rcpp::List innerOpt(
 	}
 
 	{
-		cppad_parallel_setup(configC.num_threads);
+		auto guard=cppad_parallel_setup(configC.num_threads);
 		opt.run();
 	}
 

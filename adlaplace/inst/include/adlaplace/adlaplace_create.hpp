@@ -18,21 +18,6 @@ static const std::string JAC_COLOR  = "cppad";
 static const std::string HESS_COLOR = "cppad.symmetric";
 
 
-struct GroupPack {
-  CppAD::ADFun<double>              fun;       // taped function for the group
-  CppAD::sparse_jac_work            work_grad;
-  CppAD::sparse_hes_work            work_hess;      // reusable work cache
-  CppAD::sparse_jac_work            work_inner_grad;
-  CppAD::sparse_hes_work            work_inner_hess;      // reusable work cache
-  CppAD::sparse_rcv<CPPAD_TESTVECTOR(size_t), CPPAD_TESTVECTOR(double)> pattern_grad;
-  CppAD::sparse_rcv<CPPAD_TESTVECTOR(size_t), CPPAD_TESTVECTOR(double)> pattern_grad_inner;
-  CppAD::sparse_rcv<CPPAD_TESTVECTOR(size_t), CPPAD_TESTVECTOR(double)> pattern_hessian;  // note these are upper triangle only
-  CppAD::sparse_rcv<CPPAD_TESTVECTOR(size_t), CPPAD_TESTVECTOR(double)> pattern_hessian_inner;
-
-  CPPAD_TESTVECTOR(double) w;
-  CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> unused_pattern;
-
-};
 
 template <class SizeVec, class ValVec>
 inline ValVec& rcv_val(CppAD::sparse_rcv<SizeVec, ValVec>& rcv)
@@ -238,10 +223,10 @@ inline std::vector<GroupPack> getAdFun(
 
 	std::vector<GroupPack> result(Ngroups);	
 
-	if(config.verbose) {
+#ifdef DEBUG
 		Rcpp::Rcout << "outer, groups " << Ngroups << " Nbeta " << config.Nbeta << " Ntheta " <<
 		config.Ntheta << " Ngamma " << config.Ngamma << " Nparams " << config.Nparams << "\n";
-	}
+#endif
 
 	CPPAD_TESTVECTOR(double) ad_params_G(config.Nparams);
 	for(size_t D=0;D<config.Nparams;D++) {
@@ -342,7 +327,7 @@ Rcpp::List getAdFun_api(
 	xptr.attr("class") = "adpack_ptr";
 
 	Rcpp::List result = Rcpp::List::create(
-		Rcpp::_["adpack"] = xptr, 
+		Rcpp::_["adPack"] = xptr, 
 		Rcpp::_["sparsity"] = sparsity
 		);
 	return(result);

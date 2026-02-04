@@ -6,7 +6,7 @@
 
 // returns log density of observations conditional on random effects
 
-#define DEBUG
+//#define DEBUG can't multi-thread with debug enabled
 
 // use the standard logDensRandom from logDensRandom.hpp
 #include "adlaplace/logDensRandom.hpp"
@@ -106,10 +106,12 @@ CppAD::vector<CppAD::AD<double>> logDensExtra(
 	logDens2 -= constants;
 
 	CppAD::AD<double>  logDens = logDens1 + logDens2;
+#ifdef DEBUG
 	if(config.verbose) {
 		Rcpp::Rcout << "logDensExtra " << logDens << " " << logDens1 << " " << logDens2 << " nbSize " << nbSize << 
 		" logTheta " << logTheta << " tr " << config.transform_theta << "\n";
 	}
+#endif	
 	CppAD::vector<CppAD::AD<double> > result(1);
 	result[0] = logDens;
 	return(result);

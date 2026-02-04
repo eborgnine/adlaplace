@@ -190,10 +190,12 @@ Data::Data(const Rcpp::List& data)
     Nbeta   = static_cast<std::size_t>(X.nrow());
     Ngamma  = static_cast<std::size_t>(A.nrow());
     Ny    = static_cast<std::size_t>(y.size());   // == A.ncol()
+#ifdef DEBUG    
     if(Ny != A.ncol() && A.nrow() != 0) {
       Rcpp::Rcout << "Ny " << Ny << " columns of A " << A.ncol() << "\n";
     }
     if(Ny != X.ncol() && X.nrow() != 0) {
       Rcpp::Rcout << "lengh y " << Ny << " columns of X " << X.ncol() << "\n";
     }
+#endif    
   }
