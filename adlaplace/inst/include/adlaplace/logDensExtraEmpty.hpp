@@ -1,6 +1,8 @@
 #ifndef LOGDENSEXTRAEMPTY_HPP
 #define LOGDENSEXTRAEMPTY_HPP
 
+#include "adlaplace/utils.hpp"
+
 // dummy funciton if there is no logDensExtra
 
 CppAD::vector<CppAD::AD<double>> logDensExtra(

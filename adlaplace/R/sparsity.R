@@ -10,7 +10,7 @@
 #'
 #'
 #' @return A list with components \code{hessian, hessian_inner}, and \code{match} to be added to \code{config$sparsity}
-#'
+#' \code{match$hessian} is a sparse matrix, entry A of \code{hessian@x} for shard \code{B} is \code{match$hessian[A,B]}
 #'
 
 
@@ -43,17 +43,16 @@ group_sparsity = function(config, sparsity_list) {
 		)
 	}
 	sparsityDf = do.call(rbind, sparsity_list2)
-	sparsityDf = array(as.integer(sparsityDf), dim=dim(sparsityDf), dimnames = dimnames(sparsityDf))
+
 	fullMat = sparsityDf[, c('inner','row','col')] 
 	fullMat = fullMat[!duplicated(fullMat),]
 
 	outerMat = fullMat[fullMat[,'inner'] == 0, ]
-
-
 	hessian = Matrix::sparseMatrix(
 		i=outerMat[,'row'], j=outerMat[,'col'],
-		x = seq.int(0L, length.out=nrow(outerMat)),
+		x = rep(-1, nrow(outerMat)),
 		symmetric=TRUE, index1=0, dims = rep(Nparams,2))
+	hessian@x = seq(0, length.out = length(hessian@x))
 	hessian_inner = hessian[Sgamma1, Sgamma1]
 
 	hessianT = as(hessian, "TsparseMatrix")
@@ -69,17 +68,18 @@ group_sparsity = function(config, sparsity_list) {
 
 	indexDf$shardFac = factor(indexDf$shard, seq.int(0L, length.out=Ngroups))
 	indexDf$innerFac = factor(indexDf$inner, levels = c(0L, 1L), labels = c('outer','inner'))
-	indexDf = indexDf[order(indexDf$innerFac, indexDf$shard, indexDf$local), 
-		c('index','innerFac','shardFac','local')]
+	indexDf = indexDf[order(indexDf$innerFac, indexDf$shard, indexDf$local), ]
+#		c('index','innerFac','shardFac','local')
 
 	indexHessianSplit = split(indexDf, indexDf$innerFac)
 	hessianSparsity = lapply(
 		indexHessianSplit, function(xx) {
 			theTable = as.integer(table(xx$shardFac))
-#			c(as.list(xx), list(p=c(0, cumsum(theTable))))
 			Matrix::sparseMatrix(
 				p = c(0L, cumsum(theTable)), 
-				i = xx$index, index1=FALSE,
+				i = xx$index, 
+				x = xx$local,
+				index1=FALSE,
 				dims = c(length(hessian@x), Ngroups))
 		}
 	)
@@ -90,7 +90,8 @@ group_sparsity = function(config, sparsity_list) {
 	grad3 = lapply(grad2, function(xx) {
 		xxN = unlist(lapply(xx, length))
 		Matrix::sparseMatrix(i = as.integer(unlist(xx)), 
-			p = as.integer(c(0, cumsum(xxN))), index1=FALSE,
+			p = as.integer(c(0, cumsum(xxN))), 
+			index1=FALSE,
 			dims = c(Nparams, Ngroups))
 	})
 	grad3$grad_inner@i = as.integer(match(

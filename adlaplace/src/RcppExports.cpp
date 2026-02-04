@@ -64,12 +64,39 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// innerOptTest
+Rcpp::List innerOptTest(SEXP adPack, const Rcpp::List& config);
+RcppExport SEXP _adlaplace_innerOptTest(SEXP adPackSEXP, SEXP configSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< SEXP >::type adPack(adPackSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type config(configSEXP);
+    rcpp_result_gen = Rcpp::wrap(innerOptTest(adPack, config));
+    return rcpp_result_gen;
+END_RCPP
+}
+// innerOpt
+Rcpp::List innerOpt(SEXP adPack, const Rcpp::List& config, const Rcpp::List& control);
+RcppExport SEXP _adlaplace_innerOpt(SEXP adPackSEXP, SEXP configSEXP, SEXP controlSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< SEXP >::type adPack(adPackSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type config(configSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type control(controlSEXP);
+    rcpp_result_gen = Rcpp::wrap(innerOpt(adPack, config, control));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_adlaplace_getAdFun", (DL_FUNC) &_adlaplace_getAdFun, 2},
     {"_adlaplace_jointLogDens", (DL_FUNC) &_adlaplace_jointLogDens, 3},
     {"_adlaplace_grad", (DL_FUNC) &_adlaplace_grad, 4},
     {"_adlaplace_hess", (DL_FUNC) &_adlaplace_hess, 4},
+    {"_adlaplace_innerOptTest", (DL_FUNC) &_adlaplace_innerOptTest, 2},
+    {"_adlaplace_innerOpt", (DL_FUNC) &_adlaplace_innerOpt, 3},
     {NULL, NULL, 0}
 };
 

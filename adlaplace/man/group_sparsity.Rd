@@ -14,6 +14,7 @@ group_sparsity(config, sparsity_list)
 }
 \value{
 A list with components \code{hessian, hessian_inner}, and \code{match} to be added to \code{config$sparsity}
+\code{match$hessian} is a sparse matrix, entry A of \code{hessian@x} for shard \code{B} is \code{match$hessian[A,B]}
 }
 \description{
 Constructs Hessian sparsity “templates” (global/outer and inner-\code{gamma})

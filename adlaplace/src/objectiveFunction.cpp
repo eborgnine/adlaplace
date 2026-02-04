@@ -1,4 +1,4 @@
-#include "adlaplace/data.hpp"
+#include "adlaplace/utils.hpp"
 
 // header for the lgamma function
 #include "adlaplace/lgamma.hpp"
@@ -6,7 +6,6 @@
 
 // returns log density of observations conditional on random effects
 
-#define COMPUTE_CONSTANTS
 #define DEBUG
 
 // use the standard logDensRandom from logDensRandom.hpp
@@ -100,13 +99,12 @@ CppAD::vector<CppAD::AD<double>> logDensExtra(
 	CppAD::AD<double>  logDens2 = data.Ny*(sizeLogSize - lgammaNbSize);
 
 // always constant	- std::lgamma(data.y[Dobs]  + 1.0)
-#ifdef COMPUTE_CONSTANTS	
 	double constants=0.0;
 	for(size_t D=0; D <data.Ny; D++) {
 		constants += std::lgamma(data.y[D] + 1.0); 
 	}	
 	logDens2 -= constants;
-#endif
+
 	CppAD::AD<double>  logDens = logDens1 + logDens2;
 	if(config.verbose) {
 		Rcpp::Rcout << "logDensExtra " << logDens << " " << logDens1 << " " << logDens2 << " nbSize " << nbSize << 
@@ -118,7 +116,7 @@ CppAD::vector<CppAD::AD<double>> logDensExtra(
 }
 
 // ADfun and interfaces
-#include"adlaplace/adlaplace_api.hpp"
+#include"adlaplace/adlaplace_create.hpp"
 
 
 

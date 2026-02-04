@@ -85,60 +85,25 @@ model is defined in the file `src/objectiveFunction.cpp`
 
 
 
-```{r outerOpt}
-x = c(config$beta, config$sgamma, config$theta)
+```{r testDeriv}
+x = c(config$beta, config$gamma, config$theta)
+config$verbose=TRUE
 adFunList = adlaplace::getAdFun(data, modifyList(config, list(verbose=TRUE)))
-config$sparsity = #adlaplace::
-	group_sparsity(config, adFunList$sparsity)
+config$sparsity = adlaplace::group_sparsity(config, sparsity_list = adFunList$sparsity)
+
+
+adlaplace::jointLogDens(x, config, adFunList$adpack)
+str(adlaplace::grad(x, config, adFunList$adpack, FALSE))
+str(adlaplace::grad(x, config, adFunList$adpack, TRUE))
+
+
+str(h1 <- adlaplace::hess(x, config, adFunList$adpack, FALSE))
+str(h2 <- adlaplace::hess(x, config, adFunList$adpack, TRUE))
+```
 
 
 
-
-adlaplace::jointLogDens(x, 0L, adFunList[[1]])
-
-rbind(
-	adFunList[[2]][[1]]$grad,
-	adlaplace::grad(x, 0L, adFunList[[1]], adFunList[[2]][[1]]$grad)
-	)
-adlaplace::grad(x, 0L, adFunList[[1]], c(0,1,2,3,8,9,10))
-adlaplace::grad(x, 0L, adFunList[[1]], rep(0, length(adFunList[[2]][[1]]$grad)))
-
-hessMatrix = as(Matrix::forceSymmetric(Matrix::sparseMatrix(
-	i = adFunList[[2]][[1]]$row_hess,
-	j = adFunList[[2]][[1]]$col_hess,
-	x = 0.0,
-	index1=FALSE, dims = rep(length(x), 2)
-	)), 'TsparseMatrix')
-
-adlaplace::hess(x, 0L, adFunList[[1]], hessMatrix@i, hessMatrix@j)
-
-
-rbind(adFunList[[2]][[1]]$row_hess,
-	adFunList[[2]][[1]]$col_hess,
-adlaplace::hess(x, 0L, adFunList[[1]], adFunList[[2]][[1]]$row_hess,
-	adFunList[[2]][[1]]$col_hess))[,1:12]
-
-r1=c(0,0,1);c1= c(0,1,1)
-rbind(r1, c1,adlaplace::hess(x, 0L, adFunList[[1]], r1, c1))
-
-rbind(hessMatrix@i, hessMatrix@j)
-rbind(adFunList[[2]][[1]]$row_hess,
-	adFunList[[2]][[1]]$col_hess)[,1:12]
-
-	hessMatrix@x=adlaplace::hess(x, 0L, adFunList[[1]], hessMatrix@i, hessMatrix@j)
-	round(hessMatrix, 1)
-
-iseq = seq(from=0L, len=25)
-adlaplace::hess(x, 0L, adFunList[[1]], iseq, rep(0L, length(iseq)))
-iseq = rep(0L, 25)
-adlaplace::hess(x, 0L, adFunList[[1]], iseq, iseq)
-
-
-
-adFunList[[2]][[1]]$row_hess
-hessMatrix@i
-
-
+```{r lik}
 cache = new.env()
 assign('start_gamma', config$start_gamma, cache)
 
@@ -165,7 +130,7 @@ exp(mle$solution[-(1:length(beta))])
 ```
 
 
-```{r checkDeriv, eval=FALSE}
+```{r checkDerivLik, eval=FALSE}
 
 Npar=13;Dpar = 1
 x = c(mle$solution[seq(1, len=length(config$beta))], mle$solution[seq(length(config$beta)+1, len=length(config$theta))])
@@ -203,8 +168,6 @@ lines(SxD, dDet)
 
 
 dens1[[ceiling(length(dens1)/2)]]$deriv
-
-
 ```
 
 
@@ -312,130 +275,66 @@ newTrace = apply(hes1, 2, function(xx) {
 
 
 ```{r derivJointDens, eval=FALSE}
+config$gamma = rep(1, length(config$gamma))
+config = config[setdiff(names(config), 'Sgroups')]
+x = c(config$beta, config$gamma, config$theta)
+adFunList = adlaplace::getAdFun(data, modifyList(config, list(verbose=TRUE)))
+config$sparsity = adlaplace::group_sparsity(config, sparsity_list = adFunList$sparsity)
+adFun = adFunList$adpack
+#config$Sgroups = as.integer(29)
+inner = FALSE
+config$verbose=TRUE
 
-adFun = adlaplace::getAdFun(data, modifyList(config, 
-	list(verbose=TRUE, num_threads = 1)), inner=FALSE)
+                                                                                              
+adFunList$sparsity[[30]] 
+str(config$sparsity$match$hessian)
+which(config$sparsity$match$hessian[,30] >0)
+#sparsityDf[sparsityDf[,'inner'] == 0 & sparsityDf[,'shard'] == 29,]
+#indexHessianSplit$outer[indexHessianSplit$outer$row == 2 & indexHessianSplit$outer$col == 2,]
 
-ll1 = adlaplace::logLik(
-	mle$solution,
-	data, config,
-	adPack = adFun,
-	deriv=TRUE)
 
-x = ll1$full_parameters
-Npar=13;Dpar = 100
+Npar=13;Dpar = 3
 parDf = data.frame(x)[,rep(1, Npar)]
-Sx = seq(-0.01, 0.01, len=13) + parDf[Dpar,1]
+Sx = seq(-0.1, 0.1, len=13) + parDf[Dpar,1]
 SxD = Sx[-1] - diff(Sx)/2
 parDf[Dpar,] = Sx
-Sgamma = seq(length(config$beta)+1, len=length(config$start_gamma))
-DparInner = match(Dpar, Sgamma)
-
-config_inner = config
-config_inner$beta = ll1$parameters[1:length(config$beta)]
-config_inner$theta = ll1$parameters[-(1:length(config$beta))]
-
-
-adFunInner = adlaplace::getAdFun(data, modifyList(config_inner, 
-	list(verbose=TRUE, num_threads = 1)), inner=TRUE)
-
-adFunOuter = adlaplace::getAdFun(data, modifyList(config, 
-	list(verbose=TRUE, num_threads = 1)), inner=FALSE)
-
 
  dens1 = mapply(
   adlaplace::jointLogDens,
   parameters = as.list(parDf),
-  MoreArgs = list(adPack=adFunOuter, config=config),
+  MoreArgs = list(adPack=adFun, config=config),
   SIMPLIFY=TRUE
   )
 
-if(!is.na(DparInner)) {
- dens3 = mapply(
-  adlaplace::jointLogDens,
-  parameters = as.list(parDf[Sgamma,]),
-  MoreArgs = list(adPack = adFunInner, config=config_inner),
-  SIMPLIFY=TRUE
-  )
-  } else {
-  	dens3 = rep(NA, ncol(parDf))
-  }
-
-dens2a = mapply(
-  llPlain,
-  x = as.list(parDf),
-  MoreArgs = list(data = data, config=config),
-  SIMPLIFY=TRUE
-  )
-
-dens2 = apply(dens2a, 2,'[', "minusLogLik")
-matplot(Sx, cbind(dens1,dens2, dens3), type='o')
-
+plot(Sx, dens1)
 
 
 grad1 = mapply(
   adlaplace::grad,
   parameters = as.list(parDf),
-  MoreArgs = list(adPack = adFunOuter, config=config),
+  MoreArgs = list(adPack = adFun, config=config, inner=inner),
   SIMPLIFY=TRUE
   )
+plot(Sx, grad1[Dpar,])
+lines(SxD, diff(dens1)/diff(Sx))
 
-if(!is.na(DparInner)) {
-grad3 = mapply(
-  adlaplace::grad,
-  parameters = as.list(parDf[Sgamma,]),
-  MoreArgs = list(adPack = adFunInner, config=config_inner),
-  SIMPLIFY=TRUE
-  )  
-  } else {
-  	grad3 = matrix(NA, length(Sgamma), ncol(parDf))
-  }
-
-
-matplot(Sx, cbind(
-	grad1[Dpar,],
-	grad3[DparInner,]
-	))
-lines(SxD, diff(dens2)/diff(Sx))
-abline(v=parDf[Dpar, ceiling(ncol(parDf)/2)])
-abline(h=0)
-
-quantile(grad1[Sgamma,] - grad3)
 
 hes1 = mapply(
-  adlaplace::hessian,
+  adlaplace::hess,
   parameters = as.list(parDf),
-  MoreArgs = list(adPack = adFunOuter, config=config),
+  MoreArgs = list(adPack = adFun, config=config, inner=inner),
   SIMPLIFY=FALSE)
 
-  if(!is.na(DparInner)) {
-hes3 = mapply(
-  adlaplace::hessian,
-  parameters = as.list(parDf[Sgamma,]),
-  MoreArgs = list(adPack = adFunInner, config=config_inner),
-  SIMPLIFY=FALSE
-  )
-  } else {
-  	hes3 = list(
-  		Matrix::Diagonal(length(Sgamma))
-  		)[rep(1, ncol(parDf))]
-  }
+hes2 = do.call(abind::abind, c(
+	lapply(hes1, as.matrix), along=3))
 
-quantile( (hes1[[6]][Sgamma, Sgamma] - hes3[[6]])@x)
+gradD = apply(grad1, 1, diff)/mean(diff(Sx))
 
-Dpar2 = Dpar;DparInner2 = match(Dpar2, Sgamma)
-
-if(!any(is.na(c(DparInner, DparInner2)))) {
-	h3plot = unlist(lapply(hes3, function(xx) xx[DparInner, DparInner2]))	
-} else {
-	h3plot = rep(NA, ncol(parDf))
-}
-matplot(Sx, cbind(
-	unlist(lapply(hes1, function(xx) xx[Dpar, Dpar2])),
-	h3plot
-	))
-lines(SxD, diff(grad1[Dpar2,])/diff(Sx))
-
+Dpar2 = 1#Dpar
+plot(Sx, hes2[Dpar,Dpar2, ], ylab = paste(Dpar, Dpar2))
+lines(SxD, gradD[,Dpar2])
 ```
+
+
 
 

@@ -2,6 +2,7 @@
 #define LOGDENSRANDOM_HPP
 
 #include "adlaplace/constants.hpp"
+#include "adlaplace/utils.hpp"
 
 /*
 	the standard log density for random effects
@@ -63,9 +64,7 @@ CppAD::vector<CppAD::AD<double>> logDensRandom(
 	qpart *= 0.5;
 
 	// Warning, no offdiag of Q implemented
-#ifdef COMPUTE_CONSTANTS	
 	qDet += CppAD::AD<double>(data.Ngamma * ONEHALFLOGTWOPI);
-#endif	
 
 	CppAD::vector<CppAD::AD<double>> result(1, 0.0);
 	result[0] = - qpart - qDet;

@@ -1,52 +1,107 @@
 #include <Rcpp.h>
 #include <cppad/cppad.hpp>
 
-#include "adlaplace/data.hpp"
-
+#include "adlaplace/utils.hpp"
+#include "adlaplace/adlaplace_api.hpp"
 
 Rcpp::List getAdFun_api(
 	const Data& data,
 	const Config& config);
 
-void fval_api(
-	const CPPAD_TESTVECTOR(double) &x, 
-	const int i, 
-	SEXP adPack, 
-	double& result);
+inline CPPAD_TESTVECTOR(double) as_cppad_vector(
+  const Rcpp::NumericVector& v
+  ) {
+  const size_t n = v.size();
+  CPPAD_TESTVECTOR(double) out(n);
+  for (R_xlen_t i = 0; i < n; ++i) {
+    out[i] = v[i];
+  }
+  return out;
+}
 
-void grad_api(
-	const CPPAD_TESTVECTOR(double) &x, 
-	const int i, 
-	SEXP adPack,
-	bool inner,
-	CPPAD_TESTVECTOR(double) &result 
-	);
+double jointLogDens(
+	const CPPAD_TESTVECTOR(double) parameters, 
+	const Config config,
+	SEXP adPack) {
 
-void hess_api(
-	const CPPAD_TESTVECTOR(double) &x, 
-	const int i, 
-	SEXP adPack, 
-	bool inner,
-	CPPAD_TESTVECTOR(double) &result );
-
-CPPAD_TESTVECTOR(double) thirdDirection_api(
-	const CPPAD_TESTVECTOR(double)&  x,
-	const CPPAD_TESTVECTOR(double)&  direction,
-	const CPPAD_TESTVECTOR(double)&  direction2,  // all zeros
-	const CPPAD_TESTVECTOR(double)&  w, // {0.0, 0.0, 1.0}
-	const int i, 
-	SEXP adPack
-	);
-
-inline CPPAD_TESTVECTOR(double)
-as_cppad_vector(const Rcpp::NumericVector& v)
-{
-	const size_t n = v.size();
-	CPPAD_TESTVECTOR(double) out(n);
-	for (R_xlen_t i = 0; i < n; ++i) {
-		out[i] = v[i];
+	double result=0.0;
+	for(size_t D: config.Sgroups) {
+		result += fval_api(parameters, D, adPack);
 	}
-	return out;
+	return result;
+}
+
+void grad(
+	const CPPAD_TESTVECTOR(double)& parameters, 
+	const Config& config,
+	SEXP adPack,
+	CPPAD_TESTVECTOR(double) &result,
+	const bool inner=false) {
+
+
+	const size_t Nout = inner?config.Ngamma:config.Nparams;
+	if(result.size() != Nout) {
+		Rcpp::Rcout << "result wrong size " << result.size() << " inner " << inner << " Ngamma " << config.Ngamma <<
+		" Nparams " << config.Nparams << "\n";
+	}
+
+	CPPAD_TESTVECTOR(double) resultLocal(result.size());
+
+	for(size_t Dgroup: config.Sgroups) {
+
+		const CscPattern& pattern = inner?config.match.grad_inner:config.match.grad;
+		const size_t Nhere = pattern.p[Dgroup+1] - pattern.p[Dgroup];
+		resultLocal.resize(Nhere);
+		grad_api(parameters, Dgroup, adPack, inner, resultLocal);
+		for(size_t Dlocal=0,Di=pattern.p[Dgroup];Dlocal < Nhere; Dlocal++,Di++) {
+
+			result[pattern.i[Di]] += resultLocal[Dlocal];
+
+#ifdef DEBUG
+			if (pattern.i[Di] >= config.Nparams) {
+				Rcpp::stop("grad: match index out of range");
+			};
+#endif
+
+		}
+	}
+}
+
+void hess(
+	const CPPAD_TESTVECTOR(double)& parameters,
+	const Config& config,
+	SEXP adPack,
+	CPPAD_TESTVECTOR(double) &result,
+	const bool inner = false
+	) {
+
+	const size_t Nout = inner?config.hessian_inner.nnz():config.hessian.nnz();
+	if(result.size() != Nout) {
+		Rcpp::Rcout << "reuslt wrong size " << result.size() << " inner " << inner << " innernnz " << config.hessian_inner.nnz() <<
+		" hessiannnz " << config.hessian.nnz() << "\n";
+	}
+
+	CPPAD_TESTVECTOR(double) resultLocal(result.size());
+	CPPAD_TESTVECTOR(double) result_grad(0);
+
+
+	const CscPattern& pattern = inner?config.match.hessian_inner:config.match.hessian;
+
+	for(size_t Dgroup: config.Sgroups) {
+
+		const std::size_t start = pattern.p[Dgroup];
+		const std::size_t end   = pattern.p[Dgroup + 1];
+		const std::size_t Nhere = end - start;
+
+		resultLocal.resize(Nhere);
+
+    // Fill group-local Hessian values
+		hess_api(parameters, Dgroup, adPack, inner, result_grad, resultLocal);
+
+		for(size_t Di=start;Di < end; Di++) {
+			result[pattern.i[Di]] += resultLocal[pattern.x[Di]];
+		}
+	}
 }
 
 
@@ -107,78 +162,6 @@ Rcpp::List getAdFun(
 	return result;
 }
 
-double jointLogDens(
-	const CPPAD_TESTVECTOR(double) parameters, 
-	const Config config,
-	SEXP adPack) {
-
-	double result=0.0;
-	for(size_t D=0; D<config.Ngroups;D++) {
-		double resultHere;
-		fval_api(parameters, D, adPack, resultHere);
-		result += resultHere;
-	}
-	return result;
-}
-
-CPPAD_TESTVECTOR(double) grad(
-	const CPPAD_TESTVECTOR(double)& parameters, 
-	const Config& config,
-	SEXP adPack,
-	const bool inner=false) {
-
-	const size_t Nout = inner?config.Ngamma:config.Nparams;
-	CPPAD_TESTVECTOR(double) result(Nout, 0.0);
-	CPPAD_TESTVECTOR(double) resultLocal(result.size());
-
-	for(size_t Dgroup=0; Dgroup<config.Ngroups;Dgroup++) {
-		const CscPattern& pattern = inner?config.match.grad_inner:config.match.grad;
-		const size_t Nhere = pattern.p[Dgroup+1] - pattern.p[Dgroup];
-		resultLocal.resize(Nhere);
-		grad_api(parameters, Dgroup, adPack, inner, resultLocal);
-		for(size_t Dlocal=0,Di=pattern.p[Dgroup];Dlocal < Nhere; Dlocal++,Di++) {
-#ifdef DEBUG
-			if (pattern.i[Di] >= config.Nparams) {
-				Rcpp::stop("grad: match index out of range");
-			};
-#endif
-			result[pattern.i[Di]] += resultLocal[Dlocal];
-		}
-	}
-	return result;
-}
-
-CPPAD_TESTVECTOR(double) hess(
-	const CPPAD_TESTVECTOR(double)& parameters,
-	const Config& config,
-	SEXP adPack,
-	const bool inner = false
-	) {
-
-	const size_t Nout = inner?config.hessian_inner.nnz():config.hessian.nnz();
-	CPPAD_TESTVECTOR(double) result(Nout, 0.0);
-	CPPAD_TESTVECTOR(double) resultLocal(result.size());
-
-
-	for (std::size_t Dgroup = 0; Dgroup < config.Ngroups; ++Dgroup) {
-		const CscPattern& pattern = inner?config.match.hessian_inner:config.match.hessian;
-
-		const std::size_t start = pattern.p[Dgroup];
-		const std::size_t end   = pattern.p[Dgroup + 1];
-		const std::size_t Nhere = end - start;
-
-		resultLocal.resize(Nhere);
-
-    // Fill group-local Hessian values
-		hess_api(parameters, Dgroup, adPack, inner, resultLocal);
-
-		for(size_t Dlocal=0,Di=start;Dlocal < Nhere; Dlocal++,Di++) {
-			result[pattern.i[Di]] += resultLocal[Dlocal];
-		}
-	}
-
-	return result;
-}
 //' @rdname adlaplace_cpp
 //' @export
 // [[Rcpp::export]]
@@ -208,7 +191,11 @@ Rcpp::NumericVector grad(
 
 	auto parametersC = as_cppad_vector(parameters);
 	Config configC(config);
-	const auto resultC = grad(parametersC, configC, adPack, inner);
+
+	const size_t Nout = inner?configC.Ngamma:configC.Nparams;
+	CPPAD_TESTVECTOR(double) resultC(Nout);
+
+	grad(parametersC, configC, adPack, resultC, inner);
 
 	return(Rcpp::wrap(resultC));
 }
@@ -228,10 +215,14 @@ Rcpp::S4 hess(
 	auto parametersC = as_cppad_vector(parameters);
 	Config configC(config);
 
-	const auto resultC = hess(parametersC, configC, adPack, inner);
+	const size_t Nout = inner?configC.hessian_inner.nnz():configC.hessian.nnz();
+	CPPAD_TESTVECTOR(double) resultC(Nout);
 
-	Rcpp::S4 out = inner ? Rcpp::clone(Rcpp::as<Rcpp::S4>(config["hessian_inner"]))
-	: Rcpp::clone(Rcpp::as<Rcpp::S4>(config["hessian"]));
+	hess(parametersC, configC, adPack, resultC, inner);
+
+	const Rcpp::List sparsity = config["sparsity"];
+	Rcpp::S4 out = inner ? Rcpp::clone(Rcpp::as<Rcpp::S4>(sparsity["hessian_inner"]))
+	: Rcpp::clone(Rcpp::as<Rcpp::S4>(sparsity["hessian"]));
 
 
 	if (XLENGTH(out.slot("x")) != resultC.size()) {

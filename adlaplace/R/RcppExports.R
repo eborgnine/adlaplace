@@ -64,3 +64,56 @@ hess <- function(parameters, config, adPack, inner) {
     .Call(`_adlaplace_hess`, parameters, config, adPack, inner)
 }
 
+#' Inner optimization over gamma using trust-region CG (sparse)
+#'
+#' Runs the inner optimization problem (typically over \eqn{\gamma}) using the
+#' trustOptim sparse trust-region Conjugate Gradient solver. This function
+#' evaluates the objective, gradient, and Hessian through the pre-built AD pack
+#' (external pointer) and returns the solution along with curvature information.
+#'
+#' @param start Numeric vector of starting values for the inner parameters
+#'   (length \code{Ngamma}).
+#' @param adPack External pointer created by \code{getAdFun()} (class
+#'   \code{"adpack_ptr"}). It contains per-group AD tapes and workspaces.
+#' @param config List of configuratio.  Must include  \code{gamma} (starting values), fixed values of \code{beta} and
+#'   \code{theta}, and sparsity/match info under \code{config$sparsity}.
+#' @param control List of trust-region control parameters (see
+#'   \code{trustOptim}).
+#'
+#' @return A list with components:
+#' \itemize{
+#'   \item \code{minusLogLik}: scalar \eqn{-\ell(\hat\gamma)} plus the Laplace
+#'         correction \eqn{\tfrac{1}{2}\log|H| + \tfrac{n}{2}\log(2\pi)}.
+#'   \item \code{fval}: scalar objective at the solution (typically \eqn{-\ell}).
+#'   \item \code{halfLogDet}: \eqn{\tfrac{1}{2}\log|H|} from sparse LDLT.
+#'   \item \code{solution}: optimized parameter vector (length \code{Ngamma}).
+#'   \item \code{gradient}: gradient at solution (length \code{Ngamma}).
+#'   \item \code{hessian}: Hessian as a dgCMatrix-like list with slots
+#'         \code{i,p,x,Dim} (0-based indices).
+#'   \item \code{cholHessian}: sparse LDLT factors as a list with
+#'         \code{P} (permutation indices), \code{D} (diagonal), and
+#'         \code{L} (lower-triangular factor in dgCMatrix-like form).
+#'   \item \code{iterations}: number of trust-region iterations.
+#'   \item \code{status}: solver status string.
+#'   \item \code{trust.radius}: final trust-region radius.
+#'   \item \code{method}: character, here \code{"Sparse"}.
+#' }
+#'
+#' @details
+#' This calls the sparse method from the \code{TrustOptim} package via the Cpp interface.  
+#'
+#' @name innerOpt
+NULL
+
+#' @rdname innerOpt
+#' @export
+innerOptTest <- function(adPack, config) {
+    .Call(`_adlaplace_innerOptTest`, adPack, config)
+}
+
+#' @rdname innerOpt
+#' @export
+innerOpt <- function(adPack, config, control) {
+    .Call(`_adlaplace_innerOpt`, adPack, config, control)
+}
+
