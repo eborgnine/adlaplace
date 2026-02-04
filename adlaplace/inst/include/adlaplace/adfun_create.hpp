@@ -1,8 +1,12 @@
-#ifndef ADFUN_API_HPP
-#define ADFUN_API_HPP
+#ifndef ADFUN_CREATE_HPP
+#define ADFUN_CREATE_HPP
 
+
+
+// to be included in objectiveFunction.cpp to create AD functions.
 
 // needs logDensExtra, logDensRandom, logDensObs to be defined before including
+
 
 #include <Rcpp.h>
 #include <cppad/cppad.hpp>
@@ -11,13 +15,10 @@
 #include <numeric>
 #include <vector>
 
-#include "adlaplace/adlaplace_api.hpp"
 #include "adlaplace/utils.hpp"
 
 static const std::string JAC_COLOR  = "cppad";
 static const std::string HESS_COLOR = "cppad.symmetric";
-
-
 
 template <class SizeVec, class ValVec>
 inline ValVec& rcv_val(CppAD::sparse_rcv<SizeVec, ValVec>& rcv)
@@ -44,6 +45,9 @@ inline void adpack_sparsity(
   ) {
 	const size_t Nparams = x.size();
 
+	gp.w.resize(1);
+	gp.w[0]=1.0;
+	gp.x.resize(Nparams);
 
 	CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> grad;
 	CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> grad_inner;
@@ -71,8 +75,6 @@ inline void adpack_sparsity(
 	const bool dependency    = false;
 	const bool internal_bool = false;
 
-	gp.w.resize(1);
-	gp.w[0]=1.0;
 
   // --- full gradient sparsity (m x n, with m = 1 for scalar range) ---
 	gp.fun.for_jac_sparsity(
@@ -202,6 +204,7 @@ inline void adpack_sparsity(
   	HESS_COLOR,                
   	gp.work_inner_hess);
 
+
 }
 
 
@@ -224,8 +227,8 @@ inline std::vector<GroupPack> getAdFun(
 	std::vector<GroupPack> result(Ngroups);	
 
 #ifdef DEBUG
-		Rcpp::Rcout << "outer, groups " << Ngroups << " Nbeta " << config.Nbeta << " Ntheta " <<
-		config.Ntheta << " Ngamma " << config.Ngamma << " Nparams " << config.Nparams << "\n";
+	Rcpp::Rcout << "outer, groups " << Ngroups << " Nbeta " << config.Nbeta << " Ntheta " <<
+	config.Ntheta << " Ngamma " << config.Ngamma << " Nparams " << config.Nparams << "\n";
 #endif
 
 	CPPAD_TESTVECTOR(double) ad_params_G(config.Nparams);
@@ -251,6 +254,7 @@ inline std::vector<GroupPack> getAdFun(
 			CppAD::ADFun<double> fun(ad_params, resultHere);
 
 			result[D].fun = std::move(fun);
+
 			// add sparsity bits
 			adpack_sparsity(
 				ad_params_G,
@@ -269,6 +273,7 @@ inline std::vector<GroupPack> getAdFun(
 				data, config);   
 			CppAD::ADFun<double> fun(ad_params, resultHere);
 			result[D].fun = std::move(fun);
+
 			// add sparsity bits
 			adpack_sparsity(
 				ad_params_G,
@@ -322,120 +327,83 @@ Rcpp::List getAdFun_api(
 			);
 	}
 
+// 1) Own the GroupPack vector with an XPtr
 	auto* ptr = new std::vector<GroupPack>(std::move(adPack));
 	Rcpp::XPtr<std::vector<GroupPack>> xptr(ptr, true);
 	xptr.attr("class") = "adpack_ptr";
 
+// 2) Build your backend context/handle 'h' and make the handle external pointer
+// IMPORTANT: protect the XPtr 'xptr' so the vector can't be GC'd while 'h' is alive
+	SEXP ext = R_MakeExternalPtr((void*)h, R_NilValue, xptr);
+	R_RegisterCFinalizerEx(ext, handle_finalizer, TRUE);
+
+// give the handle a class too
+	Rf_setAttrib(ext, R_ClassSymbol, Rf_mkString("adlaplace_handle_ptr"));
+
+// 3) Return both (so user code can inspect sparsity, and adlaplace can use the handle)
 	Rcpp::List result = Rcpp::List::create(
-		Rcpp::_["adPack"] = xptr, 
-		Rcpp::_["sparsity"] = sparsity
-		);
+  Rcpp::_["adPack"]    = xptr,              // optional to expose; useful for debugging
+  Rcpp::_["handle"]    = ext,               // THIS is what adlaplace should consume
+  Rcpp::_["sparsity"]  = sparsity
+  );
+
 	return(result);
 }
 
-double fval_api(
-	const CPPAD_TESTVECTOR(double) &x, 
-	const size_t i, 
-	SEXP adPack) {
-
-	Rcpp::XPtr<std::vector<GroupPack>> xp(adPack);
-	GroupPack &gp = (*xp)[i];
-	
-	const double result = gp.fun.Forward(0, x)[0];
-	return result;
-}
-
-double grad_api(
-	const CPPAD_TESTVECTOR(double) &x, 
-	const size_t i, 
+static BackendContext* getBackendContext(
 	SEXP adPack,
-	const bool inner,
-	CPPAD_TESTVECTOR(double) &result 
-	){
+	const Rcpp::List &map,
+	) {
 
-	Rcpp::XPtr<std::vector<GroupPack>> xp(adPack);
-	GroupPack &gp = (*xp)[i];
+  auto* ctx = new BackendContext;
+  ctx->map_inner.resize(3);
+  ctx->map_outer.resize(3);
 
-	auto* pattern = inner?&gp.pattern_grad_inner:&gp.pattern_grad;
-	auto* work = inner ? &gp.work_inner_grad : &gp.work_grad;
+Rcpp::XPtr<std::vector<GroupPack>> xp(adPack_xptr_sexp);
+  ctx->adPack = xp.get();
+  if (!ctx->adPack) {
+    delete ctx;
+    Rcpp::stop("adPack_xptr is NULL");
+  }
 
 
-#ifdef DEBUG
-	if (!inner && pattern->nc() != x.size()) {
-		Rcpp::Rcout << "grad inner " << inner << " patternnc " << pattern->nc() << " xsize " <<
-		x.size() << "\n";
-		Rf_error("grad pattern and parameters different lengths");
-	}
-	if (pattern->nnz() != result.size()) {
-		Rf_error("grad pattern and result different lengths");
-	}
-#endif
+	Rcpp::List map_inner = map["inner"], map_outer= map["outer"];
 
-	const double result_f = gp.fun.Forward(0, x)[0];
+	Rcpp::IntegerVector map_inner_p = map_inner["p"];
+	Rcpp::IntegerVector map_inner_local = map_inner["local"];
+	Rcpp::IntegerVector map_inner_global = map_inner["global"];
+	Rcpp::IntegerVector map_outer_p = map_outer["p"];
+	Rcpp::IntegerVector map_outer_local = map_outer["local"];
+	Rcpp::IntegerVector map_outer_global = map_outer["global"];
 
-	rcv_val(*pattern).swap(result);
+	ctx->map_inner[0] = std::vector<int>(map_inner_p.begin(), map_inner_p.end());
+	ctx->map_inner[1] = std::vector<int>(map_inner_local.begin(), map_inner_local.end());
+	ctx->map_inner[2] = std::vector<int>(map_inner_global.begin(), map_inner_global.end());
 
-	gp.fun.sparse_jac_rev(
-		x,
-		*pattern,
-		gp.unused_pattern,
-		JAC_COLOR,      
-		*work);
+	ctx->map_outer[0] = std::vector<int>(map_outer_p.begin(), map_outer_p.end());
+	ctx->map_outer[1] = std::vector<int>(map_outer_local.begin(), map_outer_local.end());
+	ctx->map_outer[2] = std::vector<int>(map_outer_global.begin(), map_outer_global.end());
 
-	rcv_val(*pattern).swap(result);
-	return result_f;
+	return ctx;
 }
 
-double hess_api(
-	const CPPAD_TESTVECTOR(double) &x, 
-	const size_t i, 
-	SEXP adPack, 
-	const bool inner,
-	CPPAD_TESTVECTOR(double) &result_grad,
-	CPPAD_TESTVECTOR(double) &result_hess
-	){
 
+SEXP make_backend_handle(SEXP adPack_xptr, Rcpp::List map) {
+  // build ctx
+  BackendContext* bctx = makeBackendContext(adPack_xptr, map);
 
-	Rcpp::XPtr<std::vector<GroupPack>> xp(adPack);
-	GroupPack &gp = (*xp)[i];
+  // build handle
+  auto* h = new adlaplace_adpack_handle;
+  h->api = &AD_API;
+  h->ctx = static_cast<void*>(bctx);
 
-	auto* pattern_hess = inner ? &gp.pattern_hessian_inner : &gp.pattern_hessian;
-	auto* work_hess = inner ? &gp.work_inner_hess : &gp.work_hess;
+  // external pointer, PROTECT field keeps adPack_xptr alive
+  SEXP handle = R_MakeExternalPtr((void*)h, R_NilValue, adPack_xptr);
+  R_RegisterCFinalizerEx(handle, handle_finalizer, TRUE);
+  Rf_setAttrib(handle, R_ClassSymbol, Rf_mkString("adlaplace_handle_ptr"));
 
-	auto* pattern_grad = inner?&gp.pattern_grad_inner:&gp.pattern_grad;
-	auto* work_grad = inner ? &gp.work_inner_grad : &gp.work_grad;
-
-	const double result_f = gp.fun.Forward(0, x)[0];
-
-	if(result_grad.size() > 0) {
-		rcv_val(*pattern_grad).swap(result_grad);
-
-		gp.fun.sparse_jac_rev(
-			x,
-			*pattern_grad,
-			gp.unused_pattern,
-			JAC_COLOR,
-			*work_grad);
-
-		rcv_val(*pattern_grad).swap(result_grad);
-	}
-
-	rcv_val(*pattern_hess).swap(result_hess);
-
-	gp.fun.sparse_hes(
-		x,  
-		gp.w,
-		*pattern_hess,              
-		gp.unused_pattern, // not used        
-		HESS_COLOR,                
-		*work_hess              
-		);
-
-	rcv_val(*pattern_hess).swap(result_hess);
-
-	return result_f;
+  return handle;
 }
-
 
 CPPAD_TESTVECTOR(double) thirdDirection_api(
 	const CPPAD_TESTVECTOR(double)&  x,
@@ -455,6 +423,5 @@ CPPAD_TESTVECTOR(double) thirdDirection_api(
 
 	return(gp.fun.Reverse(3, w));
 }
-
 
 #endif

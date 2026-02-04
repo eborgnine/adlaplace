@@ -19,6 +19,8 @@ struct GroupPack {
   CPPAD_TESTVECTOR(double) w;
   CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> unused_pattern;
 
+  CPPAD_TESTVECTOR(double) x;
+
 };
 
 double fval_api(
