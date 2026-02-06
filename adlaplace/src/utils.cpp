@@ -1,6 +1,8 @@
+#include <numeric>   // std::iota
+
+#include "Rcpp.h"
 #include "adlaplace/utils.hpp"
 
-#include <numeric>   // std::iota
 
 bool get_bool(const Rcpp::List& cfg, const char* key, bool def) {
   return cfg.containsElementNamed(key) ? Rcpp::as<bool>(cfg[key]) : def;
@@ -18,6 +20,18 @@ std::vector<int> as_int_vec(
   for (R_xlen_t k = 0; k < v.size(); ++k) {
     int x = v[k];
     out[static_cast<std::size_t>(k)] = x;
+  }
+  return out;
+}
+
+
+CPPAD_TESTVECTOR(double) as_cppad_vector(
+  const Rcpp::NumericVector& v
+  ) {
+  const size_t n = v.size();
+  CPPAD_TESTVECTOR(double) out(n);
+  for (R_xlen_t i = 0; i < n; ++i) {
+    out[i] = v[i];
   }
   return out;
 }
@@ -97,7 +111,7 @@ CscPattern::CscPattern(const Rcpp::S4& sm) : dim(2,0) {
   }
 }
 
-// ---- MatchGroup ----
+/*
 MatchGroup::MatchGroup() = default;
 
 MatchGroup::MatchGroup(const Rcpp::List& obj) {
@@ -106,16 +120,24 @@ MatchGroup::MatchGroup(const Rcpp::List& obj) {
   hessian      = CscPattern(Rcpp::as<Rcpp::S4>(obj["hessian"]));
   hessian_inner= CscPattern(Rcpp::as<Rcpp::S4>(obj["hessian_inner"]));
 }
+*/
 
 // ---- Config ----
 Config::Config(const Rcpp::List& cfg)
 : verbose(get_bool(cfg, "verbose", false)),
 transform_theta(get_bool(cfg, "transform_theta", false)),
-num_threads(get_int(cfg, "num_threads", 1)),
-beta(cfg["beta"]),
-gamma(cfg["gamma"]),
-theta(cfg["theta"])
+num_threads(get_int(cfg, "num_threads", 1))
 {
+
+  Rcpp::NumericVector beta_nv = cfg["beta"];
+  std::vector<double> beta(beta_nv.begin(), beta_nv.end());
+
+  Rcpp::NumericVector gamma_nv = cfg["gamma"];
+  std::vector<double> gamma(gamma_nv.begin(), gamma_nv.end());
+
+  Rcpp::NumericVector theta_nv = cfg["theta"];
+  std::vector<double> theta(theta_nv.begin(), theta_nv.end());
+
   beta_begin = 0;
   Nbeta = static_cast<std::size_t>(beta.size());
   beta_end = Nbeta;

@@ -1,7 +1,7 @@
 #ifndef LOGDENSEXTRAEMPTY_HPP
 #define LOGDENSEXTRAEMPTY_HPP
 
-#include "adlaplace/utils.hpp"
+#include "adlaplace/defs.hpp"
 
 // dummy funciton if there is no logDensExtra
 

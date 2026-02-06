@@ -15,8 +15,7 @@
 #include <numeric>
 #include <vector>
 
-#include "adlaplace/utils.hpp" // data and config
-#include "adlaplace/groupPack.hpp"
+#include "adlaplace/adlaplace.hpp" // data and config
 
 
 static const std::string JAC_COLOR  = "cppad";
@@ -37,6 +36,29 @@ inline Rcpp::IntegerVector as_int_vec(
 		out[i] = static_cast<int>(v[i]);
 	}
 	return out;
+}
+
+Rcpp::List extract_sparsity(
+	const std::vector<GroupPack> &adPack) {
+
+	const size_t N = adPack.size();
+	Rcpp::List sparsity(N);
+
+	for(size_t D=0;D<N;D++) {
+		sparsity[D] = Rcpp::List::create(
+			Rcpp::_["grad"] = as_int_vec(adPack[D].pattern_grad.col()), 
+			Rcpp::_["grad_inner"] = as_int_vec(adPack[D].pattern_grad_inner.col()),
+
+			Rcpp::_["row_hess"] = as_int_vec(adPack[D].pattern_hessian.row()),
+			Rcpp::_["col_hess"] = as_int_vec(adPack[D].pattern_hessian.col()),
+
+			Rcpp::_["row_hess_inner"] = as_int_vec(adPack[D].pattern_hessian_inner.row()),
+			Rcpp::_["col_hess_inner"] = as_int_vec(adPack[D].pattern_hessian_inner.col())
+
+			);
+	}
+
+	return(sparsity);
 }
 
 inline void adpack_sparsity(
@@ -305,28 +327,6 @@ inline std::vector<GroupPack> getAdFun(
 	return result;
 }
 
-// _h because this one lives in the hpp, there'll be another in the cpp that roxygen will see
-Rcpp::List extractSparsity(
-	const std::vector<GroupPack> &adPack) {
 
-	const size_t N = adPack.size();
-	Rcpp::List sparsity(N);
-
-	for(size_t D=0;D<N;D++) {
-		sparsity[D] = Rcpp::List::create(
-			Rcpp::_["grad"] = as_int_vec(adPack[D].pattern_grad.col()), 
-			Rcpp::_["grad_inner"] = as_int_vec(adPack[D].pattern_grad_inner.col()),
-
-			Rcpp::_["row_hess"] = as_int_vec(adPack[D].pattern_hessian.row()),
-			Rcpp::_["col_hess"] = as_int_vec(adPack[D].pattern_hessian.col()),
-
-			Rcpp::_["row_hess_inner"] = as_int_vec(adPack[D].pattern_hessian_inner.row()),
-			Rcpp::_["col_hess_inner"] = as_int_vec(adPack[D].pattern_hessian_inner.col())
-
-			);
-	}
-
-	return(sparsity);
-}
 
 #endif

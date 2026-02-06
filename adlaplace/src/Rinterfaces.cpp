@@ -2,100 +2,11 @@
 #include <cppad/cppad.hpp>
 
 #include <Rinternals.h>
-#include "adlaplace/adpack_api.h"
-#include "adlaplace/adpack_handle.h"
-
-#include "adlaplace/utils.hpp"
+#include "adlaplace/creators/R_interfaces.hpp"
 
 
-inline CPPAD_TESTVECTOR(double) as_cppad_vector(
-  const Rcpp::NumericVector& v
-  ) {
-  const size_t n = v.size();
-  CPPAD_TESTVECTOR(double) out(n);
-  for (R_xlen_t i = 0; i < n; ++i) {
-    out[i] = v[i];
-  }
-  return out;
-}
 
 
-#ifdef UNDEF
-
-void grad(
-	const CPPAD_TESTVECTOR(double)& parameters, 
-	const Config& config,
-	SEXP adPack,
-	CPPAD_TESTVECTOR(double) &result,
-	const bool inner=false) {
-
-
-	const size_t Nout = inner?config.Ngamma:config.Nparams;
-	if(result.size() != Nout) {
-		Rcpp::Rcout << "result wrong size " << result.size() << " inner " << inner << " Ngamma " << config.Ngamma <<
-		" Nparams " << config.Nparams << "\n";
-	}
-
-	CPPAD_TESTVECTOR(double) resultLocal(result.size());
-
-	for(size_t Dgroup: config.Sgroups) {
-
-		const CscPattern& pattern = inner?config.match.grad_inner:config.match.grad;
-		const size_t Nhere = pattern.p[Dgroup+1] - pattern.p[Dgroup];
-		resultLocal.resize(Nhere);
-		grad_api(parameters, Dgroup, adPack, inner, resultLocal);
-		for(size_t Dlocal=0,Di=pattern.p[Dgroup];Dlocal < Nhere; Dlocal++,Di++) {
-
-			result[pattern.i[Di]] += resultLocal[Dlocal];
-
-#ifdef DEBUG
-			if (pattern.i[Di] >= config.Nparams) {
-				Rcpp::stop("grad: match index out of range");
-			};
-#endif
-
-		}
-	}
-}
-
-void hess(
-	const CPPAD_TESTVECTOR(double)& parameters,
-	const Config& config,
-	SEXP adPack,
-	CPPAD_TESTVECTOR(double) &result,
-	const bool inner = false
-	) {
-
-	const size_t Nout = inner?config.hessian_inner.nnz():config.hessian.nnz();
-	if(result.size() != Nout) {
-		Rcpp::Rcout << "reuslt wrong size " << result.size() << " inner " << inner << " innernnz " << config.hessian_inner.nnz() <<
-		" hessiannnz " << config.hessian.nnz() << "\n";
-	}
-
-	CPPAD_TESTVECTOR(double) resultLocal(result.size());
-	CPPAD_TESTVECTOR(double) result_grad(0);
-
-
-	const CscPattern& pattern = inner?config.match.hessian_inner:config.match.hessian;
-
-	for(size_t Dgroup: config.Sgroups) {
-
-		const std::size_t start = pattern.p[Dgroup];
-		const std::size_t end   = pattern.p[Dgroup + 1];
-		const std::size_t Nhere = end - start;
-
-		resultLocal.resize(Nhere);
-
-    // Fill group-local Hessian values
-		hess_api(parameters, Dgroup, adPack, inner, result_grad, resultLocal);
-
-		for(size_t Di=start;Di < end; Di++) {
-			result[pattern.i[Di]] += resultLocal[pattern.x[Di]];
-		}
-	}
-}
-
-#endif
 
 
 //' C++ backend entry points
@@ -137,35 +48,24 @@ void hess(
 //' @name adlaplace_cpp
 
 // in external_create.hpp
-Rcpp::List getAdFun_h(
+SEXP getAdFun_h(
 	const Data& data,
 	const Config& config);
 
 //' @rdname adlaplace_cpp
 //' @export
 // [[Rcpp::export]]
-Rcpp::List getAdFun(
+SEXP getAdFun(
 	Rcpp::List data, 
 	Rcpp::List config)
 {
 
-	Data dataC(data);
-	Config configC(config);
-
-	Rcpp::List result = getAdFun_h(dataC, configC);
+	SEXP result = getAdFun_h(data, config);
 
 	return result;
 }
 
-// helper: get handle safely
-static inline adlaplace_adpack_handle* get_handle(SEXP handle_sexp) {
-  auto* h = static_cast<adlaplace_adpack_handle*>(R_ExternalPtrAddr(handle_sexp));
-  if (!h) Rcpp::stop("backendContext handle is NULL (external pointer cleared?)");
-  if (!h->api) Rcpp::stop("backendContext handle has NULL api");
-  if (!h->ctx) Rcpp::stop("backendContext handle has NULL ctx");
-  if (!h->api->f) Rcpp::stop("backendContext api->f is NULL");
-  return h;
-}
+
 
 //' @rdname adlaplace_cpp
 //' @export

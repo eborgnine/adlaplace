@@ -1,3 +1,5 @@
+// functions to initiate omp threads compatible with cppad
+
 #ifndef ADLAPLACE_FOROMP_HPP
 #define ADLAPLACE_FOROMP_HPP
 

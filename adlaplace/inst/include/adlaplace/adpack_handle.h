@@ -48,6 +48,8 @@ typedef struct adlaplace_adpack_handle {
 } adlaplace_adpack_handle;
 
 
+
+
 #ifdef __cplusplus
 }
 #endif

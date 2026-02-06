@@ -7,8 +7,7 @@
 #include<vector>
 #include<cstddef>
 
-#include "adlaplace/adpack_handle.h"
-#include "adlaplace/defs.hpp"
+#include "adlaplace/backend.hpp"
 
 
 static int get_sizes(void* vctx, size_t* Nparams, size_t* Ngroups,
@@ -173,19 +172,6 @@ static int eval_hess(void* vctx, const int *i, const double* x,
 }
 
 
-
-static const adlaplace_adpack_api AD_API = {
-	ADLAPLACE_ADPACK_API_VERSION,
-  1,                // thread_safe
-  0,                // Ngamma (set at runtime in handle if you prefer)
-  &eval_f,
-  &eval_grad,
-  &eval_hess,
-  &get_sizes,
-  &get_hessian,
-  &backend_destroy,
-  NULL
-};
 
 
 

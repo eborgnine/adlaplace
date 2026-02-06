@@ -15,11 +15,15 @@
 
 
 #' @export
-hessianMap = function(config, sparsity_list) {
+hessianMap = function(sparsity_list, config) {
+
+	Nbeta = length(config$beta)
+	Ngamma = length(config$gamma)
+	Ntheta = length(config$theta)
 
 	Ngroups = length(sparsity_list)
-	Nparams = length(config$beta) + length(config$gamma)+ length(config$theta)
-	Sgamma0 = seq.int(length(config$beta), length.out=length(config$gamma))
+	Nparams = Nbeta + Ngamma + Ntheta
+	Sgamma0 = seq.int(Nbeta length.out=Ngamma)
 	Sgamma1 = Sgamma0+1L
 
 	sparsity_list2 = list()

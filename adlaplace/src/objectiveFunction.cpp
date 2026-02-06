@@ -1,7 +1,7 @@
-#include "adlaplace/utils.hpp"
+#include "adlaplace/defs.hpp"
 
 // header for the lgamma function
-#include "adlaplace/lgamma.hpp"
+#include "adlaplace/math/lgamma.hpp"
 
 
 // returns log density of observations conditional on random effects
@@ -9,7 +9,7 @@
 //#define DEBUG can't multi-thread with debug enabled
 
 // use the standard logDensRandom from logDensRandom.hpp
-#include "adlaplace/logDensRandom.hpp"
+#include "adlaplace/logDens/random.hpp"
 
 
 CppAD::vector<CppAD::AD<double>> logDensObs(
@@ -118,7 +118,7 @@ CppAD::vector<CppAD::AD<double>> logDensExtra(
 }
 
 // ADfun and interfaces
-#include"adlaplace/adfun_create.hpp"
+#include"adlaplace/objective_function.hpp"
 
 
 
