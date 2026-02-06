@@ -291,3 +291,20 @@ $$
 \frac{\partial \hat U_c}{\partial \theta_q} +  T_{bpq} \Bigg]
 \end{aligned}
 $$
+
+
+# Code
+
+AD objects
+
+- GroupPack: for one shard ad function, work and sparsity, scatter maps.  cppp, no Rcpp.
+- BackendContext: vector of GroupPack, integer vectors of hessian pattern, sizes.
+- adpack api: simple c structure with exposed functions to call ad and return hessian pattern
+- adpack handle: pointer to adpack api, accessible across packages
+
+Creating the GroupPack's
+
+- package's local function objectiveFunction.cpp that evaluates density functions
+  - optionally sourcing logDensRandom.hpp and an empty logDensExtraEmpty.hpp from adLaplace
+- sources adfun_create.hpp which 
+

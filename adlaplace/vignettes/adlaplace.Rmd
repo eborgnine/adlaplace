@@ -84,10 +84,16 @@ model is defined in the file `src/objectiveFunction.cpp`
 
 ```{r testDeriv}
 adFunList = adlaplace::getAdFun(data, modifyList(config, list(verbose=TRUE)))
+config$sparsity = adlaplace::hessian_map(config, sparsity_list = adFunList$sparsity)
+backendContext = getBackendContext(adFunList$adPack, config)
+
+x = c(config$beta, config$gamma, config$theta)
+adlaplace::jointLogDens(x, backendContext)
+
+
 config$sparsity = adlaplace::group_sparsity(config, sparsity_list = adFunList$sparsity)
 adPack = adFunList$adPack
 
-x = c(config$beta, config$gamma, config$theta)
 
 adlaplace::jointLogDens(x, config, adPack)
 str(adlaplace::grad(x, config, adPack, FALSE))

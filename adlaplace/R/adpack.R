@@ -1,13 +1,11 @@
 
-getBackendContext = function(
-	adPack,
-	map
-) {
+
+getAdpackHandle = function(data, config) {
+	theAdFun = getAdFun(data, config)
+	theSparsity = extractSparsity(theAdFun)
+	# this is the part that can't be done in cpp easily
+	theHessianMap = hessianMap(config, theSparsity)
+	getAdHandle(theAdFun, theHessianMap)
 
 
 }
-
-adFunList = getAdFun_api(data, config)
-config$sparsity = adlaplace::group_sparsity(config, sparsity_list = adFunList$sparsity)
-
-backendContext = getBackendContext(adFunList$adPack, config$sparsity$hessian_map)

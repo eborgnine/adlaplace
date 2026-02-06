@@ -15,13 +15,13 @@
 
 
 #' @export
-group_sparsity = function(config, sparsity_list) {
+hessianMap = function(config, sparsity_list) {
+
 	Ngroups = length(sparsity_list)
 	Nparams = length(config$beta) + length(config$gamma)+ length(config$theta)
 	Sgamma0 = seq.int(length(config$beta), length.out=length(config$gamma))
 	Sgamma1 = Sgamma0+1L
 
-	sparsity_grad = lapply(sparsity_list, '[', c('grad','grad_inner'))
 	sparsity_list2 = list()
 	for(D in 1:Ngroups) {
 		Nhere = lapply(sparsity_list[[D]], length)
@@ -83,24 +83,22 @@ group_sparsity = function(config, sparsity_list) {
 				dims = c(length(hessian@x), Ngroups))
 		}
 	)
-	names(hessianSparsity) = gsub("outer", "hessian",names(hessianSparsity))
-	names(hessianSparsity) = gsub("^inner$", "hessian_inner",names(hessianSparsity))
+#	names(hessianSparsity) = gsub("^outer$", "hessian_outer",names(hessianSparsity))
+#	names(hessianSparsity) = gsub("^inner$", "hessian_inner",names(hessianSparsity))
 	# D=2;bob = Matrix::sparseMatrix(i = hessianSparsity[[D]]$local, p=hessianSparsity[[D]]$p, x = as.numeric(hessianSparsity[[D]]$index), index1=0)
-	grad2 = list(grad = lapply(sparsity_grad, '[[', 'grad'), grad_inner = lapply(sparsity_grad, '[[', 'grad_inner'))
-	grad3 = lapply(grad2, function(xx) {
-		xxN = unlist(lapply(xx, length))
-		Matrix::sparseMatrix(i = as.integer(unlist(xx)), 
-			p = as.integer(c(0, cumsum(xxN))), 
-			index1=FALSE,
-			dims = c(Nparams, Ngroups))
+
+	result_map = lapply(hessian_sparsity, function(xx) {
+		list(
+			p = as.integer(xx@p),
+			local = as.integer(xx@i),
+			global = as.integer(xx@x),
+			dims = dim(xx)
+		)
 	})
-	grad3$grad_inner@i = as.integer(match(
-		grad3$grad_inner@i, Sgamma0
-	) - 1L)
 
 	list(
-		hessian = hessian, hessian_inner = hessian_inner,
-		match = c(grad3, hessianSparsity)
+		hessian = list(outer = hessian, inner = hessian_inner),
+		map = result_map
 	)
 }
 

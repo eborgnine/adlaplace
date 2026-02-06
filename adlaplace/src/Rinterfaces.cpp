@@ -1,12 +1,12 @@
 #include <Rcpp.h>
 #include <cppad/cppad.hpp>
 
-#include "adlaplace/utils.hpp"
-#include "adlaplace/adlaplace_api.hpp"
+#include <Rinternals.h>
+#include "adlaplace/adpack_api.h"
+#include "adlaplace/adpack_handle.h"
 
-Rcpp::List getAdFun_api(
-	const Data& data,
-	const Config& config);
+#include "adlaplace/utils.hpp"
+
 
 inline CPPAD_TESTVECTOR(double) as_cppad_vector(
   const Rcpp::NumericVector& v
@@ -19,17 +19,8 @@ inline CPPAD_TESTVECTOR(double) as_cppad_vector(
   return out;
 }
 
-double jointLogDens(
-	const CPPAD_TESTVECTOR(double) parameters, 
-	const Config config,
-	SEXP adPack) {
 
-	double result=0.0;
-	for(size_t D: config.Sgroups) {
-		result += fval_api(parameters, D, adPack);
-	}
-	return result;
-}
+#ifdef UNDEF
 
 void grad(
 	const CPPAD_TESTVECTOR(double)& parameters, 
@@ -104,6 +95,7 @@ void hess(
 	}
 }
 
+#endif
 
 
 //' C++ backend entry points
@@ -144,7 +136,10 @@ void hess(
 //'
 //' @name adlaplace_cpp
 
-
+// in external_create.hpp
+Rcpp::List getAdFun_h(
+	const Data& data,
+	const Config& config);
 
 //' @rdname adlaplace_cpp
 //' @export
@@ -157,81 +152,44 @@ Rcpp::List getAdFun(
 	Data dataC(data);
 	Config configC(config);
 
-	Rcpp::List result = getAdFun_api(dataC, configC);
+	Rcpp::List result = getAdFun_h(dataC, configC);
 
 	return result;
 }
 
-//' @rdname adlaplace_cpp
-//' @export
-// [[Rcpp::export]]
-double jointLogDens(
-	const Rcpp::NumericVector parameters, 
-	const Rcpp::List config,
-	SEXP adPack)
-{
-
-	const auto parametersC = as_cppad_vector(parameters);
-	const Config configC(config);
-
-	double result = jointLogDens(parametersC, configC, adPack);
-	return result;
+// helper: get handle safely
+static inline adlaplace_adpack_handle* get_handle(SEXP handle_sexp) {
+  auto* h = static_cast<adlaplace_adpack_handle*>(R_ExternalPtrAddr(handle_sexp));
+  if (!h) Rcpp::stop("backendContext handle is NULL (external pointer cleared?)");
+  if (!h->api) Rcpp::stop("backendContext handle has NULL api");
+  if (!h->ctx) Rcpp::stop("backendContext handle has NULL ctx");
+  if (!h->api->f) Rcpp::stop("backendContext api->f is NULL");
+  return h;
 }
-
 
 //' @rdname adlaplace_cpp
 //' @export
 // [[Rcpp::export]]
-Rcpp::NumericVector grad(
-	const Rcpp::NumericVector& parameters, 
-	const Rcpp::List config,
-	SEXP adPack,
-	const bool inner)
-{
+double jointLogDens(const Rcpp::NumericVector& x, SEXP backendContext) {
 
-	auto parametersC = as_cppad_vector(parameters);
-	Config configC(config);
+  adlaplace_adpack_handle* h = get_handle(backendContext);
 
-	const size_t Nout = inner?configC.Ngamma:configC.Nparams;
-	CPPAD_TESTVECTOR(double) resultC(Nout);
+  const size_t Ngroups = h->Ngroups;
+  const size_t Nparams = h->Nparams;
 
-	grad(parametersC, configC, adPack, resultC, inner);
+  if (static_cast<size_t>(x.size()) != Nparams) {
+    Rcpp::stop("x has length %d but expected Nparams=%d", x.size(), (int)Nparams);
+  }
 
-	return(Rcpp::wrap(resultC));
+  // Evaluate each group's contribution
+  for (size_t g = 0; g < Ngroups; ++g) {
+    double fg = 0.0;
+    int gi = static_cast<int>(g);
+    int rc = h->api->f(h->ctx, &gi, x.begin(), &fg);
+    if (rc != 0) {
+      Rcpp::stop("backend api->f failed for group %d with code %d", gi, rc);
+    }
+  }
+
+  return fg;
 }
-
-
-
-//' @rdname adlaplace_cpp
-//' @export
-// [[Rcpp::export]]
-Rcpp::S4 hess(
-	const Rcpp::NumericVector& parameters, 
-	const Rcpp::List config,
-	SEXP adPack,
-	const bool inner)
-{
-
-	auto parametersC = as_cppad_vector(parameters);
-	Config configC(config);
-
-	const size_t Nout = inner?configC.hessian_inner.nnz():configC.hessian.nnz();
-	CPPAD_TESTVECTOR(double) resultC(Nout);
-
-	hess(parametersC, configC, adPack, resultC, inner);
-
-	const Rcpp::List sparsity = config["sparsity"];
-	Rcpp::S4 out = inner ? Rcpp::clone(Rcpp::as<Rcpp::S4>(sparsity["hessian_inner"]))
-	: Rcpp::clone(Rcpp::as<Rcpp::S4>(sparsity["hessian"]));
-
-
-	if (XLENGTH(out.slot("x")) != resultC.size()) {
-		Rcpp::stop("hess: template@x length != result length");
-	}
-
-	out.slot("x") = Rcpp::wrap(resultC);
-
-	return(out);
-
-}
-

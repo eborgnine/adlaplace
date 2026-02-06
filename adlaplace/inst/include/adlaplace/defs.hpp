@@ -1,10 +1,21 @@
-#ifndef ADLAPLACE_UTILS_HPP
-#define ADLAPLACE_UTILS_HPP
+#ifndef ADLAPLACE_DEFS_HPP
+#define ADLAPLACE_DEFS_HPP
 
 #include <Rcpp.h>
 #include <vector>
 #include <cstddef>
 
+
+struct HessianPack {
+  std::vector<int> hessian_p;
+  std::vector<int> hessian_i;
+  std::vector<int> dim;
+
+  std::vector<int> map_p;
+  std::vector<int> map_local;
+  std::vector<int> map_global;
+
+};
 
 // Lightweight view into Matrix::*gCMatrix slots (points to R memory)
 struct DgCView {
@@ -55,12 +66,7 @@ struct CscPattern {
   std::size_t nnz() const { return i.size(); }
 };
 
-struct MatchGroup {
-  CscPattern grad, grad_inner, hessian, hessian_inner;
 
-  MatchGroup();
-  explicit MatchGroup(const Rcpp::List& obj);
-};
 
 struct Config {
   bool verbose;
@@ -76,12 +82,11 @@ struct Config {
 
   std::vector<int> Sgroups;
   std::vector<int> Sgamma;
-  std::vector<double>      params;
+  std::vector<double> params;
 
   // NOTE: these are patterns; they will copy from S4 into vectors
-  CscPattern groups, hessian, hessian_inner, hessian_inner_uplo;
-
-  MatchGroup match;
+  CscPattern groups,  hessian_inner_uplo; 
+  HessianPack hessian, hessian_inner;
 
   explicit Config(const Rcpp::List& cfg);
 };
@@ -100,5 +105,44 @@ struct Data {
 
   explicit Data(const Rcpp::List& data);
 };
+
+
+
+
+struct GroupPack {
+  CppAD::ADFun<double>              fun;       // taped function for the group
+  CppAD::sparse_jac_work            work_grad;
+  CppAD::sparse_hes_work            work_hess;      // reusable work cache
+  CppAD::sparse_jac_work            work_inner_grad;
+  CppAD::sparse_hes_work            work_inner_hess;      // reusable work cache
+  CppAD::sparse_rcv<CPPAD_TESTVECTOR(size_t), CPPAD_TESTVECTOR(double)> pattern_grad;
+  CppAD::sparse_rcv<CPPAD_TESTVECTOR(size_t), CPPAD_TESTVECTOR(double)> pattern_grad_inner;
+  CppAD::sparse_rcv<CPPAD_TESTVECTOR(size_t), CPPAD_TESTVECTOR(double)> pattern_hessian;  // note these are upper triangle only
+  CppAD::sparse_rcv<CPPAD_TESTVECTOR(size_t), CPPAD_TESTVECTOR(double)> pattern_hessian_inner;
+
+  CPPAD_TESTVECTOR(double) w;
+  CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> unused_pattern;
+
+  CPPAD_TESTVECTOR(double) x;
+
+};
+
+
+// backend private context
+struct BackendContext {
+  std::vector<GroupPack> *adPack;
+//  std::array<std::array<int,3>,3> sizes; // beta, gamma, theta; begin end N
+
+  size_t Nparams;
+  size_t Ngroups;
+  size_t Nbeta;
+  size_t Ngamma;
+  size_t Ntheta;
+
+  HessianPack hessian_inner; // p, local index, global index, dims
+  HessianPack hessian_outer; // 
+
+};
+
 
 #endif

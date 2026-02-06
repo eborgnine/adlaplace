@@ -15,7 +15,9 @@
 #include <numeric>
 #include <vector>
 
-#include "adlaplace/utils.hpp"
+#include "adlaplace/utils.hpp" // data and config
+#include "adlaplace/groupPack.hpp"
+
 
 static const std::string JAC_COLOR  = "cppad";
 static const std::string HESS_COLOR = "cppad.symmetric";
@@ -303,15 +305,12 @@ inline std::vector<GroupPack> getAdFun(
 	return result;
 }
 
-Rcpp::List getAdFun_api(
-	const Data& data,
-	const Config& config) {
+// _h because this one lives in the hpp, there'll be another in the cpp that roxygen will see
+Rcpp::List extractSparsity(
+	const std::vector<GroupPack> &adPack) {
 
-	auto adPack = getAdFun(data, config);
-
-	size_t N = adPack.size();
+	const size_t N = adPack.size();
 	Rcpp::List sparsity(N);
-
 
 	for(size_t D=0;D<N;D++) {
 		sparsity[D] = Rcpp::List::create(
@@ -327,101 +326,7 @@ Rcpp::List getAdFun_api(
 			);
 	}
 
-// 1) Own the GroupPack vector with an XPtr
-	auto* ptr = new std::vector<GroupPack>(std::move(adPack));
-	Rcpp::XPtr<std::vector<GroupPack>> xptr(ptr, true);
-	xptr.attr("class") = "adpack_ptr";
-
-// 2) Build your backend context/handle 'h' and make the handle external pointer
-// IMPORTANT: protect the XPtr 'xptr' so the vector can't be GC'd while 'h' is alive
-	SEXP ext = R_MakeExternalPtr((void*)h, R_NilValue, xptr);
-	R_RegisterCFinalizerEx(ext, handle_finalizer, TRUE);
-
-// give the handle a class too
-	Rf_setAttrib(ext, R_ClassSymbol, Rf_mkString("adlaplace_handle_ptr"));
-
-// 3) Return both (so user code can inspect sparsity, and adlaplace can use the handle)
-	Rcpp::List result = Rcpp::List::create(
-  Rcpp::_["adPack"]    = xptr,              // optional to expose; useful for debugging
-  Rcpp::_["handle"]    = ext,               // THIS is what adlaplace should consume
-  Rcpp::_["sparsity"]  = sparsity
-  );
-
-	return(result);
-}
-
-static BackendContext* getBackendContext(
-	SEXP adPack,
-	const Rcpp::List &map,
-	) {
-
-  auto* ctx = new BackendContext;
-  ctx->map_inner.resize(3);
-  ctx->map_outer.resize(3);
-
-Rcpp::XPtr<std::vector<GroupPack>> xp(adPack_xptr_sexp);
-  ctx->adPack = xp.get();
-  if (!ctx->adPack) {
-    delete ctx;
-    Rcpp::stop("adPack_xptr is NULL");
-  }
-
-
-	Rcpp::List map_inner = map["inner"], map_outer= map["outer"];
-
-	Rcpp::IntegerVector map_inner_p = map_inner["p"];
-	Rcpp::IntegerVector map_inner_local = map_inner["local"];
-	Rcpp::IntegerVector map_inner_global = map_inner["global"];
-	Rcpp::IntegerVector map_outer_p = map_outer["p"];
-	Rcpp::IntegerVector map_outer_local = map_outer["local"];
-	Rcpp::IntegerVector map_outer_global = map_outer["global"];
-
-	ctx->map_inner[0] = std::vector<int>(map_inner_p.begin(), map_inner_p.end());
-	ctx->map_inner[1] = std::vector<int>(map_inner_local.begin(), map_inner_local.end());
-	ctx->map_inner[2] = std::vector<int>(map_inner_global.begin(), map_inner_global.end());
-
-	ctx->map_outer[0] = std::vector<int>(map_outer_p.begin(), map_outer_p.end());
-	ctx->map_outer[1] = std::vector<int>(map_outer_local.begin(), map_outer_local.end());
-	ctx->map_outer[2] = std::vector<int>(map_outer_global.begin(), map_outer_global.end());
-
-	return ctx;
-}
-
-
-SEXP make_backend_handle(SEXP adPack_xptr, Rcpp::List map) {
-  // build ctx
-  BackendContext* bctx = makeBackendContext(adPack_xptr, map);
-
-  // build handle
-  auto* h = new adlaplace_adpack_handle;
-  h->api = &AD_API;
-  h->ctx = static_cast<void*>(bctx);
-
-  // external pointer, PROTECT field keeps adPack_xptr alive
-  SEXP handle = R_MakeExternalPtr((void*)h, R_NilValue, adPack_xptr);
-  R_RegisterCFinalizerEx(handle, handle_finalizer, TRUE);
-  Rf_setAttrib(handle, R_ClassSymbol, Rf_mkString("adlaplace_handle_ptr"));
-
-  return handle;
-}
-
-CPPAD_TESTVECTOR(double) thirdDirection_api(
-	const CPPAD_TESTVECTOR(double)&  x,
-	const CPPAD_TESTVECTOR(double)&  direction,
-	const CPPAD_TESTVECTOR(double)&  direction2,  // all zeros
-	const CPPAD_TESTVECTOR(double)&  w, // {0.0, 0.0, 1.0}
-	const size_t i, 
-	SEXP adPack
-	) {
-
-	Rcpp::XPtr<std::vector<GroupPack>> xp(adPack);
-	GroupPack &gp = (*xp)[i];
-
-	gp.fun.Forward(0, x);
-	gp.fun.Forward(1, direction);
-	gp.fun.Forward(2, direction2);
-
-	return(gp.fun.Reverse(3, w));
+	return(sparsity);
 }
 
 #endif
