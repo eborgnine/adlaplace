@@ -1,4 +1,4 @@
-#include "adlaplace/defs.hpp"
+#include "adlaplace/adlaplace.hpp"
 
 // header for the lgamma function
 #include "adlaplace/math/lgamma.hpp"
@@ -118,7 +118,7 @@ CppAD::vector<CppAD::AD<double>> logDensExtra(
 }
 
 // ADfun and interfaces
-#include"adlaplace/objective_function.hpp"
+#include"adlaplace/creators/adfun.hpp"
 
 
 

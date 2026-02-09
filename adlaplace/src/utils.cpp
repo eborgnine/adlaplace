@@ -1,7 +1,7 @@
 #include <numeric>   // std::iota
 
 #include "Rcpp.h"
-#include "adlaplace/utils.hpp"
+#include "adlaplace/rviews.hpp"
 
 
 bool get_bool(const Rcpp::List& cfg, const char* key, bool def) {
@@ -204,14 +204,14 @@ std::array<HessianPack,2> hessianPackFromList(const Rcpp::List &x) {
     CscPattern hessianCSC(Rcpp::as<Rcpp::S4>(hessian["outer"]));
     hessian_outer.hessian_p = hessianCSC.p;
     hessian_outer.hessian_i = hessianCSC.i;
-    hessian_outer.hessian_dim = hessianCSC.dim;
+    hessian_outer.dim = hessianCSC.dim;
   }
 
   {
     CscPattern hessianCSC(Rcpp::as<Rcpp::S4>(hessian["inner"]));
     hessian_inner.hessian_p = hessianCSC.p;
     hessian_inner.hessian_i = hessianCSC.i;
-    hessian_inner.hessian_dim = hessianCSC.dim;
+    hessian_inner.dim = hessianCSC.dim;
   }
 
   if (!x.containsElementNamed("map")) {

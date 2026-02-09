@@ -1,18 +1,17 @@
+PKG_DIR := adlaplace
+VERSION := $(shell sed -n 's/^Version:[[:space:]]*//p' $(PKG_DIR)/DESCRIPTION | head -n 1)
+TARBALL := $(PKG_DIR)_$(VERSION).tar.gz
 
-# Make the default target run all packages
-.DEFAULT_GOAL := all
+.DEFAULT_GOAL := $(TARBALL)
 
-# discover package dirs (subdirectories containing DESCRIPTION)
-PKGS := $(patsubst %/DESCRIPTION,%,$(wildcard */DESCRIPTION))
+.PHONY: $(TARBALL)
 
-.PHONY: all $(PKGS)
-
-all: $(PKGS)
-
-$(PKGS):
-	@echo "==> Running compileAttributes for $@"
-	Rscript -e "Rcpp::compileAttributes('$@')"
-	@echo "==> Running roxygenize for $@"
-	Rscript -e "roxygen2::roxygenize('$@', load = 'source')"
-	@echo "==> making package $@"
-	R CMD build --no-build-vignettes $@
+$(TARBALL):
+	@echo "==> Running compileAttributes for $(PKG_DIR)"
+	Rscript -e "Rcpp::compileAttributes('$(PKG_DIR)')"
+	@echo "==> Running roxygenize for $(PKG_DIR)"
+	Rscript -e "roxygen2::roxygenize('$(PKG_DIR)', load = 'source')"
+	@echo "==> Building package $(PKG_DIR)"
+	R CMD build --no-build-vignettes $(PKG_DIR)
+	@test -f "$(TARBALL)" || { echo "Expected tarball $(TARBALL) not found"; exit 1; }
+	@echo "==> Built $(TARBALL)"

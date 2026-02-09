@@ -1,3 +1,5 @@
+#ifndef ADLAPLACE_BACKEND_HPP
+#define ADLAPLACE_BACKEND_HPP
 
 #include <cppad/cppad.hpp>
 
@@ -49,3 +51,4 @@ struct BackendContext {
 };
 
 
+#endif

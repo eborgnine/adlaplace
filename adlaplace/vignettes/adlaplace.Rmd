@@ -83,25 +83,29 @@ model is defined in the file `src/objectiveFunction.cpp`
 
 
 ```{r testDeriv}
-adFunList = adlaplace::getAdFun(data, modifyList(config, list(verbose=TRUE)))
-config$sparsity = adlaplace::hessian_map(config, sparsity_list = adFunList$sparsity)
-backendContext = getBackendContext(adFunList$adPack, config)
+adFun = adlaplace::getAdFun(data, modifyList(config, list(verbose=TRUE)))
 
-x = c(config$beta, config$gamma, config$theta)
-adlaplace::jointLogDens(x, backendContext)
+x = c(config$beta, rep(0.1, length(config$gamma)), config$theta)
+adlaplace::jointLogDens(x, adFun)
 
 
-config$sparsity = adlaplace::group_sparsity(config, sparsity_list = adFunList$sparsity)
-adPack = adFunList$adPack
+str(adlaplace::grad(x, adFun, FALSE))
+str(adlaplace::grad(x, adFun, TRUE))
 
 
-adlaplace::jointLogDens(x, config, adPack)
-str(adlaplace::grad(x, config, adPack, FALSE))
-str(adlaplace::grad(x, config, adPack, TRUE))
+Dgroup = ncol(config$groups)+1
+str(h1 <- adlaplace::hess(x, adFun, FALSE, Sgroups = Dgroup))
+adFun$sparsity[1+Dgroup]
+(Shere = 1+seq(
+	adFun$hessian$map$outer$p[Dgroup+1],
+	adFun$hessian$map$outer$p[Dgroup+2]-1))
+adFun$hessians$map$outer$local[Shere]
+adFun$hessians$map$outer$global[Shere]
+(hseq = which(h1@x != 0))
+h1@x[hseq]
 
 
-str(h1 <- adlaplace::hess(x, config, adPack, FALSE))
-str(h2 <- adlaplace::hess(x, config, adPack, TRUE))
+str(h2 <- adlaplace::hess(x, adFun, TRUE))
 
 config$num_threads = 2L
 bob = adlaplace::innerOptTest(adPack, config)
@@ -296,33 +300,56 @@ newTrace = apply(hes1, 2, function(xx) {
 
 ```{r derivJointDens, eval=FALSE}
 config$gamma = rep(1, length(config$gamma))
-config = config[setdiff(names(config), 'Sgroups')]
 x = c(config$beta, config$gamma, config$theta)
-adFunList = adlaplace::getAdFun(data, modifyList(config, list(verbose=TRUE)))
-config$sparsity = adlaplace::group_sparsity(config, sparsity_list = adFunList$sparsity)
-adFun = adFunList$adPack
-#config$Sgroups = as.integer(29)
-inner = FALSE
-config$verbose=TRUE
+adFun = adlaplace::getAdFun(data, modifyList(config, list(verbose=TRUE)))
 
-                                                                                              
-adFunList$sparsity[[30]] 
-str(config$sparsity$match$hessian)
-which(config$sparsity$match$hessian[,30] >0)
-#sparsityDf[sparsityDf[,'inner'] == 0 & sparsityDf[,'shard'] == 29,]
-#indexHessianSplit$outer[indexHessianSplit$outer$row == 2 & indexHessianSplit$outer$col == 2,]
+inner = FALSE
+type = c('outer','inner')[1+inner]
+
+
+Sgamma1 = seq.int(length(config$beta)+1, length.out = length(config$gamma))
 
 
 Npar=13;Dpar = 3
+if(inner) {
+	Dpar = match(Dpar, Sgamma1)
+}
+Dpar0=Dpar-1L
+
+bob = as(adFun$hessians$hessian[[type]], 'TsparseMatrix')
+(whichIndex = which(bob@i == Dpar0 & bob@j == Dpar0)-1L)
+(whichGlobal = which(adFun$hessians$map[[type]]$global==whichIndex)-1L)
+
+(whichP = mapply(
+	function(xx) min(which(adFun$hessian$map[[type]]$p >= xx)),
+ 	xx = whichGlobal) -1L)
+
+
+
+do.call(rbind, adFun$sparsity[[
+	whichP[1] 
+	]][c('row_hess','col_hess')])
+do.call(rbind, adFun$sparsity[[
+	whichP[1] 
+	]][c('row_hess_inner', 'col_hess_inner')])
+	
+
+(Sgroups = whichP-1L)
+Sgroups = seq.int(from=0, length.out = length(adFun$sparsity))
+
+#Sgroups = c()
+
+
 parDf = data.frame(x)[,rep(1, Npar)]
 Sx = seq(-0.1, 0.1, len=13) + parDf[Dpar,1]
 SxD = Sx[-1] - diff(Sx)/2
 parDf[Dpar,] = Sx
 
- dens1 = mapply(
+
+dens1 = mapply(
   adlaplace::jointLogDens,
-  parameters = as.list(parDf),
-  MoreArgs = list(adPack=adFun, config=config),
+  x = as.list(parDf),
+  MoreArgs = list(backendContext = adFun, Sgroups = Sgroups),
   SIMPLIFY=TRUE
   )
 
@@ -331,8 +358,8 @@ plot(Sx, dens1)
 
 grad1 = mapply(
   adlaplace::grad,
-  parameters = as.list(parDf),
-  MoreArgs = list(adPack = adFun, config=config, inner=inner),
+  x = as.list(parDf),
+  MoreArgs = list(backendContext = adFun, inner=inner, Sgroups = Sgroups),
   SIMPLIFY=TRUE
   )
 plot(Sx, grad1[Dpar,])
@@ -341,19 +368,22 @@ lines(SxD, diff(dens1)/diff(Sx))
 
 hes1 = mapply(
   adlaplace::hess,
-  parameters = as.list(parDf),
-  MoreArgs = list(adPack = adFun, config=config, inner=inner),
+  x = as.list(parDf),
+  MoreArgs = list(backendContext = adFun, inner=inner, Sgroups = Sgroups),
   SIMPLIFY=FALSE)
 
 hes2 = do.call(abind::abind, c(
 	lapply(hes1, as.matrix), along=3))
 
-gradD = apply(grad1, 1, diff)/mean(diff(Sx))
+gradD = apply(grad1, 1, diff) / mean(diff(Sx))
 
-Dpar2 = 1#Dpar
-plot(Sx, hes2[Dpar,Dpar2, ], ylab = paste(Dpar, Dpar2))
+Dpar2 = dim(hes2)[1]-2
+plot(Sx, hes2[Dpar,Dpar2, ], ylab = paste(Dpar, Dpar2),
+	ylim = range(hes2[Dpar, Dpar2,], na.rm=TRUE))
 lines(SxD, gradD[,Dpar2])
 ```
+
+
 
 
 

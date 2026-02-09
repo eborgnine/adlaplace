@@ -1,3 +1,4 @@
+#ifdef UNDEF
 #ifndef ADLAPLACE_AD_FUNC_OPT_HPP
 #define ADLAPLACE_AD_FUNC_OPT_HPP
 
@@ -269,5 +270,7 @@ void get_df(const Eigen::MatrixBase<DerivedX>& x,
 }
 };
 
+
+#endif
 
 #endif

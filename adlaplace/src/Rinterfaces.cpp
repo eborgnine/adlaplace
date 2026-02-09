@@ -5,52 +5,40 @@
 #include "adlaplace/creators/R_interfaces.hpp"
 
 
-
-
-
-
 //' C++ backend entry points
 //'
-//' Low-level C++ entry points exposed to R via Rcpp. These create and operate on
-//' an opaque AD “pack” (external pointer) used to evaluate the objective,
-//' sparse gradient values, and sparse Hessian values for a selected group.
+//' Low-level C++ entry points exposed to R via Rcpp.
+//' These create and operate on an opaque backend handle (external pointer)
+//' used to evaluate objective, gradient, and Hessian values.
 //'
-//' Indices passed in `pattern`, `row`, and `col` are **0-based** and must be
-//' sorted with no duplicates (for gradients) or paired consistently (for Hessians).
-//'
-//' @param data An R list containing model data objects required by the backend.
-//' @param config An R list of configuration options required by the backend.
-//' @param parameters Numeric vector of parameters.
-//' @param i Integer index selecting which group/tape to evaluate.
-//' @param adPack External pointer (`externalptr`) returned by \code{getAdFun()}.
-//' @param pattern Integer vector of 0-based column indices specifying which
-//'   gradient entries to compute (sorted, unique).
-//' @param row Integer vector of 0-based row indices for Hessian entries.
-//' @param col Integer vector of 0-based column indices for Hessian entries;
-//'   must have the same length as \code{row}.
+//' @param data An R list containing model data objects required by the backend
+//'   (used by \code{getAdFun()}).
+//' @param config An R list of configuration options required by the backend
+//'   (used by \code{getAdFun()}).
+//' @param x Numeric parameter vector of length \code{Nparams}.
+//' @param backendContext External pointer returned by \code{getAdFun()}.
+//' @param inner Logical scalar. If \code{TRUE}, evaluate inner-\eqn{\gamma}
+//'   derivatives; otherwise evaluate outer/full derivatives.
+//' @param Sgroups Optional integer vector of 0-based group indices to evaluate.
+//'   If omitted, uses all groups \code{0:(Ngroups-1)}.
 //'
 //' @return
 //' \itemize{
-//'   \item \code{getAdFun}: a list containing an opaque external pointer and
-//'     associated metadata.
-//'   \item \code{jointLogDens}: a scalar objective value for group \code{i}.
-//'   \item \code{grad}: numeric vector of length \code{length(pattern)} with
-//'     gradient values in the same order as \code{pattern}.
-//'   \item \code{hess}: numeric vector of length \code{length(row)} with Hessian
-//'     values in the same order as the \code{(row, col)} pairs.
+//'   \item \code{getAdFun}: external pointer handle with backend state.
+//'   \item \code{jointLogDens}: scalar objective value summed over groups.
+//'   \item \code{grad}: numeric gradient vector.
+//'   \item \code{hess}: sparse symmetric Hessian as a Matrix
+//'     \code{dsCMatrix} object.
 //' }
 //'
 //' @details
-//' The external pointer returned by \code{getAdFun} is opaque and not
-//' user-modifiable. It may hold substantial memory (AD tapes, sparsity patterns,
+//' The external pointer returned by \code{getAdFun()} is opaque and not
+//' user-modifiable. It may hold substantial memory (AD tapes, sparsity maps,
 //' work caches). Do not save it across R sessions.
 //'
 //' @name adlaplace_cpp
 
-// in external_create.hpp
-SEXP getAdFun_h(
-	const Data& data,
-	const Config& config);
+
 
 //' @rdname adlaplace_cpp
 //' @export
@@ -70,26 +58,40 @@ SEXP getAdFun(
 //' @rdname adlaplace_cpp
 //' @export
 // [[Rcpp::export]]
-double jointLogDens(const Rcpp::NumericVector& x, SEXP backendContext) {
+double jointLogDens(
+	const Rcpp::NumericVector& x,
+	SEXP backendContext,
+	SEXP Sgroups = R_NilValue) {
 
-  adlaplace_adpack_handle* h = get_handle(backendContext);
+	const double fg = jointLogDens_h(x, backendContext, Sgroups);
 
-  const size_t Ngroups = h->Ngroups;
-  const size_t Nparams = h->Nparams;
+	return fg;
+}
 
-  if (static_cast<size_t>(x.size()) != Nparams) {
-    Rcpp::stop("x has length %d but expected Nparams=%d", x.size(), (int)Nparams);
-  }
+//' @rdname adlaplace_cpp
+//' @export
+// [[Rcpp::export]]
+Rcpp::NumericVector grad(
+	const Rcpp::NumericVector& x,
+	SEXP backendContext,
+	const bool inner = false,
+	SEXP Sgroups = R_NilValue) {
 
-  // Evaluate each group's contribution
-  for (size_t g = 0; g < Ngroups; ++g) {
-    double fg = 0.0;
-    int gi = static_cast<int>(g);
-    int rc = h->api->f(h->ctx, &gi, x.begin(), &fg);
-    if (rc != 0) {
-      Rcpp::stop("backend api->f failed for group %d with code %d", gi, rc);
-    }
-  }
+	const Rcpp::NumericVector out = grad_h(x, backendContext, inner, Sgroups);
 
-  return fg;
+	return out;
+}
+
+//' @rdname adlaplace_cpp
+//' @export
+// [[Rcpp::export]]
+Rcpp::S4 hess(
+	const Rcpp::NumericVector& x,
+	SEXP backendContext,
+	const bool inner = false,
+	SEXP Sgroups = R_NilValue) {
+
+	const Rcpp::S4 out = hess_h(x, backendContext, inner, Sgroups);
+
+	return out;
 }

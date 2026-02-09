@@ -1,3 +1,4 @@
+#ifdef UNDEF
 
 //' Inner optimization over gamma using trust-region CG (sparse)
 //'
@@ -46,9 +47,9 @@
 // from trustOptim
 #include <CG-sparse.h> 
 
-#include "adlaplace/utils.hpp"
+#include "adlaplace/rviews.hpp"
 #include "adlaplace/foromp.hpp"
-#include "adlaplace/constants.hpp"
+#include "adlaplace/math/constants.hpp"
 #include "trustOptimWrappers.hpp"
 #include "trustOptimControl.hpp"
 
@@ -85,9 +86,6 @@ Rcpp::List eigen_to_list(
 
 
 
-//' @rdname innerOpt
-//' @export
-// [[Rcpp::export]]
 Rcpp::List innerOptTest(
 	SEXP adPack,
 	const Rcpp::List& config
@@ -124,9 +122,7 @@ Rcpp::List innerOptTest(
 	return res;
 }
 
-//' @rdname innerOpt
-//' @export
-// [[Rcpp::export]]
+
 Rcpp::List innerOpt(
 	SEXP adPack,
 	const Rcpp::List& config,
@@ -261,4 +257,4 @@ Rcpp::List innerOpt(
 	return(res);
 
 }
-
+#endif

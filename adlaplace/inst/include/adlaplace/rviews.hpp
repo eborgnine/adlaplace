@@ -8,6 +8,8 @@
 #include <vector>
 #include <cstddef>
 
+#include "adlaplace/backend.hpp"
+
 
 // Lightweight view into Matrix::*gCMatrix slots (points to R memory)
 struct DgCView {

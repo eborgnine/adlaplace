@@ -3,38 +3,33 @@
 
 #' C++ backend entry points
 #'
-#' Low-level C++ entry points exposed to R via Rcpp. These create and operate on
-#' an opaque AD “pack” (external pointer) used to evaluate the objective,
-#' sparse gradient values, and sparse Hessian values for a selected group.
+#' Low-level C++ entry points exposed to R via Rcpp.
+#' These create and operate on an opaque backend handle (external pointer)
+#' used to evaluate objective, gradient, and Hessian values.
 #'
-#' Indices passed in `pattern`, `row`, and `col` are **0-based** and must be
-#' sorted with no duplicates (for gradients) or paired consistently (for Hessians).
-#'
-#' @param data An R list containing model data objects required by the backend.
-#' @param config An R list of configuration options required by the backend.
-#' @param parameters Numeric vector of parameters.
-#' @param i Integer index selecting which group/tape to evaluate.
-#' @param adPack External pointer (`externalptr`) returned by \code{getAdFun()}.
-#' @param pattern Integer vector of 0-based column indices specifying which
-#'   gradient entries to compute (sorted, unique).
-#' @param row Integer vector of 0-based row indices for Hessian entries.
-#' @param col Integer vector of 0-based column indices for Hessian entries;
-#'   must have the same length as \code{row}.
+#' @param data An R list containing model data objects required by the backend
+#'   (used by \code{getAdFun()}).
+#' @param config An R list of configuration options required by the backend
+#'   (used by \code{getAdFun()}).
+#' @param x Numeric parameter vector of length \code{Nparams}.
+#' @param backendContext External pointer returned by \code{getAdFun()}.
+#' @param inner Logical scalar. If \code{TRUE}, evaluate inner-\eqn{\gamma}
+#'   derivatives; otherwise evaluate outer/full derivatives.
+#' @param Sgroups Optional integer vector of 0-based group indices to evaluate.
+#'   If omitted, uses all groups \code{0:(Ngroups-1)}.
 #'
 #' @return
 #' \itemize{
-#'   \item \code{getAdFun}: a list containing an opaque external pointer and
-#'     associated metadata.
-#'   \item \code{jointLogDens}: a scalar objective value for group \code{i}.
-#'   \item \code{grad}: numeric vector of length \code{length(pattern)} with
-#'     gradient values in the same order as \code{pattern}.
-#'   \item \code{hess}: numeric vector of length \code{length(row)} with Hessian
-#'     values in the same order as the \code{(row, col)} pairs.
+#'   \item \code{getAdFun}: external pointer handle with backend state.
+#'   \item \code{jointLogDens}: scalar objective value summed over groups.
+#'   \item \code{grad}: numeric gradient vector.
+#'   \item \code{hess}: sparse symmetric Hessian as a Matrix
+#'     \code{dsCMatrix} object.
 #' }
 #'
 #' @details
-#' The external pointer returned by \code{getAdFun} is opaque and not
-#' user-modifiable. It may hold substantial memory (AD tapes, sparsity patterns,
+#' The external pointer returned by \code{getAdFun()} is opaque and not
+#' user-modifiable. It may hold substantial memory (AD tapes, sparsity maps,
 #' work caches). Do not save it across R sessions.
 #'
 #' @name adlaplace_cpp
@@ -48,72 +43,19 @@ getAdFun <- function(data, config) {
 
 #' @rdname adlaplace_cpp
 #' @export
-jointLogDens <- function(parameters, config, adPack) {
-    .Call(`_adlaplace_jointLogDens`, parameters, config, adPack)
+jointLogDens <- function(x, backendContext, Sgroups = NULL) {
+    .Call(`_adlaplace_jointLogDens`, x, backendContext, Sgroups)
 }
 
 #' @rdname adlaplace_cpp
 #' @export
-grad <- function(parameters, config, adPack, inner) {
-    .Call(`_adlaplace_grad`, parameters, config, adPack, inner)
+grad <- function(x, backendContext, inner = FALSE, Sgroups = NULL) {
+    .Call(`_adlaplace_grad`, x, backendContext, inner, Sgroups)
 }
 
 #' @rdname adlaplace_cpp
 #' @export
-hess <- function(parameters, config, adPack, inner) {
-    .Call(`_adlaplace_hess`, parameters, config, adPack, inner)
-}
-
-#' Inner optimization over gamma using trust-region CG (sparse)
-#'
-#' Runs the inner optimization problem (typically over \eqn{\gamma}) using the
-#' trustOptim sparse trust-region Conjugate Gradient solver. This function
-#' evaluates the objective, gradient, and Hessian through the pre-built AD pack
-#' (external pointer) and returns the solution along with curvature information.
-#'
-#' @param start Numeric vector of starting values for the inner parameters
-#'   (length \code{Ngamma}).
-#' @param adPack External pointer created by \code{getAdFun()} (class
-#'   \code{"adpack_ptr"}). It contains per-group AD tapes and workspaces.
-#' @param config List of configuratio.  Must include  \code{gamma} (starting values), fixed values of \code{beta} and
-#'   \code{theta}, and sparsity/match info under \code{config$sparsity}.
-#' @param control List of trust-region control parameters (see
-#'   \code{trustOptim}).
-#'
-#' @return A list with components:
-#' \itemize{
-#'   \item \code{minusLogLik}: scalar \eqn{-\ell(\hat\gamma)} plus the Laplace
-#'         correction \eqn{\tfrac{1}{2}\log|H| + \tfrac{n}{2}\log(2\pi)}.
-#'   \item \code{fval}: scalar objective at the solution (typically \eqn{-\ell}).
-#'   \item \code{halfLogDet}: \eqn{\tfrac{1}{2}\log|H|} from sparse LDLT.
-#'   \item \code{solution}: optimized parameter vector (length \code{Ngamma}).
-#'   \item \code{gradient}: gradient at solution (length \code{Ngamma}).
-#'   \item \code{hessian}: Hessian as a dgCMatrix-like list with slots
-#'         \code{i,p,x,Dim} (0-based indices).
-#'   \item \code{cholHessian}: sparse LDLT factors as a list with
-#'         \code{P} (permutation indices), \code{D} (diagonal), and
-#'         \code{L} (lower-triangular factor in dgCMatrix-like form).
-#'   \item \code{iterations}: number of trust-region iterations.
-#'   \item \code{status}: solver status string.
-#'   \item \code{trust.radius}: final trust-region radius.
-#'   \item \code{method}: character, here \code{"Sparse"}.
-#' }
-#'
-#' @details
-#' This calls the sparse method from the \code{TrustOptim} package via the Cpp interface.  
-#'
-#' @name innerOpt
-NULL
-
-#' @rdname innerOpt
-#' @export
-innerOptTest <- function(adPack, config) {
-    .Call(`_adlaplace_innerOptTest`, adPack, config)
-}
-
-#' @rdname innerOpt
-#' @export
-innerOpt <- function(adPack, config, control) {
-    .Call(`_adlaplace_innerOpt`, adPack, config, control)
+hess <- function(x, backendContext, inner = FALSE, Sgroups = NULL) {
+    .Call(`_adlaplace_hess`, x, backendContext, inner, Sgroups)
 }
 

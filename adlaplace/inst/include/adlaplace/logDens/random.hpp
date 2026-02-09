@@ -1,8 +1,8 @@
 #ifndef LOGDENSRANDOM_HPP
 #define LOGDENSRANDOM_HPP
 
-#include "adlaplace/constants.hpp"
-#include "adlaplace/utils.hpp"
+#include "adlaplace/math/constants.hpp"
+#include "adlaplace/adlaplace.hpp"
 
 /*
 	the standard log density for random effects

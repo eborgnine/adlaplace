@@ -23,7 +23,7 @@ hessianMap = function(sparsity_list, config) {
 
 	Ngroups = length(sparsity_list)
 	Nparams = Nbeta + Ngamma + Ntheta
-	Sgamma0 = seq.int(Nbeta length.out=Ngamma)
+	Sgamma0 = seq.int(Nbeta, length.out=Ngamma)
 	Sgamma1 = Sgamma0+1L
 
 	sparsity_list2 = list()
@@ -57,18 +57,29 @@ hessianMap = function(sparsity_list, config) {
 		x = rep(-1, nrow(outerMat)),
 		symmetric=TRUE, index1=0, dims = rep(Nparams,2))
 	hessian@x = seq(0, length.out = length(hessian@x))
-	hessian_inner = hessian[Sgamma1, Sgamma1]
 
 	hessianT = as(hessian, "TsparseMatrix")
-	indexMat = data.frame(index=as.integer(hessianT@x), row=hessianT@i, col=hessianT@j)
-	indexMat$index_inner = match(indexMat$index, as.integer(hessian_inner@x)) -1L
+	indexMat_outer = data.frame(index=as.integer(hessianT@x), 
+		row=hessianT@i, col=hessianT@j,
+		inner = 0)
+
+
+	hessian_inner = hessian[Sgamma1, Sgamma1]
+	indexMat_inner = indexMat_outer[
+		indexMat_outer$row %in% Sgamma0 & indexMat_outer$col %in% Sgamma0, ]
+	indexMat_inner[,'inner'] = 1
+
+	indexMat = rbind(indexMat_outer, indexMat_inner)
 
 	indexDf = merge(indexMat, sparsityDf, all=TRUE)
 	if(any(is.na(unlist(indexDf[c('index','shard')])))) {
 		warning("problem merging hessian indices")
 	}
-	whichInner = which(indexDf$inner == 1)
-	indexDf[whichInner, 'index'] = 	indexDf[whichInner, 'index_inner']
+
+
+#	indexMat$index_inner = match(indexMat$index, as.integer(hessian_inner@x)) -1L
+#	whichInner = which(indexDf$inner == 1)
+#	indexDf[whichInner, 'index'] = 	indexDf[whichInner, 'index_inner']
 
 	indexDf$shardFac = factor(indexDf$shard, seq.int(0L, length.out=Ngroups))
 	indexDf$innerFac = factor(indexDf$inner, levels = c(0L, 1L), labels = c('outer','inner'))
@@ -81,25 +92,32 @@ hessianMap = function(sparsity_list, config) {
 			theTable = as.integer(table(xx$shardFac))
 			Matrix::sparseMatrix(
 				p = c(0L, cumsum(theTable)), 
-				i = xx$index, 
+				i = xx$index,
 				x = xx$local,
 				index1=FALSE,
 				dims = c(length(hessian@x), Ngroups))
 		}
 	)
-#	names(hessianSparsity) = gsub("^outer$", "hessian_outer",names(hessianSparsity))
-#	names(hessianSparsity) = gsub("^inner$", "hessian_inner",names(hessianSparsity))
-	# D=2;bob = Matrix::sparseMatrix(i = hessianSparsity[[D]]$local, p=hessianSparsity[[D]]$p, x = as.numeric(hessianSparsity[[D]]$index), index1=0)
 
-	result_map = lapply(hessian_sparsity, function(xx) {
-		list(
-			p = as.integer(xx@p),
-			local = as.integer(xx@i),
-			global = as.integer(xx@x),
-			dims = dim(xx)
+
+	result_map = list(
+		outer = list(
+			p = as.integer(hessianSparsity$outer@p),
+			local = as.integer(hessianSparsity$outer@x),
+			global = as.integer(hessianSparsity$outer@i),
+			dims = dim(hessianSparsity$outer)
+		),
+
+		inner = list(
+			p = as.integer(hessianSparsity$inner@p),
+			local = as.integer(hessianSparsity$inner@x),
+			global = match(hessianSparsity$inner@i, hessian_inner@x),
+			dims = c(length(hessian_inner@x), ncol(hessianSparsity$inner))
 		)
-	})
+	)
 
+
+	result_map
 	list(
 		hessian = list(outer = hessian, inner = hessian_inner),
 		map = result_map
