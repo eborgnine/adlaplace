@@ -1,109 +1,72 @@
+#include <Rcpp.h>
+#include <cppad/cppad.hpp>
 
-#include "adlaplace/Rinterfaces.hpp"
+#include <Rinternals.h>
+#include "adlaplace/creators/R_interfaces.hpp"
 
-//' Low-level C++ entry points (Rcpp exports)
+//' C++ backend entry points for adlaplaceExample
 //'
-//' @param data An R list containing model data and matrices required by the AD
-//'   construction. Required fields depend on the model (see vignette).
-//' @param config An R list of configuration options (e.g., parameter vectors,
-//'   sparsity options, threading options).
-//' @param inner Logical; if TRUE, build the inner AD function; otherwise build
-//'   the outer AD function.
+//' Build and evaluate skew-normal model AD handles compatible with
+//' \pkg{adlaplace} runtime routines.
 //'
-//' @param parameters Numeric vector of parameters for the requested operation
-//'   (e.g., inner optimization or trace calculation). Interpretation depends on
-//'   the backend/model.
-//' @param control Control list for the optimizer (e.g., trust region settings,
-//'   tolerances, max iterations). Used by `inner_opt()`.
-//' @param adPackFull,adPack Optional external pointer (`externalptr`) returned by
-//'   `getAdFun()`. If provided, reuse cached AD objects / sparsity structures.
+//' @param data Model data list.
+//' @param config Model configuration list.
+//' @param x Full parameter vector.
+//' @param backendContext External pointer or list containing \code{adFun}.
+//' @param inner Logical; if \code{TRUE}, evaluate inner-parameter derivatives.
+//' @param Sgroups Optional 0-based integer group indices. Defaults to all groups.
 //'
-//' @param LinvPt,LinvPtColumns Sparse matrix objects (S4, typically from Matrix)
-//'   used by `traceHinvT()`; see package documentation/vignette for required
-//'   classes and dimensions.
+//' @return
+//' \itemize{
+//'   \item \code{getAdFun}: list with \code{adFun}, \code{sparsity}, and \code{hessians}.
+//'   \item \code{jointLogDens}: scalar objective value.
+//'   \item \code{grad}: numeric gradient vector.
+//'   \item \code{hess}: sparse symmetric Hessian as \code{dsCMatrix}.
+//' }
 //'
-//' @return `getAdFun()` returns an external pointer (`externalptr`) to an
-//'   internal AD object. 
-//'
-//'
-//' @details
-//' The returned pointer is not human-readable and should not be modified.
-//' It may hold substantial memory (tapes, sparsity patterns, caches). Use
-//' package-level functions to manage lifecycle and computation.
-//'
+//' @name adlaplace_cpp
+
 //' @rdname adlaplace_cpp
 //' @export
 // [[Rcpp::export]]
-SEXP getAdFun(
-	Rcpp::List data, 
-	Rcpp::List config,
-	const bool inner=false)
+Rcpp::List getAdFun(
+  Rcpp::List data,
+  Rcpp::List config)
 {
-	auto xp = getAdFun_backend(data, config, inner);
-	return xp;
+  return getAdFun_h(data, config);
 }
-
-
 
 //' @rdname adlaplace_cpp
 //' @export
 // [[Rcpp::export]]
-Rcpp::List inner_opt(
-	Rcpp::NumericVector parameters, 
-	Rcpp::List data,
-	Rcpp::List control, 
-	Rcpp::List config,
-	SEXP adPackFull = R_NilValue)
+double jointLogDens(
+  const Rcpp::NumericVector& x,
+  SEXP backendContext,
+  SEXP Sgroups = R_NilValue)
 {
-	auto res = inner_opt_backend(parameters, data, control, config, adPackFull);
-	return(res);
+  return jointLogDens_h(x, backendContext, Sgroups);
 }
 
 //' @rdname adlaplace_cpp
 //' @export
 // [[Rcpp::export]]
-Rcpp::List inner_opt_adpack(
-	Rcpp::NumericVector parameters, 
-	SEXP adPack,
-	const Rcpp::List control, 
-	const Rcpp::List config,
-	SEXP adPackFull = R_NilValue)
+Rcpp::NumericVector grad(
+  const Rcpp::NumericVector& x,
+  SEXP backendContext,
+  const bool inner = false,
+  SEXP Sgroups = R_NilValue)
 {
-
-
-	auto res = inner_opt_adpack_backend(parameters, adPack, control, config, adPackFull);
-	return(res);
-}
-
-
-
-//' @rdname adlaplace_cpp
-//' @export
-// [[Rcpp::export]]
-Rcpp::NumericVector traceHinvT(
-	const Rcpp::NumericVector parameters,
-	const Rcpp::S4& LinvPt,
-	const Rcpp::S4& LinvPtColumns,
-	const Rcpp::List config,
-	SEXP adPack = R_NilValue
-	) {
-
-	auto result = traceHinvT_backend(parameters, 
-		LinvPt, LinvPtColumns, config, adPack);
-	return(result);
+  return grad_h(x, backendContext, inner, Sgroups);
 }
 
 //' @rdname adlaplace_cpp
 //' @export
 // [[Rcpp::export]]
-Rcpp::List sparsity(
-   Rcpp::List data,
-   Rcpp::List config
-	) {
-	
-	auto result=sparsity_backend(data, config);
-
-	return(result);
+Rcpp::S4 hess(
+  const Rcpp::NumericVector& x,
+  SEXP backendContext,
+  const bool inner = false,
+  SEXP Sgroups = R_NilValue)
+{
+  return hess_h(x, backendContext, inner, Sgroups);
 }
-
-
