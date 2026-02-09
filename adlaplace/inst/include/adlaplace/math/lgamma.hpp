@@ -6,6 +6,9 @@
 #include <cppad/cppad.hpp>
 #include <Rcpp.h>
 
+const double ONESIXTH = 1.0 / 6.0;
+const double ONEOVERTWENTYFOUR = 1.0 / 24.0;
+
 
 class atomic_lgamma_ad : public CppAD::atomic_four<double> {
 public:
@@ -102,7 +105,7 @@ bool jac_sparsity(
     const double x1 = tx[1];
     const double x2 = tx[2];
     const double x3 = tx[3];
-    ty[3] = f1 * x3 + f2 * (x1 * x2) + (1.0/6.0) * f3 * (x1 * x1 * x1); // <-- 1, 1/6
+    ty[3] = f1 * x3 + f2 * (x1 * x2) + ONESIXTH * f3 * (x1 * x1 * x1); // <-- 1, 1/6
   }
   if (order_up >= 4) {
     const double x1 = tx[1];
@@ -112,7 +115,7 @@ bool jac_sparsity(
     ty[4] = f1 * x4
           + f2 * ( x1 * x3 + 0.5 * (x2 * x2) )               // <-- + 1/2 x2^2
           + f3 * ( 0.5 * (x1 * x1 * x2) )                    // <-- 1/2
-          + (1.0/24.0) * f4 * (x1 * x1 * x1 * x1);           // <-- 1/24
+          + ONEOVERTWENTYFOUR * f4 * (x1 * x1 * x1 * x1);           // <-- 1/24
         }
         return true;
       }
@@ -167,7 +170,7 @@ if (order_up >= 1) {
     const double x1 = tx[1];
     const double x2 = tx[2];
     const double x3 = tx[3];
-    px[0] += py[3] * (f2 * x3 + f3 * x1 * x2 + (1.0/6.0) * f4 * x1 * x1 * x1);
+    px[0] += py[3] * (f2 * x3 + f3 * x1 * x2 + ONESIXTH * f4 * x1 * x1 * x1);
     px[1] += py[3] * (f2 * x2 + 0.5 * f3 * x1 * x1);
     px[2] += py[3] * (f2 * x1);
     px[3] += py[3] * f1;

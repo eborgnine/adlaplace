@@ -1,4 +1,3 @@
-#ifdef UNDEF
 
 #ifndef TRUSTOPTIMCONTROL_HPP
 #define TRUSTOPTIMCONTROL_HPP
@@ -69,7 +68,5 @@ struct TrustControl {
   , trust_iter(           get_int_ctrl   (control, "trust.iter",             50))
   {}
 };
-
-#endif
 
 #endif

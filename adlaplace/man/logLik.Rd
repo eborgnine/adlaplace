@@ -6,12 +6,11 @@
 \usage{
 logLik(
   x,
-  data,
   config,
-  start_gamma = config$start_gamma,
+  start_gamma,
   control = list(report.level = 4, report.freq = 1),
   adPack,
-  deriv = TRUE,
+  data,
   package = c(config$package, "adlaplace")[1]
 )
 }
@@ -20,23 +19,22 @@ logLik(
 interpreted as \code{beta}; the remainder are interpreted as \code{theta}
 (with \code{Nbeta = nrow(data$XTp)}).}
 
-\item{data}{A list containing model matrices and metadata used by the backend.
-At minimum this function assumes components \code{XTp}, \code{ATp}, and
-\code{map} exist.}
-
 \item{config}{A list of configuration options passed to the backend. This
 function uses \code{config$package} and \code{config$verbose} if present.}
 
 \item{start_gamma}{Optional numeric vector of starting values for the inner
-parameter \code{gamma}. Defaults to \code{config$start_gamma}.}
+parameter \code{gamma}. Defaults to \code{config$gamma}.}
 
 \item{control}{List of control parameters passed to the backend inner optimizer.
 (e.g. \code{report.level}, \code{report.freq}).}
 
 \item{adPack}{Optional AD object returned by the backend \code{getAdFun()}.
-If missing and \code{deriv=TRUE}, it will be constructed automatically.}
+This is a single backend handle (no separate inner/outer handles). If
+missing, it will be constructed automatically.}
 
-\item{deriv}{Logical; if \code{TRUE}, compute derivatives.}
+\item{data}{A list containing model matrices and metadata used by the backend.
+At minimum this function assumes components \code{XTp}, \code{ATp}, and
+\code{map} exist.}
 
 \item{package}{Character scalar naming the backend package to use for
 \code{getAdFun()} and \code{inner_opt()}. Defaults to the first element of
@@ -51,26 +49,22 @@ A list with components including:
   \item{parameters}{The input outer parameter vector \code{x}.}
   \item{full_parameters}{Concatenation of \code{beta}, optimized \code{gamma},
     and \code{theta} (names are set when possible).}
-  \item{deriv}{(Only if \code{deriv=TRUE}) derivative output.}
-  \item{dLogLik}{(Only if \code{deriv=TRUE}) shortcut to \code{result$deriv$deriv$dL}.}
 }
 }
 \description{
 Evaluates the (profiled) log-likelihood for a hierarchical model by solving an
 inner optimization problem for the latent vector \code{gamma} (e.g. random
 effects) given outer parameters \code{x} (typically \code{beta} and \code{theta}).
-Optionally computes derivatives via automatic differentiation using an AD
-“tape” object (\code{adPack}).
+The function delegates the inner optimization to \code{inner_opt()} from the
+selected backend package (by default \pkg{adlaplace}).
 }
 \details{
-The function delegates the inner optimization to \code{inner_opt()} from the
-selected backend package (by default \pkg{adlaplace}), and (when \code{deriv=TRUE})
-computes derivatives.
-
-
 The parameter vector \code{x} is split into \code{beta} and \code{theta} and
 inserted into \code{config} (as \code{config_inner$beta} and
 \code{config_inner$theta}) before calling the backend inner optimizer.
+
+Current backends use a single AD handle. This function passes that handle to
+\code{inner_opt(..., adPack = adPack)}.
 
 The returned list contains both “inner” outputs (from the inner optimization)
 and “outer” outputs (quantities associated with the outer objective), as well
@@ -79,9 +73,8 @@ as convenience fields such as \code{full_parameters}.
 \examples{
 \dontrun{
 # x <- c(beta, theta)
-# out <- logLik(x, data, config, deriv = TRUE)
+# out <- logLik(x, data, config)
 # out$minusLogLik
-# out$dLogLik
 }
 
 }

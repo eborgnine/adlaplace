@@ -1,4 +1,3 @@
-#ifdef UNDEF
 
 //' Inner optimization over gamma using trust-region CG (sparse)
 //'
@@ -7,14 +6,18 @@
 //' evaluates the objective, gradient, and Hessian through the pre-built AD pack
 //' (external pointer) and returns the solution along with curvature information.
 //'
-//' @param start Numeric vector of starting values for the inner parameters
-//'   (length \code{Ngamma}).
+//' @param parameters Numeric vector of starting values for the inner parameters
+//'   (\code{gamma}; length \code{Ngamma}).
+//' @param data Data list used to construct the AD backend when \code{adPack}
+//'   is not supplied.
 //' @param adPack External pointer created by \code{getAdFun()} (class
-//'   \code{"adpack_ptr"}). It contains per-group AD tapes and workspaces.
-//' @param config List of configuratio.  Must include  \code{gamma} (starting values), fixed values of \code{beta} and
-//'   \code{theta}, and sparsity/match info under \code{config$sparsity}.
+//'   \code{"adlaplace_handle_ptr"}), or a list containing element \code{adFun}.
+//' @param config Configuration list. Must include \code{gamma}, fixed
+//'   \code{beta}/\code{theta}, and group/sparsity settings.
 //' @param control List of trust-region control parameters (see
 //'   \code{trustOptim}).
+//' @param adPack Optional backend handle/list from \code{getAdFun()}.
+//'   If provided, it is reused by \code{inner_opt()}.
 //'
 //' @return A list with components:
 //' \itemize{
@@ -50,8 +53,15 @@
 #include "adlaplace/rviews.hpp"
 #include "adlaplace/foromp.hpp"
 #include "adlaplace/math/constants.hpp"
+#include "adlaplace/creators/R_interfaces.hpp"
 #include "trustOptimWrappers.hpp"
-#include "trustOptimControl.hpp"
+
+auto get_double_ctrl = [](const Rcpp::List& ctl, const char* key, double def) {
+	return ctl.containsElementNamed(key) ? Rcpp::as<double>(ctl[key]) : def;
+};
+auto get_int_ctrl = [](const Rcpp::List& ctl, const char* key, int def) {
+	return ctl.containsElementNamed(key) ? Rcpp::as<int>(ctl[key]) : def;
+};
 
 Rcpp::List eigen_to_list(
 	const Eigen::SparseMatrix<double> &M) {
@@ -85,8 +95,10 @@ Rcpp::List eigen_to_list(
 }
 
 
-
-Rcpp::List innerOptTest(
+//' @rdname innerOpt
+//' @export
+// [[Rcpp::export]]
+Rcpp::List inner_opt_test(
 	SEXP adPack,
 	const Rcpp::List& config
 	)
@@ -100,7 +112,7 @@ Rcpp::List innerOptTest(
 		parameters[D] = configC.gamma[D];
 	}
 
-	AD_Func_Opt funObj(adPack, configC);
+	AD_Func_Opt funObj(adPack, configC.params);
 
 	double fval = NA_REAL;
 	Eigen::VectorXd grad(Nparams);
@@ -112,7 +124,7 @@ Rcpp::List innerOptTest(
 	}
 
 
-  // mirror innerOpt list structure as closely as possible
+  // mirror inner_opt list structure as closely as possible
 	Rcpp::List res = Rcpp::List::create(
 		Rcpp::Named("fval")          = Rcpp::wrap(fval),
 		Rcpp::Named("gradient")      = Rcpp::wrap(grad),
@@ -122,54 +134,102 @@ Rcpp::List innerOptTest(
 	return res;
 }
 
-
-Rcpp::List innerOpt(
-	SEXP adPack,
+//' @rdname innerOpt
+//' @export
+// [[Rcpp::export]]
+Rcpp::List inner_opt(
+	const Rcpp::NumericVector parameters, // beta and theta, fixed
+	const Rcpp::NumericVector gamma, // starting values
 	const Rcpp::List& config,
-	const Rcpp::List& control
-	)
-{
-
-	const TrustControl ctrl(control); 
+	const Rcpp::List& control,
+	SEXP adPack = R_NilValue
+	) {
 	const Config configC(config);
+	if (adPack == R_NilValue) {
+		Rcpp::stop("inner_opt requires a non-NULL adPack");
+	}
+
+	const double rad = get_double_ctrl(control, "step.size", 1.0);
+	const double min_rad = get_double_ctrl(control, "min.step.size", 1e-8);
+	const double tol = get_double_ctrl(control, "cg.tol", 1e-4);
+	const double prec = get_double_ctrl(control, "grad.tol", 1e-6);
+	const int report_freq = get_int_ctrl(control, "report.freq", 0);
+	const int report_level = get_int_ctrl(control, "report.level", 0);
+	const int header_freq = get_int_ctrl(control, "header.freq", 10);
+	const int report_precision = get_int_ctrl(control, "report.precision", 6);
+	const int maxit = get_int_ctrl(control, "maxit", 100);
+	const double contract_factor = get_double_ctrl(control, "contract.factor", 0.5);
+	const double expand_factor = get_double_ctrl(control, "expand.factor", 2.0);
+	const double contract_threshold = get_double_ctrl(control, "contract.threshold", 0.25);
+	const double expand_threshold_rad = get_double_ctrl(control, "expand.threshold.rad", 0.8);
+	const double expand_threshold_ap = get_double_ctrl(control, "expand.threshold.ap", 0.75);
+	const double function_scale_factor = get_double_ctrl(control, "function.scale.factor", 1.0);
+	const int precond_refresh_freq = get_int_ctrl(control, "precond.refresh", 5);
+	const int precond_ID = get_int_ctrl(control, "precond.ID", 0);
+	const int trust_iter = get_int_ctrl(control, "trust.iter", 50);
+
 
 	using Tvec   = Eigen::VectorXd;
 	using THess   = Eigen::SparseMatrix<double>; 
 	using TPreLLt = Eigen::SimplicialLLT<THess>;
 
-	const size_t Nparams = configC.Ngamma;
-
-
-	Tvec parameters(Nparams); 
-	for(size_t D=0;D<Nparams;D++) {
-		parameters[D] = configC.gamma[D];
+	if (parameters.size() != static_cast<R_xlen_t>(configC.Nbeta + configC.Ntheta)) {
+		Rcpp::stop(
+			"parameters has length %d but expected Nbeta+Ntheta=%d",
+			static_cast<int>(parameters.size()),
+			static_cast<int>(configC.Nbeta + configC.Ntheta)
+			);
+	}
+	if (gamma.size() != static_cast<R_xlen_t>(configC.Ngamma)) {
+		Rcpp::stop(
+			"gamma has length %d but expected Ngamma=%d",
+			static_cast<int>(gamma.size()),
+			static_cast<int>(configC.Ngamma)
+			);
 	}
 
-	AD_Func_Opt funObj(adPack, configC);
+	Tvec gamma_start(configC.Ngamma);
+	for (size_t d = 0; d < configC.Ngamma; ++d) {
+		gamma_start[d] = gamma[d];
+	}
+
+	std::vector<double> params_init(configC.Nparams);
+	// copy in beta and theta from parameters, and gamma from the gamma argument
+	for (size_t d = 0; d < configC.Nbeta; ++d) {
+		params_init[configC.beta_begin + d] = parameters[d];
+	}
+	for (size_t d = 0; d < configC.Ngamma; ++d) {
+		params_init[configC.gamma_begin + d] = gamma[d];
+	}
+	for (size_t d = 0; d < configC.Ntheta; ++d) {
+		params_init[configC.theta_begin + d] = parameters[configC.Nbeta + d];
+	}
+
+	AD_Func_Opt funObj(adPack, params_init);
 
 
 	Trust_CG_Sparse<Tvec, AD_Func_Opt, THess, TPreLLt> opt(
 		funObj, 
-		parameters,
-		ctrl.rad,
-		ctrl.min_rad,
-		ctrl.tol,
-		ctrl.prec,
-		ctrl.report_freq,
-		ctrl.report_level,
-		ctrl.header_freq,
-		ctrl.report_precision,
-		ctrl.maxit,
-		ctrl.contract_factor,
-		ctrl.expand_factor,
-		ctrl.contract_threshold,
-		ctrl.expand_threshold_rad,
-		ctrl.expand_threshold_ap,
-		ctrl.function_scale_factor,
-		ctrl.precond_refresh_freq,
-		ctrl.precond_ID,
+		gamma_start,
+		rad,
+		min_rad,
+		tol,
+		prec,
+		report_freq,
+		report_level,
+		header_freq,
+		report_precision,
+		maxit,
+		contract_factor,
+		expand_factor,
+		contract_threshold,
+		expand_threshold_rad,
+		expand_threshold_ap,
+		function_scale_factor,
+		precond_refresh_freq,
+		precond_ID,
 //		ctrl.quasi_newton_method,
-		ctrl.trust_iter
+		trust_iter
 		);
 
 
@@ -187,8 +247,8 @@ Rcpp::List innerOpt(
 	}
 
 
-	Tvec P(Nparams);
-	Tvec grad(Nparams);
+	Tvec P(configC.Ngamma);
+	Tvec grad(configC.Ngamma);
 	Eigen::SparseMatrix<double> H = funObj.Htemplate.cast<double>();
 
 	double fval = NA_REAL, radius = NA_REAL;
@@ -199,8 +259,10 @@ Rcpp::List innerOpt(
 	status = opt.get_current_state(P, fval, grad, H, iterations, radius);
 
 	// get log determinant of hessian
-	Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> ldlt;
-	ldlt.compute(H);
+	Eigen::SparseMatrix<double> Htri = H.triangularView<Eigen::Upper>();
+	Htri.makeCompressed();
+	Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>, Eigen::Upper> ldlt;
+	ldlt.compute(Htri);
 	if (ldlt.info() != Eigen::Success) {
 		Rcpp::warning("LDLT factorization failed; H may not be SPD");
 	}
@@ -214,7 +276,7 @@ Rcpp::List innerOpt(
 	}
 	const double halfLogDet = logdetH/2;
 
-	const double minusLogLik = fval + halfLogDet + Nparams * ONEHALFLOGTWOPI;  
+	const double minusLogLik = fval + halfLogDet + configC.Ngamma * ONEHALFLOGTWOPI;  
 
  	 // save chol
 	const auto& Pidx = ldlt.permutationP().indices();    
@@ -246,7 +308,7 @@ Rcpp::List innerOpt(
 		Rcpp::Named("halfLogDet") = Rcpp::wrap(halfLogDet),
 		Rcpp::Named("solution") = Rcpp::wrap(solution),
 		Rcpp::Named("gradient") = Rcpp::wrap(grad),	
-		Rcpp::Named("hessian") = eigen_to_list(H),
+		Rcpp::Named("hessian") = eigen_to_list(Htri),
 		Rcpp::Named("cholHessian") = cholHessian,
 		Rcpp::Named("iterations") = Rcpp::wrap(iterations),
 		Rcpp::Named("status") = Rcpp::wrap((std::string) MB_strerror(status)),
@@ -257,4 +319,3 @@ Rcpp::List innerOpt(
 	return(res);
 
 }
-#endif

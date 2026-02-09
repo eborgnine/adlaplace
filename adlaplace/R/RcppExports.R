@@ -59,3 +59,65 @@ hess <- function(x, backendContext, inner = FALSE, Sgroups = NULL) {
     .Call(`_adlaplace_hess`, x, backendContext, inner, Sgroups)
 }
 
+#' Register C-callable entry points
+register_callables <- function() {
+    .Call(`_adlaplace_register_callables`)
+}
+
+#' Inner optimization over gamma using trust-region CG (sparse)
+#'
+#' Runs the inner optimization problem (typically over \eqn{\gamma}) using the
+#' trustOptim sparse trust-region Conjugate Gradient solver. This function
+#' evaluates the objective, gradient, and Hessian through the pre-built AD pack
+#' (external pointer) and returns the solution along with curvature information.
+#'
+#' @param parameters Numeric vector of starting values for the inner parameters
+#'   (\code{gamma}; length \code{Ngamma}).
+#' @param data Data list used to construct the AD backend when \code{adPack}
+#'   is not supplied.
+#' @param adPack External pointer created by \code{getAdFun()} (class
+#'   \code{"adlaplace_handle_ptr"}), or a list containing element \code{adFun}.
+#' @param config Configuration list. Must include \code{gamma}, fixed
+#'   \code{beta}/\code{theta}, and group/sparsity settings.
+#' @param control List of trust-region control parameters (see
+#'   \code{trustOptim}).
+#' @param adPack Optional backend handle/list from \code{getAdFun()}.
+#'   If provided, it is reused by \code{inner_opt()}.
+#'
+#' @return A list with components:
+#' \itemize{
+#'   \item \code{minusLogLik}: scalar \eqn{-\ell(\hat\gamma)} plus the Laplace
+#'         correction \eqn{\tfrac{1}{2}\log|H| + \tfrac{n}{2}\log(2\pi)}.
+#'   \item \code{fval}: scalar objective at the solution (typically \eqn{-\ell}).
+#'   \item \code{halfLogDet}: \eqn{\tfrac{1}{2}\log|H|} from sparse LDLT.
+#'   \item \code{solution}: optimized parameter vector (length \code{Ngamma}).
+#'   \item \code{gradient}: gradient at solution (length \code{Ngamma}).
+#'   \item \code{hessian}: Hessian as a dgCMatrix-like list with slots
+#'         \code{i,p,x,Dim} (0-based indices).
+#'   \item \code{cholHessian}: sparse LDLT factors as a list with
+#'         \code{P} (permutation indices), \code{D} (diagonal), and
+#'         \code{L} (lower-triangular factor in dgCMatrix-like form).
+#'   \item \code{iterations}: number of trust-region iterations.
+#'   \item \code{status}: solver status string.
+#'   \item \code{trust.radius}: final trust-region radius.
+#'   \item \code{method}: character, here \code{"Sparse"}.
+#' }
+#'
+#' @details
+#' This calls the sparse method from the \code{TrustOptim} package via the Cpp interface.  
+#'
+#' @name innerOpt
+NULL
+
+#' @rdname innerOpt
+#' @export
+inner_opt_test <- function(adPack, config) {
+    .Call(`_adlaplace_inner_opt_test`, adPack, config)
+}
+
+#' @rdname innerOpt
+#' @export
+inner_opt <- function(parameters, gamma, config, control, adPack = NULL) {
+    .Call(`_adlaplace_inner_opt`, parameters, gamma, config, control, adPack)
+}
+

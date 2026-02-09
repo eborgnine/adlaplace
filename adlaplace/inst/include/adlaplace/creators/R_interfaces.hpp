@@ -7,6 +7,7 @@
 #include "adlaplace/adlaplace.hpp"
 #include "adlaplace/creators/api_functions.hpp"
 #include "adlaplace/creators/handle.hpp"
+#include "adlaplace/stubs.hpp"
 
 std::vector<GroupPack> getAdFun(const Data& data, const Config& config);
 Rcpp::List extract_sparsity(const std::vector<GroupPack> &adPack);
@@ -88,7 +89,7 @@ inline Rcpp::List getAdFun_h(
 	Rcpp::Function hessianMap = ns["hessianMap"];
 	const Rcpp::List hessians = Rcpp::as<Rcpp::List>(hessianMap(sparsity_list, config));
 
-	std::array<HessianPack, 2> hessiansC = hessianPackFromList(hessians);
+	std::array<HessianPack, 2> hessiansC = adlaplace_hessianPackFromList(hessians);
 	auto ctx = std::unique_ptr<BackendContext>(
 		get_backend_context(adPack.get(), hessiansC[0], hessiansC[1], configC)
 	);

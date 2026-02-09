@@ -111,7 +111,7 @@ hessianMap = function(sparsity_list, config) {
 		inner = list(
 			p = as.integer(hessianSparsity$inner@p),
 			local = as.integer(hessianSparsity$inner@x),
-			global = match(hessianSparsity$inner@i, hessian_inner@x),
+			global = match(hessianSparsity$inner@i, hessian_inner@x) -1L,
 			dims = c(length(hessian_inner@x), ncol(hessianSparsity$inner))
 		)
 	)

@@ -64,12 +64,52 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// register_callables
+SEXP register_callables();
+RcppExport SEXP _adlaplace_register_callables() {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    rcpp_result_gen = Rcpp::wrap(register_callables());
+    return rcpp_result_gen;
+END_RCPP
+}
+// inner_opt_test
+Rcpp::List inner_opt_test(SEXP adPack, const Rcpp::List& config);
+RcppExport SEXP _adlaplace_inner_opt_test(SEXP adPackSEXP, SEXP configSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< SEXP >::type adPack(adPackSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type config(configSEXP);
+    rcpp_result_gen = Rcpp::wrap(inner_opt_test(adPack, config));
+    return rcpp_result_gen;
+END_RCPP
+}
+// inner_opt
+Rcpp::List inner_opt(const Rcpp::NumericVector parameters, const Rcpp::NumericVector gamma, const Rcpp::List& config, const Rcpp::List& control, SEXP adPack);
+RcppExport SEXP _adlaplace_inner_opt(SEXP parametersSEXP, SEXP gammaSEXP, SEXP configSEXP, SEXP controlSEXP, SEXP adPackSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::NumericVector >::type parameters(parametersSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::NumericVector >::type gamma(gammaSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type config(configSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type control(controlSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type adPack(adPackSEXP);
+    rcpp_result_gen = Rcpp::wrap(inner_opt(parameters, gamma, config, control, adPack));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_adlaplace_getAdFun", (DL_FUNC) &_adlaplace_getAdFun, 2},
     {"_adlaplace_jointLogDens", (DL_FUNC) &_adlaplace_jointLogDens, 3},
     {"_adlaplace_grad", (DL_FUNC) &_adlaplace_grad, 4},
     {"_adlaplace_hess", (DL_FUNC) &_adlaplace_hess, 4},
+    {"_adlaplace_register_callables", (DL_FUNC) &_adlaplace_register_callables, 0},
+    {"_adlaplace_inner_opt_test", (DL_FUNC) &_adlaplace_inner_opt_test, 2},
+    {"_adlaplace_inner_opt", (DL_FUNC) &_adlaplace_inner_opt, 5},
     {NULL, NULL, 0}
 };
 

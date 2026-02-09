@@ -1,283 +1,300 @@
 ---
-title: "Testing adlaplace with Skew Normal"
+title: "Laplace Approximations with adlaplaceExample"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Testing adlaplace with Skew Normal}
+  %\VignetteIndexEntry{Laplace Approximations with adlaplaceExample}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
 
-# To make a package using adlaplace
+This vignette mirrors the workflow in `adlaplace`, but uses the
+`adlaplaceExample` skew-normal objective defined in
+`src/objectiveFunction.cpp`.
 
-- copy `configure`, `src/Makevars.in`, and `src/Rinterfaces.cpp` from adlaplace source (or this package)
-- copy `R/000.R`, change the package name on the first line
-- your `DESCRIPTION` file needs
-```
-SystemRequirements: CppAD, OpenMP
-License: GPL-3
-Depends: R (>= 4.1.0)
-LinkingTo: Rcpp, adlaplace, RcppEigen, trustOptim
-Imports: Rcpp
-```
-- copy `src/objectiveFunction.cpp` and modify it as necessary
-- run `Rcpp::compileAttributes` and `roxygen2::roxygenize(... , load = 'source')`
-
-## System requirements
-
-- cppad
-- omp (optional)
-
-# Skew normal model
-
+Skew-normal contribution for one observation:
 
 $$
-\begin{aligned}
-f(y;\xi,\omega,\alpha)
-&= -\log\omega
--\frac12\log(2\pi)
--\frac12\left(\frac{y-\xi}{\omega}\right)^2
-+\log\!\left[\operatorname{erfc}\!\left(-\frac{\alpha (y-\xi)}{\sqrt2\,\omega}\right)\right].
-\end{aligned}
+\ell(y;\xi,\omega,\alpha)
+= -\log\omega - \frac12\log(2\pi)
+  -\frac12\left(\frac{y-\xi}{\omega}\right)^2
+  + \log\left[\operatorname{erfc}\left(-\frac{\alpha(y-\xi)}{\sqrt{2}\,\omega}\right)\right].
 $$
+
+
+
+## Simulate data
 
 ```{r theData}
-Nobs = 10000;Nrandom1=10;Nrandom2=25
+set.seed(1)
 
-set.seed(0)
-X = Matrix::Matrix(cbind(1, rbinom(Nobs,1, prob= 0.5)))
-beta = rep(1, ncol(X))
+Nobs <- 20000
+Nrandom1 <- 15
+Nrandom2 <- 25
 
-AmatList = list(
-	Matrix::sparseMatrix(
-		i = 1:Nobs,
-		j= sample(Nrandom1, Nobs, replace=TRUE)
-	),
-	Matrix::sparseMatrix(
-		i = 1:Nobs,
-		j= sample(Nrandom2, Nobs, replace=TRUE)
-	)
+X <- Matrix::Matrix(cbind(1, rbinom(Nobs, 1, prob = 0.5)))
+beta_true <- c(0.4, -0.3)
+
+A1 <- Matrix::sparseMatrix(i = 1:Nobs, j = sample(Nrandom1, Nobs, replace = TRUE), x = 1)
+A2 <- Matrix::sparseMatrix(i = 1:Nobs, j = sample(Nrandom2, Nobs, replace = TRUE), x = 1)
+A <- cbind(A1, A2)
+
+NperEffect <- c(Nrandom1, Nrandom2)
+map <- Matrix::sparseMatrix(
+  i = 0:(ncol(A) - 1L),
+  j = rep(0:(length(NperEffect) - 1L), NperEffect),
+  x = 1L,
+  dims = c(ncol(A), length(NperEffect)),
+  index1 = FALSE
 )
-Amat = do.call(cbind, AmatList)
-NperEffect = unlist(lapply(AmatList, ncol))
-map = Matrix::sparseMatrix(
-	i = seq(0L, len=ncol(Amat)),
-	j = rep(seq(0L, len=length(NperEffect)), NperEffect),
-	x = 1L,
-	index1=FALSE,
-	dims = c(ncol(Amat), length(NperEffect))
-	)
 
-sdRandomOrig = rep(0.1, length(AmatList));sdRandomLog = log(sdRandomOrig)
-gamma = rnorm(ncol(Amat), sd=rep(sdRandomOrig, NperEffect))
+sd_random <- c(0.25, 0.15)
+gamma_true <- rnorm(ncol(A), sd = rep(sd_random, NperEffect))
 
-obsPar = list(omega = 0.1, alpha = 2)
-eta = as.vector(X %*% beta + Amat %*% gamma)
-y = sn::rsn(length(eta), xi=eta, omega=obsPar$omega, alpha = obsPar$alpha)
+omega_true <- 0.7
+alpha_true <- 0.8
 
 
-data = list(y = y, 
-	ATp = as(Matrix::t(Amat), 'dMatrix'),
-	XTp = as(Matrix::t(X), 'CsparseMatrix'),
-	map = map, 
-	Qdiag = rep(1, ncol(Amat)))
+eta <- as.vector(X %*% beta_true + A %*% gamma_true)
+y <- sn::rsn(Nobs, xi = eta, omega = omega_true, alpha=alpha_true)
+
+data <- list(
+  y = y,
+  ATp = as(Matrix::t(A), "dMatrix"),
+  XTp = as(Matrix::t(X), "CsparseMatrix"),
+  map = map,
+  Qdiag = rep(1, ncol(A))
+)
+```
+
+## Configure model and build AD object
+
+```{r config}
+config <- list(
+  beta = rep(0, nrow(data$XTp)),
+  gamma = rep(0, nrow(data$ATp)),
+  theta = c(log(0.2), log(0.2), log(0.5), 2),
+  transform_theta = TRUE,
+  groups = adlaplace::adFun_groups(500, data$ATp),
+  num_threads = 1L,
+  package = "adlaplaceExample",
+  verbose = FALSE)
+```
+
+## Evaluate objective, gradient, and Hessian
+
+```{r derivs}
+adFun <- adlaplaceExample::getAdFun(data, config)
+true_theta = c(log(c(sd_random, omega_true)), alpha_true)
+x <- c(beta_true, gamma_true, true_theta)
+x[length(x)] = -0.5
+
+x2 = x;D=length(x)-3L
+x2[D] = x[D]+2
+
+Sgroups = seq.int(0L, length.out= length(adFun$sparsity))
+#Sgroups = 0L
+
+(val1 <- adlaplaceExample::jointLogDens(x, adFun))
+adlaplaceExample::jointLogDens(x, adFun, Sgroups)
+
+(val2 <- adlaplaceExample::jointLogDens(x2, adFun))
+adlaplaceExample::jointLogDens(x2, adFun,Sgroups)
+
+g <- adlaplaceExample::grad(x, adFun, inner = FALSE)
+H <- adlaplaceExample::hess(x, adFun, inner = FALSE)
+
+str(g)
+str(H)
+quantile(eigen(H)$values)
 ```
 
 
+## Trust-optimization and Laplace log-likelihood interface
 
-- starting values for theta.  SD's for random effects come first, parameters for observation distribution after
-- starting values for beta
-- starting values for the random effects
-- is theta on the log scale?
-- create groups (for which the likelihoods are differentiated separately) based on the columns of the random effects design matrix
-- number of parallel cores.
-- name of the R package containing the model
+```{r trustOptimInterface, eval=FALSE}
+adFun <- adlaplaceExample::getAdFun(data, config)
 
-```{r exampleConfig}
-config = list(
-# theta is sd1 sd2, omega, alpha, first 3 logged
-	theta = c(rep(-2.3, length(NperEffect)), -2.3, 0.5), 
-	beta = rep(1, nrow(data$XTp)), 
-	start_gamma = rep(0, nrow(data$ATp)),
-	transform_theta=TRUE, 
-	groups = adlaplace::adFun_groups(1000, data$ATp),
-	num_threads=1,#parallel::detectCores(),
-	package='adlaplaceExample', verbose=FALSE)	
-```
+inner_res <- adlaplace::inner_opt(
+  parameters = c(config$beta, config$theta),
+  gamma = config$gamma,
+  control = list(
+    maxit = 5,
+    report.level = 10,
+    report.freq = 1
+  ),
+  config = config,
+  adPack = adFun
+)
 
-find the sparsity structure of each group.
+str(inner_res)
+quantile(inner_res$gradient)
 
-```{r sparsity}
-sparsity_list = adlaplace::group_sparsity(data=data, config=config)
-names(sparsity_list)
-length(sparsity_list$hessian_inner)
-config = modifyList(config, sparsity_list)
-```
-
-create autodiff functions which include model parameters as well as random effects
-create AD function
-
-```{r adFunFull}
-adFunFull = adlaplaceExample::getAdFun(
-	data, modifyList(config, list(verbose=TRUE)), inner=FALSE)
-
-r1 = adlaplaceExample::funH(adFunFull, 1)	
-grad1 = adlaplaceExample::gradH(adFunFull, 1)	
-hes1 = adlaplaceExample::hessH(adFunFull, 1)	
+res <- adlaplace::logLik(
+  x = c(config$beta, config$theta),
+  config = config,
+  adPack = adFun)
+str(res)
 ```
 
 
+## Finite-difference check for one parameter
 
-fit
-
-```{r outerOpt}
-cache = new.env()
-assign('start_gamma', config$start_gamma, cache)
-
-ulim = c(rep(Inf, length(config$beta) + length(config$theta) -1), 5)
-
-mle = stats::optim(
-	rep(0, length(c(config$beta, config$theta))),
-	adlaplace::outer_fn, 
-	adlaplace::outer_gr,
-	method='L-BFGS-B',
-	lower = -ulim, upper = ulim,
-	data=data, config=config, cache=cache, adPack = adFunFull,
-	control_inner = list(),
-	control = list(trace=1)
-	)
-mle$par
-exp(mle$par[-c(1:length(beta), length(mle$par))])
-```
+```{r finiteDiff, eval=FALSE}
+config2 = config
+#config2$gamma = inner_res$solution  
+x <- c(
+  config2$beta, 
+  config2$gamma, 
+  config2$theta)
 
 
+adFun <- adlaplaceExample::getAdFun(data, config)
 
-Check derivative of likelihood
+Dpar <- 3;Dpar2=15
+Sgamma1 = seq.int(length(config$beta)+1, len = length(config$gamma))
+DparG = match(Dpar, Sgamma1);DparG2 = match(Dpar2, Sgamma1)
+Sx <- seq(-0.1, 0.1, length.out = 21) + x[Dpar]
+x_list <- lapply(Sx, function(v) { xx <- x; xx[Dpar] <- v; xx })
+
+fvals <- vapply(x_list, function(xx) adlaplaceExample::jointLogDens(xx, adFun), numeric(1))
 
 
-```{r checkDerivOuter}
-x = mle$par #c(config$beta, config$theta)
+stuff = adlaplace::inner_opt_test(adFun, config2)
+stuff$hessian2 = Matrix::sparseMatrix(
+  i = stuff$hessian$i, p = stuff$hessian$p, x = stuff$hessian$x,
+  index1=FALSE, dims = rep(length(Sgamma1),2))
 
-Npar=25
-Dpar = length(x)
-parDf = data.frame(x)[,rep(1, Npar)]
-Sx = seq(-0.5, 0.5, len=Npar) + parDf[Dpar,1]
-parDf[Dpar,] = Sx
-SxD = Sx[-1] - diff(Sx)/2
 
-adFunFull = adlaplaceExample::getAdFun(
-	data, config, inner=FALSE)
+plot(Sx, fvals)
+abline(h=-stuff$fval)
 
-res = mapply(
-  adlaplace::logLik,
-  x = as.list(parDf),
-  MoreArgs = list(config=config, data=data, adPack = adFunFull),
-  SIMPLIFY=FALSE
+grad1 = mapply(
+  adlaplaceExample::grad,
+  x = x_list,
+  MoreArgs = list(backendContext = adFun, inner=FALSE),
+  SIMPLIFY=TRUE
   )
-dens1 = unlist(lapply(res, function(xx) xx$inner$minusLogLik))
-grad1 = unlist(lapply(res, function(xx) xx$dLogLik[Dpar]))
 
-plot(Sx, dens1, ylab='-log lik')
+hes1 = mapply(
+  adlaplace::hess,
+  x = x_list,
+  MoreArgs = list(backendContext = adFun, inner=FALSE),
+  SIMPLIFY=FALSE)
+do.call(rbind,lapply(hes1, function(xx) table(cut(eigen(xx)$values, c(-Inf, -1e-10, 1e-10, Inf)))  ))
+hes2 = do.call(abind::abind, c(
+  lapply(hes1, as.matrix), along=3))
+gradD = apply(grad1, 1, diff) / mean(diff(Sx))
 
-plot(Sx, grad1, ylab = 'deriv')
-lines(SxD, diff(dens1)/diff(Sx))
+Sx_mid <- Sx[-1] - diff(Sx) / 2
+plot(Sx, grad1[Dpar,], ylab = "Analytic gradient", xlab = "parameter value")
+lines(Sx_mid, diff(fvals) / diff(Sx), col = 2)
+abline(h=-stuff$gradient[DparG])
+legend("topleft", legend = c("AD gradient", "finite difference"), col = c(1, 2), lty = 1, bty = "n")
+
+
+plot(Sx, hes2[Dpar,Dpar2, ], ylab = paste(Dpar, Dpar2),
+  ylim = range(hes2[Dpar, Dpar2,], na.rm=TRUE))
+lines(Sx_mid, gradD[,Dpar2], lwd=3, col='grey')
+abline(h=-stuff$hessian2[DparG, DparG2], col='blue')
+
+
+bob = stuff$hessian2 + hes2[Sgamma1, Sgamma1, 10]
 ```
 
+## Notes
+
+- `adlaplaceExample` provides model-specific C++ objective code.
+- `adlaplace` provides shared optimization and Laplace tooling.
+- For production use, optimize outer parameters with `adlaplace` wrappers and
+  call `adlaplaceExample` for objective-specific derivatives.
 
 
-evaluate the likelihood and derivatives
 
 
-```{r checkDerivInner}
-x =c(mle$par[1:length(config$beta)], cache$start_gamma, mle$par[-(1:length(config$beta))])
+```{r derivJointDens, eval=FALSE}
+config$gamma = rep(1, length(config$gamma))
+x = c(config$beta, config$gamma, config$theta)
+adFun = adlaplace::getAdFun(data, modifyList(config, list(verbose=TRUE)))
 
-Npar=13
-Dpar = length(x)
+inner = FALSE
+type = c('outer','inner')[1+inner]
+
+
+Sgamma1 = seq.int(length(config$beta)+1, length.out = length(config$gamma))
+
+Npar=13;Dpar = length(x)-1
+if(inner) {
+  Dpar = match(Dpar, Sgamma1)
+}
+Dpar0=Dpar-1L
+
+bob = as(adFun$hessians$hessian[[type]], 'TsparseMatrix')
+(whichIndex = which(bob@i == Dpar0 & bob@j == Dpar0)-1L)
+(whichGlobal = which(adFun$hessians$map[[type]]$global==whichIndex)-1L)
+
+(whichP = mapply(
+  function(xx) min(which(adFun$hessian$map[[type]]$p >= xx)),
+  xx = whichGlobal) -1L)
+
+
+
+do.call(rbind, adFun$sparsity[[
+  whichP[1] 
+  ]][c('row_hess','col_hess')])
+do.call(rbind, adFun$sparsity[[
+  whichP[1] 
+  ]][c('row_hess_inner', 'col_hess_inner')])
+  
+
+Sgroups = length(adFun$sparsity)-12L
+#Sgroups = seq.int(from=0, length.out = length(adFun$sparsity))
+
+#Sgroups = c()
+
+
 parDf = data.frame(x)[,rep(1, Npar)]
-Sx = seq(-0.5, 0.5, len=Npar) + parDf[Dpar,1]
-parDf[Dpar,] = Sx
+Sx = seq(-0.1, 0.1, len=13) + parDf[Dpar,1]
 SxD = Sx[-1] - diff(Sx)/2
+parDf[Dpar,] = Sx
 
 
 dens1 = mapply(
-  adlaplaceExample::jointLogDens,
-  parameters = as.list(parDf),
-  MoreArgs = list(config=config, adPack = adFunFull)
+  adlaplace::jointLogDens,
+  x = as.list(parDf),
+  MoreArgs = list(backendContext = adFun, Sgroups = Sgroups),
+  SIMPLIFY=TRUE
   )
-grad1 = mapply(
-  adlaplaceExample::grad,
-  parameters = as.list(parDf),
-  MoreArgs = list(config=config, adPack = adFunFull)
-  )[Dpar,]
-hes1 = mapply(
-  adlaplaceExample::hessian,
-  parameters = as.list(parDf),
-  MoreArgs = list(config=config, adPack = adFunFull),
-  SIMPLIFY=FALSE
-  )
-hes1a = unlist(lapply(hes1, '[', Dpar, Dpar))
 
 plot(Sx, dens1)
 
-plot(Sx, grad1)
+
+grad1 = mapply(
+  adlaplace::grad,
+  x = as.list(parDf),
+  MoreArgs = list(backendContext = adFun, inner=inner, Sgroups = Sgroups),
+  SIMPLIFY=TRUE
+  )
+plot(Sx, grad1[Dpar,])
 lines(SxD, diff(dens1)/diff(Sx))
 
-plot(Sx, hes1a)
-lines(SxD, diff(grad1)/diff(Sx))
+
+hes1 = mapply(
+  adlaplace::hess,
+  x = as.list(parDf),
+  MoreArgs = list(backendContext = adFun, inner=inner, Sgroups = Sgroups),
+  SIMPLIFY=FALSE)
+
+hes2 = do.call(abind::abind, c(
+  lapply(hes1, as.matrix), along=3))
+
+gradD = apply(grad1, 1, diff) / mean(diff(Sx))
+
+Dpar2 = Dpar
+plot(Sx, hes2[Dpar,Dpar2, ], ylab = paste(Dpar, Dpar2),
+  ylim = range(hes2[Dpar, Dpar2,], na.rm=TRUE))
+lines(SxD, gradD[,Dpar2])
 ```
 
-evalute the density in R and compare
-
-```{r checkDens}
-omega = exp(config$theta[length(config$theta)-1])
-alpha = config$theta[length(config$theta)]
-sdVec = as.vector(data$map %*% exp(config$theta[
-	seq(from=1, len=ncol(data$map))])) 
-x = c(config$beta, gamma, config$theta)
-
-# log density
-sum(sn::dsn(
-	x = data$y, 
-	xi = eta, 
-	omega  = omega,
-	 alpha = alpha,
-	log=TRUE)) + sum(dnorm(
-		gamma, 
-		sd = sdVec,
-		log=TRUE
-		))
-
-# negative log density
-adlaplaceExample::jointLogDens(
-	x,
-	config = modifyList(config, list(verbose=TRUE)), 
-	adPack = adFunFull)
-
-# parts of log density
-toSum = c(
-	omegabit = - length(data$y) * log(omega),
-	twopibit = -length(data$y) * 0.5*log(2*pi),
-	normalbit = sum(-0.5*( (y - eta)/omega)^2),
-	erfc = sum(log(gsl::erfc(- alpha * (
-	data$y - eta
-	) / (sqrt(2) * omega)
-	))),
-	random = sum(dnorm(
-		gamma, 
-		sd = sdVec,
-		log=TRUE
-		)))
-# verbose output
-adlaplaceExample::jointLogDensNoAdfun(
-	x,
-	config = modifyList(config, list(verbose=TRUE)), 
-	data = data)
-toSum
-# extra
-sum(toSum[c('omegabit','twopibit')])
-# data part
-sum(toSum[c('normalbit','erfc')])
-toSum['random']
-```
 
 
 

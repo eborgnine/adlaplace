@@ -4,7 +4,6 @@
 #include <Rinternals.h>
 #include "adlaplace/creators/R_interfaces.hpp"
 
-
 //' C++ backend entry points
 //'
 //' Low-level C++ entry points exposed to R via Rcpp.
@@ -95,3 +94,6 @@ Rcpp::S4 hess(
 
 	return out;
 }
+
+
+

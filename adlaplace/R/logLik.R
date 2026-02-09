@@ -3,12 +3,8 @@
 #' Evaluates the (profiled) log-likelihood for a hierarchical model by solving an
 #' inner optimization problem for the latent vector \code{gamma} (e.g. random
 #' effects) given outer parameters \code{x} (typically \code{beta} and \code{theta}).
-#' Optionally computes derivatives via automatic differentiation using an AD
-#' “tape” object (\code{adPack}).
-#'
 #' The function delegates the inner optimization to \code{inner_opt()} from the
-#' selected backend package (by default \pkg{adlaplace}), and (when \code{deriv=TRUE})
-#' computes derivatives.
+#' selected backend package (by default \pkg{adlaplace}).
 #'
 #' @param x Numeric vector of outer parameters. The first \code{Nbeta} entries are
 #'   interpreted as \code{beta}; the remainder are interpreted as \code{theta}
@@ -19,12 +15,12 @@
 #' @param config A list of configuration options passed to the backend. This
 #'   function uses \code{config$package} and \code{config$verbose} if present.
 #' @param start_gamma Optional numeric vector of starting values for the inner
-#'   parameter \code{gamma}. Defaults to \code{config$start_gamma}.
+#'   parameter \code{gamma}. Defaults to \code{config$gamma}.
 #' @param control List of control parameters passed to the backend inner optimizer.
 #'   (e.g. \code{report.level}, \code{report.freq}).
 #' @param adPack Optional AD object returned by the backend \code{getAdFun()}.
-#'   If missing and \code{deriv=TRUE}, it will be constructed automatically.
-#' @param deriv Logical; if \code{TRUE}, compute derivatives.
+#'   This is a single backend handle (no separate inner/outer handles). If
+#'   missing, it will be constructed automatically.
 #' @param package Character scalar naming the backend package to use for
 #'   \code{getAdFun()} and \code{inner_opt()}. Defaults to the first element of
 #'   \code{c(config$package, "adlaplace")}.
@@ -33,6 +29,9 @@
 #' The parameter vector \code{x} is split into \code{beta} and \code{theta} and
 #' inserted into \code{config} (as \code{config_inner$beta} and
 #' \code{config_inner$theta}) before calling the backend inner optimizer.
+#'
+#' Current backends use a single AD handle. This function passes that handle to
+#' \code{inner_opt(..., adPack = adPack)}.
 #'
 #' The returned list contains both “inner” outputs (from the inner optimization)
 #' and “outer” outputs (quantities associated with the outer objective), as well
@@ -46,104 +45,112 @@
 #'   \item{parameters}{The input outer parameter vector \code{x}.}
 #'   \item{full_parameters}{Concatenation of \code{beta}, optimized \code{gamma},
 #'     and \code{theta} (names are set when possible).}
-#'   \item{deriv}{(Only if \code{deriv=TRUE}) derivative output.}
-#'   \item{dLogLik}{(Only if \code{deriv=TRUE}) shortcut to \code{result$deriv$deriv$dL}.}
 #' }
 #'
 #'
 #' @examples
 #' \dontrun{
 #' # x <- c(beta, theta)
-#' # out <- logLik(x, data, config, deriv = TRUE)
+#' # out <- logLik(x, data, config)
 #' # out$minusLogLik
-#' # out$dLogLik
 #' }
 #'
 
 #' @export
-logLik = function(x, data, config, 
-	start_gamma = config$start_gamma, 	
+logLik = function(x, config, 
+	start_gamma, 	
 	control = list(report.level=4, report.freq=1), 
-	adPack, deriv=TRUE, 
+	adPack, data, 
 	package = c(config$package, 'adlaplace')[1]
 ) {
 
-	Nbeta = nrow(data$XTp)
+	Nbeta = length(config$beta)
+	Ntheta = length(config$theta)
 	config_inner = config
-	config_inner$beta = x[seq(1, len=Nbeta)]
-	config_inner$theta = x[seq(Nbeta+1, len=length(x) - Nbeta)]
-	Sgamma1 = seq(Nbeta+1, len=length(start_gamma))
+	config_inner$beta = x[seq.int(1, len=Nbeta)]
+	config_inner$theta = x[seq.int(Nbeta+1, len=Ntheta)]
+	if(!missing(start_gamma)) {
+		config_inner$gamma = start_gamma
+		if(length(config$gamma) != length(config_inner$gamma)) {
+			warning("gamma is the wrong length")
+		}
+	} 
 
-	if(length(start_gamma) != nrow(data$ATp)) {
-		warning("start_gamma is the wrong size")
+	if(missing(adPack)) {
+		if(missing(data)) {
+			stop("at least one of data and adPack must be supplied")
+		}
+		adPack = getExportedValue(package, "getAdFun")(data, config)
 	}
+
 
 	if(any(config$verbose)) {
 		cat("logLik using package ", package, "for objective funcion\n")
 	}
 
-	if(missing(adPack)) {
-		if(deriv) {
-			adPack = getExportedValue(package, "getAdFun")(data, config, inner=FALSE)
-		} else {
-			adPack = NULL
-		}
-	}
-
-
-	inner_res = try(getExportedValue(package, "inner_opt")(
-		start_gamma,
-		data=data, 
+	inner_res = try(inner_opt(
+		x, config_inner$gamma,
 		config=config_inner, 
 		control=control,
-		adPackFull = adPack))
+		adPack = adPack))
+
 	if(any(class(inner_res) == 'try-error')) {
 		cat("resetting starting values to all zero\n")
 		cat("theta ", paste(x, collapse=" "), "\n")
-		inner_res = try(getExportedValue(package, "inner_opt")(
-		rep(0.0, length(start_gamma)),
-		data=data, 
-		config=config_inner, 
-		control=control,
-		adPackFull = adPack))		
+		config_inner$gamma = rep(0.0, length(config_inner$gamma))
+		inner_res = try(inner_opt(
+			config=config_inner, 
+			control=control,
+			adPack = adPack))
 	}
 
 	if(any(config$verbose)) {
 		cat("done inner opt\n")
 	}
 
-	names(inner_res$solution) = rownames(data$ATp)
+	if(!missing(data)) {
+		names(inner_res$solution) = rownames(data$ATp)
+	} else {
+		names(inner_res$solution) = names(config$gamma)
+	}
+
 	inner_res$parameters = x
 	inner_res$full_parameters = c(config_inner$beta, inner_res$solution, config_inner$theta)
+	if(!missing(data)){
 	try(names(inner_res$full_parameters) <- c(
 		rownames(data$XTp), 
 		rownames(data$ATp), 
 		colnames(data$map)
 	))
-
-
-	result = c(
-		list(
-			inner = inner_res[grep("[pP]arameters|_full$", names(inner_res), invert=TRUE)],
-			outer = inner_res[grep("_full$", names(inner_res))]
-		),
-		inner_res[grep("[pP]arameters|minusLogLik", names(inner_res))]
-	)
-	names(result$outer) = gsub("_outer$", "", names(result$outer))
-
-	if(!deriv) {
-		return(result)
 	}
 
-	result$deriv = logLikDeriv(
-		x= result$full_parameters,
-		inner_res = inner_res,
-		config = config, 
-		adPack = adPack
+
+	result = list(
+		opt = inner_res[grep("[hH]essian", names(inner_res), invert=TRUE)],
+		minusLogLik = inner_res$minusLogLik,
+		parameters = x,
+		full_parameters = inner_res$full_parameters
+	)
+	result$hessian = Matrix::sparseMatrix(
+		i = inner_res$hessian$i,
+		p = inner_res$hessian$p,
+		x = inner_res$hessian$x,
+		dims = rep(length(inner_res$solution), 2), index1=FALSE,
+#		uplo = 'U',
+		symmetric=TRUE
+	)
+	result$cholHessian = list(
+		L = Matrix::sparseMatrix(
+			i = inner_res$cholHessian$L$i,
+			p = inner_res$cholHessian$L$p,
+			x = inner_res$cholHessian$L$x,
+			dims = rep(length(inner_res$solution), 2), index1=FALSE,
+			triangular=TRUE
+		), D = Matrix::Diagonal(length(inner_res$solution),
+		inner_res$cholHessian$D),
+		P = inner_res$cholHessian$P
 	)
 
-	result$dLogLik = result$deriv$deriv$dL
 
-return(result)
+	return(result)
 }
-

@@ -1,8 +1,7 @@
 #include "adlaplace/adlaplace.hpp"
+#include "adlaplace/math/constants.hpp"
 #include "adlaplace/logDens/random.hpp"
 
-const double ONEHALFLOGTWOPI = 0.9189385332046727417803297364056176398613974736377834128171515404;
-const double SQRTTWO = 1.414213562373095048801688724209698078569671875376948073176679737990732478462107;
 
 CppAD::vector<CppAD::AD<double>> logDensObs(
   const CppAD::vector<CppAD::AD<double>>& x,
@@ -38,7 +37,7 @@ CppAD::vector<CppAD::AD<double>> logDensObs(
     const CppAD::AD<double> z = (CppAD::AD<double>(data.y[Dobs]) - eta) / omega_sqrt2;
     const CppAD::AD<double> erfc_val = CppAD::erfc(-alpha * z);
 
-    result += z * z - CppAD::log(erfc_val);
+    result += -z * z + CppAD::log(erfc_val);
   }
 
   CppAD::vector<CppAD::AD<double>> out(1);
@@ -55,7 +54,7 @@ CppAD::vector<CppAD::AD<double>> logDensExtra(
   CppAD::AD<double> log_omega = config.transform_theta ? omega_in : CppAD::log(omega_in);
 
   CppAD::vector<CppAD::AD<double>> out(1);
-  out[0] = CppAD::AD<double>(data.y.size()) * (log_omega + CppAD::AD<double>(ONEHALFLOGTWOPI));
+  out[0] = -CppAD::AD<double>(data.y.size()) * (log_omega + CppAD::AD<double>(ONEHALFLOGTWOPI));
   return out;
 }
 

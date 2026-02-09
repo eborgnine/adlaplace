@@ -1,276 +1,234 @@
-#ifdef UNDEF
 #ifndef ADLAPLACE_AD_FUNC_OPT_HPP
 #define ADLAPLACE_AD_FUNC_OPT_HPP
 
 #include <Rcpp.h>
 #include <Rinternals.h>
-#include <R_ext/Rdynload.h>
 
 #include <Eigen/Sparse>
 #include <numeric>
+#include <vector>
 
 #ifdef _OPENMP
 #include <omp.h>
 #endif
 
-#include "adlaplace/utils.hpp"
-#include "adlaplace/adlaplace_api.hpp"
+#include "adlaplace/adpack_handle.h"
+#include "adlaplace/rviews.hpp"
 
 struct AD_Func_Opt {
   SEXP adPack;
-  Config config;
+  adlaplace_adpack_handle* handle;
 
-// “index templates”
+  size_t Nparams;
+  size_t Ngroups_backend;
+  size_t Nbeta_backend;
+  size_t Ngamma_backend;
+  size_t Ntheta_backend;
+
+  // maps full symmetric Hessian nz -> index in backend upper-triangle buffer
   Eigen::SparseMatrix<int, Eigen::ColMajor, int> Htemplate;
-
-// buffers reused across calls
-  CPPAD_TESTVECTOR(double) parameters;
-  CPPAD_TESTVECTOR(double) result_hessian;
-
   std::vector<int> h_index_upper;
 
+  // full parameter vector reused across calls
+  std::vector<double> parameters;
+  std::vector<double> hess_upper_accum;
 
-  AD_Func_Opt(SEXP adPackIn, const Config& configIn)
-  : adPack(adPackIn),
-  config(configIn),
-  parameters(config.Nparams),
-  result_hessian(config.hessian_inner.nnz())
+  AD_Func_Opt(SEXP adPackIn, const std::vector<double>& params_init)
+    : adPack(adPackIn),
+      handle(get_handle(adPackIn)),
+      Nparams(0),
+      Ngroups_backend(0),
+      Nbeta_backend(0),
+      Ngamma_backend(0),
+      Ntheta_backend(0)
   {
-  // copy in beta and theta from config
-    for(size_t D=0,Dbeta=config.beta_begin;Dbeta<config.beta_end;D++,Dbeta++) {
-      parameters[Dbeta] = config.beta[D];
+    const int rc_sizes = handle->api->get_sizes(
+      handle->ctx, &Nparams, &Ngroups_backend, &Nbeta_backend, &Ngamma_backend, &Ntheta_backend
+    );
+    if (rc_sizes != 0) {
+      Rcpp::stop("backend api->get_sizes failed with code %d", rc_sizes);
     }
-    for(size_t D=0,Dtheta=config.theta_begin;Dtheta<config.theta_end;D++,Dtheta++) {
-      parameters[Dtheta] = config.theta[D];
+    parameters.resize(Nparams, 0.0);
+    for (size_t j = 0; j < params_init.size() && j < Nparams; ++j) {
+      parameters[j] = params_init[j];
     }
 
-    const CscPattern& hessianIJ = config.hessian_inner;
+    const bool inner = true;
+    const int* p = NULL;
+    const int* i = NULL;
+    size_t p_len = 0;
+    size_t i_len = 0;
+    const int rc_hess = handle->api->get_hessian(handle->ctx, &inner, &p, &p_len, &i, &i_len);
+    if (rc_hess != 0) {
+      Rcpp::stop("backend api->get_hessian failed with code %d", rc_hess);
+    }
+    if (p_len != (Ngamma_backend + 1)) {
+      Rcpp::stop("inner Hessian p_len=%d but expected Ngamma+1=%d", (int)p_len, (int)(Ngamma_backend + 1));
+    }
 
-    const int n   = static_cast<int>(hessianIJ.nrow());
-    const int nnz = static_cast<int>(hessianIJ.nnz());
-
-    const int* p = hessianIJ.p.data();
-    const int* r = hessianIJ.i.data();
-
-    h_index_upper.resize(nnz);
+    hess_upper_accum.resize(i_len, 0.0);
+    h_index_upper.resize(i_len);
     std::iota(h_index_upper.begin(), h_index_upper.end(), 0);
 
     using SpMatI = Eigen::SparseMatrix<int, Eigen::ColMajor, int>;
-    Eigen::Map<const SpMatI> Hmap(n, n, nnz, p, r, h_index_upper.data());
-
-  // Materialize full symmetric mapping
-    Htemplate = Hmap.selfadjointView<Eigen::Upper>();
+    Eigen::Map<const SpMatI> Hupper(
+      static_cast<int>(Ngamma_backend),
+      static_cast<int>(Ngamma_backend),
+      static_cast<int>(i_len),
+      p, i, h_index_upper.data()
+    );
+    Htemplate = Hupper.selfadjointView<Eigen::Upper>();
     Htemplate.makeCompressed();
   }
 
-public:
-// -------------------------
-// trustOptim interface bits
-// -------------------------
+  int get_nvars() const { return static_cast<int>(Ngamma_backend); }
+  int get_nnz() const { return static_cast<int>(Htemplate.nonZeros()); }
 
-  int get_nvars() const {
-    return (int) Htemplate.cols();
-  }
-
-  int get_nnz() const {
-    return (int) Htemplate.nonZeros();
-  }
-
-// f only
-template <class DerivedX>
-  void get_f(const Eigen::MatrixBase<DerivedX> &x, double &f) {
-
-    for(size_t D=0, Dgamma=config.gamma_begin; Dgamma<config.gamma_end; ++D, ++Dgamma) {
-      parameters[Dgamma] = x[D];
-    }
+  template <class DerivedX>
+  void get_f(const Eigen::MatrixBase<DerivedX>& x, double& f) {
+    update_gamma_from_x(x);
 
     double f_sum = 0.0;
-    const int end_group = (int)config.Sgroups.size();
-
-#pragma omp parallel for schedule(dynamic) reduction(+:f_sum)
-    for (int kk = 0; kk < end_group; ++kk) {
-      const size_t Dgroup = config.Sgroups[(size_t)kk];
-      f_sum += fval_api(parameters, Dgroup, adPack);
+    for (size_t g = 0; g < Ngroups_backend; ++g) {
+      int gi = static_cast<int>(g);
+      int rc = handle->api->f(handle->ctx, &gi, parameters.data(), &f_sum);
+      if (rc != 0) {
+        Rcpp::stop("backend api->f failed for group %d with code %d", gi, rc);
+      }
     }
-// return minus log likelihood
+    // trustOptim minimizes: return minus log-likelihood
     f = -f_sum;
   }
 
-// f and g
-template <class DerivedX, class DerivedG>
-  void get_fdf(const Eigen::MatrixBase<DerivedX> &x, double &f, Eigen::MatrixBase<DerivedG> &g) {
-
-    for(size_t D=0,Dgamma=config.gamma_begin;Dgamma<config.gamma_end;D++,Dgamma++) {
-      parameters[Dgamma] = x[D];
-    }
+  template <class DerivedX, class DerivedG>
+  void get_fdf(const Eigen::MatrixBase<DerivedX>& x, double& f, Eigen::MatrixBase<DerivedG>& g) {
+    update_gamma_from_x(x);
 
     f = 0.0;
     auto& gout = g.derived();
     gout.setZero();
-    const CscPattern& pattern = config.match.grad_inner;
 
-  #pragma omp parallel
-    {
-      double f_local=0.0;
-      CPPAD_TESTVECTOR(double) result_grad_local(config.Ngamma, 0.0);
-      CPPAD_TESTVECTOR(double) result_grad_single(config.Ngamma);
+    std::vector<double> grad_full(Nparams, 0.0);
+    const bool inner = true;
 
-      const int end_group = (int) config.Sgroups.size();
-    #pragma omp for
-      for (int kk = 0; kk < end_group; ++kk) {
-        const size_t Dgroup = config.Sgroups[kk];
-        const size_t Nhere = pattern.p[Dgroup+1] - pattern.p[Dgroup];
-        result_grad_single.resize(Nhere);
-
-        f_local += grad_api(parameters, Dgroup, adPack, true, result_grad_single);
-        for(size_t Dlocal=0,Di=pattern.p[Dgroup];Dlocal < Nhere; Dlocal++,Di++) {
-          result_grad_local[pattern.i[Di]] += result_grad_single[Dlocal];
-        }
-      }
-    #pragma omp critical 
-      {
-              // minus so we return minus log likelihood
-
-        f -= f_local;
-        for(size_t D=0;D < config.Ngamma; D++) {
-          gout[(Eigen::Index) D] -= result_grad_local[D];
-        }
-      }
-  } // parallel
-
-}
-
-// f, g, and H
-template <class DerivedX, class DerivedG>
-void get_fdfh(const Eigen::MatrixBase<DerivedX> &x,
-  double &f,
-  Eigen::MatrixBase<DerivedG> &g,
-  Eigen::SparseMatrix<double> &H) {
-
-  for(size_t D=0,Dgamma=config.gamma_begin;Dgamma<config.gamma_end;D++,Dgamma++) {
-    parameters[Dgamma] = x[D];
-  }
-  f = 0.0;
-  auto& gout = g.derived();
-  if (gout.size() > 0) {
-    gout.setZero();
-  }
-  std::fill(result_hessian.begin(), result_hessian.end(), 0.0);
-
-  const CscPattern& pattern_grad = config.match.grad_inner;
-  const CscPattern& pattern_hess = config.match.hessian_inner;
-  const size_t Nhess = result_hessian.size();
-
-  #pragma omp parallel
-  {
-    double f_local=0.0;
-    CPPAD_TESTVECTOR(double) result_grad_local(config.Ngamma, 0.0);
-    CPPAD_TESTVECTOR(double) result_grad_single(config.Ngamma);
-    CPPAD_TESTVECTOR(double) result_hess_local(Nhess, 0.0);
-    CPPAD_TESTVECTOR(double) result_hess_single(Nhess);
-
-    const int end_group = (int) config.Sgroups.size();
-    #pragma omp for schedule(dynamic)
-    for (int kk = 0; kk < end_group; ++kk) {
-      const size_t Dgroup = config.Sgroups[kk];
-      const size_t NhereGrad = pattern_grad.p[Dgroup+1] - pattern_grad.p[Dgroup];
-      result_grad_single.resize(NhereGrad);
-
-      const std::size_t start = pattern_hess.p[Dgroup];
-      const std::size_t end   = pattern_hess.p[Dgroup + 1];
-      const std::size_t Nhere = end - start;
-
-      result_hess_single.resize(Nhere);
-
-      f_local += hess_api(parameters, Dgroup, adPack, true, result_grad_single, result_hess_single);
-      for(size_t D=0,Di=pattern_grad.p[Dgroup];D < NhereGrad; D++,Di++) {
-        result_grad_local[pattern_grad.i[Di]] += result_grad_single[D];
-      }
-      for(size_t D=0,Di=start;D < Nhere; D++,Di++) {
-        result_hess_local[pattern_hess.i[Di]] += result_hess_single[D];
+    for (size_t g = 0; g < Ngroups_backend; ++g) {
+      int gi = static_cast<int>(g);
+      int rc = handle->api->f_grad(
+        handle->ctx, &gi, parameters.data(), &inner, &f, grad_full.data()
+      );
+      if (rc != 0) {
+        Rcpp::stop("backend api->f_grad failed for group %d with code %d", gi, rc);
       }
     }
-    #pragma omp critical 
-    {
-      // minus so we return minus log likelihood
-      f -= f_local;
-      for(size_t D=0;D < config.Ngamma; D++) {
-        gout[D] -= result_grad_local[D];
-      }
-      for(size_t D=0;D < Nhess; D++) {
-        result_hessian[D] -= result_hess_local[D];
-      }
+
+    f = -f;
+    for (size_t k = 0; k < Ngamma_backend; ++k) {
+      gout[static_cast<Eigen::Index>(k)] = -grad_full[Nbeta_backend + k];
     }
-  } // parallel
-
-
-  const Eigen::Index Nout = H.nonZeros();
-
-#ifdef DEBUG
-// H must already have the same sparsity structure/order as Htemplate.cast<double>()
-  if (Nout != Htemplate.nonZeros()) {
-    Rcpp::Rcout << "Hnonzeros " << H.nonZeros() << " Htemplate " << Htemplate.nonZeros() << "\n";
-    Rcpp::stop("H structure mismatch: nonZeros differ");
   }
-#endif
-  
-  double* Hx = H.valuePtr();
-  const int* map = Htemplate.valuePtr();
 
-  for(Eigen::Index D=0; D<Nout;D++) {
-    const size_t inUpper = (size_t) map[D];
-    Hx[D] = result_hessian[inUpper];
-  }
-}
-
-template <class DerivedX>
-void get_hessian(
-  const Eigen::MatrixBase<DerivedX>& x,
-  Eigen::SparseMatrix<double>& H
+  template <class DerivedX, class DerivedG>
+  void get_fdfh(
+    const Eigen::MatrixBase<DerivedX>& x,
+    double& f,
+    Eigen::MatrixBase<DerivedG>& g,
+    Eigen::SparseMatrix<double>& H
   ) {
-  double f_dummy;
-  Eigen::VectorXd g_dummy(0);
+    update_gamma_from_x(x);
 
-// Make sure H has the correct sparsity
-  if (H.nonZeros() != Htemplate.nonZeros()) {
-    H = Htemplate.cast<double>();
+    f = 0.0;
+    auto& gout = g.derived();
+    if (gout.size() > 0) gout.setZero();
+
+    std::fill(hess_upper_accum.begin(), hess_upper_accum.end(), 0.0);
+    std::vector<double> grad_full(Nparams, 0.0);
+    const bool inner = true;
+
+    for (size_t g = 0; g < Ngroups_backend; ++g) {
+      int gi = static_cast<int>(g);
+      int rc = handle->api->f_grad_hess(
+        handle->ctx, &gi, parameters.data(), &inner, &f, grad_full.data(), hess_upper_accum.data()
+      );
+      if (rc != 0) {
+        Rcpp::stop("backend api->f_grad_hess failed for group %d with code %d", gi, rc);
+      }
+    }
+
+    f = -f;
+    if (gout.size() > 0) {
+      if (static_cast<size_t>(gout.size()) != Ngamma_backend) {
+        Rcpp::stop("gradient buffer has size %d but expected %d", (int)gout.size(), (int)Ngamma_backend);
+      }
+      for (size_t k = 0; k < Ngamma_backend; ++k) {
+        gout[static_cast<Eigen::Index>(k)] = -grad_full[Nbeta_backend + k];
+      }
+    }
+
+    if (H.rows() != Htemplate.rows() || H.cols() != Htemplate.cols() || H.nonZeros() != Htemplate.nonZeros()) {
+      H = Htemplate.cast<double>();
+      H.makeCompressed();
+    }
+
+    double* Hx = H.valuePtr();
+    const int* map = Htemplate.valuePtr();
+    const Eigen::Index nz = H.nonZeros();
+    for (Eigen::Index t = 0; t < nz; ++t) {
+      Hx[t] = -hess_upper_accum[static_cast<size_t>(map[t])];
+    }
   }
 
-// Reuse your full evaluator
-  get_fdfh(x, f_dummy, g_dummy, H);
-}
-
-template <class DerivedX, class DerivedH>
-void get_hessian(const Eigen::MatrixBase<DerivedX>& x,
-                 Eigen::SparseMatrixBase<DerivedH>& Hbase)
-{
-  DerivedH& H = Hbase.derived();
-
-  // Ensure correct sparsity/order (so your valuePtr() mapping is valid)
-  if (H.rows() != Htemplate.rows() ||
-      H.cols() != Htemplate.cols() ||
-      H.nonZeros() != Htemplate.nonZeros())
-  {
-    H = Htemplate.cast<double>();   // copies structure + allocates values
-    H.makeCompressed();
+  template <class DerivedX>
+  void get_hessian(const Eigen::MatrixBase<DerivedX>& x, Eigen::SparseMatrix<double>& H) {
+    double f_dummy = 0.0;
+    Eigen::VectorXd g_dummy(static_cast<Eigen::Index>(Ngamma_backend));
+    get_fdfh(x, f_dummy, g_dummy, H);
   }
 
-  double f_dummy = 0.0;
-  Eigen::VectorXd g_dummy(0);       // sized 0: ok if get_fdfh doesn't write g blindly
+  template <class DerivedX, class DerivedH>
+  void get_hessian(const Eigen::MatrixBase<DerivedX>& x, Eigen::SparseMatrixBase<DerivedH>& Hbase) {
+    DerivedH& H = Hbase.derived();
+    if (H.rows() != Htemplate.rows() || H.cols() != Htemplate.cols() || H.nonZeros() != Htemplate.nonZeros()) {
+      H = Htemplate.cast<double>();
+      H.makeCompressed();
+    }
+    double f_dummy = 0.0;
+    Eigen::VectorXd g_dummy(static_cast<Eigen::Index>(Ngamma_backend));
+    get_fdfh(x, f_dummy, g_dummy, H);
+  }
 
-  get_fdfh(x, f_dummy, g_dummy, H);
-}
+  template <class DerivedX, class DerivedG>
+  void get_df(const Eigen::MatrixBase<DerivedX>& x, Eigen::MatrixBase<DerivedG>& g) {
+    double f_dummy = 0.0;
+    get_fdf(x, f_dummy, g);
+  }
 
-template <class DerivedX, class DerivedG>
-void get_df(const Eigen::MatrixBase<DerivedX>& x,
-  Eigen::MatrixBase<DerivedG>& g)
-{
-  double f_dummy;
-  get_fdf(x, f_dummy, g);
-}
+private:
+  static adlaplace_adpack_handle* get_handle(SEXP handle_sexp) {
+    SEXP handle_ptr = handle_sexp;
+    if (TYPEOF(handle_sexp) == VECSXP) {
+      Rcpp::List maybe_list(handle_sexp);
+      if (maybe_list.containsElementNamed("adFun")) {
+        handle_ptr = maybe_list["adFun"];
+      }
+    }
+
+    adlaplace_adpack_handle* h =
+      static_cast<adlaplace_adpack_handle*>(R_ExternalPtrAddr(handle_ptr));
+    if (!h) Rcpp::stop("adPack handle is NULL");
+    if (!h->api) Rcpp::stop("adPack handle api is NULL");
+    if (!h->ctx) Rcpp::stop("adPack handle ctx is NULL");
+    if (!h->api->f || !h->api->f_grad || !h->api->f_grad_hess || !h->api->get_hessian || !h->api->get_sizes) {
+      Rcpp::stop("adPack handle has incomplete API function table");
+    }
+    return h;
+  }
+
+  template <class DerivedX>
+  inline void update_gamma_from_x(const Eigen::MatrixBase<DerivedX>& x) {
+    for (size_t k = 0; k < Ngamma_backend; ++k) {
+      parameters[Nbeta_backend + k] = x[static_cast<Eigen::Index>(k)];
+    }
+  }
 };
-
-
-#endif
 
 #endif

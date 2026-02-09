@@ -1,17 +1,31 @@
-PKG_DIR := adlaplace
-VERSION := $(shell sed -n 's/^Version:[[:space:]]*//p' $(PKG_DIR)/DESCRIPTION | head -n 1)
-TARBALL := $(PKG_DIR)_$(VERSION).tar.gz
+PKGS := adlaplace adlaplaceExample
 
-.DEFAULT_GOAL := $(TARBALL)
+.DEFAULT_GOAL := all
 
-.PHONY: $(TARBALL)
+.PHONY: all $(PKGS)
 
-$(TARBALL):
-	@echo "==> Running compileAttributes for $(PKG_DIR)"
-	Rscript -e "Rcpp::compileAttributes('$(PKG_DIR)')"
-	@echo "==> Running roxygenize for $(PKG_DIR)"
-	Rscript -e "roxygen2::roxygenize('$(PKG_DIR)', load = 'source')"
-	@echo "==> Building package $(PKG_DIR)"
-	R CMD build --no-build-vignettes $(PKG_DIR)
-	@test -f "$(TARBALL)" || { echo "Expected tarball $(TARBALL) not found"; exit 1; }
-	@echo "==> Built $(TARBALL)"
+all: adlaplace adlaplaceExample
+
+adlaplace:
+	@echo "==> Running compileAttributes for adlaplace"
+	Rscript -e "Rcpp::compileAttributes('adlaplace')"
+	@echo "==> Running roxygenize for adlaplace"
+	Rscript -e "roxygen2::roxygenize('adlaplace', load = 'source')"
+	@echo "==> Building package adlaplace"
+	R CMD build --no-build-vignettes adlaplace
+	@VERSION="$$(sed -n 's/^Version:[[:space:]]*//p' adlaplace/DESCRIPTION | head -n 1)"; \
+	TARBALL="adlaplace_$${VERSION}.tar.gz"; \
+	test -f "$$TARBALL" || { echo "Expected tarball $$TARBALL not found"; exit 1; }; \
+	echo "==> Built $$TARBALL"
+
+adlaplaceExample: adlaplace
+	@echo "==> Running compileAttributes for adlaplaceExample"
+	Rscript -e "Rcpp::compileAttributes('adlaplaceExample')"
+	@echo "==> Running roxygenize for adlaplaceExample"
+	Rscript -e "roxygen2::roxygenize('adlaplaceExample', load = 'source')"
+	@echo "==> Building package adlaplaceExample"
+	R CMD build --no-build-vignettes adlaplaceExample
+	@VERSION="$$(sed -n 's/^Version:[[:space:]]*//p' adlaplaceExample/DESCRIPTION | head -n 1)"; \
+	TARBALL="adlaplaceExample_$${VERSION}.tar.gz"; \
+	test -f "$$TARBALL" || { echo "Expected tarball $$TARBALL not found"; exit 1; }; \
+	echo "==> Built $$TARBALL"

@@ -9,7 +9,7 @@ SystemRequirements: CppAD, OpenMP
 License: GPL-3
 Depends: R (>= 4.1.0)
 LinkingTo: Rcpp, adlaplace, RcppEigen, trustOptim
-Imports: Rcpp
+Imports: Rcpp, adlaplace
 Suggests: knitr, Matrix, trustOptim
 VignetteBuilder: knitr
 Encoding: UTF-8
