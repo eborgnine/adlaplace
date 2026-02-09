@@ -9,7 +9,7 @@ extern "C" {
 #endif
 
 // Versioning so you can evolve the API safely
-#define ADLAPLACE_ADPACK_API_VERSION 1
+#define ADLAPLACE_ADPACK_API_VERSION 2
 
 typedef struct adlaplace_adpack_api {
   int api_version;     // must be ADLAPLACE_ADPACK_API_VERSION
@@ -32,6 +32,23 @@ int (*get_sizes)(void* ctx, size_t* Nparams, size_t* Ngroups,
 int (*get_hessian)(void* ctx, const bool *inner,
                             const int** p, size_t* p_len,
                             const int** i, size_t* i_len);
+
+int (*trace_hinv_t)(
+  void* ctx,
+  const int* i,
+  const double* x,
+  const int* LinvPt_p,
+  const int* LinvPt_i,
+  const double* LinvPt_x,
+  size_t LinvPt_ncol,
+  size_t LinvPt_p_len,
+  size_t LinvPt_i_len,
+  size_t LinvPt_x_len,
+  const int* LinvPtColumns_p,
+  const int* LinvPtColumns_i,
+  size_t LinvPtColumns_p_len,
+  size_t LinvPtColumns_i_len,
+  double* out_trace);
 
 
   // Optional destructor for ctx

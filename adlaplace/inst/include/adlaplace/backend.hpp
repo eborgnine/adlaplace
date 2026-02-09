@@ -26,7 +26,7 @@ struct GroupPack {
   CppAD::sparse_rcv<CPPAD_TESTVECTOR(size_t), CPPAD_TESTVECTOR(double)> pattern_hessian;  // note these are upper triangle only
   CppAD::sparse_rcv<CPPAD_TESTVECTOR(size_t), CPPAD_TESTVECTOR(double)> pattern_hessian_inner;
 
-  CPPAD_TESTVECTOR(double) w;
+  CPPAD_TESTVECTOR(double) w, wthree, direction_zeros, direction;
   CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> unused_pattern;
 
   CPPAD_TESTVECTOR(double) x;

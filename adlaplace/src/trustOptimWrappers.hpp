@@ -217,7 +217,8 @@ private:
     if (!h) Rcpp::stop("adPack handle is NULL");
     if (!h->api) Rcpp::stop("adPack handle api is NULL");
     if (!h->ctx) Rcpp::stop("adPack handle ctx is NULL");
-    if (!h->api->f || !h->api->f_grad || !h->api->f_grad_hess || !h->api->get_hessian || !h->api->get_sizes) {
+    if (!h->api->f || !h->api->f_grad || !h->api->f_grad_hess ||
+        !h->api->get_hessian || !h->api->get_sizes || !h->api->trace_hinv_t) {
       Rcpp::stop("adPack handle has incomplete API function table");
     }
     return h;

@@ -7,6 +7,7 @@
 #include "adlaplace/adlaplace.hpp"
 #include "adlaplace/creators/api_functions.hpp"
 #include "adlaplace/creators/handle.hpp"
+#include "adlaplace/creators/third.hpp"
 #include "adlaplace/stubs.hpp"
 
 std::vector<GroupPack> getAdFun(const Data& data, const Config& config);
@@ -20,6 +21,7 @@ static const adlaplace_adpack_api AD_API = {
 	&eval_hess,
 	&get_sizes,
 	&get_hessian,
+	&eval_trace_hinv_t,
 	&backend_destroy,
 	NULL
 };
