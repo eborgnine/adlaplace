@@ -127,7 +127,7 @@ str(inner_res)
 
 quantile(inner_res$gradient)
 
-res = adlaplace::logLik(
+res = adlaplace::logLikLaplace(
 	x=c(config$beta, config$theta),
 	data, 
 	config

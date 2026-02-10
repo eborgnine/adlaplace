@@ -111,8 +111,8 @@ NULL
 
 #' @rdname innerOpt
 #' @export
-inner_opt_test <- function(adPack, config) {
-    .Call(`_adlaplace_inner_opt_test`, adPack, config)
+all_derivs <- function(x, adPack, config) {
+    .Call(`_adlaplace_all_derivs`, x, adPack, config)
 }
 
 #' @rdname innerOpt
@@ -120,4 +120,3 @@ inner_opt_test <- function(adPack, config) {
 inner_opt <- function(parameters, gamma, config, control, adPack = NULL) {
     .Call(`_adlaplace_inner_opt`, parameters, gamma, config, control, adPack)
 }
-

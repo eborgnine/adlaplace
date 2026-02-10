@@ -6,8 +6,13 @@
 //' evaluates the objective, gradient, and Hessian through the pre-built AD pack
 //' (external pointer) and returns the solution along with curvature information.
 //'
-//' @param parameters Numeric vector of starting values for the inner parameters
-//'   (\code{gamma}; length \code{Ngamma}).
+//' @param x Numeric full parameter vector of length \code{Nparams}, used by
+//'   \code{all_derivs()} for outer/full derivatives.
+//' @param parameters Numeric vector of fixed outer parameters
+//'   (\code{beta}, \code{theta}; length \code{Nbeta+Ntheta}) used by
+//'   \code{inner_opt()}.
+//' @param gamma Numeric vector of starting values for inner parameters
+//'   (\code{gamma}; length \code{Ngamma}) used by \code{inner_opt()}.
 //' @param data Data list used to construct the AD backend when \code{adPack}
 //'   is not supplied.
 //' @param adPack External pointer created by \code{getAdFun()} (class
@@ -17,10 +22,12 @@
 //' @param control List of trust-region control parameters (see
 //'   \code{trustOptim}).
 //' @param adPack Optional backend handle/list from \code{getAdFun()}.
-//'   If provided, it is reused by \code{inner_opt()}.
+//'   If provided, it is reused.
 //'
 //' @return A list with components:
 //' \itemize{
+//'   \item \code{all_derivs}: list with \code{fval}, \code{gradient}, and
+//'         \code{hessian} for the outer/full derivatives (\code{inner=FALSE}).
 //'   \item \code{minusLogLik}: scalar \eqn{-\ell(\hat\gamma)} plus the Laplace
 //'         correction \eqn{\tfrac{1}{2}\log|H| + \tfrac{n}{2}\log(2\pi)}.
 //'   \item \code{fval}: scalar objective at the solution (typically \eqn{-\ell}).
@@ -98,29 +105,39 @@ Rcpp::List eigen_to_list(
 //' @rdname innerOpt
 //' @export
 // [[Rcpp::export]]
-Rcpp::List inner_opt_test(
+Rcpp::List all_derivs(
+	const Rcpp::NumericVector& x,
 	SEXP adPack,
-	const Rcpp::List& config
-	)
+	const Rcpp::List& config)
 {
 
 	const Config configC(config);
-	const size_t Nparams = configC.Ngamma;
-
-	Eigen::VectorXd parameters(Nparams); 
-	for(size_t D=0;D<Nparams;D++) {
-		parameters[D] = configC.gamma[D];
+	if (x.size() != static_cast<R_xlen_t>(configC.Nparams)) {
+		Rcpp::stop(
+			"all_derivs: x has length %d but expected Nparams=%d",
+			static_cast<int>(x.size()),
+			static_cast<int>(configC.Nparams)
+		);
+	}
+	std::vector<double> params_init(configC.Nparams);
+	for (size_t d = 0; d < configC.Nparams; ++d) {
+		params_init[d] = x[d];
 	}
 
-	AD_Func_Opt funObj(adPack, configC.params);
+	AD_Func_Opt funObj(adPack, params_init, false); // inner=false
+	const Eigen::Index nvars = static_cast<Eigen::Index>(funObj.get_nvars());
+	Eigen::VectorXd x_eval(nvars);
+	for (Eigen::Index d = 0; d < nvars; ++d) {
+		x_eval[d] = x[d];
+	}
 
 	double fval = NA_REAL;
-	Eigen::VectorXd grad(Nparams);
+	Eigen::VectorXd grad(nvars);
 	Eigen::SparseMatrix<double> H = funObj.Htemplate.cast<double>();
 	
 	{
 		auto guard=cppad_parallel_setup(configC.num_threads);
-		funObj.get_fdfh(parameters, fval, grad, H);
+		funObj.get_fdfh(x_eval, fval, grad, H);
 	}
 
 
@@ -133,6 +150,8 @@ Rcpp::List inner_opt_test(
 
 	return res;
 }
+
+
 
 //' @rdname innerOpt
 //' @export
@@ -205,7 +224,7 @@ Rcpp::List inner_opt(
 		params_init[configC.theta_begin + d] = parameters[configC.Nbeta + d];
 	}
 
-	AD_Func_Opt funObj(adPack, params_init);
+	AD_Func_Opt funObj(adPack, params_init, true);
 
 
 	Trust_CG_Sparse<Tvec, AD_Func_Opt, THess, TPreLLt> opt(

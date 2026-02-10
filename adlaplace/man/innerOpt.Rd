@@ -2,11 +2,11 @@
 % Please edit documentation in R/RcppExports.R
 \name{innerOpt}
 \alias{innerOpt}
-\alias{inner_opt_test}
 \alias{inner_opt}
+\alias{all_derivs}
 \title{Inner optimization over gamma using trust-region CG (sparse)}
 \usage{
-inner_opt_test(adPack, config)
+all_derivs(x, adPack, config)
 
 inner_opt(parameters, gamma, config, control, adPack = NULL)
 }
@@ -17,8 +17,15 @@ If provided, it is reused by \code{inner_opt()}.}
 \item{config}{Configuration list. Must include \code{gamma}, fixed
 \code{beta}/\code{theta}, and group/sparsity settings.}
 
-\item{parameters}{Numeric vector of starting values for the inner parameters
-(\code{gamma}; length \code{Ngamma}).}
+\item{x}{Numeric full parameter vector of length \code{Nparams}, used by
+\code{all_derivs()} for outer/full derivatives.}
+
+\item{parameters}{Numeric vector of fixed outer parameters
+(\code{beta}, \code{theta}; length \code{Nbeta+Ntheta}) used by
+\code{inner_opt()}.}
+
+\item{gamma}{Numeric vector of starting values for inner parameters
+(\code{gamma}; length \code{Ngamma}) used by \code{inner_opt()}.}
 
 \item{control}{List of trust-region control parameters (see
 \code{trustOptim}).}
@@ -29,6 +36,8 @@ is not supplied.}
 \value{
 A list with components:
 \itemize{
+  \item \code{all_derivs}: list with \code{fval}, \code{gradient}, and
+        \code{hessian} for the outer/full derivatives (\code{inner=FALSE}).
   \item \code{minusLogLik}: scalar \eqn{-\ell(\hat\gamma)} plus the Laplace
         correction \eqn{\tfrac{1}{2}\log|H| + \tfrac{n}{2}\log(2\pi)}.
   \item \code{fval}: scalar objective at the solution (typically \eqn{-\ell}).

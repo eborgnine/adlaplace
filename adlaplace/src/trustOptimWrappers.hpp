@@ -18,12 +18,15 @@
 struct AD_Func_Opt {
   SEXP adPack;
   adlaplace_adpack_handle* handle;
+  bool inner;
 
   size_t Nparams;
   size_t Ngroups_backend;
   size_t Nbeta_backend;
   size_t Ngamma_backend;
   size_t Ntheta_backend;
+  size_t nvars_opt;
+  size_t var_offset;
 
   // maps full symmetric Hessian nz -> index in backend upper-triangle buffer
   Eigen::SparseMatrix<int, Eigen::ColMajor, int> Htemplate;
@@ -33,14 +36,17 @@ struct AD_Func_Opt {
   std::vector<double> parameters;
   std::vector<double> hess_upper_accum;
 
-  AD_Func_Opt(SEXP adPackIn, const std::vector<double>& params_init)
+  AD_Func_Opt(SEXP adPackIn, const std::vector<double>& params_init, bool innerIn = true)
     : adPack(adPackIn),
       handle(get_handle(adPackIn)),
+      inner(innerIn),
       Nparams(0),
       Ngroups_backend(0),
       Nbeta_backend(0),
       Ngamma_backend(0),
-      Ntheta_backend(0)
+      Ntheta_backend(0),
+      nvars_opt(0),
+      var_offset(0)
   {
     const int rc_sizes = handle->api->get_sizes(
       handle->ctx, &Nparams, &Ngroups_backend, &Nbeta_backend, &Ngamma_backend, &Ntheta_backend
@@ -53,17 +59,25 @@ struct AD_Func_Opt {
       parameters[j] = params_init[j];
     }
 
-    const bool inner = true;
+    nvars_opt = inner ? Ngamma_backend : Nparams;
+    var_offset = inner ? Nbeta_backend : 0;
+
+    const bool inner_flag = inner;
     const int* p = NULL;
     const int* i = NULL;
     size_t p_len = 0;
     size_t i_len = 0;
-    const int rc_hess = handle->api->get_hessian(handle->ctx, &inner, &p, &p_len, &i, &i_len);
+    const int rc_hess = handle->api->get_hessian(handle->ctx, &inner_flag, &p, &p_len, &i, &i_len);
     if (rc_hess != 0) {
       Rcpp::stop("backend api->get_hessian failed with code %d", rc_hess);
     }
-    if (p_len != (Ngamma_backend + 1)) {
-      Rcpp::stop("inner Hessian p_len=%d but expected Ngamma+1=%d", (int)p_len, (int)(Ngamma_backend + 1));
+    if (p_len != (nvars_opt + 1)) {
+      Rcpp::stop(
+        "%s Hessian p_len=%d but expected nvars+1=%d",
+        inner ? "inner" : "outer",
+        (int)p_len,
+        (int)(nvars_opt + 1)
+      );
     }
 
     hess_upper_accum.resize(i_len, 0.0);
@@ -72,8 +86,8 @@ struct AD_Func_Opt {
 
     using SpMatI = Eigen::SparseMatrix<int, Eigen::ColMajor, int>;
     Eigen::Map<const SpMatI> Hupper(
-      static_cast<int>(Ngamma_backend),
-      static_cast<int>(Ngamma_backend),
+      static_cast<int>(nvars_opt),
+      static_cast<int>(nvars_opt),
       static_cast<int>(i_len),
       p, i, h_index_upper.data()
     );
@@ -81,7 +95,7 @@ struct AD_Func_Opt {
     Htemplate.makeCompressed();
   }
 
-  int get_nvars() const { return static_cast<int>(Ngamma_backend); }
+  int get_nvars() const { return static_cast<int>(nvars_opt); }
   int get_nnz() const { return static_cast<int>(Htemplate.nonZeros()); }
 
   template <class DerivedX>
@@ -89,13 +103,49 @@ struct AD_Func_Opt {
     update_gamma_from_x(x);
 
     double f_sum = 0.0;
+    int rc_error = 0;
+    int rc_group = -1;
+
+#ifdef _OPENMP
+    #pragma omp parallel
+    {
+      double f_local = 0.0;
+      int rc_local = 0;
+      int rc_group_local = -1;
+
+      #pragma omp for schedule(guided, 1)
+      for (int g = 0; g < static_cast<int>(Ngroups_backend); ++g) {
+        int gi = g;
+        const int rc = handle->api->f(handle->ctx, &gi, parameters.data(), &f_local);
+        if (rc != 0 && rc_local == 0) {
+          rc_local = rc;
+          rc_group_local = gi;
+        }
+      }
+
+      #pragma omp critical
+      {
+        if (rc_local != 0 && rc_error == 0) {
+          rc_error = rc_local;
+          rc_group = rc_group_local;
+        }
+        f_sum += f_local;
+      }
+    }
+#else
     for (size_t g = 0; g < Ngroups_backend; ++g) {
       int gi = static_cast<int>(g);
-      int rc = handle->api->f(handle->ctx, &gi, parameters.data(), &f_sum);
+      const int rc = handle->api->f(handle->ctx, &gi, parameters.data(), &f_sum);
       if (rc != 0) {
         Rcpp::stop("backend api->f failed for group %d with code %d", gi, rc);
       }
     }
+#endif
+
+    if (rc_error != 0) {
+      Rcpp::stop("backend api->f failed for group %d with code %d", rc_group, rc_error);
+    }
+
     // trustOptim minimizes: return minus log-likelihood
     f = -f_sum;
   }
@@ -109,21 +159,64 @@ struct AD_Func_Opt {
     gout.setZero();
 
     std::vector<double> grad_full(Nparams, 0.0);
-    const bool inner = true;
+    const bool inner_flag = inner;
+    int rc_error = 0;
+    int rc_group = -1;
 
+#ifdef _OPENMP
+    #pragma omp parallel
+    {
+      double f_local = 0.0;
+      std::vector<double> grad_local(Nparams, 0.0);
+      int rc_local = 0;
+      int rc_group_local = -1;
+
+      #pragma omp for schedule(guided, 1)
+      for (int g = 0; g < static_cast<int>(Ngroups_backend); ++g) {
+        int gi = g;
+        const int rc = handle->api->f_grad(
+          handle->ctx, &gi, parameters.data(), &inner_flag, &f_local, grad_local.data()
+        );
+        if (rc != 0 && rc_local == 0) {
+          rc_local = rc;
+          rc_group_local = gi;
+        }
+      }
+
+      #pragma omp critical
+      {
+        if (rc_local != 0 && rc_error == 0) {
+          rc_error = rc_local;
+          rc_group = rc_group_local;
+        }
+        f += f_local;
+        for (size_t k = 0; k < Nparams; ++k) {
+          grad_full[k] += grad_local[k];
+        }
+      }
+    }
+#else
     for (size_t g = 0; g < Ngroups_backend; ++g) {
       int gi = static_cast<int>(g);
-      int rc = handle->api->f_grad(
-        handle->ctx, &gi, parameters.data(), &inner, &f, grad_full.data()
+      const int rc = handle->api->f_grad(
+        handle->ctx, &gi, parameters.data(), &inner_flag, &f, grad_full.data()
       );
       if (rc != 0) {
         Rcpp::stop("backend api->f_grad failed for group %d with code %d", gi, rc);
       }
     }
+#endif
+
+    if (rc_error != 0) {
+      Rcpp::stop("backend api->f_grad failed for group %d with code %d", rc_group, rc_error);
+    }
 
     f = -f;
-    for (size_t k = 0; k < Ngamma_backend; ++k) {
-      gout[static_cast<Eigen::Index>(k)] = -grad_full[Nbeta_backend + k];
+    if (static_cast<size_t>(gout.size()) != nvars_opt) {
+      Rcpp::stop("gradient buffer has size %d but expected %d", (int)gout.size(), (int)nvars_opt);
+    }
+    for (size_t k = 0; k < nvars_opt; ++k) {
+      gout[static_cast<Eigen::Index>(k)] = -grad_full[var_offset + k];
     }
   }
 
@@ -142,25 +235,70 @@ struct AD_Func_Opt {
 
     std::fill(hess_upper_accum.begin(), hess_upper_accum.end(), 0.0);
     std::vector<double> grad_full(Nparams, 0.0);
-    const bool inner = true;
+    const bool inner_flag = inner;
+    int rc_error = 0;
+    int rc_group = -1;
 
+#ifdef _OPENMP
+    #pragma omp parallel
+    {
+      double f_local = 0.0;
+      std::vector<double> grad_local(Nparams, 0.0);
+      std::vector<double> hess_local(hess_upper_accum.size(), 0.0);
+      int rc_local = 0;
+      int rc_group_local = -1;
+
+      #pragma omp for schedule(guided, 1)
+      for (int g = 0; g < static_cast<int>(Ngroups_backend); ++g) {
+        int gi = g;
+        const int rc = handle->api->f_grad_hess(
+          handle->ctx, &gi, parameters.data(), &inner_flag,
+          &f_local, grad_local.data(), hess_local.data()
+        );
+        if (rc != 0 && rc_local == 0) {
+          rc_local = rc;
+          rc_group_local = gi;
+        }
+      }
+
+      #pragma omp critical
+      {
+        if (rc_local != 0 && rc_error == 0) {
+          rc_error = rc_local;
+          rc_group = rc_group_local;
+        }
+        f += f_local;
+        for (size_t k = 0; k < Nparams; ++k) {
+          grad_full[k] += grad_local[k];
+        }
+        for (size_t k = 0; k < hess_upper_accum.size(); ++k) {
+          hess_upper_accum[k] += hess_local[k];
+        }
+      }
+    }
+#else
     for (size_t g = 0; g < Ngroups_backend; ++g) {
       int gi = static_cast<int>(g);
-      int rc = handle->api->f_grad_hess(
-        handle->ctx, &gi, parameters.data(), &inner, &f, grad_full.data(), hess_upper_accum.data()
+      const int rc = handle->api->f_grad_hess(
+        handle->ctx, &gi, parameters.data(), &inner_flag, &f, grad_full.data(), hess_upper_accum.data()
       );
       if (rc != 0) {
         Rcpp::stop("backend api->f_grad_hess failed for group %d with code %d", gi, rc);
       }
     }
+#endif
+
+    if (rc_error != 0) {
+      Rcpp::stop("backend api->f_grad_hess failed for group %d with code %d", rc_group, rc_error);
+    }
 
     f = -f;
     if (gout.size() > 0) {
-      if (static_cast<size_t>(gout.size()) != Ngamma_backend) {
-        Rcpp::stop("gradient buffer has size %d but expected %d", (int)gout.size(), (int)Ngamma_backend);
+      if (static_cast<size_t>(gout.size()) != nvars_opt) {
+        Rcpp::stop("gradient buffer has size %d but expected %d", (int)gout.size(), (int)nvars_opt);
       }
-      for (size_t k = 0; k < Ngamma_backend; ++k) {
-        gout[static_cast<Eigen::Index>(k)] = -grad_full[Nbeta_backend + k];
+      for (size_t k = 0; k < nvars_opt; ++k) {
+        gout[static_cast<Eigen::Index>(k)] = -grad_full[var_offset + k];
       }
     }
 
@@ -180,7 +318,7 @@ struct AD_Func_Opt {
   template <class DerivedX>
   void get_hessian(const Eigen::MatrixBase<DerivedX>& x, Eigen::SparseMatrix<double>& H) {
     double f_dummy = 0.0;
-    Eigen::VectorXd g_dummy(static_cast<Eigen::Index>(Ngamma_backend));
+    Eigen::VectorXd g_dummy(static_cast<Eigen::Index>(nvars_opt));
     get_fdfh(x, f_dummy, g_dummy, H);
   }
 
@@ -192,7 +330,7 @@ struct AD_Func_Opt {
       H.makeCompressed();
     }
     double f_dummy = 0.0;
-    Eigen::VectorXd g_dummy(static_cast<Eigen::Index>(Ngamma_backend));
+    Eigen::VectorXd g_dummy(static_cast<Eigen::Index>(nvars_opt));
     get_fdfh(x, f_dummy, g_dummy, H);
   }
 
@@ -226,8 +364,17 @@ private:
 
   template <class DerivedX>
   inline void update_gamma_from_x(const Eigen::MatrixBase<DerivedX>& x) {
-    for (size_t k = 0; k < Ngamma_backend; ++k) {
-      parameters[Nbeta_backend + k] = x[static_cast<Eigen::Index>(k)];
+    if (static_cast<size_t>(x.size()) != nvars_opt) {
+      Rcpp::stop("x has size %d but expected %d", (int)x.size(), (int)nvars_opt);
+    }
+    if (inner) {
+      for (size_t k = 0; k < Ngamma_backend; ++k) {
+        parameters[Nbeta_backend + k] = x[static_cast<Eigen::Index>(k)];
+      }
+    } else {
+      for (size_t k = 0; k < Nparams; ++k) {
+        parameters[k] = x[static_cast<Eigen::Index>(k)];
+      }
     }
   }
 };

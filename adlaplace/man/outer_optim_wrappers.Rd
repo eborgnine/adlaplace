@@ -11,11 +11,11 @@ outer_fn(..., control_inner = list(), cache)
 outer_gr(..., control_inner = list(), cache)
 }
 \arguments{
-\item{...}{Arguments forwarded to \code{\link{logLik}} (e.g. \code{x}, \code{data},
+\item{...}{Arguments forwarded to \code{\link{logLikLaplace}} (e.g. \code{x}, \code{data},
 \code{config}, \code{adPack}, \code{package}, etc.).}
 
 \item{control_inner}{A list of control options forwarded to the \code{control}
-argument of \code{\link{logLik}} for the inner optimization.}
+argument of \code{\link{logLikLaplace}} for the inner optimization.}
 
 \item{cache}{An \code{\link[base]{environment}} containing starting values for the inner
 optimization. It should contain \code{start_gamma}. Both functions update
@@ -28,9 +28,9 @@ optimization. It should contain \code{start_gamma}. Both functions update
 }
 }
 \description{
-Convenience wrappers around \code{\link{logLik}} for use with outer optimizers
+Convenience wrappers around \code{\link{logLikLaplace}} for use with outer optimizers
 that expect \code{fn} / \code{gr} callbacks. Both functions solve (or warm-start)
-the inner problem over \code{gamma} via \code{\link{logLik}} and update a mutable
+the inner problem over \code{gamma} via \code{\link{logLikLaplace}} and update a mutable
 \code{cache} environment with the latest inner solution.
 }
 \details{
@@ -50,5 +50,5 @@ gr  <- outer_gr(x = x0, data = data, config = config, cache = cache)
 
 }
 \seealso{
-\code{\link{logLik}}
+\code{\link{logLikLaplace}}
 }

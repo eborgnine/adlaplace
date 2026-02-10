@@ -73,14 +73,13 @@ reformatChol <- function(x) {
 
 logLikDeriv = function(
   x,
-  inner_res,
-  cholHessian=inner_res$cholHessian,
-  hessian_full = inner_res$hessian_full,
-  gradient_full = inner_res$gradient_full,
+  cholHessian,
   config, 
-  adPack,
-  package = c(config$package, 'adlaplace')[1]
+  adPack
 ) {
+
+  derivFull = all_derivs(
+    x, adPack, config)
 
   halfH = reformatChol(cholHessian)
   Hinv = Matrix::tcrossprod(halfH) 
@@ -90,8 +89,8 @@ logLikDeriv = function(
 
 
   whichColumnsByGroup1 = lapply(
-    config$group_inner, function(xx, refmat) {
-      linvHere = refmat[1+xx$grad, ,drop=FALSE]
+    adPack$sparsity, function(xx, refmat) {
+      linvHere = refmat[1+xx$grad_inner, ,drop=FALSE]
       which(diff(linvHere@p)>0)-1L
     }, 
     refmat = halfH
@@ -104,13 +103,23 @@ logLikDeriv = function(
     dims = c(ncol(halfH), length(whichColumnsByGroup1))
   )
 
-  theTrace = getExportedValue(package, "traceHinvT")(
+  theTrace = traceHinvT(
     x, halfH, 
     whichColumnsByGroup,
     config,
     adPack)
 
+  result = list(extra = list(dU = dU, trace3 = theTrace, halfH = halfH))
+  result$deriv = data.frame(
+    dDetUpart = as.vector(theTrace[Sgamma1] %*% dU),
+    dDetTpart = theTrace[-Sgamma1])
+  result$deriv$gradTheta = gradient_full[-Sgamma1]  
+  result$deriv$gradU = as.vector(gradient_full[Sgamma1] %*% dU)
+  result$deriv$dDet = result$deriv$dDetUpart + result$deriv$dDetTpart
+  result$deriv$dL = result$deriv$dDet + result$deriv$gradU + result$deriv$gradTheta
 
+
+  return(result)
 
   if(FALSE){
 
@@ -178,15 +187,5 @@ logLikDeriv = function(
 
   }
 
-  result = list(extra = list(dU = dU, trace3 = theTrace, halfH = halfH))
-  result$deriv = data.frame(
-    dDetUpart = as.vector(theTrace[Sgamma1] %*% dU),
-    dDetTpart = theTrace[-Sgamma1])
-  result$deriv$gradTheta = gradient_full[-Sgamma1]  
-  result$deriv$gradU = as.vector(gradient_full[Sgamma1] %*% dU)
-  result$deriv$dDet = result$deriv$dDetUpart + result$deriv$dDetTpart
-  result$deriv$dL = result$deriv$dDet + result$deriv$gradU + result$deriv$gradTheta
 
-
-  return(result)
 }

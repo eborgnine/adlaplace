@@ -51,17 +51,18 @@
 #' @examples
 #' \dontrun{
 #' # x <- c(beta, theta)
-#' # out <- logLik(x, data, config)
+#' # out <- logLikLaplace(x, data, config)
 #' # out$minusLogLik
 #' }
 #'
 
 #' @export
-logLik = function(x, config, 
+logLikLaplace = function(x, config, 
 	start_gamma, 	
 	control = list(report.level=4, report.freq=1), 
 	adPack, data, 
-	package = c(config$package, 'adlaplace')[1]
+	package = c(config$package, 'adlaplace')[1],
+	deriv = FALSE
 ) {
 
 	Nbeta = length(config$beta)
@@ -85,7 +86,7 @@ logLik = function(x, config,
 
 
 	if(any(config$verbose)) {
-		cat("logLik using package ", package, "for objective funcion\n")
+		cat("logLikLaplace using package ", package, "for objective funcion\n")
 	}
 
 	inner_res = try(inner_opt(
@@ -117,11 +118,11 @@ logLik = function(x, config,
 	inner_res$parameters = x
 	inner_res$full_parameters = c(config_inner$beta, inner_res$solution, config_inner$theta)
 	if(!missing(data)){
-	try(names(inner_res$full_parameters) <- c(
-		rownames(data$XTp), 
-		rownames(data$ATp), 
-		colnames(data$map)
-	))
+		try(names(inner_res$full_parameters) <- c(
+			rownames(data$XTp), 
+			rownames(data$ATp), 
+			colnames(data$map)
+		))
 	}
 
 
@@ -151,6 +152,11 @@ logLik = function(x, config,
 		P = inner_res$cholHessian$P
 	)
 
+	if(!deriv) {
+		return(result)
+	}	
+	result$deriv = logLikDeriv(result$full_parameters, result$cholHessian,
+	config, )
 
 	return(result)
 }
