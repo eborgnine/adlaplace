@@ -3,6 +3,7 @@
 
 #include <Rinternals.h>
 #include "adlaplace/creators/R_interfaces.hpp"
+#include "adlaplace/creators/callables.hpp"
 
 //' C++ backend entry points for adlaplaceExample
 //'
@@ -22,6 +23,7 @@
 //'   \item \code{jointLogDens}: scalar objective value.
 //'   \item \code{grad}: numeric gradient vector.
 //'   \item \code{hess}: sparse symmetric Hessian as \code{dsCMatrix}.
+//'   \item \code{traceHinvT}: numeric vector of third-derivative contractions.
 //' }
 //'
 //' @name adlaplace_cpp
@@ -44,7 +46,8 @@ double jointLogDens(
   SEXP backendContext,
   SEXP Sgroups = R_NilValue)
 {
-  return jointLogDens_h(x, backendContext, Sgroups);
+  SEXP out = adlaplace_joint_log_dens_callable()(x, backendContext, Sgroups);
+  return Rcpp::as<double>(out);
 }
 
 //' @rdname adlaplace_cpp
@@ -56,7 +59,8 @@ Rcpp::NumericVector grad(
   const bool inner = false,
   SEXP Sgroups = R_NilValue)
 {
-  return grad_h(x, backendContext, inner, Sgroups);
+  SEXP out = adlaplace_grad_callable()(x, backendContext, Rcpp::wrap(inner), Sgroups);
+  return Rcpp::as<Rcpp::NumericVector>(out);
 }
 
 //' @rdname adlaplace_cpp
@@ -68,5 +72,26 @@ Rcpp::S4 hess(
   const bool inner = false,
   SEXP Sgroups = R_NilValue)
 {
-  return hess_h(x, backendContext, inner, Sgroups);
+  SEXP out = adlaplace_hess_callable()(x, backendContext, Rcpp::wrap(inner), Sgroups);
+  return Rcpp::as<Rcpp::S4>(out);
+}
+
+//' @rdname adlaplace_cpp
+//' @export
+// [[Rcpp::export]]
+Rcpp::NumericVector traceHinvT(
+  const Rcpp::NumericVector& x,
+  const Rcpp::S4& LinvPt,
+  const Rcpp::S4& LinvPtColumns,
+  SEXP backendContext,
+  SEXP Sgroups = R_NilValue)
+{
+  SEXP out = adlaplace_trace_hinv_t_callable()(
+    x,
+    backendContext,
+    LinvPt,
+    LinvPtColumns,
+    Sgroups
+  );
+  return Rcpp::as<Rcpp::NumericVector>(out);
 }

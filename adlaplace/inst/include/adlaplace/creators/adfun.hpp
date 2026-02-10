@@ -81,8 +81,8 @@ inline void adpack_sparsity(
 	gp.direction.resize(Nparams);
 	gp.direction_zeros.resize(Nparams);
 
-	std::fill(direction.begin(), direction.end(), 0.0);
-	std::fill(direction_zeros.begin(), direction_zeros.end(), 0.0);
+	std::fill(gp.direction.begin(), gp.direction.end(), 0.0);
+	std::fill(gp.direction_zeros.begin(), gp.direction_zeros.end(), 0.0);
 
 	CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> grad;
 	CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> grad_inner;

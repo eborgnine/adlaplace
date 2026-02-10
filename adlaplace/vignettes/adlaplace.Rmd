@@ -129,8 +129,8 @@ quantile(inner_res$gradient)
 
 res = adlaplace::logLikLaplace(
 	x=c(config$beta, config$theta),
-	data, 
-	config
+	data=data, 
+	config=config
 	)
 
 ```

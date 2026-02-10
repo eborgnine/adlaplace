@@ -19,6 +19,7 @@
 #'   \item \code{jointLogDens}: scalar objective value.
 #'   \item \code{grad}: numeric gradient vector.
 #'   \item \code{hess}: sparse symmetric Hessian as \code{dsCMatrix}.
+#'   \item \code{traceHinvT}: numeric vector of third-derivative contractions.
 #' }
 #'
 #' @name adlaplace_cpp
@@ -46,5 +47,11 @@ grad <- function(x, backendContext, inner = FALSE, Sgroups = NULL) {
 #' @export
 hess <- function(x, backendContext, inner = FALSE, Sgroups = NULL) {
     .Call(`_adlaplaceExample_hess`, x, backendContext, inner, Sgroups)
+}
+
+#' @rdname adlaplace_cpp
+#' @export
+traceHinvT <- function(x, LinvPt, LinvPtColumns, backendContext, Sgroups = NULL) {
+    .Call(`_adlaplaceExample_traceHinvT`, x, LinvPt, LinvPtColumns, backendContext, Sgroups)
 }
 

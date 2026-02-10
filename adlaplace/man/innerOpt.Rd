@@ -2,8 +2,8 @@
 % Please edit documentation in R/RcppExports.R
 \name{innerOpt}
 \alias{innerOpt}
-\alias{inner_opt}
 \alias{all_derivs}
+\alias{inner_opt}
 \title{Inner optimization over gamma using trust-region CG (sparse)}
 \usage{
 all_derivs(x, adPack, config)
@@ -11,14 +11,14 @@ all_derivs(x, adPack, config)
 inner_opt(parameters, gamma, config, control, adPack = NULL)
 }
 \arguments{
+\item{x}{Numeric full parameter vector of length \code{Nparams}, used by
+\code{all_derivs()} for outer/full derivatives.}
+
 \item{adPack}{Optional backend handle/list from \code{getAdFun()}.
-If provided, it is reused by \code{inner_opt()}.}
+If provided, it is reused.}
 
 \item{config}{Configuration list. Must include \code{gamma}, fixed
 \code{beta}/\code{theta}, and group/sparsity settings.}
-
-\item{x}{Numeric full parameter vector of length \code{Nparams}, used by
-\code{all_derivs()} for outer/full derivatives.}
 
 \item{parameters}{Numeric vector of fixed outer parameters
 (\code{beta}, \code{theta}; length \code{Nbeta+Ntheta}) used by

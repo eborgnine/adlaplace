@@ -6,6 +6,7 @@
 \alias{jointLogDens}
 \alias{grad}
 \alias{hess}
+\alias{traceHinvT}
 \title{C++ backend entry points for adlaplaceExample}
 \usage{
 getAdFun(data, config)
@@ -15,6 +16,8 @@ jointLogDens(x, backendContext, Sgroups = NULL)
 grad(x, backendContext, inner = FALSE, Sgroups = NULL)
 
 hess(x, backendContext, inner = FALSE, Sgroups = NULL)
+
+traceHinvT(x, LinvPt, LinvPtColumns, backendContext, Sgroups = NULL)
 }
 \arguments{
 \item{data}{Model data list.}
@@ -35,6 +38,7 @@ hess(x, backendContext, inner = FALSE, Sgroups = NULL)
 \item \code{jointLogDens}: scalar objective value.
 \item \code{grad}: numeric gradient vector.
 \item \code{hess}: sparse symmetric Hessian as \code{dsCMatrix}.
+\item \code{traceHinvT}: numeric vector of third-derivative contractions.
 }
 }
 \description{

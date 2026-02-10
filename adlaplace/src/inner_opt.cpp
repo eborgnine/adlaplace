@@ -60,7 +60,6 @@
 #include "adlaplace/rviews.hpp"
 #include "adlaplace/foromp.hpp"
 #include "adlaplace/math/constants.hpp"
-#include "adlaplace/creators/R_interfaces.hpp"
 #include "trustOptimWrappers.hpp"
 
 auto get_double_ctrl = [](const Rcpp::List& ctl, const char* key, double def) {
@@ -71,33 +70,54 @@ auto get_int_ctrl = [](const Rcpp::List& ctl, const char* key, int def) {
 };
 
 Rcpp::List eigen_to_list(
-	const Eigen::SparseMatrix<double> &M) {
+	const Eigen::SparseMatrix<double> &M,
+	const bool upper = true) {
 
-	const Eigen::Index nnz  = M.nonZeros();
-	const Eigen::Index ncolP1 = M.cols()+1;
+	Eigen::SparseMatrix<double> Mcopy;
+	if (upper) {
+		Mcopy = M.triangularView<Eigen::Upper>();
+	} else {
+		Mcopy = M;
+	}
+	Mcopy.makeCompressed();
+
+
+	const Eigen::Index nnz  = Mcopy.nonZeros();
+	const Eigen::Index ncolP1 = Mcopy.cols()+1;
+
 
 	Rcpp::NumericVector x(nnz);
 	Rcpp::IntegerVector i(nnz);
 	Rcpp::IntegerVector p(ncolP1);
 
     // copy from Eigen into R vectors
-	std::copy(M.valuePtr(),
-		M.valuePtr() + nnz,
+	std::copy(Mcopy.valuePtr(),
+		Mcopy.valuePtr() + nnz,
 		x.begin());
 
-	std::copy(M.innerIndexPtr(),
-		M.innerIndexPtr() + nnz,
+	std::copy(Mcopy.innerIndexPtr(),
+		Mcopy.innerIndexPtr() + nnz,
 		i.begin());
 
-	std::copy(M.outerIndexPtr(),
-		M.outerIndexPtr() + ncolP1,
+	std::copy(Mcopy.outerIndexPtr(),
+		Mcopy.outerIndexPtr() + ncolP1,
 		p.begin());
 
 	Rcpp::List result = Rcpp::List::create(
 		Rcpp::_["i"] = i, 
 		Rcpp::_["p"] = p,
-		Rcpp::_["x"] = x
-		);
+		Rcpp::_["x"] = x,
+		Rcpp::_["dims"] = Rcpp::IntegerVector::create(
+			static_cast<int>(M.rows()),
+			static_cast<int>(M.cols())
+		),
+		Rcpp::_["index1"] = false
+	);
+	if (upper) {
+		result["symmetric"] = true;
+	} else {
+		result["triangular"] = true;
+	}
 	return(result);
 }
 
@@ -313,7 +333,7 @@ Rcpp::List inner_opt(
 	Rcpp::List cholHessian = Rcpp::List::create(
 		Rcpp::Named("P") = P_R,
 		Rcpp::Named("D") = D_R,
-		Rcpp::Named("L") = eigen_to_list(L)
+		Rcpp::Named("L") = eigen_to_list(L, false)
 		);
 
 	Rcpp::NumericVector solution(P.size());

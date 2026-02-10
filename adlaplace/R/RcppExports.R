@@ -17,6 +17,10 @@
 #'   derivatives; otherwise evaluate outer/full derivatives.
 #' @param Sgroups Optional integer vector of 0-based group indices to evaluate.
 #'   If omitted, uses all groups \code{0:(Ngroups-1)}.
+#' @param LinvPt Sparse \code{dgCMatrix} for columns of
+#'   \eqn{P^\top L^{-1} D^{-1/2}} (or equivalent) used in trace contractions.
+#' @param LinvPtColumns Sparse \code{ngCMatrix}/\code{dgCMatrix} mapping
+#'   selected columns of \code{LinvPt} to each group.
 #'
 #' @return
 #' \itemize{
@@ -25,6 +29,7 @@
 #'   \item \code{grad}: numeric gradient vector.
 #'   \item \code{hess}: sparse symmetric Hessian as a Matrix
 #'     \code{dsCMatrix} object.
+#'   \item \code{traceHinvT}: numeric vector of third-derivative contractions.
 #' }
 #'
 #' @details
@@ -59,6 +64,12 @@ hess <- function(x, backendContext, inner = FALSE, Sgroups = NULL) {
     .Call(`_adlaplace_hess`, x, backendContext, inner, Sgroups)
 }
 
+#' @rdname adlaplace_cpp
+#' @export
+traceHinvT <- function(x, LinvPt, LinvPtColumns, backendContext, Sgroups = NULL) {
+    .Call(`_adlaplace_traceHinvT`, x, LinvPt, LinvPtColumns, backendContext, Sgroups)
+}
+
 #' Register C-callable entry points
 register_callables <- function() {
     .Call(`_adlaplace_register_callables`)
@@ -71,8 +82,13 @@ register_callables <- function() {
 #' evaluates the objective, gradient, and Hessian through the pre-built AD pack
 #' (external pointer) and returns the solution along with curvature information.
 #'
-#' @param parameters Numeric vector of starting values for the inner parameters
-#'   (\code{gamma}; length \code{Ngamma}).
+#' @param x Numeric full parameter vector of length \code{Nparams}, used by
+#'   \code{all_derivs()} for outer/full derivatives.
+#' @param parameters Numeric vector of fixed outer parameters
+#'   (\code{beta}, \code{theta}; length \code{Nbeta+Ntheta}) used by
+#'   \code{inner_opt()}.
+#' @param gamma Numeric vector of starting values for inner parameters
+#'   (\code{gamma}; length \code{Ngamma}) used by \code{inner_opt()}.
 #' @param data Data list used to construct the AD backend when \code{adPack}
 #'   is not supplied.
 #' @param adPack External pointer created by \code{getAdFun()} (class
@@ -82,10 +98,12 @@ register_callables <- function() {
 #' @param control List of trust-region control parameters (see
 #'   \code{trustOptim}).
 #' @param adPack Optional backend handle/list from \code{getAdFun()}.
-#'   If provided, it is reused by \code{inner_opt()}.
+#'   If provided, it is reused.
 #'
 #' @return A list with components:
 #' \itemize{
+#'   \item \code{all_derivs}: list with \code{fval}, \code{gradient}, and
+#'         \code{hessian} for the outer/full derivatives (\code{inner=FALSE}).
 #'   \item \code{minusLogLik}: scalar \eqn{-\ell(\hat\gamma)} plus the Laplace
 #'         correction \eqn{\tfrac{1}{2}\log|H| + \tfrac{n}{2}\log(2\pi)}.
 #'   \item \code{fval}: scalar objective at the solution (typically \eqn{-\ell}).
@@ -120,3 +138,4 @@ all_derivs <- function(x, adPack, config) {
 inner_opt <- function(parameters, gamma, config, control, adPack = NULL) {
     .Call(`_adlaplace_inner_opt`, parameters, gamma, config, control, adPack)
 }
+

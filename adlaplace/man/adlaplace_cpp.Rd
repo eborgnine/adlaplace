@@ -6,6 +6,7 @@
 \alias{jointLogDens}
 \alias{grad}
 \alias{hess}
+\alias{traceHinvT}
 \title{C++ backend entry points}
 \usage{
 getAdFun(data, config)
@@ -15,6 +16,8 @@ jointLogDens(x, backendContext, Sgroups = NULL)
 grad(x, backendContext, inner = FALSE, Sgroups = NULL)
 
 hess(x, backendContext, inner = FALSE, Sgroups = NULL)
+
+traceHinvT(x, LinvPt, LinvPtColumns, backendContext, Sgroups = NULL)
 }
 \arguments{
 \item{data}{An R list containing model data objects required by the backend
@@ -32,6 +35,12 @@ If omitted, uses all groups \code{0:(Ngroups-1)}.}
 
 \item{inner}{Logical scalar. If \code{TRUE}, evaluate inner-\eqn{\gamma}
 derivatives; otherwise evaluate outer/full derivatives.}
+
+\item{LinvPt}{Sparse \code{dgCMatrix} for columns of
+\eqn{P^\top L^{-1} D^{-1/2}} (or equivalent) used in trace contractions.}
+
+\item{LinvPtColumns}{Sparse \code{ngCMatrix}/\code{dgCMatrix} mapping
+selected columns of \code{LinvPt} to each group.}
 }
 \value{
 \itemize{
@@ -40,6 +49,7 @@ derivatives; otherwise evaluate outer/full derivatives.}
   \item \code{grad}: numeric gradient vector.
   \item \code{hess}: sparse symmetric Hessian as a Matrix
     \code{dsCMatrix} object.
+  \item \code{traceHinvT}: numeric vector of third-derivative contractions.
 }
 }
 \description{

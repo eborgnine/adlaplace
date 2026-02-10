@@ -64,12 +64,28 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// traceHinvT
+Rcpp::NumericVector traceHinvT(const Rcpp::NumericVector& x, const Rcpp::S4& LinvPt, const Rcpp::S4& LinvPtColumns, SEXP backendContext, SEXP Sgroups);
+RcppExport SEXP _adlaplaceExample_traceHinvT(SEXP xSEXP, SEXP LinvPtSEXP, SEXP LinvPtColumnsSEXP, SEXP backendContextSEXP, SEXP SgroupsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::NumericVector& >::type x(xSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::S4& >::type LinvPt(LinvPtSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::S4& >::type LinvPtColumns(LinvPtColumnsSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type backendContext(backendContextSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type Sgroups(SgroupsSEXP);
+    rcpp_result_gen = Rcpp::wrap(traceHinvT(x, LinvPt, LinvPtColumns, backendContext, Sgroups));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_adlaplaceExample_getAdFun", (DL_FUNC) &_adlaplaceExample_getAdFun, 2},
     {"_adlaplaceExample_jointLogDens", (DL_FUNC) &_adlaplaceExample_jointLogDens, 3},
     {"_adlaplaceExample_grad", (DL_FUNC) &_adlaplaceExample_grad, 4},
     {"_adlaplaceExample_hess", (DL_FUNC) &_adlaplaceExample_hess, 4},
+    {"_adlaplaceExample_traceHinvT", (DL_FUNC) &_adlaplaceExample_traceHinvT, 5},
     {NULL, NULL, 0}
 };
 

@@ -57,7 +57,8 @@
 #'
 
 #' @export
-logLikLaplace = function(x, config, 
+logLikLaplace = function(
+	x, config, 
 	start_gamma, 	
 	control = list(report.level=4, report.freq=1), 
 	adPack, data, 
@@ -89,8 +90,9 @@ logLikLaplace = function(x, config,
 		cat("logLikLaplace using package ", package, "for objective funcion\n")
 	}
 
-	inner_res = try(inner_opt(
-		x, config_inner$gamma,
+	inner_res = try(adlaplace::inner_opt(
+		x, 
+		config_inner$gamma,
 		config=config_inner, 
 		control=control,
 		adPack = adPack))
@@ -115,10 +117,22 @@ logLikLaplace = function(x, config,
 		names(inner_res$solution) = names(config$gamma)
 	}
 
-	inner_res$parameters = x
-	inner_res$full_parameters = c(config_inner$beta, inner_res$solution, config_inner$theta)
+
+	result = list(
+		minusLogLik = inner_res$minusLogLik,
+		parameters = x,
+		fullParameters =  c(config_inner$beta, inner_res$solution, config_inner$theta),
+		hessian = list(
+			H = do.call(Matrix::sparseMatrix, inner_res$hessian),
+			L = do.call(Matrix::sparseMatrix, inner_res$cholHessian$L), 
+			D = Matrix::Diagonal(length(inner_res$solution), inner_res$cholHessian$D),
+			P = inner_res$cholHessian$P
+		),
+		opt = inner_res[grep("[hH]essian", names(inner_res), invert=TRUE)]
+	)
+
 	if(!missing(data)){
-		try(names(inner_res$full_parameters) <- c(
+		try(names(result$fullParameters) <- c(
 			rownames(data$XTp), 
 			rownames(data$ATp), 
 			colnames(data$map)
@@ -126,37 +140,15 @@ logLikLaplace = function(x, config,
 	}
 
 
-	result = list(
-		opt = inner_res[grep("[hH]essian", names(inner_res), invert=TRUE)],
-		minusLogLik = inner_res$minusLogLik,
-		parameters = x,
-		full_parameters = inner_res$full_parameters
-	)
-	result$hessian = Matrix::sparseMatrix(
-		i = inner_res$hessian$i,
-		p = inner_res$hessian$p,
-		x = inner_res$hessian$x,
-		dims = rep(length(inner_res$solution), 2), index1=FALSE,
-#		uplo = 'U',
-		symmetric=TRUE
-	)
-	result$cholHessian = list(
-		L = Matrix::sparseMatrix(
-			i = inner_res$cholHessian$L$i,
-			p = inner_res$cholHessian$L$p,
-			x = inner_res$cholHessian$L$x,
-			dims = rep(length(inner_res$solution), 2), index1=FALSE,
-			triangular=TRUE
-		), D = Matrix::Diagonal(length(inner_res$solution),
-		inner_res$cholHessian$D),
-		P = inner_res$cholHessian$P
-	)
+
 
 	if(!deriv) {
 		return(result)
 	}	
-	result$deriv = logLikDeriv(result$full_parameters, result$cholHessian,
-	config, )
+	result$deriv = logLikDeriv(
+		fullParameters = result$fullParameters, 
+		hessianPack = result$hessian,
+		config, adPack)
 
 	return(result)
 }

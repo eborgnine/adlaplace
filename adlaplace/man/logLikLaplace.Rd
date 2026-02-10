@@ -11,7 +11,8 @@ logLikLaplace(
   control = list(report.level = 4, report.freq = 1),
   adPack,
   data,
-  package = c(config$package, "adlaplace")[1]
+  package = c(config$package, "adlaplace")[1],
+  deriv = FALSE
 )
 }
 \arguments{

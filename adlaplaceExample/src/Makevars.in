@@ -1,3 +1,4 @@
-PKG_CPPFLAGS = -I../inst/include @CPPAD_CPPFLAGS@ @OPENMP_CPPFLAGS@ @BREW_CPPFLAGS@ @EIGEN_SYSTEM_CPPFLAGS@
+ADLAPLACE_INCLUDE = $(shell Rscript -e "p <- system.file('include', package='adlaplace'); if (!nzchar(p)) { fp <- suppressWarnings(find.package('adlaplace', quiet=TRUE)); if (length(fp)) p <- file.path(fp[1], 'include') }; cat(p)")
+PKG_CPPFLAGS = -I../inst/include -I$(ADLAPLACE_INCLUDE) @CPPAD_CPPFLAGS@ @OPENMP_CPPFLAGS@ @BREW_CPPFLAGS@ @EIGEN_SYSTEM_CPPFLAGS@
 PKG_CXXFLAGS = @OPENMP_CXXFLAGS@
 PKG_LIBS     = @OPENMP_LIBS@
