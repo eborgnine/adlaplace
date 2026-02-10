@@ -5,7 +5,7 @@
 
 
 static BackendContext* get_backend_context(
-	std::vector<GroupPack> *adPack,
+	std::vector<GroupPack> *adFun,
 	const HessianPack &hessian_inner,
 	const HessianPack &hessian_outer,
 	const Config &config
@@ -13,10 +13,10 @@ static BackendContext* get_backend_context(
 
   auto* ctx = new BackendContext;
 
-	ctx->adPack = adPack;
+	ctx->adFun = adFun;
 
 	ctx->Nparams = config.Nparams;
-	ctx->Ngroups = adPack ? adPack->size() : 0;
+	ctx->Ngroups = adFun ? adFun->size() : 0;
 	ctx->Nbeta = config.Nbeta;
 	ctx->Ngamma = config.Ngamma;
 	ctx->Ntheta = config.Ntheta;
@@ -34,7 +34,7 @@ static BackendContext* get_backend_context(
 static void backend_destroy(void* vctx) {
 	BackendContext* ctx = (BackendContext*)vctx;
 	if (!ctx) return;
-	delete ctx->adPack;
+	delete ctx->adFun;
 	delete ctx;
 }
 

@@ -6,15 +6,15 @@
 \alias{inner_opt}
 \title{Inner optimization over gamma using trust-region CG (sparse)}
 \usage{
-all_derivs(x, adPack, config)
+all_derivs(x, adFun, config)
 
-inner_opt(parameters, gamma, config, control, adPack = NULL)
+inner_opt(parameters, gamma, config, control, adFun = NULL)
 }
 \arguments{
 \item{x}{Numeric full parameter vector of length \code{Nparams}, used by
 \code{all_derivs()} for outer/full derivatives.}
 
-\item{adPack}{Optional backend handle/list from \code{getAdFun()}.
+\item{adFun}{Optional backend handle/list from \code{getAdFun()}.
 If provided, it is reused.}
 
 \item{config}{Configuration list. Must include \code{gamma}, fixed
@@ -30,7 +30,7 @@ If provided, it is reused.}
 \item{control}{List of trust-region control parameters (see
 \code{trustOptim}).}
 
-\item{data}{Data list used to construct the AD backend when \code{adPack}
+\item{data}{Data list used to construct the AD backend when \code{adFun}
 is not supplied.}
 }
 \value{

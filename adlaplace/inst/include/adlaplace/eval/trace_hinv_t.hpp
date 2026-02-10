@@ -42,11 +42,11 @@ inline int eval_trace_hinv_t(
   if (LinvPtColumns_p == nullptr || LinvPtColumns_i == nullptr) return 1;
 
   auto* ctx = static_cast<BackendContext*>(vctx);
-  if (ctx->adPack == nullptr) return 2;
+  if (ctx->adFun == nullptr) return 2;
   if (*i < 0) return 3;
 
   const std::size_t ist = static_cast<std::size_t>(*i);
-  if (ist >= ctx->adPack->size()) return 4;
+  if (ist >= ctx->adFun->size()) return 4;
   if (ist + 1 >= LinvPtColumns_p_len) return 5;
   if (LinvPt_p_len < LinvPt_ncol + 1) return 6;
 
@@ -69,7 +69,7 @@ inline int eval_trace_hinv_t(
     0
   };
 
-  GroupPack& gp = (*(ctx->adPack))[ist];
+  GroupPack& gp = (*(ctx->adFun))[ist];
   const std::size_t n_params = gp.x.size();
   std::copy_n(x, n_params, gp.x.begin());
 

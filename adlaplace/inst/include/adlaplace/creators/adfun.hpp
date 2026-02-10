@@ -39,21 +39,21 @@ inline Rcpp::IntegerVector as_int_vec(
 }
 
 Rcpp::List extract_sparsity(
-	const std::vector<GroupPack> &adPack) {
+	const std::vector<GroupPack> &adFun) {
 
-	const size_t N = adPack.size();
+	const size_t N = adFun.size();
 	Rcpp::List sparsity(N);
 
 	for(size_t D=0;D<N;D++) {
 		sparsity[D] = Rcpp::List::create(
-			Rcpp::_["grad"] = as_int_vec(adPack[D].pattern_grad.col()), 
-			Rcpp::_["grad_inner"] = as_int_vec(adPack[D].pattern_grad_inner.col()),
+			Rcpp::_["grad"] = as_int_vec(adFun[D].pattern_grad.col()), 
+			Rcpp::_["grad_inner"] = as_int_vec(adFun[D].pattern_grad_inner.col()),
 
-			Rcpp::_["row_hess"] = as_int_vec(adPack[D].pattern_hessian.row()),
-			Rcpp::_["col_hess"] = as_int_vec(adPack[D].pattern_hessian.col()),
+			Rcpp::_["row_hess"] = as_int_vec(adFun[D].pattern_hessian.row()),
+			Rcpp::_["col_hess"] = as_int_vec(adFun[D].pattern_hessian.col()),
 
-			Rcpp::_["row_hess_inner"] = as_int_vec(adPack[D].pattern_hessian_inner.row()),
-			Rcpp::_["col_hess_inner"] = as_int_vec(adPack[D].pattern_hessian_inner.col())
+			Rcpp::_["row_hess_inner"] = as_int_vec(adFun[D].pattern_hessian_inner.row()),
+			Rcpp::_["col_hess_inner"] = as_int_vec(adFun[D].pattern_hessian_inner.col())
 
 			);
 	}

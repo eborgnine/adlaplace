@@ -11,7 +11,7 @@
 #include "adlaplace/api/stubs.hpp"
 
 std::vector<GroupPack> getAdFun(const Data& data, const Config& config);
-Rcpp::List extract_sparsity(const std::vector<GroupPack> &adPack);
+Rcpp::List extract_sparsity(const std::vector<GroupPack> &adFun);
 
 static const adlaplace_adpack_api AD_API = {
 	ADLAPLACE_ADPACK_API_VERSION,
@@ -84,8 +84,8 @@ inline Rcpp::List getAdFun_h(
 	const Data dataC(data);
 	const Config configC(config);
 
-	auto adPack = std::make_unique<std::vector<GroupPack>>(getAdFun(dataC, configC));
-	const Rcpp::List sparsity_list = extract_sparsity(*adPack);
+	auto adFun = std::make_unique<std::vector<GroupPack>>(getAdFun(dataC, configC));
+	const Rcpp::List sparsity_list = extract_sparsity(*adFun);
 
 	Rcpp::Environment ns = Rcpp::Environment::namespace_env("adlaplace");
 	Rcpp::Function hessianMap = ns["hessianMap"];
@@ -93,7 +93,7 @@ inline Rcpp::List getAdFun_h(
 
 	std::array<HessianPack, 2> hessiansC = adlaplace_hessianPackFromList(hessians);
 	auto ctx = std::unique_ptr<BackendContext>(
-		get_backend_context(adPack.get(), hessiansC[0], hessiansC[1], configC)
+		get_backend_context(adFun.get(), hessiansC[0], hessiansC[1], configC)
 	);
 
 	auto h = std::unique_ptr<adlaplace_adpack_handle>(new adlaplace_adpack_handle);
@@ -105,7 +105,7 @@ inline Rcpp::List getAdFun_h(
 	Rf_setAttrib(handle, R_ClassSymbol, Rf_mkString("adlaplace_handle_ptr"));
 
 	// ownership moves to finalizer path
-	adPack.release();
+	adFun.release();
 	ctx.release();
 	h.release();
 	Rcpp::List result = Rcpp::List::create(

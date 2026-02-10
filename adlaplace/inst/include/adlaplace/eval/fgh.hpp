@@ -44,9 +44,9 @@ static int eval_f(void* vctx, const int *i, const double* x, double* out_f) {
 	auto* ctx = static_cast<BackendContext*>(vctx);
 	if (*i < 0) return 2;
 	size_t ist = (size_t)*i;
-	if (ist >= ctx->adPack->size()) return 3;
+	if (ist >= ctx->adFun->size()) return 3;
 
-	GroupPack &gp = (*(ctx->adPack))[ist];
+	GroupPack &gp = (*(ctx->adFun))[ist];
 	const size_t Nparams = gp.x.size();
 
 	for(size_t D=0;D<Nparams;D++) {
@@ -64,11 +64,11 @@ static int eval_grad(void* vctx, const int *i,
 	auto* ctx = static_cast<BackendContext*>(vctx);
 	if (*i < 0) return 2;
 	size_t ist = (size_t)*i;
-	if (ist >= ctx->adPack->size()) return 3;
+	if (ist >= ctx->adFun->size()) return 3;
 
 	const bool innerv = *inner;
 
-	GroupPack &gp = (*(ctx->adPack))[ist];
+	GroupPack &gp = (*(ctx->adFun))[ist];
 
 
 	const size_t Nparams = gp.x.size();
@@ -104,11 +104,11 @@ static int eval_hess(void* vctx, const int *i, const double* x,
 	auto* ctx = static_cast<BackendContext*>(vctx);
 	if (*i < 0) return 2;
 	size_t ist = (size_t)*i;
-	if (ist >= ctx->adPack->size()) return 3;
+	if (ist >= ctx->adFun->size()) return 3;
 
 	const bool innerv = *inner;
 
-	GroupPack &gp = (*(ctx->adPack))[ist];
+	GroupPack &gp = (*(ctx->adFun))[ist];
 
 	const size_t Nparams = gp.x.size();
 	for(size_t D=0;D<Nparams;D++) {

@@ -13,15 +13,15 @@
 //'   \code{inner_opt()}.
 //' @param gamma Numeric vector of starting values for inner parameters
 //'   (\code{gamma}; length \code{Ngamma}) used by \code{inner_opt()}.
-//' @param data Data list used to construct the AD backend when \code{adPack}
+//' @param data Data list used to construct the AD backend when \code{adFun}
 //'   is not supplied.
-//' @param adPack External pointer created by \code{getAdFun()} (class
+//' @param adFun External pointer created by \code{getAdFun()} (class
 //'   \code{"adlaplace_handle_ptr"}), or a list containing element \code{adFun}.
 //' @param config Configuration list. Must include \code{gamma}, fixed
 //'   \code{beta}/\code{theta}, and group/sparsity settings.
 //' @param control List of trust-region control parameters (see
 //'   \code{trustOptim}).
-//' @param adPack Optional backend handle/list from \code{getAdFun()}.
+//' @param adFun Optional backend handle/list from \code{getAdFun()}.
 //'   If provided, it is reused.
 //'
 //' @return A list with components:
@@ -127,7 +127,7 @@ Rcpp::List eigen_to_list(
 // [[Rcpp::export]]
 Rcpp::List all_derivs(
 	const Rcpp::NumericVector& x,
-	SEXP adPack,
+	SEXP adFun,
 	const Rcpp::List& config)
 {
 
@@ -144,7 +144,7 @@ Rcpp::List all_derivs(
 		params_init[d] = x[d];
 	}
 
-	AD_Func_Opt funObj(adPack, params_init, false); // inner=false
+	AD_Func_Opt funObj(adFun, params_init, false); // inner=false
 	const Eigen::Index nvars = static_cast<Eigen::Index>(funObj.get_nvars());
 	Eigen::VectorXd x_eval(nvars);
 	for (Eigen::Index d = 0; d < nvars; ++d) {
@@ -181,11 +181,11 @@ Rcpp::List inner_opt(
 	const Rcpp::NumericVector gamma, // starting values
 	const Rcpp::List& config,
 	const Rcpp::List& control,
-	SEXP adPack = R_NilValue
+	SEXP adFun = R_NilValue
 	) {
 	const Config configC(config);
-	if (adPack == R_NilValue) {
-		Rcpp::stop("inner_opt requires a non-NULL adPack");
+	if (adFun == R_NilValue) {
+		Rcpp::stop("inner_opt requires a non-NULL adFun");
 	}
 
 	const double rad = get_double_ctrl(control, "step.size", 1.0);
@@ -244,7 +244,7 @@ Rcpp::List inner_opt(
 		params_init[configC.theta_begin + d] = parameters[configC.Nbeta + d];
 	}
 
-	AD_Func_Opt funObj(adPack, params_init, true);
+	AD_Func_Opt funObj(adFun, params_init, true);
 
 
 	Trust_CG_Sparse<Tvec, AD_Func_Opt, THess, TPreLLt> opt(
@@ -315,7 +315,7 @@ Rcpp::List inner_opt(
 	}
 	const double halfLogDet = logdetH/2;
 
-	const double minusLogLik = fval + halfLogDet + configC.Ngamma * ONEHALFLOGTWOPI;  
+	const double logLik = -fval - halfLogDet + configC.Ngamma * ONEHALFLOGTWOPI;  
 
  	 // save chol
 	const auto& Pidx = ldlt.permutationP().indices();    
@@ -342,7 +342,7 @@ Rcpp::List inner_opt(
 	}
 
 	Rcpp::List res = Rcpp::List::create(
-		Rcpp::Named("minusLogLik") = Rcpp::wrap(minusLogLik),
+		Rcpp::Named("logLik") = Rcpp::wrap(logLik),
 		Rcpp::Named("fval") = Rcpp::wrap(fval),
 		Rcpp::Named("halfLogDet") = Rcpp::wrap(halfLogDet),
 		Rcpp::Named("solution") = Rcpp::wrap(solution),

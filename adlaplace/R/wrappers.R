@@ -11,7 +11,7 @@
 #' }
 #'
 #' @param ... Arguments forwarded to \code{\link{logLikLaplace}} (e.g. \code{x}, \code{data},
-#'   \code{config}, \code{adPack}, \code{package}, etc.).
+#'   \code{config}, \code{adFun}, \code{package}, etc.).
 #' @param control_inner A list of control options forwarded to the \code{control}
 #'   argument of \code{\link{logLikLaplace}} for the inner optimization.
 #' @param cache An \code{\link[base]{environment}} containing starting values for the inner

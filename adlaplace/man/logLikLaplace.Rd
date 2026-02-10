@@ -9,7 +9,7 @@ logLikLaplace(
   config,
   start_gamma,
   control = list(report.level = 4, report.freq = 1),
-  adPack,
+  adFun,
   data,
   package = c(config$package, "adlaplace")[1],
   deriv = FALSE
@@ -29,7 +29,7 @@ parameter \code{gamma}. Defaults to \code{config$gamma}.}
 \item{control}{List of control parameters passed to the backend inner optimizer.
 (e.g. \code{report.level}, \code{report.freq}).}
 
-\item{adPack}{Optional AD object returned by the backend \code{getAdFun()}.
+\item{adFun}{Optional AD object returned by the backend \code{getAdFun()}.
 This is a single backend handle (no separate inner/outer handles). If
 missing, it will be constructed automatically.}
 
@@ -65,7 +65,7 @@ inserted into \code{config} (as \code{config_inner$beta} and
 \code{config_inner$theta}) before calling the backend inner optimizer.
 
 Current backends use a single AD handle. This function passes that handle to
-\code{inner_opt(..., adPack = adPack)}.
+\code{inner_opt(..., adFun = adFun)}.
 
 The returned list contains both “inner” outputs (from the inner optimization)
 and “outer” outputs (quantities associated with the outer objective), as well

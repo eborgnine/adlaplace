@@ -12,7 +12,7 @@ outer_gr(..., control_inner = list(), cache)
 }
 \arguments{
 \item{...}{Arguments forwarded to \code{\link{logLikLaplace}} (e.g. \code{x}, \code{data},
-\code{config}, \code{adPack}, \code{package}, etc.).}
+\code{config}, \code{adFun}, \code{package}, etc.).}
 
 \item{control_inner}{A list of control options forwarded to the \code{control}
 argument of \code{\link{logLikLaplace}} for the inner optimization.}

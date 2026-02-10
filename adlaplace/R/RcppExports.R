@@ -89,15 +89,15 @@ register_callables <- function() {
 #'   \code{inner_opt()}.
 #' @param gamma Numeric vector of starting values for inner parameters
 #'   (\code{gamma}; length \code{Ngamma}) used by \code{inner_opt()}.
-#' @param data Data list used to construct the AD backend when \code{adPack}
+#' @param data Data list used to construct the AD backend when \code{adFun}
 #'   is not supplied.
-#' @param adPack External pointer created by \code{getAdFun()} (class
+#' @param adFun External pointer created by \code{getAdFun()} (class
 #'   \code{"adlaplace_handle_ptr"}), or a list containing element \code{adFun}.
 #' @param config Configuration list. Must include \code{gamma}, fixed
 #'   \code{beta}/\code{theta}, and group/sparsity settings.
 #' @param control List of trust-region control parameters (see
 #'   \code{trustOptim}).
-#' @param adPack Optional backend handle/list from \code{getAdFun()}.
+#' @param adFun Optional backend handle/list from \code{getAdFun()}.
 #'   If provided, it is reused.
 #'
 #' @return A list with components:
@@ -129,13 +129,13 @@ NULL
 
 #' @rdname innerOpt
 #' @export
-all_derivs <- function(x, adPack, config) {
-    .Call(`_adlaplace_all_derivs`, x, adPack, config)
+all_derivs <- function(x, adFun, config) {
+    .Call(`_adlaplace_all_derivs`, x, adFun, config)
 }
 
 #' @rdname innerOpt
 #' @export
-inner_opt <- function(parameters, gamma, config, control, adPack = NULL) {
-    .Call(`_adlaplace_inner_opt`, parameters, gamma, config, control, adPack)
+inner_opt <- function(parameters, gamma, config, control, adFun = NULL) {
+    .Call(`_adlaplace_inner_opt`, parameters, gamma, config, control, adFun)
 }
 

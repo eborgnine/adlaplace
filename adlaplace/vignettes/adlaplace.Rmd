@@ -19,10 +19,6 @@ f(y;\mu,\theta) =  & \log\Gamma(y + r) - \log\Gamma(r) - \log\Gamma(y + 1)
 \end{aligned}
 $$
 
-# to do
-
-- add hpp files for a few models in inst (i.e. neg binom)
-- put Rinterfaces, rcppexports in inst somehow?  
 
 
 ```{r theData}
@@ -76,9 +72,66 @@ config = list(beta = rep(1, nrow(data$XTp)),
 	verbose=FALSE, package='adlaplace')	
 ```
 
-
-
 model is defined in the file `src/objectiveFunction.cpp`
+
+
+
+```{r testLogLik}
+res = adlaplace::logLikLaplace(
+	x=c(config$beta, config$theta),
+	data=data, 
+	config=config,
+	deriv=TRUE)
+res$parameters
+res$grad	
+```
+
+
+
+```{r testLogLgrad}
+adFun = adlaplace::getAdFun(data,config)
+x = c(config$beta,config$theta)
+Npar=13;Dpar = length(x)
+
+parDf = data.frame(x)[,rep(1, Npar)]
+Sx = seq(-0.1, 0.1, len=13) + parDf[Dpar,1]
+SxD = Sx[-1] - diff(Sx)/2
+parDf[Dpar,] = Sx
+
+res = mapply(
+  adlaplace::logLikLaplace,
+  x = as.list(parDf),
+  MoreArgs = list(adFun = adFun, config = config, deriv=TRUE),
+  SIMPLIFY=FALSE
+  )
+
+Slik = unlist(lapply(res, "[[", 'logLik'))
+Sdet = unlist(lapply(res, function(xx) xx$opt$halfLogDet))
+dU = do.call(abind::abind, c(lapply(res, function(xx) as.matrix(xx$extra$dU)), along=3))
+uHat = do.call(rbind, lapply(res, function(xx) xx$opt$solution))
+extraDf = do.call(abind::abind, c(lapply(res, '[[', "deriv"), along=3))
+gradMat = do.call(rbind, lapply(res, '[[', 'grad'))
+gradVec = unlist(lapply(res, function(xx) xx$deriv[Dpar,'dL']))
+
+
+plot(Sx, Slik)
+
+plot(Sx, gradVec)
+lines(SxD, diff(Slik)/diff(Sx), lwd=2)
+
+Du = 1
+plot(Sx, uHat[,Du])
+
+plot(Sx, dU[Du,Dpar,])
+lines(SxD, diff(uHat[,Du])/diff(Sx))
+
+plot(Sx, Sdet)
+
+plot(Sx, extraDf[Dpar,'dDet',])
+lines(SxD, diff(Sdet)/diff(Sx))
+```
+
+
 
 
 
@@ -120,25 +173,12 @@ inner_res <- adlaplace::inner_opt(
     report.level = 0,
     report.freq = 0),
   config = config,
-  adPack = adFun)
+  adFun = adFun)
 
 str(inner_res)
 
 quantile(inner_res$gradient)
 ```
-
-```{r testLogLik}
-res = adlaplace::logLikLaplace(
-	x=c(config$beta, config$theta),
-	data=data, 
-	config=config,
-	deriv=TRUE)
-```
-
-
-
-
-log likelihood in R, for debugging
 
 
 

@@ -20,10 +20,11 @@ logLikDeriv = function(
   fullParameters,
   hessianPack,
   config, 
-  adPack
+  adFun
 ) {
 
-  derivFull = adlaplace::all_derivs(fullParameters, adPack, config)
+
+  derivFull = adlaplace::all_derivs(fullParameters, adFun, config)
   derivFull$hessian = do.call(Matrix::sparseMatrix, derivFull$hessian)
 
   Hstuff = reformatChol(hessianPack)
@@ -31,10 +32,9 @@ logLikDeriv = function(
   Sgamma1 = seq.int(length(config$beta)+1, len=length(config$gamma))
   Sgamma0 = Sgamma1 - 1L
 
-  dU = - Hstuff$Hinv %*% derivFull$hessian[Sgamma1, -Sgamma1]
 
   whichColumnsByGroup1 = lapply(
-    adPack$sparsity, function(xx, refmat) {
+    adFun$sparsity, function(xx, refmat) {
       grad_inner_gamma = match(xx$grad_inner, Sgamma0)
       linvHere = refmat[grad_inner_gamma, ,drop=FALSE]
       which(diff(linvHere@p)>0)-1L
@@ -52,16 +52,23 @@ logLikDeriv = function(
   theTrace = adlaplace::traceHinvT(
     fullParameters, Hstuff$halfH, 
     whichColumnsByGroup,
-    adPack)
+    adFun)
 
-  result = list(extra = list(dU = dU, trace3 = theTrace, halfH = Hstuff$halfH))
+  dU = - Hstuff$Hinv %*% derivFull$hessian[Sgamma1, -Sgamma1]
+
+  result = list(extra = list(dU = dU, trace3 = theTrace, halfHinv = Hstuff$halfH))
+
+
+  # until now quantities are deriviative of negative log likelihood.
+  # the inner_opt functions produce derivatives for neg log dens
+  # below are derivatives for log likelkihood
   result$deriv = data.frame(
-    dDetUpart = as.vector(theTrace[Sgamma1] %*% dU),
-    dDetTpart = theTrace[-Sgamma1])
-  result$deriv$gradTheta = derivFull$gradient[-Sgamma1]  
-  result$deriv$gradU = as.vector(derivFull$gradient[Sgamma1] %*% dU)
+    dDetUpart = -as.vector(theTrace[Sgamma1] %*% dU),
+    dDetTpart = -theTrace[-Sgamma1])
+  result$deriv$gradTheta = -derivFull$gradient[-Sgamma1]  
+  result$deriv$gradU = as.vector(-derivFull$gradient[Sgamma1] %*% dU)
   result$deriv$dDet = result$deriv$dDetUpart + result$deriv$dDetTpart
-  result$deriv$dL = result$deriv$dDet + result$deriv$gradU + result$deriv$gradTheta
+  result$deriv$dL = result$deriv$gradTheta - result$deriv$dDet. # + result$deriv$gradU 
 
   return(result)
 }

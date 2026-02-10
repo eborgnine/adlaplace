@@ -90,21 +90,21 @@ BEGIN_RCPP
 END_RCPP
 }
 // all_derivs
-Rcpp::List all_derivs(const Rcpp::NumericVector& x, SEXP adPack, const Rcpp::List& config);
-RcppExport SEXP _adlaplace_all_derivs(SEXP xSEXP, SEXP adPackSEXP, SEXP configSEXP) {
+Rcpp::List all_derivs(const Rcpp::NumericVector& x, SEXP adFun, const Rcpp::List& config);
+RcppExport SEXP _adlaplace_all_derivs(SEXP xSEXP, SEXP adFunSEXP, SEXP configSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< const Rcpp::NumericVector& >::type x(xSEXP);
-    Rcpp::traits::input_parameter< SEXP >::type adPack(adPackSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type adFun(adFunSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List& >::type config(configSEXP);
-    rcpp_result_gen = Rcpp::wrap(all_derivs(x, adPack, config));
+    rcpp_result_gen = Rcpp::wrap(all_derivs(x, adFun, config));
     return rcpp_result_gen;
 END_RCPP
 }
 // inner_opt
-Rcpp::List inner_opt(const Rcpp::NumericVector parameters, const Rcpp::NumericVector gamma, const Rcpp::List& config, const Rcpp::List& control, SEXP adPack);
-RcppExport SEXP _adlaplace_inner_opt(SEXP parametersSEXP, SEXP gammaSEXP, SEXP configSEXP, SEXP controlSEXP, SEXP adPackSEXP) {
+Rcpp::List inner_opt(const Rcpp::NumericVector parameters, const Rcpp::NumericVector gamma, const Rcpp::List& config, const Rcpp::List& control, SEXP adFun);
+RcppExport SEXP _adlaplace_inner_opt(SEXP parametersSEXP, SEXP gammaSEXP, SEXP configSEXP, SEXP controlSEXP, SEXP adFunSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -112,8 +112,8 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const Rcpp::NumericVector >::type gamma(gammaSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List& >::type config(configSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List& >::type control(controlSEXP);
-    Rcpp::traits::input_parameter< SEXP >::type adPack(adPackSEXP);
-    rcpp_result_gen = Rcpp::wrap(inner_opt(parameters, gamma, config, control, adPack));
+    Rcpp::traits::input_parameter< SEXP >::type adFun(adFunSEXP);
+    rcpp_result_gen = Rcpp::wrap(inner_opt(parameters, gamma, config, control, adFun));
     return rcpp_result_gen;
 END_RCPP
 }

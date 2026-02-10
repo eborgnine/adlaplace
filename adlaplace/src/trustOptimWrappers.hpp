@@ -16,7 +16,7 @@
 #include "adlaplace/runtime/rviews.hpp"
 
 struct AD_Func_Opt {
-  SEXP adPack;
+  SEXP adFun;
   adlaplace_adpack_handle* handle;
   bool inner;
 
@@ -37,7 +37,7 @@ struct AD_Func_Opt {
   std::vector<double> hess_upper_accum;
 
   AD_Func_Opt(SEXP adPackIn, const std::vector<double>& params_init, bool innerIn = true)
-    : adPack(adPackIn),
+    : adFun(adPackIn),
       handle(get_handle(adPackIn)),
       inner(innerIn),
       Nparams(0),
@@ -352,12 +352,12 @@ private:
 
     adlaplace_adpack_handle* h =
       static_cast<adlaplace_adpack_handle*>(R_ExternalPtrAddr(handle_ptr));
-    if (!h) Rcpp::stop("adPack handle is NULL");
-    if (!h->api) Rcpp::stop("adPack handle api is NULL");
-    if (!h->ctx) Rcpp::stop("adPack handle ctx is NULL");
+    if (!h) Rcpp::stop("adFun handle is NULL");
+    if (!h->api) Rcpp::stop("adFun handle api is NULL");
+    if (!h->ctx) Rcpp::stop("adFun handle ctx is NULL");
     if (!h->api->f || !h->api->f_grad || !h->api->f_grad_hess ||
         !h->api->get_hessian || !h->api->get_sizes || !h->api->trace_hinv_t) {
-      Rcpp::stop("adPack handle has incomplete API function table");
+      Rcpp::stop("adFun handle has incomplete API function table");
     }
     return h;
   }

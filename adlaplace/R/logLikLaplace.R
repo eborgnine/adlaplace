@@ -18,7 +18,7 @@
 #'   parameter \code{gamma}. Defaults to \code{config$gamma}.
 #' @param control List of control parameters passed to the backend inner optimizer.
 #'   (e.g. \code{report.level}, \code{report.freq}).
-#' @param adPack Optional AD object returned by the backend \code{getAdFun()}.
+#' @param adFun Optional AD object returned by the backend \code{getAdFun()}.
 #'   This is a single backend handle (no separate inner/outer handles). If
 #'   missing, it will be constructed automatically.
 #' @param package Character scalar naming the backend package to use for
@@ -31,7 +31,7 @@
 #' \code{config_inner$theta}) before calling the backend inner optimizer.
 #'
 #' Current backends use a single AD handle. This function passes that handle to
-#' \code{inner_opt(..., adPack = adPack)}.
+#' \code{inner_opt(..., adFun = adFun)}.
 #'
 #' The returned list contains both “inner” outputs (from the inner optimization)
 #' and “outer” outputs (quantities associated with the outer objective), as well
@@ -61,7 +61,7 @@ logLikLaplace = function(
 	x, config, 
 	start_gamma, 	
 	control = list(report.level=4, report.freq=1), 
-	adPack, data, 
+	adFun, data, 
 	package = c(config$package, 'adlaplace')[1],
 	deriv = FALSE
 ) {
@@ -78,11 +78,11 @@ logLikLaplace = function(
 		}
 	} 
 
-	if(missing(adPack)) {
+	if(missing(adFun)) {
 		if(missing(data)) {
-			stop("at least one of data and adPack must be supplied")
+			stop("at least one of data and adFun must be supplied")
 		}
-		adPack = getExportedValue(package, "getAdFun")(data, config)
+		adFun = getExportedValue(package, "getAdFun")(data, config)
 	}
 
 
@@ -95,7 +95,7 @@ logLikLaplace = function(
 		config_inner$gamma,
 		config=config_inner, 
 		control=control,
-		adPack = adPack))
+		adFun = adFun))
 
 	if(any(class(inner_res) == 'try-error')) {
 		cat("resetting starting values to all zero\n")
@@ -104,7 +104,7 @@ logLikLaplace = function(
 		inner_res = try(inner_opt(
 			config=config_inner, 
 			control=control,
-			adPack = adPack))
+			adFun = adFun))
 	}
 
 	if(any(config$verbose)) {
@@ -119,7 +119,7 @@ logLikLaplace = function(
 
 
 	result = list(
-		minusLogLik = inner_res$minusLogLik,
+		logLik = inner_res$logLik,
 		parameters = x,
 		fullParameters =  c(config_inner$beta, inner_res$solution, config_inner$theta),
 		hessian = list(
@@ -148,8 +148,8 @@ logLikLaplace = function(
 	theDeriv = logLikDeriv(
 		fullParameters = result$fullParameters, 
 		hessianPack = result$hessian,
-		config, adPack)
-	result$grad = theDeriv$deriv$dL
+		config, adFun)
+	result$grad = -theDeriv$deriv$dL
 	result$deriv = theDeriv$deriv
 	result$extra = theDeriv$extra
 

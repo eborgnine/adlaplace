@@ -36,7 +36,7 @@ struct GroupPack {
 
 // backend private context
 struct BackendContext {
-  std::vector<GroupPack> *adPack;
+  std::vector<GroupPack> *adFun;
 //  std::array<std::array<int,3>,3> sizes; // beta, gamma, theta; begin end N
 
   size_t Nparams;
