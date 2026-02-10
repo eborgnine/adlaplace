@@ -6,7 +6,7 @@
 #include <cstddef>
 #include <vector>
 
-#include "adlaplace/backend.hpp"
+#include "adlaplace/runtime/backend.hpp"
 
 struct CscView {
   const int* p;

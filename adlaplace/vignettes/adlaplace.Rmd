@@ -120,19 +120,19 @@ inner_res <- adlaplace::inner_opt(
     report.level = 0,
     report.freq = 0),
   config = config,
-  adPack = adFun
-)
+  adPack = adFun)
 
 str(inner_res)
 
 quantile(inner_res$gradient)
+```
 
+```{r testLogLik}
 res = adlaplace::logLikLaplace(
 	x=c(config$beta, config$theta),
 	data=data, 
-	config=config
-	)
-
+	config=config,
+	deriv=TRUE)
 ```
 
 

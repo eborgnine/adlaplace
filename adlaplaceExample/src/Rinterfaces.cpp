@@ -2,8 +2,8 @@
 #include <cppad/cppad.hpp>
 
 #include <Rinternals.h>
-#include "adlaplace/creators/R_interfaces.hpp"
-#include "adlaplace/creators/callables.hpp"
+#include "adlaplace/runtime/interfaces.hpp"
+#include "adlaplace/api/callables.hpp"
 
 //' C++ backend entry points for adlaplaceExample
 //'

@@ -1,7 +1,7 @@
 #include <Rcpp.h>
 #include <R_ext/Rdynload.h>
 
-#include "adlaplace/rviews.hpp"
+#include "adlaplace/runtime/rviews.hpp"
 
 extern "C" SEXP adlaplace_grad_c(SEXP xSEXP, SEXP backendContextSEXP, SEXP innerSEXP, SEXP SgroupsSEXP);
 extern "C" SEXP adlaplace_hess_c(SEXP xSEXP, SEXP backendContextSEXP, SEXP innerSEXP, SEXP SgroupsSEXP);

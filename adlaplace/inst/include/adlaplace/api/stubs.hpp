@@ -4,7 +4,7 @@
 #include <Rcpp.h>
 #include <R_ext/Rdynload.h>
 
-#include "adlaplace/backend.hpp"
+#include "adlaplace/runtime/backend.hpp"
 
 typedef void (*adlaplace_hessian_pack_from_list_c_t)(SEXP, HessianPack*, HessianPack*);
 

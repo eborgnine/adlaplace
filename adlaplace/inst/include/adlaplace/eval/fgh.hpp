@@ -7,7 +7,7 @@
 #include <vector>
 #include <cstddef>
 
-#include "adlaplace/backend.hpp"
+#include "adlaplace/runtime/backend.hpp"
 
 
 static int get_sizes(void* vctx, size_t* Nparams, size_t* Ngroups,

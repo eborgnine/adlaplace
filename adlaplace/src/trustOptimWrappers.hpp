@@ -12,8 +12,8 @@
 #include <omp.h>
 #endif
 
-#include "adlaplace/adpack_handle.h"
-#include "adlaplace/rviews.hpp"
+#include "adlaplace/api/adpack_handle.h"
+#include "adlaplace/runtime/rviews.hpp"
 
 struct AD_Func_Opt {
   SEXP adPack;

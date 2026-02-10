@@ -145,10 +145,13 @@ logLikLaplace = function(
 	if(!deriv) {
 		return(result)
 	}	
-	result$deriv = logLikDeriv(
+	theDeriv = logLikDeriv(
 		fullParameters = result$fullParameters, 
 		hessianPack = result$hessian,
 		config, adPack)
+	result$grad = theDeriv$deriv$dL
+	result$deriv = theDeriv$deriv
+	result$extra = theDeriv$extra
 
 	return(result)
 }

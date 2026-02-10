@@ -2,7 +2,7 @@
 #include <cppad/cppad.hpp>
 
 #include <Rinternals.h>
-#include "adlaplace/creators/R_interfaces.hpp"
+#include "adlaplace/runtime/interfaces.hpp"
 
 double jointLogDens(const Rcpp::NumericVector& x, SEXP backendContext, SEXP Sgroups);
 Rcpp::NumericVector grad(const Rcpp::NumericVector& x, SEXP backendContext, bool inner, SEXP Sgroups);

@@ -1,7 +1,5 @@
-// functions to initiate omp threads compatible with cppad
-
-#ifndef ADLAPLACE_FOROMP_HPP
-#define ADLAPLACE_FOROMP_HPP
+#ifndef ADLAPLACE_OMPAD_HPP
+#define ADLAPLACE_OMPAD_HPP
 
 #include <cstddef>
 #include <cppad/utility/thread_alloc.hpp>
@@ -80,4 +78,4 @@ static inline CppAD_OMP_Guard cppad_parallel_setup(std::size_t nthreads) {
   return CppAD_OMP_Guard(nthreads);
 }
 
-#endif // ADLAPLACE_FOROMP_HPP
+#endif // ADLAPLACE_OMPAD_HPP

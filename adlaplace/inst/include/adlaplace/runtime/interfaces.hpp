@@ -5,10 +5,10 @@
 #include <memory>
 
 #include "adlaplace/adlaplace.hpp"
-#include "adlaplace/creators/api_functions.hpp"
+#include "adlaplace/eval/fgh.hpp"
 #include "adlaplace/creators/handle.hpp"
-#include "adlaplace/creators/third.hpp"
-#include "adlaplace/stubs.hpp"
+#include "adlaplace/eval/trace_hinv_t.hpp"
+#include "adlaplace/api/stubs.hpp"
 
 std::vector<GroupPack> getAdFun(const Data& data, const Config& config);
 Rcpp::List extract_sparsity(const std::vector<GroupPack> &adPack);

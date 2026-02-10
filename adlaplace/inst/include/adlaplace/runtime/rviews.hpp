@@ -6,7 +6,7 @@
 #include <cstddef>
 #include <numeric>
 
-#include "adlaplace/backend.hpp"
+#include "adlaplace/runtime/backend.hpp"
 
 
 // Lightweight view into Matrix::*gCMatrix slots (points to R memory)

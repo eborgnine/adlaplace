@@ -1,6 +1,6 @@
 
 // for accessing functions in adlaplace
 
-#include "adlaplace/backend.hpp"
-#include "adlaplace/rviews.hpp"
-#include "adlaplace/adpack_handle.h"
+#include "adlaplace/runtime/backend.hpp"
+#include "adlaplace/runtime/rviews.hpp"
+#include "adlaplace/api/adpack_handle.h"

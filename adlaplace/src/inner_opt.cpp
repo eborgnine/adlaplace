@@ -57,8 +57,8 @@
 // from trustOptim
 #include <CG-sparse.h> 
 
-#include "adlaplace/rviews.hpp"
-#include "adlaplace/foromp.hpp"
+#include "adlaplace/runtime/rviews.hpp"
+#include "adlaplace/ompad.hpp"
 #include "adlaplace/math/constants.hpp"
 #include "trustOptimWrappers.hpp"
 

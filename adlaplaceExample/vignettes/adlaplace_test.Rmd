@@ -86,19 +86,11 @@ config <- list(
 adFun <- adlaplaceExample::getAdFun(data, config)
 true_theta = c(log(c(sd_random, omega_true)), alpha_true)
 x <- c(beta_true, gamma_true, true_theta)
-x[length(x)] = -0.5
-
-x2 = x;D=length(x)-3L
-x2[D] = x[D]+2
 
 Sgroups = seq.int(0L, length.out= length(adFun$sparsity))
 #Sgroups = 0L
 
-(val1 <- adlaplaceExample::jointLogDens(x, adFun))
 adlaplaceExample::jointLogDens(x, adFun, Sgroups)
-
-(val2 <- adlaplaceExample::jointLogDens(x2, adFun))
-adlaplaceExample::jointLogDens(x2, adFun,Sgroups)
 
 g <- adlaplaceExample::grad(x, adFun, inner = FALSE)
 H <- adlaplaceExample::hess(x, adFun, inner = FALSE)
@@ -118,7 +110,7 @@ inner_res <- adlaplace::inner_opt(
   parameters = c(config$beta, config$theta),
   gamma = config$gamma,
   control = list(
-    maxit = 5,
+    maxit = 5000,
     report.level = 10,
     report.freq = 1
   ),
@@ -129,10 +121,11 @@ inner_res <- adlaplace::inner_opt(
 str(inner_res)
 quantile(inner_res$gradient)
 
-res <- adlaplace::logLik(
+res <- adlaplace::logLikLaplace(
   x = c(config$beta, config$theta),
   config = config,
-  adPack = adFun)
+  adPack = adFun, 
+  deriv=TRUE)
 str(res)
 ```
 
