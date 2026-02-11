@@ -99,9 +99,9 @@ hessianMap = function(sparsity_list, config) {
 	if(config$verbose) {
 		cat("done.")
 	}
-if (indexDf[, any(is.na(index) | is.na(shard))]) {
-  warning("problem merging hessian indices")
-}
+	if (indexDf[, any(is.na(index) | is.na(shard))]) {
+		warning("problem merging hessian indices")
+	}
 
 
 	build_shard_map = function(xx, Nglobal, Ngroups) {
