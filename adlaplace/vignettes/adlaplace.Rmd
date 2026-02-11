@@ -19,7 +19,11 @@ f(y;\mu,\theta) =  & \log\Gamma(y + r) - \log\Gamma(r) - \log\Gamma(y + 1)
 \end{aligned}
 $$
 
+To Do:
 
+- non-diagonal precision matrix
+- getAdFun in parallel
+- precision matrix has non-multiplicative parameters, AD cholesky
 
 ```{r theData}
 Nobs = 1000;Nrandom1=10;Nrandom2=25
@@ -67,7 +71,7 @@ config = list(beta = rep(1, nrow(data$XTp)),
 	theta = c(rep(-1, length(NperEffect)), -1), 
 	transform_theta=TRUE, 
 	gamma = rep(0, nrow(data$ATp)),
-	groups = adlaplace::adFun_groups(1000, data$ATp),
+	groups = adlaplace::adFun_groups(data$ATp, 1000),
 	num_threads=parallel::detectCores(),
 	verbose=FALSE, package='adlaplace')	
 ```

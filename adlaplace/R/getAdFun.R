@@ -36,6 +36,9 @@ getAdFun <- function(data, config, package = c(config$package, "adlaplace")[1]) 
   }
 
   out <- builder(data, config)
+  if(config$verbose) {
+    cat("got AFun\n")
+  }
   attr(out, "adlaplace.backend") <- package
   out
 }

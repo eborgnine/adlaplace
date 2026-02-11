@@ -72,21 +72,21 @@ load("deaths.RData")
 # add day iid
 res <- hpolcc::hnlm(
   formula= medical ~ dom +  
-    f(tempd, model='hiwp',ref_value = 15, p=3, 
-      knots = seq(-5, 30, by=2.5), 
-    group_var = ecoRegion), 
+  f(tempd, model='hiwp',ref_value = 15, p=3, 
+  knots = seq(-5, 30, by=2.5), 
+  group_var = ecoRegion), 
   data=deaths[which(
-      deaths$tempd >-5 & deaths$date > as.Date("2006/1/1")
+    deaths$tempd >-5 & deaths$date > as.Date("2006/1/1")
     ), ], 
-  config = list(transform_theta = TRUE, 
-  dirichlet= TRUE, 
-                boundary_is_random = FALSE,
-                num_threads=parallel::detectCores(),
-                Nclusters = 50*parallel::detectCores(),
-  verbose=TRUE),
-  control_inner=list(report.level=0),
-  cc_design =  c("cell","ecoRegion", "yearWeek3Dow")
-  )
+    config = list(transform_theta = TRUE, 
+      dirichlet= TRUE, 
+      boundary_is_random = FALSE,
+      num_threads=parallel::detectCores(),
+      Ngroups = 1e5,
+      verbose=10),
+      control_inner=list(report.level=0),
+      cc_design =  c("cell","ecoRegion", "yearWeek3Dow")
+      )
 saveRDS(res, file='resTemp.rds')
 
 resPm <- hpolcc::hnlm(

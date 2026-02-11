@@ -85,13 +85,30 @@ inline Rcpp::List getAdFun_h(
 	const Config configC(config);
 
 	auto adFun = std::make_unique<std::vector<GroupPack>>(getAdFun(dataC, configC));
+	const bool verbose = config["verbose"];
+	if(verbose) {
+		Rcpp::Rcout << "1";
+	}
 	const Rcpp::List sparsity_list = extract_sparsity(*adFun);
-
+	if(verbose) {
+		Rcpp::Rcout << "2";
+	}
 	Rcpp::Environment ns = Rcpp::Environment::namespace_env("adlaplace");
+	if(verbose) {
+		Rcpp::Rcout << ".";
+	}
 	Rcpp::Function hessianMap = ns["hessianMap"];
+	if(verbose) {
+		Rcpp::Rcout << ".";
+	}
 	const Rcpp::List hessians = Rcpp::as<Rcpp::List>(hessianMap(sparsity_list, config));
-
+	if(verbose) {
+		Rcpp::Rcout << "3";
+	}
 	std::array<HessianPack, 2> hessiansC = adlaplace_hessianPackFromList(hessians);
+	if(verbose) {
+		Rcpp::Rcout << "4";
+	}
 	auto ctx = std::unique_ptr<BackendContext>(
 		get_backend_context(adFun.get(), hessiansC[0], hessiansC[1], configC)
 	);
@@ -103,11 +120,18 @@ inline Rcpp::List getAdFun_h(
 	SEXP handle = R_MakeExternalPtr((void*)h.get(), R_NilValue, R_NilValue);
 	R_RegisterCFinalizerEx(handle, handle_finalizer, TRUE);
 	Rf_setAttrib(handle, R_ClassSymbol, Rf_mkString("adlaplace_handle_ptr"));
+	if(verbose) {
+		Rcpp::Rcout << "5";
+	}
 
 	// ownership moves to finalizer path
 	adFun.release();
 	ctx.release();
 	h.release();
+		if(verbose) {
+		Rcpp::Rcout << "6";
+	}
+
 	Rcpp::List result = Rcpp::List::create(
 		Rcpp::Named("adFun") = handle,
 		Rcpp::Named("sparsity") = sparsity_list,

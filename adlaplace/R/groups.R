@@ -36,10 +36,16 @@
 #' G
 #'
 #' @export
-adFun_groups = function(Ngroups, ATp) {
+adFun_groups = function(ATp, Ngroups = ncol(ATp)) {
+	if (inherits(ATp, "ngCMatrix")) {
+ 		 ATp <- methods::as(ATp, "dMatrix")  # numeric sparse, no dense copy
+	}
 	if(requireNamespace("RSpectra", quietly=TRUE) ) {
 		loadings <- RSpectra::svds(ATp, k = 1)$v[,1]
 	} else {
+		if(max(dim(ATp) > 1e5)) {
+			warning("ATp matrix is very large, consider installing the RSpectra package")
+		}
 		sv <- svd(ATp)
 		loadings <- sv$v[,1]                 # equals prcomp(...)$rotation
 	}

@@ -26,93 +26,119 @@ hessianMap = function(sparsity_list, config) {
 	Sgamma0 = seq.int(Nbeta, length.out=Ngamma)
 	Sgamma1 = Sgamma0+1L
 
-	sparsity_list2 = list()
-	for(D in 1:Ngroups) {
-		Nhere = lapply(sparsity_list[[D]], length)
-		repZero = lapply(Nhere, rep, x=0L)
-		sparsity_list2[[D]] = cbind(
-			shard = rep(D-1L, Nhere$col_hess + Nhere$col_hess_inner),
-			rbind(
-				cbind(
-					inner=repZero$col_hess, 
-					row=sparsity_list[[D]]$row_hess, 
-					col=sparsity_list[[D]]$col_hess,
-					local = seq.int(0L, length.out=Nhere$row_hess)),
-				cbind(
-					inner=1L + repZero$col_hess_inner, 
-					row=sparsity_list[[D]]$row_hess_inner, 
-					col=sparsity_list[[D]]$col_hess_inner,
-					local = seq.int(0L, length.out=Nhere$row_hess_inner))
-			)
+	sparsity_list2 = vector("list", Ngroups)
+	for(D in seq_len(Ngroups)) {
+		if(config$verbose) {
+			if(D %% 10000 == 0) {
+				cat(" ", D, " ")
+			}
+		}
+		Nouter = length(sparsity_list[[D]]$col_hess)
+		Ninner = length(sparsity_list[[D]]$col_hess_inner)
+
+		outer_dt = data.table::data.table(
+			shard = rep.int(D - 1L, Nouter),
+			inner = rep.int(0L, Nouter),
+			row = as.integer(sparsity_list[[D]]$row_hess),
+			col = as.integer(sparsity_list[[D]]$col_hess),
+			local = seq.int(0L, length.out = Nouter)
 		)
+
+		if (Ninner > 0L) {
+			inner_dt = data.table::data.table(
+				shard = rep.int(D - 1L, Ninner),
+				inner = rep.int(1L, Ninner),
+				row = as.integer(sparsity_list[[D]]$row_hess_inner),
+				col = as.integer(sparsity_list[[D]]$col_hess_inner),
+				local = seq.int(0L, length.out = Ninner)
+			)
+			sparsity_list2[[D]] = data.table::rbindlist(list(outer_dt, inner_dt), use.names = TRUE)
+		} else {
+			sparsity_list2[[D]] = outer_dt
+		}
 	}
-	sparsityDf = do.call(rbind, sparsity_list2)
+	if(config$verbose) {
+		cat("done")
+	}
+	sparsityDf = data.table::rbindlist(sparsity_list2, use.names = TRUE)
 
-	fullMat = sparsityDf[, c('inner','row','col')] 
-	fullMat = fullMat[!duplicated(fullMat),]
+	fullMat = unique(sparsityDf[, .(inner, row, col)])
 
-	outerMat = fullMat[fullMat[,'inner'] == 0, ]
+	outerMat = fullMat[inner == 0L]
 	hessian = Matrix::sparseMatrix(
-		i=outerMat[,'row'], j=outerMat[,'col'],
+		i=outerMat$row, j=outerMat$col,
 		x = rep(-1, nrow(outerMat)),
 		symmetric=TRUE, index1=0, dims = rep(Nparams,2))
 	hessian@x = seq(0, length.out = length(hessian@x))
 
 	hessianT = as(hessian, "TsparseMatrix")
-	indexMat_outer = data.frame(index=as.integer(hessianT@x), 
-		row=hessianT@i, col=hessianT@j,
-		inner = 0)
-
-
-	hessian_inner = hessian[Sgamma1, Sgamma1]
-	indexMat_inner = indexMat_outer[
-		indexMat_outer$row %in% Sgamma0 & indexMat_outer$col %in% Sgamma0, ]
-	indexMat_inner[,'inner'] = 1
-
-	indexMat = rbind(indexMat_outer, indexMat_inner)
-
-	indexDf = merge(indexMat, sparsityDf, all=TRUE)
-	if(any(is.na(unlist(indexDf[c('index','shard')])))) {
-		warning("problem merging hessian indices")
-	}
-
-
-#	indexMat$index_inner = match(indexMat$index, as.integer(hessian_inner@x)) -1L
-#	whichInner = which(indexDf$inner == 1)
-#	indexDf[whichInner, 'index'] = 	indexDf[whichInner, 'index_inner']
-
-	indexDf$shardFac = factor(indexDf$shard, seq.int(0L, length.out=Ngroups))
-	indexDf$innerFac = factor(indexDf$inner, levels = c(0L, 1L), labels = c('outer','inner'))
-	indexDf = indexDf[order(indexDf$innerFac, indexDf$shard, indexDf$local), ]
-#		c('index','innerFac','shardFac','local')
-
-	indexHessianSplit = split(indexDf, indexDf$innerFac)
-	hessianSparsity = lapply(
-		indexHessianSplit, function(xx) {
-			theTable = as.integer(table(xx$shardFac))
-			Matrix::sparseMatrix(
-				p = c(0L, cumsum(theTable)), 
-				i = xx$index,
-				x = xx$local,
-				index1=FALSE,
-				dims = c(length(hessian@x), Ngroups))
-		}
+	indexMat_outer = data.table::data.table(
+		index = as.integer(hessianT@x),
+		row = as.integer(hessianT@i),
+		col = as.integer(hessianT@j),
+		inner = 0L
 	)
 
 
+	hessian_inner = hessian[Sgamma1, Sgamma1]
+	indexMat_inner = indexMat_outer[row %in% Sgamma0 & col %in% Sgamma0]
+	indexMat_inner[, inner := 1L]
+
+	indexMat = data.table::rbindlist(list(indexMat_outer, indexMat_inner), use.names = TRUE)
+	if(config$verbose) {
+		cat(" merge ")
+	}
+
+	data.table::setkey(indexMat, inner, row, col)
+	data.table::setkey(sparsityDf, inner, row, col)
+	indexDf <- data.table::merge.data.table(
+		indexMat, sparsityDf,
+		all = TRUE,
+		sort = FALSE
+	)
+	if(config$verbose) {
+		cat("done.")
+	}
+if (indexDf[, any(is.na(index) | is.na(shard))]) {
+  warning("problem merging hessian indices")
+}
+
+
+	build_shard_map = function(xx, Nglobal, Ngroups) {
+		xx = xx[!is.na(index) & !is.na(shard) & !is.na(local)]
+		data.table::setorderv(xx, c("shard", "local"))
+		theTable = tabulate(xx$shard + 1L, nbins = Ngroups)
+		Matrix::sparseMatrix(
+			p = c(0L, cumsum(as.integer(theTable))),
+			i = as.integer(xx$index),
+			x = as.integer(xx$local),
+			index1 = FALSE,
+			dims = c(Nglobal, Ngroups)
+		)
+	}
+
+	outerDf = indexDf[inner == 0L]
+	innerDf = indexDf[inner == 1L]
+	hessian_outer_map = build_shard_map(outerDf, length(hessian@x), Ngroups)
+	hessian_inner_map = build_shard_map(innerDf, length(hessian@x), Ngroups)
+
+	if(config$verbose) {
+		cat("-")
+	}
+
 	result_map = list(
 		outer = list(
-			p = as.integer(hessianSparsity$outer@p),
-			local = as.integer(hessianSparsity$outer@x),
-			global = as.integer(hessianSparsity$outer@i),
-			dims = dim(hessianSparsity$outer)
+			p = as.integer(hessian_outer_map@p),
+			local = as.integer(hessian_outer_map@x),
+			global = as.integer(hessian_outer_map@i),
+			dims = dim(hessian_outer_map)
 		),
 
 		inner = list(
-			p = as.integer(hessianSparsity$inner@p),
-			local = as.integer(hessianSparsity$inner@x),
-			global = match(hessianSparsity$inner@i, hessian_inner@x) -1L,
-			dims = c(length(hessian_inner@x), ncol(hessianSparsity$inner))
+			p = as.integer(hessian_inner_map@p),
+			local = as.integer(hessian_inner_map@x),
+			global = match(hessian_inner_map@i, hessian_inner@x) -1L,
+			dims = c(length(hessian_inner@x), ncol(hessian_inner_map))
 		)
 	)
 
@@ -123,5 +149,3 @@ hessianMap = function(sparsity_list, config) {
 		map = result_map
 	)
 }
-
-

@@ -332,13 +332,23 @@ if(config.verbose) {
 			CppAD::ADFun<double> fun(ad_params, resultHere);
 			result[D].fun = std::move(fun);
 
+if(config.verbose) {
+	Rcpp::Rcout << ".";
+}
 			adpack_sparsity(
 				ad_params_G,
 				config.Sgamma,
 				result[D],
 				config.verbose);
+if(config.verbose) {
+	Rcpp::Rcout << ".";
+}
+
 		}
 	} // parallel
+if(config.verbose) {
+	Rcpp::Rcout << " done.\n";
+}
 	return result;
 }
 

@@ -74,7 +74,7 @@ config <- list(
   gamma = rep(0, nrow(data$ATp)),
   theta = c(log(0.2), log(0.2), log(0.5), 2),
   transform_theta = TRUE,
-  groups = adlaplace::adFun_groups(500, data$ATp),
+  groups = adlaplace::adFun_groups(data$ATp),
   num_threads = 1L,
   package = "adlaplaceExample",
   verbose = FALSE)

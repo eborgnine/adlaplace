@@ -39,7 +39,7 @@ hnlm <- function(
   configDefaults = list(
     verbose=FALSE, transform_theta=TRUE,
     num_threads = 1, dirichlet=TRUE,
-    dirichlet_init = 0.1
+    dirichlet_init = 0.1, Ngroups = 1e4
   )
 
   configDefaults = configDefaults[setdiff(names(configDefaults), names(config))]
@@ -265,71 +265,16 @@ hnlm <- function(
     cat("getting groups...")
   }
 
-  sparsity_raw = hpolcc::sparsity(tmb_data, config)
-  # last two are Q and extra
-  sparsity_raw = sparsity_raw[seq(1, len=length(sparsity_raw)-2)]
-
-  firstDerivList = lapply(sparsity_raw, '[[', 'grad')
-  firstDeriv = Matrix::sparseMatrix(
-    i = unlist(firstDerivList),
-    j = rep(seq(0, len=length(firstDerivList)), unlist(lapply(firstDerivList, length))),
-    x = rep(1, length(unlist(firstDerivList))),
-    dims = c(length(full_parameters), length(firstDerivList)),
-    index1=FALSE
-  )
-
+  config$groups = adlaplace::adFun_groups(
+    ATp = tmb_data$elgm_matrix, Ngroups=config$Ngroups)
   if(verboseOrig) {
-    cat(",")
+    cat("done.")
   }
-  config$groups = adlaplace::adFun_groups(ncol(firstDeriv), firstDeriv)
-  sparsity_raw = hpolcc::sparsity(tmb_data, config)
-  sparsity_list = adlaplace::group_sparsity(
-    data=tmb_data,  
-    config=config, 
-    sparsity_list = sparsity_raw)
 
-  config = modifyList(config, sparsity_list)
+  config$package = "hpolcc"
 
   cache = new.env()
   assign('gamma', config$gamma, cache)
-
-
-
-  if(FALSE) {
-    theInner = hpolcc::inner_opt(
-      parameters= get('gamma', cache),
-      data=tmb_data,
-      control = control_inner, 
-      config=config 
-    )
-
-    onel = adlaplace::logLik(
-      parameters, 
-      data=tmb_data,
-      config = config,
-      gamma = cache$gamma,
-      control = control_inner,
-      adPack = adFunFull, 
-      deriv=TRUE, 
-      package='hpolcc'
-    )
-
-    adlaplace::outer_fn(
-      x = c(config$beta, config$theta),
-      data=tmb_data, config=config, cache=cache, 
-      adFun = adFunFull,
-#  control_inner=control_inner,
-      package = 'hpolcc'
-    ) 
-
-    adlaplace::outer_gr(
-      x = c(config$beta, config$theta),
-      data=tmb_data, config=config, cache=cache, 
-      adFun = adFunFull,
-      package = 'hpolcc'
-    )  
-  }
-
   # some checks
   if(!all(parameters_info$gamma$name == rownames(tmb_data$ATp))) {
     warning("names of gamma don't match up")
@@ -354,18 +299,21 @@ hnlm <- function(
 
 
   if(verboseOrig) {
-    cat("optimizing")
+    cat("getting AD fun...")
   }
 
-  adFunFull = adlaplace::getAdFun(tmb_data, config, package = "hpolcc")
+  adFun = adlaplace::getAdFun(tmb_data, config, package = "hpolcc")
 
+  if(verboseOrig) {
+    cat("optimizing")
+  }
   mle = trustOptim::trust.optim(
     c(config$beta, config$theta),
     adlaplace::outer_fn, 
     adlaplace::outer_gr,
     method='SR1',
     data=tmb_data, config=config, cache=cache, 
-    adFun = adFunFull, 
+    adFun = adFun, 
     package = 'hpolcc',
     control_inner = control_inner,
     control =  control
@@ -385,7 +333,7 @@ hnlm <- function(
     gamma=get("gamma", cache), 
     data=tmb_data, config=config, control = control_inner, 
     package = 'hpolcc',
-    adFun = adFunFull,
+    adFun = adFun,
     deriv=1))
 
   result$parameters = formatParameters(
@@ -398,7 +346,7 @@ hnlm <- function(
         adlaplace::outer_gr,
         x= mle$solution,
         package='hpolcc',
-        data = tmb_data, config=config, control_inner=control_inner, adFun=adFunFull, cache=cache
+        data = tmb_data, config=config, control_inner=control_inner, adFun=adFun, cache=cache
       )
     )
   }
