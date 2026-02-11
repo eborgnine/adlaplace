@@ -74,7 +74,8 @@ logLikLaplace = function(
 	if(!missing(start_gamma)) {
 		config_inner$gamma = start_gamma
 		if(length(config$gamma) != length(config_inner$gamma)) {
-			warning("gamma is the wrong length")
+			warning("gamma is the wrong length; resetting to config$gamma")
+			config_inner$gamma = config$gamma
 		}
 	} 
 
@@ -109,11 +110,16 @@ logLikLaplace = function(
 	if(any(class(inner_res) == 'try-error')) {
 		cat("resetting starting values to all zero\n")
 		cat("theta ", paste(x, collapse=" "), "\n")
-		config_inner$gamma = rep(0.0, length(config_inner$gamma))
-		inner_res = try(inner_opt(
-			config=config_inner, 
+		config_inner$gamma = rep(0.0, length(config$gamma))
+		inner_res = try(adlaplace::inner_opt(
+			x,
+			config_inner$gamma,
+			config=config_inner,
 			control=control,
 			adFun = adFun))
+	}
+	if(any(class(inner_res) == 'try-error')) {
+		stop("inner_opt failed in logLikLaplace: ", as.character(inner_res))
 	}
 
 	if(any(config$verbose)) {
@@ -129,6 +135,7 @@ logLikLaplace = function(
 
 	result = list(
 		logLik = inner_res$logLik,
+		fval = -inner_res$logLik,
 		parameters = x,
 		fullParameters =  c(config_inner$beta, inner_res$solution, config_inner$theta),
 		hessian = list(

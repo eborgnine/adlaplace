@@ -126,10 +126,46 @@ res <- adlaplace::logLikLaplace(
   config = config,
   adFun = adFun, 
   deriv=TRUE)
-str(res)
+res$fval
+res$grad
 ```
 
 
+
+```{r trustOptimOuterWrappers, eval=FALSE}
+adFun <- adlaplace::getAdFun(data, config)
+
+cache <- new.env(parent = emptyenv())
+cache$start_gamma <- config$gamma
+
+x0 <- c(config$beta, config$theta)
+
+adlaplace::outer_fn(x=x0, cache=cache, config=config, adFun = adFun)
+adlaplace::outer_gr(x=x0, cache=cache, config=config, adFun = adFun)
+
+outer_fit <- trustOptim::trust.optim(
+  x = x0,
+  fn = adlaplace::outer_fn,
+  gr = adlaplace::outer_gr,
+  method = "SR1",
+  config = config,
+  adFun = adFun,
+  cache = cache,
+  control = list(
+    maxit = 1000,
+    report.level = 4,
+    report.freq =1 
+  ),
+  control_inner = list(
+    maxit = 100,
+    report.level = 0,
+    report.freq = 0
+  )
+)
+
+outer_fit$solution
+outer_fit$fval
+```
 
 
 

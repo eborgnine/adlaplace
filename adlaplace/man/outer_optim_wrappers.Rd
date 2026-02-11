@@ -6,20 +6,20 @@
 \alias{outer_gr}
 \title{Outer objective and gradient wrappers}
 \usage{
-outer_fn(..., control_inner = list(), cache)
+outer_fn(x, config, cache, adFun, control_inner = list(), ...)
 
-outer_gr(..., control_inner = list(), cache)
+outer_gr(x, config, cache, adFun, control_inner = list(), ...)
 }
 \arguments{
-\item{...}{Arguments forwarded to \code{\link{logLikLaplace}} (e.g. \code{x}, \code{data},
-\code{config}, \code{adFun}, \code{package}, etc.).}
+\item{cache}{An \code{\link[base]{environment}} containing starting values for the inner
+optimization. It should contain \code{start_gamma}. Both functions update
+\code{cache$start_gamma} to the latest \code{gamma} solution.}
 
 \item{control_inner}{A list of control options forwarded to the \code{control}
 argument of \code{\link{logLikLaplace}} for the inner optimization.}
 
-\item{cache}{An \code{\link[base]{environment}} containing starting values for the inner
-optimization. It should contain \code{start_gamma}. Both functions update
-\code{cache$start_gamma} to the latest \code{gamma} solution.}
+\item{...}{Arguments forwarded to \code{\link{logLikLaplace}} (e.g. \code{x}, \code{data},
+\code{config}, \code{adFun}, \code{package}, etc.).}
 }
 \value{
 \itemize{
