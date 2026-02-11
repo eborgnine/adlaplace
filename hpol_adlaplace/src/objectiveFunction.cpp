@@ -1,14 +1,28 @@
 #define DEBUG
 
-#include "adlaplace/adlaplace_base.hpp"
+#include "adlaplace/adlaplace.hpp"
 
-#include "adlaplace/lgamma.hpp"
+#include "adlaplace/math/lgamma.hpp"
+#include <cmath>
 
 
 //#define COMPUTE_CONSTANTS
 
 // use the standard logDensRandom
-#include "adlaplace/logDensRandom.hpp"
+#include "adlaplace/logDens/random.hpp"
+
+template <class T>
+inline T exp_any(const T& x) {
+  return CppAD::exp(x);
+}
+
+inline double lgamma_any(const double& x) {
+  return std::lgamma(x);
+}
+
+inline CppAD::AD<double> lgamma_any(const CppAD::AD<double>& x) {
+  return lgamma_ad(x);
+}
 
 
 CppAD::AD<double> stable_logsumexp(const CppAD::vector<CppAD::AD<double>>& eta) {
@@ -153,6 +167,18 @@ CppAD::vector<CppAD::AD<double>> logDensObs(
 	return(result);
 }
 
+CppAD::vector<CppAD::AD<double>> logDensObs(
+  const CppAD::vector<CppAD::AD<double>>& x,
+  const Data& data,
+  const Config& config,
+  const size_t Dgroup) {
+  CppAD::vector<CppAD::AD<double>> gamma(config.Ngamma), beta(config.Nbeta), theta(config.Ntheta);
+  for (size_t d = 0; d < config.Ngamma; ++d) gamma[d] = x[config.gamma_begin + d];
+  for (size_t d = 0; d < config.Nbeta; ++d) beta[d] = x[config.beta_begin + d];
+  for (size_t d = 0; d < config.Ntheta; ++d) theta[d] = x[config.theta_begin + d];
+  return logDensObs(gamma, beta, theta, data, config, Dgroup);
+}
+
 
 template <class Type>
 CppAD::vector<Type> logDensExtra(
@@ -217,6 +243,15 @@ CppAD::vector<Type> logDensExtra(
 	result[0] = contrib;
 	return(result);
 }
+
+CppAD::vector<CppAD::AD<double>> logDensExtra(
+  const CppAD::vector<CppAD::AD<double>>& x,
+  const Data& data,
+  const Config& config) {
+  CppAD::vector<CppAD::AD<double>> theta(config.Ntheta);
+  for (size_t d = 0; d < config.Ntheta; ++d) theta[d] = x[config.theta_begin + d];
+  return logDensExtra<CppAD::AD<double>>(theta, data, config);
+}
  
 
 
@@ -248,5 +283,5 @@ logDensExtra<CppAD::AD<double>>(
     const CppAD::vector<CppAD::AD<double>>&,
     const Data&, const Config&);
 
-
-
+// ADfun and interfaces
+#include "adlaplace/creators/adfun.hpp"
