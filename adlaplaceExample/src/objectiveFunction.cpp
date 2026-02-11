@@ -2,7 +2,6 @@
 #include "adlaplace/math/constants.hpp"
 #include "adlaplace/logDens/random.hpp"
 
-
 CppAD::vector<CppAD::AD<double>> logDensObs(
   const CppAD::vector<CppAD::AD<double>>& x,
   const Data& data,
@@ -50,11 +49,19 @@ CppAD::vector<CppAD::AD<double>> logDensExtra(
   const Data& data,
   const Config& config)
 {
+
   CppAD::AD<double> omega_in = x[config.theta_end - 2];
   CppAD::AD<double> log_omega = config.transform_theta ? omega_in : CppAD::log(omega_in);
 
   CppAD::vector<CppAD::AD<double>> out(1);
   out[0] = -CppAD::AD<double>(data.y.size()) * (log_omega + CppAD::AD<double>(ONEHALFLOGTWOPI));
+
+  if(config.verbose) {
+    Rcpp::Rcout << "logDensExtra " << out[0]  << " log omega " << log_omega << 
+    " omega_in " << omega_in << " tr " << config.transform_theta << "\n";
+  }
+
+
   return out;
 }
 

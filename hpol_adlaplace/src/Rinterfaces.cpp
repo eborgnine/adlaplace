@@ -5,7 +5,7 @@
 
 //' @export
 // [[Rcpp::export]]
-Rcpp::List getAdFun(
+Rcpp::List getAdFun_r(
   Rcpp::List data,
   Rcpp::List config,
   const bool inner = false) {

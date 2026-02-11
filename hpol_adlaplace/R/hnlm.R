@@ -357,7 +357,7 @@ hnlm <- function(
     cat("optimizing")
   }
 
-  adFunFull = hpolcc::getAdFun(tmb_data, config,  inner=FALSE)
+  adFunFull = adlaplace::getAdFun(tmb_data, config, package = "hpolcc")
 
   mle = trustOptim::trust.optim(
     c(config$beta, config$theta),

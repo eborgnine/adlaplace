@@ -83,17 +83,17 @@ config <- list(
 ## Evaluate objective, gradient, and Hessian
 
 ```{r derivs}
-adFun <- adlaplaceExample::getAdFun(data, config)
+adFun <- adlaplace::getAdFun(data, config, package = "adlaplaceExample")
 true_theta = c(log(c(sd_random, omega_true)), alpha_true)
 x <- c(beta_true, gamma_true, true_theta)
 
 Sgroups = seq.int(0L, length.out= length(adFun$sparsity))
 #Sgroups = 0L
 
-adlaplaceExample::jointLogDens(x, adFun, Sgroups)
+adlaplace::jointLogDens(x, adFun, Sgroups)
 
-g <- adlaplaceExample::grad(x, adFun, inner = FALSE)
-H <- adlaplaceExample::hess(x, adFun, inner = FALSE)
+g <- adlaplace::grad(x, adFun, inner = FALSE)
+H <- adlaplace::hess(x, adFun, inner = FALSE)
 
 str(g)
 str(H)
@@ -104,7 +104,7 @@ quantile(eigen(H)$values)
 ## Trust-optimization and Laplace log-likelihood interface
 
 ```{r trustOptimInterface, eval=FALSE}
-adFun <- adlaplaceExample::getAdFun(data, config)
+adFun <- adlaplace::getAdFun(data, config, package = "adlaplaceExample")
 
 inner_res <- adlaplace::inner_opt(
   parameters = c(config$beta, config$theta),
@@ -162,7 +162,7 @@ gradVec = unlist(lapply(res, function(xx) xx$deriv[Dpar,'dL']))
 plot(Sx, Slik)
 
 plot(Sx, gradVec)
-lines(SxD, diff(Slik)/diff(Sx), lwd=2)
+lines(SxD, diff(Slik)/diff(Sx), lwd=2, type='o', pch='.')
 
 Du = 1
 plot(Sx, uHat[,Du])
@@ -179,69 +179,8 @@ lines(SxD, diff(Sdet)/diff(Sx))
 
 
 
-## Finite-difference check for one parameter
-
-```{r finiteDiff, eval=FALSE}
-config2 = config
-#config2$gamma = inner_res$solution  
-x <- c(
-  config2$beta, 
-  config2$gamma, 
-  config2$theta)
 
 
-adFun <- adlaplaceExample::getAdFun(data, config)
-
-Dpar <- 3;Dpar2=15
-Sgamma1 = seq.int(length(config$beta)+1, len = length(config$gamma))
-DparG = match(Dpar, Sgamma1);DparG2 = match(Dpar2, Sgamma1)
-Sx <- seq(-0.1, 0.1, length.out = 21) + x[Dpar]
-x_list <- lapply(Sx, function(v) { xx <- x; xx[Dpar] <- v; xx })
-
-fvals <- vapply(x_list, function(xx) adlaplaceExample::jointLogDens(xx, adFun), numeric(1))
-
-
-stuff = adlaplace::inner_opt_test(adFun, config2)
-stuff$hessian2 = Matrix::sparseMatrix(
-  i = stuff$hessian$i, p = stuff$hessian$p, x = stuff$hessian$x,
-  index1=FALSE, dims = rep(length(Sgamma1),2))
-
-
-plot(Sx, fvals)
-abline(h=-stuff$fval)
-
-grad1 = mapply(
-  adlaplaceExample::grad,
-  x = x_list,
-  MoreArgs = list(backendContext = adFun, inner=FALSE),
-  SIMPLIFY=TRUE
-  )
-
-hes1 = mapply(
-  adlaplace::hess,
-  x = x_list,
-  MoreArgs = list(backendContext = adFun, inner=FALSE),
-  SIMPLIFY=FALSE)
-do.call(rbind,lapply(hes1, function(xx) table(cut(eigen(xx)$values, c(-Inf, -1e-10, 1e-10, Inf)))  ))
-hes2 = do.call(abind::abind, c(
-  lapply(hes1, as.matrix), along=3))
-gradD = apply(grad1, 1, diff) / mean(diff(Sx))
-
-Sx_mid <- Sx[-1] - diff(Sx) / 2
-plot(Sx, grad1[Dpar,], ylab = "Analytic gradient", xlab = "parameter value")
-lines(Sx_mid, diff(fvals) / diff(Sx), col = 2)
-abline(h=-stuff$gradient[DparG])
-legend("topleft", legend = c("AD gradient", "finite difference"), col = c(1, 2), lty = 1, bty = "n")
-
-
-plot(Sx, hes2[Dpar,Dpar2, ], ylab = paste(Dpar, Dpar2),
-  ylim = range(hes2[Dpar, Dpar2,], na.rm=TRUE))
-lines(Sx_mid, gradD[,Dpar2], lwd=3, col='grey')
-abline(h=-stuff$hessian2[DparG, DparG2], col='blue')
-
-
-bob = stuff$hessian2 + hes2[Sgamma1, Sgamma1, 10]
-```
 
 ## Notes
 
@@ -288,14 +227,14 @@ do.call(rbind, adFun$sparsity[[
   ]][c('row_hess_inner', 'col_hess_inner')])
   
 
-Sgroups = length(adFun$sparsity)-12L
+#Sgroups = length(adFun$sparsity)-12L
 #Sgroups = seq.int(from=0, length.out = length(adFun$sparsity))
 
-#Sgroups = c()
+Sgroups = 376
 
 
 parDf = data.frame(x)[,rep(1, Npar)]
-Sx = seq(-0.1, 0.1, len=13) + parDf[Dpar,1]
+Sx = seq(-0.1, 0.1, len=Npar) + parDf[Dpar,1]
 SxD = Sx[-1] - diff(Sx)/2
 parDf[Dpar,] = Sx
 
@@ -336,8 +275,6 @@ plot(Sx, hes2[Dpar,Dpar2, ], ylab = paste(Dpar, Dpar2),
   ylim = range(hes2[Dpar, Dpar2,], na.rm=TRUE))
 lines(SxD, gradD[,Dpar2])
 ```
-
-
 
 
 

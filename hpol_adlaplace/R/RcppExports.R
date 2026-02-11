@@ -2,8 +2,8 @@
 # Generator token: 10BE3573-1514-4C36-9D1C-5A225CD40393
 
 #' @export
-getAdFun <- function(data, config, inner = FALSE) {
-    .Call(`_hpolcc_getAdFun`, data, config, inner)
+getAdFun_r <- function(data, config, inner = FALSE) {
+    .Call(`_hpolcc_getAdFun_r`, data, config, inner)
 }
 
 #' @export

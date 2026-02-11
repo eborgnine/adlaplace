@@ -11,16 +11,16 @@ Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
 Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
-// getAdFun
-Rcpp::List getAdFun(Rcpp::List data, Rcpp::List config, const bool inner);
-RcppExport SEXP _hpolcc_getAdFun(SEXP dataSEXP, SEXP configSEXP, SEXP innerSEXP) {
+// getAdFun_r
+Rcpp::List getAdFun_r(Rcpp::List data, Rcpp::List config, const bool inner);
+RcppExport SEXP _hpolcc_getAdFun_r(SEXP dataSEXP, SEXP configSEXP, SEXP innerSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< Rcpp::List >::type data(dataSEXP);
     Rcpp::traits::input_parameter< Rcpp::List >::type config(configSEXP);
     Rcpp::traits::input_parameter< const bool >::type inner(innerSEXP);
-    rcpp_result_gen = Rcpp::wrap(getAdFun(data, config, inner));
+    rcpp_result_gen = Rcpp::wrap(getAdFun_r(data, config, inner));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -135,7 +135,7 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_hpolcc_getAdFun", (DL_FUNC) &_hpolcc_getAdFun, 3},
+    {"_hpolcc_getAdFun_r", (DL_FUNC) &_hpolcc_getAdFun_r, 3},
     {"_hpolcc_jointLogDensNoAdfun", (DL_FUNC) &_hpolcc_jointLogDensNoAdfun, 3},
     {"_hpolcc_jointLogDens", (DL_FUNC) &_hpolcc_jointLogDens, 3},
     {"_hpolcc_grad", (DL_FUNC) &_hpolcc_grad, 3},

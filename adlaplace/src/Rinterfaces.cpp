@@ -106,9 +106,8 @@ extern "C" SEXP adlaplace_traceHinvT_c(
 //' @name adlaplace_cpp
 
 //' @rdname adlaplace_cpp
-//' @export
 // [[Rcpp::export]]
-SEXP getAdFun(
+SEXP getAdFun_r(
   Rcpp::List data,
   Rcpp::List config)
 {

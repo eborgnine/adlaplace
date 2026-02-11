@@ -261,10 +261,10 @@ std::vector<GroupPack> getAdFun(
 
 	std::vector<GroupPack> result(Ngroups);	
 
-#ifdef DEBUG
+if(config.verbose) {
 	Rcpp::Rcout << "outer, groups " << Ngroups << " Nbeta " << config.Nbeta << " Ntheta " <<
 	config.Ntheta << " Ngamma " << config.Ngamma << " Nparams " << config.Nparams << "\n";
-#endif
+}
 
 	CPPAD_TESTVECTOR(double) ad_params_G(config.Nparams);
 	for(size_t D=0;D<config.Nparams;D++) {
@@ -321,6 +321,10 @@ std::vector<GroupPack> getAdFun(
 		{
 			const size_t D = NgroupsObs + 1;
 			CppAD::Independent(ad_params);
+
+if(config.verbose) {
+	Rcpp::Rcout << "extra ";
+}
 
 			auto resultHere = logDensExtra(
 				ad_params,

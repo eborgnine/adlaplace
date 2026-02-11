@@ -82,7 +82,16 @@ logLikLaplace = function(
 		if(missing(data)) {
 			stop("at least one of data and adFun must be supplied")
 		}
-		adFun = getExportedValue(package, "getAdFun")(data, config)
+		adFun = adlaplace::getAdFun(data, config, package = package)
+	} else {
+		adfun_backend <- attr(adFun, "adlaplace.backend", exact = TRUE)
+		if(!is.null(adfun_backend) && !identical(adfun_backend, package)) {
+			stop(
+				"adFun was built with backend package '", adfun_backend,
+				"' but `package` is '", package, "'. ",
+				"Rebuild with adlaplace::getAdFun(..., package = '", package, "')."
+			)
+		}
 	}
 
 

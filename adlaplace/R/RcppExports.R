@@ -41,9 +41,8 @@
 NULL
 
 #' @rdname adlaplace_cpp
-#' @export
-getAdFun <- function(data, config) {
-    .Call(`_adlaplace_getAdFun`, data, config)
+getAdFun_r <- function(data, config) {
+    .Call(`_adlaplace_getAdFun_r`, data, config)
 }
 
 #' @rdname adlaplace_cpp

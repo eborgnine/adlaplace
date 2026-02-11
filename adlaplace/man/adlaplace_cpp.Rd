@@ -2,14 +2,14 @@
 % Please edit documentation in R/RcppExports.R
 \name{adlaplace_cpp}
 \alias{adlaplace_cpp}
-\alias{getAdFun}
+\alias{getAdFun_r}
 \alias{jointLogDens}
 \alias{grad}
 \alias{hess}
 \alias{traceHinvT}
 \title{C++ backend entry points}
 \usage{
-getAdFun(data, config)
+getAdFun_r(data, config)
 
 jointLogDens(x, backendContext, Sgroups = NULL)
 
