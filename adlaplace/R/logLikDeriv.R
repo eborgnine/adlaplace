@@ -68,7 +68,7 @@ logLikDeriv = function(
   result$deriv$gradTheta = -derivFull$gradient[-Sgamma1]  
   result$deriv$gradU = as.vector(-derivFull$gradient[Sgamma1] %*% dU)
   result$deriv$dDet = result$deriv$dDetUpart + result$deriv$dDetTpart
-  result$deriv$dL = result$deriv$gradTheta - result$deriv$dDet. # + result$deriv$gradU 
+  result$deriv$dL = result$deriv$gradTheta - result$deriv$dDet # + result$deriv$gradU 
 
   return(result)
 }
