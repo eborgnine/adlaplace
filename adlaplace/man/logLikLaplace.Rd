@@ -7,7 +7,7 @@
 logLikLaplace(
   x,
   config,
-  start_gamma,
+  gamma,
   control = list(report.level = 4, report.freq = 1),
   adFun,
   data,
@@ -23,7 +23,7 @@ interpreted as \code{beta}; the remainder are interpreted as \code{theta}
 \item{config}{A list of configuration options passed to the backend. This
 function uses \code{config$package} and \code{config$verbose} if present.}
 
-\item{start_gamma}{Optional numeric vector of starting values for the inner
+\item{gamma}{Optional numeric vector of starting values for the inner
 parameter \code{gamma}. Defaults to \code{config$gamma}.}
 
 \item{control}{List of control parameters passed to the backend inner optimizer.

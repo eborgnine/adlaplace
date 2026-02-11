@@ -106,21 +106,6 @@ quantile(eigen(H)$values)
 ```{r trustOptimInterface, eval=FALSE}
 adFun <- adlaplace::getAdFun(data, config, package = "adlaplaceExample")
 
-inner_res <- adlaplace::inner_opt(
-  parameters = c(config$beta, config$theta),
-  gamma = config$gamma,
-  control = list(
-    maxit = 5000,
-    report.level = 10,
-    report.freq = 1
-  ),
-  config = config,
-  adFun = adFun
-)
-
-str(inner_res)
-quantile(inner_res$gradient)
-
 res <- adlaplace::logLikLaplace(
   x = c(config$beta, config$theta),
   config = config,
@@ -136,7 +121,7 @@ res$grad
 adFun <- adlaplace::getAdFun(data, config)
 
 cache <- new.env(parent = emptyenv())
-cache$start_gamma <- config$gamma
+cache$gamma <- config$gamma
 
 x0 <- c(config$beta, config$theta)
 
@@ -311,7 +296,6 @@ plot(Sx, hes2[Dpar,Dpar2, ], ylab = paste(Dpar, Dpar2),
   ylim = range(hes2[Dpar, Dpar2,], na.rm=TRUE))
 lines(SxD, gradD[,Dpar2])
 ```
-
 
 
 

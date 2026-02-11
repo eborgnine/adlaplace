@@ -247,13 +247,13 @@ hnlm <- function(
   Sgamma = seq(nrow(tmb_data$XTp)+1, len=nrow(tmb_data$ATp))
 
   start_beta = rep(0, nrow(tmb_data$XTp))
-  config$start_gamma=    rep(0, nrow(tmb_data$ATp)) 
+  config$gamma = rep(0, nrow(tmb_data$ATp))
   start_theta = theta_info$init
   config$beta = start_beta
   config$theta = start_theta
 
   parameters = c(start_beta, start_theta)
-  full_parameters = c(start_beta, config$start_gamma, start_theta)
+  full_parameters = c(start_beta, config$gamma, start_theta)
 
   parameters_info = list(
     beta = beta_info,
@@ -291,13 +291,13 @@ hnlm <- function(
   config = modifyList(config, sparsity_list)
 
   cache = new.env()
-  assign('start_gamma', config$start_gamma, cache)
+  assign('gamma', config$gamma, cache)
 
 
 
   if(FALSE) {
     theInner = hpolcc::inner_opt(
-      parameters= get('start_gamma', cache),
+      parameters= get('gamma', cache),
       data=tmb_data,
       control = control_inner, 
       config=config 
@@ -307,7 +307,7 @@ hnlm <- function(
       parameters, 
       data=tmb_data,
       config = config,
-      start_gamma = cache$start_gamma,
+      gamma = cache$gamma,
       control = control_inner,
       adPack = adFunFull, 
       deriv=TRUE, 
@@ -317,7 +317,7 @@ hnlm <- function(
     adlaplace::outer_fn(
       x = c(config$beta, config$theta),
       data=tmb_data, config=config, cache=cache, 
-      adPack = adFunFull,
+      adFun = adFunFull,
 #  control_inner=control_inner,
       package = 'hpolcc'
     ) 
@@ -325,7 +325,7 @@ hnlm <- function(
     adlaplace::outer_gr(
       x = c(config$beta, config$theta),
       data=tmb_data, config=config, cache=cache, 
-      adPack = adFunFull,
+      adFun = adFunFull,
       package = 'hpolcc'
     )  
   }
@@ -365,7 +365,7 @@ hnlm <- function(
     adlaplace::outer_gr,
     method='SR1',
     data=tmb_data, config=config, cache=cache, 
-    adPack = adFunFull, 
+    adFun = adFunFull, 
     package = 'hpolcc',
     control_inner = control_inner,
     control =  control
@@ -380,16 +380,16 @@ hnlm <- function(
   if(verboseOrig) {
     cat("done")
   }
-  result$extra = try(adlaplace::logLik(
+  result$extra = try(adlaplace::logLikLaplace(
     mle$solution, 
-    start_gamma=get("start_gamma", cache), 
+    gamma=get("gamma", cache), 
     data=tmb_data, config=config, control = control_inner, 
     package = 'hpolcc',
-    adPack = adFunFull,
+    adFun = adFunFull,
     deriv=1))
 
   result$parameters = formatParameters(
-    x=result$extra$full_parameters, 
+    x=result$extra$fullParameters, 
     parameters_info)
 
   if(FALSE) {
@@ -398,7 +398,7 @@ hnlm <- function(
         adlaplace::outer_gr,
         x= mle$solution,
         package='hpolcc',
-        data = tmb_data, config=config, control_inner=control_inner, adPack=adFunFull, cache=cache
+        data = tmb_data, config=config, control_inner=control_inner, adFun=adFunFull, cache=cache
       )
     )
   }

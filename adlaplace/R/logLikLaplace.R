@@ -14,7 +14,7 @@
 #'   \code{map} exist.
 #' @param config A list of configuration options passed to the backend. This
 #'   function uses \code{config$package} and \code{config$verbose} if present.
-#' @param start_gamma Optional numeric vector of starting values for the inner
+#' @param gamma Optional numeric vector of starting values for the inner
 #'   parameter \code{gamma}. Defaults to \code{config$gamma}.
 #' @param control List of control parameters passed to the backend inner optimizer.
 #'   (e.g. \code{report.level}, \code{report.freq}).
@@ -59,7 +59,7 @@
 #' @export
 logLikLaplace = function(
 	x, config, 
-	start_gamma, 	
+	gamma, 	
 	control = list(report.level=4, report.freq=1), 
 	adFun, data, 
 	package = c(config$package, 'adlaplace')[1],
@@ -71,8 +71,8 @@ logLikLaplace = function(
 	config_inner = config
 	config_inner$beta = x[seq.int(1, len=Nbeta)]
 	config_inner$theta = x[seq.int(Nbeta+1, len=Ntheta)]
-	if(!missing(start_gamma)) {
-		config_inner$gamma = start_gamma
+	if(!missing(gamma)) {
+		config_inner$gamma = gamma
 		if(length(config$gamma) != length(config_inner$gamma)) {
 			warning("gamma is the wrong length; resetting to config$gamma")
 			config_inner$gamma = config$gamma

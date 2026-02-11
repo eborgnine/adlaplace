@@ -15,8 +15,8 @@
 #' @param control_inner A list of control options forwarded to the \code{control}
 #'   argument of \code{\link{logLikLaplace}} for the inner optimization.
 #' @param cache An \code{\link[base]{environment}} containing starting values for the inner
-#'   optimization. It should contain \code{start_gamma}. Both functions update
-#'   \code{cache$start_gamma} to the latest \code{gamma} solution.
+#'   optimization. It should contain \code{gamma}. Both functions update
+#'   \code{cache$gamma} to the latest \code{gamma} solution.
 #'
 #' @return
 #' \itemize{
@@ -29,7 +29,7 @@
 #' @examples
 #' \dontrun{
 #' cache <- new.env(parent = emptyenv())
-#' cache$start_gamma <- rep(0, nrow(data$ATp))
+#' cache$gamma <- rep(0, nrow(data$ATp))
 #'
 #' val <- outer_fn(x = x0, data = data, config = config, cache = cache)
 #' gr  <- outer_gr(x = x0, data = data, config = config, cache = cache)
@@ -39,30 +39,39 @@
 #' @rdname outer_optim_wrappers
 #' @export
 outer_fn = function(x, config, cache, adFun, control_inner = list(), ...) {
-	if(is.null(cache$start_gamma)) {
-		warning("starting values cache$start_gamma not provided")
+	if(is.null(config$gamma)) {
+		stop("outer_fn requires config$gamma")
+	}
+	if(is.null(cache$gamma) || length(cache$gamma) != length(config$gamma)) {
+		cache$gamma <- config$gamma
 	}
 	result = adlaplace::logLikLaplace(
 		x=x, config=config,
-		start_gamma = cache$start_gamma,
+		gamma = cache$gamma,
 		control = control_inner,
 		adFun = adFun, 
 		deriv = FALSE, ...
 	)
-	assign('start_gamma', result$opt$solution, cache)
-	result$fval
+	assign('gamma', result$opt$solution, cache)
+	-result$logLik
 }
 
 #' @rdname outer_optim_wrappers
 #' @export
 outer_gr = function(x, config, cache, adFun, control_inner = list(), ...) {
+	if(is.null(config$gamma)) {
+		stop("outer_gr requires config$gamma")
+	}
+	if(is.null(cache$gamma) || length(cache$gamma) != length(config$gamma)) {
+		cache$gamma <- config$gamma
+	}
 	result = adlaplace::logLikLaplace(
 		x=x, config=config,
-		start_gamma = cache$start_gamma,
+		gamma = cache$gamma,
 		control = control_inner,
 		adFun = adFun, 
 		deriv = TRUE, ...
 	)
-	assign('start_gamma', result$opt$solution, cache)
+	assign('gamma', result$opt$solution, cache)
 	result$grad
 }

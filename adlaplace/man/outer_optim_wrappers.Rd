@@ -12,8 +12,8 @@ outer_gr(x, config, cache, adFun, control_inner = list(), ...)
 }
 \arguments{
 \item{cache}{An \code{\link[base]{environment}} containing starting values for the inner
-optimization. It should contain \code{start_gamma}. Both functions update
-\code{cache$start_gamma} to the latest \code{gamma} solution.}
+optimization. It should contain \code{gamma}. Both functions update
+\code{cache$gamma} to the latest \code{gamma} solution.}
 
 \item{control_inner}{A list of control options forwarded to the \code{control}
 argument of \code{\link{logLikLaplace}} for the inner optimization.}
@@ -42,7 +42,7 @@ the inner problem over \code{gamma} via \code{\link{logLikLaplace}} and update a
 \examples{
 \dontrun{
 cache <- new.env(parent = emptyenv())
-cache$start_gamma <- rep(0, nrow(data$ATp))
+cache$gamma <- rep(0, nrow(data$ATp))
 
 val <- outer_fn(x = x0, data = data, config = config, cache = cache)
 gr  <- outer_gr(x = x0, data = data, config = config, cache = cache)
