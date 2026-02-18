@@ -3,6 +3,8 @@
 
 #include <Rcpp.h>
 #include <Rinternals.h>
+#include <cstdlib>
+#include <cstdio>
 
 #include <Eigen/Sparse>
 #include <numeric>
@@ -19,6 +21,8 @@ struct AD_Func_Opt {
   SEXP adFun;
   adlaplace_adpack_handle* handle;
   bool inner;
+  bool use_openmp;
+  int omp_threads;
 
   size_t Nparams;
   size_t Ngroups_backend;
@@ -36,10 +40,19 @@ struct AD_Func_Opt {
   std::vector<double> parameters;
   std::vector<double> hess_upper_accum;
 
-  AD_Func_Opt(SEXP adPackIn, const std::vector<double>& params_init, bool innerIn = true)
+  AD_Func_Opt(
+    SEXP adPackIn,
+    const std::vector<double>& params_init,
+    bool innerIn = true,
+    bool use_openmp_in = true,
+    int omp_threads_in = 1,
+    bool backend_thread_safe_in = true
+  )
     : adFun(adPackIn),
       handle(get_handle(adPackIn)),
       inner(innerIn),
+      use_openmp(use_openmp_in),
+      omp_threads(omp_threads_in > 0 ? omp_threads_in : 1),
       Nparams(0),
       Ngroups_backend(0),
       Nbeta_backend(0),
@@ -61,6 +74,12 @@ struct AD_Func_Opt {
 
     nvars_opt = inner ? Ngamma_backend : Nparams;
     var_offset = inner ? Nbeta_backend : 0;
+    if (!backend_thread_safe_in || handle->api->thread_safe != 1) {
+      use_openmp = false;
+    }
+    if (!use_openmp) {
+      omp_threads = 1;
+    }
 
     const bool inner_flag = inner;
     const int* p = NULL;
@@ -97,6 +116,8 @@ struct AD_Func_Opt {
 
   int get_nvars() const { return static_cast<int>(nvars_opt); }
   int get_nnz() const { return static_cast<int>(Htemplate.nonZeros()); }
+  bool openmp_enabled() const { return use_openmp; }
+  int openmp_threads() const { return omp_threads; }
 
   template <class DerivedX>
   void get_f(const Eigen::MatrixBase<DerivedX>& x, double& f) {
@@ -107,44 +128,45 @@ struct AD_Func_Opt {
     int rc_group = -1;
 
 #ifdef _OPENMP
-    #pragma omp parallel
-    {
-      double f_local = 0.0;
-      int rc_local = 0;
-      int rc_group_local = -1;
+    if (use_openmp) {
+      #pragma omp parallel num_threads(omp_threads)
+      {
+        double f_local = 0.0;
+        int rc_local = 0;
+        int rc_group_local = -1;
+        int gend = static_cast<int>(Ngroups_backend);
 
-      #pragma omp for schedule(guided, 1)
-      for (int g = 0; g < static_cast<int>(Ngroups_backend); ++g) {
-        int gi = g;
-        const int rc = handle->api->f(handle->ctx, &gi, parameters.data(), &f_local);
-        if (rc != 0 && rc_local == 0) {
-          rc_local = rc;
-          rc_group_local = gi;
+        #pragma omp for schedule(static,1)
+        for (int g = 0; g < gend; ++g) {
+          int gi = g;
+          const int rc = handle->api->f(handle->ctx, &gi, parameters.data(), &f_local);
+          if (rc != 0 && rc_local == 0) {
+            rc_local = rc;
+            rc_group_local = gi;
+          }
+        }
+        #pragma omp critical
+        {
+          if (rc_local != 0 && rc_error == 0) {
+            rc_error = rc_local;
+            rc_group = rc_group_local;
+          }
+          f_sum += f_local;
         }
       }
-
-      #pragma omp critical
-      {
-        if (rc_local != 0 && rc_error == 0) {
-          rc_error = rc_local;
-          rc_group = rc_group_local;
-        }
-        f_sum += f_local;
+    } else {
+      for (size_t g = 0; g < Ngroups_backend; ++g) {
+        int gi = static_cast<int>(g);
+        const int rc = handle->api->f(handle->ctx, &gi, parameters.data(), &f_sum);
       }
     }
 #else
     for (size_t g = 0; g < Ngroups_backend; ++g) {
       int gi = static_cast<int>(g);
       const int rc = handle->api->f(handle->ctx, &gi, parameters.data(), &f_sum);
-      if (rc != 0) {
-        Rcpp::stop("backend api->f failed for group %d with code %d", gi, rc);
-      }
     }
 #endif
 
-    if (rc_error != 0) {
-      Rcpp::stop("backend api->f failed for group %d with code %d", rc_group, rc_error);
-    }
 
     // trustOptim minimizes: return minus log-likelihood
     f = -f_sum;
@@ -164,34 +186,47 @@ struct AD_Func_Opt {
     int rc_group = -1;
 
 #ifdef _OPENMP
-    #pragma omp parallel
-    {
-      double f_local = 0.0;
-      std::vector<double> grad_local(Nparams, 0.0);
-      int rc_local = 0;
-      int rc_group_local = -1;
+    if (use_openmp) {
+      #pragma omp parallel num_threads(omp_threads)
+      {
+        double f_local = 0.0;
+        std::vector<double> grad_local(Nparams, 0.0);
+        int rc_local = 0;
+        int rc_group_local = -1;
+        int gend = static_cast<int>(Ngroups_backend);
 
-      #pragma omp for schedule(guided, 1)
-      for (int g = 0; g < static_cast<int>(Ngroups_backend); ++g) {
-        int gi = g;
-        const int rc = handle->api->f_grad(
-          handle->ctx, &gi, parameters.data(), &inner_flag, &f_local, grad_local.data()
-        );
-        if (rc != 0 && rc_local == 0) {
-          rc_local = rc;
-          rc_group_local = gi;
+        #pragma omp for schedule(static)
+        for (int g = 0; g < gend; ++g) {
+          int gi = g;
+          const int rc = handle->api->f_grad(
+            handle->ctx, &gi, parameters.data(), &inner_flag, &f_local, grad_local.data()
+          );
+          if (rc != 0 && rc_local == 0) {
+            rc_local = rc;
+            rc_group_local = gi;
+          }
+        }
+
+        #pragma omp critical
+        {
+          if (rc_local != 0 && rc_error == 0) {
+            rc_error = rc_local;
+            rc_group = rc_group_local;
+          }
+          f += f_local;
+          for (size_t k = 0; k < Nparams; ++k) {
+            grad_full[k] += grad_local[k];
+          }
         }
       }
-
-      #pragma omp critical
-      {
-        if (rc_local != 0 && rc_error == 0) {
-          rc_error = rc_local;
-          rc_group = rc_group_local;
-        }
-        f += f_local;
-        for (size_t k = 0; k < Nparams; ++k) {
-          grad_full[k] += grad_local[k];
+    } else {
+      for (size_t g = 0; g < Ngroups_backend; ++g) {
+        int gi = static_cast<int>(g);
+        const int rc = handle->api->f_grad(
+          handle->ctx, &gi, parameters.data(), &inner_flag, &f, grad_full.data()
+        );
+        if (rc != 0) {
+          Rcpp::stop("backend api->f_grad failed for group %d with code %d", gi, rc);
         }
       }
     }
@@ -236,43 +271,96 @@ struct AD_Func_Opt {
     std::fill(hess_upper_accum.begin(), hess_upper_accum.end(), 0.0);
     std::vector<double> grad_full(Nparams, 0.0);
     const bool inner_flag = inner;
+    const bool debug_threads = std::getenv("ADLAPLACE_DEBUG_THREADS") != nullptr;
     int rc_error = 0;
     int rc_group = -1;
 
 #ifdef _OPENMP
-    #pragma omp parallel
-    {
-      double f_local = 0.0;
-      std::vector<double> grad_local(Nparams, 0.0);
-      std::vector<double> hess_local(hess_upper_accum.size(), 0.0);
-      int rc_local = 0;
-      int rc_group_local = -1;
+    if (use_openmp) {
+      #pragma omp parallel num_threads(omp_threads)
+      {
+        double f_local = 0.0;
+        std::vector<double> grad_local(Nparams, 0.0);
+        std::vector<double> hess_local(hess_upper_accum.size(), 0.0);
+        int rc_local = 0;
+        int rc_group_local = -1;
+        int gend = static_cast<int>(Ngroups_backend);
 
-      #pragma omp for schedule(guided, 1)
-      for (int g = 0; g < static_cast<int>(Ngroups_backend); ++g) {
-        int gi = g;
-        const int rc = handle->api->f_grad_hess(
-          handle->ctx, &gi, parameters.data(), &inner_flag,
-          &f_local, grad_local.data(), hess_local.data()
-        );
-        if (rc != 0 && rc_local == 0) {
-          rc_local = rc;
-          rc_group_local = gi;
+        #pragma omp for schedule(static)
+        for (int g = 0; g < gend; ++g) {
+          int gi = g;
+          if (debug_threads) {
+            #pragma omp critical
+            {
+              std::fprintf(
+                stderr,
+                "[dbg:fgh:begin] tid=%d group=%d inner=%d\n",
+                omp_get_thread_num(),
+                gi,
+                static_cast<int>(inner_flag)
+              );
+              std::fflush(stderr);
+            }
+          }
+          const int rc = handle->api->f_grad_hess(
+            handle->ctx, &gi, parameters.data(), &inner_flag,
+            &f_local, grad_local.data(), hess_local.data()
+          );
+          if (debug_threads) {
+            #pragma omp critical
+            {
+              std::fprintf(
+                stderr,
+                "[dbg:fgh:end]   tid=%d group=%d rc=%d\n",
+                omp_get_thread_num(),
+                gi,
+                rc
+              );
+              std::fflush(stderr);
+            }
+          }
+          if (rc != 0 && rc_local == 0) {
+            rc_local = rc;
+            rc_group_local = gi;
+          }
+        }
+
+        #pragma omp critical
+        {
+          if (rc_local != 0 && rc_error == 0) {
+            rc_error = rc_local;
+            rc_group = rc_group_local;
+          }
+          f += f_local;
+          for (size_t k = 0; k < Nparams; ++k) {
+            grad_full[k] += grad_local[k];
+          }
+          for (size_t k = 0; k < hess_upper_accum.size(); ++k) {
+            hess_upper_accum[k] += hess_local[k];
+          }
         }
       }
-
-      #pragma omp critical
-      {
-        if (rc_local != 0 && rc_error == 0) {
-          rc_error = rc_local;
-          rc_group = rc_group_local;
+    } else {
+      for (size_t g = 0; g < Ngroups_backend; ++g) {
+        int gi = static_cast<int>(g);
+        if (debug_threads) {
+          std::fprintf(
+            stderr,
+            "[dbg:fgh:begin] tid=0 group=%d inner=%d\n",
+            gi,
+            static_cast<int>(inner_flag)
+          );
+          std::fflush(stderr);
         }
-        f += f_local;
-        for (size_t k = 0; k < Nparams; ++k) {
-          grad_full[k] += grad_local[k];
+        const int rc = handle->api->f_grad_hess(
+          handle->ctx, &gi, parameters.data(), &inner_flag, &f, grad_full.data(), hess_upper_accum.data()
+        );
+        if (debug_threads) {
+          std::fprintf(stderr, "[dbg:fgh:end]   tid=0 group=%d rc=%d\n", gi, rc);
+          std::fflush(stderr);
         }
-        for (size_t k = 0; k < hess_upper_accum.size(); ++k) {
-          hess_upper_accum[k] += hess_local[k];
+        if (rc != 0) {
+          Rcpp::stop("backend api->f_grad_hess failed for group %d with code %d", gi, rc);
         }
       }
     }

@@ -265,8 +265,10 @@ hnlm <- function(
     cat("getting groups...")
   }
 
+  forGroups = tmb_data$ATp %*% tmb_data$elgm_matrix  
+  forGroups@x = rep(1, length(forGroups@x))
   config$groups = adlaplace::adFun_groups(
-    ATp = tmb_data$elgm_matrix, Ngroups=config$Ngroups)
+    ATp = forGroups, Ngroups=config$Ngroups)
   if(verboseOrig) {
     cat("done.")
   }
@@ -281,7 +283,10 @@ hnlm <- function(
     setdiff(parameters_info$gamma$name, rownames(tmb_data$ATp))
   }
 
-  if(for_dev)
+  if(verboseOrig) {
+    cat(for_dev)
+  }
+  if(for_dev) {
     return(
       list( 
         tmb_data = tmb_data,
@@ -296,7 +301,7 @@ hnlm <- function(
         parameters_info = parameters_info
       )
     )
-
+  }
 
   if(verboseOrig) {
     cat("getting AD fun...")

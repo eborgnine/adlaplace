@@ -75,9 +75,9 @@ config <- list(
   theta = c(log(0.2), log(0.2), log(0.5), 2),
   transform_theta = TRUE,
   groups = adlaplace::adFun_groups(data$ATp),
-  num_threads = 1L,
+  num_threads = 8L,
   package = "adlaplaceExample",
-  verbose = FALSE)
+  verbose = TRUE)
 ```
 
 ## Evaluate objective, gradient, and Hessian
@@ -110,7 +110,14 @@ res <- adlaplace::logLikLaplace(
   x = c(config$beta, config$theta),
   config = config,
   adFun = adFun, 
-  deriv=TRUE)
+  deriv=TRUE,
+  control = list(use_openmp = FALSE))
+res <- adlaplace::logLikLaplace(
+  x = c(config$beta, config$theta),
+  config = config,
+  adFun = adFun, 
+  deriv=TRUE,
+  control = list(use_openmp = TRUE))
 res$fval
 res$grad
 ```

@@ -72,8 +72,8 @@ config = list(beta = rep(1, nrow(data$XTp)),
 	transform_theta=TRUE, 
 	gamma = rep(0, nrow(data$ATp)),
 	groups = adlaplace::adFun_groups(data$ATp, 1000),
-	num_threads=parallel::detectCores(),
-	verbose=FALSE, package='adlaplace')	
+	num_threads=1,#parallel::detectCores(),
+	verbose=TRUE, package='adlaplace')	
 ```
 
 model is defined in the file `src/objectiveFunction.cpp`

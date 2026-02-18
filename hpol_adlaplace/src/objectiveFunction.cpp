@@ -1,10 +1,14 @@
 #define DEBUG
 
 #include "adlaplace/adlaplace.hpp"
-#include "adlaplace/math/lgamma.hpp"
+//#include "adlaplace/math/lgamma.hpp"
+
+CppAD::AD<double> lgamma_ad(const CppAD::AD<double>& x) {
+  return x;
+}
 
 #define COMPUTE_CONSTANTS
-#define DEBUG
+//#define DEBUG
 
 // use the standard log density for random effects
 #include "adlaplace/logDens/random.hpp"
@@ -120,13 +124,6 @@ CppAD::vector<CppAD::AD<double>> logDensObs(
   CppAD::AD<double> result1 = 0.0;
   CppAD::vector<CppAD::AD<double>> result(1);
 
-  if(config.verbose) {
-    if (Dgroup % 1000 == 0) {
-  // divisible by 100
-        Rcpp::Rcout << "Dgroup " << Dgroup << " startP " << startP << " endP " << endP << "\n";
-    }
-    }
-
   for (size_t DstrataI = startP; DstrataI < endP; DstrataI++) {
     const size_t Dstrata = have_groups ? config.groups.i[DstrataI] : DstrataI;
 
@@ -159,11 +156,6 @@ CppAD::vector<CppAD::AD<double>> logDensExtra(
   CppAD::AD<double> contribLgammaYp1 = 0.0;
 #endif
 
-  if (config.verbose) {
-    Rcpp::Rcout << "extra Nstrata " << Nstrata << " lastTheta "
-      << lastTheta << " oneOverNuSq " << oneOverNuSq;
-  }
-
   for (size_t Dstrata = 0; Dstrata < Nstrata; Dstrata++) {
     int sumYhere = 0;
     const size_t endHere = data.elgm_matrix.p[Dstrata + 1];
@@ -182,23 +174,12 @@ CppAD::vector<CppAD::AD<double>> logDensExtra(
 #endif
   }
 
-  if (config.verbose) {
-    Rcpp::Rcout << " contribLgamma1overNuSqPlusSumYil "
-      << contribLgamma1overNuSqPlusSumYil
-      << " lgamma(oneOverNuSq) " << lgamma_ad(oneOverNuSq);
-  }
-
   CppAD::AD<double> contrib =
     Nstrata * lgamma_ad(oneOverNuSq) + contribLgamma1overNuSqPlusSumYil;
 
 #ifdef COMPUTE_CONSTANTS
   contrib += contribLgammaYp1 + contribLgamma1pSumYil;
 #endif
-
-  if (config.verbose) {
-    Rcpp::Rcout << " contrib " << contrib << "\n";
-  }
-
   CppAD::vector<CppAD::AD<double>> result(1);
   result[0] = contrib;
   return result;

@@ -26,105 +26,71 @@ hessianMap = function(sparsity_list, config) {
 	Sgamma0 = seq.int(Nbeta, length.out=Ngamma)
 	Sgamma1 = Sgamma0+1L
 
-	sparsity_list2 = vector("list", Ngroups)
+	list_outer = list_inner = vector("list", Ngroups)
 	for(D in seq_len(Ngroups)) {
-		if(config$verbose) {
-			if(D %% 10000 == 0) {
-				cat(" ", D, " ")
-			}
-		}
 		Nouter = length(sparsity_list[[D]]$col_hess)
 		Ninner = length(sparsity_list[[D]]$col_hess_inner)
 
-		outer_dt = data.table::data.table(
+		list_outer[[D]] = data.table::data.table(
 			shard = rep.int(D - 1L, Nouter),
-			inner = rep.int(0L, Nouter),
 			row = as.integer(sparsity_list[[D]]$row_hess),
 			col = as.integer(sparsity_list[[D]]$col_hess),
 			local = seq.int(0L, length.out = Nouter)
 		)
 
 		if (Ninner > 0L) {
-			inner_dt = data.table::data.table(
+			list_inner[[D]]  = data.table::data.table(
 				shard = rep.int(D - 1L, Ninner),
-				inner = rep.int(1L, Ninner),
 				row = as.integer(sparsity_list[[D]]$row_hess_inner),
 				col = as.integer(sparsity_list[[D]]$col_hess_inner),
 				local = seq.int(0L, length.out = Ninner)
 			)
-			sparsity_list2[[D]] = data.table::rbindlist(list(outer_dt, inner_dt), use.names = TRUE)
-		} else {
-			sparsity_list2[[D]] = outer_dt
 		}
 	}
-	if(config$verbose) {
-		cat("done")
-	}
-	sparsityDf = data.table::rbindlist(sparsity_list2, use.names = TRUE)
 
-	fullMat = unique(sparsityDf[, .(inner, row, col)])
+	sparsityOuter = data.table::rbindlist(list_outer, use.names = TRUE)
+	sparsityInner = data.table::rbindlist(list_inner, use.names = TRUE)
 
-	outerMat = fullMat[inner == 0L]
+	sparsityOuter$cell = sparsityOuter$row + sparsityOuter$col * Nparams
+	sparsityOuter$cellSparse = as.integer(factor(sparsityOuter$cell)) -1L
+
+
+	sparsityInner$rowInner = match(sparsityInner$row, Sgamma0) -1L
+	sparsityInner$colInner = match(sparsityInner$col, Sgamma0) -1L
+	sparsityInner$cell = sparsityInner$rowInner + Ngamma*sparsityInner$colInner
+	sparsityInner$cellSparse = as.integer(factor(sparsityInner$cell)) -1L
+
+
+	outerMat = sparsityOuter[!duplicated(sparsityOuter$cell),]
+	innerMat = sparsityInner[!duplicated(sparsityInner$cell),]
+
 	hessian = Matrix::sparseMatrix(
 		i=outerMat$row, j=outerMat$col,
-		x = rep(-1, nrow(outerMat)),
+		x = outerMat$cellSparse,
 		symmetric=TRUE, index1=0, dims = rep(Nparams,2))
-	hessian@x = seq(0, length.out = length(hessian@x))
+	# table(diff(hessian@x)) should be all ones
 
-	hessianT = as(hessian, "TsparseMatrix")
-	indexMat_outer = data.table::data.table(
-		index = as.integer(hessianT@x),
-		row = as.integer(hessianT@i),
-		col = as.integer(hessianT@j),
-		inner = 0L
+	hessian_inner = Matrix::sparseMatrix(
+		i=innerMat$rowInner, j=innerMat$colInner,
+		x = innerMat$cellSparse,
+		symmetric=TRUE, index1=0, dims = rep(Ngamma,2))
+	# table(diff(hessian_inner@x)) #should be all ones
+
+	hessian_outer_map = Matrix::sparseMatrix(
+		i = sparsityOuter$cellSparse, 
+		j = sparsityOuter$shard,
+		x = sparsityOuter$local,
+		index1 = FALSE, 
+		dims = c(length(unique(sparsityOuter$cellSparse)), Ngroups)
+	)
+	hessian_inner_map = Matrix::sparseMatrix(
+		i = sparsityInner$cellSparse, 
+		j = sparsityInner$shard,
+		x = sparsityInner$local,
+		index1 = FALSE, 
+		dims = c(length(unique(sparsityInner$cellSparse)), Ngroups)
 	)
 
-
-	hessian_inner = hessian[Sgamma1, Sgamma1]
-	indexMat_inner = indexMat_outer[row %in% Sgamma0 & col %in% Sgamma0]
-	indexMat_inner[, inner := 1L]
-
-	indexMat = data.table::rbindlist(list(indexMat_outer, indexMat_inner), use.names = TRUE)
-	if(config$verbose) {
-		cat(" merge ")
-	}
-
-	data.table::setkey(indexMat, inner, row, col)
-	data.table::setkey(sparsityDf, inner, row, col)
-	indexDf <- data.table::merge.data.table(
-		indexMat, sparsityDf,
-		all = TRUE,
-		sort = FALSE
-	)
-	if(config$verbose) {
-		cat("done.")
-	}
-	if (indexDf[, any(is.na(index) | is.na(shard))]) {
-		warning("problem merging hessian indices")
-	}
-
-
-	build_shard_map = function(xx, Nglobal, Ngroups) {
-		xx = xx[!is.na(index) & !is.na(shard) & !is.na(local)]
-		data.table::setorderv(xx, c("shard", "local"))
-		theTable = tabulate(xx$shard + 1L, nbins = Ngroups)
-		Matrix::sparseMatrix(
-			p = c(0L, cumsum(as.integer(theTable))),
-			i = as.integer(xx$index),
-			x = as.integer(xx$local),
-			index1 = FALSE,
-			dims = c(Nglobal, Ngroups)
-		)
-	}
-
-	outerDf = indexDf[inner == 0L]
-	innerDf = indexDf[inner == 1L]
-	hessian_outer_map = build_shard_map(outerDf, length(hessian@x), Ngroups)
-	hessian_inner_map = build_shard_map(innerDf, length(hessian@x), Ngroups)
-
-	if(config$verbose) {
-		cat("-")
-	}
 
 	result_map = list(
 		outer = list(
@@ -137,13 +103,11 @@ hessianMap = function(sparsity_list, config) {
 		inner = list(
 			p = as.integer(hessian_inner_map@p),
 			local = as.integer(hessian_inner_map@x),
-			global = match(hessian_inner_map@i, hessian_inner@x) -1L,
+			global = match(hessian_inner_map@i, as.integer(hessian_inner@x)) -1L,
 			dims = c(length(hessian_inner@x), ncol(hessian_inner_map))
 		)
 	)
 
-
-	result_map
 	list(
 		hessian = list(outer = hessian, inner = hessian_inner),
 		map = result_map

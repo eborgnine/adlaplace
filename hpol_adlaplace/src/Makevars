@@ -1,35 +1,4 @@
-## ----------  src/Makevars  (simplified)  -----------------------------
-
-UNAME_S := $(shell uname -s)
-
-## -------- macOS with Homebrew ---------------------------------------
-ifeq ($(UNAME_S),Darwin)
-
-  HB  := $(shell brew --prefix)
-
-  CC  = $(HB)/opt/llvm/bin/clang
-  CXX = $(HB)/opt/llvm/bin/clang++
-
-  ## Headers
-  PKG_CPPFLAGS += -I$(HB)/include \
-                  -I$(HB)/opt/libomp/include -I../inst/include
-
-  ## Libraries: CppAD + libomp
-  PKG_LIBS     += -L$(HB)/lib -lcppad_lib \
-                  -L$(HB)/opt/libomp/lib -lomp
-
-## -------- Linux / other Unix ----------------------------------------
-else
-
-  ## Assume system compilers; CppAD and ColPack in standard locations
-  PKG_CPPFLAGS += -I/usr/local/include \
-                  -I/usr/include/ColPack -I../inst/include
-
-  PKG_LIBS     += -L/usr/local/lib -lcppad_lib \
-                  -L/usr/lib/x86_64-linux-gnu -lColPack
-endif
-
-## -------- OpenMP flags provided by R --------------------------------
-PKG_CFLAGS   += $(SHLIB_OPENMP_CFLAGS)
-PKG_CXXFLAGS += $(SHLIB_OPENMP_CXXFLAGS)
-PKG_LIBS     += $(SHLIB_OPENMP_CXXFLAGS)
+ADLAPLACE_INCLUDE = $(shell Rscript -e "p <- system.file('include', package='adlaplace'); if (!nzchar(p)) { fp <- suppressWarnings(find.package('adlaplace', quiet=TRUE)); if (length(fp)) p <- file.path(fp[1], 'include') }; cat(p)")
+PKG_CPPFLAGS = -I../inst/include -I$(ADLAPLACE_INCLUDE) -DCPPAD_HAS_COLPACK=0 -I/opt/homebrew/opt/libomp/include -I/opt/homebrew/include -isystem /Library/Frameworks/R.framework/Versions/4.5-arm64/Resources/library/RcppEigen/include
+PKG_CXXFLAGS = -Xpreprocessor -fopenmp
+PKG_LIBS     = /opt/homebrew/opt/libomp/lib/libomp.dylib -Wl,-rpath,/opt/homebrew/opt/libomp/lib

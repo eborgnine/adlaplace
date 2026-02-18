@@ -185,7 +185,8 @@ if (order_up >= 1) {
 
 
 inline CppAD::AD<double> lgamma_ad(const CppAD::AD<double>& x) {
-    static atomic_lgamma_ad op("lgamma_ad");  // thread-safe since C++11
+    // One atomic instance per thread avoids shared-state races under OpenMP.
+    thread_local static atomic_lgamma_ad op("lgamma_ad");
     CppAD::vector< CppAD::AD<double> > ax(1), ay(1);
     ax[0] = x;
   op(ax, ay);   // calls your atomic_four op
