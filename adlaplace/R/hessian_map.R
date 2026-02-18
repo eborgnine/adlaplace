@@ -22,7 +22,6 @@ hessianMap = function(sparsity_list, Nbeta, Ngamma, Ntheta) {
 	Nparams = Nbeta + Ngamma + Ntheta
 	Sgamma0 = seq.int(Nbeta, length.out=Ngamma)
 
-	print('a')
 	list_outer = list_inner = vector("list", Ngroups)
 	for(D in seq_len(Ngroups)) {
 		Nouter = length(sparsity_list[[D]]$col_hess)
@@ -61,8 +60,6 @@ hessianMap = function(sparsity_list, Nbeta, Ngamma, Ntheta) {
 	outerMat = sparsityOuter[!duplicated(sparsityOuter$cell),]
 	innerMat = sparsityInner[!duplicated(sparsityInner$cell),]
 
-	print('b')
-
 	hessian = Matrix::sparseMatrix(
 		i=outerMat$row, j=outerMat$col,
 		x = outerMat$cellSparse, repr='C',
@@ -90,8 +87,6 @@ hessianMap = function(sparsity_list, Nbeta, Ngamma, Ntheta) {
 		dims = c(length(unique(sparsityInner$cellSparse)), Ngroups)
 	)
 
-
-	print('c')
 	result_map = list(
 		outer = list(
 			p = as.integer(hessian_outer_map@p),
@@ -108,7 +103,7 @@ hessianMap = function(sparsity_list, Nbeta, Ngamma, Ntheta) {
 		)
 	)
 
-	print('d')
+
 	list(
 		hessian = list(outer = hessian, inner = hessian_inner),
 		map = result_map

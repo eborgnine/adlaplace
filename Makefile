@@ -5,9 +5,13 @@ HPOLCC_DIR := hpol_adlaplace
 
 .DEFAULT_GOAL := all
 
-.PHONY: all $(PKGS)
+.PHONY: all clean $(PKGS)
 
 all: $(PKGS)
+
+clean:
+	@echo "==> Cleaning .o and .so files under src folders"
+	@find . -type f \( -name '*.o' -o -name '*.so' \) -path '*/src/*' -delete
 
 define build_pkg
 	@echo "==> Running compileAttributes for $(1) from $(2)"

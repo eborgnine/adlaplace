@@ -10,19 +10,21 @@
 #include <numeric>
 #include <vector>
 
-#ifdef _OPENMP
 #include <omp.h>
-#endif
 
 #include "adlaplace/api/adpack_handle.h"
+#include "adlaplace/ompad.hpp"
+#include "adlaplace/runtime/backend.hpp"
 #include "adlaplace/runtime/rviews.hpp"
 
 struct AD_Func_Opt {
   SEXP adFun;
   adlaplace_adpack_handle* handle;
   bool inner;
-  bool use_openmp;
-  int omp_threads;
+  int num_threads;
+  bool cppad_setup_done;
+  std::vector<std::vector<GroupPack>> adfun_local;
+  std::vector<BackendContext> ctx_local;
 
   size_t Nparams;
   size_t Ngroups_backend;
@@ -44,26 +46,31 @@ struct AD_Func_Opt {
     SEXP adPackIn,
     const std::vector<double>& params_init,
     bool innerIn = true,
-    bool use_openmp_in = true,
-    int omp_threads_in = 1,
-    bool backend_thread_safe_in = true
-  )
-    : adFun(adPackIn),
-      handle(get_handle(adPackIn)),
-      inner(innerIn),
-      use_openmp(use_openmp_in),
-      omp_threads(omp_threads_in > 0 ? omp_threads_in : 1),
-      Nparams(0),
-      Ngroups_backend(0),
-      Nbeta_backend(0),
-      Ngamma_backend(0),
-      Ntheta_backend(0),
-      nvars_opt(0),
-      var_offset(0)
+    int num_threads_in = 1
+    )
+  : adFun(adPackIn),
+  handle(get_handle(adPackIn)),
+  inner(innerIn),
+  num_threads(num_threads_in > 0 ? num_threads_in : 1),
+  cppad_setup_done(false),
+  Nparams(0),
+  Ngroups_backend(0),
+  Nbeta_backend(0),
+  Ngamma_backend(0),
+  Ntheta_backend(0),
+  nvars_opt(0),
+  var_offset(0)
   {
+    BackendContext* base_ctx = static_cast<BackendContext*>(handle->ctx);
+    if (!base_ctx || !base_ctx->adFun) {
+      Rcpp::stop("adFun backend context is missing");
+    }
+    rebuild_thread_contexts_from_base(*base_ctx);
+    void* ctx0 = static_cast<void*>(&ctx_local[0]);
+
     const int rc_sizes = handle->api->get_sizes(
-      handle->ctx, &Nparams, &Ngroups_backend, &Nbeta_backend, &Ngamma_backend, &Ntheta_backend
-    );
+      ctx0, &Nparams, &Ngroups_backend, &Nbeta_backend, &Ngamma_backend, &Ntheta_backend
+      );
     if (rc_sizes != 0) {
       Rcpp::stop("backend api->get_sizes failed with code %d", rc_sizes);
     }
@@ -74,19 +81,13 @@ struct AD_Func_Opt {
 
     nvars_opt = inner ? Ngamma_backend : Nparams;
     var_offset = inner ? Nbeta_backend : 0;
-    if (!backend_thread_safe_in || handle->api->thread_safe != 1) {
-      use_openmp = false;
-    }
-    if (!use_openmp) {
-      omp_threads = 1;
-    }
 
     const bool inner_flag = inner;
     const int* p = NULL;
     const int* i = NULL;
     size_t p_len = 0;
     size_t i_len = 0;
-    const int rc_hess = handle->api->get_hessian(handle->ctx, &inner_flag, &p, &p_len, &i, &i_len);
+    const int rc_hess = handle->api->get_hessian(ctx0, &inner_flag, &p, &p_len, &i, &i_len);
     if (rc_hess != 0) {
       Rcpp::stop("backend api->get_hessian failed with code %d", rc_hess);
     }
@@ -96,7 +97,7 @@ struct AD_Func_Opt {
         inner ? "inner" : "outer",
         (int)p_len,
         (int)(nvars_opt + 1)
-      );
+        );
     }
 
     hess_upper_accum.resize(i_len, 0.0);
@@ -109,370 +110,149 @@ struct AD_Func_Opt {
       static_cast<int>(nvars_opt),
       static_cast<int>(i_len),
       p, i, h_index_upper.data()
-    );
+      );
     Htemplate = Hupper.selfadjointView<Eigen::Upper>();
     Htemplate.makeCompressed();
   }
 
   int get_nvars() const { return static_cast<int>(nvars_opt); }
   int get_nnz() const { return static_cast<int>(Htemplate.nonZeros()); }
-  bool openmp_enabled() const { return use_openmp; }
-  int openmp_threads() const { return omp_threads; }
+  bool openmp_enabled() const { return num_threads > 1; }
+  int openmp_threads() const { return num_threads; }
+
+  void reset_thread_contexts() {
+    BackendContext* base_ctx = static_cast<BackendContext*>(handle->ctx);
+    if (!base_ctx || !base_ctx->adFun) {
+      return;
+    }
+    rebuild_thread_contexts_from_base(*base_ctx);
+  }
+
+
 
   template <class DerivedX>
   void get_f(const Eigen::MatrixBase<DerivedX>& x, double& f) {
+    reset_thread_contexts();
+    ensure_cppad_parallel_setup();
+
     update_gamma_from_x(x);
 
     double f_sum = 0.0;
-    int rc_error = 0;
-    int rc_group = -1;
-    const bool debug_threads = std::getenv("ADLAPLACE_DEBUG_THREADS") != nullptr;
 
-#ifdef _OPENMP
-    if (use_openmp) {
-      #pragma omp parallel num_threads(omp_threads)
+#pragma omp parallel num_threads(num_threads)
+    {
+      double f_local = 0.0;
+      int gend = static_cast<int>(Ngroups_backend);
+      std::vector<double> params_local(parameters.begin(), parameters.end());
+      const int tid = omp_get_thread_num();
+      const size_t tidx = (static_cast<size_t>(tid) < ctx_local.size()) ? static_cast<size_t>(tid) : 0;
+      void* ctx_ptr = static_cast<void*>(&ctx_local[tidx]);
+
+#pragma omp for schedule(static,1)
+      for (int g = 0; g < gend; ++g) {
+        int gi = g;
+        (void)handle->api->f(ctx_ptr, &gi, params_local.data(), &f_local);
+        } // g loop
+      #pragma omp critical
       {
-        double f_local = 0.0;
-        int rc_local = 0;
-        int rc_group_local = -1;
-        int gend = static_cast<int>(Ngroups_backend);
-        std::vector<double> params_local(parameters.begin(), parameters.end());
-
-        if (debug_threads) {
-          std::fprintf(
-            stderr,
-            "[dbg:f:thread-enter] tid=%d gend=%d f_local_addr=%p rc_local_addr=%p params_local=%p\n",
-            omp_get_thread_num(),
-            gend,
-            static_cast<void*>(&f_local),
-            static_cast<void*>(&rc_local),
-            static_cast<void*>(params_local.data())
-          );
-          std::fflush(stderr);
-        }
-
-        #pragma omp for schedule(static,1) nowait
-        for (int g = 0; g < gend; ++g) {
-          int gi = g;
-          if (debug_threads) {
-            #pragma omp critical
-            {
-              std::fprintf(
-                stderr,
-                "[dbg:f:begin] tid=%d group=%d inner=%d Ngroup=%d\n",
-                omp_get_thread_num(),
-                gi,
-                static_cast<int>(inner),
-                gend
-              );
-              std::fflush(stderr);
-            }
-          }
-          const int rc = 0;//handle->api->f(handle->ctx, &gi, params_local.data(), &f_local);
-          if (debug_threads) {
-            #pragma omp critical
-            {
-              std::fprintf(
-                stderr,
-                "[dbg:f:end]   tid=%d group=%d rc=%d\n",
-                omp_get_thread_num(),
-                gi,
-                rc
-              );
-              std::fflush(stderr);
-            }
-          }
-          if (rc != 0 && rc_local == 0) {
-            rc_local = rc;
-            rc_group_local = gi;
-          }
-        }
-        if (debug_threads) {
-          std::fprintf(
-            stderr,
-            "[dbg:f:pre-barrier] tid=%d rc_local=%d rc_group_local=%d f_local=%.17g\n",
-            omp_get_thread_num(),
-            rc_local,
-            rc_group_local,
-            f_local
-          );
-          std::fflush(stderr);
-        }
-        #pragma omp barrier
-        if (debug_threads) {
-          std::fprintf(
-            stderr,
-            "[dbg:f:post-barrier] tid=%d rc_local=%d rc_group_local=%d f_local=%.17g\n",
-            omp_get_thread_num(),
-            rc_local,
-            rc_group_local,
-            f_local
-          );
-          std::fflush(stderr);
-        }
-        if (debug_threads) {
-          std::fprintf(
-            stderr,
-            "[dbg:f:postfor]    tid=%d rc_local=%d rc_group_local=%d f_local=%.17g\n",
-            omp_get_thread_num(),
-            rc_local,
-            rc_group_local,
-            f_local
-          );
-          std::fflush(stderr);
-        }
-        #pragma omp critical
-        {
-          if (debug_threads) {
-            std::fprintf(
-              stderr,
-              "[dbg:f:crit:enter] tid=%d rc_local=%d rc_error=%d rc_group_local=%d f_local=%.17g f_sum_before=%.17g\n",
-              omp_get_thread_num(),
-              rc_local,
-              rc_error,
-              rc_group_local,
-              f_local,
-              f_sum
-            );
-            std::fflush(stderr);
-          }
-          if (rc_local != 0 && rc_error == 0) {
-//            rc_error = rc_local;
-//            rc_group = rc_group_local;
-          }
- //         f_sum += f_local;
-          if (debug_threads) {
-            std::fprintf(
-              stderr,
-              "[dbg:f:crit:exit]  tid=%d rc_error=%d rc_group=%d f_sum_after=%.17g\n",
-              omp_get_thread_num(),
-              rc_error,
-              rc_group,
-              f_sum
-            );
-            std::fflush(stderr);
-          }
-        }
-      }
-      if (debug_threads) {
-        std::fprintf(
-          stderr,
-          "[dbg:f:parallel-exit] rc_error=%d rc_group=%d f_sum=%.17g\n",
-          rc_error,
-          rc_group,
-          f_sum
-        );
-        std::fflush(stderr);
-      }
-    } else {
-      for (size_t g = 0; g < Ngroups_backend; ++g) {
-        int gi = static_cast<int>(g);
-        if (debug_threads) {
-          std::fprintf(
-            stderr,
-            "[dbg:f:begin] tid=0 group=%d inner=%d\n",
-            gi,
-            static_cast<int>(inner)
-          );
-          std::fflush(stderr);
-        }
-        const int rc = handle->api->f(handle->ctx, &gi, parameters.data(), &f_sum);
-        if (debug_threads) {
-          std::fprintf(stderr, "[dbg:f:end]   tid=0 group=%d rc=%d\n", gi, rc);
-          std::fflush(stderr);
-        }
-      }
-    }
-#else
-    for (size_t g = 0; g < Ngroups_backend; ++g) {
-      int gi = static_cast<int>(g);
-      if (debug_threads) {
-        std::fprintf(
-          stderr,
-          "[dbg:f:begin] tid=0 group=%d inner=%d\n",
-          gi,
-          static_cast<int>(inner)
-        );
-        std::fflush(stderr);
-      }
-      const int rc = handle->api->f(handle->ctx, &gi, parameters.data(), &f_sum);
-      if (debug_threads) {
-        std::fprintf(stderr, "[dbg:f:end]   tid=0 group=%d rc=%d\n", gi, rc);
-        std::fflush(stderr);
-      }
-    }
-#endif
-
-    if (rc_error != 0) {
-      Rcpp::stop("backend api->f failed for group %d with code %d", rc_group, rc_error);
-    }
-    if (!std::isfinite(f_sum)) {
-      Rcpp::stop("backend api->f produced non-finite accumulated objective");
-    }
-
+        f_sum += f_local;
+      } // omp critical
+    } // pragma omp parallel
     // trustOptim minimizes: return minus log-likelihood
     f = -f_sum;
   }
 
   template <class DerivedX, class DerivedG>
-  void get_fdf(const Eigen::MatrixBase<DerivedX>& x, double& f, Eigen::MatrixBase<DerivedG>& g) {
-    update_gamma_from_x(x);
+    void get_fdf(const Eigen::MatrixBase<DerivedX>& x, double& f, Eigen::MatrixBase<DerivedG>& g) {
+      reset_thread_contexts();
+      ensure_cppad_parallel_setup();
 
-    f = 0.0;
-    auto& gout = g.derived();
-    gout.setZero();
+      update_gamma_from_x(x);
 
-    std::vector<double> grad_full(Nparams, 0.0);
-    const bool inner_flag = inner;
-    int rc_error = 0;
-    int rc_group = -1;
+      f = 0.0;
+      auto& gout = g.derived();
+      gout.setZero();
 
-#ifdef _OPENMP
-    if (use_openmp) {
-      #pragma omp parallel num_threads(omp_threads)
+      std::vector<double> grad_full(Nparams, 0.0);
+      const bool inner_flag = inner;
+
+#pragma omp parallel num_threads(num_threads)
       {
         double f_local = 0.0;
         std::vector<double> grad_local(Nparams, 0.0);
-        int rc_local = 0;
-        int rc_group_local = -1;
         int gend = static_cast<int>(Ngroups_backend);
+        std::vector<double> params_local(parameters.begin(), parameters.end());
+        const int tid = omp_get_thread_num();
+        const size_t tidx = (static_cast<size_t>(tid) < ctx_local.size()) ? static_cast<size_t>(tid) : 0;
+        void* ctx_ptr = static_cast<void*>(&ctx_local[tidx]);
 
-        #pragma omp for schedule(static)
+#pragma omp for schedule(static,1)
         for (int g = 0; g < gend; ++g) {
           int gi = g;
-          const int rc = handle->api->f_grad(
-            handle->ctx, &gi, parameters.data(), &inner_flag, &f_local, grad_local.data()
-          );
-          if (rc != 0 && rc_local == 0) {
-            rc_local = rc;
-            rc_group_local = gi;
-          }
+          (void)handle->api->f_grad(
+            ctx_ptr, &gi, params_local.data(), &inner_flag, &f_local, grad_local.data()
+            );
         }
 
         #pragma omp critical
         {
-          if (rc_local != 0 && rc_error == 0) {
-            rc_error = rc_local;
-            rc_group = rc_group_local;
-          }
           f += f_local;
           for (size_t k = 0; k < Nparams; ++k) {
             grad_full[k] += grad_local[k];
           }
         }
       }
-    } else {
-      for (size_t g = 0; g < Ngroups_backend; ++g) {
-        int gi = static_cast<int>(g);
-        const int rc = handle->api->f_grad(
-          handle->ctx, &gi, parameters.data(), &inner_flag, &f, grad_full.data()
-        );
-        if (rc != 0) {
-          Rcpp::stop("backend api->f_grad failed for group %d with code %d", gi, rc);
-        }
+
+      f = -f;
+      const size_t gsize = static_cast<size_t>(gout.size());
+      const size_t ncopy = gsize < nvars_opt ? gsize : nvars_opt;
+      for (size_t k = 0; k < ncopy; ++k) {
+        gout[static_cast<Eigen::Index>(k)] = -grad_full[var_offset + k];
       }
     }
-#else
-    for (size_t g = 0; g < Ngroups_backend; ++g) {
-      int gi = static_cast<int>(g);
-      const int rc = handle->api->f_grad(
-        handle->ctx, &gi, parameters.data(), &inner_flag, &f, grad_full.data()
-      );
-      if (rc != 0) {
-        Rcpp::stop("backend api->f_grad failed for group %d with code %d", gi, rc);
-      }
-    }
-#endif
-
-    if (rc_error != 0) {
-      Rcpp::stop("backend api->f_grad failed for group %d with code %d", rc_group, rc_error);
-    }
-
-    f = -f;
-    if (static_cast<size_t>(gout.size()) != nvars_opt) {
-      Rcpp::stop("gradient buffer has size %d but expected %d", (int)gout.size(), (int)nvars_opt);
-    }
-    for (size_t k = 0; k < nvars_opt; ++k) {
-      gout[static_cast<Eigen::Index>(k)] = -grad_full[var_offset + k];
-    }
-  }
 
   template <class DerivedX, class DerivedG>
-  void get_fdfh(
-    const Eigen::MatrixBase<DerivedX>& x,
-    double& f,
-    Eigen::MatrixBase<DerivedG>& g,
-    Eigen::SparseMatrix<double>& H
-  ) {
-    update_gamma_from_x(x);
+    void get_fdfh(
+      const Eigen::MatrixBase<DerivedX>& x,
+      double& f,
+      Eigen::MatrixBase<DerivedG>& g,
+      Eigen::SparseMatrix<double>& H
+      ) {
+      reset_thread_contexts();
+      ensure_cppad_parallel_setup();
 
-    f = 0.0;
-    auto& gout = g.derived();
-    if (gout.size() > 0) gout.setZero();
+      update_gamma_from_x(x);
 
-    std::fill(hess_upper_accum.begin(), hess_upper_accum.end(), 0.0);
-    std::vector<double> grad_full(Nparams, 0.0);
-    const bool inner_flag = inner;
-    const bool debug_threads = std::getenv("ADLAPLACE_DEBUG_THREADS") != nullptr;
-    int rc_error = 0;
-    int rc_group = -1;
+      f = 0.0;
+      auto& gout = g.derived();
+      if (gout.size() > 0) gout.setZero();
 
-#ifdef _OPENMP
-    if (use_openmp) {
-      #pragma omp parallel num_threads(omp_threads)
+      std::fill(hess_upper_accum.begin(), hess_upper_accum.end(), 0.0);
+      std::vector<double> grad_full(Nparams, 0.0);
+      const bool inner_flag = inner;
+
+      #pragma omp parallel num_threads(num_threads)
       {
         double f_local = 0.0;
         std::vector<double> grad_local(Nparams, 0.0);
         std::vector<double> hess_local(hess_upper_accum.size(), 0.0);
-        int rc_local = 0;
-        int rc_group_local = -1;
         int gend = static_cast<int>(Ngroups_backend);
+        std::vector<double> params_local(parameters.begin(), parameters.end());
+        const int tid = omp_get_thread_num();
+        const size_t tidx = (static_cast<size_t>(tid) < ctx_local.size()) ? static_cast<size_t>(tid) : 0;
+        void* ctx_ptr = static_cast<void*>(&ctx_local[tidx]);
 
-        #pragma omp for schedule(static)
+        #pragma omp for schedule(static,1)
         for (int g = 0; g < gend; ++g) {
           int gi = g;
-          if (debug_threads) {
-            #pragma omp critical
-            {
-              std::fprintf(
-                stderr,
-                "[dbg:fgh:begin] tid=%d group=%d inner=%d\n",
-                omp_get_thread_num(),
-                gi,
-                static_cast<int>(inner_flag)
-              );
-              std::fflush(stderr);
-            }
-          }
-          const int rc = handle->api->f_grad_hess(
-            handle->ctx, &gi, parameters.data(), &inner_flag,
+          (void)handle->api->f_grad_hess(
+            ctx_ptr, &gi, params_local.data(), &inner_flag,
             &f_local, grad_local.data(), hess_local.data()
-          );
-          if (debug_threads) {
-            #pragma omp critical
-            {
-              std::fprintf(
-                stderr,
-                "[dbg:fgh:end]   tid=%d group=%d rc=%d\n",
-                omp_get_thread_num(),
-                gi,
-                rc
-              );
-              std::fflush(stderr);
-            }
-          }
-          if (rc != 0 && rc_local == 0) {
-            rc_local = rc;
-            rc_group_local = gi;
-          }
+            );
         }
 
         #pragma omp critical
         {
-          if (rc_local != 0 && rc_error == 0) {
-            rc_error = rc_local;
-            rc_group = rc_group_local;
-          }
           f += f_local;
           for (size_t k = 0; k < Nparams; ++k) {
             grad_full[k] += grad_local[k];
@@ -480,114 +260,132 @@ struct AD_Func_Opt {
           for (size_t k = 0; k < hess_upper_accum.size(); ++k) {
             hess_upper_accum[k] += hess_local[k];
           }
+        } // critical
+      } // parallel
+
+      f = -f;
+      if (gout.size() > 0) {
+        const size_t gsize = static_cast<size_t>(gout.size());
+        const size_t ncopy = gsize < nvars_opt ? gsize : nvars_opt;
+        for (size_t k = 0; k < ncopy; ++k) {
+          gout[static_cast<Eigen::Index>(k)] = -grad_full[var_offset + k];
         }
       }
-    } else {
-      for (size_t g = 0; g < Ngroups_backend; ++g) {
-        int gi = static_cast<int>(g);
-        if (debug_threads) {
-          std::fprintf(
-            stderr,
-            "[dbg:fgh:begin] tid=0 group=%d inner=%d\n",
-            gi,
-            static_cast<int>(inner_flag)
-          );
-          std::fflush(stderr);
-        }
-        const int rc = handle->api->f_grad_hess(
-          handle->ctx, &gi, parameters.data(), &inner_flag, &f, grad_full.data(), hess_upper_accum.data()
-        );
-        if (debug_threads) {
-          std::fprintf(stderr, "[dbg:fgh:end]   tid=0 group=%d rc=%d\n", gi, rc);
-          std::fflush(stderr);
-        }
-        if (rc != 0) {
-          Rcpp::stop("backend api->f_grad_hess failed for group %d with code %d", gi, rc);
-        }
+
+      if (H.rows() != Htemplate.rows() || H.cols() != Htemplate.cols() || H.nonZeros() != Htemplate.nonZeros()) {
+        H = Htemplate.cast<double>();
+        H.makeCompressed();
+      }
+
+      double* Hx = H.valuePtr();
+      const int* map = Htemplate.valuePtr();
+      const Eigen::Index nz = H.nonZeros();
+      for (Eigen::Index t = 0; t < nz; ++t) {
+        Hx[t] = -hess_upper_accum[static_cast<size_t>(map[t])];
       }
     }
-#else
-    for (size_t g = 0; g < Ngroups_backend; ++g) {
-      int gi = static_cast<int>(g);
-      const int rc = handle->api->f_grad_hess(
-        handle->ctx, &gi, parameters.data(), &inner_flag, &f, grad_full.data(), hess_upper_accum.data()
-      );
-      if (rc != 0) {
-        Rcpp::stop("backend api->f_grad_hess failed for group %d with code %d", gi, rc);
-      }
-    }
-#endif
-
-    if (rc_error != 0) {
-      Rcpp::stop("backend api->f_grad_hess failed for group %d with code %d", rc_group, rc_error);
-    }
-
-    f = -f;
-    if (gout.size() > 0) {
-      if (static_cast<size_t>(gout.size()) != nvars_opt) {
-        Rcpp::stop("gradient buffer has size %d but expected %d", (int)gout.size(), (int)nvars_opt);
-      }
-      for (size_t k = 0; k < nvars_opt; ++k) {
-        gout[static_cast<Eigen::Index>(k)] = -grad_full[var_offset + k];
-      }
-    }
-
-    if (H.rows() != Htemplate.rows() || H.cols() != Htemplate.cols() || H.nonZeros() != Htemplate.nonZeros()) {
-      H = Htemplate.cast<double>();
-      H.makeCompressed();
-    }
-
-    double* Hx = H.valuePtr();
-    const int* map = Htemplate.valuePtr();
-    const Eigen::Index nz = H.nonZeros();
-    for (Eigen::Index t = 0; t < nz; ++t) {
-      Hx[t] = -hess_upper_accum[static_cast<size_t>(map[t])];
-    }
-  }
 
   template <class DerivedX>
-  void get_hessian(const Eigen::MatrixBase<DerivedX>& x, Eigen::SparseMatrix<double>& H) {
-    double f_dummy = 0.0;
-    Eigen::VectorXd g_dummy(static_cast<Eigen::Index>(nvars_opt));
-    get_fdfh(x, f_dummy, g_dummy, H);
-  }
+    void get_hessian(const Eigen::MatrixBase<DerivedX>& x, Eigen::SparseMatrix<double>& H) {
+      double f_dummy = 0.0;
+      Eigen::VectorXd g_dummy(static_cast<Eigen::Index>(nvars_opt));
+      get_fdfh(x, f_dummy, g_dummy, H);
+    }
 
   template <class DerivedX, class DerivedH>
-  void get_hessian(const Eigen::MatrixBase<DerivedX>& x, Eigen::SparseMatrixBase<DerivedH>& Hbase) {
-    DerivedH& H = Hbase.derived();
-    if (H.rows() != Htemplate.rows() || H.cols() != Htemplate.cols() || H.nonZeros() != Htemplate.nonZeros()) {
-      H = Htemplate.cast<double>();
-      H.makeCompressed();
+    void get_hessian(const Eigen::MatrixBase<DerivedX>& x, Eigen::SparseMatrixBase<DerivedH>& Hbase) {
+      DerivedH& H = Hbase.derived();
+      if (H.rows() != Htemplate.rows() || H.cols() != Htemplate.cols() || H.nonZeros() != Htemplate.nonZeros()) {
+        H = Htemplate.cast<double>();
+        H.makeCompressed();
+      }
+      double f_dummy = 0.0;
+      Eigen::VectorXd g_dummy(static_cast<Eigen::Index>(nvars_opt));
+      get_fdfh(x, f_dummy, g_dummy, H);
     }
-    double f_dummy = 0.0;
-    Eigen::VectorXd g_dummy(static_cast<Eigen::Index>(nvars_opt));
-    get_fdfh(x, f_dummy, g_dummy, H);
-  }
 
   template <class DerivedX, class DerivedG>
-  void get_df(const Eigen::MatrixBase<DerivedX>& x, Eigen::MatrixBase<DerivedG>& g) {
-    double f_dummy = 0.0;
-    get_fdf(x, f_dummy, g);
-  }
+    void get_df(const Eigen::MatrixBase<DerivedX>& x, Eigen::MatrixBase<DerivedG>& g) {
+      double f_dummy = 0.0;
+      get_fdf(x, f_dummy, g);
+    }
 
-private:
-  static adlaplace_adpack_handle* get_handle(SEXP handle_sexp) {
-    SEXP handle_ptr = handle_sexp;
-    if (TYPEOF(handle_sexp) == VECSXP) {
-      Rcpp::List maybe_list(handle_sexp);
-      if (maybe_list.containsElementNamed("adFun")) {
-        handle_ptr = maybe_list["adFun"];
+  private:
+    inline void ensure_cppad_parallel_setup() {
+      if (!cppad_setup_done) {
+        cppad_parallel_setup(static_cast<std::size_t>(num_threads));
+        cppad_setup_done = true;
       }
     }
 
-    adlaplace_adpack_handle* h =
+    void rebuild_thread_contexts_from_base(const BackendContext& base_ctx) {
+      adfun_local.resize(static_cast<size_t>(num_threads));
+      ctx_local.resize(static_cast<size_t>(num_threads));
+      for (int t = 0; t < num_threads; ++t) {
+        adfun_local[static_cast<size_t>(t)] = clone_adfun(*(base_ctx.adFun));
+        BackendContext& ctx_t = ctx_local[static_cast<size_t>(t)];
+        ctx_t.adFun = &adfun_local[static_cast<size_t>(t)];
+        ctx_t.Nparams = base_ctx.Nparams;
+        ctx_t.Ngroups = base_ctx.Ngroups;
+        ctx_t.Nbeta = base_ctx.Nbeta;
+        ctx_t.Ngamma = base_ctx.Ngamma;
+        ctx_t.Ntheta = base_ctx.Ntheta;
+        ctx_t.hessian_inner = base_ctx.hessian_inner;
+        ctx_t.hessian_outer = base_ctx.hessian_outer;
+      }
+    }
+
+    static GroupPack clone_group_pack(const GroupPack& src) {
+      GroupPack dst;
+
+      // Deep-copy AD tape/state and persistent sparsity structures.
+      dst.fun = src.fun;
+      dst.pattern_grad = src.pattern_grad;
+      dst.pattern_grad_inner = src.pattern_grad_inner;
+      dst.pattern_hessian = src.pattern_hessian;
+      dst.pattern_hessian_inner = src.pattern_hessian_inner;
+      dst.w = src.w;
+      dst.wthree = src.wthree;
+      dst.direction_zeros = src.direction_zeros;
+      dst.direction = src.direction;
+      dst.unused_pattern = src.unused_pattern;
+      dst.x = src.x;
+
+      // Keep work caches thread-local and freshly initialized.
+      dst.work_grad = CppAD::sparse_jac_work();
+      dst.work_hess = CppAD::sparse_hes_work();
+      dst.work_inner_grad = CppAD::sparse_jac_work();
+      dst.work_inner_hess = CppAD::sparse_hes_work();
+
+      return dst;
+    }
+
+    static std::vector<GroupPack> clone_adfun(const std::vector<GroupPack>& src) {
+      std::vector<GroupPack> out;
+      out.reserve(src.size());
+      for (const GroupPack& gp : src) {
+        out.push_back(clone_group_pack(gp));
+      }
+      return out;
+    }
+
+    static adlaplace_adpack_handle* get_handle(SEXP handle_sexp) {
+      SEXP handle_ptr = handle_sexp;
+      if (TYPEOF(handle_sexp) == VECSXP) {
+        Rcpp::List maybe_list(handle_sexp);
+        if (maybe_list.containsElementNamed("adFun")) {
+          handle_ptr = maybe_list["adFun"];
+        }
+      }
+
+      adlaplace_adpack_handle* h =
       static_cast<adlaplace_adpack_handle*>(R_ExternalPtrAddr(handle_ptr));
-    if (!h) Rcpp::stop("adFun handle is NULL");
-    if (!h->api) Rcpp::stop("adFun handle api is NULL");
-    if (!h->ctx) Rcpp::stop("adFun handle ctx is NULL");
-    if (!h->api->f || !h->api->f_grad || !h->api->f_grad_hess ||
+      if (!h) Rcpp::stop("adFun handle is NULL");
+      if (!h->api) Rcpp::stop("adFun handle api is NULL");
+      if (!h->ctx) Rcpp::stop("adFun handle ctx is NULL");
+      if (!h->api->f || !h->api->f_grad || !h->api->f_grad_hess ||
         !h->api->get_hessian || !h->api->get_sizes || !h->api->trace_hinv_t) {
-      Rcpp::stop("adFun handle has incomplete API function table");
+        Rcpp::stop("adFun handle has incomplete API function table");
     }
     return h;
   }
@@ -595,7 +393,7 @@ private:
   template <class DerivedX>
   inline void update_gamma_from_x(const Eigen::MatrixBase<DerivedX>& x) {
     if (static_cast<size_t>(x.size()) != nvars_opt) {
-      Rcpp::stop("x has size %d but expected %d", (int)x.size(), (int)nvars_opt);
+      return;
     }
     if (inner) {
       for (size_t k = 0; k < Ngamma_backend; ++k) {

@@ -1,0 +1,40 @@
+```{r }
+library('hpolcc')
+load("~/research/hpoltest/deaths.RData")
+
+# add day iid
+forres <- hpolcc::hnlm(
+  formula= medical ~ dom +  
+  f(tempd, model='hiwp',ref_value = 15, p=3, 
+  knots = seq(-5, 30, by=2.5), 
+  group_var = ecoRegion), 
+  data = deaths[
+    which(
+      deaths$tempd >-5 & deaths$date > as.Date("2006/1/1")
+    ), ], 
+  config = list(transform_theta = TRUE, 
+      dirichlet= TRUE, 
+      boundary_is_random = FALSE,
+      num_threads=parallel::detectCores(),
+      Ngroups = 1e5,
+      verbose=10
+  ),
+  control_inner=list(report.level=0),
+  cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
+  for_dev = TRUE
+)
+x = c(forres$config$beta, forres$config$gamma, forres$config$theta)
+
+adFun = adlaplace::getAdFun(forres$tmb_data, forres$config, package = "hpolcc")
+
+inner_res <- adlaplace::inner_opt(
+  parameters = c(forres$config$beta, forres$config$theta),
+  gamma = forres$config$gamma,
+  control = list(
+    maxit = 50,
+    report.level = 0,
+    report.freq = 0
+    ),
+  config = modifyList(forres$config,list(num_threads=2, verbose=TRUE)),
+  adFun = adFun)
+```

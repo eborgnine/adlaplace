@@ -93,7 +93,6 @@ x = c(forres$config$beta, forres$config$gamma, forres$config$theta)
 
 adFun = adlaplace::getAdFun(forres$tmb_data, forres$config, package = "hpolcc")
 
-Sys.setenv(ADLAPLACE_DEBUG_THREADS = "1")
 inner_res <- adlaplace::inner_opt(
   parameters = c(forres$config$beta, forres$config$theta),
   gamma = forres$config$gamma,
@@ -102,7 +101,7 @@ inner_res <- adlaplace::inner_opt(
     report.level = 0,
     report.freq = 0
     ),
-  config = modifyList(forres$config,list(num_threads=2)),
+  config = modifyList(forres$config,list(num_threads=2, verbose=TRUE)),
   adFun = adFun)
 
 
