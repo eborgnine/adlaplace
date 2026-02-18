@@ -89,6 +89,20 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// hessianMapC
+Rcpp::List hessianMapC(const Rcpp::List& sparsity_list, const int Nbeta, const int Ngamma, const int Ntheta);
+RcppExport SEXP _adlaplace_hessianMapC(SEXP sparsity_listSEXP, SEXP NbetaSEXP, SEXP NgammaSEXP, SEXP NthetaSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type sparsity_list(sparsity_listSEXP);
+    Rcpp::traits::input_parameter< const int >::type Nbeta(NbetaSEXP);
+    Rcpp::traits::input_parameter< const int >::type Ngamma(NgammaSEXP);
+    Rcpp::traits::input_parameter< const int >::type Ntheta(NthetaSEXP);
+    rcpp_result_gen = Rcpp::wrap(hessianMapC(sparsity_list, Nbeta, Ngamma, Ntheta));
+    return rcpp_result_gen;
+END_RCPP
+}
 // all_derivs
 Rcpp::List all_derivs(const Rcpp::NumericVector& x, SEXP adFun, const Rcpp::List& config);
 RcppExport SEXP _adlaplace_all_derivs(SEXP xSEXP, SEXP adFunSEXP, SEXP configSEXP) {
@@ -125,6 +139,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_adlaplace_hess", (DL_FUNC) &_adlaplace_hess, 4},
     {"_adlaplace_traceHinvT", (DL_FUNC) &_adlaplace_traceHinvT, 5},
     {"_adlaplace_register_callables", (DL_FUNC) &_adlaplace_register_callables, 0},
+    {"_adlaplace_hessianMapC", (DL_FUNC) &_adlaplace_hessianMapC, 4},
     {"_adlaplace_all_derivs", (DL_FUNC) &_adlaplace_all_derivs, 3},
     {"_adlaplace_inner_opt", (DL_FUNC) &_adlaplace_inner_opt, 5},
     {NULL, NULL, 0}

@@ -4,13 +4,16 @@
 \alias{hessianMap}
 \title{Build grouped Hessian sparsity structures}
 \usage{
-hessianMap(sparsity_list, config)
+hessianMap(sparsity_list, Nbeta, Ngamma, Ntheta)
 }
 \arguments{
 \item{sparsity_list}{List describing sparsity obtained from \link{getAdFun}.}
 
-\item{config}{A list of configuration options. This function expects at least
-\code{beta}, \code{gamma}, \code{theta}.}
+\item{Nbeta}{Number of fixed-effect parameters.}
+
+\item{Ngamma}{Number of random-effect parameters.}
+
+\item{Ntheta}{Number of theta parameters.}
 }
 \value{
 A list with components \code{hessian, hessian_inner}, and \code{match} to be added to \code{config$sparsity}

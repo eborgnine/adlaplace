@@ -5,10 +5,18 @@
 
 #include <cppad/cppad.hpp>
 #include <Rcpp.h>
+#include <boost/math/special_functions/digamma.hpp>
+#include <boost/math/special_functions/trigamma.hpp>
+#include <boost/math/special_functions/polygamma.hpp>
 
 const double ONESIXTH = 1.0 / 6.0;
 const double ONEOVERTWENTYFOUR = 1.0 / 24.0;
 
+inline double polygamma_threadsafe(const double x, const unsigned deriv) {
+  if (deriv == 0U) return boost::math::digamma(x);
+  if (deriv == 1U) return boost::math::trigamma(x);
+  return boost::math::polygamma(deriv, x);
+}
 
 class atomic_lgamma_ad : public CppAD::atomic_four<double> {
 public:
@@ -84,10 +92,15 @@ bool jac_sparsity(
     const double x0 = tx[0];
 
   // f^(n)(x0): f1=digamma, f2=trigamma, f3=polygamma(2), f4=polygamma(3)
-    const double f1 = (order_up >= 1 ? R::psigamma(x0, 0) : 0.0);
-    const double f2 = (order_up >= 2 ? R::psigamma(x0, 1) : 0.0);
-    const double f3 = (order_up >= 3 ? R::psigamma(x0, 2) : 0.0);
-    const double f4 = (order_up >= 4 ? R::psigamma(x0, 3) : 0.0);
+    // R::psigamma calls are not thread-safe in OpenMP worker threads.
+    // const double f1 = (order_up >= 1 ? R::psigamma(x0, 0) : 0.0);
+    // const double f2 = (order_up >= 2 ? R::psigamma(x0, 1) : 0.0);
+    // const double f3 = (order_up >= 3 ? R::psigamma(x0, 2) : 0.0);
+    // const double f4 = (order_up >= 4 ? R::psigamma(x0, 3) : 0.0);
+    const double f1 = (order_up >= 1 ? polygamma_threadsafe(x0, 0U) : 0.0);
+    const double f2 = (order_up >= 2 ? polygamma_threadsafe(x0, 1U) : 0.0);
+    const double f3 = (order_up >= 3 ? polygamma_threadsafe(x0, 2U) : 0.0);
+    const double f4 = (order_up >= 4 ? polygamma_threadsafe(x0, 3U) : 0.0);
 
     if (order_low <= 0) {
       ty[0] = std::lgamma(x0);
@@ -145,10 +158,15 @@ bool jac_sparsity(
   }
 
     // --- order 0 ---
-    const double f1 = R::psigamma(x0, 0); // digamma
-    const double f2 = order_up >= 1?R::psigamma(x0, 1):0.0;
-    const double f3 = order_up >= 2?R::psigamma(x0, 2):0.0;
-    const double f4 = order_up >= 3?R::psigamma(x0, 3):0.0;
+    // R::psigamma calls are not thread-safe in OpenMP worker threads.
+    // const double f1 = R::psigamma(x0, 0); // digamma
+    // const double f2 = order_up >= 1?R::psigamma(x0, 1):0.0;
+    // const double f3 = order_up >= 2?R::psigamma(x0, 2):0.0;
+    // const double f4 = order_up >= 3?R::psigamma(x0, 3):0.0;
+    const double f1 = polygamma_threadsafe(x0, 0U); // digamma
+    const double f2 = order_up >= 1 ? polygamma_threadsafe(x0, 1U) : 0.0;
+    const double f3 = order_up >= 2 ? polygamma_threadsafe(x0, 2U) : 0.0;
+    const double f4 = order_up >= 3 ? polygamma_threadsafe(x0, 3U) : 0.0;
 
     px[0] += py[0] * f1;
 

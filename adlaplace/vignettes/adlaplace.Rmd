@@ -72,19 +72,27 @@ config = list(beta = rep(1, nrow(data$XTp)),
 	transform_theta=TRUE, 
 	gamma = rep(0, nrow(data$ATp)),
 	groups = adlaplace::adFun_groups(data$ATp, 1000),
-	num_threads=1,#parallel::detectCores(),
+	num_threads=parallel::detectCores(),
 	verbose=TRUE, package='adlaplace')	
 ```
+
 
 model is defined in the file `src/objectiveFunction.cpp`
 
 
 
 ```{r testLogLik}
+adFun <- adlaplace::getAdFun(data, config)
+bob = adlaplace::hessianMap(adFun$sparsity, 
+	length(config$beta), length(config$gamma), length(config$theta))
+identical(bob$map, adFun$hessians$map)
+identical(bob$hessian, adFun$hessians$hessian)
+
 res = adlaplace::logLikLaplace(
 	x=c(config$beta, config$theta),
+	adFun = adFun,
 	data=data, 
-	config=config,
+	config=modifyList(config, list(num_threads = 2, verbose=TRUE)),
 	deriv=TRUE)
 res$parameters
 res$fval

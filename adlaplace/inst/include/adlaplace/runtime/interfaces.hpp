@@ -97,11 +97,18 @@ inline Rcpp::List getAdFun_h(
 	if(verbose) {
 		Rcpp::Rcout << ".";
 	}
-	Rcpp::Function hessianMap = ns["hessianMap"];
+	Rcpp::Function hessianMap = ns["hessianMapC"];
 	if(verbose) {
 		Rcpp::Rcout << ".";
 	}
-	const Rcpp::List hessians = Rcpp::as<Rcpp::List>(hessianMap(sparsity_list, config));
+	const Rcpp::List hessians = Rcpp::as<Rcpp::List>(
+		hessianMap(
+			sparsity_list,
+			static_cast<int>(configC.Nbeta),
+			static_cast<int>(configC.Ngamma),
+			static_cast<int>(configC.Ntheta)
+		)
+	);
 	if(verbose) {
 		Rcpp::Rcout << "3";
 	}

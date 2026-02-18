@@ -11,7 +11,7 @@ License: MPL-2.0
 Depends: R (>= 3.6)
 Imports: Matrix (>= 1.2.18), Rcpp (>= 1.0.3), parallel
 Suggests: knitr, numDeriv, methods, RSpectra, trustOptim
-LinkingTo: Rcpp, RcppEigen, trustOptim
+LinkingTo: Rcpp, RcppEigen, trustOptim, BH
 Encoding: UTF-8
 VignetteBuilder: knitr
 SystemRequirements: CppAD, OpenMP (optional)

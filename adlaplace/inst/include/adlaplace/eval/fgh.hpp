@@ -6,6 +6,7 @@
 
 #include <vector>
 #include <cstddef>
+#include <cstdio>
 
 #include "adlaplace/runtime/backend.hpp"
 
@@ -42,18 +43,60 @@ static int get_hessian(void* vctx,
 
 static int eval_f(void* vctx, const int *i, const double* x, double* out_f) {
 	auto* ctx = static_cast<BackendContext*>(vctx);
+	const bool debug_threads = std::getenv("ADLAPLACE_DEBUG_THREADS") != nullptr;
 	if (*i < 0) return 2;
 	size_t ist = (size_t)*i;
 	if (ist >= ctx->adFun->size()) return 3;
 
 	GroupPack &gp = (*(ctx->adFun))[ist];
 	const size_t Nparams = gp.x.size();
+	const size_t Ndomain = gp.fun.Domain();
+	const size_t Nrange = gp.fun.Range();
+	if (Nparams != ctx->Nparams) return 7;
+	if (Ndomain != Nparams) return 4;
+	if (Nrange < 1) return 5;
 
 	for(size_t D=0;D<Nparams;D++) {
 		gp.x[D] = x[D];
 	}	
 
-	*out_f += gp.fun.Forward(0, gp.x)[0];
+	if (debug_threads) {
+		std::fprintf(
+			stderr,
+			"[dbg:eval_f:begin] group=%d Nparams=%zu ctxNparams=%zu Domain=%zu Range=%zu gp=%p gp_x=%p out_f=%p\n",
+			*i,
+			Nparams,
+			ctx->Nparams,
+			Ndomain,
+			Nrange,
+			static_cast<void*>(&gp),
+			static_cast<void*>(gp.x.data()),
+			static_cast<void*>(out_f)
+		);
+		std::fflush(stderr);
+	}
+	CppAD::vector<double> y = gp.fun.Forward(0, gp.x);
+	if (y.size() < 1) return 6;
+	if (debug_threads) {
+		std::fprintf(
+			stderr,
+			"[dbg:eval_f:end]   group=%d y0=%.17g out_f_before=%.17g\n",
+			*i,
+			y[0],
+			*out_f
+		);
+		std::fflush(stderr);
+	}
+	*out_f += y[0];
+	if (debug_threads) {
+		std::fprintf(
+			stderr,
+			"[dbg:eval_f:ret]   group=%d out_f_after=%.17g\n",
+			*i,
+			*out_f
+		);
+		std::fflush(stderr);
+	}
 	return 0;
 }
 

@@ -126,6 +126,7 @@ struct AD_Func_Opt {
     double f_sum = 0.0;
     int rc_error = 0;
     int rc_group = -1;
+    const bool debug_threads = std::getenv("ADLAPLACE_DEBUG_THREADS") != nullptr;
 
 #ifdef _OPENMP
     if (use_openmp) {
@@ -135,38 +136,179 @@ struct AD_Func_Opt {
         int rc_local = 0;
         int rc_group_local = -1;
         int gend = static_cast<int>(Ngroups_backend);
+        std::vector<double> params_local(parameters.begin(), parameters.end());
 
-        #pragma omp for schedule(static,1)
+        if (debug_threads) {
+          std::fprintf(
+            stderr,
+            "[dbg:f:thread-enter] tid=%d gend=%d f_local_addr=%p rc_local_addr=%p params_local=%p\n",
+            omp_get_thread_num(),
+            gend,
+            static_cast<void*>(&f_local),
+            static_cast<void*>(&rc_local),
+            static_cast<void*>(params_local.data())
+          );
+          std::fflush(stderr);
+        }
+
+        #pragma omp for schedule(static,1) nowait
         for (int g = 0; g < gend; ++g) {
           int gi = g;
-          const int rc = handle->api->f(handle->ctx, &gi, parameters.data(), &f_local);
+          if (debug_threads) {
+            #pragma omp critical
+            {
+              std::fprintf(
+                stderr,
+                "[dbg:f:begin] tid=%d group=%d inner=%d Ngroup=%d\n",
+                omp_get_thread_num(),
+                gi,
+                static_cast<int>(inner),
+                gend
+              );
+              std::fflush(stderr);
+            }
+          }
+          const int rc = 0;//handle->api->f(handle->ctx, &gi, params_local.data(), &f_local);
+          if (debug_threads) {
+            #pragma omp critical
+            {
+              std::fprintf(
+                stderr,
+                "[dbg:f:end]   tid=%d group=%d rc=%d\n",
+                omp_get_thread_num(),
+                gi,
+                rc
+              );
+              std::fflush(stderr);
+            }
+          }
           if (rc != 0 && rc_local == 0) {
             rc_local = rc;
             rc_group_local = gi;
           }
         }
+        if (debug_threads) {
+          std::fprintf(
+            stderr,
+            "[dbg:f:pre-barrier] tid=%d rc_local=%d rc_group_local=%d f_local=%.17g\n",
+            omp_get_thread_num(),
+            rc_local,
+            rc_group_local,
+            f_local
+          );
+          std::fflush(stderr);
+        }
+        #pragma omp barrier
+        if (debug_threads) {
+          std::fprintf(
+            stderr,
+            "[dbg:f:post-barrier] tid=%d rc_local=%d rc_group_local=%d f_local=%.17g\n",
+            omp_get_thread_num(),
+            rc_local,
+            rc_group_local,
+            f_local
+          );
+          std::fflush(stderr);
+        }
+        if (debug_threads) {
+          std::fprintf(
+            stderr,
+            "[dbg:f:postfor]    tid=%d rc_local=%d rc_group_local=%d f_local=%.17g\n",
+            omp_get_thread_num(),
+            rc_local,
+            rc_group_local,
+            f_local
+          );
+          std::fflush(stderr);
+        }
         #pragma omp critical
         {
-          if (rc_local != 0 && rc_error == 0) {
-            rc_error = rc_local;
-            rc_group = rc_group_local;
+          if (debug_threads) {
+            std::fprintf(
+              stderr,
+              "[dbg:f:crit:enter] tid=%d rc_local=%d rc_error=%d rc_group_local=%d f_local=%.17g f_sum_before=%.17g\n",
+              omp_get_thread_num(),
+              rc_local,
+              rc_error,
+              rc_group_local,
+              f_local,
+              f_sum
+            );
+            std::fflush(stderr);
           }
-          f_sum += f_local;
+          if (rc_local != 0 && rc_error == 0) {
+//            rc_error = rc_local;
+//            rc_group = rc_group_local;
+          }
+ //         f_sum += f_local;
+          if (debug_threads) {
+            std::fprintf(
+              stderr,
+              "[dbg:f:crit:exit]  tid=%d rc_error=%d rc_group=%d f_sum_after=%.17g\n",
+              omp_get_thread_num(),
+              rc_error,
+              rc_group,
+              f_sum
+            );
+            std::fflush(stderr);
+          }
         }
+      }
+      if (debug_threads) {
+        std::fprintf(
+          stderr,
+          "[dbg:f:parallel-exit] rc_error=%d rc_group=%d f_sum=%.17g\n",
+          rc_error,
+          rc_group,
+          f_sum
+        );
+        std::fflush(stderr);
       }
     } else {
       for (size_t g = 0; g < Ngroups_backend; ++g) {
         int gi = static_cast<int>(g);
+        if (debug_threads) {
+          std::fprintf(
+            stderr,
+            "[dbg:f:begin] tid=0 group=%d inner=%d\n",
+            gi,
+            static_cast<int>(inner)
+          );
+          std::fflush(stderr);
+        }
         const int rc = handle->api->f(handle->ctx, &gi, parameters.data(), &f_sum);
+        if (debug_threads) {
+          std::fprintf(stderr, "[dbg:f:end]   tid=0 group=%d rc=%d\n", gi, rc);
+          std::fflush(stderr);
+        }
       }
     }
 #else
     for (size_t g = 0; g < Ngroups_backend; ++g) {
       int gi = static_cast<int>(g);
+      if (debug_threads) {
+        std::fprintf(
+          stderr,
+          "[dbg:f:begin] tid=0 group=%d inner=%d\n",
+          gi,
+          static_cast<int>(inner)
+        );
+        std::fflush(stderr);
+      }
       const int rc = handle->api->f(handle->ctx, &gi, parameters.data(), &f_sum);
+      if (debug_threads) {
+        std::fprintf(stderr, "[dbg:f:end]   tid=0 group=%d rc=%d\n", gi, rc);
+        std::fflush(stderr);
+      }
     }
 #endif
 
+    if (rc_error != 0) {
+      Rcpp::stop("backend api->f failed for group %d with code %d", rc_group, rc_error);
+    }
+    if (!std::isfinite(f_sum)) {
+      Rcpp::stop("backend api->f produced non-finite accumulated objective");
+    }
 
     // trustOptim minimizes: return minus log-likelihood
     f = -f_sum;

@@ -74,6 +74,10 @@ register_callables <- function() {
     .Call(`_adlaplace_register_callables`)
 }
 
+hessianMapC <- function(sparsity_list, Nbeta, Ngamma, Ntheta) {
+    .Call(`_adlaplace_hessianMapC`, sparsity_list, Nbeta, Ngamma, Ntheta)
+}
+
 #' Inner optimization over gamma using trust-region CG (sparse)
 #'
 #' Runs the inner optimization problem (typically over \eqn{\gamma}) using the
