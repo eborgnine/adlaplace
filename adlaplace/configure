@@ -90,6 +90,47 @@ detect_openmp_runtime_lib () {
   return 1
 }
 
+detect_datatable_so () {
+  dt_lib="$(Rscript -e 'p <- system.file("libs", .Platform$r_arch, package="data.table"); if (nzchar(p)) cat(p)' 2>/dev/null || true)"
+  if [ -z "$dt_lib" ]; then
+    dt_lib="$(Rscript -e 'p <- system.file("libs", package="data.table"); if (nzchar(p)) cat(p)' 2>/dev/null || true)"
+  fi
+  if [ -n "$dt_lib" ] && [ -f "$dt_lib/data_table.so" ]; then
+    printf '%s' "$dt_lib/data_table.so"
+    return 0
+  fi
+  return 1
+}
+
+datatable_uses_kmpc_dispatch () {
+  so_path="$1"
+  [ -f "$so_path" ] || return 1
+
+  if [ "$UNAME_S" = "Darwin" ]; then
+    nm -u "$so_path" 2>/dev/null | grep -q "___kmpc_dispatch_"
+    return $?
+  fi
+
+  nm -D "$so_path" 2>/dev/null | grep -q "__kmpc_dispatch_"
+  return $?
+}
+
+detect_linked_openmp_lib () {
+  so_path="$1"
+  [ -f "$so_path" ] || return 1
+
+  if [ "$UNAME_S" = "Darwin" ]; then
+    otool -L "$so_path" 2>/dev/null | awk '/libomp|libgomp/ {print $1; exit}'
+    return 0
+  fi
+
+  if command -v ldd >/dev/null 2>&1; then
+    ldd "$so_path" 2>/dev/null | awk '/libomp|libgomp/ {print $3; exit}'
+    return 0
+  fi
+  return 1
+}
+
 has_kmpc_dispatch_deinit () {
   libpath="$1"
   [ -f "$libpath" ] || return 1
@@ -140,12 +181,35 @@ else
 fi
 
 if [ -n "$OPENMP_CXXFLAGS" ]; then
-  OMP_RUNTIME_LIB="$(detect_openmp_runtime_lib || true)"
-  if [ -n "$OMP_RUNTIME_LIB" ] && has_kmpc_dispatch_deinit "$OMP_RUNTIME_LIB"; then
-    KMPC_DISPATCH_CPPFLAGS="-DADLAPLACE_HAVE_KMPC_DISPATCH_DEINIT=1"
-    msg "configure: OpenMP runtime has kmpc_dispatch_deinit: YES ($OMP_RUNTIME_LIB)"
+  DATATABLE_SO="$(detect_datatable_so || true)"
+
+  DT_HAS_DISPATCH=0
+  DT_OMP_LIB=""
+  if [ -n "$DATATABLE_SO" ] && datatable_uses_kmpc_dispatch "$DATATABLE_SO"; then
+    DT_HAS_DISPATCH=1
+    DT_OMP_LIB="$(detect_linked_openmp_lib "$DATATABLE_SO" || true)"
+    msg "configure: data.table uses kmpc_dispatch symbols: YES"
   else
-    msg "configure: OpenMP runtime has kmpc_dispatch_deinit: NO"
+    msg "configure: data.table uses kmpc_dispatch symbols: NO/UNKNOWN"
+  fi
+
+  OMP_RUNTIME_LIB="$(detect_openmp_runtime_lib || true)"
+  if [ -n "$DT_OMP_LIB" ] && [ -f "$DT_OMP_LIB" ]; then
+    OMP_RUNTIME_LIB="$DT_OMP_LIB"
+    if [ "$UNAME_S" = "Darwin" ]; then
+      OMP_RUNTIME_DIR="$(dirname "$OMP_RUNTIME_LIB")"
+      OPENMP_LIBS="$OMP_RUNTIME_LIB -Wl,-rpath,$OMP_RUNTIME_DIR"
+    fi
+    msg "configure: using data.table OpenMP runtime: $OMP_RUNTIME_LIB"
+  fi
+
+  if [ "$DT_HAS_DISPATCH" = "1" ] \
+     && [ -n "$OMP_RUNTIME_LIB" ] \
+     && has_kmpc_dispatch_deinit "$OMP_RUNTIME_LIB"; then
+    KMPC_DISPATCH_CPPFLAGS="-DADLAPLACE_HAVE_KMPC_DISPATCH_DEINIT=1"
+    msg "configure: enabling ADLAPLACE_HAVE_KMPC_DISPATCH_DEINIT=1 ($OMP_RUNTIME_LIB)"
+  else
+    msg "configure: ADLAPLACE_HAVE_KMPC_DISPATCH_DEINIT=0"
   fi
 fi
 
