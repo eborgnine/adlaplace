@@ -8,7 +8,6 @@
 #include "adlaplace/eval/fgh.hpp"
 #include "adlaplace/creators/handle.hpp"
 #include "adlaplace/eval/trace_hinv_t.hpp"
-#include "adlaplace/api/stubs.hpp"
 
 std::vector<GroupPack> getAdFun(const Data& data, const Config& config);
 Rcpp::List extract_sparsity(const std::vector<GroupPack> &adFun);
@@ -112,7 +111,7 @@ inline Rcpp::List getAdFun_h(
 	if(verbose) {
 		Rcpp::Rcout << "3";
 	}
-	std::array<HessianPack, 2> hessiansC = adlaplace_hessianPackFromList(hessians);
+	std::array<HessianPack, 2> hessiansC = hessianPackFromList(hessians);
 	if(verbose) {
 		Rcpp::Rcout << "4";
 	}

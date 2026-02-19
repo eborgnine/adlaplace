@@ -68,6 +68,9 @@ logLikLaplace = function(
 
 	Nbeta = length(config$beta)
 	Ntheta = length(config$theta)
+	Ngamma = length(config$gamma)
+	Sgamma1 = seq.int(Nbeta+1, len=Ngamma)
+
 	config_inner = config
 	config_inner$beta = x[seq.int(1, len=Nbeta)]
 	config_inner$theta = x[seq.int(Nbeta+1, len=Ntheta)]
@@ -126,45 +129,39 @@ logLikLaplace = function(
 		cat("done inner opt\n")
 	}
 
-	if(!missing(data)) {
-		names(inner_res$solution) = rownames(data$ATp)
-	} else {
-		names(inner_res$solution) = names(config$gamma)
-	}
+
+	Houter = do.call(Matrix::sparseMatrix, inner_res$hessian)
+	Hinner = Houter[Sgamma1, Sgamma1]
+	Hchol = Matrix::expand2(Matrix::Cholesky(Hinner, perm=TRUE, ldl=TRUE))
+	
+	halfLogDet = sum(log(Hchol$D))/2
+	ONEHALFLOGTWOPI = 0.9189385332046727417803297364056176398613974736377834128171515404;
+
+	logLik = -inner_res$fval - halfLogDet + Ngamma * ONEHALFLOGTWOPI;  
 
 
 	result = list(
-		logLik = inner_res$logLik,
-		fval = -inner_res$logLik,
+		logLik = logLik,
+		fval = -logLik,
 		parameters = x,
 		fullParameters =  c(config_inner$beta, inner_res$solution, config_inner$theta),
 		hessian = list(
-			H = do.call(Matrix::sparseMatrix, inner_res$hessian),
-			L = do.call(Matrix::sparseMatrix, inner_res$cholHessian$L), 
-			D = Matrix::Diagonal(length(inner_res$solution), inner_res$cholHessian$D),
-			P = inner_res$cholHessian$P
+			H = Houter,
+			cholInner = Hchol
 		),
 		opt = inner_res[grep("[hH]essian", names(inner_res), invert=TRUE)]
 	)
 
-	if(!missing(data)){
-		try(names(result$fullParameters) <- c(
-			rownames(data$XTp), 
-			rownames(data$ATp), 
-			colnames(data$map)
-		))
-	}
-
-
-
-
 	if(!deriv) {
 		return(result)
 	}	
+
 	theDeriv = logLikDeriv(
 		fullParameters = result$fullParameters, 
 		hessianPack = result$hessian,
+		grad = inner_res$gradient,
 		config, adFun)
+
 	result$grad = -theDeriv$deriv$dL
 	result$deriv = theDeriv$deriv
 	result$extra = theDeriv$extra

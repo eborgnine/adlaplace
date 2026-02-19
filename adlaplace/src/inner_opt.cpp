@@ -153,7 +153,7 @@ Rcpp::List all_derivs(
 		params_init,
 		false,           // inner=false
 		num_threads
-	);
+		);
 	const Eigen::Index nvars = static_cast<Eigen::Index>(funObj.get_nvars());
 	Eigen::VectorXd x_eval(nvars);
 	for (Eigen::Index d = 0; d < nvars; ++d) {
@@ -236,7 +236,10 @@ Rcpp::List inner_opt(
 			);
 	}
 
-	Tvec gamma_start(configC.Ngamma);
+	Tvec gamma_start(configC.Ngamma), solution(configC.Ngamma);
+	Tvec fullParams(configC.Nparams);
+	Tvec grad(configC.Ngamma), gradOuter(configC.Nparams);
+
 	for (size_t d = 0; d < configC.Ngamma; ++d) {
 		gamma_start[d] = gamma[d];
 	}
@@ -245,32 +248,38 @@ Rcpp::List inner_opt(
 	// copy in beta and theta from parameters, and gamma from the gamma argument
 	for (size_t d = 0; d < configC.Nbeta; ++d) {
 		params_init[configC.beta_begin + d] = parameters[d];
+		fullParams[configC.beta_begin + d] = parameters[d];
 	}
 	for (size_t d = 0; d < configC.Ngamma; ++d) {
 		params_init[configC.gamma_begin + d] = gamma[d];
 	}
 	for (size_t d = 0; d < configC.Ntheta; ++d) {
 		params_init[configC.theta_begin + d] = parameters[configC.Nbeta + d];
+		fullParams[configC.theta_begin + d] = parameters[configC.Nbeta +d];
 	}
 
 
 
-	AD_Func_Opt funObj(
+	AD_Func_Opt 
+	funObj(
 		adFun,
 		params_init,
 		true,
-		num_threads
-	);
+		num_threads),
+	funObjOuter(
+		adFun,
+		params_init,
+		false,           // inner=false
+		num_threads);
 
-	Eigen::SparseMatrix<double> H = funObj.Htemplate.cast<double>();
-//	Trust_CG_Sparse<Tvec, AD_Func_Opt, THess, TPreLLt>* opt_ptr = nullptr;
-	MB_Status status;
-	Tvec P(configC.Ngamma);
-	Tvec grad(configC.Ngamma);
+
+	Eigen::SparseMatrix<double> H = funObj.Htemplate.cast<double>(),
+		Houter = funObjOuter.Htemplate.cast<double>();
 
 
 	double fval = NA_REAL, radius = NA_REAL;
 	int iterations = NA_INTEGER;
+	MB_Status status;
 
 	{
 		cppad_parallel_setup(static_cast<std::size_t>(num_threads));
@@ -283,62 +292,31 @@ Rcpp::List inner_opt(
 			);
 
 		opt.run();
-		status = opt.get_current_state(P, fval, grad, H, iterations, radius);
+		// H and grad won't be populated
+		status = opt.get_current_state(solution, fval, grad, 
+			H, iterations, radius);
+		// copy gamma to full parameters
+		for (size_t d = 0; d < configC.Ngamma; ++d) {
+			fullParams[configC.gamma_begin + d] = solution[d];
+		}
+		// get full hessian, gradient
+		funObjOuter.get_fdfh(fullParams, fval, gradOuter, Houter);
 	}
 
-
-	// get log determinant of hessian
-	Eigen::SparseMatrix<double> Htri = H.triangularView<Eigen::Upper>();
-	Htri.makeCompressed();
-	Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>, Eigen::Upper> ldlt;
-	ldlt.compute(Htri);
-	if (ldlt.info() != Eigen::Success) {
-		Rcpp::warning("LDLT factorization failed; H may not be SPD");
-	}
-
-	// log likelhood
-
-	const auto& D = ldlt.vectorD();
-	double logdetH = 0.0;
-	for (int k = 0; k < D.size(); ++k) {
-		logdetH += std::log(D[k]);
-	}
-	const double halfLogDet = logdetH/2;
-
-	const double logLik = -fval - halfLogDet + configC.Ngamma * ONEHALFLOGTWOPI;  
-
- 	 // save chol
-	const auto& Pidx = ldlt.permutationP().indices();    
-	const Eigen::SparseMatrix<double> L = ldlt.matrixL();
-
-	Rcpp::NumericVector D_R(D.size());
-	for (int k = 0; k < D.size(); ++k) {
-		D_R[k] = D[k];
-	}
-	Rcpp::IntegerVector P_R(Pidx.size());
-	for (int k = 0; k < Pidx.size(); ++k){
-		P_R[k] = Pidx[k];
-	}
-
-	Rcpp::List cholHessian = Rcpp::List::create(
-		Rcpp::Named("P") = P_R,
-		Rcpp::Named("D") = D_R,
-		Rcpp::Named("L") = eigen_to_list(L, false)
-		);
-
-	Rcpp::NumericVector solution(P.size());
+	Rcpp::NumericVector solutionR(solution.size());
 	for(size_t D=0;D<solution.size();D++) {
-		solution[D] = P[D];
+		solutionR[D] = solution[D];
+	}
+	Rcpp::NumericVector gradientR(gradOuter.size());
+	for(size_t D=0;D<gradientR.size();D++) {
+		gradientR[D] = gradOuter[D];
 	}
 
 	Rcpp::List res = Rcpp::List::create(
-		Rcpp::Named("logLik") = Rcpp::wrap(logLik),
 		Rcpp::Named("fval") = Rcpp::wrap(fval),
-		Rcpp::Named("halfLogDet") = Rcpp::wrap(halfLogDet),
-		Rcpp::Named("solution") = Rcpp::wrap(solution),
-		Rcpp::Named("gradient") = Rcpp::wrap(grad),	
-		Rcpp::Named("hessian") = eigen_to_list(Htri),
-		Rcpp::Named("cholHessian") = cholHessian,
+		Rcpp::Named("solution") = solutionR,
+		Rcpp::Named("gradient") = gradientR,
+		Rcpp::Named("hessian") = eigen_to_list(Houter),
 		Rcpp::Named("iterations") = Rcpp::wrap(iterations),
 		Rcpp::Named("status") = Rcpp::wrap((std::string) MB_strerror(status)),
 		Rcpp::Named("trust.radius") = Rcpp::wrap(radius),
@@ -346,5 +324,4 @@ Rcpp::List inner_opt(
 		);
 
 	return(res);
-
 }

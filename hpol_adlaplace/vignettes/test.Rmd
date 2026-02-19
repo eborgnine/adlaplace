@@ -58,7 +58,7 @@ outer_fit <- trustOptim::trust.optim(
   fn = adlaplace::outer_fn,
   gr = adlaplace::outer_gr,
   method = "SR1",
-  config = modifyList(config,list(verbose=FALSE)),
+  config = modifyList(forres$config,list(verbose=FALSE)),
   adFun = adFun,
   cache = cache,
   control = list(

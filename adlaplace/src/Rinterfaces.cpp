@@ -8,65 +8,7 @@
 double jointLogDens(const Rcpp::NumericVector& x, SEXP backendContext, SEXP Sgroups);
 Rcpp::NumericVector grad(const Rcpp::NumericVector& x, SEXP backendContext, bool inner, SEXP Sgroups);
 Rcpp::S4 hess(const Rcpp::NumericVector& x, SEXP backendContext, bool inner, SEXP Sgroups);
-Rcpp::NumericVector traceHinvT(
-  const Rcpp::NumericVector& x,
-  const Rcpp::S4& LinvPt,
-  const Rcpp::S4& LinvPtColumns,
-  SEXP backendContext,
-  SEXP Sgroups
-);
 
-extern "C" SEXP adlaplace_grad_c(SEXP xSEXP, SEXP backendContextSEXP, SEXP innerSEXP, SEXP SgroupsSEXP) {
-  BEGIN_RCPP
-  Rcpp::RNGScope rcpp_rngScope_gen;
-  const Rcpp::NumericVector x = Rcpp::as<Rcpp::NumericVector>(xSEXP);
-  const bool inner = Rcpp::as<bool>(innerSEXP);
-  const Rcpp::NumericVector out = grad(x, backendContextSEXP, inner, SgroupsSEXP);
-  return Rcpp::wrap(out);
-  END_RCPP
-}
-
-extern "C" SEXP adlaplace_hess_c(SEXP xSEXP, SEXP backendContextSEXP, SEXP innerSEXP, SEXP SgroupsSEXP) {
-  BEGIN_RCPP
-  Rcpp::RNGScope rcpp_rngScope_gen;
-  const Rcpp::NumericVector x = Rcpp::as<Rcpp::NumericVector>(xSEXP);
-  const bool inner = Rcpp::as<bool>(innerSEXP);
-  const Rcpp::S4 out = hess(x, backendContextSEXP, inner, SgroupsSEXP);
-  return Rcpp::wrap(out);
-  END_RCPP
-}
-
-extern "C" SEXP adlaplace_jointLogDens_c(SEXP xSEXP, SEXP backendContextSEXP, SEXP SgroupsSEXP) {
-  BEGIN_RCPP
-  Rcpp::RNGScope rcpp_rngScope_gen;
-  const Rcpp::NumericVector x = Rcpp::as<Rcpp::NumericVector>(xSEXP);
-  const double out = jointLogDens(x, backendContextSEXP, SgroupsSEXP);
-  return Rcpp::wrap(out);
-  END_RCPP
-}
-
-extern "C" SEXP adlaplace_traceHinvT_c(
-  SEXP xSEXP,
-  SEXP backendContextSEXP,
-  SEXP LinvPtSEXP,
-  SEXP LinvPtColumnsSEXP,
-  SEXP SgroupsSEXP
-) {
-  BEGIN_RCPP
-  Rcpp::RNGScope rcpp_rngScope_gen;
-  const Rcpp::NumericVector x = Rcpp::as<Rcpp::NumericVector>(xSEXP);
-  const Rcpp::S4 LinvPt(LinvPtSEXP);
-  const Rcpp::S4 LinvPtColumns(LinvPtColumnsSEXP);
-  const Rcpp::NumericVector out = traceHinvT(
-    x,
-    LinvPt,
-    LinvPtColumns,
-    backendContextSEXP,
-    SgroupsSEXP
-  );
-  return Rcpp::wrap(out);
-  END_RCPP
-}
 
 //' C++ backend entry points
 //'
@@ -280,11 +222,12 @@ Rcpp::S4 hess(
 //' @rdname adlaplace_cpp
 //' @export
 // [[Rcpp::export]]
-Rcpp::NumericVector traceHinvT(
+Rcpp::NumericVector traceHinvT( // to do: pass num threads
   const Rcpp::NumericVector& x,
   const Rcpp::S4& LinvPt,
   const Rcpp::S4& LinvPtColumns,
   SEXP backendContext,
+  const int num_threads,
   SEXP Sgroups = R_NilValue
 ) {
   adlaplace_adpack_handle* h = get_handle(backendContext);
@@ -329,7 +272,6 @@ Rcpp::NumericVector traceHinvT(
   const int n_groups = static_cast<int>(groups.size());
 
   if (n_groups > 0) {
-    const int num_threads = omp_get_max_threads();
     cppad_parallel_setup(static_cast<std::size_t>(num_threads));
 
 #pragma omp parallel num_threads(num_threads)

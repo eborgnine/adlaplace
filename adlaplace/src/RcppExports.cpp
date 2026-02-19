@@ -65,8 +65,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // traceHinvT
-Rcpp::NumericVector traceHinvT(const Rcpp::NumericVector& x, const Rcpp::S4& LinvPt, const Rcpp::S4& LinvPtColumns, SEXP backendContext, SEXP Sgroups);
-RcppExport SEXP _adlaplace_traceHinvT(SEXP xSEXP, SEXP LinvPtSEXP, SEXP LinvPtColumnsSEXP, SEXP backendContextSEXP, SEXP SgroupsSEXP) {
+Rcpp::NumericVector traceHinvT(const Rcpp::NumericVector& x, const Rcpp::S4& LinvPt, const Rcpp::S4& LinvPtColumns, SEXP backendContext, const int num_threads, SEXP Sgroups);
+RcppExport SEXP _adlaplace_traceHinvT(SEXP xSEXP, SEXP LinvPtSEXP, SEXP LinvPtColumnsSEXP, SEXP backendContextSEXP, SEXP num_threadsSEXP, SEXP SgroupsSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -74,18 +74,9 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const Rcpp::S4& >::type LinvPt(LinvPtSEXP);
     Rcpp::traits::input_parameter< const Rcpp::S4& >::type LinvPtColumns(LinvPtColumnsSEXP);
     Rcpp::traits::input_parameter< SEXP >::type backendContext(backendContextSEXP);
+    Rcpp::traits::input_parameter< const int >::type num_threads(num_threadsSEXP);
     Rcpp::traits::input_parameter< SEXP >::type Sgroups(SgroupsSEXP);
-    rcpp_result_gen = Rcpp::wrap(traceHinvT(x, LinvPt, LinvPtColumns, backendContext, Sgroups));
-    return rcpp_result_gen;
-END_RCPP
-}
-// register_callables
-SEXP register_callables();
-RcppExport SEXP _adlaplace_register_callables() {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    rcpp_result_gen = Rcpp::wrap(register_callables());
+    rcpp_result_gen = Rcpp::wrap(traceHinvT(x, LinvPt, LinvPtColumns, backendContext, num_threads, Sgroups));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -137,8 +128,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_adlaplace_jointLogDens", (DL_FUNC) &_adlaplace_jointLogDens, 3},
     {"_adlaplace_grad", (DL_FUNC) &_adlaplace_grad, 4},
     {"_adlaplace_hess", (DL_FUNC) &_adlaplace_hess, 4},
-    {"_adlaplace_traceHinvT", (DL_FUNC) &_adlaplace_traceHinvT, 5},
-    {"_adlaplace_register_callables", (DL_FUNC) &_adlaplace_register_callables, 0},
+    {"_adlaplace_traceHinvT", (DL_FUNC) &_adlaplace_traceHinvT, 6},
     {"_adlaplace_hessianMapC", (DL_FUNC) &_adlaplace_hessianMapC, 4},
     {"_adlaplace_all_derivs", (DL_FUNC) &_adlaplace_all_derivs, 3},
     {"_adlaplace_inner_opt", (DL_FUNC) &_adlaplace_inner_opt, 5},

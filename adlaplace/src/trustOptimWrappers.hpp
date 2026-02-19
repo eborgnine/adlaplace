@@ -250,29 +250,31 @@ struct AD_Func_Opt {
     }
   }
 
+
+// empty functions, called by get_current_state
   template <class DerivedX>
   void get_hessian(const Eigen::MatrixBase<DerivedX>& x, Eigen::SparseMatrix<double>& H) {
-    double f_dummy = 0.0;
-    Eigen::VectorXd g_dummy(static_cast<Eigen::Index>(nvars_opt));
-    get_fdfh(x, f_dummy, g_dummy, H);
+//    double f_dummy = 0.0;
+//    Eigen::VectorXd g_dummy(static_cast<Eigen::Index>(nvars_opt));
+//    get_fdfh(x, f_dummy, g_dummy, H);
   }
 
   template <class DerivedX, class DerivedH>
   void get_hessian(const Eigen::MatrixBase<DerivedX>& x, Eigen::SparseMatrixBase<DerivedH>& Hbase) {
-    DerivedH& H = Hbase.derived();
-    if (H.rows() != Htemplate.rows() || H.cols() != Htemplate.cols() || H.nonZeros() != Htemplate.nonZeros()) {
-      H = Htemplate.cast<double>();
-      H.makeCompressed();
-    }
-    double f_dummy = 0.0;
-    Eigen::VectorXd g_dummy(static_cast<Eigen::Index>(nvars_opt));
-    get_fdfh(x, f_dummy, g_dummy, H);
+//    DerivedH& H = Hbase.derived();
+//    if (H.rows() != Htemplate.rows() || H.cols() != Htemplate.cols() || H.nonZeros() != Htemplate.nonZeros()) {
+//      H = Htemplate.cast<double>();
+//      H.makeCompressed();
+//    }
+//    double f_dummy = 0.0;
+//    Eigen::VectorXd g_dummy(static_cast<Eigen::Index>(nvars_opt));
+//    get_fdfh(x, f_dummy, g_dummy, H);
   }
 
   template <class DerivedX, class DerivedG>
   void get_df(const Eigen::MatrixBase<DerivedX>& x, Eigen::MatrixBase<DerivedG>& g) {
-    double f_dummy = 0.0;
-    get_fdf(x, f_dummy, g);
+//    double f_dummy = 0.0;
+//    get_fdf(x, f_dummy, g);
   }
 
 private:

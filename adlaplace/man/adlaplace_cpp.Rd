@@ -17,7 +17,14 @@ grad(x, backendContext, inner = FALSE, Sgroups = NULL)
 
 hess(x, backendContext, inner = FALSE, Sgroups = NULL)
 
-traceHinvT(x, LinvPt, LinvPtColumns, backendContext, Sgroups = NULL)
+traceHinvT(
+  x,
+  LinvPt,
+  LinvPtColumns,
+  backendContext,
+  num_threads,
+  Sgroups = NULL
+)
 }
 \arguments{
 \item{data}{An R list containing model data objects required by the backend

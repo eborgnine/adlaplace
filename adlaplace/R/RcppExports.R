@@ -65,13 +65,8 @@ hess <- function(x, backendContext, inner = FALSE, Sgroups = NULL) {
 
 #' @rdname adlaplace_cpp
 #' @export
-traceHinvT <- function(x, LinvPt, LinvPtColumns, backendContext, Sgroups = NULL) {
-    .Call(`_adlaplace_traceHinvT`, x, LinvPt, LinvPtColumns, backendContext, Sgroups)
-}
-
-#' Register C-callable entry points
-register_callables <- function() {
-    .Call(`_adlaplace_register_callables`)
+traceHinvT <- function(x, LinvPt, LinvPtColumns, backendContext, num_threads, Sgroups = NULL) {
+    .Call(`_adlaplace_traceHinvT`, x, LinvPt, LinvPtColumns, backendContext, num_threads, Sgroups)
 }
 
 hessianMapC <- function(sparsity_list, Nbeta, Ngamma, Ntheta) {
