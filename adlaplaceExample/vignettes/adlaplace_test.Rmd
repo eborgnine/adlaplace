@@ -106,18 +106,12 @@ quantile(eigen(H)$values)
 ```{r trustOptimInterface, eval=FALSE}
 adFun <- adlaplace::getAdFun(data, config, package = "adlaplaceExample")
 
+
 res <- adlaplace::logLikLaplace(
   x = c(config$beta, config$theta),
   config = config,
   adFun = adFun, 
-  deriv=TRUE,
-  control = list(use_openmp = FALSE))
-res <- adlaplace::logLikLaplace(
-  x = c(config$beta, config$theta),
-  config = config,
-  adFun = adFun, 
-  deriv=TRUE,
-  control = list(use_openmp = TRUE))
+  deriv=TRUE)
 res$fval
 res$grad
 ```

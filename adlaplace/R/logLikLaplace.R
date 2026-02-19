@@ -134,7 +134,7 @@ logLikLaplace = function(
 	Hinner = Houter[Sgamma1, Sgamma1]
 	Hchol = Matrix::expand2(Matrix::Cholesky(Hinner, perm=TRUE, ldl=TRUE))
 	
-	halfLogDet = sum(log(Hchol$D))/2
+	halfLogDet = sum(log(Hchol$D@x))/2
 	ONEHALFLOGTWOPI = 0.9189385332046727417803297364056176398613974736377834128171515404;
 
 	logLik = -inner_res$fval - halfLogDet + Ngamma * ONEHALFLOGTWOPI;  
