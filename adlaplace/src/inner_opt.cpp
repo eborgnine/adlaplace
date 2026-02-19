@@ -163,7 +163,10 @@ Rcpp::List all_derivs(
 	double fval = NA_REAL;
 	Eigen::VectorXd grad(nvars);
 	Eigen::SparseMatrix<double> H = funObj.Htemplate.cast<double>();
-	funObj.get_fdfh(x_eval, fval, grad, H);
+	{
+		cppad_parallel_setup(static_cast<std::size_t>(num_threads));
+		funObj.get_fdfh(x_eval, fval, grad, H);
+	}
 
 
   // mirror inner_opt list structure as closely as possible
@@ -259,20 +262,6 @@ Rcpp::List inner_opt(
 		num_threads
 	);
 
-	if(configC.verbose) {
-		double f_test_1 = NA_REAL;
-		double f_test_2 = NA_REAL;
-
-		// Preflight run to catch threading/backend failures before optimizer loop.
-		funObj.get_f(gamma_start, f_test_1);
-
-
-		Rcpp::Rcout << "one " << f_test_1 << "";
-				funObj.get_f(gamma_start, f_test_2);
-		Rcpp::Rcout << "two " << f_test_2 << "\n";
-
-	}
-
 	Eigen::SparseMatrix<double> H = funObj.Htemplate.cast<double>();
 //	Trust_CG_Sparse<Tvec, AD_Func_Opt, THess, TPreLLt>* opt_ptr = nullptr;
 	MB_Status status;
@@ -284,6 +273,7 @@ Rcpp::List inner_opt(
 	int iterations = NA_INTEGER;
 
 	{
+		cppad_parallel_setup(static_cast<std::size_t>(num_threads));
 		Trust_CG_Sparse<Tvec, AD_Func_Opt, THess, TPreLLt> opt(
 			funObj, gamma_start, rad, min_rad, tol, prec,
 			report_freq, report_level, header_freq, report_precision,

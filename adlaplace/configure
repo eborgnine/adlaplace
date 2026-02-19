@@ -21,8 +21,10 @@ OPENMP_CXXFLAGS=""
 OPENMP_LIBS=""
 BREW_CPPFLAGS=""
 BREW_PREFIX=""
+KMPC_DISPATCH_CPPFLAGS="-DADLAPLACE_HAVE_KMPC_DISPATCH_DEINIT=0"
 
 UNAME_S="$(uname -s 2>/dev/null || echo unknown)"
+R_HOME_DIR="$(R RHOME 2>/dev/null || true)"
 
 CXX_CMD="$(R CMD config CXX 2>/dev/null || echo c++)"
 CXXFLAGS_CMD="$(R CMD config CXXFLAGS 2>/dev/null || true)"
@@ -61,13 +63,45 @@ int main() {
 }
 EOF
   if eval "$CXX_CMD $CPPFLAGS_CMD $CXXFLAGS_CMD -I$BREW_PREFIX/opt/libomp/include -Xpreprocessor -fopenmp \
-      $tmpdir/conftest.cpp $BREW_PREFIX/opt/libomp/lib/libomp.dylib -o $tmpdir/conftest" \
+      $tmpdir/conftest.cpp $R_HOME_DIR/lib/libomp.dylib -o $tmpdir/conftest" \
       >/dev/null 2>&1; then
     rm -rf "$tmpdir"
     return 0
   fi
   rm -rf "$tmpdir"
   return 1
+}
+
+detect_openmp_runtime_lib () {
+  if [ "$UNAME_S" = "Darwin" ] \
+     && [ -n "$R_HOME_DIR" ] \
+     && [ -f "$R_HOME_DIR/lib/libomp.dylib" ]; then
+    printf '%s' "$R_HOME_DIR/lib/libomp.dylib"
+    return 0
+  fi
+
+  for cand in libgomp.so libomp.so; do
+    path="$(eval "$CXX_CMD -print-file-name=$cand" 2>/dev/null || true)"
+    if [ -n "$path" ] && [ "$path" != "$cand" ] && [ -f "$path" ]; then
+      printf '%s' "$path"
+      return 0
+    fi
+  done
+  return 1
+}
+
+has_kmpc_dispatch_deinit () {
+  libpath="$1"
+  [ -f "$libpath" ] || return 1
+
+  if [ "$UNAME_S" = "Darwin" ]; then
+    nm -gU "$libpath" 2>/dev/null | grep -q "___kmpc_dispatch_deinit"
+    return $?
+  fi
+
+  nm -D --defined-only "$libpath" 2>/dev/null \
+    | grep -Eq "__kmpc_dispatch_deinit|___kmpc_dispatch_deinit"
+  return $?
 }
 
 # ---- Brew discovery (macOS only) ----
@@ -82,17 +116,18 @@ fi
 if [ "$UNAME_S" = "Darwin" ]; then
   if [ -n "$BREW_PREFIX" ] \
      && [ -f "$BREW_PREFIX/opt/libomp/include/omp.h" ] \
-     && [ -f "$BREW_PREFIX/opt/libomp/lib/libomp.dylib" ]; then
+     && [ -n "$R_HOME_DIR" ] \
+     && [ -f "$R_HOME_DIR/lib/libomp.dylib" ]; then
     if check_openmp_darwin; then
       OPENMP_CPPFLAGS="-I$BREW_PREFIX/opt/libomp/include"
       OPENMP_CXXFLAGS="-Xpreprocessor -fopenmp"
-      OPENMP_LIBS="$BREW_PREFIX/opt/libomp/lib/libomp.dylib -Wl,-rpath,$BREW_PREFIX/opt/libomp/lib"
-      msg "configure: OpenMP enabled on macOS using Homebrew libomp"
+      OPENMP_LIBS="$R_HOME_DIR/lib/libomp.dylib -Wl,-rpath,$R_HOME_DIR/lib"
+      msg "configure: OpenMP enabled on macOS using R libomp"
     else
       msg "configure: OpenMP not enabled (compiler does not accept -Xpreprocessor -fopenmp)"
     fi
   else
-    msg "configure: OpenMP not enabled on macOS (Homebrew libomp not found)"
+    msg "configure: OpenMP not enabled on macOS (Homebrew omp.h or R libomp not found)"
   fi
 else
   if check_cxxflag "-fopenmp"; then
@@ -101,6 +136,16 @@ else
     msg "configure: OpenMP enabled using -fopenmp"
   else
     msg "configure: OpenMP not enabled (compiler does not accept -fopenmp)"
+  fi
+fi
+
+if [ -n "$OPENMP_CXXFLAGS" ]; then
+  OMP_RUNTIME_LIB="$(detect_openmp_runtime_lib || true)"
+  if [ -n "$OMP_RUNTIME_LIB" ] && has_kmpc_dispatch_deinit "$OMP_RUNTIME_LIB"; then
+    KMPC_DISPATCH_CPPFLAGS="-DADLAPLACE_HAVE_KMPC_DISPATCH_DEINIT=1"
+    msg "configure: OpenMP runtime has kmpc_dispatch_deinit: YES ($OMP_RUNTIME_LIB)"
+  else
+    msg "configure: OpenMP runtime has kmpc_dispatch_deinit: NO"
   fi
 fi
 
@@ -124,6 +169,7 @@ sed \
   -e "s/@OPENMP_LIBS@/$(esc_sed "$OPENMP_LIBS")/g" \
   -e "s/@BREW_CPPFLAGS@/$(esc_sed "$BREW_CPPFLAGS")/g" \
   -e "s/@CPPAD_CPPFLAGS@/$(esc_sed "$CPPAD_CPPFLAGS")/g" \
+  -e "s/@KMPC_DISPATCH_CPPFLAGS@/$(esc_sed "$KMPC_DISPATCH_CPPFLAGS")/g" \
   -e "s/@EIGEN_SYSTEM_CPPFLAGS@/$(esc_sed "$EIGEN_SYSTEM_CPPFLAGS")/g" \
 "$infile" > "$outfile"
 

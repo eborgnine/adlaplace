@@ -27,14 +27,93 @@ x = c(forres$config$beta, forres$config$gamma, forres$config$theta)
 
 adFun = adlaplace::getAdFun(forres$tmb_data, forres$config, package = "hpolcc")
 
-inner_res <- adlaplace::inner_opt(
-  parameters = c(forres$config$beta, forres$config$theta),
-  gamma = forres$config$gamma,
+inner_res <- adlaplace::logLikLaplace(
+  x = c(forres$config$beta, forres$config$theta),
   control = list(
     maxit = 50,
+    report.level = 5,
+    report.freq = 1
+    ),
+  config = modifyList(forres$config,list(verbose=FALSE)),
+  adFun = adFun)
+str(inner_res)  
+
+```
+
+
+
+```{r trustOptimOuterWrappers, eval=FALSE}
+adFun <- adlaplace::getAdFun(forres$tmb_data, forres$config)
+
+cache <- new.env(parent = emptyenv())
+cache$gamma <- forres$config$gamma
+
+x0 <- c(forres$config$beta, forres$config$theta)
+
+adlaplace::outer_fn(x=x0, cache=cache, config=forres$config, adFun = adFun)
+adlaplace::outer_gr(x=x0, cache=cache, config=forres$config, adFun = adFun)
+
+outer_fit <- trustOptim::trust.optim(
+  x = x0,
+  fn = adlaplace::outer_fn,
+  gr = adlaplace::outer_gr,
+  method = "SR1",
+  config = modifyList(config,list(verbose=FALSE)),
+  adFun = adFun,
+  cache = cache,
+  control = list(
+    maxit = 1000,
+    report.level = 4,
+    report.freq =1 
+  ),
+  control_inner = list(
+    maxit = 100,
     report.level = 0,
     report.freq = 0
-    ),
-  config = modifyList(forres$config,list(num_threads=2, verbose=TRUE)),
-  adFun = adFun)
+  )
+)
+
+outer_fit$solution
+outer_fit$fval
+```
+
+```{r derivJointDens}
+config_check <- modifyList(forres$config, list(num_threads = 2, verbose = FALSE))
+x_joint <- c(config_check$beta, config_check$gamma, config_check$theta)
+
+# Perturb one parameter and compare analytic gradient to finite differences.
+Dpar <- length(config_check$beta) + 1L
+Npar <- 13
+parDf <- data.frame(x_joint)[, rep(1, Npar), drop = FALSE]
+Sx <- seq(-0.1, 0.1, length.out = Npar) + x_joint[Dpar]
+SxD <- Sx[-1] - diff(Sx) / 2
+parDf[Dpar, ] <- Sx
+
+Sgroups <- seq.int(from = 0L, length.out = length(adFun$sparsity))
+
+dens1 <- mapply(
+  adlaplace::jointLogDens,
+  x = as.list(parDf),
+  MoreArgs = list(backendContext = adFun, Sgroups = Sgroups),
+  SIMPLIFY = TRUE
+)
+
+grad1 <- mapply(
+  adlaplace::grad,
+  x = as.list(parDf),
+  MoreArgs = list(backendContext = adFun, inner = FALSE, Sgroups = Sgroups),
+  SIMPLIFY = TRUE
+)
+
+fdGrad <- diff(dens1) / diff(Sx)
+gradAlongPath <- grad1[Dpar, ]
+gradMid <- 0.5 * (gradAlongPath[-1] + gradAlongPath[-length(gradAlongPath)])
+
+plot(Sx, dens1, xlab = sprintf("x[%d]", Dpar), ylab = "jointLogDens")
+plot(Sx, gradAlongPath, xlab = sprintf("x[%d]", Dpar), ylab = "d jointLogDens / dx")
+lines(SxD, fdGrad, lwd = 2, col = 2)
+legend("topleft", legend = c("analytic", "finite diff"), lty = 1, col = c(1, 2), bty = "n")
+
+max_abs_err <- max(abs(gradMid - fdGrad))
+max_abs_err
 ```

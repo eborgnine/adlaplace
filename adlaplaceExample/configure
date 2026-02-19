@@ -23,6 +23,7 @@ BREW_CPPFLAGS=""
 BREW_PREFIX=""
 
 UNAME_S="$(uname -s 2>/dev/null || echo unknown)"
+R_HOME_DIR="$(R RHOME 2>/dev/null || true)"
 
 CXX_CMD="$(R CMD config CXX 2>/dev/null || echo c++)"
 CXXFLAGS_CMD="$(R CMD config CXXFLAGS 2>/dev/null || true)"
@@ -61,7 +62,7 @@ int main() {
 }
 EOF
   if eval "$CXX_CMD $CPPFLAGS_CMD $CXXFLAGS_CMD -I$BREW_PREFIX/opt/libomp/include -Xpreprocessor -fopenmp \
-      $tmpdir/conftest.cpp $BREW_PREFIX/opt/libomp/lib/libomp.dylib -o $tmpdir/conftest" \
+      $tmpdir/conftest.cpp $R_HOME_DIR/lib/libomp.dylib -o $tmpdir/conftest" \
       >/dev/null 2>&1; then
     rm -rf "$tmpdir"
     return 0
@@ -82,17 +83,18 @@ fi
 if [ "$UNAME_S" = "Darwin" ]; then
   if [ -n "$BREW_PREFIX" ] \
      && [ -f "$BREW_PREFIX/opt/libomp/include/omp.h" ] \
-     && [ -f "$BREW_PREFIX/opt/libomp/lib/libomp.dylib" ]; then
+     && [ -n "$R_HOME_DIR" ] \
+     && [ -f "$R_HOME_DIR/lib/libomp.dylib" ]; then
     if check_openmp_darwin; then
       OPENMP_CPPFLAGS="-I$BREW_PREFIX/opt/libomp/include"
       OPENMP_CXXFLAGS="-Xpreprocessor -fopenmp"
-      OPENMP_LIBS="$BREW_PREFIX/opt/libomp/lib/libomp.dylib -Wl,-rpath,$BREW_PREFIX/opt/libomp/lib"
-      msg "configure: OpenMP enabled on macOS using Homebrew libomp"
+      OPENMP_LIBS="$R_HOME_DIR/lib/libomp.dylib -Wl,-rpath,$R_HOME_DIR/lib"
+      msg "configure: OpenMP enabled on macOS using R libomp"
     else
       msg "configure: OpenMP not enabled (compiler does not accept -Xpreprocessor -fopenmp)"
     fi
   else
-    msg "configure: OpenMP not enabled on macOS (Homebrew libomp not found)"
+    msg "configure: OpenMP not enabled on macOS (Homebrew omp.h or R libomp not found)"
   fi
 else
   if check_cxxflag "-fopenmp"; then
