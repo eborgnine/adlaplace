@@ -275,7 +275,6 @@ struct AD_Func_Opt {
   template <class DerivedX, class DerivedG>
   void get_df(const Eigen::MatrixBase<DerivedX>& x, Eigen::MatrixBase<DerivedG>& g) {
     double f_dummy = 0.0;
-    Rcpp::Rcout << ".";
     get_fdf(x, f_dummy, g);
   }
 

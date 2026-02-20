@@ -39,6 +39,7 @@
 #' @rdname outer_optim_wrappers
 #' @export
 outer_fn = function(x, config, cache, adFun, control_inner = list(), ...) {
+	assign('last_par_fn', x, cache)
 	if(is.null(config$gamma)) {
 		stop("outer_fn requires config$gamma")
 	}
@@ -53,12 +54,13 @@ outer_fn = function(x, config, cache, adFun, control_inner = list(), ...) {
 		deriv = FALSE, ...
 	)
 	assign('gamma', result$opt$solution, cache)
-	-result$logLik
+	result$fval
 }
 
 #' @rdname outer_optim_wrappers
 #' @export
 outer_gr = function(x, config, cache, adFun, control_inner = list(), ...) {
+	assign('last_par_gr', x, cache)
 	if(is.null(config$gamma)) {
 		stop("outer_gr requires config$gamma")
 	}

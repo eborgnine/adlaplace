@@ -309,20 +309,29 @@ hnlm <- function(
 
   adFun = adlaplace::getAdFun(tmb_data, config, package = "hpolcc")
 
+cache <- new.env(parent = emptyenv())
+cache$gamma <- config$gamma
+
+x0 <- c(config$beta, config$theta)
+
+#adlaplace::outer_fn(x=x0, cache=cache, config=forres$config, adFun = adFun)
+#adlaplace::outer_gr(x=x0, cache=cache, config=forres$config, adFun = adFun)
+
+
   if(verboseOrig) {
     cat("optimizing")
   }
-  mle = trustOptim::trust.optim(
-    c(config$beta, config$theta),
-    adlaplace::outer_fn, 
-    adlaplace::outer_gr,
-    method='SR1',
-    data=tmb_data, config=config, cache=cache, 
-    adFun = adFun, 
-    package = 'hpolcc',
-    control_inner = control_inner,
-    control =  control
-  )
+mle = trustOptim::trust.optim(
+  x = x0,
+  fn = adlaplace::outer_fn,
+  gr = adlaplace::outer_gr,
+  method = "SR1",
+  config = config,
+  adFun = adFun,
+  cache = cache,
+  control = control,
+  control_inner = control_inner)
+
 
 
   result = list(opt = mle, 
@@ -333,11 +342,13 @@ hnlm <- function(
   if(verboseOrig) {
     cat("done")
   }
+
+  return(result)
+
   result$extra = try(adlaplace::logLikLaplace(
     mle$solution, 
     gamma=get("gamma", cache), 
     data=tmb_data, config=config, control = control_inner, 
-    package = 'hpolcc',
     adFun = adFun,
     deriv=1))
 

@@ -160,9 +160,10 @@ CppAD::vector<CppAD::AD<double>> logDensExtra(
   }
 
   CppAD::AD<double> contrib =
-    Nstrata * lgamma_ad(oneOverNuSq) + contribLgamma1overNuSqPlusSumYil;
+    Nstrata * lgamma_ad(oneOverNuSq) 
+    - contribLgamma1overNuSqPlusSumYil;
+    - contribLgammaYp1 + contribLgamma1pSumYil;
 
-  contrib += contribLgammaYp1 + contribLgamma1pSumYil;
   CppAD::vector<CppAD::AD<double>> result(1);
   result[0] = contrib;
 

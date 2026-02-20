@@ -11,10 +11,10 @@ License: MPL-2.0
 Depends: R (>= 3.6)
 Imports: Matrix (>= 1.2.18), Rcpp (>= 1.0.3), parallel
 Suggests: knitr, numDeriv, methods, RSpectra, trustOptim
-LinkingTo: Rcpp, RcppEigen, trustOptim, BH
+LinkingTo: Rcpp, RcppEigen, trustOptim
 Encoding: UTF-8
 VignetteBuilder: knitr
-SystemRequirements: CppAD, OpenMP (optional)
+SystemRequirements: CppAD, OpenMP
 RoxygenNote: 7.3.3
 NeedsCompilation: yes
 Packaged: 2026-01-22 18:49:30 UTC; patrick

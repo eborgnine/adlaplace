@@ -69,7 +69,7 @@ library('hpolcc')
 load("deaths.RData")
 
 # add day iid
-forres <- hpolcc::hnlm(
+resTemp <- hpolcc::hnlm(
   formula= medical ~ dom +  
   f(tempd, model='hiwp',ref_value = 15, p=3, 
   knots = seq(-5, 30, by=2.5), 
@@ -78,51 +78,22 @@ forres <- hpolcc::hnlm(
     which(
       deaths$tempd >-5 & deaths$date > as.Date("2006/1/1")
     ), ], 
+  cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
   config = list(transform_theta = TRUE, 
       dirichlet= TRUE, 
       boundary_is_random = FALSE,
       num_threads=parallel::detectCores(),
       Ngroups = 1e5,
-      verbose=10
+      verbose=FALSE
   ),
-  control_inner=list(report.level=0),
-  cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
-  for_dev = TRUE
-)
-x = c(forres$config$beta, forres$config$gamma, forres$config$theta)
-
-adFun = adlaplace::getAdFun(forres$tmb_data, forres$config, package = "hpolcc")
-
-inner_res <- adlaplace::inner_opt(
-  parameters = c(forres$config$beta, forres$config$theta),
-  gamma = forres$config$gamma,
   control = list(
-    maxit = 50,
-    report.level = 0,
-    report.freq = 0
-    ),
-  config = modifyList(forres$config,list(num_threads=2, verbose=TRUE)),
-  adFun = adFun)
+    maxit = 1000,
+    report.level = 4,
+    report.freq =1 
+  )
+)
 
-
-adlaplace::jointLogDens(x, adFun)
-str(adlaplace::grad(x, adFun))
-quantile(adlaplace::grad(x, adFun, inner=TRUE))
-
-str(h1 <-adlaplace::hess(x, adFun))
-str(h2 <-adlaplace::hess(x, adFun, inner=TRUE))
-str(h3 <-adlaplace::hess(x, adFun, inner=TRUE))
-identical(h2, h3)
-all(is.finite(h3@x))
-resl <- adlaplace::logLikLaplace(
-  x = c(forres$config$beta, forres$config$theta),
-  config = forres$config,
-  adFun = adFun, 
-  deriv=TRUE)
-resl$fval
-resl$grad
-
-saveRDS(res, file='resTemp.rds')
+saveRDS(resTemp, file='resTemp.rds')
 
 resPm <- hpolcc::hnlm(
   formula= medical ~ dom + 

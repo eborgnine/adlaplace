@@ -23,26 +23,32 @@ forres <- hpolcc::hnlm(
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
   for_dev = TRUE
 )
-x = c(forres$config$beta, forres$config$gamma, forres$config$theta)
+```
 
+```{r testInner}
 adFun = adlaplace::getAdFun(forres$tmb_data, forres$config, package = "hpolcc")
 
+x = c(4.71461887751959e-06, -8.04120825920749e-06, -3.17136170320387e-06, 7.02530508805759e-06, -2.58659812942438e-07, 1.35860339851067e-06, -4.23664816890871e-06, -3.38219589166039e-06, 2.92665837902961e-05, -6.80603081362575e-06, 1.06149246332859e-05, -5.9823264698775e-06, 2.634080302724e-06, 1.74072873708512e-05, 3.69992211723326e-06, -7.67913851683587e-06, 5.88780670241202e-06, -8.21165864414836e-06, 1.95032602644481e-05, -5.66686794853859e-06, -8.67738975579335e-06, -6.60252885083634e-06, -7.90656224114487e-06, 1.26660585340989e-06, -6.502213741154e-06, -1.3180163384068e-05, 3.12152660766921e-06, -1.0476354760902e-05, -7.92620635119666e-07, -1.11439028417037e-06, -4.00000008020657, -4.00000015597001, -4.00000006437399, -4.00000044784534, -7.30258509272937 )
 inner_res <- adlaplace::logLikLaplace(
-  x = c(forres$config$beta, forres$config$theta),
+  x = x,#c(forres$config$beta, forres$config$theta),
   control = list(
-    maxit = 50,
+    maxit = 500,
     report.level = 5,
     report.freq = 1
     ),
   config = modifyList(forres$config,list(verbose=FALSE)),
-  adFun = adFun)
-str(inner_res)  
-
+  adFun = adFun, deriv=TRUE)
+inner_res$logLik  
+quantile((innerGrad <- inner_res$opt$gradient[
+  seq(length(forres$config$beta)+1, len=length(forres$config$gamma))
+  ]))
+which.max(abs(innerGrad))  
+quantile(inner_res$grad)
 ```
 
 
 
-```{r trustOptimOuterWrappers, eval=FALSE}
+```{r trustOptimOuterWrappers, eval=TRUE}
 adFun <- adlaplace::getAdFun(forres$tmb_data, forres$config)
 
 cache <- new.env(parent = emptyenv())
@@ -51,7 +57,8 @@ cache$gamma <- forres$config$gamma
 x0 <- c(forres$config$beta, forres$config$theta)
 
 adlaplace::outer_fn(x=x0, cache=cache, config=forres$config, adFun = adFun)
-adlaplace::outer_gr(x=x0, cache=cache, config=forres$config, adFun = adFun)
+testg = adlaplace::outer_gr(x=x0, cache=cache, config=forres$config, adFun = adFun)
+quantile(testg)
 
 outer_fit <- trustOptim::trust.optim(
   x = x0,
@@ -62,7 +69,7 @@ outer_fit <- trustOptim::trust.optim(
   adFun = adFun,
   cache = cache,
   control = list(
-    maxit = 1000,
+    maxit = 2,
     report.level = 4,
     report.freq =1 
   ),
@@ -72,19 +79,41 @@ outer_fit <- trustOptim::trust.optim(
     report.freq = 0
   )
 )
+cbind(x0, cache$last_par_fn, cache$last_par_gr)
+
+deep_copy_env <- function(env) {
+  out <- new.env(parent = parent.env(env))
+  nms <- ls(env, all.names = TRUE)
+
+  for (nm in nms) {
+    val <- get(nm, envir = env, inherits = FALSE)
+    # deep-copy value to break shared references
+    val_copy <- unserialize(serialize(val, NULL))
+    assign(nm, val_copy, envir = out)
+  }
+
+  out
+}
+
+x = cache$last_par_fn;gamma = cache$gamma;config = forres$config
+
+adlaplace::outer_fn(x=cache$last_par_gr, cache=deep_copy_env(cache), config=forres$config, adFun = adFun)
+adlaplace::outer_fn(x=cache$last_par_fn, cache=deep_copy_env(cache), config=forres$config, adFun = adFun)
+adlaplace::outer_gr(x=cache$last_par_gr, cache=deep_copy_env(cache), config=forres$config, adFun = adFun)
+adlaplace::outer_gr(x=cache$last_par_fn, cache=deep_copy_env(cache), config=forres$config, adFun = adFun)
 
 outer_fit$solution
 outer_fit$fval
 ```
 
 ```{r derivJointDens}
-config_check <- modifyList(forres$config, list(num_threads = 2, verbose = FALSE))
-x_joint <- c(config_check$beta, config_check$gamma, config_check$theta)
+config_check <- modifyList(forres$config, list(num_threads = 10, verbose = FALSE))
+x_joint <- inner_res$fullParameters
 
 # Perturb one parameter and compare analytic gradient to finite differences.
-Dpar <- length(config_check$beta) + 1L
+Dpar <- length(config_check$beta) + 295L
 Npar <- 13
-parDf <- data.frame(x_joint)[, rep(1, Npar), drop = FALSE]
+parDf <- data.frame(x=x_joint)[rep(1, Npar)]
 Sx <- seq(-0.1, 0.1, length.out = Npar) + x_joint[Dpar]
 SxD <- Sx[-1] - diff(Sx) / 2
 parDf[Dpar, ] <- Sx
@@ -116,4 +145,57 @@ legend("topleft", legend = c("analytic", "finite diff"), lty = 1, col = c(1, 2),
 
 max_abs_err <- max(abs(gradMid - fdGrad))
 max_abs_err
+
+hess1 <- mapply(
+  adlaplace::hess,
+  x = as.list(parDf),
+  MoreArgs = list(backendContext = adFun, inner = FALSE, Sgroups = Sgroups),
+  SIMPLIFY = TRUE
+)
+
+```
+
+```{r testLogLgrad, eval=FALSE}
+adFun <- adlaplace::getAdFun(forres$tmb_data, forres$config, package = "hpolcc")
+config_ll <- modifyList(forres$config, list(verbose = FALSE))
+x <- c(config_ll$beta, config_ll$theta)
+Npar <- 7
+Dpar <- 1#length(x) -1
+
+parDf <- data.frame(x)[, rep(1, Npar), drop = FALSE]
+Sx <- seq(-0.1, 0.1, length.out = Npar) + parDf[Dpar, 1]
+SxD <- Sx[-1] - diff(Sx) / 2
+parDf[Dpar, ] <- Sx
+
+res <- mapply(
+  adlaplace::logLikLaplace,
+  x = as.list(parDf),
+  MoreArgs = list(
+    config = config_ll,
+    adFun = adFun,
+    deriv = TRUE,
+    control = list(
+      maxit = 50,
+      report.level = 0,
+      report.freq = 0
+    )
+  ),
+  SIMPLIFY = FALSE
+)
+
+Slik <- unlist(lapply(res, "[[", "logLik"))
+Sdet <- unlist(lapply(res, function(xx) xx$halfLogDet))
+uHat <- do.call(rbind, lapply(res, function(xx) xx$solution))
+gradVec <- unlist(lapply(res, function(xx) xx$deriv[Dpar, "dL"]))
+
+plot(Sx, Slik, xlab = sprintf("x[%d]", Dpar), ylab = "logLik")
+plot(Sx, gradVec, xlab = sprintf("x[%d]", Dpar), ylab = "d logLik / dx")
+lines(SxD, diff(Slik) / diff(Sx), lwd = 2, type = "o", pch = ".")
+
+Du <- 1
+plot(Sx, uHat[, Du], xlab = sprintf("x[%d]", Dpar), ylab = sprintf("uHat[%d]", Du))
+lines(SxD, diff(uHat[, Du]) / diff(Sx), lwd = 2)
+
+plot(Sx, Sdet, xlab = sprintf("x[%d]", Dpar), ylab = "halfLogDet")
+lines(SxD, diff(Sdet) / diff(Sx), lwd = 2)
 ```

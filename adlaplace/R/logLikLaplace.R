@@ -103,32 +103,36 @@ logLikLaplace = function(
 		cat("logLikLaplace using package ", package, "for objective funcion\n")
 	}
 
-	inner_res = try(adlaplace::inner_opt(
-		x, 
-		config_inner$gamma,
-		config=config_inner, 
-		control=control,
-		adFun = adFun))
-
-	if(any(class(inner_res) == 'try-error')) {
-		cat("resetting starting values to all zero\n")
-		cat("theta ", paste(x, collapse=" "), "\n")
-		config_inner$gamma = rep(0.0, length(config$gamma))
+	Niter = 0;tryAgain=TRUE
+	while(tryAgain & (Niter < 3) ) {
+		Niter = Niter + 1
 		inner_res = try(adlaplace::inner_opt(
-			x,
+			x, 
 			config_inner$gamma,
-			config=config_inner,
+			config=config_inner, 
 			control=control,
 			adFun = adFun))
-	}
+
+		tryAgain = any(class(inner_res) == 'try-error')
+		if(!tryAgain) {
+			tryAgain = sum(abs(inner_res$gradient[Sgamma1])) > 1
+		}
+		if(tryAgain) {
+			cat("resetting starting values to all zero, ")
+			cat("theta: ", paste(x, collapse=", "), "\n")
+			config_inner$gamma = rep(0.0, length(config$gamma))
+		}
+
+	} # while
 	if(any(class(inner_res) == 'try-error')) {
 		stop("inner_opt failed in logLikLaplace: ", as.character(inner_res))
 	}
-
+	if(sum(abs(inner_res$gradient[Sgamma1])) > 1) {
+		warning("inner_opt failed, large gradient")
+	}
 	if(any(config$verbose)) {
 		cat("done inner opt\n")
 	}
-
 
 	Houter = do.call(Matrix::sparseMatrix, inner_res$hessian)
 	Hinner = Houter[Sgamma1, Sgamma1]
