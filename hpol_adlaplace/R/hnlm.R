@@ -246,14 +246,24 @@ hnlm <- function(
 
   Sgamma = seq(nrow(tmb_data$XTp)+1, len=nrow(tmb_data$ATp))
 
-  start_beta = rep(0, nrow(tmb_data$XTp))
-  config$gamma = rep(0, nrow(tmb_data$ATp))
-  start_theta = theta_info$init
-  config$beta = start_beta
-  config$theta = start_theta
+  if(!length(config$beta)) {
+    config$beta = rep(0, nrow(tmb_data$XTp))
+  } else {
+    config$beta = rep_len(config$beta, nrow(tmb_data$XTp))
+  }
+  if(!length(config$theta)) {
+    config$theta = theta_info$init
+  } else {
+    config$theta = rep_len(config$theta, length(theta_info$init))
+  }
+  if(!length(config$gamma)) {
+    config$gamma = rep(0, nrow(tmb_data$ATp))
+  } else {
+    config$gamma = rep_len(config$gamma, nrow(tmb_data$ATp))
+  }
 
-  parameters = c(start_beta, start_theta)
-  full_parameters = c(start_beta, config$gamma, start_theta)
+  parameters = c(config$beta, config$theta)
+  full_parameters = c(config$beta, config$gamma, config$theta)
 
   parameters_info = list(
     beta = beta_info,
