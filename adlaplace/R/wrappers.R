@@ -10,8 +10,11 @@
 #' \item{\code{outer_gr()}}{Returns the gradient.}
 #' }
 #'
-#' @param ... Arguments forwarded to \code{\link{logLikLaplace}} (e.g. \code{x}, \code{data},
-#'   \code{config}, \code{adFun}, \code{package}, etc.).
+#' @param x Numeric outer parameter vector \code{c(beta, theta)}.
+#' @param config Configuration list passed to \code{\link{logLikLaplace}}.
+#' @param adFun Backend handle from \code{\link{getAdFun}}.
+#' @param ... Additional arguments forwarded to \code{\link{logLikLaplace}}
+#'   (for example \code{data} or \code{package}).
 #' @param control_inner A list of control options forwarded to the \code{control}
 #'   argument of \code{\link{logLikLaplace}} for the inner optimization.
 #' @param cache An \code{\link[base]{environment}} containing starting values for the inner
@@ -20,8 +23,9 @@
 #'
 #' @return
 #' \itemize{
-#' \item \code{outer_fn}: a numeric scalar (objective value).
-#' \item \code{outer_gr}: a numeric vector (gradient w.r.t. outer parameters).
+#' \item \code{outer_fn}: a numeric scalar objective value \code{-logLik}.
+#' \item \code{outer_gr}: a numeric vector gradient for the same objective sign
+#'   convention as \code{outer_fn}.
 #' }
 #'
 #' @seealso \code{\link{logLikLaplace}}
@@ -30,9 +34,10 @@
 #' \dontrun{
 #' cache <- new.env(parent = emptyenv())
 #' cache$gamma <- rep(0, nrow(data$ATp))
+#' adFun <- getAdFun(data, config)
 #'
-#' val <- outer_fn(x = x0, data = data, config = config, cache = cache)
-#' gr  <- outer_gr(x = x0, data = data, config = config, cache = cache)
+#' val <- outer_fn(x = x0, data = data, config = config, cache = cache, adFun = adFun)
+#' gr  <- outer_gr(x = x0, data = data, config = config, cache = cache, adFun = adFun)
 #' }
 #'
 #' @name outer_optim_wrappers

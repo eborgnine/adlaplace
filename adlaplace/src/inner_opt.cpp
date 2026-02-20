@@ -6,43 +6,27 @@
 //' evaluates the objective, gradient, and Hessian through the pre-built AD pack
 //' (external pointer) and returns the solution along with curvature information.
 //'
-//' @param x Numeric full parameter vector of length \code{Nparams}, used by
-//'   \code{all_derivs()} for outer/full derivatives.
+//' @param x Numeric full parameter vector of length \code{Nparams} used by
+//'   \code{all_derivs()}.
 //' @param parameters Numeric vector of fixed outer parameters
 //'   (\code{beta}, \code{theta}; length \code{Nbeta+Ntheta}) used by
 //'   \code{inner_opt()}.
 //' @param gamma Numeric vector of starting values for inner parameters
 //'   (\code{gamma}; length \code{Ngamma}) used by \code{inner_opt()}.
-//' @param data Data list used to construct the AD backend when \code{adFun}
-//'   is not supplied.
-//' @param adFun External pointer created by \code{getAdFun()} (class
-//'   \code{"adlaplace_handle_ptr"}), or a list containing element \code{adFun}.
-//' @param config Configuration list. Must include \code{gamma}, fixed
-//'   \code{beta}/\code{theta}, and group/sparsity settings.
-//' @param control List of trust-region control parameters (see
-//'   \code{trustOptim}).
-//' @param adFun Optional backend handle/list from \code{getAdFun()}.
-//'   If provided, it is reused.
+//' @param adFun External pointer returned by \code{getAdFun()}.
+//' @param config Configuration list with model dimensions, groups, and
+//'   sparsity information.
+//' @param control List of trust-region control parameters for
+//'   \code{inner_opt()} (see \pkg{trustOptim}).
 //'
-//' @return A list with components:
+//' @return
 //' \itemize{
-//'   \item \code{all_derivs}: list with \code{fval}, \code{gradient}, and
-//'         \code{hessian} for the outer/full derivatives (\code{inner=FALSE}).
-//'   \item \code{minusLogLik}: scalar \eqn{-\ell(\hat\gamma)} plus the Laplace
-//'         correction \eqn{\tfrac{1}{2}\log|H| + \tfrac{n}{2}\log(2\pi)}.
-//'   \item \code{fval}: scalar objective at the solution (typically \eqn{-\ell}).
-//'   \item \code{halfLogDet}: \eqn{\tfrac{1}{2}\log|H|} from sparse LDLT.
-//'   \item \code{solution}: optimized parameter vector (length \code{Ngamma}).
-//'   \item \code{gradient}: gradient at solution (length \code{Ngamma}).
-//'   \item \code{hessian}: Hessian as a dgCMatrix-like list with slots
-//'         \code{i,p,x,Dim} (0-based indices).
-//'   \item \code{cholHessian}: sparse LDLT factors as a list with
-//'         \code{P} (permutation indices), \code{D} (diagonal), and
-//'         \code{L} (lower-triangular factor in dgCMatrix-like form).
-//'   \item \code{iterations}: number of trust-region iterations.
-//'   \item \code{status}: solver status string.
-//'   \item \code{trust.radius}: final trust-region radius.
-//'   \item \code{method}: character, here \code{"Sparse"}.
+//'   \item{\code{all_derivs()}}{Returns \code{fval}, \code{gradient}, and
+//'   \code{hessian} for full/outer derivatives at \code{x}.}
+//'   \item{\code{inner_opt()}}{Returns \code{fval}, \code{solution},
+//'   \code{gradient} (full/outer gradient at the optimized \code{gamma}),
+//'   \code{hessian} (sparse list), \code{iterations}, \code{status},
+//'   \code{trust.radius}, and \code{method}.}
 //' }
 //'
 //' @details

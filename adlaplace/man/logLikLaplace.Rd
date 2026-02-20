@@ -16,12 +16,12 @@ logLikLaplace(
 )
 }
 \arguments{
-\item{x}{Numeric vector of outer parameters. The first \code{Nbeta} entries are
-interpreted as \code{beta}; the remainder are interpreted as \code{theta}
-(with \code{Nbeta = nrow(data$XTp)}).}
+\item{x}{Numeric vector of outer parameters \code{c(beta, theta)} with length
+\code{length(config$beta) + length(config$theta)}.}
 
-\item{config}{A list of configuration options passed to the backend. This
-function uses \code{config$package} and \code{config$verbose} if present.}
+\item{config}{A list containing model dimensions/starting values and backend
+options. Must include \code{beta}, \code{gamma}, and \code{theta}; may also
+include \code{package}, \code{verbose}, and \code{num_threads}.}
 
 \item{gamma}{Optional numeric vector of starting values for the inner
 parameter \code{gamma}. Defaults to \code{config$gamma}.}
@@ -33,23 +33,34 @@ parameter \code{gamma}. Defaults to \code{config$gamma}.}
 This is a single backend handle (no separate inner/outer handles). If
 missing, it will be constructed automatically.}
 
-\item{data}{A list containing model matrices and metadata used by the backend.
-At minimum this function assumes components \code{XTp}, \code{ATp}, and
-\code{map} exist.}
+\item{data}{Optional data list used to build \code{adFun} when \code{adFun}
+is not supplied.}
 
 \item{package}{Character scalar naming the backend package to use for
 \code{getAdFun()} and \code{inner_opt()}. Defaults to the first element of
 \code{c(config$package, "adlaplace")}.}
+
+\item{deriv}{Logical scalar. If \code{TRUE}, include derivative quantities in
+the output.}
 }
 \value{
 A list with components including:
 \describe{
-  \item{inner}{List of inner-optimization outputs (excluding parameter bookkeeping).}
-  \item{outer}{List of outer quantities (backend-dependent).}
-  \item{minusLogLik}{Numeric scalar (backend-dependent sign convention).}
+  \item{logLik}{Laplace-approximated log-likelihood at the optimized inner
+  solution.}
+  \item{fval}{\code{-logLik}.}
   \item{parameters}{The input outer parameter vector \code{x}.}
-  \item{full_parameters}{Concatenation of \code{beta}, optimized \code{gamma},
-    and \code{theta} (names are set when possible).}
+  \item{fullParameters}{Concatenation of \code{beta}, optimized \code{gamma},
+  and \code{theta}.}
+  \item{hessian}{List with \code{H} (outer Hessian sparse matrix) and
+  \code{cholInner} (sparse LDL decomposition of inner Hessian).}
+  \item{opt}{Inner optimizer outputs (excluding Hessian objects), including
+  \code{solution}, \code{gradient}, \code{iterations}, \code{status}, and
+  \code{trust.radius}.}
+  \item{grad}{When \code{deriv=TRUE}: gradient currently returned with the
+  package's outer-objective sign convention (negative log-likelihood).}
+  \item{deriv, extra}{When \code{deriv=TRUE}: intermediate derivative pieces
+  returned by \code{logLikDeriv()}.}
 }
 }
 \description{
@@ -67,15 +78,16 @@ inserted into \code{config} (as \code{config_inner$beta} and
 Current backends use a single AD handle. This function passes that handle to
 \code{inner_opt(..., adFun = adFun)}.
 
-The returned list contains both “inner” outputs (from the inner optimization)
-and “outer” outputs (quantities associated with the outer objective), as well
-as convenience fields such as \code{full_parameters}.
+The inner objective is treated as negative joint log density; this function
+returns both the Laplace-approximated log-likelihood (\code{logLik}) and its
+negation (\code{fval}) for optimizer convenience.
 }
 \examples{
 \dontrun{
 # x <- c(beta, theta)
-# out <- logLikLaplace(x, data, config)
-# out$minusLogLik
+# out <- logLikLaplace(x = x, config = config, data = data, deriv = TRUE)
+# out$logLik
+# out$grad
 }
 
 }

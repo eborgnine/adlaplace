@@ -69,7 +69,7 @@ outer_fit <- trustOptim::trust.optim(
   adFun = adFun,
   cache = cache,
   control = list(
-    maxit = 2,
+    maxit = 200,
     report.level = 4,
     report.freq =1 
   ),
@@ -79,28 +79,6 @@ outer_fit <- trustOptim::trust.optim(
     report.freq = 0
   )
 )
-cbind(x0, cache$last_par_fn, cache$last_par_gr)
-
-deep_copy_env <- function(env) {
-  out <- new.env(parent = parent.env(env))
-  nms <- ls(env, all.names = TRUE)
-
-  for (nm in nms) {
-    val <- get(nm, envir = env, inherits = FALSE)
-    # deep-copy value to break shared references
-    val_copy <- unserialize(serialize(val, NULL))
-    assign(nm, val_copy, envir = out)
-  }
-
-  out
-}
-
-x = cache$last_par_fn;gamma = cache$gamma;config = forres$config
-
-adlaplace::outer_fn(x=cache$last_par_gr, cache=deep_copy_env(cache), config=forres$config, adFun = adFun)
-adlaplace::outer_fn(x=cache$last_par_fn, cache=deep_copy_env(cache), config=forres$config, adFun = adFun)
-adlaplace::outer_gr(x=cache$last_par_gr, cache=deep_copy_env(cache), config=forres$config, adFun = adFun)
-adlaplace::outer_gr(x=cache$last_par_fn, cache=deep_copy_env(cache), config=forres$config, adFun = adFun)
 
 outer_fit$solution
 outer_fit$fval

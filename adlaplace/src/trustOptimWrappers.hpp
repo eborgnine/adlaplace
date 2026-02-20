@@ -119,7 +119,7 @@ struct AD_Func_Opt {
       const int gend = static_cast<int>(Ngroups_backend);
       std::vector<double> params_local(parameters.begin(), parameters.end());
 
-#pragma omp for schedule(static,1) 
+#pragma omp for schedule(static,1) nowait
       for (int g = 0; g < gend; ++g) {
         int gi = g;
         (void)handle->api->f(handle->ctx, &gi, params_local.data(), &f_local);
@@ -153,7 +153,7 @@ struct AD_Func_Opt {
       const int gend = static_cast<int>(Ngroups_backend);
       std::vector<double> params_local(parameters.begin(), parameters.end());
 
-#pragma omp for schedule(static,1) 
+#pragma omp for schedule(static,1) nowait
       for (int g = 0; g < gend; ++g) {
         int gi = g;
         (void)handle->api->f_grad(
@@ -204,9 +204,9 @@ struct AD_Func_Opt {
       std::vector<double> params_local(parameters.begin(), parameters.end());
 
 #if ADLAPLACE_HAVE_KMPC_DISPATCH_DEINIT
-#pragma omp for schedule(dynamic) 
+#pragma omp for schedule(dynamic) nowait
 #else      
-#pragma omp for schedule(static,1) 
+#pragma omp for schedule(static,1) nowait
 #endif      
       for (int g = 0; g < gend; ++g) {
         int gi = g;

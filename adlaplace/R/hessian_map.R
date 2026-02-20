@@ -10,8 +10,16 @@
 #' @param Ntheta Number of theta parameters.
 #'
 #'
-#' @return A list with components \code{hessian, hessian_inner}, and \code{match} to be added to \code{config$sparsity}
-#' \code{match$hessian} is a sparse matrix, entry A of \code{hessian@x} for shard \code{B} is \code{match$hessian[A,B]}
+#' @return A list with components:
+#' \describe{
+#'   \item{hessian}{A list with \code{outer} and \code{inner} symmetric sparse
+#'   template matrices (\code{dsCMatrix}). Their \code{x} slots encode
+#'   contiguous global nonzero ids.}
+#'   \item{map}{A list with \code{outer} and \code{inner} maps. Each map
+#'   contains integer vectors \code{p}, \code{local}, \code{global}, and
+#'   \code{dims} describing how each group-local Hessian nonzero maps to a
+#'   global template nonzero.}
+#' }
 #'
 
 
@@ -23,29 +31,45 @@ hessianMap = function(sparsity_list, Nbeta, Ngamma, Ntheta) {
 	Sgamma0 = seq.int(Nbeta, length.out=Ngamma)
 
 	list_outer = list_inner = vector("list", Ngroups)
+	make_sparse_df <- function(shard_id, row, col) {
+		n <- length(col)
+		data.frame(
+			shard = rep.int(as.integer(shard_id), n),
+			row = as.integer(row),
+			col = as.integer(col),
+			local = seq.int(0L, length.out = n),
+			stringsAsFactors = FALSE
+		)
+	}
+	bind_sparse_df <- function(lst) {
+		lst <- lst[lengths(lst) > 0L]
+		if (length(lst) == 0L) {
+			return(data.frame(
+				shard = integer(0),
+				row = integer(0),
+				col = integer(0),
+				local = integer(0),
+				stringsAsFactors = FALSE
+			))
+		}
+		do.call(rbind, lst)
+	}
 	for(D in seq_len(Ngroups)) {
-		Nouter = length(sparsity_list[[D]]$col_hess)
-		Ninner = length(sparsity_list[[D]]$col_hess_inner)
-
-		list_outer[[D]] = data.table::data.table(
-			shard = rep.int(D - 1L, Nouter),
-			row = as.integer(sparsity_list[[D]]$row_hess),
-			col = as.integer(sparsity_list[[D]]$col_hess),
-			local = seq.int(0L, length.out = Nouter)
+		list_outer[[D]] = make_sparse_df(
+			shard_id = D - 1L,
+			row = sparsity_list[[D]]$row_hess,
+			col = sparsity_list[[D]]$col_hess
 		)
 
-		if (Ninner > 0L) {
-			list_inner[[D]]  = data.table::data.table(
-				shard = rep.int(D - 1L, Ninner),
-				row = as.integer(sparsity_list[[D]]$row_hess_inner),
-				col = as.integer(sparsity_list[[D]]$col_hess_inner),
-				local = seq.int(0L, length.out = Ninner)
-			)
-		}
+		list_inner[[D]]  = make_sparse_df(
+			shard_id = D - 1L,
+			row = sparsity_list[[D]]$row_hess_inner,
+			col = sparsity_list[[D]]$col_hess_inner
+		)
 	}
 
-	sparsityOuter = data.table::rbindlist(list_outer, use.names = TRUE)
-	sparsityInner = data.table::rbindlist(list_inner, use.names = TRUE)
+	sparsityOuter = bind_sparse_df(list_outer)
+	sparsityInner = bind_sparse_df(list_inner)
 
 	sparsityOuter$cell = sparsityOuter$row + sparsityOuter$col * Nparams
 	sparsityOuter$cellSparse = as.integer(factor(sparsityOuter$cell)) -1L

@@ -28,14 +28,17 @@ traceHinvT(
 }
 \arguments{
 \item{data}{An R list containing model data objects required by the backend
-(used by \code{getAdFun()}).}
+(used by \code{getAdFun_r()}).}
 
 \item{config}{An R list of configuration options required by the backend
-(used by \code{getAdFun()}).}
+(used by \code{getAdFun_r()}).}
 
 \item{x}{Numeric parameter vector of length \code{Nparams}.}
 
-\item{backendContext}{External pointer returned by \code{getAdFun()}.}
+\item{backendContext}{Backend object returned by \code{getAdFun_r()}.
+For the default backend this can be either the full returned list
+(containing \code{adFun}, \code{sparsity}, \code{hessians}) or the
+external pointer in \code{$adFun}.}
 
 \item{Sgroups}{Optional integer vector of 0-based group indices to evaluate.
 If omitted, uses all groups \code{0:(Ngroups-1)}.}
@@ -51,7 +54,9 @@ selected columns of \code{LinvPt} to each group.}
 }
 \value{
 \itemize{
-  \item \code{getAdFun}: external pointer handle with backend state.
+  \item \code{getAdFun_r}: backend object. For the default backend: a list
+    with \code{adFun} (external pointer), \code{sparsity}, and
+    \code{hessians}.
   \item \code{jointLogDens}: scalar objective value summed over groups.
   \item \code{grad}: numeric gradient vector.
   \item \code{hess}: sparse symmetric Hessian as a Matrix
@@ -61,11 +66,12 @@ selected columns of \code{LinvPt} to each group.}
 }
 \description{
 Low-level C++ entry points exposed to R via Rcpp.
-These create and operate on an opaque backend handle (external pointer)
-used to evaluate objective, gradient, and Hessian values.
+These create and operate on backend state returned by \code{getAdFun_r()}.
+For the default backend this state is a list with an opaque external pointer
+plus sparsity/Hessian metadata.
 }
 \details{
-The external pointer returned by \code{getAdFun()} is opaque and not
-user-modifiable. It may hold substantial memory (AD tapes, sparsity maps,
-work caches). Do not save it across R sessions.
+In the default backend, \code{$adFun} is an opaque external pointer and not
+user-modifiable. It may hold substantial memory (AD tapes and caches).
+Do not save backend objects across R sessions.
 }

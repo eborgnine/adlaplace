@@ -9,9 +9,9 @@ Description: Computes Laplace approximations for hierarchical models using
     automatic differentiation (CppAD) and trust-region optimization.
 License: MPL-2.0
 Depends: R (>= 3.6)
-Imports: Matrix (>= 1.2.18), Rcpp (>= 1.0.3), parallel
-Suggests: knitr, numDeriv, methods, RSpectra, trustOptim
-LinkingTo: Rcpp, RcppEigen, trustOptim
+Imports: Matrix (>= 1.2.18), Rcpp (>= 1.0.3), parallel, trustOptim
+Suggests: knitr, rmarkdown, numDeriv, methods, RSpectra, abind
+LinkingTo: Rcpp, trustOptim
 Encoding: UTF-8
 VignetteBuilder: knitr
 SystemRequirements: CppAD, OpenMP

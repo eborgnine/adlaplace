@@ -16,8 +16,16 @@ hessianMap(sparsity_list, Nbeta, Ngamma, Ntheta)
 \item{Ntheta}{Number of theta parameters.}
 }
 \value{
-A list with components \code{hessian, hessian_inner}, and \code{match} to be added to \code{config$sparsity}
-\code{match$hessian} is a sparse matrix, entry A of \code{hessian@x} for shard \code{B} is \code{match$hessian[A,B]}
+A list with components:
+\describe{
+  \item{hessian}{A list with \code{outer} and \code{inner} symmetric sparse
+  template matrices (\code{dsCMatrix}). Their \code{x} slots encode
+  contiguous global nonzero ids.}
+  \item{map}{A list with \code{outer} and \code{inner} maps. Each map
+  contains integer vectors \code{p}, \code{local}, \code{global}, and
+  \code{dims} describing how each group-local Hessian nonzero maps to a
+  global template nonzero.}
+}
 }
 \description{
 Constructs Hessian sparsity “templates” (global/outer and inner-\code{gamma})

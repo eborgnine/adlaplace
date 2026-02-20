@@ -15,7 +15,10 @@ getAdFun(data, config, package = c(config$package, "adlaplace")[1])
 \code{c(config$package, "adlaplace")[1]}.}
 }
 \value{
-Backend AD handle returned by \code{<package>::getAdFun_r()}.
+Backend object returned by \code{<package>::getAdFun_r()}.
+  For the default \pkg{adlaplace} backend this is a list containing:
+  \code{adFun} (external pointer handle), \code{sparsity}, and
+  \code{hessians}.
 }
 \description{
 Safe frontend for constructing AD handles. This is the only public

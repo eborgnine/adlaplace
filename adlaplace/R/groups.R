@@ -8,11 +8,11 @@
 #' correspond to groups and whose entries are the singular-vector loadings.
 #' Groups are ordered from most heterogeneous to most homogeneous
 #'
+#' @param ATp A numeric matrix (or matrix-like object) whose columns are to
+#'   be grouped. Typically this is a cross-product or design-related matrix.
 #' @param Ngroups Integer giving the maximum number of groups to construct.
 #'   The actual number of groups may be smaller if fewer distinct loadings
 #'   are present.
-#' @param ATp A numeric matrix (or matrix-like object) whose columns are to
-#'   be grouped. Typically this is a cross-product or design-related matrix.
 #'
 #' @details
 #' If the \pkg{RSpectra} package is available, the leading singular vector
@@ -32,7 +32,7 @@
 #' @examples
 #' set.seed(1)
 #' A <- matrix(rnorm(100), 20, 5)
-#' G <- adFun_groups(3, A)
+#' G <- adFun_groups(A, 3)
 #' G
 #'
 #' @export

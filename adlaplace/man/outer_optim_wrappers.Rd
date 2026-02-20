@@ -11,20 +11,27 @@ outer_fn(x, config, cache, adFun, control_inner = list(), ...)
 outer_gr(x, config, cache, adFun, control_inner = list(), ...)
 }
 \arguments{
+\item{x}{Numeric outer parameter vector \code{c(beta, theta)}.}
+
+\item{config}{Configuration list passed to \code{\link{logLikLaplace}}.}
+
 \item{cache}{An \code{\link[base]{environment}} containing starting values for the inner
 optimization. It should contain \code{gamma}. Both functions update
 \code{cache$gamma} to the latest \code{gamma} solution.}
 
+\item{adFun}{Backend handle from \code{\link{getAdFun}}.}
+
 \item{control_inner}{A list of control options forwarded to the \code{control}
 argument of \code{\link{logLikLaplace}} for the inner optimization.}
 
-\item{...}{Arguments forwarded to \code{\link{logLikLaplace}} (e.g. \code{x}, \code{data},
-\code{config}, \code{adFun}, \code{package}, etc.).}
+\item{...}{Additional arguments forwarded to \code{\link{logLikLaplace}}
+(for example \code{data} or \code{package}).}
 }
 \value{
 \itemize{
-\item \code{outer_fn}: a numeric scalar (objective value).
-\item \code{outer_gr}: a numeric vector (gradient w.r.t. outer parameters).
+\item \code{outer_fn}: a numeric scalar objective value \code{-logLik}.
+\item \code{outer_gr}: a numeric vector gradient for the same objective sign
+  convention as \code{outer_fn}.
 }
 }
 \description{
@@ -43,9 +50,10 @@ the inner problem over \code{gamma} via \code{\link{logLikLaplace}} and update a
 \dontrun{
 cache <- new.env(parent = emptyenv())
 cache$gamma <- rep(0, nrow(data$ATp))
+adFun <- getAdFun(data, config)
 
-val <- outer_fn(x = x0, data = data, config = config, cache = cache)
-gr  <- outer_gr(x = x0, data = data, config = config, cache = cache)
+val <- outer_fn(x = x0, data = data, config = config, cache = cache, adFun = adFun)
+gr  <- outer_gr(x = x0, data = data, config = config, cache = cache, adFun = adFun)
 }
 
 }

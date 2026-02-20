@@ -10,7 +10,7 @@ License: GPL-3
 Depends: R (>= 4.1.0)
 LinkingTo: Rcpp, adlaplace, RcppEigen, trustOptim
 Imports: Rcpp, adlaplace
-Suggests: knitr, Matrix, trustOptim
+Suggests: knitr, rmarkdown, Matrix, trustOptim, sn, abind
 VignetteBuilder: knitr
 Encoding: UTF-8
 RoxygenNote: 7.3.3

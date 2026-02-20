@@ -41,7 +41,7 @@ variability appear first.
 \examples{
 set.seed(1)
 A <- matrix(rnorm(100), 20, 5)
-G <- adFun_groups(3, A)
+G <- adFun_groups(A, 3)
 G
 
 }

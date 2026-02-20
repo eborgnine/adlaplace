@@ -9,7 +9,10 @@
 #' @param package Backend package name. Defaults to
 #'   \code{c(config$package, "adlaplace")[1]}.
 #'
-#' @return Backend AD handle returned by \code{<package>::getAdFun_r()}.
+#' @return Backend object returned by \code{<package>::getAdFun_r()}.
+#'   For the default \pkg{adlaplace} backend this is a list containing:
+#'   \code{adFun} (external pointer handle), \code{sparsity}, and
+#'   \code{hessians}.
 #' @export
 getAdFun <- function(data, config, package = c(config$package, "adlaplace")[1]) {
   if (!is.character(package) || length(package) < 1 || is.na(package[[1]]) || !nzchar(package[[1]])) {
