@@ -1,10 +1,14 @@
 Package: adlaplaceExample
 Type: Package
-Title: Testing linking to adlaplace
+Title: Example Backend for 'adlaplace'
 Version: 0.1.0
-Author: Patrick Brown
-Maintainer: Patrick Brown <patrick.borgnine@gmail.com>
-Description: Links to the adlaplace package to differentiate the Laplace approximation, this package is intended as a useful example as well as testing.
+Authors@R: person(given = "Patrick", family = "Brown",
+    email = "patrick.borgnine@gmail.com",
+    role = c("aut", "cre", "cph"))
+Description: Provides a minimal example backend package for 'adlaplace'.
+    It demonstrates how to implement and expose model-specific AD tape
+    construction while delegating optimization and Laplace approximation
+    workflows to 'adlaplace'.
 SystemRequirements: CppAD, OpenMP
 License: GPL-3
 Depends: R (>= 4.1.0)

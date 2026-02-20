@@ -199,8 +199,8 @@ Dgroup = ncol(config$groups)+1
 str(h1 <- adlaplace::hess(x, adFun, FALSE, Sgroups = Dgroup))
 adFun$sparsity[1+Dgroup]
 (Shere = 1+seq(
-	adFun$hessian$map$outer$p[Dgroup+1],
-	adFun$hessian$map$outer$p[Dgroup+2]-1))
+	adFun$hessians$map$outer$p[Dgroup+1],
+	adFun$hessians$map$outer$p[Dgroup+2]-1))
 adFun$hessians$map$outer$local[Shere]
 adFun$hessians$map$outer$global[Shere]
 (hseq = which(h1@x != 0))
@@ -255,8 +255,8 @@ bob = as(adFun$hessians$hessian[[type]], 'TsparseMatrix')
 (whichGlobal = which(adFun$hessians$map[[type]]$global==whichIndex)-1L)
 
 (whichP = mapply(
-	function(xx) min(which(adFun$hessian$map[[type]]$p >= xx)),
- 	xx = whichGlobal) -1L)
+	function(xx) min(which(adFun$hessians$map[[type]]$p >= xx)),
+	xx = whichGlobal) -1L)
 
 
 
@@ -316,6 +316,5 @@ plot(Sx, hes2[Dpar,Dpar2, ], ylab = paste(Dpar, Dpar2),
 	ylim = range(hes2[Dpar, Dpar2,], na.rm=TRUE))
 lines(SxD, gradD[,Dpar2])
 ```
-
 
 
