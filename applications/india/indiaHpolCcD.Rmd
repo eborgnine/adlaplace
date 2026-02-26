@@ -100,21 +100,70 @@ resPm <- hpolcc::hnlm(
     f(sqrtPm, model='hiwp', ref_value = 8, p=2, 
       knots = seq(0,32, by=2),
       group_var = ecoRegion) , 
-  data=data=deaths[which(
+  data=deaths[which(
       deaths$date > as.Date("2006/1/1")
     ), ], 
   config = list(transform_theta = TRUE, 
   dirichlet= TRUE, 
                 boundary_is_random = FALSE,
-                num_threads=parallel::detectCores(),
-                Nclusters = 100*parallel::detectCores()),
+                num_threads=parallel::detectCores()),
   control_inner=list(report.level=0),
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
   verbose=TRUE
   )
 
 saveRDS(resPm, file='resPm.rds')
-# res = readRDS('res.rds')
+
+resPmTemp <- hpolcc::hnlm(
+  formula= medical ~ dom + 
+    f(sqrtPm, model='hiwp', ref_value = 8, p=2, 
+      knots = seq(0,32, by=2),
+      group_var = ecoRegion) +
+    f(tempd, model='hiwp',ref_value = 15, p=3, 
+  knots = seq(-5, 30, by=2.5), 
+  group_var = ecoRegion),
+  data=deaths[which(
+      deaths$date > as.Date("2006/1/1")
+    ), ], 
+  config = list(transform_theta = TRUE, 
+  dirichlet= TRUE, 
+                boundary_is_random = FALSE,
+                num_threads=parallel::detectCores()),
+  control_inner=list(report.level=0),
+  cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
+  verbose=TRUE
+  )
+saveRDS(resPmTemp, file='resPmTemp.rds')
+
+# create starting values from resPmTemp (remove betas from boundary)
+
+resPmTempR <- hpolcc::hnlm(
+  formula= medical ~ dom + 
+    f(sqrtPm, model='hiwp', ref_value = 8, p=2, 
+      knots = seq(0,32, by=2),
+      group_var = ecoRegion) +
+    f(tempd, model='hiwp',ref_value = 15, p=3, 
+  knots = seq(-5, 30, by=2.5), 
+  group_var = ecoRegion),
+  data = deaths[
+    which(
+      deaths$tempd >-5 & deaths$date > as.Date("2006/1/1")
+    ), ], 
+  cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
+  config = list(transform_theta = TRUE, 
+      dirichlet= TRUE, 
+      boundary_is_random = TRUE,
+      num_threads=parallel::detectCores(),
+      verbose=FALSE
+  ),
+  control = list(
+    maxit = 1000,
+    report.level = 4,
+    report.freq =1 
+  )
+)
+
+saveRDS(resPmTempR, file='resPmTempR.rds')
 ```
 
 
