@@ -28,21 +28,20 @@
   list(predSeq = predSeq, predDf = predDf, Sgroup = Sgroup, Sref = Sref)
   }
 
-condSimGamma = function(fromLogL, Nsim) {
+condSimGamma = function(fit, Nsim) {
 
-  halfH = adlaplace::reformatChol(fromLogL$cholHessian)
+  halfH = fit$extra$halfHinv
   # note tcrossprod(halfH) = Hinv
   Ngamma = nrow(halfH)
-  Nsim = c(Nsim, 500)[1]
 
-  gammaHat = fromLogL$solution
+  gammaHat = fit$opt$solution
 
   simInd = matrix(rnorm(Nsim * Ngamma), Ngamma, Nsim)
 
   simGamma1 = as.matrix(halfH %*% simInd)
 
   simGamma = simGamma1 + matrix(gammaHat, length(gammaHat), ncol(simGamma1))
-  rownames(simGamma) = names(fromLogL$solution)
+  rownames(simGamma) = names(gammaHat)
 
   simGamma
 }
@@ -65,13 +64,15 @@ condSim = function(fit, term, newx, Nsim=500) {
   
 }
 #' @export
-condSimIwp = function(fit, terms, parameters_info, Nsim, newx, newConstr) {
+condSimIwp = function(fit, terms, 
+  parameters_info, Nsim, newx, newConstr) {
  
   # fit needs full_parameters, inner (all of it), 
 
-  beta = fit$full_parameters[seq(1, len=nrow(parameters_info$beta))]
+  beta = fit$fullParameters[seq(1, len=nrow(parameters_info$beta))]
 
-  simGamma = condSimGamma(fromLogL = fit$inner, Nsim)
+  simGamma = condSimGamma(fit, Nsim)
+  rownames(simGamma) = parameters_info$gamma$name
 
   termsPred = getTermsPred(terms)
 
@@ -84,6 +85,7 @@ condSimIwp = function(fit, terms, parameters_info, Nsim, newx, newConstr) {
   }
 
   newXA = mapply(
+#    hpolcc:::getNewXA,
     getNewXA,
     df= termsPred$predDf,
     MoreArgs = list(
@@ -104,7 +106,7 @@ condSimIwp = function(fit, terms, parameters_info, Nsim, newx, newConstr) {
         XA$A[,namesBothGamma, drop=FALSE] %*% 
         gamma[namesBothGamma,,drop=FALSE]
 
-      randomPart + fixedPart[,rep(1, ncol(randomPart))]
+      randomPart + fixedPart[,rep(1, ncol(randomPart)), drop=FALSE]
     },
     XA = newXA,
     MoreArgs = list(beta = beta, gamma = simGamma)

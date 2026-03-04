@@ -343,28 +343,39 @@ mle = trustOptim::trust.optim(
   control_inner = control_inner)
 
 
+  config$gamma = get("gamma", cache)
 
   result = list(opt = mle, 
     objects = list(
       tmb_data=tmb_data, config=config, formula=formula, terms = terms,
-      parameters_info = parameters_info, gamma_info = gamma_info)
+      parameters_info = parameters_info, gamma_info = gamma_info, 
+      control_inner = control$inner)
   )
   if(verboseOrig) {
     cat("done")
   }
 
-  return(result)
+
+if(FALSE) {
+   adFun = adlaplace::getAdFun(
+    result$objects$tmb_data, 
+    result$objects$config, 
+    package = "hpolcc")
+} 
 
   result$extra = try(adlaplace::logLikLaplace(
-    mle$solution, 
-    gamma=get("gamma", cache), 
-    data=tmb_data, config=config, control = control_inner, 
+    result$opt$solution, 
+    gamma=result$objects$config$gamma, 
+    data=result$objects$tmb_data, 
+    config=result$objects$config, 
+    control = control_inner, 
     adFun = adFun,
     deriv=1))
 
-  result$parameters = formatParameters(
+
+  result$parameters = try(formatParameters(
     x=result$extra$fullParameters, 
-    parameters_info)
+    result$objects$parameters_info))
 
   if(FALSE) {
     result$hessian_parameters = try(
@@ -382,7 +393,7 @@ mle = trustOptim::trust.optim(
     fit=result$extra, 
     terms = result$objects$terms, 
     parameters_info = result$objects$parameters_info,
-    Nsim = c(config$Nsim, 500)[1]
+    Nsim = c(result$objects$config$Nsim, 500)[1]
   ))
 
   return(result)

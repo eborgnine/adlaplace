@@ -171,8 +171,7 @@ saveRDS(resPmTempR, file='resPmTempR.rds')
 
 ```{r theResults}
 library('hpolcc')
-res = readRDS("resPm.rds")
-res = readRDS("resTemp.rds")
+res = readRDS("resPmTempR.rds")
 simGlobal = res$sample$global
 predSeq = res$sample$x
 res$extra$parameters[c('beta','theta')]
