@@ -84,7 +84,7 @@ resTemp <- hpolcc::hnlm(
       boundary_is_random = FALSE,
       num_threads=parallel::detectCores(),
       Ngroups = 1e5,
-      verbose=FALSE
+      verbose=TRUE
   ),
   control = list(
     maxit = 1000,
@@ -135,7 +135,7 @@ resPmTemp <- hpolcc::hnlm(
   )
 saveRDS(resPmTemp, file='resPmTemp.rds')
 
-# create starting values from resPmTemp (remove betas from boundary)
+# to do: create starting values from resPmTemp (remove betas from boundary)
 
 resPmTempR <- hpolcc::hnlm(
   formula= medical ~ dom + 
