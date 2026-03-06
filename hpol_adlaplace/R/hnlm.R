@@ -361,6 +361,7 @@ if(FALSE) {
     result$objects$tmb_data, 
     result$objects$config, 
     package = "hpolcc")
+    control_inner = list(report.level=0)
 } 
 
   result$extra = try(adlaplace::logLikLaplace(

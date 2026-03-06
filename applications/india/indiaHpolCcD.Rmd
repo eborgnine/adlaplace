@@ -55,7 +55,7 @@ deaths$tempClean = pmax(deaths$temp, -5)
 deaths$dom = as.numeric(format(deaths$date, '%d'))
 deaths[deaths$dom == Hmisc::monthDays(deaths$date), 'dom'] = 31
 deaths[format(deaths$date, '%m%d') == '0101', 'dom'] = 0
-deaths$dom = relevel(factor(deaths$dom), '1')
+deaths$dom = droplevels(relevel(factor(deaths$dom), '1'))
 deaths$month = format(deaths$date, '%m')
 
 save(deaths, file='deaths.RData')
@@ -71,12 +71,12 @@ load("deaths.RData")
 # add day iid
 resTemp <- hpolcc::hnlm(
   formula= medical ~ dom +  
-  f(tempd, model='hiwp',ref_value = 15, p=3, 
+  f(tempClean, model='hiwp',ref_value = 15, p=3, 
   knots = seq(-5, 30, by=2.5), 
   group_var = ecoRegion), 
   data = deaths[
     which(
-      deaths$tempd >-5 & deaths$date > as.Date("2006/1/1")
+      deaths$date > as.Date("2006/1/1")
     ), ], 
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
   config = list(transform_theta = TRUE, 
@@ -119,7 +119,7 @@ resPmTemp <- hpolcc::hnlm(
     f(sqrtPm, model='hiwp', ref_value = 8, p=2, 
       knots = seq(0,32, by=2),
       group_var = ecoRegion) +
-    f(tempd, model='hiwp',ref_value = 15, p=3, 
+    f(tempClean, model='hiwp',ref_value = 15, p=3, 
   knots = seq(-5, 30, by=2.5), 
   group_var = ecoRegion),
   data=deaths[which(
@@ -142,12 +142,12 @@ resPmTempR <- hpolcc::hnlm(
     f(sqrtPm, model='hiwp', ref_value = 8, p=2, 
       knots = seq(0,32, by=2),
       group_var = ecoRegion) +
-    f(tempd, model='hiwp',ref_value = 15, p=3, 
+    f(tempClean, model='hiwp',ref_value = 15, p=3, 
   knots = seq(-5, 30, by=2.5), 
   group_var = ecoRegion),
   data = deaths[
     which(
-      deaths$tempd >-5 & deaths$date > as.Date("2006/1/1")
+      deaths$date > as.Date("2006/1/1")
     ), ], 
   cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
   config = list(transform_theta = TRUE, 
@@ -171,42 +171,42 @@ saveRDS(resPmTempR, file='resPmTempR.rds')
 
 ```{r theResults}
 library('hpolcc')
-res = readRDS("resPmTempR.rds")
-simGlobal = res$sample$global
-predSeq = res$sample$x
-res$extra$parameters[c('beta','theta')]
+res = readRDS("resPmTemp.rds")
+res$parameters$theta
+res$parameters$beta
+str(res$sample$sim)
+simGlobal = res$sample$sim
+predSeq = res$sample$x$predSeq
 ```
+
 
 
 
 
 ```{r globalRes, fig.cap='Common component', fig.subcap = c("temperature", "PM 2.5")}
 par(mar=c(3,3,0,0), bty='l')
-if("tempClean" %in% names(simGlobal)) {
-theY = 100*(exp(simGlobal[["tempClean"]])-1)
-matplot(predSeq[["tempClean"]], theY, type='l',
+tempVar = grep("temp", names(simGlobal), value=TRUE)[1]
+pmVar = grep("Pm$", names(simGlobal), value=TRUE)[1]
+if(length(tempVar)) {
+theX=  predSeq[[tempVar]]
+toKeep = which(theX > -9 & theX < 40)
+theY = 100*(exp(simGlobal[[tempVar]])-1)
+matplot(theX[toKeep], theY[toKeep,], type='l',
   col='#00000010', lty=1, xaxs='i',
-  xlab='degrees C', ylab = '100 x (RR-1)',
-  ylim = c(-33, 55), xlim = c(1, 41))
+  xlab='degrees C', ylab = '100 x (RR-1)')
+#  ylim = c(-33, 55), xlim = c(1, 41))
 theYq = t(apply(theY, 1, quantile, probs=c(0.025, 0.975, 0.5)))
-matlines(predSeq[["tempClean"]], theYq, lty=c(2,2,1), lwd=c(1,1,2), col='blue')
+matlines(predSeq[[tempVar]], theYq, lty=c(2,2,1), lwd=c(1,1,2), col='blue')
 }
-if("tempd" %in% names(simGlobal)) {
-theY = 100*(exp(simGlobal[["tempd"]])-1)
-matplot(predSeq[["tempd"]], theY, type='l',
-  col='#00000010', lty=1, xaxs='i',
-  xlab='degrees C', ylab = '100 x (RR-1)',
-  ylim = c(-33, 55))
-theYq = t(apply(theY, 1, quantile, probs=c(0.025, 0.975, 0.5)))
-matlines(predSeq[["tempd"]], theYq, lty=c(2,2,1), lwd=c(1,1,2), col='blue')
-}
-if("sqrtPm" %in% names(simGlobal)) {
 
-theY =  100*(exp(simGlobal[["sqrtPm"]])-1)
-theX = predSeq[["sqrtPm"]]^2
-matplot(theX, theY , type='l',
+if(length(pmVar)) {
+  
+theX = predSeq[[pmVar]]^2
+toKeep = which(theX < 400)
+theY =  100*(exp(simGlobal[[pmVar]])-1)
+matplot(theX[toKeep], theY[toKeep,] , type='l',
   col='#00000010', lty=1, xaxs='i',
-  xlim = c(0,600), ylim = c(-4, 12),
+#  xlim = c(0,600), ylim = c(-4, 12),
   xlab = 'PM 2.5', ylab = '100 (RR-1)')
 theYq = t(apply(theY, 1, quantile, probs=c(0.025, 0.975, 0.5)))
 matlines(theX, theYq, lty=c(2,2,1), lwd=c(1,1,2), col='blue')
