@@ -1,8 +1,11 @@
 
   getTermsPred = function(terms) {
-  Sref = unlist(lapply(terms, '[[', "ref_value"))
   Svar = unlist(lapply(terms, '[[', "var"))
   Smodel = unlist(lapply(terms, '[[', "model"))
+
+  Sref1 = lapply(terms, '[[', "ref_value")
+  Sref = rep(NA, length(Svar))
+  Sref[unlist(lapply(Sref1, length))>0] = unlist(Sref1)
 
   isHiwp = which(Smodel %in% c('iwp', 'hiwp'))
   Sref = Sref[isHiwp]
@@ -12,20 +15,13 @@
 
   Sgroup = lapply(terms[isHiwp], '[[', 'group_var')
 
-  names(predSeq) =names(Sgroup) = names(Sref) = Svar
-
-  predDf = list()
-  for(D in names(predSeq)) {
-    newdf = data.frame(x=predSeq[[D]])
-    colnames(newdf) = D
-    if(!all(is.na(Sgroup[[D]]))) {
-      newdf[[Sgroup[[D]]]]= rep(NA, nrow(newdf))
-    }
-    predDf[[D]] = newdf
+  SrefIndex = rep(NA, length(predSeq))
+  names(predSeq) =names(SrefIndex) =names(Sgroup) = names(Sref) = Svar
+  for(D in Svar) {
+    SrefIndex[D] = which.min(abs(Sref - predSeq[[D]]))
   }
 
-
-  list(predSeq = predSeq, predDf = predDf, Sgroup = Sgroup, Sref = Sref)
+  list(predSeq = predSeq, Sgroup = Sgroup, Sref = Sref, SrefIndex = SrefIndex)
   }
 
 condSimGamma = function(fit, Nsim) {
@@ -65,7 +61,7 @@ condSim = function(fit, term, newx, Nsim=500) {
 }
 #' @export
 condSimIwp = function(fit, terms, 
-  parameters_info, Nsim, newx, newConstr) {
+  parameters_info, Nsim, newx) {
  
   # fit needs full_parameters, inner (all of it), 
 
@@ -78,10 +74,6 @@ condSimIwp = function(fit, terms,
 
   if(!missing(newx)) {
     termsPred$predDf = newx
-  }
-
-  if(missing(newConstr)) {
-    newConstr = termsPred$Sref # replace by new constraints
   }
 
   newXA = mapply(
