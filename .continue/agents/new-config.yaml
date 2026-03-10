@@ -1,0 +1,23 @@
+name: Local Config
+version: 1.0.0
+schema: v1
+models:
+  - name: Codestral
+    provider: mistral
+    model: codestral-latest
+    apiKey: PzFq0cIaflDpqdLNQLJAS5dC6pxmOooi
+    apiBase: https://codestral.mistral.ai/v1
+    roles:
+      - chat
+      - edit
+      - apply
+      - autocomplete
+  - name: Mistral
+    provider: mistral
+    model: codestral-latest
+    apiKey: jIndGBAxt9g7g0JTigtsI94wvN8YejPX
+    roles:
+      - chat
+      - edit
+      - apply
+      - autocomplete

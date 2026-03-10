@@ -19,24 +19,39 @@ hnlm(
 \arguments{
 \item{formula}{A formula object specifying the model to be fitted.}
 
-\item{data}{A data frame containing the variables specified in the formula and any additional variables required for the model.}
+\item{data}{A data frame containing the variables specified in the
+formula and any additional variables required for the model.}
 
-\item{cc_design}{An object specifying the case-crossover design, including stratification and time variables. Defaults to the output of \code{ccDesign()}.}
+\item{cc_design}{An object specifying the case-crossover design,
+including stratification and time variables. Defaults to the output
+of \code{ccDesign()}.}
 
-\item{for_dev}{Logical; if \code{TRUE}, the function returns intermediate objects for development purposes. Defaults to \code{FALSE}.}
+\item{for_dev}{Logical; if \code{TRUE}, the function returns intermediate
+objects for development purposes. Defaults to \code{FALSE}.}
 
-\item{dirichlet}{if TRUE, fit dirichlet-multinomial model, with time-within-strata gamma random effect, otherwise multinomial.}
+\item{dirichlet}{If \code{TRUE}, fit a dirichlet-multinomial model with a
+time-within-strata gamma random effect; otherwise fit a multinomial
+model.}
 
 \item{verbose}{logical, if \code{TRUE} occasional information is printed}
 }
 \value{
-A list containing the fitted TMB object, the formula, terms used in the model, the case-crossover design, and information about the gamma and theta parameters.
+A list containing the fitted TMB object, the formula, terms
+used in the model, the case-crossover design, and information about
+the gamma and theta parameters.
 }
 \description{
-This function fits a hierarchical model using the specified formula and data, incorporating case-crossover designs, fixed and random effects, and precision matrices for random effects. It allows for flexible inclusion of stratification variables, time variables, and complex random effect structures.
+This function fits a hierarchical model using the specified formula
+and data, incorporating case-crossover designs, fixed and random
+effects, and precision matrices for random effects. It allows for
+flexible inclusion of stratification variables, time variables, and
+complex random effect structures.
 }
 \details{
-The function handles fixed effects, random effects, and their associated precision matrices. It also optimizes the model using TMB with options for additional preprocessing and handling specific random effect structures.
+The function handles fixed effects, random effects, and
+their associated precision matrices. It also optimizes the model
+using TMB with options for additional preprocessing and handling
+specific random effect structures.
 }
 \examples{
 # See vignette for basic usage

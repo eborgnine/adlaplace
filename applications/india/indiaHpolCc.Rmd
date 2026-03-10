@@ -1,317 +1,355 @@
+---
+title: "India"
+geometry: margin=1in
+output: pdf_document
+header-includes:
+  - |
+    ```{=latex}
+    \usepackage[table]{xcolor}
+    \expandafter\def\csname ver@subfig.sty\endcsname{}
+    \usepackage{graphicx,subcaption}
+    \makeatletter\@ifundefined{subfloat}{\newcommand{\subfloat}[2][need a sub-caption]{\subcaptionbox{#1}{#2} }}{\renewcommand{\subfloat}[2][need a sub-caption]{\subcaptionbox{#1}{#2} }}\makeatother
+    ```
+---
+
+
 ```{r setup, include=FALSE}
-#devtools::install_github("samperochkin/hpoltest")
+knitr::knit_hooks$set(margins = Pmisc::hook_plot_margins)
+knitr::knit_hooks$set(plot = knitr::hook_plot_tex)
+
+knitr::opts_chunk$set(
+  echo = FALSE, prompt = TRUE, comment = NA,
+  dev = "pdf", margins = 1, fig.cap = " ", fig.pos = "hp",
+  fig.path = file.path("figure", "moreBayes"),
+  fig.width = 5, fig.height = 5, half = NULL,
+  tidy = TRUE, tidy.opts = list(indent = 2, width.cutoff = 45)
+)
+
+options(width = 80)
+```
+
+
+```{r ecoRegionData}
+s_store_dir <- c("/store/patrick/copernicus/agg", "~/Downloads/agg")
+store_dir <- s_store_dir[1]
+if (!dir.exists(store_dir)) store_dir <- s_store_dir[2]
+
+india_eco_regions <- terra::unwrap(readRDS(file.path(store_dir, "indiaEcoRegions.rds")))
+india_eco_regions$name <- gsub(
+  " AND ", ", ",
+  gsub(" E.O.REGION|[(].*[)]|TO PERHUMID.*|PENINSULA ", "", india_eco_regions$physio_reg)
+)
+india_eco_regions$id_name <- paste(india_eco_regions$objectid, india_eco_regions$name)
+
+india_eco_regions$col <- rep_len(
+  c(
+    RColorBrewer::brewer.pal(12, "Set3"),
+    RColorBrewer::brewer.pal(8, "Set2")
+  ),
+  length(india_eco_regions)
+)
+
+
+# objectid is deaths$eco_region
+```
+
+```{r worldPopByRegion, cache=TRUE}
+year <- 2020
+dir.create("data/gpw", recursive = TRUE, showWarnings = FALSE)
+
+# geodata::population returns GPW population density (people per km^2)
+pop_density <- geodata::population(year, res = 5, path = "data/gpw")
+
+eco <- terra::project(india_eco_regions, terra::crs(pop_density))
+
+pop_density_india_eco <- terra::crop(pop_density, eco)
+pop_density_india_eco <- terra::mask(pop_density_india_eco, eco)
+
+# Convert density to estimated population count per cell before extraction.
+cell_area_km2 <- terra::cellSize(pop_density_india_eco, unit = "km")
+pop_count <- pop_density_india_eco * cell_area_km2
+
+eco_pop <- terra::extract(
+  pop_count,
+  eco,
+  fun = sum,
+  na.rm = TRUE,
+  exact = TRUE
+)
+
+eco$gpw_2020 <- eco_pop[, 2]
+
+eco_pop_df <- data.frame(
+  objectid = eco$objectid,
+  physio_reg = eco$physio_reg,
+  gpw_2020 = eco$gpw_2020
+)
+
+eco_pop_df$weight <- eco_pop_df$gpw_2020 / sum(eco_pop_df$gpw_2020)
 ```
 
 
 
-on darjeeling
-```{r loadpackage, eval=FALSE}
-
-library('hpolcc', lib.loc = 
-  "/home/patrick/R/x86_64-pc-linux-gnu-library/4.5")
-
-```
-
-for new package
-Need cppad, openmp
-
-brew install cppad
-brew install openmp (?)
-
-might need 
-
-~/.R/Makevars with
-
-# Use Homebrew LLVM clang++ for OpenMP support
-CXX = /opt/homebrew/opt/llvm/bin/clang++
-CC  = /opt/homebrew/opt/llvm/bin/clang
-
-CXXFLAGS += -std=c++17 -I/opt/homebrew/include -fopenmp
-LDFLAGS  += -L/opt/homebrew/lib -lcppad_lib -fopenmp
-
-# Tell clang where to find OpenMP
-CPPFLAGS += -I/opt/homebrew/opt/libomp/include
-LDFLAGS  += -L/opt/homebrew/opt/libomp/lib -lomp
-
-
-
-```{r setup2}
-
-
-library('data.table')
+```{r deaths_data, eval=FALSE}
+library("data.table")
 # /home/patrick/Admin/globalHealth/indiaSpatial/daily.Rmd
-SstoreDir = c('/store/patrick/copernicus/agg', '~/Downloads/agg')
-storeDir = SstoreDir[1]
-if(!dir.exists(storeDir)) storeDir = SstoreDir[2]
 
-deaths = as.data.table(readRDS( file.path(storeDir, "indiaCC.rds")))
-
-indiaEcoRegions = terra::unwrap(readRDS(
-  file.path(storeDir, "indiaEcoRegions.rds")))
-
+deaths <- as.data.table(readRDS(file.path(store_dir, "indiaCC.rds")))
+data.table::setnames(
+  deaths,
+  old = c("ecoRegion", "yearWeek3Dow"),
+  new = c("eco_region", "year_week3_dow"),
+  skip_absent = TRUE
+)
 
 # trransform variables
-deaths$sqrtPm = sqrt(pmin(deaths$pm,1000))
-deaths$timeIid = as.numeric(deaths$date)
+deaths$sqrt_pm <- sqrt(pmin(deaths$pm, 1000))
+deaths$time_iid <- as.numeric(deaths$date)
 
-# table(deaths$ecoRegion, deaths$temp < -10)
-
-deaths$tempClean = pmax(deaths$temp, -5)
+deaths$temp_clean <- pmax(deaths$temp, -5)
 
 
-deaths$dom = as.numeric(format(deaths$date, '%d'))
-deaths[deaths$dom == Hmisc::monthDays(deaths$date), 'dom'] = 31
-deaths[format(deaths$date, '%m%d') == '0101', 'dom'] = 0
-deaths$dom = relevel(factor(deaths$dom), '1')
-deaths$month = format(deaths$date, '%m')
+deaths$dom <- as.numeric(format(deaths$date, "%d"))
+deaths[deaths$dom == Hmisc::monthDays(deaths$date), "dom"] <- 31
+deaths[format(deaths$date, "%m%d") == "0101", "dom"] <- 0
+deaths$dom <- droplevels(relevel(factor(deaths$dom), "1"))
+deaths$month <- format(deaths$date, "%m")
 
-deaths = deaths[format(deaths$date, '%b%d') != 'Jan01', ]
-save(deaths, file='deaths.RData')
+save(deaths, file = "deaths.RData")
 ```
 
 
 
 
-```{r fit}
-library('hpolcc')
+```{r fit, eval=FALSE}
+library("hpolcc")
 load("deaths.RData")
 
-res <- hpolcc::hnlm(
-  formula= medical ~ dom + 
-  f(temp, model='hiwp',ref_value = 25, p=3, 
-      knots = seq(-5, 42.5, by=2.5), 
-    group_var = ecoRegion)
-  , 
-  data=deaths[
-    which(
-      deaths$date > as.Date("2008/1/1") & 
-      deaths$temp >= -5
-      ), ],
-  cc_design =  c("cell","ecoRegion", "yearMonthDow"),
-  config = list(
-    transform_theta = TRUE, 
-    boundary_is_random= TRUE,
-    dirichlet= TRUE, verbose=FALSE,
-    num_threads=parallel::detectCores(), 
-    Nclusters = 100*parallel::detectCores()
-    )#,  for_dev=TRUE
-  )
-saveRDS(res, file='resTemp.rds')
-
-resPm <- hpolcc::hnlm(
-  formula= medical ~ date5 + #humidity + #f(date, model='iid') +
-   f(sqrtPm, model='hiwp', ref_value = 8, p=2, 
-     knots = seq(0,25, by=1),
-     group_var = ecoRegion, init = 0.1) 
-  #    +
-#   f(tempClean, model='hiwp',ref_value = 25, p=3, 
-#      knots = seq(0, 45, by=2.5), 
-#    group_var = ecoRegion)
-  , 
-  data=dataMedSimple[dataMedSimple$date > as.Date('2010/1/1'),], 
-  cc_design =  c("cell","ecoRegion", "yearWeek3Dow"),
-   control=list(
-    maxit= 2000,
-    start.trust.radius = 0.1, report.level=4, report.freq=10, report.header.freq=10, report.precision=5),
-  config = list(
-    transform_theta = TRUE, 
-    boundary_is_random= TRUE,
-    dirichlet= TRUE, verbose=FALSE,
-    num_threads=parallel::detectCores(), 
-    Nclusters = 50*parallel::detectCores()
+res_pm_temp_r <- hpolcc::hnlm(
+  formula = medical ~ dom +
+    f(sqrt_pm,
+      model = "hiwp", ref_value = 8, p = 2,
+      knots = seq(0, 32, by = 2),
+      group_var = eco_region
+    ) +
+    f(temp_clean,
+      model = "hiwp", ref_value = 15, p = 3,
+      knots = seq(-5, 30, by = 2.5),
+      group_var = eco_region
     ),
-  for_dev=FALSE
+  data = deaths[
+    which(
+      deaths$date > as.Date("2006/1/1")
+    ),
+  ],
+  cc_design = c("cell", "eco_region", "year_week3_dow"),
+  config = list(
+    transform_theta = TRUE,
+    dirichlet = TRUE,
+    boundary_is_random = TRUE,
+    num_threads = parallel::detectCores(),
+    verbose = FALSE
+  ),
+  control = list(
+    maxit = 1000,
+    report.level = 4,
+    report.freq = 1
   )
-saveRDS(resPm, file='resPm.rds')
+)
 
-
-```
-
-
-
-```{r theResults}
-library('hpolcc')
-res = readRDS("resPm.rds")
-res = readRDS("resTemp.rds")
-simGlobal = res$sample$global
-
-predSeq = res$sample$x
-simGlobalSumToZero = simGlobal[[1]] - 
-  matrix(apply(simGlobal[[1]][predSeq[[1]]>15 & predSeq[[1]]<30 ,], 2, mean), nrow(simGlobal[[1]]), ncol(simGlobal[[1]]), byrow=TRUE)
+saveRDS(res_pm_temp_r, file = "resPmTempR.rds")
 ```
 
 
 
 
-
-```{r globalRes, fig.cap='Common component', fig.subcap = c("temperature", "PM 2.5")}
-par(mar=c(3,3,0,0), bty='l', oma=c(0,0,0,0))
-if("temp" %in% names(simGlobal)) {
-theY = 100*(exp(simGlobal[["temp"]])-1)
-matplot(predSeq[["temp"]], theY, type='l',
-  col='#00000010', lty=1, xaxs='i',
-  xlab='degrees C', ylab = '100 x (RR-1)',
-  ylim = c(-40, 86), xlim = c(6, 41))
-theYq = t(apply(theY, 1, quantile, probs=c(0.025, 0.975, 0.5)))
-matlines(predSeq[["temp"]], theYq, lty=c(2,2,1), lwd=c(1,1,2), col='blue')
-
-theYZero = 100*(exp(simGlobalSumToZero)-1)
-matplot(predSeq[["tempClean"]], theYZero, type='l',
-  col='#00000010', lty=1, xaxs='i',
-  xlab='degrees C', ylab = '100 x (RR-1)',
-  ylim = c(-40, 86), xlim = c(6, 41))
-theYq = t(apply(theYZero, 1, quantile, probs=c(0.025, 0.975, 0.5)))
-matlines(predSeq[["tempClean"]], theYq, lty=c(2,2,1), lwd=c(1,1,2), col='blue')
+```{r theResults, include=FALSE}
+library("hpolcc")
+res = readRDS("resPmTemp.rds")
+res$parameters$theta
+res$parameters$beta
+str(res$sample$sim)
+sim_global <- res$sample$sim
+pred_seq <- res$sample$x$predSeq
+```
 
 
+
+```{r regionSetup}
+s_group <- setdiff(unique(res$objects$gamma_info$group), c(NA, "GLOBAL"))
+s_region_name <-
+  india_eco_regions$physio_reg[match(s_group, india_eco_regions$objectid)]
+gamma_info <- res$objects$gamma_info
+pop_weighted <- as.list(rep(0, length(unique(gamma_info$var))))
+names(pop_weighted) <- unique((gamma_info$var))
+```
+
+
+```{r byRegionTemplate, eval=FALSE, include=FALSE}
+x_here <- res$sample$x$predSeq[[d_var]]
+
+if (grepl("sqrt", d_var)) x_here <- x_here^2
+
+a_here <- res$sample$XA[[d_var]]$A
+sim_global_here <- res$sample$sim[[d_var]]
+
+sim_global_here_y <- 100 * (exp(sim_global_here) - 1)
+sim_global_here_yq <- t(apply(sim_global_here_y, 1, quantile, probs = c(0.025, 0.975, 0.5)))
+
+y_lim_here <- range(sim_global_here_y)
+x_lim_here <- range(x_here)
+
+for (d_group in s_group) {
+  gamma_here <- gamma_info[
+    which(gamma_info$var == d_var & gamma_info$group == d_group),
+  ]
+  a_here_new_names <-
+    gsub("_GLOBAL_", paste0("_", d_group, "_"), colnames(a_here))
+  a_here_new_names <-
+    gsub("_fpoly_", paste0("_hrpoly_", d_group, "_"), a_here_new_names)
+  if (!all(a_here_new_names %in% gamma_here$name)) {
+    warning("missing stuff")
+    print(setdiff(a_here_new_names, gamma_here$name))
+  }
+  gamma_sim_here <- res$sample$gamma[gamma_here$gamma_id, ]
+  a_here <- a_here[, match(gamma_here$name, a_here_new_names)]
+  sim_here_r <- a_here %*% gamma_sim_here
+  sim_here <- sim_here_r + sim_global_here
+  sim_here <- 100 * (exp(sim_here) - 1)
+
+  pop_weighted[[d_var]] <- pop_weighted[[d_var]] +
+    eco_pop_df[which(eco_pop_df$objectid == d_group), "weight"] * sim_here
+
+  the_yq <- t(apply(sim_here, 1, quantile, probs = c(0.025, 0.975, 0.5)))
+
+  matplot(x_here, sim_here,
+    type = "l",
+    xlab = d_var, ylab = "100 x (RR-1)",
+    col = "#00000010", lty = 1, xaxs = "i",
+    ylim = y_lim_here, xlim = x_lim_here
+  )
+  matlines(x_here, sim_global_here_yq,
+    lty = c(2, 2, 1), lwd = c(1, 1, 3), col = "red"
+  )
+  matlines(x_here, the_yq, lty = c(2, 2, 1), lwd = c(1, 1, 2), col = "green")
 }
+```
 
-if("sqrtPm" %in% names(simGlobal)) {
+```{r byRegionSetup1}
+d_var <- grep("temp", unique(gamma_info$var), value = TRUE)
+```
 
-theY =  100*(exp(simGlobal[["sqrtPm"]])-1)
-theX = predSeq[["sqrtPm"]]^2
-matplot(theX, theY , type='l',
-  col='#00000010', lty=1, xaxs='i',
-  xlim = c(0,600), ylim = c(-4, 12),
-  xlab = 'PM 2.5', ylab = '100 (RR-1)')
-theYq = t(apply(theY, 1, quantile, probs=c(0.025, 0.975, 0.5)))
-matlines(theX, theYq, lty=c(2,2,1), lwd=c(1,1,2), col='blue')
+```{r byRegion1, fig.cap=gsub("sqrt", "", d_var), fig.subcap = s_group, fig.height=4, fig.width=4, ref.label = 'byRegionTemplate', eval=(length(d_var)>0), out.width='0.23\\linewidth', fig.align='center'}
+```
+
+```{r byRegionSetup2}
+d_var <- grep("[pP]m$", unique(gamma_info$var), value = TRUE)
+```
+
+```{r byRegion2, fig.cap=gsub("sqrt","",d_var), fig.subcap = s_group, fig.height=4, fig.width=4, ref.label = 'byRegionTemplate', eval=(length(d_var)>0), out.width='0.23\\linewidth', fig.align='center'}
+```
+
+
+```{r globalSetup}
+s_var <- names(res$sample$sim)
+s_var_names <- c(temp_clean = "temperature", sqrt_pm = "PM2.5")[s_var]
+the_x_lim <- list(
+  temp_clean = c(4, 38),
+  sqrt_pm = c(0, 450)
+)
+for_global <- expand.grid(
+  var = s_var,
+  type = c("Common", "Pop Avg"), stringsAsFactors = FALSE
+)
+for_global$var_name <- s_var_names[for_global$var]
+for_global$subcap <- paste(for_global$var_name, for_global$type)
+
+for_y_lim <- lapply(
+  pop_weighted,
+  function(xx) apply(xx, 1, quantile, c(0.03, 0.97))
+)
+
+for (d in names(for_y_lim)) {
+  x_here <- res$sample$x$predSeq[[d]]
+  if (grepl("sqrt", d)) x_here <- x_here^2
+
+  for_y_lim[[d]] <- for_y_lim[[d]][
+    ,
+    x_here <= max(the_x_lim[[d]]) &
+      x_here >= min(the_x_lim[[d]])
+  ]
+}
+the_y_lim <- lapply(for_y_lim, function(xx) range(c(-2, xx)))
+```
+
+
+```{r globalRes, fig.cap='Common component', fig.subcap = for_global$subcap, out.width='0.48\\linewidth', fig.height=5, fig.width=5}
+par(mar = c(3, 3, 0, 0), bty = "l")
+
+for (d in seq_len(nrow(for_global))) {
+  d_var <- for_global[d, "var"]
+
+  if (for_global[d, "type"] == "Common") {
+    avg_here <- 100 * (exp(res$sample$sim[[d_var]]) - 1)
+  } else {
+    avg_here <- pop_weighted[[d_var]]
+  }
+
+
+  x_here <- res$sample$x$predSeq[[d_var]]
+  if (grepl("sqrt", d_var)) x_here <- x_here^2
+
+  the_yq <- t(apply(avg_here, 1, quantile, probs = c(0.025, 0.975, 0.5)))
+
+  y_lim_here <- the_y_lim[[d_var]]
+  x_lim_here <- the_x_lim[[d_var]]
+
+
+  matplot(x_here, avg_here,
+    type = "l",
+    xlab = s_var_names[d_var], ylab = "100 x (RR-1)",
+    col = "#00000010", lty = 1, xaxs = "i", yaxs = "i",
+    ylim = y_lim_here, xlim = x_lim_here
+  )
+
+  matlines(x_here, the_yq, lty = c(2, 2, 1), lwd = c(1, 1, 2), col = "red")
 }
 ```
 
-```{r check}
-res$extra$parameters$beta
-xx = c(rep(0,nrow(res$objects$gamma_info)), res$extra$fullParameters[
-  seq(nrow(res$objects$gamma_info), length(res$extra$fullParameters))
-  ])
-#xx = res$extra$fullParameters  
-xx[1:3]
-res$objects$gamma_info[which(res$objects$gamma_info$global)[1:12],]
 
 
-Dpar = 30
 
+```{r ecoRegionmap, fig.cap = 'Eco regions', fig.subcap = c('reginos','legend') ,fig.height=5, fig.width=5, out.width = '0.48\\linewidth'}
+mapmisc::map.new(india_eco_regions)
+terra::plot(india_eco_regions, add = TRUE, col = india_eco_regions$col)
+terra::text(terra::centroids(india_eco_regions), india_eco_regions$objectid)
 
-matplot(res$objects$tmb_data$ATp[1,], 
-  res$objects$tmb_data$ATp[Dpar,],
-  pch='.', col='red'
-  )
-
-Sx = seq(-0.01, 0.01, len=201) + xx[Dpar]
-parDf = data.frame(xx)[,rep(1, length(Sx))]
-parDf[Dpar,] = Sx
-tmb_data_no_q = res$objects$tmb_data
-tmb_data_no_q$Qdiag = rep(1, 0)
-
-Sy = mapply(jointLogDens, parameters = as.list(parDf), 
-  MoreArgs = list(data=
-    tmb_data_no_q,
-    #res$objects$tmb_data, 
-    config=res$objects$config))
-plot(Sx, Sy, type='o')
-abline(v= res$extra$fullParameters[Dpar])
+mapmisc::map.new(india_eco_regions)
+mapmisc::legendBreaks(
+  "left",
+  col = rev(india_eco_regions$col),
+  legend = rev(india_eco_regions$id_name),
+  cex = 0.7, bty = "n", width = Inf
+)
 ```
 
 
-
-
-
-```{r checkThree, eval=FALSE, include=FALSE}
-res = readRDS("res.rds")
-library('hpolcc')
-res$config$verbose=FALSE
-
-adFun = getAdFun(res$parameters_and_gamma, res$tmb_data, res$config)
-adFunInner = getAdFun(res$gamma_start, res$tmb_data, res$config)
-
-Dpar = 1
-Sx = seq(-0.1, 0.1, len=9) + res$gamma_start[Dpar]
-SxD = Sx[-1] - diff(Sx)/2
-parDf = data.frame(res$gamma_start)[,rep(1, length(Sx))]
-parDf[Dpar,] = Sx
-
-dens1 = mapply(
-  jointLogDens,
-  parameters = as.list(parDf),
-  MoreArgs = list(data=res$tmb_data, config=res$config, adFun = adFunInner),
-  SIMPLIFY=TRUE
-  )
-dens2 = mapply(
-  jointLogDensDense,
-  parameters = as.list(parDf),
-  MoreArgs = list(data=res$tmb_data, config=res$config, adFun = adFunInner),
-  SIMPLIFY=TRUE
-  )
-grad1 = do.call(rbind,mapply(
-  hpolcc::grad,
-  parameters = as.list(parDf),
-  MoreArgs = list(data=res$tmb_data, config=res$config, adFun = adFunInner),
-  SIMPLIFY=FALSE
-  ))
-grad2 = do.call(rbind,mapply(
-  hpolcc::gradDense,
-  parameters = as.list(parDf),
-  MoreArgs = list(data=res$tmb_data, config=res$config),
-  SIMPLIFY=FALSE
-  ))
-h1 = mapply(
-  hpolcc::hessian,
-  parameters = as.list(parDf),
-  MoreArgs = list(data=res$tmb_data, config=res$config, adFun = adFunInner),
-  SIMPLIFY=FALSE)
-
-matplot(Sx, cbind(dens1, dens2), type='l', lwd=c(3,1))
-
-matplot(Sx, cbind(grad1[,Dpar], grad2[,Dpar]), type='l', lwd=c(3,1))
-points(SxD, diff(dens1)/diff(Sx), col='green')
-
-sort(sample(which(h1[[1]][Dpar,] != 0), 6))
-Dpar2 = 42
-matplot(Sx, unlist(lapply(h1, function(xx) xx[Dpar, Dpar2])), type='l')
-points(SxD, diff(grad1[,Dpar2])/diff(Sx), col='green')
-
-
-system.time(resM <- loglik(res$parameters, res$gamma_start, res$tmb_data, 
-  res$config, adFun, res$control, deriv=1))
-
-
-Dpar = 1
-Sx = seq(-0.1, 0.1, len=9) + res$parameters[Dpar]
-SxD = Sx[-1] - diff(Sx)/2
-parDf = data.frame(res$parameters)[,rep(1, length(Sx))]
-parDf[Dpar,] = Sx
-
-allLik = mapply(
-  loglik,
-  parameters = as.list(parDf),
-  MoreArgs = list(gamma_start = resM$solution, data=res$tmb_data, config=res$config, control=res$control, deriv=0),
-  SIMPLIFY=FALSE
-  )
-
-Sdet = unlist(lapply(allLik, function(xx) Matrix::determinant(xx$cholHessian, sqrt=FALSE)$mod/2))
-plot(Sx, Sdet)
-
-DsDet = diff(Sdet)/diff(Sx)
-
-plot(SxD, DsDet, type='o')
-abline(h=resM$deriv[Dpar,'dDet'],col='grey',lwd=4)
-abline(v=resM$parameters[Dpar])
-
-
-
-Sdens = unlist(lapply(allLik, '[[', 'fval'))
-Ddens = diff(Sdens)/diff(Sx)
-plot(SxD, Ddens,type='o')
-abline(v=resM$parameters[Dpar])
-abline(h=resM$deriv[Dpar,'gradTheta'],col='grey',lwd=4)
-
-
-Sl = unlist(lapply(allLik, '[[', 'minusLogLik'))
-Dl = diff(Sl)/diff(Sx)
-plot(SxD, Dl, type='o')
-abline(v=resM$parameters[Dpar])
-abline(h=resM$deriv[Dpar,'dL'],col='grey',lwd=4)
-
-
-
+```{r ecoTable, results='asis', include=FALSE}
+knitr::kable(
+  mapmisc::legendTable(data.frame(
+    label = india_eco_regions$id_name,
+    col = india_eco_regions$col
+  ), type = "latex"),
+  format = "latex", escape = FALSE,
+  align = c("c", "l"),
+  col.names = c("", "Eco region"),
+  caption = "Eco-regions used in the analysis"
+) |>
+  kableExtra::kable_styling(
+    latex_options = c("hold_position", "striped"),
+    full_width = FALSE,
+    font_size = 9
+  ) |>
+  kableExtra::column_spec(1, latex_column_spec = "p{0.05\\\\linewidth}") |>
+  kableExtra::column_spec(2, latex_column_spec = "p{0.7\\\\linewidth}")
 ```

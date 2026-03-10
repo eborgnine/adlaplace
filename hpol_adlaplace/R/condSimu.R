@@ -1,132 +1,133 @@
+get_terms_pred <- function(terms) {
+  svar <- unlist(lapply(terms, "[[", "var"))
+  smodel <- unlist(lapply(terms, "[[", "model"))
 
-  getTermsPred = function(terms) {
-  Svar = unlist(lapply(terms, '[[', "var"))
-  Smodel = unlist(lapply(terms, '[[', "model"))
+  sref1 <- lapply(terms, "[[", "ref_value")
+  sref <- rep(NA_real_, length(svar))
+  sref[unlist(lapply(sref1, length)) > 0] <- unlist(sref1)
 
-  Sref1 = lapply(terms, '[[', "ref_value")
-  Sref = rep(NA, length(Svar))
-  Sref[unlist(lapply(Sref1, length))>0] = unlist(Sref1)
+  is_hiwp <- which(smodel %in% c("iwp", "hiwp"))
+  sref <- sref[is_hiwp]
+  svar <- svar[is_hiwp]
+  srange <- lapply(terms[is_hiwp], "[[", "range")
+  pred_seq <- lapply(srange, function(xx) seq(min(xx), max(xx), len = 100))
 
-  isHiwp = which(Smodel %in% c('iwp', 'hiwp'))
-  Sref = Sref[isHiwp]
-  Svar = Svar[isHiwp]
-  Srange = lapply(terms[isHiwp], '[[', 'range')
-  predSeq = lapply(Srange, function(xx) seq(min(xx), max(xx), len=100))
+  sgroup <- lapply(terms[is_hiwp], "[[", "group_var")
 
-  Sgroup = lapply(terms[isHiwp], '[[', 'group_var')
-
-  SrefIndex = rep(NA, length(predSeq))
-  names(predSeq) =names(SrefIndex) =names(Sgroup) = names(Sref) = Svar
-  for(D in Svar) {
-    SrefIndex[D] = which.min(abs(Sref - predSeq[[D]]))
+  sref_index <- rep(NA_integer_, length(pred_seq))
+  names(pred_seq) <- names(sref_index) <- names(sgroup) <- names(sref) <- svar
+  for (d in svar) {
+    sref_index[d] <- which.min(abs(sref[d] - pred_seq[[d]]))
   }
 
-  list(predSeq = predSeq, Sgroup = Sgroup, Sref = Sref, SrefIndex = SrefIndex)
-  }
-
-condSimGamma = function(fit, Nsim) {
-
-  halfH = fit$extra$halfHinv
-  # note tcrossprod(halfH) = Hinv
-  Ngamma = nrow(halfH)
-
-  gammaHat = fit$opt$solution
-
-  simInd = matrix(rnorm(Nsim * Ngamma), Ngamma, Nsim)
-
-  simGamma1 = as.matrix(halfH %*% simInd)
-
-  simGamma = simGamma1 + matrix(gammaHat, length(gammaHat), ncol(simGamma1))
-  rownames(simGamma) = names(gammaHat)
-
-  simGamma
+  list(
+    pred_seq = pred_seq,
+    sgroup = sgroup,
+    sref = sref,
+    sref_index = sref_index
+  )
 }
 
+cond_sim_gamma <- function(fit, n) {
+  half_h <- fit$extra$halfHinv
+  # note tcrossprod(half_h) = Hinv
+  ngamma <- nrow(half_h)
 
-#' @export
-condSim = function(fit, term, newx, Nsim=500) {
-  termsHere =   grep(term, unlist(lapply(fit$terms, function(xx)
-    xx$var)))
-  modelHere = unlist(lapply(fit$terms[termsHere], function(xx)
-    xx$model))
-  if(any(modelHere %in% c('hiwp','iwp'))) {
-    result = condSimIwp(fit, term, newx, Nsim)
-  }
-  if(any(modelHere %in% c('iid'))) {
-    result = condSimIid(fit, term, Nsim)
-  }
+  gamma_hat <- fit$opt$solution
+  sim_ind <- matrix(rnorm(n * ngamma), ngamma, n)
+  sim_gamma_1 <- as.matrix(half_h %*% sim_ind)
 
-  result  
-  
+  sim_gamma <- sim_gamma_1 + matrix(gamma_hat, length(gamma_hat), ncol(sim_gamma_1))
+  rownames(sim_gamma) <- names(gamma_hat)
+
+  sim_gamma
 }
+
+get_gamma_sim <- function(fit, term, n) {
+  gamma_sim <- cond_sim_gamma(fit, n)
+  gamma_here <- grep(term, fit$gamma_info$var)
+  gamma_sim[gamma_here, , drop = FALSE]
+}
+
 #' @export
-condSimIwp = function(fit, terms, 
-  parameters_info, Nsim, newx) {
- 
-  # fit needs full_parameters, inner (all of it), 
+cond_sim <- function(fit, term, newx, n = 500) {
+  terms_here <- grep(term, unlist(lapply(fit$terms, function(xx) xx$var)))
+  model_here <- unlist(lapply(fit$terms[terms_here], function(xx) xx$model))
 
-  beta = fit$fullParameters[seq(1, len=nrow(parameters_info$beta))]
-
-  simGamma = condSimGamma(fit, Nsim)
-  rownames(simGamma) = parameters_info$gamma$name
-
-  termsPred = getTermsPred(terms)
-
-  if(!missing(newx)) {
-    termsPred$predDf = newx
+  if (any(model_here %in% c("hiwp", "iwp"))) {
+    return(cond_sim_iwp(fit, fit$terms, fit$parameters_info, n, newx))
+  }
+  if (any(model_here %in% c("iid"))) {
+    return(cond_sim_iid(fit, term, n))
   }
 
-  newXA = mapply(
-#    hpolcc:::getNewXA,
+  stop("No supported model found for term.")
+}
+
+#' @export
+cond_sim_iwp <- function(
+  fit,
+  newx,
+  n
+) {
+  terms <- fit$objects$terms
+  parameters_info <- fit$objects$parameters_info
+  fit <- fit$extra
+
+  beta <- fit$fullParameters[seq(1, len = nrow(parameters_info$beta))]
+
+  sim_gamma <- cond_sim_gamma(fit, n)
+  rownames(sim_gamma) <- parameters_info$gamma$name
+
+  terms_pred <- get_terms_pred(terms)
+
+  if (!missing(newx)) {
+    terms_pred$predDf <- newx
+  }
+
+  new_xa <- mapply(
     getNewXA,
-    df= termsPred$predDf,
-    MoreArgs = list(
-      terms = terms
-    ),
-    SIMPLIFY=FALSE
+    df = terms_pred$predDf,
+    MoreArgs = list(terms = terms),
+    SIMPLIFY = FALSE
   )
 
-  simF = mapply(
-    function(XA, gamma, beta) {
-      namesBothBeta = intersect(names(beta), colnames(XA$X))    
-      namesBothGamma = intersect(rownames(gamma), colnames(XA$A))    
-      fixedPart = 
-        XA$X[,namesBothBeta, drop=FALSE] %*% 
-        beta[namesBothBeta]
-  
-      randomPart = 
-        XA$A[,namesBothGamma, drop=FALSE] %*% 
-        gamma[namesBothGamma,,drop=FALSE]
+  sim_f <- mapply(
+    function(xa, gamma, beta) {
+      names_both_beta <- intersect(names(beta), colnames(xa$X))
+      names_both_gamma <- intersect(rownames(gamma), colnames(xa$A))
+      fixed_part <-
+        xa$X[, names_both_beta, drop = FALSE] %*%
+        beta[names_both_beta]
 
-      randomPart + fixedPart[,rep(1, ncol(randomPart)), drop=FALSE]
+      random_part <-
+        xa$A[, names_both_gamma, drop = FALSE] %*%
+        gamma[names_both_gamma, , drop = FALSE]
+
+      random_part + fixed_part[, rep(1, ncol(random_part)), drop = FALSE]
     },
-    XA = newXA,
-    MoreArgs = list(beta = beta, gamma = simGamma)
+    xa = new_xa,
+    MoreArgs = list(beta = beta, gamma = sim_gamma)
   )
 
-  list(sim=simF, x = termsPred, gamma=simGamma, XA = newXA)
-
- }
-
-condSimIid = function(fit, term, Nsim) {
-  termsHere =   grep(term, unlist(lapply(fit$terms, function(xx)
-    xx$var)))
-  modelHere = unlist(lapply(fit$terms[termsHere], function(xx)
-    xx$model))
-  
-  if (!(all(modelHere == 'iid'))) {
-    warning("model should be iid to use condSimIid")
-  }
-  gammaHere = grep(term, fit$gamma_info$var)
-  Sx1 = colnames(fit$obj$env$data$A)[gammaHere]
-  Sx = gsub(paste0("(factor[(])?", term, "[)]?"), "", Sx1)
-
-  gammaSim = getGammaSim(fit, term, Nsim)
-  result = list(x = Sx,
-                y = gammaSim,
-                fixed_mean = 0)
-  result
+  list(sim = sim_f, x = terms_pred, gamma = sim_gamma, XA = new_xa)
 }
 
+cond_sim_iid <- function(fit, term, n) {
+  terms_here <- grep(term, unlist(lapply(fit$terms, function(xx) xx$var)))
+  model_here <- unlist(lapply(fit$terms[terms_here], function(xx) xx$model))
 
+  if (!all(model_here == "iid")) {
+    warning("model should be iid to use cond_sim_iid")
+  }
+  gamma_here <- grep(term, fit$gamma_info$var)
+  sx1 <- colnames(fit$obj$env$data$A)[gamma_here]
+  sx <- gsub(paste0("(factor[(])?", term, "[)]?"), "", sx1)
 
+  gamma_sim <- get_gamma_sim(fit, term, n)
+  list(
+    x = sx,
+    y = gamma_sim,
+    fixed_mean = 0
+  )
+}
