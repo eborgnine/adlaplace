@@ -1,0 +1,7 @@
+[
+  {
+    "install": "apt-get update -qq && apt-get install -y -qq r-base r-base-dev libcurl4-openssl-dev libssl-dev libxml2-dev libfontconfig1-dev libharfbuzz-dev libfribidi-dev libfreetype6-dev libpng-dev libtiff5-dev libjpeg-dev libcppad-dev libeigen3-dev r-cran-rcpp r-cran-roxygen2 r-cran-matrix r-cran-knitr r-cran-rmarkdown r-cran-rcppeigen > /dev/null 2>&1 && Rscript -e \"if (!require('trustOptim', quietly=TRUE)) install.packages('trustOptim', repos='https://cloud.r-project.org', quiet=TRUE)\" && Rscript -e \"install.packages('xfun', repos='https://cloud.r-project.org', quiet=TRUE)\" && Rscript -e \"remove.packages('knitr'); install.packages('knitr', repos='https://cloud.r-project.org', quiet=TRUE)\" && make clean && make",
+    "start": "R CMD INSTALL adlaplace_0.1.tar.gz && Rscript -e \"library(adlaplace); cat('\\n==> adlaplace package loaded successfully.\\n')\"",
+    "resourceSize": "medium"
+  }
+]
