@@ -11,7 +11,7 @@ NEWCITEPROC=--citeproc
 OLDCITEPROC=--filter=pandoc-citeproc
 CITEPROC=$(NEWCITEPROC) 
 
-all:  indiaHpolCcD.pdf 
+all:  indiaHpolCc.pdf 
 
 
 

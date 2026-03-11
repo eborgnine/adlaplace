@@ -47,36 +47,60 @@ build_pred_df <- function(terms_pred) {
   pred_df
 }
 
-get_var_weights <- function(weights, d_var, d_groups) {
-  if (is.null(weights)) {
-    var_weights <- rep(1 / length(d_groups), length(d_groups))
-    names(var_weights) <- d_groups
-    return(var_weights)
+
+get_group_effect <- function(
+  a_here,
+  sim_global_here,
+  gamma_info_here,
+  sim_gamma,
+  d_var,
+  d_group,
+  probs = c(0.025, 0.5, 0.975)
+) {
+  gamma_here <- gamma_info_here[
+    which(gamma_info_here$group == d_group), ,
+    drop = FALSE
+  ]
+  a_here_new_names <- gsub(
+    "_GLOBAL_",
+    paste0("_", d_group, "_"),
+    colnames(a_here)
+  )
+  a_here_new_names <- gsub(
+    "_fpoly_",
+    paste0("_hrpoly_", d_group, "_"),
+    a_here_new_names
+  )
+  matched_cols <- match(gamma_here$name, a_here_new_names)
+  matched_rows <- gamma_here$gamma_id + 1L
+
+  if (any(is.na(matched_cols))) {
+    warning(
+      "missing group-level design columns for ",
+      d_var,
+      " / ",
+      d_group
+    )
+    return(NULL)
   }
 
-  if (is.list(weights)) {
-    var_weights <- weights[[d_var]]
+  sim_here_r <- a_here[, matched_cols, drop = FALSE] %*%
+    sim_gamma[matched_rows, , drop = FALSE]
+  as.matrix(exp(sim_here_r + sim_global_here))
+}
+get_one_envelope <- function(x, probs) {
+  if (requireNamespace("GET", quietly = TRUE)) {
+    result <- GET::central_region(
+      GET::create_curve_set(
+        list(obs = x)
+      ),
+      probs = probs
+    )
+    result <- result[, c("lo", "central", "hi")]
   } else {
-    var_weights <- weights
+    result <- NULL
   }
-
-  if (is.null(var_weights)) {
-    stop("Missing weights for variable ", d_var)
-  }
-
-  if (is.null(names(var_weights))) {
-    if (length(var_weights) != length(d_groups)) {
-      stop("Unnamed weights for ", d_var, " must match the number of groups")
-    }
-    names(var_weights) <- d_groups
-  }
-
-  var_weights <- var_weights[d_groups]
-  if (any(is.na(var_weights))) {
-    stop("Weights for ", d_var, " must be named for all groups")
-  }
-
-  var_weights / sum(var_weights)
+  result
 }
 
 get_group_quantiles <- function(
@@ -84,90 +108,93 @@ get_group_quantiles <- function(
   new_xa,
   sim_gamma,
   gamma_info,
-  weights = NULL
+  weights = NULL,
+  probs = c(0.025, 0.5, 0.975),
+  probs_envelope = c(0.1, 0.9)
 ) {
-  group_quantiles <- vector("list", length(sim_f))
-  weighted_average <- vector("list", length(sim_f))
   weighted_quantiles <- vector("list", length(sim_f))
-  names(group_quantiles) <- names(sim_f)
-  names(weighted_average) <- names(sim_f)
   names(weighted_quantiles) <- names(sim_f)
+
+  group_envelope <- weighted_envelope <-
+    group_quantiles <-
+    weighted_average <- weighted_quantiles
+
 
   for (d_var in names(sim_f)) {
     a_here <- new_xa[[d_var]]$A
     sim_global_here <- sim_f[[d_var]]
     gamma_info_here <- gamma_info[gamma_info$var == d_var, , drop = FALSE]
-    d_groups <- setdiff(unique(gamma_info_here$group), "GLOBAL")
+    d_groups <- setdiff(unique(gamma_info_here$group), c(NA, "GLOBAL"))
+
+    if(is.list(weights)) {
+      weights_here = weights[[d_var]]
+    } else {
+      weights_here = weights
+    }
+    if(is.null(weights_here)) {
+      weights_here = setNames(rep(1/length(d_groups), length(d_groups)),
+        d_groups
+      )
+    } else {
+      if(!all(d_groups %in% names(weights_here))) {
+        warning(
+          "Not all groups have weights, or missing names, giving weight 0."
+        )
+        weights_here[setdiff(d_groups, names(weights_here))] <- 0
+      }
+    }
 
     if (!length(d_groups) || !ncol(a_here)) {
-      next
+      warning("size mismatch groups and A")
     }
 
-    sim_by_group <- lapply(d_groups, function(d_group) {
-      gamma_here <- gamma_info_here[
-        gamma_info_here$group == d_group,
-        ,
-        drop = FALSE
-      ]
-      a_here_new_names <- gsub(
-        "_GLOBAL_",
-        paste0("_", d_group, "_"),
-        colnames(a_here)
-      )
-      a_here_new_names <- gsub(
-        "_fpoly_",
-        paste0("_hrpoly_", d_group, "_"),
-        a_here_new_names
-      )
-      matched_cols <- match(gamma_here$name, a_here_new_names)
-      matched_rows <- gamma_here$gamma_id + 1L
-
-      if (any(is.na(matched_cols))) {
-        warning(
-          "missing group-level design columns for ",
-          d_var,
-          " / ",
-          d_group
-        )
-        return(NULL)
-      }
-
-      sim_here_r <- a_here[, matched_cols, drop = FALSE] %*%
-        sim_gamma[matched_rows, , drop = FALSE]
-      sim_here_r + sim_global_here
-    })
+    sim_by_group <- mapply(
+      get_group_effect,
+      d_group = d_groups,
+      MoreArgs = list(
+        a_here = a_here,
+        sim_global_here = sim_global_here,
+        gamma_info_here = gamma_info_here,
+        sim_gamma = sim_gamma,
+        d_var = d_var,
+        probs = probs
+      ),
+      SIMPLIFY = FALSE
+    )
     names(sim_by_group) <- d_groups
-    sim_by_group <- Filter(Negate(is.null), sim_by_group)
-    if (!length(sim_by_group)) {
-      next
-    }
 
-    d_groups_present <- names(sim_by_group)
-    sim_effects <- lapply(sim_by_group, function(sim_here) {
-      100 * (exp(sim_here) - 1)
+    group_quantiles[[d_var]] <- lapply(sim_by_group, function(sim_here) {
+      t(apply(sim_here, 1, quantile, probs = probs))
     })
 
-    group_quantiles[[d_var]] <- lapply(sim_effects, function(sim_here) {
-      t(apply(sim_here, 1, quantile, probs = c(0.025, 0.5, 0.975)))
-    })
+    group_envelope[[d_var]] <- lapply(sim_by_group,
+      get_one_envelope, probs = probs_envelope
+    )
 
-    var_weights <- get_var_weights(weights, d_var, d_groups_present)
+    var_weights <- weights_here[d_groups]
     weighted_average[[d_var]] <- Reduce(
       `+`,
-      Map(function(sim_here, wt) sim_here * wt, sim_effects, var_weights)
+      Map(function(sim_here, wt) sim_here * wt, sim_by_group, var_weights)
     )
-    weighted_quantiles[[d_var]] <- t(apply(
+
+    weighted_envelope[[d_var]] <- get_one_envelope(
       weighted_average[[d_var]],
-      1,
-      quantile,
-      probs = c(0.025, 0.5, 0.975)
-    ))
+      prob = probs_envelope
+    )
+    weighted_quantiles[[d_var]] <- t(
+      apply(weighted_average[[d_var]], 1, quantile, probs = probs)
+    )
   }
 
   list(
-    group_quantiles = group_quantiles,
-    weighted_average = weighted_average,
-    weighted_quantiles = weighted_quantiles
+    quantiles = list(
+      group = group_quantiles,
+      weighted = weighted_quantiles
+    ),
+    envelope = list(
+      group = group_envelope,
+      weighted = weighted_envelope
+    )
   )
 }
 
@@ -211,12 +238,41 @@ cond_sim <- function(fit, term, newx, n = 500) {
   stop("No supported model found for term.")
 }
 
+#' Conditional simulation for IWP/HIWP terms
+#'
+#' @description
+#' Draw conditional simulations of the Gaussian process model components,
+#' then summarize the
+#' resulting linear predictors and group-level effect curves.
+#'
+#' @param fit A fitted `hnlm()` result object.
+#' @param newx Optional list of prediction data frames, one per variable.
+#'   When omitted, a default prediction grid is built from the term ranges.
+#' @param n Number of conditional draws to simulate.
+#' @param weights Optional weights used to average group-level effects.
+#'   Supply either a named numeric vector keyed by group or a named list of
+#'   such vectors keyed by variable. If `NULL`, equal weights are used.
+#' @param probs Numeric vector of probabilities used when computing
+#'   quantiles.
+#'
+#' @return A list with components:
+#' \describe{
+#'   \item{`sim`}{Simulated linear predictors for each variable.}
+#'   \item{`quantiles`}{Pointwise quantiles of `sim` using `probs`.}
+#'   \item{`group_quantiles`}{Pointwise quantiles of transformed
+#'   group-level effects for each variable and group.}
+#'   \item{`weighted_quantiles`}{Pointwise quantiles of the weighted
+#'   average group-level effects (on the exponential scale) for each variable.}
+#' }
+#'
 #' @export
 cond_sim_iwp <- function(
   fit,
   newx,
-  n,
-  weights = NULL
+  n = 500,
+  weights = NULL,
+  probs = c(0.025, 0.5, 0.975),
+  probs_envelope = c(0.1, 0.9)
 ) {
   terms <- fit$objects$terms
   parameters_info <- fit$objects$parameters_info
@@ -225,15 +281,15 @@ cond_sim_iwp <- function(
 
   beta <- fit$fullParameters[seq(1, len = nrow(parameters_info$beta))]
 
-  sim_gamma <- cond_sim_gamma(fit, n)
+  sim_gamma <- hpolcc:::cond_sim_gamma(fit, n)
   rownames(sim_gamma) <- parameters_info$gamma$name
 
-  terms_pred <- get_terms_pred(terms)
+  terms_pred <- hpolcc:::get_terms_pred(terms)
 
   if (!missing(newx)) {
     terms_pred$pred_df <- newx
   } else {
-    terms_pred$pred_df <- build_pred_df(terms_pred)
+    terms_pred$pred_df <- hpolcc:::build_pred_df(terms_pred)
   }
 
   new_xa <- mapply(
@@ -255,29 +311,37 @@ cond_sim_iwp <- function(
         xa$A[, names_both_gamma, drop = FALSE] %*%
         gamma[names_both_gamma, , drop = FALSE]
 
-      random_part + fixed_part[, rep(1, ncol(random_part)), drop = FALSE]
+      as.matrix(
+        random_part + fixed_part[, rep(1, ncol(random_part)),
+          drop = FALSE
+        ]
+      )
     },
     xa = new_xa,
-    MoreArgs = list(beta = beta, gamma = sim_gamma)
+    MoreArgs = list(beta = beta, gamma = sim_gamma),
+    SIMPLIFY = FALSE
   )
 
-  group_summary <- get_group_quantiles(
+  result <- hpolcc:::get_group_quantiles(
     sim_f = sim_f,
     new_xa = new_xa,
     sim_gamma = sim_gamma,
     gamma_info = gamma_info,
-    weights = weights
+    weights = weights,
+    probs = probs,
+    probs_envelope = probs_envelope
   )
 
-  list(
-    sim = sim_f,
-    x = terms_pred,
-    gamma = sim_gamma,
-    XA = new_xa,
-    group_quantiles = group_summary$group_quantiles,
-    weighted_average = group_summary$weighted_average,
-    weighted_quantiles = group_summary$weighted_quantiles
+  result$x <- lapply(terms_pred$pred_df, "[[", 1)
+  result$sim <- lapply(sim_f, exp)
+  result$quantiles$common <- lapply(result$sim, function(sim_here) {
+    t(apply(sim_here, 1, quantile, probs = probs))
+  })
+  result$envelope$common <- lapply(result$sim,
+    get_one_envelope, probs = probs_envelope
   )
+
+  result
 }
 
 cond_sim_iid <- function(fit, term, n) {

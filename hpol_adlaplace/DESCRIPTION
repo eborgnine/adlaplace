@@ -10,6 +10,7 @@ License: GPL-3
 Depends: R (>= 4.1.0)
 LinkingTo: Rcpp, adlaplace, RcppEigen, trustOptim
 Imports: Rcpp, Matrix, data.table, trustOptim
+Suggests: GET
 Encoding: UTF-8
 RoxygenNote: 7.3.3
 Roxygen: list(markdown = TRUE)
