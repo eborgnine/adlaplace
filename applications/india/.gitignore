@@ -6,3 +6,4 @@ figure
 .RData
 todebug.Rdata
 indiaHpolCc.tex
+*.fls
