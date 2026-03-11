@@ -185,7 +185,7 @@ names(pop_weighted) <- unique((gamma_info$var))
 ```
 
 
-```{r byRegionTemplate, eval=FALSE, include=FALSE}
+```{r byRegionTemplateOld, eval=FALSE, include=FALSE}
 x_here <- res$sample$x$predSeq[[d_var]]
 
 if (grepl("sqrt", d_var)) x_here <- x_here^2

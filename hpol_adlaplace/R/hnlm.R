@@ -112,8 +112,13 @@ hnlm <- function(
   }
   # setup of the design matrices and other parameters
   # terms carries all the information throughout
-  terms1 <- hpolcc:::collectTerms(formula)
-  terms <- lapply(terms1, hpolcc:::getExtra, data = data, cc_matrix = cc_matrix)
+  terms1 <- hpolcc:::collect_terms(formula)
+  terms <- lapply(
+    terms1,
+    hpolcc:::get_extra,
+    data = data,
+    cc_matrix = cc_matrix
+  )
   for (term_idx in seq_along(terms)) {
     terms[[term_idx]]$id <- term_idx
   }
@@ -153,12 +158,12 @@ hnlm <- function(
 
   a_random <- parallel::mclapply(
     terms[c(is_hrpoly, is_random)],
-    hpolcc:::getDesign,
+    hpolcc:::get_design,
     data = data,
     mc.cores = config$num_threads
   )
 
-  qs <- lapply(terms[c(is_hrpoly, is_random)], hpolcc:::getPrecision)
+  qs <- lapply(terms[c(is_hrpoly, is_random)], hpolcc:::get_precision)
   names(qs) <- names(a_random) <- paste(
     unlist(lapply(terms[is_random], "[[", "var")),
     unlist(lapply(terms[is_random], "[[", "model")),
@@ -198,7 +203,7 @@ hnlm <- function(
 
   gamma_setup <- lapply(
     terms[c(is_boundary, is_hrpoly, is_random)],
-    hpolcc:::getGammaSetup
+    hpolcc:::get_gamma_setup
   )
   gamma_info <- do.call(rbind, gamma_setup)
   gamma_info$global <- as.logical(
@@ -234,7 +239,7 @@ hnlm <- function(
   # theta setup
   theta_setup <- lapply(
     terms[c(is_hrpoly, is_random)],
-    hpolcc:::getThetaSetup,
+    hpolcc:::get_theta_setup,
     theta_info = list()
   )
 
@@ -425,7 +430,7 @@ hnlm <- function(
     deriv = 1
   ))
 
-  result$parameters <- try(formatParameters(
+  result$parameters <- try(hpolcc:::format_parameters(
     x = result$extra$fullParameters,
     result$objects$parameters_info
   ))
