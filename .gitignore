@@ -60,3 +60,6 @@ applications/india/data/gpw/population/pop/gpw_v4_population_density_rev11_2020_
 *.fls
 *.fdb_latexmk
 applications/india/indiaHpolCc.tex
+*.tmd
+applications/india/indiaHpolCc.tex
+*.fls
