@@ -343,3 +343,4 @@ knitr::kable(
   kableExtra::column_spec(1, latex_column_spec = "p{0.05\\\\linewidth}") |>
   kableExtra::column_spec(2, latex_column_spec = "p{0.7\\\\linewidth}")
 ```
+
