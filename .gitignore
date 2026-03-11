@@ -52,3 +52,11 @@ adlaplace.zip
 applications/india/indiaHpolCcD.bcf
 applications/india/data/gpw/population/pop/gpw_v4_population_density_rev11_2020_5m.tif
 *.tif
+*.fdb_latexmk
+*.bbl-SAVE-ERROR
+*.bcf-SAVE-ERROR
+*.fdb_latexmk
+*.bcf
+*.fls
+*.fdb_latexmk
+applications/india/indiaHpolCc.tex
