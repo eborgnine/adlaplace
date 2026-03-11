@@ -3,6 +3,7 @@ cache
 figure
 *.RData
 *.fdb_latexmk
+*latexmk
 .RData
 todebug.Rdata
 indiaHpolCc.tex
