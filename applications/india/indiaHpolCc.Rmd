@@ -324,8 +324,6 @@ mapmisc::legendBreaks(
 ```
 
 
-
-
 ```{r ecoTable, results='asis', include=FALSE}
 knitr::kable(
   mapmisc::legendTable(data.frame(
