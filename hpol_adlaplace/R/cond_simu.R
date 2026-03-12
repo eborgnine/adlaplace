@@ -303,9 +303,13 @@ cond_sim_iwp <- function(
     function(xa, gamma, beta) {
       names_both_beta <- intersect(names(beta), colnames(xa$X))
       names_both_gamma <- intersect(rownames(gamma), colnames(xa$A))
+      if(length(names_both_beta)) {
       fixed_part <-
         xa$X[, names_both_beta, drop = FALSE] %*%
         beta[names_both_beta]
+      } else {
+        fixed_part = matrix(0, nrow(xa$X), 1)
+      }
 
       random_part <-
         xa$A[, names_both_gamma, drop = FALSE] %*%
