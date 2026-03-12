@@ -156,11 +156,11 @@ hnlm <- function(
   }, data = data)
   names(x_fpoly) <- unlist(lapply(terms[is_fpoly], "[[", "var"))
 
-  a_random <- parallel::mclapply(
+  a_random <- #parallel::mc
+  lapply(
     terms[c(is_hrpoly, is_random)],
     hpolcc:::get_design,
-    data = data,
-    mc.cores = config$num_threads
+    data = data#, mc.cores = config$num_threads
   )
 
   qs <- lapply(terms[c(is_hrpoly, is_random)], hpolcc:::get_precision)

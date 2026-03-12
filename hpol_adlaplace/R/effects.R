@@ -177,20 +177,25 @@ hiwpDesign <- function(term, data){
   id_split <- split(1:nrow(data), 
                     factor(data[[term$group_var]], levels = term$groups), 
                     drop = F)
-  if(term$include_global) id_split <- c(list(GLOBAL=1:nrow(data)), id_split)
+  if(term$include_global) {
+    id_split <- c(list(GLOBAL=1:nrow(data)), id_split)
+  }
   
     # fixed
     A0split = mapply(function(AA, xx) {
-      res = as(AA[xx, ], "TsparseMatrix")
+      res = as(AA[xx, ,drop=FALSE], "TsparseMatrix")
       cbind(i=xx[1+res@i], j=res@j+1, x=res@x)
     }, 
     xx = id_split, MoreArgs = list(AA=A0), SIMPLIFY=FALSE)
+    
     A0combine = cbind(
       as.data.frame(do.call(rbind, A0split)), 
       split = rep(seq(0,len=length(A0split)), unlist(lapply(A0split, nrow)))
     )
+    
     A0combine[,'j2'] = A0combine[,'j'] + ncol(A0) * (A0combine[,'split'])
-    Afinal = Matrix::sparseMatrix(i=A0combine$i, j=A0combine$j2, x=A0combine$x,
+
+        Afinal = Matrix::sparseMatrix(i=A0combine$i, j=A0combine$j2, x=A0combine$x,
       dims = c(nrow(data), ncol(A0)*length(id_split)),
       dimnames = list(rownames(data), 
         paste(term$var, term$model, 

@@ -199,11 +199,11 @@ get_group_quantiles <- function(
 }
 
 cond_sim_gamma <- function(fit, n) {
-  half_h <- fit$extra$halfHinv
+  half_h <- fit$extra$deriv$extra$halfH
   # note tcrossprod(half_h) = Hinv
   ngamma <- nrow(half_h)
 
-  gamma_hat <- fit$opt$solution
+  gamma_hat <- fit$extra$inner$solution
   sim_ind <- matrix(rnorm(n * ngamma), ngamma, n)
   sim_gamma_1 <- as.matrix(half_h %*% sim_ind)
 
@@ -277,9 +277,9 @@ cond_sim_iwp <- function(
   terms <- fit$objects$terms
   parameters_info <- fit$objects$parameters_info
   gamma_info <- fit$objects$gamma_info
-  fit <- fit$extra
 
-  beta <- fit$fullParameters[seq(1, len = nrow(parameters_info$beta))]
+  
+  beta <- fit$extra$fullParameters[seq(1, len = nrow(parameters_info$beta))]
 
   sim_gamma <- hpolcc:::cond_sim_gamma(fit, n)
   rownames(sim_gamma) <- parameters_info$gamma$name
