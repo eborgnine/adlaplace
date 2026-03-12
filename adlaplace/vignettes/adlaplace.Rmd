@@ -26,54 +26,61 @@ To Do:
 - precision matrix has non-multiplicative parameters, AD cholesky
 
 ```{r theData}
-Nobs = 1000;Nrandom1=10;Nrandom2=25
+Nobs <- 1000
+Nrandom1 <- 10
+Nrandom2 <- 25
 
 set.seed(0)
-X = Matrix::Matrix(cbind(1, rbinom(Nobs,1, prob= 0.5)))
-AmatList = list(
-	Matrix::sparseMatrix(
-		i = 1:Nobs,
-		j= sample(Nrandom1, Nobs, replace=TRUE)
-	),
-	Matrix::sparseMatrix(
-		i = 1:Nobs,
-		j= sample(Nrandom2, Nobs, replace=TRUE)
-	)
+X <- Matrix::Matrix(cbind(1, rbinom(Nobs, 1, prob = 0.5)))
+AmatList <- list(
+  Matrix::sparseMatrix(
+    i = 1:Nobs,
+    j = sample(Nrandom1, Nobs, replace = TRUE)
+  ),
+  Matrix::sparseMatrix(
+    i = 1:Nobs,
+    j = sample(Nrandom2, Nobs, replace = TRUE)
+  )
 )
-Amat = do.call(cbind, AmatList)
-beta = rep(1, ncol(X))
-thetaOrig = c(0.1, 0.1, 0.1);theta = log(thetaOrig)
-gamma = rnorm(ncol(Amat), sd=rep(thetaOrig[1:2], c(Nrandom1, Nrandom2)))
-eta = as.vector(X %*% beta + Amat %*% gamma)
-etaT = exp(eta)
-Z = rgamma(length(etaT), 0.1^(-2), 0.1^(-2))
+Amat <- do.call(cbind, AmatList)
+beta <- rep(1, ncol(X))
+thetaOrig <- c(0.1, 0.1, 0.1)
+theta <- log(thetaOrig)
+gamma <- rnorm(ncol(Amat), sd = rep(thetaOrig[1:2], c(Nrandom1, Nrandom2)))
+eta <- as.vector(X %*% beta + Amat %*% gamma)
+etaT <- exp(eta)
+Z <- rgamma(length(etaT), 0.1^(-2), 0.1^(-2))
 c(mean(Z), sd(Z))
-y = rpois(length(etaT), etaT*Z)
+y <- rpois(length(etaT), etaT * Z)
 
-NperEffect = unlist(lapply(AmatList, ncol))   
-#map = rep(seq(0, len=length(NperEffect)), NperEffect)
-map = Matrix::sparseMatrix(
-	i = seq(0L, len=ncol(Amat)),
-	j = rep(seq(0L, len=length(NperEffect)), NperEffect),
-	x = 1L,
-	index1=FALSE,
-	dims = c(ncol(Amat), length(thetaOrig))
-	)
+NperEffect <- unlist(lapply(AmatList, ncol))
+# map = rep(seq(0, len=length(NperEffect)), NperEffect)
+map <- Matrix::sparseMatrix(
+  i = seq(0L, len = ncol(Amat)),
+  j = rep(seq(0L, len = length(NperEffect)), NperEffect),
+  x = 1L,
+  index1 = FALSE,
+  dims = c(ncol(Amat), length(thetaOrig))
+)
 
-data = list(y = y, 
-	ATp = as(Matrix::t(Amat), 'dMatrix'),
-	XTp = as(Matrix::t(X), 'CsparseMatrix'),
-	map = map, 
-	Qdiag = rep(1, ncol(Amat)))
+data <- list(
+  y = y,
+  ATp = as(Matrix::t(Amat), "dMatrix"),
+  XTp = as(Matrix::t(X), "CsparseMatrix"),
+  map = map,
+  Qdiag = rep(1, ncol(Amat))
+)
 
 
-config = list(beta = rep(1, nrow(data$XTp)), 
-	theta = c(rep(-1, length(NperEffect)), -1), 
-	transform_theta=TRUE, 
-	gamma = rep(0, nrow(data$ATp)),
-	groups = adlaplace::adFun_groups(data$ATp, 1000),
-	num_threads=parallel::detectCores(),
-	verbose=TRUE, package='adlaplace')	
+config <- list(
+  beta = rep(1, nrow(data$XTp)),
+  theta = c(rep(-1, length(NperEffect)), -1),
+  transform_theta = TRUE,
+  gamma = rep(0, nrow(data$ATp)),
+  groups = adlaplace::adFun_groups(data$ATp, 1000),
+  num_threads = 2L,
+  verbose = TRUE, package = "adlaplace"
+)
 ```
 
 
@@ -217,26 +224,28 @@ str(h2 <- adlaplace::hess(x, adFun, TRUE))
 ```
 
 ```{r trustOptimInterface, eval=FALSE}
-adFun = adlaplace::getAdFun(data, config)
+adFun <- adlaplace::getAdFun(data, config)
 inner_res <- adlaplace::inner_opt(
   parameters = c(config$beta, config$theta),
   gamma = config$gamma,
   control = list(
     maxit = 50,
     report.level = 0,
-    report.freq = 0),
+    report.freq = 0
+  ),
   config = config,
-  adFun = adFun)
+  adFun = adFun
+)
 
 str(inner_res)
 
 quantile(inner_res$gradient)
 ```
 
+Check the derivatives of the joint log density.
 
 
-
-```{r derivJointDens, eval=FALSE}
+```{r derivJointDens, eval=TRUE}
 config$gamma <- rep(1, length(config$gamma))
 x <- c(config$beta, config$gamma, config$theta)
 adFun <- adlaplace::getAdFun(data, modifyList(config, list(verbose = TRUE)))
@@ -245,7 +254,6 @@ inner <- FALSE
 type <- c("outer", "inner")[1 + inner]
 
 Sgamma1 <- seq.int(length(config$beta) + 1, length.out = length(config$gamma))
-
 
 Npar <- 13
 Dpar <- 3
@@ -262,7 +270,6 @@ bob <- as(adFun$hessians$hessian[[type]], "TsparseMatrix")
   function(xx) min(which(adFun$hessians$map[[type]]$p >= xx)),
   xx = whichGlobal
 ) - 1L)
-
 
 do.call(rbind, adFun$sparsity[[
   whichP[1]
