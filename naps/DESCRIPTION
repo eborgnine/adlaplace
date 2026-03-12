@@ -1,0 +1,3 @@
+Package: cannaps
+Type: Package
+Title: Models for gap filling and posterior samples of naps data
