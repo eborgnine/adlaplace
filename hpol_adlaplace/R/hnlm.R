@@ -369,8 +369,10 @@ hnlm <- function(
 
   if (verbose_orig) {
     cat(
-      "getting AD fun, ",
-      paste(dim(dim(config$groups)), collapse = ","), "groups"
+      paste(
+        "getting AD fun, ",
+        paste(dim(config$groups), collapse = ","), "groups"
+      )
     )
   }
 
