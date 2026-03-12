@@ -122,7 +122,11 @@ save(deaths, file = "deaths.RData")
 
 
 ```{r fit, eval=FALSE}
-library("hpolcc")
+# devtools::install_github("eborgine/adlaplace")
+# devtools::install_github("eborgine/hpol_adlaplace")
+
+library("hpolcc") #lib.loc = "/home/patrick/R/x86_64-pc-linux-gnu-library/4.3"
+
 load("deaths.RData")
 
 res_pm_temp_r <- hpolcc::hnlm(

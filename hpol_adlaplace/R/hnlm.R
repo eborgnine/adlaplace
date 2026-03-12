@@ -368,7 +368,10 @@ hnlm <- function(
   }
 
   if (verbose_orig) {
-    cat("getting AD fun...")
+    cat(
+      "getting AD fun, ",
+      paste(dim(dim(config$groups)), collapse = ","), "groups"
+    )
   }
 
   ad_fun <- adlaplace::getAdFun(tmb_data, config, package = "hpolcc")
