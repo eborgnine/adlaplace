@@ -277,7 +277,6 @@ cond_sim_iwp <- function(
   terms <- fit$objects$terms
   parameters_info <- fit$objects$parameters_info
   gamma_info <- fit$objects$gamma_info
-
   
   beta <- fit$extra$fullParameters[seq(1, len = nrow(parameters_info$beta))]
 
@@ -286,20 +285,20 @@ cond_sim_iwp <- function(
 
   terms_pred <- hpolcc:::get_terms_pred(terms)
 
-  if (!missing(newx)) {
+    if (!missing(newx)) {
     terms_pred$pred_df <- newx
   } else {
     terms_pred$pred_df <- hpolcc:::build_pred_df(terms_pred)
   }
 
-  new_xa <- mapply(
+    new_xa <- mapply(
     hpolcc:::get_new_xa,
     df = terms_pred$pred_df,
     MoreArgs = list(terms = terms),
     SIMPLIFY = FALSE
   )
 
-  sim_f <- mapply(
+      sim_f <- mapply(
     function(xa, gamma, beta) {
       names_both_beta <- intersect(names(beta), colnames(xa$X))
       names_both_gamma <- intersect(rownames(gamma), colnames(xa$A))
@@ -336,6 +335,7 @@ cond_sim_iwp <- function(
     probs_envelope = probs_envelope
   )
 
+  
   result$x <- lapply(terms_pred$pred_df, "[[", 1)
   result$sim <- lapply(sim_f, exp)
   result$quantiles$common <- lapply(result$sim, function(sim_here) {
