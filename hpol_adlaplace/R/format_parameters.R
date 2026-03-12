@@ -2,7 +2,7 @@
 #' each needs columns var, name, theta needs log
 
 #' @export
-formatParameters = function(x, parameters_info) {
+format_parameters = function(x, parameters_info) {
 
   Ntheta = nrow(parameters_info$theta)
   Nbeta = nrow(parameters_info$beta)

@@ -175,7 +175,6 @@ library("hpolcc")
 res_sample <- cond_sim_iwp(
   fit = res, weights = weights, n = 500
 )
-d_var = names(res_sample$sim)[1]
 ```
 
 
@@ -187,6 +186,7 @@ the_x_lim <- list(
   tempClean = c(4, 38),
   sqrtPm = c(0, 450)
 )
+
 for_global <- expand.grid(
   var = s_var,
   type = c("Common", "Pop Avg"), stringsAsFactors = FALSE
@@ -322,7 +322,6 @@ mapmisc::legendBreaks(
   cex = 0.7, bty = "n", width = Inf
 )
 ```
-
 
 
 ```{r ecoTable, results='asis', include=FALSE}
