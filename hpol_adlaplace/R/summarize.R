@@ -63,7 +63,7 @@ get_new_xa <- function(terms, df) {
 
     a_sub <- hpolcc:::get_design(term, df)
     a_list <- c(a_list, list(a_sub))
-  }
+  } # for terms
 
   if (length(a_list)) {
     a_matrix <- do.call(cbind, a_list)
