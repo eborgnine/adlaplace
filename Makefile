@@ -1,7 +1,7 @@
 PKGS := adlaplace adlaplaceExtra hpolcc
 ADLAPLACE_DIR := adlaplace
 ADLAPLACE_EXTRA_DIR := adlaplaceExample
-HPOLCC_DIR := hpol_adlaplace
+HPOLCC_DIR := hpolcc
 
 .DEFAULT_GOAL := all
 

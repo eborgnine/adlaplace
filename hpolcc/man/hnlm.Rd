@@ -7,7 +7,7 @@
 hnlm(
   formula,
   data,
-  cc_design = ccDesign(),
+  cc_design = c(),
   config = list(dirichlet = TRUE, boundary_is_random = FALSE, transform_theta = TRUE),
   control = list(maxit = 2000, start.trust.radius = 0.1, report.level = 4, report.freq =
     1, report.header.freq = 10, report.precision = 5),
