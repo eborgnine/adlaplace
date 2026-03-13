@@ -10,7 +10,7 @@ sandbox/test
 .RData
 .Rproj.user
 .Rhistory
-hpoltest.Rproj
+*.Rproj
 *.o
 hpoltest_orig/src/.DS_Store
 hpoldebug.rds
@@ -29,7 +29,7 @@ adlaplace/src/Makevars
 adlaplace_test/src/Makevars
 *.txt
 applications/india/mle.rds
-applications/synthetic/log.txt
+*log.txt
 *.rds
 mleX.RData
 todebug.Rdata
@@ -65,5 +65,4 @@ applications/india/indiaHpolCc.tex
 *.fls
 *.bcf
 *.png
-hpoltest_orig/
-hpol/
+Makevars
