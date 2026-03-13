@@ -46,6 +46,11 @@ setStrata <- function(cc_design, data, outcome = NULL) {
                  by = eval(cc_design$strat_vars),
                  .SDcols = old_cols
       ]
+      # check
+      table_interaction = mean(table(data$interaction)<=1)
+      if(table_interaction > 0.5) {
+        warning("more than half of strata only have one observation, might be missing the zeros in dataset?")
+      }
     }
 
 if (!is.null(outcome)) {

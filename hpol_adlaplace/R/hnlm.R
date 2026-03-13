@@ -38,7 +38,7 @@
 hnlm <- function(
   formula,
   data,
-  cc_design = ccDesign(),
+  cc_design = c(),
   config = list(
     dirichlet = TRUE,
     boundary_is_random = FALSE,
@@ -77,7 +77,7 @@ hnlm <- function(
 
   # Order the rows of data appropriately.
   if (is.character(cc_design)) {
-    cc_design <- hpolcc:::ccDesign(strat_vars = cc_design)
+    cc_design <- ccDesign(strat_vars = cc_design)
   }
   if (is.null(cc_design$strat_vars) &&
         is.null(cc_design$time_var)) {
@@ -101,7 +101,7 @@ hnlm <- function(
     cat("setting strata\n")
   }
 
-  cc_matrix <- hpolcc:::setStrata(
+  cc_matrix <- setStrata(
     cc_design = cc_design,
     data = data,
     outcome = all.vars(formula)[1]
@@ -112,7 +112,7 @@ hnlm <- function(
   }
   # setup of the design matrices and other parameters
   # terms carries all the information throughout
-  terms1 <- hpolcc:::collect_terms(formula)
+  terms1 <- collect_terms(formula)
   terms <- lapply(
     terms1,
     hpolcc:::get_extra,

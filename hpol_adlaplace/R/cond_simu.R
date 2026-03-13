@@ -280,7 +280,7 @@ cond_sim_iwp <- function(
   if (!missing(newx)) {
     terms_pred$pred_df <- newx
   } else {
-    terms_pred$pred_df <- hpolcc:::build_pred_df(terms_pred)
+    terms_pred$pred_df <- build_pred_df(terms_pred)
   }
   
   new_xa <- mapply(
@@ -317,7 +317,7 @@ cond_sim_iwp <- function(
     SIMPLIFY = FALSE
   )
   
-  result <- hpolcc:::get_group_quantiles(
+  result <- get_group_quantiles(
     sim_f = sim_f,
     new_xa = new_xa,
     sim_gamma = sim_gamma,
