@@ -67,7 +67,8 @@ hnlm <- function(
     num_threads = 1,
     dirichlet = TRUE,
     dirichlet_init = 0.1,
-    Ngroups = 1e4
+    Ngroups = 1e4,
+    package = "hpolcc"
   )
 
   config_defaults <- config_defaults[
@@ -84,7 +85,10 @@ hnlm <- function(
     stop("Provide a valid stratification (or time) variable.")
   }
 
-  data.table::setDT(data)
+  terms1 <- collect_terms(formula)
+  covariates = unlist(lapply(terms1, "[[", "var"))
+  outcome_var <- all.vars(formula)[1]
+
   strat_time_vars <- unique(c(cc_design$strat_vars, cc_design$time_var))
 
   strat_time_vars <- strat_time_vars[
@@ -93,7 +97,15 @@ hnlm <- function(
       function(xx) length(unique(xx))
     ), decreasing = FALSE)
   ]
-
+  
+  data.table::setDT(data)
+  
+  required_vars <- unique(c(covariates, strat_time_vars))
+  data <- data[complete.cases(data[, ..required_vars])]
+  if (anyNA(data[[outcome_var]])) {
+    warning("missing values in outcome, treating as zeros")
+    data[is.na(get(outcome_var)), (outcome_var) := 0]
+  }
   data.table::setorderv(data, strat_time_vars)
 
   # setup the data for case-crossover
@@ -104,18 +116,19 @@ hnlm <- function(
   cc_matrix <- setStrata(
     cc_design = cc_design,
     data = data,
-    outcome = all.vars(formula)[1]
+    outcome = outcome_var
   )
 
   if (config$verbose) {
-    cat("collecting terms\n")
+    cat("numer per strata\n")
+    print(table(apply(cc_matrix, 2, sum)))
+    cat("\ncollecting terms\n")
   }
   # setup of the design matrices and other parameters
   # terms carries all the information throughout
-  terms1 <- collect_terms(formula)
   terms <- lapply(
     terms1,
-    hpolcc:::get_extra,
+    get_extra,
     data = data,
     cc_matrix = cc_matrix
   )
@@ -156,14 +169,13 @@ hnlm <- function(
   }, data = data)
   names(x_fpoly) <- unlist(lapply(terms[is_fpoly], "[[", "var"))
 
-  a_random <- #parallel::mc
-  lapply(
+  a_random <- lapply( #parallel::mc
     terms[c(is_hrpoly, is_random)],
-    hpolcc:::get_design,
+    get_design,
     data = data#, mc.cores = config$num_threads
   )
 
-  qs <- lapply(terms[c(is_hrpoly, is_random)], hpolcc:::get_precision)
+  qs <- lapply(terms[c(is_hrpoly, is_random)], get_precision)
   names(qs) <- names(a_random) <- paste(
     unlist(lapply(terms[is_random], "[[", "var")),
     unlist(lapply(terms[is_random], "[[", "model")),
@@ -203,7 +215,7 @@ hnlm <- function(
 
   gamma_setup <- lapply(
     terms[c(is_boundary, is_hrpoly, is_random)],
-    hpolcc:::get_gamma_setup
+    get_gamma_setup
   )
   gamma_info <- do.call(rbind, gamma_setup)
   gamma_info$global <- as.logical(
@@ -239,7 +251,7 @@ hnlm <- function(
   # theta setup
   theta_setup <- lapply(
     terms[c(is_hrpoly, is_random)],
-    hpolcc:::get_theta_setup,
+    get_theta_setup,
     theta_info = list()
   )
 
@@ -339,7 +351,6 @@ hnlm <- function(
     cat("done.")
   }
 
-  config$package <- "hpolcc"
 
   cache <- new.env()
   assign("gamma", config$gamma, cache)
@@ -376,7 +387,7 @@ hnlm <- function(
     )
   }
 
-  ad_fun <- adlaplace::getAdFun(tmb_data, config, package = "hpolcc")
+  ad_fun <- adlaplace::getAdFun(tmb_data, config, package = config$package)
 
   cache <- new.env(parent = emptyenv())
   cache$gamma <- config$gamma
