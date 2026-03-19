@@ -30,7 +30,7 @@ merge_data_cc <- function(
   strata_variables,
   time_variable = "date",
   strata_fun = function(x) format(x, "%Y-%b-%a"),
-  time_strata_name = "timeStrata",
+  time_strata_name = "time_strata",
   count_name = "count"
 ) {
   stopifnot(data.table::is.data.table(x))
@@ -67,7 +67,7 @@ merge_data_cc <- function(
 
   exposure_all <- exposure[
     keys,
-    on = exposure_join_vars,
+    on = c(time_strata_name,exposure_join_vars),
     nomatch = 0L
   ]
 

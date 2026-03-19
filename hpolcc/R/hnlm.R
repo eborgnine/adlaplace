@@ -107,7 +107,19 @@ hnlm <- function(
     data[is.na(get(outcome_var)), (outcome_var) := 0]
   }
   data.table::setorderv(data, strat_time_vars)
-
+  
+  n_per_strata <- data[
+    , .(
+      outcome_sum = sum(get(outcome_var)),
+      n_rows = .N
+    ),
+    by = strat_time_vars
+  ]
+  n_per_strata <- n_per_strata[n_per_strata$outcome_sum >0,]
+  
+  data_sub <- n_per_strata[data, on = strat_time_vars, nomatch=0]
+  
+  
   # setup the data for case-crossover
   if (config$verbose) {
     cat("setting strata\n")
@@ -115,13 +127,13 @@ hnlm <- function(
 
   cc_matrix <- setStrata(
     cc_design = cc_design,
-    data = data,
+    data = data_sub,
     outcome = outcome_var
   )
 
   if (config$verbose) {
     cat("numer per strata\n")
-    print(table(apply(cc_matrix, 2, sum)))
+    print(table(diff(cc_matrix@p)))
     cat("\ncollecting terms\n")
   }
   # setup of the design matrices and other parameters
@@ -129,7 +141,7 @@ hnlm <- function(
   terms <- lapply(
     terms1,
     get_extra,
-    data = data,
+    data = data_sub,
     cc_matrix = cc_matrix
   )
   for (term_idx in seq_along(terms)) {
@@ -147,7 +159,7 @@ hnlm <- function(
       res <- res[, -1, drop = FALSE]
     }
     res
-  }, data = data)
+  }, data = data_sub)
   names(x_as_is) <- unlist(lapply(terms[is_asis], "[[", "var"))
 
   x_fpoly <- lapply(terms[is_fpoly], function(xx, data) {
@@ -166,13 +178,13 @@ hnlm <- function(
       seq(from = 1, len = ncol(x_sub))
     )
     x_sub
-  }, data = data)
+  }, data = data_sub)
   names(x_fpoly) <- unlist(lapply(terms[is_fpoly], "[[", "var"))
 
   a_random <- lapply( #parallel::mc
     terms[c(is_hrpoly, is_random)],
     get_design,
-    data = data#, mc.cores = config$num_threads
+    data = data_sub#, mc.cores = config$num_threads
   )
 
   qs <- lapply(terms[c(is_hrpoly, is_random)], get_precision)
@@ -304,12 +316,12 @@ hnlm <- function(
   tmb_data <- list(
     X = x_matrix,
     A = a_matrix,
-    y = data[[all.vars(formula)[1]]],
+    y = data_sub[[outcome_var]],
     Q = q,
     map = gamma_theta_map,
     elgm_matrix = cc_matrix
   )
-  tmb_data <- hpolcc:::formatHpolData(tmb_data)
+  tmb_data <- formatHpolData(tmb_data)
   gamma_info$matchA <- match(gamma_info$name, rownames(tmb_data$ATp))
 
   verbose_orig <- config$verbose
@@ -382,7 +394,7 @@ hnlm <- function(
     cat(
       paste(
         "getting AD fun, ",
-        paste(dim(config$groups), collapse = ","), "groups"
+        paste(dim(config$groups), collapse = ","), "groups\n"
       )
     )
   }
