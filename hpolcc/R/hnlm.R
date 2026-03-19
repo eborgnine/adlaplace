@@ -91,15 +91,15 @@ hnlm <- function(
 
   strat_time_vars <- unique(c(cc_design$strat_vars, cc_design$time_var))
 
+  data.table::setDT(data)
+
   strat_time_vars <- strat_time_vars[
     order(sapply(
       data[, strat_time_vars, with = FALSE],
       function(xx) length(unique(xx))
     ), decreasing = FALSE)
   ]
-  
-  data.table::setDT(data)
-  
+    
   required_vars <- unique(c(covariates, strat_time_vars))
   data <- data[complete.cases(data[, ..required_vars])]
   if (anyNA(data[[outcome_var]])) {
