@@ -10,7 +10,7 @@ merge_data_cc(
   strata_variables,
   time_variable = "date",
   strata_fun = function(x) format(x, "\%Y-\%b-\%a"),
-  time_strata_name = "timeStrata",
+  time_strata_name = "time_strata",
   count_name = "count"
 )
 }

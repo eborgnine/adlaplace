@@ -132,6 +132,9 @@ CppAD::vector<CppAD::AD<double>> logDensExtra(
   const Data& data,
   const Config& config)
 {
+  // nu is the SD
+  // 1/nu^2 is the gamma shape (or precision)
+
   const CppAD::AD<double> lastTheta = params[params.size() - 1];
   const CppAD::AD<double> logNuSq = config.transform_theta
     ? 2.0 * lastTheta
@@ -141,9 +144,9 @@ CppAD::vector<CppAD::AD<double>> logDensExtra(
   const size_t Nstrata = data.elgm_matrix.ncol();
 
   CppAD::AD<double> contribLgamma1overNuSqPlusSumYil = 0.0;
-  CppAD::AD<double> contribLgamma1pSumYil = 0.0;
-  CppAD::AD<double> contribLgammaYp1 = 0.0;
-
+  double contribLgamma1pSumYil = 0.0;
+  double contribLgammaYp1 = 0.0;
+  CppAD::AD<double> lgammaOneOverNuSq = lgamma_ad(oneOverNuSq);
 
   for (size_t Dstrata = 0; Dstrata < Nstrata; Dstrata++) {
     int sumYhere = 0;
@@ -160,12 +163,23 @@ CppAD::vector<CppAD::AD<double>> logDensExtra(
   }
 
   CppAD::AD<double> contrib =
-    Nstrata * lgamma_ad(oneOverNuSq) 
-    - contribLgamma1overNuSqPlusSumYil;
+    Nstrata * lgammaOneOverNuSq 
+    - contribLgamma1overNuSqPlusSumYil
     - contribLgammaYp1 + contribLgamma1pSumYil;
 
   CppAD::vector<CppAD::AD<double>> result(1);
   result[0] = contrib;
+
+	if(config.verbose) {
+		Rcpp::Rcout << "logDensExtra " << contrib << 
+      " lasttheta " << lastTheta <<
+      " oneOverNuSq " << oneOverNuSq << 
+      " logNuSq " << logNuSq << 
+      " lgammaOneOverNuSq " << lgammaOneOverNuSq<<
+      " contribLgamma1overNuSqPlusSumYil " << contribLgamma1overNuSqPlusSumYil << 
+      " contribLgamma1pSumYil " << contribLgamma1pSumYil << 
+      " contribLgammaYp1 "<< contribLgammaYp1 << "\n";
+	}
 
   return result;
 }
