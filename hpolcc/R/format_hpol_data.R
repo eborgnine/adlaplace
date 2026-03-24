@@ -1,9 +1,13 @@
 #' @export
 formatHpolData <- function(data) {
 
-  result = NULL
+  result <- NULL
   for (Ddata in c("X", "A")) {
-    data[[paste0(Ddata, "Tp")]] <- as(Matrix::t(data[[Ddata]]), "CsparseMatrix")
+    data[[paste0(Ddata, "Tp")]] <- 
+      as(
+        as(Matrix::t(data[[Ddata]]), "CsparseMatrix"),
+        "dMatrix"
+      )
   }
 
   data$elgm_matrix <- as(data$elgm_matrix, "CsparseMatrix")

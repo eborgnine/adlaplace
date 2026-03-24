@@ -266,7 +266,7 @@ hnlm <- function(
       name = colnames(x_matrix)
     )
   } else {
-    x_matrix <- matrix(nrow = nrow(data), ncol = 0)
+    x_matrix <- matrix(nrow = nrow(data_sub), ncol = 0)
     beta_info <- data.frame()
   }
 
