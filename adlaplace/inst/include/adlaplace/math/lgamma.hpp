@@ -203,6 +203,31 @@ if (order_up >= 1) {
     return true;
   }
 
+  // hes_sparsity
+  bool hes_sparsity(
+    size_t call_id,
+    const CppAD::vector<bool>& select_x,
+    const CppAD::vector<bool>& select_y,
+    CppAD::sparse_rc< CppAD::vector<size_t> >& pattern_out
+  ) override {
+    const size_t n = select_x.size();  // domain size
+    const size_t m = select_y.size();  // range size
+    if (n != 1 || m != 1)
+      return false;
+
+    // If we don't care about x0 or y0, treat Hessian as structurally zero.
+    bool use_x0 = select_x[0] && select_y[0];
+    if (!use_x0) {
+      pattern_out.resize(n, n, 0);   // n x n zero matrix
+      return true;
+    }
+
+    // For lgamma(x), the Hessian is always dense (1 nonzero at (0,0)).
+    pattern_out.resize(n, n, 1);
+    pattern_out.set(0, 0, 0);
+    return true;
+  }
+
 };
 
 

@@ -66,3 +66,9 @@ applications/india/indiaHpolCc.tex
 *.bcf
 *.png
 Makevars
+sandbox/large.md
+sandbox/large_latex.md
+sandbox/limit_analysis.md
+sandbox/beta_dirichlet.md
+sandbox/concise_beta_dirichlet.md
+*.md

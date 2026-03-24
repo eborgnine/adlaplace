@@ -32,10 +32,15 @@ CppAD::vector<CppAD::AD<double>> logDensRandom(
 	CppAD::AD<double> qpart = 0.0, qDet=0.0;
 
 	if(config.verbose) {
-		Rcpp::Rcout << "q ngamma  " << data.Ngamma << " map.ncol " << data.map.ncol() << 
+		Rcpp::Rcout << "q ngamma  " << data.Ngamma << " map.ncol " << 
+		data.map.ncol() << 
 		" map@i.size " << data.map.i.size() << 
-		" ntheta " << config.theta.size() << 
-		" exp theta map 0 " <<  expTheta[data.map.i[0]] << " gamma0 " << x[config.gamma_begin] << ".\n";
+		" ntheta " << config.theta.size();
+		if(data.map.i.size() > 0) {
+		 Rcpp::Rcout << " exp theta map 0 " <<  expTheta[data.map.i[0]] << 
+		             " gamma0 " << x[config.gamma_begin];
+		}
+		Rcpp::Rcout << ".\n";
 	}
 
 	for(size_t D=0,Dgamma=config.gamma_begin;D<config.Ngamma;D++,Dgamma++) {

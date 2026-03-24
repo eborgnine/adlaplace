@@ -1,0 +1,108 @@
+---
+geometry: margin=1in
+---
+
+# Equivalence to Conditional Gamma-Poisson Model
+
+The Dirichlet-multinomial distribution with parameter $\alpha$ is equivalent to a conditional Gamma-Poisson model. This equivalence provides an alternative interpretation and can be useful for understanding the properties of the distribution.
+
+Consider a Gamma-Poisson hierarchy where:
+
+1. $U_k \sim \text{Gamma}(\alpha, 1)$
+2. $\lambda_k =  \mu_k U_k$
+3. $y_k \mid \lambda_k \sim \text{Poisson}(\lambda_k)$ for $k = 1, \ldots, K$
+
+Given $\lambda_k$, the distribution of $y_k$ is Poisson:
+
+\begin{equation}
+y_k \mid \lambda_k \sim \text{Poisson}(\lambda_k)
+\end{equation}
+
+
+The distribution of $\mathbf{y}$ conditioned on the sum given the $\lambda_k$ is multinomial:
+
+\begin{equation}\label{eq:multinom}
+P(\mathbf{y} \mid \boldsymbol{\lambda}, \sum_{k=1}^K Y_k = N)
+=
+\frac{N!}{\prod_{k=1}^K y_k!}
+\prod_{k=1}^K
+\left(\frac{\lambda_k}{\sum_{j=1}^K \lambda_j}\right)^{y_k}
+\end{equation}
+
+Integrating out the $U_k$ gives the Dirichlet-multinomial distribution:
+
+\begin{equation}\label{eq:dm}
+P(\mathbf{y} \mid \alpha, \boldsymbol{\mu}, N)
+=
+\frac{N!}{\prod_{k=1}^K y_k!}
+\frac{\Gamma(\alpha)}{\Gamma(N+\alpha)}
+\prod_{k=1}^K
+\frac{\Gamma(y_k+\alpha \mu_k)}{\Gamma(\alpha \mu_k)}.
+\prod_{k=1}^K
+\frac{\Gamma(y_k+\alpha\mu_k)}{\Gamma(\alpha\mu_k)}.
+\end{equation}
+
+Note that $\text{E}(U_k) = 1$ and 
+$$
+\text{sd}(U_k) = 1/\sqrt(\alpha)
+$$
+
+## Simplificaiton
+
+Here is the simplification of the Dirichlet-multinomial PMF using the gamma recurrence identity.
+
+The key identity is the gamma recurrence over an integer number of steps:
+
+\begin{equation}\label{eq:gamma_ratio}
+\frac{\Gamma(x+n)}{\Gamma(x)}
+=
+x(x+1)\cdots(x+n-1)
+\end{equation}
+
+
+Equation \ref{eq:dm} becomes
+
+\begin{equation}\label{eq:dm_ratio}
+P(\mathbf{y} \mid \alpha, \boldsymbol{\mu}, N)
+=
+\frac{N!}{\prod_{k=1}^K y_k!}
+\frac{1}{\prod_{j=0}^{N-1} (\alpha + j)}
+\prod_{k=1}^K
+\prod_{j=0}^{y_k-1} (\alpha \mu_k + j)
+\end{equation}
+
+
+substitute 
+$$
+\alpha = \frac{1}{\tau^2}
+$$
+to give
+\begin{equation}\label{eq:dm_ratio_tau}
+P(\mathbf{y} \mid \tau, \boldsymbol{\mu}, N) =
+\frac{N!}{\prod_{k=1}^K y_k!}
+\frac{\tau^{2N}}{\prod_{j=0}^{N-1} (1 + j \tau^2)}
+\prod_{k=1}^K
+\frac{\prod_{j=0}^{y_k-1} (\mu_k + j \tau^2)}{\tau^{2y_k}}
+\end{equation}
+
+
+or on the log scale
+
+\begin{equation}\label{eq:dm_ratio_log}
+\log P(\mathbf{y} \mid \tau, \boldsymbol{\mu}, N)=
+\log(N!) - \sum_{k=1}^K \log(y_k!) - \sum_{j=0}^{N-1} \log(1 + j \tau^2) + \sum_{k=1}^K \sum_{j=0}^{y_k-1} \log(\mu_k + j \tau^2)
+\end{equation}
+
+Note that when $\tau = 0$ then 
+
+\begin{equation}\label{eq:dm_ratio_log_zero}
+\log P(\mathbf{y} \mid \tau=0, \boldsymbol{\mu}, N)=
+\log(N!) - \sum_{k=1}^K \log(y_k!) + \sum_{k=1}^K y_k \log(\mu_k)
+\end{equation}
+
+$$
+\begin{split}
+\log(\mu_k + j \tau^2) = &\log\left[\exp(\tilde\eta_k ) + \exp(2 \log\tau + \log j) \right]\\
+ = &  \tilde\eta_k  + \log\left[1 + \exp(2 \log\tau + \log j - \tilde\eta_k ) \right]
+ \end{split}
+$$

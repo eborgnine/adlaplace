@@ -81,12 +81,12 @@ hnlm <- function(
     cc_design <- ccDesign(strat_vars = cc_design)
   }
   if (is.null(cc_design$strat_vars) &&
-        is.null(cc_design$time_var)) {
+    is.null(cc_design$time_var)) {
     stop("Provide a valid stratification (or time) variable.")
   }
 
   terms1 <- collect_terms(formula)
-  covariates = unlist(lapply(terms1, "[[", "var"))
+  covariates <- unlist(lapply(terms1, "[[", "var"))
   outcome_var <- all.vars(formula)[1]
 
   strat_time_vars <- unique(c(cc_design$strat_vars, cc_design$time_var))
@@ -99,7 +99,7 @@ hnlm <- function(
       function(xx) length(unique(xx))
     ), decreasing = FALSE)
   ]
-    
+
   required_vars <- unique(c(covariates, strat_time_vars))
   data <- data[complete.cases(data[, ..required_vars])]
   if (anyNA(data[[outcome_var]])) {
@@ -107,7 +107,7 @@ hnlm <- function(
     data[is.na(get(outcome_var)), (outcome_var) := 0]
   }
   data.table::setorderv(data, strat_time_vars)
-  
+
   n_per_strata <- data[
     , .(
       outcome_sum = sum(get(outcome_var)),
@@ -115,11 +115,11 @@ hnlm <- function(
     ),
     by = strat_time_vars
   ]
-  n_per_strata <- n_per_strata[n_per_strata$outcome_sum >0,]
-  
-  data_sub <- n_per_strata[data, on = strat_time_vars, nomatch=0]
-  
-  
+  n_per_strata <- n_per_strata[n_per_strata$outcome_sum > 0, ]
+
+  data_sub <- n_per_strata[data, on = strat_time_vars, nomatch = 0]
+
+
   # setup the data for case-crossover
   if (config$verbose) {
     cat("setting strata\n")
@@ -181,10 +181,10 @@ hnlm <- function(
   }, data = data_sub)
   names(x_fpoly) <- unlist(lapply(terms[is_fpoly], "[[", "var"))
 
-  a_random <- lapply( #parallel::mc
+  a_random <- lapply( # parallel::mc
     terms[c(is_hrpoly, is_random)],
     get_design,
-    data = data_sub#, mc.cores = config$num_threads
+    data = data_sub # , mc.cores = config$num_threads
   )
 
   qs <- lapply(terms[c(is_hrpoly, is_random)], get_precision)
@@ -197,7 +197,11 @@ hnlm <- function(
   fpoly_random <- unlist(lapply(terms[is_fpoly], "[[", "boundary_is_random"))
   is_boundary <- is_fpoly[fpoly_random]
   x_fpoly_random <- x_fpoly[fpoly_random]
-  x_fpoly_fixed <- x_fpoly[!fpoly_random]
+  x_fpoly_fixed <- if (is.null(fpoly_random)) {
+    x_fpoly
+  } else {
+    x_fpoly[!fpoly_random]
+  }
 
   if (any(fpoly_random) && is.null(config$prec_boundary)) {
     config$prec_boundary <- 0
@@ -222,7 +226,8 @@ hnlm <- function(
   if (length(a_list)) {
     a_matrix <- do.call(cbind, a_list) |> as("TsparseMatrix")
   } else {
-    a_matrix <- matrix(nrow = 0, ncol = 0) |> as("TsparseMatrix")
+    a_matrix <- matrix(nrow = nrow(cc_matrix), ncol=0) |> as("TsparseMatrix")
+    a_matrix = as(a_matrix, 'dMatrix')
   }
 
   gamma_setup <- lapply(
@@ -230,23 +235,28 @@ hnlm <- function(
     get_gamma_setup
   )
   gamma_info <- do.call(rbind, gamma_setup)
-  gamma_info$global <- as.logical(
-    pmin(gamma_info$group == "GLOBAL", TRUE, na.rm = TRUE)
-  )
+  if (!is.null(gamma_info)) {
+    gamma_info$global <- as.logical(
+      pmin(gamma_info$group == "GLOBAL", TRUE, na.rm = TRUE)
+    )
 
-  missing_gamma_info <- setdiff(colnames(a_matrix), gamma_info$name)
-  missing_gamma_a <- setdiff(gamma_info$name, colnames(a_matrix))
-  if (length(missing_gamma_info)) {
-    warning(" missing gamma info ", paste(missing_gamma_info, collapse = ","))
-  }
-  if (length(missing_gamma_a)) {
-    warning(" missing gamma A ", paste(missing_gamma_a, collapse = ","))
-  }
+    missing_gamma_info <- setdiff(colnames(a_matrix), gamma_info$name)
+    missing_gamma_a <- setdiff(gamma_info$name, colnames(a_matrix))
+    if (length(missing_gamma_info)) {
+      warning(" missing gamma info ", paste(missing_gamma_info, collapse = ","))
+    }
+    if (length(missing_gamma_a)) {
+      warning(" missing gamma A ", paste(missing_gamma_a, collapse = ","))
+    }
 
-  gamma_info <- gamma_info[order(match(gamma_info$name, colnames(a_matrix))), ]
-  gamma_info$gamma_id <- seq(0L, len = nrow(gamma_info))
-  if (any(is.na(gamma_info$var))) {
-    warning("some columns of design matrix not found in gamma")
+
+    gamma_info <- gamma_info[
+      order(match(gamma_info$name, colnames(a_matrix))),
+    ]
+    gamma_info$gamma_id <- seq(0L, len = nrow(gamma_info))
+    if (any(is.na(gamma_info$var))) {
+      warning("some columns of design matrix not found in gamma")
+    }
   }
 
   if (length(x_list)) {
@@ -288,30 +298,40 @@ hnlm <- function(
   }
   theta_info$theta_id <- seq(0L, len = nrow(theta_info))
 
-  gamma_theta <- merge(
-    gamma_info,
-    theta_info,
-    by = c("var", "model", "order", "global"),
-    all.x = TRUE,
-    all.y = TRUE,
-    suffixes = c("_gamma", "_theta")
-  )
+  if (!is.null(gamma_info)) {
+    gamma_theta <- merge(
+      gamma_info,
+      theta_info,
+      by = c("var", "model", "order", "global"),
+      all.x = TRUE,
+      all.y = TRUE,
+      suffixes = c("_gamma", "_theta")
+    )
 
-  if (sum(is.na(gamma_theta$theta_id)) > 10) {
-    warning("problem matching gamma and theta")
+    if (sum(is.na(gamma_theta$theta_id)) > 10) {
+      warning("problem matching gamma and theta")
+    }
+
+    any_na <- is.na(gamma_theta$theta_id) | is.na(gamma_theta$gamma_id)
+
+    gamma_theta_both <- gamma_theta[!any_na, ]
+    # map matrix column theta, row gamma
+    gamma_theta_map <- Matrix::sparseMatrix(
+      i = gamma_theta_both$gamma_id,
+      j = gamma_theta_both$theta_id,
+      x = rep(1L, nrow(gamma_theta_both)),
+      index1 = FALSE,
+      dims = c(nrow(gamma_info), nrow(theta_info))
+    )
+  } else {
+    gamma_theta_map <- Matrix::sparseMatrix(
+      i = integer(0),
+      j = integer(0),
+      x = numeric(0),
+      index1 = FALSE,
+      dims = c(0, 0)
+    )
   }
-
-  any_na <- is.na(gamma_theta$theta_id) | is.na(gamma_theta$gamma_id)
-
-  gamma_theta_both <- gamma_theta[!any_na, ]
-  # map matrix column theta, row gamma
-  gamma_theta_map <- Matrix::sparseMatrix(
-    i = gamma_theta_both$gamma_id,
-    j = gamma_theta_both$theta_id,
-    x = rep(1L, nrow(gamma_theta_both)),
-    index1 = FALSE,
-    dims = c(nrow(gamma_info), nrow(theta_info))
-  )
 
   tmb_data <- list(
     X = x_matrix,
@@ -353,7 +373,12 @@ hnlm <- function(
     cat("getting groups...")
   }
 
-  for_groups <- tmb_data$ATp %*% tmb_data$elgm_matrix
+  for_groups_x <- tmb_data$XTp
+  for_groups_A <- tmb_data$ATp
+  for_groups_x@x <- rep(1, length(for_groups_x@x))
+  for_groups_A@x <- rep(1, length(for_groups_A@x))
+
+  for_groups <- rbind(for_groups_x, for_groups_A) %*% tmb_data$elgm_matrix
   for_groups@x <- rep(1, length(for_groups@x))
   config$groups <- adlaplace::adFun_groups(
     ATp = for_groups,
@@ -409,7 +434,7 @@ hnlm <- function(
   if (verbose_orig) {
     cat("optimizing")
   }
-  mle <- trustOptim::trust.optim(
+  mle <- try(trustOptim::trust.optim(
     x = x0,
     fn = adlaplace::outer_fn,
     gr = adlaplace::outer_gr,
@@ -419,7 +444,7 @@ hnlm <- function(
     cache = cache,
     control = control,
     control_inner = control_inner
-  )
+  ))
 
   config$gamma <- get("gamma", cache)
 

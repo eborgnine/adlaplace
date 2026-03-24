@@ -5,9 +5,9 @@ HPOLCC_DIR := hpolcc
 
 .DEFAULT_GOAL := all
 
-.PHONY: all clean $(PKGS)
+.PHONY: all clean $(PKGS) dirichlet_multinom.pdf
 
-all: $(PKGS)
+all: $(PKGS) dirichlet_multinom.pdf
 
 clean:
 	@echo "==> Cleaning .o and .so files under src folders"
@@ -35,3 +35,6 @@ adlaplaceExtra: adlaplace
 
 hpolcc: adlaplace
 	$(call build_pkg,hpolcc,$(HPOLCC_DIR))
+
+dirichlet_multinom.pdf: hpolcc/vignettes/dirichlet_multinom.Rmd
+	pandoc hpolcc/vignettes/dirichlet_multinom.Rmd -o dirichlet_multinom.pdf

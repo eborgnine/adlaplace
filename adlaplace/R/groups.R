@@ -40,7 +40,9 @@ adFun_groups = function(ATp, Ngroups = ncol(ATp)) {
 	if (inherits(ATp, "ngCMatrix")) {
  		 ATp <- methods::as(ATp, "dMatrix")  # numeric sparse, no dense copy
 	}
-	if(requireNamespace("RSpectra", quietly=TRUE) ) {
+	if(requireNamespace("RSpectra", quietly=TRUE) & (
+    nrow(ATp) > 3
+  ) ) {
 		loadings <- RSpectra::svds(ATp, k = 1)$v[,1]
 	} else {
 		if(max(dim(ATp) > 1e5)) {
