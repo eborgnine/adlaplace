@@ -226,8 +226,8 @@ hnlm <- function(
   if (length(a_list)) {
     a_matrix <- do.call(cbind, a_list) |> as("TsparseMatrix")
   } else {
-    a_matrix <- matrix(nrow = nrow(cc_matrix), ncol=0) |> as("TsparseMatrix")
-    a_matrix = as(a_matrix, 'dMatrix')
+    a_matrix <- matrix(nrow = nrow(cc_matrix), ncol = 0) |> as("TsparseMatrix")
+    a_matrix <- as(a_matrix, "dMatrix")
   }
 
   gamma_setup <- lapply(
@@ -424,7 +424,33 @@ hnlm <- function(
     )
   }
 
-  ad_fun <- adlaplace::getAdFun(tmb_data, config, package = config$package)
+  ad_fun <- adlaplace::getAdFun(tmb_data,
+    config,
+    package = config$package
+  )
+
+  if (!length(cache$gamma)) {
+    # no gammas, no inner opt
+    mle <- stats::optim(
+      par = c(config$beta, config$theta),
+      fn = adlaplace::jointLogDens,
+      gr = adlaplace::grad,
+      method = "L-BFGS-B",
+      #    lower = c(rep(-Inf, length(config$beta)), 0),
+      backendContext = ad_fun,
+      control = list(
+        fnscale = -1,
+        trace = 3,
+        REPORT = 1,
+        maxit = 1000
+      )
+    )
+    mle$hessian <- adaplace::hess(
+      mle$par,
+      backendContext = ad_fun
+    )
+    return(mle)
+  }
 
   cache <- new.env(parent = emptyenv())
   cache$gamma <- config$gamma

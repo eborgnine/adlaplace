@@ -222,7 +222,11 @@ Rcpp::S4 hess(
   out.slot("x") = hess_out;
   out.slot("Dim") = Rcpp::IntegerVector::create(ncol, ncol);
   out.slot("uplo") = Rcpp::String("U");
-  return out;
+
+  Rcpp::Function as_function = matrix_ns["as"];
+  Rcpp::S4 out_general = as_function(out, "generalMatrix");
+  return out_general;
+
 }
 
 //' @rdname adlaplace_cpp
