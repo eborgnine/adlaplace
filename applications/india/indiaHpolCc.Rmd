@@ -131,22 +131,23 @@ load("~/research/adlaplace/applications/india/deaths.RData")
 
 res_pm_temp_r <- hpolcc::hnlm(
   formula = medical ~ dom +
-    f(sqrtPm,
+    f(sqrt_pm,
       model = "hiwp", ref_value = 8, p = 2,
       knots = seq(0, 32, by = 2),
-      group_var = ecoRegion
+      group_var = eco_region
     ) +
-    f(tempClean,
+    f(temp_clean,
       model = "hiwp", ref_value = 15, p = 3,
       knots = seq(-5, 30, by = 2.5),
-      group_var = ecoRegion
+      group_var = eco_region
     ),
-  data = deaths[
-    which(
-      deaths$date > as.Date("2006/1/1")
-    ),
-  ],
-  cc_design = c("cell", "ecoRegion", "yearWeek3Dow"),
+  data = deaths,
+#  [
+#    which(
+#      deaths$date > as.Date("2006/1/1")
+#    ),
+#  ],
+  cc_design = c("cell", "eco_region", "year_week3_dow"),
   config = list(
     transform_theta = TRUE,
     dirichlet = TRUE,
@@ -162,23 +163,6 @@ res_pm_temp_r <- hpolcc::hnlm(
 )
 
 saveRDS(res_pm_temp_r, file = "resPmTempR.rds")
-```
-
-
-
-
-```{r theResults, include=FALSE}
-res <- readRDS("resPmTemp.rds")
-res$parameters$theta
-res$parameters$beta
-
-weights = eco_pop_df$weight
-names(weights) = as.character(eco_pop_df$objectid)
-
-library("hpolcc")
-res_sample <- cond_sim_iwp(
-  fit = res, weights = weights, n = 500
-)
 ```
 
 
