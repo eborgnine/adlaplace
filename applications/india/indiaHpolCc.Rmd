@@ -163,11 +163,13 @@ saveRDS(res_pm_temp_r, file = "resPmTempR.rds")
 
 
 ```{r globalSetup}
+res = readRDS("resPmTempR.rds")
+res_sample= res$sample
 s_var <- names(res_sample$sim)
 s_var_names <- c(tempClean = "temperature", sqrtPm = "PM2.5")[s_var]
 the_x_lim <- list(
-  tempClean = c(4, 38),
-  sqrtPm = c(0, 450)
+  temp_clean = c(4, 38),
+  sqrt_pm = c(0, 450)
 )
 
 for_global <- expand.grid(

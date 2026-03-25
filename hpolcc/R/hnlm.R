@@ -517,7 +517,7 @@ hnlm <- function(
   }
 
   result$extra <- try(adlaplace::logLikLaplace(
-    result$opt$solution,
+    result$opt[[grep("solution|par", names(result$opt), value=TRUE)[1]]],
     gamma = result$objects$config$gamma,
     data = result$objects$tmb_data,
     config = result$objects$config,
