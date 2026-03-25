@@ -168,7 +168,7 @@ saveRDS(res_pm_temp_r, file = "resPmTempR.rds")
 
 
 ```{r theResults, include=FALSE}
-res <- readRDS("resPmTemp.rds")
+res <- readRDS("resPmTempR.rds")
 res$parameters$theta
 res$parameters$beta
 

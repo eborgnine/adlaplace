@@ -9,8 +9,7 @@ hnlm(
   data,
   cc_design = c(),
   config = list(dirichlet = TRUE, boundary_is_random = FALSE, transform_theta = TRUE),
-  control = list(maxit = 2000, start.trust.radius = 0.1, report.level = 4, report.freq =
-    1, report.header.freq = 10, report.precision = 5),
+  control = list(fnscale = -1, trace = 3, REPORT = 1, maxit = 1000),
   control_inner = list(report.level = 0),
   for_dev = FALSE,
   ...
