@@ -273,7 +273,7 @@ cond_sim_iwp <- function(
   parameters_info <- fit$objects$parameters_info
   gamma_info <- fit$objects$gamma_info
 
-  beta <- fit$extra$fullParameters[seq(1, len = nrow(parameters_info$beta))]
+  beta <- fit$extra$full_parameters[seq(1, len = nrow(parameters_info$beta))]
 
   sim_gamma <- cond_sim_gamma(fit, n)
   rownames(sim_gamma) <- parameters_info$gamma$name

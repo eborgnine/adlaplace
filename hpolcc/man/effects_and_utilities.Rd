@@ -41,6 +41,8 @@ iwp(
   rpoly_p = 0,
   fpoly_p = p - 1,
   init = .my_theta_init,
+  lower = .my_theta_lower,
+  upper = .my_theta_upper,
   boundary_is_random = TRUE
 )
 
@@ -63,6 +65,8 @@ hiwp(
   rpoly_p = 0,
   fpoly_p = include_global * (p - 1),
   init = .my_theta_init,
+  lower = .my_theta_lower,
+  upper = .my_theta_upper,
   boundary_is_random = TRUE
 )
 
@@ -90,7 +94,9 @@ hrpoly(
   ref_value,
   group_var,
   include_global = T,
-  init = .my_theta_init
+  init = .my_theta_init,
+  lower = .my_theta_lower,
+  upper = .my_theta_upper
 )
 
 hrpolyDesign(term, data)
@@ -99,7 +105,7 @@ hrpolyPrecision(term)
 
 hrpolyTheta(theta_info, term)
 
-iid(x, init = .my_theta_init)
+iid(x, init = .my_theta_init, lower = .my_theta_lower, upper = .my_theta_upper)
 
 iidDesign(term, data)
 

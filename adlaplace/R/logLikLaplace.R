@@ -44,7 +44,7 @@
 #'   solution.}
 #'   \item{fval}{\code{-logLik}.}
 #'   \item{parameters}{The input outer parameter vector \code{x}.}
-#'   \item{fullParameters}{Concatenation of \code{beta}, optimized \code{gamma},
+#'   \item{full_parameters}{Concatenation of \code{beta}, optimized \code{gamma},
 #'   and \code{theta}.}
 #'   \item{hessian}{List with \code{H} (outer Hessian sparse matrix) and
 #'   \code{cholInner} (sparse LDL decomposition of inner Hessian).}
@@ -159,7 +159,7 @@ logLikLaplace = function(
 		logLik = logLik,
 		fval = -logLik,
 		parameters = x,
-		fullParameters =  c(config_inner$beta, inner_res$solution, config_inner$theta),
+		full_parameters =  c(config_inner$beta, inner_res$solution, config_inner$theta),
 		hessian = list(
 			H = Houter,
 			cholInner = Hchol
@@ -172,7 +172,7 @@ logLikLaplace = function(
 	}	
 
 	theDeriv = logLikDeriv(
-		fullParameters = result$fullParameters, 
+		full_parameters = result$full_parameters, 
 		hessianPack = result$hessian,
 		grad = inner_res$gradient,
 		config, adFun)

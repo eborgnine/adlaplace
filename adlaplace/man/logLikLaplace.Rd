@@ -50,7 +50,7 @@ A list with components including:
   solution.}
   \item{fval}{\code{-logLik}.}
   \item{parameters}{The input outer parameter vector \code{x}.}
-  \item{fullParameters}{Concatenation of \code{beta}, optimized \code{gamma},
+  \item{full_parameters}{Concatenation of \code{beta}, optimized \code{gamma},
   and \code{theta}.}
   \item{hessian}{List with \code{H} (outer Hessian sparse matrix) and
   \code{cholInner} (sparse LDL decomposition of inner Hessian).}

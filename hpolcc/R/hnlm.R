@@ -65,6 +65,8 @@ hnlm <- function(
     num_threads = 1,
     Ngroups = 1e4,
     dirichlet_init = 1e-3,
+    dirichlet_lower = 0,
+    dirichlet_upper = Inf,
     package = "hpolcc"
   )
 
@@ -178,10 +180,10 @@ hnlm <- function(
   }, data = data_sub)
   names(x_fpoly) <- unlist(lapply(terms[is_fpoly], "[[", "var"))
 
-  a_random <- parallel::mclapply(  
+  a_random <- parallel::mclapply(
     terms[c(is_hrpoly, is_random)],
     get_design,
-    data = data_sub, 
+    data = data_sub,
     mc.cores = config$num_threads
   )
 
@@ -283,13 +285,17 @@ hnlm <- function(
       global = TRUE,
       order = NA,
       init = config$dirichlet_init,
+      lower = config$dirichlet_lower,
+      upper = config$dirichlet_upper,      
       name = "overdisp"
     ))
   )
 
   theta_info <- do.call(rbind, theta_setup)
   if (config$transform_theta) {
-    theta_info$init <- pmax(-15, log(theta_info$init))
+    theta_info$init <- pmax(-6, log(theta_info$init))
+    theta_info$upper <- log(theta_info$upper)
+    theta_info$lower <- pmax(-15, log(theta_info$lower))
     theta_info$log <- TRUE
   } else {
     theta_info$log <- FALSE
@@ -387,6 +393,7 @@ hnlm <- function(
   }
 
 
+
   cache <- new.env()
   assign("gamma", config$gamma, cache)
   # some checks
@@ -394,6 +401,12 @@ hnlm <- function(
     warning("names of gamma don't match up")
     setdiff(parameters_info$gamma$name, rownames(tmb_data$ATp))
   }
+
+  config$opt = list(
+    init = c(config$beta, config$theta),
+    lower = c(rep(-Inf, nrow(beta_info)), theta_info$lower),
+    upper = c(rep(Inf, nrow(beta_info)), theta_info$upper)
+  )
 
   if (verbose_orig) {
     cat(for_dev)
@@ -430,11 +443,12 @@ hnlm <- function(
   if (!length(cache$gamma)) {
     # no gammas, no inner opt
     mle <- stats::optim(
-      par = c(config$beta, config$theta),
+      par = config$opt$init,
       fn = adlaplace::jointLogDens,
       gr = adlaplace::grad,
       method = "L-BFGS-B",
-      #    lower = c(rep(-Inf, length(config$beta)), 0),
+      lower = config$opt$lower,
+      upper = config$opt$upper,
       backendContext = ad_fun,
       control = list(
         fnscale = -1,
@@ -453,45 +467,20 @@ hnlm <- function(
   cache <- new.env(parent = emptyenv())
   cache$gamma <- config$gamma
 
-  x0 <- c(config$beta, config$theta)
 
   if (verbose_orig) {
     cat("optimizing")
   }
-  if (FALSE) {
-    mle <- try(trustOptim::trust.optim(
-      x = x0,
-      fn = adlaplace::outer_fn,
-      gr = adlaplace::outer_gr,
-      method = "SR1",
-      config = config,
-      adFun = ad_fun,
-      cache = cache,
-      control = control,
-      control_inner = control_inner
-    ))
-  }
-  if(config$transform_theta) {
-    lower = rep(
-      c(-Inf, log(1e-9)), 
-      c(length(config$beta), length(config$theta))
-      )
-  } else {
-    lower = rep(
-      c(-Inf, 1e-9, 0),
-      c(length(config$beta), length(config$theta)-1, 1)
-    )
-  }
-  if("lower" %in% names(config)) {
-    lower = config$lower
-  }
+ 
+ 
   mle <- try(stats::optim(
-    par = x0,
+    par = config$opt$init,
     fn = adlaplace::outer_fn,
     gr = adlaplace::outer_gr,
     method = "L-BFGS-B",
     control = control,
-    lower = lower,
+    lower = config$opt$lower,
+    upper = config$opt$upper,
     config = config,
     adFun = ad_fun,
     cache = cache,
@@ -509,7 +498,8 @@ hnlm <- function(
       terms = terms,
       parameters_info = parameters_info,
       gamma_info = gamma_info,
-      control_inner = control$inner
+      control_inner = control$inner,
+      control = control
     )
   )
   if (verbose_orig) {
@@ -527,7 +517,7 @@ hnlm <- function(
   ))
 
   result$parameters <- try(hpolcc:::format_parameters(
-    x = result$extra$fullParameters,
+    x = result$extra$full_parameters,
     result$objects$parameters_info
   ))
 

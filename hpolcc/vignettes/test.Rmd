@@ -91,7 +91,7 @@ outer_fit$fval
 
 ```{r derivJointDens}
 config_check <- modifyList(forres$config, list(num_threads = 10, verbose = FALSE))
-x_joint <- inner_res$fullParameters
+x_joint <- inner_res$full_parameters
 
 # Perturb one parameter and compare analytic gradient to finite differences.
 Dpar <- length(config_check$beta) + 295L

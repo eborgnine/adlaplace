@@ -17,7 +17,7 @@ reformatChol <- function(x) {
 }
 
 logLikDeriv = function(
-  fullParameters,
+  full_parameters,
   hessianPack,
   grad,
   config, 
@@ -51,7 +51,7 @@ logLikDeriv = function(
 
   # need to pass num threads
   theTrace = adlaplace::traceHinvT(
-    fullParameters, Hstuff$halfH, 
+    full_parameters, Hstuff$halfH, 
     whichColumnsByGroup,
     adFun, 
     c(config$num_threads, 1L)[1]

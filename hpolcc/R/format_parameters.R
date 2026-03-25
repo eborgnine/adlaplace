@@ -3,6 +3,10 @@
 
 #' @export
 format_parameters <- function(x, parameters_info) {
+
+  full_parameters = x$extra$full_parameters
+  parameters_info = x$objects$parameters_info
+  
   Ntheta <- nrow(parameters_info$theta)
   Nbeta <- nrow(parameters_info$beta)
   Ngamma <- nrow(parameters_info$gamma)
@@ -20,10 +24,11 @@ format_parameters <- function(x, parameters_info) {
   names(result$theta) <- thetaNames
 
   isLogged <- parameters_info$theta$log
+  parameters_info$theta$mle_transformed = result$theta
   if (any(isLogged)) {
     result$theta[isLogged] <- exp(result$theta[isLogged])
   }
-
+  parameters_info$theta$mle = result$theta
 
   theGamma <- data.frame(
     name = gammaNames,

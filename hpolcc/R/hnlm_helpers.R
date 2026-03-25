@@ -244,12 +244,14 @@ add_rpoly <- function(term) {
   if (!is.null(term$hrpoly_p) && term$hrpoly_p > 0) {
     new_f <- paste0(
       "~ f(__var__, model = 'hrpoly', ref_value = __rv__, p = __p__, ",
-      "group_var = __gv__, init = __init__, include_global = F)"
+      "group_var = __gv__, init = __init__,lower = __lower__,upper = __upper__, include_global = F)"
     ) |>
       gsub(pattern = "__var__", replacement = term$var) |>
       gsub(pattern = "__rv__", replacement = term$ref_value) |>
       gsub(pattern = "__p__", replacement = term$hrpoly_p) |>
       gsub(pattern = "__init__", replacement = deparse(term$init_hrpoly)) |>
+      gsub(pattern = "__lower__", replacement = deparse(term$lower_hrpoly)) |>
+      gsub(pattern = "__upper__", replacement = deparse(term$upper_hrpoly)) |>
       gsub(pattern = "__gv__", replacement = term$group_var) |>
       as.formula()
 

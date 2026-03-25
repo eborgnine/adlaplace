@@ -137,7 +137,7 @@ plot(SxL, theF)
 plot(SxL1, diff(theF)/mean(diff(SxL)), xlim = range(SxL), type='o')
 abline(h=theL[[3]]$deriv[DparL,'theta'])
 abline(v=theL[[3]]$parameters[DparL])
-grad(theL[[3]]$fullParameters, data=res$tmb_data, config= res$config, adFun = adFunFull)[DparL]
+grad(theL[[3]]$full_parameters, data=res$tmb_data, config= res$config, adFun = adFunFull)[DparL]
 
 SparAll = 1:length(res$parameters_and_gamma)
 Sgamma = seq(length(res$config$beta)+1, len=nrow(res$tmb_data$ATp)   )
@@ -217,7 +217,7 @@ estHere= loglik(res$parameters, res$gamma_start, res$tmb_data, res$config, adFun
 
 quantile(grad(estHere$solution, res$tmb_data, res$config, adFun))
 
-res$parameters_and_gamma = estHere$fullParameters
+res$parameters_and_gamma = estHere$full_parameters
 res$gamma_start = estHere$solution
 bob =  thirdStrata(
     res$parameters_and_gamma, data=res$tmb_data, config=res$config, adFunFull

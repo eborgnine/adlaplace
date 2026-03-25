@@ -52,28 +52,33 @@
 f <- function(x, model = c("iwp", "hiwp", "fpoly", "rpoly", "hfpoly", "hrpoly", "iid"), ...) {
   model <- match.arg(model)
   x <- deparse(substitute(x))
-  
+
   switch(model,
-         iwp = iwp(x, ...),
-         hiwp = hiwp(x, ...),
-         fpoly = fpoly(x, ...),
-         rpoly = rpoly(x, ...),
-         hfpoly = hfpoly(x, ...),
-         hrpoly = hrpoly(x, ...),
-         iid = iid(x, ...),
-         stop("Unknown model")
+    iwp = iwp(x, ...),
+    hiwp = hiwp(x, ...),
+    fpoly = fpoly(x, ...),
+    rpoly = rpoly(x, ...),
+    hfpoly = hfpoly(x, ...),
+    hrpoly = hrpoly(x, ...),
+    iid = iid(x, ...),
+    stop("Unknown model")
   )
 }
 
 
 
-.my_theta_init <- exp(-4)
+.my_theta_init <- 0.02
+.my_theta_lower <- 1e-9
+.my_theta_upper <- Inf
 
 #' @rdname effects_and_utilities 
 #' @export
 iwp <- function(x, p = 2, 
                 ref_value, knots, range = NULL, 
-                rpoly_p = 0, fpoly_p = p-1, init=.my_theta_init,
+                rpoly_p = 0, fpoly_p = p-1,
+                 init=.my_theta_init,
+            lower=.my_theta_lower, 
+            upper = .my_theta_upper, 
             boundary_is_random = TRUE) {
   l <- list(var = x, 
             model = "iwp", 
@@ -85,6 +90,8 @@ iwp <- function(x, p = 2,
             fpoly_p = fpoly_p,
             init = init[1],
             run_as_is = FALSE,
+            lower=lower[1], 
+            upper=upper[1],
             boundary_is_random = boundary_is_random)
   
   if(!is.null(range)){
@@ -123,12 +130,14 @@ iwpPrecision <- function(term){
 }
 
 #' @rdname effects_and_utilities 
-iwpTheta <- function(theta_info, term){
-
-  result = data.frame(var=term$var, model=term$model, global=TRUE, order=NA, init=term$init)
-  result$name = apply(result[,c('var','model')],1,paste, collapse='_')
+iwpTheta <- function(theta_info, term) {
+  result <- data.frame(
+    var = term$var, model = term$model,
+    global = TRUE, order = NA, init = term$init,
+    lower = term$lower, upper=term$upper
+  )
+  result$name <- apply(result[, c("var", "model")], 1, paste, collapse = "_")
   return(result)
-
 }
 
 
@@ -137,13 +146,17 @@ iwpTheta <- function(theta_info, term){
 
 #' @rdname effects_and_utilities 
 #' @export
-hiwp <- function(x, p = 2, ref_value, knots, range = NULL, 
+hiwp <- function(
+  x, p = 2, ref_value, knots, range = NULL, 
                  group_var,
                  include_global = T,
                  hrpoly_p = p-1, hfpoly_p = 0, # with include_global = F
                  rpoly_p = 0, fpoly_p = include_global*(p-1),
                  init=.my_theta_init,
-                 boundary_is_random = TRUE) {
+                lower=.my_theta_lower, 
+                upper = .my_theta_upper, 
+                 boundary_is_random = TRUE
+                 ) {
   l <- list(var = x, 
             model = "hiwp", 
             p = p,
@@ -156,9 +169,16 @@ hiwp <- function(x, p = 2, ref_value, knots, range = NULL,
             hfpoly_p = hfpoly_p,
             rpoly_p = rpoly_p, 
             fpoly_p = fpoly_p,
-            init = init,
+
+            init = init[1],
+            lower = lower[1], 
+            upper=upper[1],
+
             init_hrpoly = rep_len(init, hrpoly_p+1)[-1],
-            run_as_is = F,
+            lower_hrpoly = rep_len(lower, hrpoly_p+1)[-1],
+            upper_hrpoly = rep_len(upper, hrpoly_p+1)[-1],
+
+            run_as_is = FALSE,
             boundary_is_random = boundary_is_random)
   
   if(!is.null(range)){
@@ -217,7 +237,7 @@ hiwpTheta <- function(theta_info, term){
 
   result = data.frame(var=term$var, model=term$model, 
     global=sort(unique(c(FALSE, term$include_global)),decreasing=TRUE), 
-    order=NA, init= term$init)
+    order=NA, init= term$init, lower = term$lower, upper = term$upper)
 
   result$name = paste(result$var, result$model, c("GLOBAL","LOCAL")[2-result$global], sep='_')
 
@@ -229,7 +249,9 @@ return(result)
 
 #' @rdname effects_and_utilities 
 #' @export
-fpoly <- function(x, p = 2, ref_value = 0, boundary_is_random = TRUE) {
+fpoly <- function(x, p = 2, ref_value = 0, boundary_is_random = TRUE
+# , init = .my_theta_init, lower= NULL, upper=NULL
+) {
   l <- list(var = x, 
             model = "fpoly", 
             p = p, 
@@ -293,15 +315,24 @@ return(result)
 
 #' @rdname effects_and_utilities 
 #' @export
-hrpoly <- function(x, p = 1, ref_value, group_var, include_global = T, init = .my_theta_init) {
-  l <- list(var = x, 
-            model = "hrpoly", 
-            p = p, 
-            ref_value = ref_value,
-            group_var = deparse(substitute(group_var)),
-            include_global = include_global,
-            init = rep_len(init, p),
-            run_as_is = FALSE)
+hrpoly <- function(
+  x, p = 1, ref_value, group_var, include_global = T,
+  init = .my_theta_init,
+  lower = .my_theta_lower,
+  upper = .my_theta_upper
+) {
+  l <- list(
+    var = x,
+    model = "hrpoly",
+    p = p,
+    ref_value = ref_value,
+    group_var = deparse(substitute(group_var)),
+    include_global = include_global,
+    init = rep_len(init, p),
+    lower = rep_len(lower, p),
+    upper = rep_len(upper, p),
+    run_as_is = FALSE
+  )
   return(l)
 }
 
@@ -340,7 +371,8 @@ hrpolyTheta <- function(theta_info, term){
     var=term$var, model=term$model, 
     global=FALSE, 
     order=seq(1, term$p),
-  init = term$init)
+  init = term$init,
+  lower = term$lower, upper=term$upper)
   result$name = apply(result[,c('var','model','order')],1,paste, collapse='_')
   return(result)
 
@@ -382,11 +414,16 @@ hrpolyTheta <- function(theta_info, term){
 
 #' @rdname effects_and_utilities 
 #' @export
-iid <- function(x, init=.my_theta_init) {
+iid <- function(x, 
+            init=.my_theta_init,
+            lower=.my_theta_lower, 
+            upper = .my_theta_upper) {
   list(var = x, 
        model = "iid",
-       run_as_is = F,
-       init=init[1]
+       run_as_is = FALSE,
+       init=init[1],
+       lower = lower[1],
+       upper = upper[1]
   )
 }
 
