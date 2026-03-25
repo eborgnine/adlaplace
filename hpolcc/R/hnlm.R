@@ -64,6 +64,7 @@ hnlm <- function(
     transform_theta = TRUE,
     num_threads = 1,
     Ngroups = 1e4,
+    dirichlet_init = 1e-3,
     package = "hpolcc"
   )
 
@@ -177,10 +178,11 @@ hnlm <- function(
   }, data = data_sub)
   names(x_fpoly) <- unlist(lapply(terms[is_fpoly], "[[", "var"))
 
-  a_random <- lapply( # parallel::mc
+  a_random <- parallel::mclapply(  
     terms[c(is_hrpoly, is_random)],
     get_design,
-    data = data_sub # , mc.cores = config$num_threads
+    data = data_sub, 
+    mc.cores = config$num_threads
   )
 
   qs <- lapply(terms[c(is_hrpoly, is_random)], get_precision)

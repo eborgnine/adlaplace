@@ -123,7 +123,7 @@ save(deaths, file = "deaths.RData")
 
 ```{r fit, eval=FALSE}
 # devtools::install_github("eborgine/adlaplace")
-# devtools::install_github("eborgine/hpol_adlaplace")
+# devtools::install_github("eborgine/hpolcc")
 
 library("hpolcc") #lib.loc = "/home/patrick/R/x86_64-pc-linux-gnu-library/4.3"
 
@@ -145,15 +145,15 @@ res_pm_temp_r <- hpolcc::hnlm(
   cc_design = c("cell", "eco_region", "year_week3_dow"),
   config = list(
     transform_theta = TRUE,
-    dirichlet = TRUE,
+    dirichlet_init = 1e-5,
     boundary_is_random = TRUE,
     num_threads = parallel::detectCores(),
     verbose = TRUE
   ),
   control = list(
     maxit = 1000,
-    report.level = 4,
-    report.freq = 1
+        trace = 3,
+        REPORT = 1,
   )
 )
 
