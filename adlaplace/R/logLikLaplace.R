@@ -120,7 +120,7 @@ logLikLaplace = function(
 		inner_res = try(adlaplace::inner_opt(
 			x, 
 			config_inner$gamma,
-			config=config_inner, 
+			config=config_inner,
 			control=control,
 			adFun = adFun))
 

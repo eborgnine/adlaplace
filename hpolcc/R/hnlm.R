@@ -45,12 +45,10 @@ hnlm <- function(
     transform_theta = TRUE
   ),
   control = list(
-    maxit = 2000,
-    start.trust.radius = 0.1,
-    report.level = 4,
-    report.freq = 1,
-    report.header.freq = 10,
-    report.precision = 5
+    fnscale = -1,
+    trace = 3,
+    REPORT = 1,
+    maxit = 1000
   ),
   control_inner = list(report.level = 0),
   for_dev = FALSE,
@@ -65,8 +63,6 @@ hnlm <- function(
     verbose = FALSE,
     transform_theta = TRUE,
     num_threads = 1,
-    dirichlet = TRUE,
-    dirichlet_init = 0.1,
     Ngroups = 1e4,
     package = "hpolcc"
   )
@@ -460,15 +456,43 @@ hnlm <- function(
   if (verbose_orig) {
     cat("optimizing")
   }
-  mle <- try(trustOptim::trust.optim(
-    x = x0,
+  if (FALSE) {
+    mle <- try(trustOptim::trust.optim(
+      x = x0,
+      fn = adlaplace::outer_fn,
+      gr = adlaplace::outer_gr,
+      method = "SR1",
+      config = config,
+      adFun = ad_fun,
+      cache = cache,
+      control = control,
+      control_inner = control_inner
+    ))
+  }
+  if(config$transform_theta) {
+    lower = rep(
+      c(-Inf, log(1e-9)), 
+      c(length(config$beta), length(config$theta))
+      )
+  } else {
+    lower = rep(
+      c(-Inf, 1e-9, 0),
+      c(length(config$beta), length(config$theta)-1, 1)
+    )
+  }
+  if("lower" %in% names(config)) {
+    lower = config$lower
+  }
+  mle <- try(stats::optim(
+    par = x0,
     fn = adlaplace::outer_fn,
     gr = adlaplace::outer_gr,
-    method = "SR1",
+    method = "L-BFGS-B",
+    control = control,
+    lower = lower,
     config = config,
     adFun = ad_fun,
     cache = cache,
-    control = control,
     control_inner = control_inner
   ))
 
@@ -488,15 +512,6 @@ hnlm <- function(
   )
   if (verbose_orig) {
     cat("done")
-  }
-
-  if (FALSE) {
-    ad_fun <- adlaplace::getAdFun(
-      result$objects$tmb_data,
-      result$objects$config,
-      package = "hpolcc"
-    )
-    control_inner <- list(report.level = 0)
   }
 
   result$extra <- try(adlaplace::logLikLaplace(
