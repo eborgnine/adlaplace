@@ -142,11 +142,6 @@ res_pm_temp_r <- hpolcc::hnlm(
       group_var = eco_region
     ),
   data = deaths,
-#  [
-#    which(
-#      deaths$date > as.Date("2006/1/1")
-#    ),
-#  ],
   cc_design = c("cell", "eco_region", "year_week3_dow"),
   config = list(
     transform_theta = TRUE,
