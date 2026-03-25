@@ -158,7 +158,7 @@ res_pm_temp_r <- hpolcc::hnlm(
   control = list(
     maxit = 1000,
         trace = 3,
-        REPORT = 1,
+        REPORT = 1
   )
 )
 
