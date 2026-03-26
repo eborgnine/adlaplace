@@ -24,6 +24,7 @@
 \alias{iidDesign}
 \alias{iidPrecision}
 \alias{iidTheta}
+\alias{fpolyTheta}
 \title{Functions to Specify Terms of the Formula (and Associated Utility Functions)}
 \usage{
 f(
@@ -43,6 +44,7 @@ iwp(
   init = .my_theta_init,
   lower = .my_theta_lower,
   upper = .my_theta_upper,
+  parscale = .my_theta_parscale,
   boundary_is_random = TRUE
 )
 
@@ -67,6 +69,7 @@ hiwp(
   init = .my_theta_init,
   lower = .my_theta_lower,
   upper = .my_theta_upper,
+  parscale = .my_theta_parscale,
   boundary_is_random = TRUE
 )
 
@@ -76,11 +79,28 @@ hiwpPrecision(term)
 
 hiwpTheta(theta_info, term)
 
-fpoly(x, p = 2, ref_value = 0, boundary_is_random = TRUE)
+fpoly(
+  x,
+  p = 2,
+  ref_value = 0,
+  boundary_is_random = TRUE,
+  init = .my_beta_init,
+  lower = .my_beta_lower,
+  upper = .my_beta_upper,
+  parscale = .my_beta_parscale
+)
 
 fpolyDesign(term, data)
 
-rpoly(x, p = 2, ref_value)
+rpoly(
+  x,
+  p = 2,
+  ref_value,
+  init = .my_beta_init,
+  lower = .my_beta_lower,
+  upper = .my_beta_upper,
+  parscale = .my_beta_parscale
+)
 
 rpolyDesign(term, data)
 
@@ -96,7 +116,8 @@ hrpoly(
   include_global = T,
   init = .my_theta_init,
   lower = .my_theta_lower,
-  upper = .my_theta_upper
+  upper = .my_theta_upper,
+  parscale = .my_theta_parscale
 )
 
 hrpolyDesign(term, data)
@@ -105,13 +126,21 @@ hrpolyPrecision(term)
 
 hrpolyTheta(theta_info, term)
 
-iid(x, init = .my_theta_init, lower = .my_theta_lower, upper = .my_theta_upper)
+iid(
+  x,
+  init = .my_theta_init,
+  lower = .my_theta_lower,
+  upper = .my_theta_upper,
+  parscale = .my_theta_parscale
+)
 
 iidDesign(term, data)
 
 iidPrecision(term)
 
 iidTheta(theta_info, term)
+
+fpolyTheta(theta_info, term)
 }
 \arguments{
 \item{x}{A numeric vector representing the data to which the model is applied.}

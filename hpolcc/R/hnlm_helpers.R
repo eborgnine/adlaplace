@@ -98,9 +98,9 @@ get_design <- function(term, data) {
   list2env(term, envir = environment())
 
   if (term$model == "iwp") {
-    iwpDesign(term, data)
+    design(term, data)
   } else if (term$model == "hiwp") {
-    hiwpDesign(term, data)
+    design(term, data)
   } else if (term$model == "iid") {
     iidDesign(term, data)
   } else if (term$model == "rpoly") {
@@ -198,6 +198,8 @@ get_theta_setup <- function(theta_info, term) {
     rpolyTheta(theta_info, term)
   } else if (term$model == "hrpoly") {
     hrpolyTheta(theta_info, term)
+  } else if (term$model == "fpoly") {
+    fpolyTheta(theta_info, term)
   } else {
     stop("Unknown term model (", term$model, ")")
   }

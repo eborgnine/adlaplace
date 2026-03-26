@@ -125,11 +125,11 @@ save(deaths, file = "deaths.RData")
 # devtools::install_github("eborgine/adlaplace")
 # devtools::install_github("eborgine/hpolcc")
 
-library("hpolcc") #lib.loc = "/home/patrick/R/x86_64-pc-linux-gnu-library/4.3"
+library("hpolcc") # lib.loc = "/home/patrick/R/x86_64-pc-linux-gnu-library/4.3"
 
 load("~/research/adlaplace/applications/india/deaths.RData")
 
-res_pm_temp_r  <- hnlm(
+res_pm_temp_r <- hnlm(
   formula = medical ~ dom +
     f(sqrt_pm,
       model = "hiwp", ref_value = 8, p = 2,
@@ -146,7 +146,7 @@ res_pm_temp_r  <- hnlm(
   data = deaths,
   cc_design = c("cell", "eco_region", "year_week3_dow"),
   config = list(
-    transform_theta = FALSE,
+    transform_theta = TRUE,
     dirichlet_init = 1e-5,
     boundary_is_random = TRUE,
     num_threads = parallel::detectCores(),
@@ -154,18 +154,19 @@ res_pm_temp_r  <- hnlm(
   ),
   control = list(
     maxit = 1000,
-        trace = 3,
-        REPORT = 1
-  ), 
+    trace = 3,
+    REPORT = 1
+  ),
+  for_dev = TRUE
 )
 
-#saveRDS(res_pm_temp_r, file = "resPmTempR.rds")
+# saveRDS(res_pm_temp_r, file = "resPmTempR.rds")
 ```
 
 
 
 ```{r globalSetup}
-res = readRDS("resPmTempR.rds")
+res <- readRDS("resPmTempR.rds")
 s_var <- names(res$sample$sim)
 s_var_names <- c(temp_clean = "temperature", sqrt_pm = "PM2.5")[s_var]
 the_x_lim <- list(
@@ -185,20 +186,20 @@ the_y_lim <- list()
 for (d in s_var) {
   x_here <- res$sample$x[[d]]
   if (grepl("sqrt", d)) x_here <- x_here^2
-  use_x_here <-  x_here <= max(the_x_lim[[d]]) &
+  use_x_here <- x_here <= max(the_x_lim[[d]]) &
     x_here >= min(the_x_lim[[d]])
 
-  range1 = range(
+  range1 <- range(
     res$sample$quantile$common[[d]][use_x_here, , drop = FALSE]
   )
-  if(!is.null(res$sample$envelope$common[[d]])) {
-    range2=range(
+  if (!is.null(res$sample$envelope$common[[d]])) {
+    range2 <- range(
       res$sample$envelope$common[[d]][use_x_here, , drop = FALSE]
     )
   } else {
-    range2 = NULL
+    range2 <- NULL
   }
-  the_y_lim[[d]] = range(c(-2, 100*(c(range1, range2)-1)))
+  the_y_lim[[d]] <- range(c(-2, 100 * (c(range1, range2) - 1)))
 }
 ```
 
@@ -251,18 +252,18 @@ sim_global_here_y <- 100 * (res$sample$quantiles$common[[d_var]] - 1)
 
 for (d_group in s_group) {
   group_key <- as.character(d_group)
-  the_ye <- 100*(res$sample$envelope$group[[d_var]][[group_key]]-1)
-  the_yq <- 100*(res$sample$quantiles$group[[d_var]][[group_key]]-1)
+  the_ye <- 100 * (res$sample$envelope$group[[d_var]][[group_key]] - 1)
+  the_yq <- 100 * (res$sample$quantiles$group[[d_var]][[group_key]] - 1)
 
   if (is.null(the_yq)) {
     warning("missing group quantiles for ", d_var, " / ", d_group)
     next
   }
 
-  plot(x_here, sim_global_here_y[,2],
+  plot(x_here, sim_global_here_y[, 2],
     type = "l",
     xlab = d_var, ylab = "100 x (RR-1)",
-    col = "grey", xaxs = "i", lwd=4,
+    col = "grey", xaxs = "i", lwd = 4,
     ylim = the_y_lim[[d_var]], xlim = the_x_lim[[d_var]]
   )
   matlines(x_here, the_yq,
@@ -277,7 +278,7 @@ for (d_group in s_group) {
 
 ```{r byRegionSetup1}
 d_var <- grep("temp", names(res$sample$sim), value = TRUE)
-s_group = names(res$sample$quantile$group[[d_var]])
+s_group <- names(res$sample$quantile$group[[d_var]])
 ```
 
 ```{r byRegion1, fig.cap=s_var_names[d_var], fig.subcap = s_group, fig.height=4, fig.width=4, ref.label = 'byRegionTemplate', eval=(length(d_var)>0), out.width='0.23\\linewidth', fig.align='center'}
@@ -285,8 +286,7 @@ s_group = names(res$sample$quantile$group[[d_var]])
 
 ```{r byRegionSetup2}
 d_var <- grep("[pP]m$", names(res$sample$sim), value = TRUE)
-s_group = names(res$sample$quantile$group[[d_var]])
-
+s_group <- names(res$sample$quantile$group[[d_var]])
 ```
 
 ```{r byRegion2, fig.cap=s_var_names[d_var], fig.subcap = s_group, fig.height=4, fig.width=4, ref.label = 'byRegionTemplate', eval=(length(d_var)>0), out.width='0.23\\linewidth', fig.align='center'}

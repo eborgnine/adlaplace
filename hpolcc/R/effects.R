@@ -7,7 +7,6 @@
 #' @param model A character string specifying the model of model term. Options include:
 #'   - `"fpoly"`: Fixed polynomial effect terms.
 #'   - `"rpoly"`: Random polynomial effect terms.
-#'   - `"hfpoly"`: Fixed hierarchical polynomial effect terms.
 #'   - `"hrpoly"`: Random hierarchical polynomial effect terms.
 #'   - `"iwp"`: Integrated Wiener process terms (random).
 #'   - `"hiwp"`: Hierarchical integrated Wiener process terms (random).
@@ -20,7 +19,6 @@
 #' @param rpoly_p A numeric value specifying the degree for (random effects) polynomial components to add to the model as a separate term.
 #' @param fpoly_p A numeric value specifying the degree for (fixed effects) polynomial components to add to the model as a separate term.
 #' @param hrpoly_p A numeric value specifying the degree for hierarchical (random effects) polynomial components to add to the model as a separate term.
-#' @param hfpoly_p A numeric value specifying the degree for hierarchical (fixed effects) polynomial components to add to the model as a separate term.
 #' @param ... Additional arguments passed to other methods or functions.
 #'
 #' @return A list or matrix, depending on the function, representing the design matrix, precision matrix, or parameter information for the specified model term.
@@ -29,7 +27,6 @@
 #' The `f()` function serves as the primary entry point for specifying model terms. Internally, it dispatches to specific functions based on the `model` argument:
 #' - `"fpoly"`: Calls the `fpoly()` function to specify fixed polynomial effect terms.
 #' - `"rpoly"`: Calls the `rpoly()` function to specify random polynomial effect terms.
-#' - `"hfpoly"`: Calls the `hfpoly()` function to specify hierarchical fixed polynomial effect terms.
 #' - `"hrpoly"`: Calls the `hrpoly()` function to specify hierarchical random polynomial effect terms.
 #' - `"iwp"`: Calls the `iwp()` function to construct integrated Wiener process terms.
 #' - `"hiwp"`: Calls the `hiwp()` function for hierarchical integrated Wiener process terms.
@@ -49,7 +46,7 @@
 #' term <- f(x = 0:10, model = "hiwp", ref_value = 5, knots = seq(0,10,2), group_var = "city")
 #'
 #' @export
-f <- function(x, model = c("iwp", "hiwp", "fpoly", "rpoly", "hfpoly", "hrpoly", "iid"), ...) {
+f <- function(x, model = c("iwp", "hiwp", "fpoly", "rpoly",   "hrpoly", "iid"), ...) {
   model <- match.arg(model)
   x <- deparse(substitute(x))
 
@@ -58,143 +55,285 @@ f <- function(x, model = c("iwp", "hiwp", "fpoly", "rpoly", "hfpoly", "hrpoly", 
     hiwp = hiwp(x, ...),
     fpoly = fpoly(x, ...),
     rpoly = rpoly(x, ...),
-    hfpoly = hfpoly(x, ...),
     hrpoly = hrpoly(x, ...),
     iid = iid(x, ...),
     stop("Unknown model")
   )
 }
 
-
+.my_beta_init <- 0
+.my_beta_lower <- -Inf
+.my_beta_upper <- Inf
+.my_beta_parscale <- 1
 
 .my_theta_init <- 0.02
 .my_theta_lower <- 1e-9
 .my_theta_upper <- Inf
+.my_theta_parscale <- 1
+
+ref_align = function(ref_value, knots) {
+  knots[which.min(abs(knots - ref_value))]
+}  
+
+
+#' @rdname effects_and_utilities
+#' @export
+iid <- function(x,
+                init = .my_theta_init,
+                lower = .my_theta_lower,
+                upper = .my_theta_upper,
+                parscale = .my_theta_parscale) {
+  new("iid",
+    var = x,
+    init = init[1],
+    lower = lower[1],
+    upper = upper[1],
+    parscale = parscale[1]
+  )
+}
+
+#' @rdname effects_and_utilities
+#' @export
+fpoly <- function(x, p = 2, ref_value = 0,
+                  init = .my_beta_init,
+                  lower = .my_beta_lower,
+                  upper = .my_beta_upper,
+                  parscale = .my_beta_parscale) {
+  new("fpoly",
+    var = x,
+    p = p,
+    ref_value = ref_value,
+    init = rep_len(init, p),
+    lower = rep_len(lower, p),
+    upper = rep_len(upper, p),
+    parscale = rep_len(parscale, p)
+  )
+}
 
 #' @rdname effects_and_utilities 
 #' @export
-iwp <- function(x, p = 2, 
-                ref_value, knots, range = NULL, 
-                rpoly_p = 0, fpoly_p = p-1,
-                 init=.my_theta_init,
-            lower=.my_theta_lower, 
-            upper = .my_theta_upper, 
-            boundary_is_random = TRUE) {
-  l <- list(var = x, 
-            model = "iwp", 
-            p = p, 
-            ref_value = ref_value,
-            knots = knots,
-            range = range,
-            rpoly_p = rpoly_p, 
-            fpoly_p = fpoly_p,
-            init = init[1],
-            run_as_is = FALSE,
-            lower=lower[1], 
-            upper=upper[1],
-            boundary_is_random = boundary_is_random)
-  
-  if(!is.null(range)){
-    if(ref_value < range[1] | ref_value > range[2])
-      stop("ref_value not in the range of the data for", var, " (bs).")
+rpoly <- function(x, p = 2, ref_value, sd = Inf) {
+  new("rpoly",
+    var = x,
+    p = p,
+    ref_value = ref_value,
+    sd = rep_len(sd, p)
+  )
+}
+
+#' @rdname effects_and_utilities
+#' @export
+hrpoly <- function(
+  x,
+  p = 1,
+  ref_value,
+  group_var,
+  init = .my_theta_init,
+  lower = .my_theta_lower,
+  upper = .my_theta_upper,
+  parscale = .my_theta_parscale
+) {
+  new("hrpoly",
+    var = x,
+    p = p,
+    ref_value = ref_value,
+    group_var = deparse(substitute(group_var)), ,
+    init = init[1],
+    lower = lower[1],
+    upper = upper[1],
+    parscale = parscale[1]
+  )
+}
+
+#' @rdname effects_and_utilities 
+#' @export
+iwp <- function(
+  x, p = 2,
+  ref_value, knots, range = NULL,
+  init = .my_theta_init,
+  lower = .my_theta_lower,
+  upper = .my_theta_upper,
+  parscale = .my_theta_parscale,
+  boundary_is_random = TRUE,
+  include_poly = TRUE
+) {
+
+  ref_value = ref_align(ref_value, knots)
+  result <- list(
+    iwp = new("iwp",
+      var = x,
+      p = p,
+      ref_value = ref_value,
+      knots = knots,
+      range = range,
+      init = init[1],
+      lower = lower[1],
+      upper = upper[1],
+      parscale = parscale[1]
+    )
+  )
+  if (include_poly) {
+    if (boundary_is_random) {
+      result$poly <- new("rpoly",
+        var = x,
+        p = p - 1,
+        ref_value = ref_value
+      )
+    } else {
+      result$poly <- new("fpoly",
+        var = x,
+        p = p - 1,
+        ref_value = ref_value
+      )
+    }
   }
-  
-  return(l)
+  result
 }
-
-#' @rdname effects_and_utilities 
-iwpDesign <- function(term, data){
-  list2env(term, envir = environment())
-  
-  ref_pos <- which(term$knots == term$ref_value)
-  
-  # should not happen
-  if(length(ref_pos) == 0) stop("ref_value of", var, "cannot be found in the corresponding knots vector. \n")
-  if(range[1] < knots[1] & range[2] > rev(knots)[1]) warning("knots for ", var, " do not span its range. Continuing anyway. \n")
-  res=local_poly(knots = term$knots-term$ref_value, refined_x = data[[term$var]]-term$ref_value, p = term$p)
-  res = methods::as(res, "TsparseMatrix")
-
-
-  bnumPad = formatC(1:ncol(res), width = max(ceiling(c(1,log10(ncol(res)))), na.rm=TRUE), flag='0')  
-  dimnames(res) = list(
-    rownames(data), 
-    paste(term$var, term$model, bnumPad, sep='_')
-
-  )
-  res
-}
-
-#' @rdname effects_and_utilities 
-iwpPrecision <- function(term){
-  as(compute_weights_precision(knots=term$knots), "TsparseMatrix")
-}
-
-#' @rdname effects_and_utilities 
-iwpTheta <- function(theta_info, term) {
-  result <- data.frame(
-    var = term$var, model = term$model,
-    global = TRUE, order = NA, init = term$init,
-    lower = term$lower, upper=term$upper
-  )
-  result$name <- apply(result[, c("var", "model")], 1, paste, collapse = "_")
-  return(result)
-}
-
-
-
 
 
 #' @rdname effects_and_utilities 
 #' @export
 hiwp <- function(
-  x, p = 2, ref_value, knots, range = NULL, 
-                 group_var,
-                 include_global = T,
-                 hrpoly_p = p-1, hfpoly_p = 0, # with include_global = F
-                 rpoly_p = 0, fpoly_p = include_global*(p-1),
-                 init=.my_theta_init,
-                lower=.my_theta_lower, 
-                upper = .my_theta_upper, 
-                 boundary_is_random = TRUE
-                 ) {
-  l <- list(var = x, 
-            model = "hiwp", 
-            p = p,
-            ref_value = ref_value,
-            knots = knots, 
-            range = range,
-            group_var = deparse(substitute(group_var)),
-            include_global = include_global,
-            hrpoly_p = hrpoly_p, 
-            hfpoly_p = hfpoly_p,
-            rpoly_p = rpoly_p, 
-            fpoly_p = fpoly_p,
+  x, p = 2, ref_value, knots, range = NULL,
+  group_var,
+  init = .my_theta_init,
+  lower = .my_theta_lower,
+  upper = .my_theta_upper,
+  parscale = .my_theta_parscale,
+  boundary_is_random = TRUE,
+  include_poly = TRUE,
+  include_global = TRUE
+) {
+  init <- rep_len(init, 2 * p + 4)
+  lower <- rep_len(lower, 2 * p + 4)
+  upper <- rep_len(upper, 2 * p + 4)
+  parscale <- rep_len(parscale, 2 * p + 4)
 
-            init = init[1],
-            lower = lower[1], 
-            upper=upper[1],
+  ref_value = ref_align(ref_value, knots)
 
-            init_hrpoly = rep_len(init, hrpoly_p+1)[-1],
-            lower_hrpoly = rep_len(lower, hrpoly_p+1)[-1],
-            upper_hrpoly = rep_len(upper, hrpoly_p+1)[-1],
-
-            run_as_is = FALSE,
-            boundary_is_random = boundary_is_random)
-  
-  if(!is.null(range)){
-    if(ref_value < range[1] | ref_value > range[2])
-      stop("ref_value not in the range of the data for", var, " (bs).")
+  result <- list(
+    hiwp = new("hiwp",
+      var = x,
+      p = p,
+      ref_value = ref_value,
+      knots = knots,
+      range = range,
+      group_var = deparse(substitute(group_var)),
+      init = init[1],
+      lower = lower[1],
+      upper = upper[1],
+      parscale = parscale[1]
+    )
+  )
+  if (include_global) {
+    result$iwp <- new("iwp",
+      var = x,
+      p = p,
+      ref_value = ref_value,
+      knots = knots,
+      range = range,
+      init = init[2],
+      lower = lower[2],
+      upper = upper[2],
+      parscale = parscale[2]
+    )
   }
+
+  if (include_poly) {
+    for (D_poly in seq(1, len = p - 1)) {
+      result[[paste("hrpoly", D_poly)]] <- new("hrpoly",
+        var = x, p = D_poly, ref_value = ref_value,
+        group_var = deparse(substitute(group_var)),
+        init = init[2 + D_poly],
+        lower = lower[2 + D_poly],
+        upper = upper[2 + D_poly],
+        parscale = parscale[2 + D_poly]
+      )
+    }
+  }
+  if (include_global & include_poly) {
+    if (boundary_is_random) {
+      for (D_poly in seq(1, len = p - 1)) {
+        result[[paste("poly", D_poly)]] <- new("rpoly",
+          var = x,
+          p = D_poly,
+          ref_value = ref_value
+        )
+      }
+    } else {
+      result$poly <- new("fpoly",
+        var = x,
+        p = p - 1,
+        ref_value = ref_value
+      )
+    }
+  }
+  result
+}
+
+
+#' @rdname effects_and_utilities 
+#' Generic design function
+#'
+#' @param term A model term object
+#' @param data A data frame containing the data
+#' @return A design matrix
+#' @rdname design
+setGeneric("design", function(term, data) {
+  standardGeneric("design")
+})
+
+#' @rdname design
+#' @export
+setMethod("design", "iwp", function(term, data) {
+
+  res = local_poly(knots = term@knots-term@ref_value, refined_x = data[[term@var]]-term@ref_value, p = term@p)
+  res = methods::as(res, "TsparseMatrix")
+
+  bnumPad = formatC(1:ncol(res), width = max(ceiling(c(1,log10(ncol(res)))), na.rm=TRUE), flag='0')  
+  dimnames(res) = list(
+    rownames(data), 
+    paste(term@var, term@model, bnumPad, sep='_')
+  )
   
-  return(l)
+})
+#' @rdname design
+#' @export
+setMethod("design", "rpoly", function(term, data) {
+  if (term@rpoly_p == 0) {
+    return(NULL)
+  }
+
+  D <- poly(data[[term@var]]-term@ref_value, raw=TRUE, degree = term@p)
+  D[,1:ncol(D),drop=FALSE]
+
+})
+#' @rdname design
+#' @export
+setMethod("design", "fpoly", function(term, data) {
+  if (term@fpoly_p == 0) {
+    return(NULL)
+  }
+  D <- poly(data[[term@var]]-term@ref_value, degree = term@p)
+  D <- D[,1:ncol(D),drop=F]
+  colnames(D) <- paste0(term@var, c('', seq(from=1, by=1, len=ncol(D)-1)))
+  D
+})
+
+#' @rdname design
+#' @export
+setMethod("design", "iid", function(term, data){
+  ff <- paste0("~ 0 + factor(", term@var, ")") |> formula()
+  Matrix::sparse.model.matrix(ff, data) |> as("TsparseMatrix")
 }
 
 #' @rdname effects_and_utilities 
-hiwpDesign <- function(term, data){
-  list2env(term, envir = environment())
-  
-  A0 <- iwpDesign(term, data)
-  id_split <- split(1:nrow(data), 
+#' @rdname design
+#' @export
+setMethod("design", "hiwp", function(term, data) {
+
+   A0 <- design(term, data)
+   id_split <- split(1:nrow(data), 
                     factor(data[[term$group_var]], levels = term$groups), 
                     drop = F)
   if(term$include_global) {
@@ -224,7 +363,30 @@ hiwpDesign <- function(term, data){
             length(id_split)), sep='_')))
 
   Afinal
-}
+})
+
+#' @rdname effects_and_utilities
+#' @export
+ iwpPrecision <- function(term) {
+   as(compute_weights_precision(knots = term@knots), "TsparseMatrix")
+ }
+
+#' @rdname effects_and_utilities
+#' @export
+ iwpTheta <- function(theta_info, term) {
+   result <- data.frame(
+     var = term$var, model = term$model,
+     global = TRUE, order = NA, init = term$init,
+     lower = term$lower, upper=term$upper,
+     parscale = ifelse(is.null(term$parscale), 1, term$parscale)
+   )
+   result$name <- apply(result[, c("var", "model")], 1, paste, collapse = "_")
+   return(result)
+ }
+
+# 
+# 
+
 
 #' @rdname effects_and_utilities 
 hiwpPrecision <- function(term){
@@ -235,11 +397,34 @@ hiwpPrecision <- function(term){
 #' @rdname effects_and_utilities 
 hiwpTheta <- function(theta_info, term){
 
-  result = data.frame(var=term$var, model=term$model, 
-    global=sort(unique(c(FALSE, term$include_global)),decreasing=TRUE), 
-    order=NA, init= term$init, lower = term$lower, upper = term$upper)
+  # Global and local parameters
+  result_global = data.frame(
+    var=term$var, model=term$model, 
+    global=TRUE, 
+    order=NA, 
+    init= term$init[1], 
+    lower = term$lower[1], 
+    upper = term$upper[1],
+    parscale = ifelse(is.null(term$parscale), 1, term$parscale[1])
+  )
+  result_global$name = paste(result_global$var, result_global$model, "GLOBAL", sep='_')
 
-  result$name = paste(result$var, result$model, c("GLOBAL","LOCAL")[2-result$global], sep='_')
+  # Local (hrpoly) parameters
+  if(term$hrpoly_p > 0) {
+    result_local = data.frame(
+      var=term$var, model=term$model, 
+      global=FALSE, 
+      order=seq(1, term$hrpoly_p), 
+      init= term$init_hrpoly,
+      lower = term$lower_hrpoly, 
+      upper = term$upper_hrpoly,
+      parscale = ifelse(is.null(term$parscale_hrpoly), rep(1, term$hrpoly_p), term$parscale_hrpoly)
+    )
+    result_local$name = paste(result_local$var, result_local$model, "LOCAL", result_local$order, sep='_')
+    result = rbind(result_global, result_local)
+  } else {
+    result = result_global
+  }
 
 return(result)
 }
@@ -247,19 +432,6 @@ return(result)
 
 
 
-#' @rdname effects_and_utilities 
-#' @export
-fpoly <- function(x, p = 2, ref_value = 0, boundary_is_random = TRUE
-# , init = .my_theta_init, lower= NULL, upper=NULL
-) {
-  l <- list(var = x, 
-            model = "fpoly", 
-            p = p, 
-            ref_value = ref_value,
-            run_as_is = FALSE,
-            boundary_is_random = boundary_is_random)
-  return(l)
-}
 
 #' @rdname effects_and_utilities 
 fpolyDesign <- function(term, data){
@@ -274,16 +446,7 @@ fpolyDesign <- function(term, data){
 
 
 
-#' @rdname effects_and_utilities 
-#' @export
-rpoly <- function(x, p = 2, ref_value) {
-  l <- list(var = x, 
-            model = "rpoly", 
-            p = p, 
-            ref_value = ref_value,
-            run_as_is = F)
-  return(l)
-}
+#
 
 #' @rdname effects_and_utilities 
 rpolyDesign <- function(term, data){
@@ -304,7 +467,8 @@ rpolyTheta <- function(theta_info, term){
     var=term$var, model=term$model, 
     global=NA, 
     order=seq(1, term$p),
-  init = term$init)
+  init = term$init,
+  parscale = ifelse(is.null(term$parscale), rep(1, term$p), rep_len(term$parscale, term$p)))
 
     result$name = apply(result[,c('var','model','order')],1,paste, collapse='_')
 
@@ -313,28 +477,6 @@ return(result)
 
 
 
-#' @rdname effects_and_utilities 
-#' @export
-hrpoly <- function(
-  x, p = 1, ref_value, group_var, include_global = T,
-  init = .my_theta_init,
-  lower = .my_theta_lower,
-  upper = .my_theta_upper
-) {
-  l <- list(
-    var = x,
-    model = "hrpoly",
-    p = p,
-    ref_value = ref_value,
-    group_var = deparse(substitute(group_var)),
-    include_global = include_global,
-    init = rep_len(init, p),
-    lower = rep_len(lower, p),
-    upper = rep_len(upper, p),
-    run_as_is = FALSE
-  )
-  return(l)
-}
 
 #' @rdname effects_and_utilities 
 hrpolyDesign <- function(term, data){
@@ -372,7 +514,8 @@ hrpolyTheta <- function(theta_info, term){
     global=FALSE, 
     order=seq(1, term$p),
   init = term$init,
-  lower = term$lower, upper=term$upper)
+  lower = term$lower, upper=term$upper,
+  parscale = ifelse(is.null(term$parscale), rep(1, term$p), rep_len(term$parscale, term$p)))
   result$name = apply(result[,c('var','model','order')],1,paste, collapse='_')
   return(result)
 
@@ -382,50 +525,6 @@ hrpolyTheta <- function(theta_info, term){
 
 
 
-
-
-# #' @rdname effects_and_utilities 
-# #' @export
-# bs <- function(x, o = 2, ref_value, range = NULL, nknots = NULL, run_as_is = T, ...) {
-#   
-#   stop("bs() is not implemented.")
-#   
-#   l <- c(list(var = x, 
-#               model = "bs", 
-#               o = o, 
-#               ref_value = ref_value,
-#               nknots = nknots,
-#               range = range,
-#               run_as_is = run_as_is,
-#               prefix = "splines::"),
-#          list(...))
-#   
-#   if(!is.null(range)){
-#     if(ref_value < range[1] | ref_value > range[2])
-#       stop("ref_value not in the range of the data for", var, " (bs).")
-#   }
-#   
-#   return(l)
-# }
-
-
-
-
-
-#' @rdname effects_and_utilities 
-#' @export
-iid <- function(x, 
-            init=.my_theta_init,
-            lower=.my_theta_lower, 
-            upper = .my_theta_upper) {
-  list(var = x, 
-       model = "iid",
-       run_as_is = FALSE,
-       init=init[1],
-       lower = lower[1],
-       upper = upper[1]
-  )
-}
 
 #' @rdname effects_and_utilities 
 iidDesign <- function(term, data){
@@ -440,11 +539,24 @@ iidPrecision <- function(term){
   Matrix::sparseMatrix(x=1, i=1:n, j=1:n, rep = "T") |> as("TsparseMatrix")
 }
 
-#' @rdname effects_and_utilities 
+
+
 iidTheta <- function(theta_info, term){
   result = data.frame(
-    var = term$var, model=term$model,global=NA, order=NA, init=term$init
+    var = term$var, model=term$model,global=NA, order=NA, init=term$init,
+    parscale = ifelse(is.null(term$parscale), .my_theta_parscale, term$parscale)
   )
   result$name = paste0(result$var, '_', result$model)
+  return(result)
+}
+
+#' @rdname effects_and_utilities 
+fpolyTheta <- function(theta_info, term){
+  result = data.frame(
+    var = term$var, model=term$model, global=NA, 
+    order=seq(1, term$p), init=term$init, lower=term$lower, upper=term$upper,
+    parscale = ifelse(is.null(term$parscale), rep(.my_beta_parscale, term$p), rep_len(term$parscale, term$p))
+  )
+  result$name = apply(result[,c('var','model','order')],1,paste, collapse='_')
   return(result)
 }

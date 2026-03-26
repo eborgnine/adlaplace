@@ -48,7 +48,8 @@ hnlm <- function(
     fnscale = -1,
     trace = 3,
     REPORT = 1,
-    maxit = 1000
+    maxit = 1000,
+    parscale = NULL
   ),
   control_inner = list(report.level = 0),
   for_dev = FALSE,
@@ -287,11 +288,13 @@ hnlm <- function(
       init = config$dirichlet_init,
       lower = config$dirichlet_lower,
       upper = config$dirichlet_upper,      
+      parscale = 1,
       name = "overdisp"
     ))
   )
 
   theta_info <- do.call(rbind, theta_setup)
+
   if (config$transform_theta) {
     theta_info$init <- pmax(-6, log(theta_info$init))
     theta_info$upper <- log(theta_info$upper)
@@ -305,7 +308,7 @@ hnlm <- function(
   if (!is.null(gamma_info)) {
     gamma_theta <- merge(
       gamma_info,
-      theta_info,
+      theta_info[, setdiff(names(theta_info), c("init","lower","upper","parscale","log"))],
       by = c("var", "model", "order", "global"),
       all.x = TRUE,
       all.y = TRUE,
@@ -407,6 +410,11 @@ hnlm <- function(
     lower = c(rep(-Inf, nrow(beta_info)), theta_info$lower),
     upper = c(rep(Inf, nrow(beta_info)), theta_info$upper)
   )
+  
+  # Add parscale to config$opt if it exists in theta_info
+  if ("parscale" %in% names(theta_info)) {
+    config$opt$parscale <- c(rep(1, nrow(beta_info)), theta_info$parscale)
+  }
 
   if (verbose_orig) {
     cat(for_dev)
@@ -442,6 +450,17 @@ hnlm <- function(
 
   if (!length(cache$gamma)) {
     # no gammas, no inner opt
+    # Add parscale to the control if it exists in theta_info
+    control_list <- list(
+      fnscale = -1,
+      trace = 3,
+      REPORT = 1,
+      maxit = 1000
+    )
+    if (!is.null(config$theta_info) && "parscale" %in% names(config$theta_info)) {
+      control_list$parscale <- config$theta_info$parscale
+    }
+    
     mle <- stats::optim(
       par = config$opt$init,
       fn = adlaplace::jointLogDens,
@@ -450,12 +469,7 @@ hnlm <- function(
       lower = config$opt$lower,
       upper = config$opt$upper,
       backendContext = ad_fun,
-      control = list(
-        fnscale = -1,
-        trace = 3,
-        REPORT = 1,
-        maxit = 1000
-      )
+      control = control_list
     )
     mle$hessian <- adaplace::hess(
       mle$par,
@@ -466,28 +480,32 @@ hnlm <- function(
 
   cache <- new.env(parent = emptyenv())
   cache$gamma <- config$gamma
+if (verbose_orig) {
+  cat("optimizing")
+  cat(" initial, lower , upper\n")
+  print(do.call(rbind, config$opt))
+}
 
+# Add parscale to control if it exists in theta_info
+if (!is.null(config$theta_info) && "parscale" %in% names(config$theta_info)) {
+  control$parscale <- config$theta_info$parscale
+}
 
-  if (verbose_orig) {
-    cat("optimizing")
-  }
- 
- 
-  mle <- try(stats::optim(
-    par = config$opt$init,
-    fn = adlaplace::outer_fn,
-    gr = adlaplace::outer_gr,
-    method = "L-BFGS-B",
-    control = control,
-    lower = config$opt$lower,
-    upper = config$opt$upper,
-    config = config,
-    adFun = ad_fun,
-    cache = cache,
-    control_inner = control_inner
-  ))
+mle <- try(stats::optim(
+  par = config$opt$init,
+  fn = adlaplace::outer_fn,
+  gr = adlaplace::outer_gr,
+  method = "L-BFGS-B",
+  control = control,
+  lower = config$opt$lower,
+  upper = config$opt$upper,
+  config = config,
+  adFun = ad_fun,
+  cache = cache,
+  control_inner = control_inner
+))
 
-  config$gamma <- get("gamma", cache)
+config$gamma <- get("gamma", cache)
 
   result <- list(
     opt = mle,
