@@ -137,15 +137,112 @@ hnlm <- function(
     cat("\ncollecting terms\n")
   }
 
-  design_list <- parallel::mclapply(model_terms, design,
+  # add group info to model
+  # to do, also for iid
+  # create a function terms_extra(term_list, data)
+  has_group_var <- which(mapply(
+    function(class_name) {
+      any(slotNames(getClass(class_name)) == "group_var")
+    },
+    sapply(model_terms, class)
+  ))
+
+  var_seq <- sapply(model_terms[has_group_var], slot, "group_var")
+  unique_values <- lapply(unique(var_seq), function(xx) unique(data_sub[[xx]]))
+  names(unique_values) <- unique(var_seq)
+
+  unique_values_string = lapply(unique_values, function(xx) {
+              formatC(xx, width = ceiling(log10(max(xx))), flag = "0")
+  })
+
+  for (D in has_group_var) {
+    model_terms[[D]]@groups <- unique_values[[model_terms[[D]]@group_var]]
+    model_terms[[D]]@groups_string <- unique_values_string[[model_terms[[D]]@group_var]]
+  }
+
+  precision_list <- lapply(model_terms, precision)
+
+  theta_info_list <- lapply(model_terms, theta_info)
+
+  # to do: class for overdisp.  can add f(model="overdisp", options), if no f(model="overdisp") in formula it's added by default
+  # to do: add fixed=value to classes. (so can do overdisp with fixed=0)
+  theta_info_list <- c(
+    theta_info_list,
+    list(overdisp = data.frame(
+      var = NA,
+      model = "overdisp",
+      name = "overdisp",
+      global = TRUE,
+      order = NA,
+      init = config$dirichlet_init,
+      lower = config$dirichlet_lower,
+      upper = config$dirichlet_upper,
+      parscale = 1
+    ))
+  )
+
+  theta_setup <- do.call(rbind, theta_info_list)
+  theta_setup$id <- seq.int(0, len = nrow(theta_setup))
+
+  gamma_info_list <- lapply(model_terms, gamma_info)
+  gamma_setup <- do.call(rbind, gamma_info_list)
+  gamma_setup$id <- seq.int(0, len = nrow(gamma_setup))
+  gamma_setup$theta_id <- theta_setup[match(
+    gamma_setup$name, theta_setup$name
+  ), "id"]
+
+  terms_with_gamma <- sapply(model_terms, slot, "name") %in% 
+    unique(gamma_setup$name)
+
+  design_list_x <- lapply(model_terms[!terms_with_gamma], design,
+    data = data_sub
+  )
+  design_list_a <- parallel::mclapply(model_terms[terms_with_gamma], design,
     data = data_sub,
     mc.cores = config$num_threads
   )
 
-  which_is_random = unlist(lapply(model_terms, slot, "random"))
+  a_matrix = do.call(cbind, design_list_a)
 
-  x_mat = do.call(cbind, design_list[!which_is_random])
-  a_mat = do.call(cbind, design_list[which_is_random])
+  if(any(duplicated(colnames(a_matrix))) ) {
+    warning("duplicated column names of random effects design matrix, perhaps same term in the model twice?")
+  }
+  if (!(all(sort(colnames(a_matrix)) == sort(gamma_setup$gamma_name)))) {
+    warning("some names of A don't match up")
+    print(table(colnames(a_matrix) %in% gamma_setup$gamma_name))
+    print(str(setdiff(colnames(a_matrix), gamma_setup$gamma_name)))
+    print(str(setdiff(gamma_setup$gamma_name, colnames(a_matrix))))
+  }
+
+  x_matrix <- do.call(cbind, design_list_x)
+
+  # STOPPED HERE!
+  # NEXT beta info
+
+  # theta setup
+  theta_setup <- lapply(
+    terms[c(is_hrpoly, is_random)],
+    get_theta_setup,
+    theta_info = list()
+  )
+
+  theta_setup <- c(
+    theta_setup,
+    list(data.frame(
+      var = "overdisp",
+      model = "overdisp",
+      global = TRUE,
+      order = NA,
+      init = config$dirichlet_init,
+      lower = config$dirichlet_lower,
+      upper = config$dirichlet_upper,
+      parscale = 1,
+      name = "overdisp"
+    ))
+  )
+
+  theta_info <- do.call(rbind, theta_setup)
+
 
   # setup of the design matrices and other parameters
   # terms carries all the information throughout
@@ -298,7 +395,7 @@ hnlm <- function(
       order = NA,
       init = config$dirichlet_init,
       lower = config$dirichlet_lower,
-      upper = config$dirichlet_upper,      
+      upper = config$dirichlet_upper,
       parscale = 1,
       name = "overdisp"
     ))
@@ -319,7 +416,7 @@ hnlm <- function(
   if (!is.null(gamma_info)) {
     gamma_theta <- merge(
       gamma_info,
-      theta_info[, setdiff(names(theta_info), c("init","lower","upper","parscale","log"))],
+      theta_info[, setdiff(names(theta_info), c("init", "lower", "upper", "parscale", "log"))],
       by = c("var", "model", "order", "global"),
       all.x = TRUE,
       all.y = TRUE,
@@ -407,7 +504,6 @@ hnlm <- function(
   }
 
 
-
   cache <- new.env()
   assign("gamma", config$gamma, cache)
   # some checks
@@ -416,12 +512,12 @@ hnlm <- function(
     setdiff(parameters_info$gamma$name, rownames(tmb_data$ATp))
   }
 
-  config$opt = list(
+  config$opt <- list(
     init = c(config$beta, config$theta),
     lower = c(rep(-Inf, nrow(beta_info)), theta_info$lower),
     upper = c(rep(Inf, nrow(beta_info)), theta_info$upper)
   )
-  
+
   # Add parscale to config$opt if it exists in theta_info
   if ("parscale" %in% names(theta_info)) {
     config$opt$parscale <- c(rep(1, nrow(beta_info)), theta_info$parscale)
@@ -471,7 +567,7 @@ hnlm <- function(
     if (!is.null(config$theta_info) && "parscale" %in% names(config$theta_info)) {
       control_list$parscale <- config$theta_info$parscale
     }
-    
+
     mle <- stats::optim(
       par = config$opt$init,
       fn = adlaplace::jointLogDens,
@@ -491,32 +587,32 @@ hnlm <- function(
 
   cache <- new.env(parent = emptyenv())
   cache$gamma <- config$gamma
-if (verbose_orig) {
-  cat("optimizing")
-  cat(" initial, lower , upper\n")
-  print(do.call(rbind, config$opt))
-}
+  if (verbose_orig) {
+    cat("optimizing")
+    cat(" initial, lower , upper\n")
+    print(do.call(rbind, config$opt))
+  }
 
-# Add parscale to control if it exists in theta_info
-if (!is.null(config$theta_info) && "parscale" %in% names(config$theta_info)) {
-  control$parscale <- config$theta_info$parscale
-}
+  # Add parscale to control if it exists in theta_info
+  if (!is.null(config$theta_info) && "parscale" %in% names(config$theta_info)) {
+    control$parscale <- config$theta_info$parscale
+  }
 
-mle <- try(stats::optim(
-  par = config$opt$init,
-  fn = adlaplace::outer_fn,
-  gr = adlaplace::outer_gr,
-  method = "L-BFGS-B",
-  control = control,
-  lower = config$opt$lower,
-  upper = config$opt$upper,
-  config = config,
-  adFun = ad_fun,
-  cache = cache,
-  control_inner = control_inner
-))
+  mle <- try(stats::optim(
+    par = config$opt$init,
+    fn = adlaplace::outer_fn,
+    gr = adlaplace::outer_gr,
+    method = "L-BFGS-B",
+    control = control,
+    lower = config$opt$lower,
+    upper = config$opt$upper,
+    config = config,
+    adFun = ad_fun,
+    cache = cache,
+    control_inner = control_inner
+  ))
 
-config$gamma <- get("gamma", cache)
+  config$gamma <- get("gamma", cache)
 
   result <- list(
     opt = mle,
@@ -536,7 +632,7 @@ config$gamma <- get("gamma", cache)
   }
 
   result$extra <- try(adlaplace::logLikLaplace(
-    result$opt[[grep("solution|par", names(result$opt), value=TRUE)[1]]],
+    result$opt[[grep("solution|par", names(result$opt), value = TRUE)[1]]],
     gamma = result$objects$config$gamma,
     data = result$objects$tmb_data,
     config = result$objects$config,

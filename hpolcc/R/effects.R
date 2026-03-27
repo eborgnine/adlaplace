@@ -82,7 +82,7 @@ ref_align <- function(ref_value, knots) {
 linear <- function(x, prefix = NULL) {
   new("linear",
     var = x,
-    name = paste(c(prefix, x, "linear"), sep = "_"),
+    name = paste(c(prefix, x, "linear"), collapse = "_"),
     f = formula(paste0("~ 0 + ", x))
   )
 }
@@ -159,7 +159,8 @@ hrpoly <- function(
     f = formula(paste0("~ 0 + ", prefix, x)),
     p = p,
     ref_value = ref_value,
-    group_var = deparse(substitute(group_var)), ,
+    group_var = group_var,
+    groups = integer(0),  # Will be set later when data is available
     init = init[1],
     lower = lower[1],
     upper = upper[1],
@@ -200,19 +201,15 @@ iwp <- function(
   if (include_poly) {
     poly_name <- paste(c(prefix, x, "poly"), collapse = "_")
     if (boundary_is_random) {
-      result[[poly_name]] <- new("rpoly",
-        var = x,
-        name = poly_name,
+      result[[poly_name]] <- rpoly(
+        x = x,
         p = p - 1,
-        f = the_f,
         ref_value = ref_value
       )
     } else {
-      result[[poly_name]] <- new("fpoly",
-        var = x,
-        name = poly_name,
+      result[[poly_name]] <- fpoly(
+        x = x,
         p = p - 1,
-        f = the_f,
         ref_value = ref_value
       )
     }
@@ -253,7 +250,8 @@ hiwp <- function(
     ref_value = ref_value,
     knots = knots,
     range = range,
-    group_var = deparse(substitute(group_var)),
+    group_var = group_var, 
+    groups = integer(0),  # Will be set later when data is available
     init = init[1],
     lower = lower[1],
     upper = upper[1],
@@ -280,11 +278,9 @@ hiwp <- function(
   if (include_poly) {
     for (D_poly in seq(1, len = p - 1)) {
       hrpoly_name <- paste(c(prefix, x, "hrpoly", D_poly), collapse = "_")
-      result[[hrpoly_name]] <- new("hrpoly",
-        var = x, p = D_poly, ref_value = ref_value,
-        name = hrpoly_name,
-        f = the_f,
-        group_var = deparse(substitute(group_var)),
+      result[[hrpoly_name]] <- hrpoly(
+        x = x, p = D_poly, ref_value = ref_value,
+        group_var = result[[1]]@group_var,
         init = init[2 + D_poly],
         lower = lower[2 + D_poly],
         upper = upper[2 + D_poly],
@@ -296,21 +292,17 @@ hiwp <- function(
     if (boundary_is_random) {
       rpoly_name <- paste(c(prefix, x, "rpoly"), collapse = "_")
 
-      result[[rpoly_name]] <- new("rpoly",
-        var = x,
-        name = rpoly_name,
+      result[[rpoly_name]] <- rpoly(
+        x = x,
         p = p - 1,
-        ref_value = ref_value,
-        f = the_f
+        ref_value = ref_value
       )
     } else {
       fpoly_name <- paste(c(prefix, x, "fpoly"), collapse = "_")
-      result[[fpoly_name]] <- new("fpoly",
-        var = x,
-        name = fpoly_name,
+      result[[fpoly_name]] <- fpoly(
+        x = x,
         p = p - 1,
-        ref_value = ref_value,
-        f = the_f
+        ref_value = ref_value
       )
     }
   }
@@ -355,8 +347,9 @@ setMethod("design", "rpoly", function(term, data) {
   }
 
   D <- poly(data[[term@var]]-term@ref_value, raw=TRUE, degree = term@p)
-  D[,1:ncol(D),drop=FALSE]
-
+  D <- D[,1:ncol(D),drop=FALSE]
+  colnames(D) <- paste(term@name, 1:ncol(D), sep="_")
+  D
 })
 #' @rdname design
 #' @export
@@ -391,9 +384,9 @@ setMethod("design", "linear", function(term, data){
 #' @rdname design
 #' @export
 setMethod("design", "hrpoly", function(term, data) {
-  the_levels <- unique(data[[term@group_var]])
+
   id_split <- split(1:nrow(data), 
-    factor(data[[term@group_var]], levels = the_levels), 
+    factor(data[[term@group_var]], levels = term@groups), 
   drop = FALSE)
   mm <- c(0, sapply(id_split, length)) |> cumsum()
 
@@ -402,14 +395,14 @@ setMethod("design", "hrpoly", function(term, data) {
     raw = TRUE, degree = term@p
   )[,term@p])
     
-  Afinal <- Matrix::Matrix(0, nrow = nrow(data), ncol = length(the_levels)) |> as("TsparseMatrix")
+  Afinal <- Matrix::Matrix(0, nrow = nrow(data), ncol = length(term@groups)) |> as("TsparseMatrix")
 
   for (k in seq_along(id_split)) {
     Afinal[id_split[[k]], k] <- A0[id_split[[k]]]
   }
   colnames(Afinal) <- paste(
     term@name,
-    the_levels,
+    term@groups_string,
     sep = "_"
   )
 
@@ -421,9 +414,11 @@ setMethod("design", "hrpoly", function(term, data) {
 setMethod("design", "hiwp", function(term, data) {
   term_iwp <- as(term, "iwp")
   A0 <- design(term_iwp, data)
-  the_levels <- unique(data[[term@group_var]])
+  if(!all(unique(data[[term@group_var]] %in% term@groups))) {
+    warning("groups in data not in the model")
+  }
   id_split <- split(1:nrow(data),
-    factor(data[[term@group_var]], levels = the_levels),
+    factor(data[[term@group_var]], levels = term@groups),
     drop = FALSE
   )
 
@@ -448,7 +443,7 @@ setMethod("design", "hiwp", function(term, data) {
     dimnames = list(
       rownames(data),
       paste(term@name,
-        rep(names(id_split), each = ncol(A0)),
+        rep(term@groups_string, each = ncol(A0)),
         rep(
           formatC(1:ncol(A0), width = ceiling(log10(ncol(A0))), flag = "0"),
           length(id_split)
@@ -461,176 +456,302 @@ setMethod("design", "hiwp", function(term, data) {
   Afinal
 })
 
-#' @rdname effects_and_utilities
+#' Generic precision function
+#'
+#' @param term A model term object
+#' @param data A data frame containing the data
+#' @return A precision matrix
+#' @rdname precision
+setGeneric("precision", function(term, data) {
+  standardGeneric("precision")
+})
+
+#' @rdname precision
 #' @export
- iwpPrecision <- function(term) {
-   as(compute_weights_precision(knots = term@knots), "TsparseMatrix")
- }
+setMethod("precision", "iwp", function(term, data) {
+  result = as(compute_weights_precision(knots = term@knots), "TsparseMatrix")
+  dimnames(result) = list(paste(
+    term@name,
+    1:ncol(result),
+    sep="_"
+  ))[c(1,1)]
+  result
+})
 
-#' @rdname effects_and_utilities
+#' @rdname precision
 #' @export
- iwpTheta <- function(theta_info, term) {
-   result <- data.frame(
-     var = term$var, model = term$model,
-     global = TRUE, order = NA, init = term$init,
-     lower = term$lower, upper=term$upper,
-     parscale = ifelse(is.null(term$parscale), 1, term$parscale)
-   )
-   result$name <- apply(result[, c("var", "model")], 1, paste, collapse = "_")
-   return(result)
- }
-
-# 
-# 
-
-
-#' @rdname effects_and_utilities 
-hiwpPrecision <- function(term){
-  list2env(term, envir = environment())
-  Matrix::.bdiag(replicate(include_global+ngroups, iwpPrecision(term)))
-}
-
-#' @rdname effects_and_utilities 
-hiwpTheta <- function(theta_info, term){
-
-  # Global and local parameters
-  result_global = data.frame(
-    var=term$var, model=term$model, 
-    global=TRUE, 
-    order=NA, 
-    init= term$init[1], 
-    lower = term$lower[1], 
-    upper = term$upper[1],
-    parscale = ifelse(is.null(term$parscale), 1, term$parscale[1])
-  )
-  result_global$name = paste(result_global$var, result_global$model, "GLOBAL", sep='_')
-
-  # Local (hrpoly) parameters
-  if(term$hrpoly_p > 0) {
-    result_local = data.frame(
-      var=term$var, model=term$model, 
-      global=FALSE, 
-      order=seq(1, term$hrpoly_p), 
-      init= term$init_hrpoly,
-      lower = term$lower_hrpoly, 
-      upper = term$upper_hrpoly,
-      parscale = ifelse(is.null(term$parscale_hrpoly), rep(1, term$hrpoly_p), term$parscale_hrpoly)
-    )
-    result_local$name = paste(result_local$var, result_local$model, "LOCAL", result_local$order, sep='_')
-    result = rbind(result_global, result_local)
-  } else {
-    result = result_global
+setMethod("precision", "hiwp", function(term, data) {
+  unique_values <- term@groups
+  if (!length(unique_values)) {
+    unique_values <- unique(data[[term@var]])
   }
+  iwp_precision <- precision(as(term, "iwp"), data)
+  result <- Matrix::.bdiag(replicate(length(unique_values), iwp_precision))
+dimnames(result) <- list(
+  paste(
+    rep(colnames(iwp_precision), length(unique_values)),
+    rep(unique_values, each = ncol(iwp_precision)),
+    sep = "_"
+  )
+)[c(1, 1)]
+  result
+})
 
-return(result)
-}
+#' @rdname precision
+#' @export
+setMethod("precision", "rpoly", function(term, data) {
+  if (term@p == 0) {
+    return(NULL)
+  }
+  Matrix::Diagonal(term@p, 1)
+})
+
+#' @rdname precision
+#' @export
+setMethod("precision", "hrpoly", function(term, data) {
+  if (term@p == 0) {
+    return(NULL)
+  }
+  unique_values <- term@groups
+  if (!length(unique_values)) {
+    unique_values <- unique(data[[term@var]])
+  }
+  Matrix::Diagonal(length(unique_values), 1)
+})
+
+#' @rdname precision
+#' @export
+setMethod("precision", "fpoly", function(term, data) {
+  # Fixed effects don't have precision matrices
+  NULL
+})
+
+#' @rdname precision
+#' @export
+setMethod("precision", "iid", function(term, data) {
+  # Identity matrix for iid terms
+  n <- length(unique(data[[term@var]]))
+  Matrix::Diagonal(n, 1)
+})
+
+#' @rdname precision
+#' @export
+setMethod("precision", "linear", function(term, data) {
+  # Linear terms don't have precision matrices
+  NULL
+})
+
+#' Generic theta_info function
+#'
+#' @param theta_info Additional theta information (not currently used but kept for compatibility)
+#' @param term A model term object
+#' @return A data frame with parameter information for the term
+#' @rdname theta_info
+setGeneric("theta_info", function(term) {
+  standardGeneric("theta_info")
+})
+
+#' @rdname theta_info
+#' @export
+setMethod("theta_info", "iwp", function(term) {
+  result <- data.frame(
+    var = term@var, model = "iwp", name = term@name,
+    global = TRUE, order = NA, init = term@init,
+    lower = term@lower, upper = term@upper,
+    parscale = term@parscale
+  )
+  return(result)
+})
+
+#' @rdname theta_info
+#' @export
+setMethod("theta_info", "hiwp", function(term) {
+  # Global and local parameters
+  result <- data.frame(
+    var = term@var,
+    model = "hiwp",
+    name = term@name,
+    global = TRUE,
+    order = NA,
+    init = term@init,
+    lower = term@lower,
+    upper = term@upper,
+    parscale = term@parscale
+  )
 
 
+  return(result)
+})
 
+#' @rdname theta_info
+#' @export
+setMethod("theta_info", "iid", function(term) {
+  result <- data.frame(
+    var = term@var, model = "iid", name = term@name,
+    global = TRUE, order = NA, init = term@init,
+    lower = term@lower, upper = term@upper,
+    parscale = term@parscale
+  )
+  return(result)
+})
 
+#' @rdname theta_info
+#' @export
+setMethod("theta_info", "fpoly", function(term) {
+  # not thetas for fpoly
+  NULL
+  })
 
-#' @rdname effects_and_utilities 
-fpolyDesign <- function(term, data){
-  list2env(term, envir = environment())
-  D <- poly(data[[var]]-ref_value, degree = p)
-  D <- D[,1:ncol(D),drop=F]
-  colnames(D) <- paste0(term$var, c('', seq(from=1, by=1, len=ncol(D)-1)))
+#' @rdname theta_info
+#' @export
+setMethod("theta_info", "rpoly", function(term) {
+  NULL
+})
+
+#' @rdname theta_info
+#' @export
+setMethod("theta_info", "hrpoly", function(term) {
+  result <- data.frame(
+    var = term@var, model = "hrpoly", name = term@name,
+    global = FALSE, order = term@p,
+    init = term@init,
+    lower = term@lower,
+    upper = term@upper,
+    parscale = term@parscale
+  )
+  return(result)
+})
+
+#' @rdname theta_info
+#' @export
+setMethod("theta_info", "linear", function(term) {
+  # Linear terms don't have random effects parameters
+  return(NULL)
+})
+
+#' Generic gamma_info function
+#'
+#' @param term A model term object
+#' @param data A data frame containing the data
+#' @return A data frame with gamma information for the term
+#' @rdname gamma_info
+setGeneric("gamma_info", function(term, data) {
+  standardGeneric("gamma_info")
+})
+
+#' @rdname gamma_info
+#' @export
+setMethod("gamma_info", "iwp", function(term, data) {
+  basis <- seq(1, len = length(term@knots) - 1)
+  order <- NA
+
+  result <- expand.grid(
+    var = term@var,
+    model = "iwp",
+    name = term@name,
+    groups = NA,
+    groups_string = NA,
+    basis = basis,
+    order = term@p
+  )
+  bnumPad <- formatC(basis,
+    width = max(ceiling(c(1, log10(max(basis)))), na.rm = TRUE),
+    flag = "0"
+  )
+  result$gamma_name <- paste(result$name, bnumPad, sep = "_")
+
+  result
+})
+
+#' @rdname gamma_info
+#' @export
+setMethod("gamma_info", "hiwp", function(term, data) {
+  basis <- seq(1, len = length(term@knots) - 1)
+
+  result <- expand.grid(
+    var = term@var,
+    model = "hiwp",
+    name = term@name,
+    groups = term@groups,
+    groups_string = term@groups_string,
+    basis = basis,
+    order = term@p
+  )
+  bnumPad <- formatC(result$basis,
+    width = max(ceiling(c(1, log10(max(result$basis)))), na.rm = TRUE),
+    flag = "0"
+  )
+  result$gamma_name <- paste(result$name, result$groups_string, bnumPad, sep = "_")
+
+  result
+})
+
+#' @rdname gamma_info
+#' @export
+setMethod("gamma_info", "fpoly", function(term, data) {
   
-  D
-}
+# no gammas for fpoly
+NULL
+})
 
+#' @rdname gamma_info
+#' @export
+setMethod("gamma_info", "hrpoly", function(term, data) {
+  basis <- NA
 
-
-
-#
-
-#' @rdname effects_and_utilities 
-rpolyDesign <- function(term, data){
-  list2env(term, envir = environment())
-  D <- poly(data[[var]]-ref_value, raw=T, degree = p)
-  D[,1:ncol(D),drop=F]
-}
-
-#' @rdname effects_and_utilities 
-rpolyPrecision <- function(term){
-  as(matrix(1), "TsparseMatrix")
-}
-
-#' @rdname effects_and_utilities 
-rpolyTheta <- function(theta_info, term){
-
-  result = data.frame(
-    var=term$var, model=term$model, 
-    global=NA, 
-    order=seq(1, term$p),
-  init = term$init,
-  parscale = ifelse(is.null(term$parscale), rep(1, term$p), rep_len(term$parscale, term$p)))
-
-    result$name = apply(result[,c('var','model','order')],1,paste, collapse='_')
-
-return(result)
-}
-
-
-
-#' @rdname effects_and_utilities 
-hrpolyPrecision <- function(term){
-  list2env(term, envir = environment())
-  pp <- (include_global+ngroups)*p
-  Matrix::sparseMatrix(i=1:pp, j=1:pp, rep = "T") |> as("TsparseMatrix")
-}
-
-#' @rdname effects_and_utilities 
-hrpolyTheta <- function(theta_info, term){
-
-  result = data.frame(
-    var=term@var, model=term$model, 
-    global=FALSE, 
-    order=seq(1, term$p),
-  init = term$init,
-  lower = term$lower, upper=term$upper,
-  parscale = ifelse(is.null(term$parscale), rep(1, term$p), rep_len(term$parscale, term$p)))
-  result$name = apply(result[,c('var','model','order')],1,paste, collapse='_')
-  return(result)
-
-}
-
-
-
-
-
-
-#' @rdname effects_and_utilities 
-iidDesign <- function(term, data){
-  list2env(term, envir = environment())
-  ff <- paste0("~ 0 + factor(", var, ")") |> formula()
-  Matrix::sparse.model.matrix(ff, data) |> as("TsparseMatrix")
-}
-
-#' @rdname effects_and_utilities 
-iidPrecision <- function(term){
-  list2env(term, envir = environment())
-  Matrix::sparseMatrix(x=1, i=1:n, j=1:n, rep = "T") |> as("TsparseMatrix")
-}
-
-
-
-iidTheta <- function(theta_info, term){
-  result = data.frame(
-    var = term@var, model=term$model,global=NA, order=NA, init=term$init,
-    parscale = ifelse(is.null(term$parscale), .my_theta_parscale, term$parscale)
+  result <- expand.grid(
+    var = term@var,
+    model = "hrpoly",
+    name = term@name,
+    groups = term@groups,
+    groups_string = term@groups_string,
+    basis = basis,
+    order = term@p
   )
-  result$name = paste0(result$var, '_', result$model)
-  return(result)
-}
+  result$gamma_name <- paste(result$name, result$groups_string, sep = "_")
+  result
+})
 
-#' @rdname effects_and_utilities 
-fpolyTheta <- function(theta_info, term){
-  result = data.frame(
-    var = term@var, model=term$model, global=NA, 
-    order=seq(1, term$p), init=term$init, lower=term$lower, upper=term$upper,
-    parscale = ifelse(is.null(term$parscale), rep(.my_beta_parscale, term$p), rep_len(term$parscale, term$p))
+#' @rdname gamma_info
+#' @export
+setMethod("gamma_info", "rpoly", function(term, data) {
+  order <- seq_len(term@p)
+  basis <- NA
+
+  result <- expand.grid(
+    var = term@var,
+    model = "rpoly",
+    name = term@name,
+    groups = NA,
+    groups_string = NA,
+    basis = basis,
+    order = order
   )
-  result$name = apply(result[,c('var','model','order')],1,paste, collapse='_')
-  return(result)
-}
+  result$gamma_name <- paste(result$name, result$order, sep = "_")
+
+  result
+})
+
+#' @rdname gamma_info
+#' @export
+setMethod("gamma_info", "iid", function(term, data) {
+    
+  result <- expand.grid(
+    var = term@var,
+    model = "iid",
+    name = term@name,
+    groups = NA,
+    groups_string = NA,
+    basis = sort(unique(data[[term@var]])),
+    order = NA
+  )
+  result$gamma_name = paste(result$name, result$basis, sep="_")
+
+  result
+})
+
+#' @rdname gamma_info
+#' @export
+setMethod("gamma_info", "linear", function(term, data) {
+  
+  NULL})

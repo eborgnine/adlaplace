@@ -10,34 +10,34 @@ NULL
 #' @rdname model_classes
 #' @export
 setClass("iwp",
-         representation = representation(
-           var = "character",
-           name = "character",
-           f = "formula",
-           p = "numeric",
-           ref_value = "numeric",
-           knots = "ANY",
-           range = "ANY",
-           init = "numeric",
-           lower = "numeric",
-           upper = "numeric",
-           parscale = "numeric",
-           random = "logical"
-         ),
-         prototype = list(
-           var = character(0),
-           name = character(0),
-           f = formula(),
-           p = numeric(0),
-           ref_value = numeric(0),
-           knots = NULL,
-           range = NULL,
-           init = numeric(0),
-           lower = numeric(0),
-           upper = numeric(0),
-           parscale = numeric(0),
-           random = TRUE
-         )
+  representation = representation(
+    var = "character",
+    name = "character",
+    f = "formula",
+    p = "numeric",
+    ref_value = "numeric",
+    knots = "ANY",
+    range = "ANY",
+    init = "numeric",
+    lower = "numeric",
+    upper = "numeric",
+    parscale = "numeric",
+    random = "logical"
+  ),
+  prototype = list(
+    var = character(0),
+    name = character(0),
+    f = formula(),
+    p = numeric(0),
+    ref_value = numeric(0),
+    knots = NULL,
+    range = NULL,
+    init = numeric(0),
+    lower = numeric(0),
+    upper = numeric(0),
+    parscale = numeric(0),
+    random = TRUE
+  )
 )
 
 #' @rdname model_classes
@@ -52,6 +52,8 @@ setClass("hiwp",
            knots = "ANY",
            range = "ANY",
            group_var = "character",
+           groups = "integer",
+           groups_string = "character",
            init = "numeric",
            lower = "numeric",
            upper = "numeric",
@@ -67,6 +69,8 @@ setClass("hiwp",
            knots = NULL,
            range = NULL,
            group_var = character(0),
+           groups = integer(0),
+           groups_string = character(0),
            init = numeric(0),
            lower = numeric(0),
            upper = numeric(0),
@@ -154,6 +158,8 @@ setClass("hrpoly",
            p = "numeric",
            ref_value = "numeric",
            group_var = "character",
+           groups = "integer",
+           groups_string = "character",
            init = "numeric",
            lower = "numeric",
            upper = "numeric",
@@ -167,6 +173,8 @@ setClass("hrpoly",
            p = numeric(0),
            ref_value = numeric(0),
            group_var = character(0),
+           groups = integer(0),
+           groups_string = character(0),
            init = numeric(0),
            lower = numeric(0),
            upper = numeric(0),
@@ -220,6 +228,7 @@ setAs("hiwp", "iwp",
              upper = from@upper,
              parscale = from@parscale,
              random = from@random)
+         # Note: groups slot is not copied since iwp doesn't have hierarchical structure
        })
 
 #' Update model functions to return class objects
