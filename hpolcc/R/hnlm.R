@@ -85,8 +85,8 @@ hnlm <- function(
     stop("Provide a valid stratification (or time) variable.")
   }
 
-  terms1 <- collect_terms(formula)
-  covariates <- unlist(lapply(terms1, "[[", "var"))
+  model_terms <- collect_terms(formula)
+  covariates <- unique(unlist(lapply(model_terms, slot, "var")))
   outcome_var <- all.vars(formula)[1]
 
   strat_time_vars <- unique(c(cc_design$strat_vars, cc_design$time_var))
@@ -136,6 +136,17 @@ hnlm <- function(
     print(table(diff(cc_matrix@p)))
     cat("\ncollecting terms\n")
   }
+
+  design_list <- parallel::mclapply(model_terms, design,
+    data = data_sub,
+    mc.cores = config$num_threads
+  )
+
+  which_is_random = unlist(lapply(model_terms, slot, "random"))
+
+  x_mat = do.call(cbind, design_list[!which_is_random])
+  a_mat = do.call(cbind, design_list[which_is_random])
+
   # setup of the design matrices and other parameters
   # terms carries all the information throughout
   terms <- lapply(

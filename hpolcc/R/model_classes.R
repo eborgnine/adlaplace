@@ -12,6 +12,8 @@ NULL
 setClass("iwp",
          representation = representation(
            var = "character",
+           name = "character",
+           f = "formula",
            p = "numeric",
            ref_value = "numeric",
            knots = "ANY",
@@ -19,10 +21,13 @@ setClass("iwp",
            init = "numeric",
            lower = "numeric",
            upper = "numeric",
-           parscale = "numeric"
+           parscale = "numeric",
+           random = "logical"
          ),
          prototype = list(
            var = character(0),
+           name = character(0),
+           f = formula(),
            p = numeric(0),
            ref_value = numeric(0),
            knots = NULL,
@@ -30,7 +35,8 @@ setClass("iwp",
            init = numeric(0),
            lower = numeric(0),
            upper = numeric(0),
-           parscale = numeric(0)
+           parscale = numeric(0),
+           random = TRUE
          )
 )
 
@@ -39,6 +45,8 @@ setClass("iwp",
 setClass("hiwp",
          representation = representation(
            var = "character",
+           name = "character",
+           f = "formula",
            p = "numeric",
            ref_value = "numeric",
            knots = "ANY",
@@ -47,10 +55,13 @@ setClass("hiwp",
            init = "numeric",
            lower = "numeric",
            upper = "numeric",
-           parscale = "numeric"
+           parscale = "numeric",
+           random = "logical"
          ),
          prototype = list(
            var = character(0),
+           name = character(0),
+           f = formula(),
            p = numeric(0),
            ref_value = numeric(0),
            knots = NULL,
@@ -59,8 +70,26 @@ setClass("hiwp",
            init = numeric(0),
            lower = numeric(0),
            upper = numeric(0),
-           parscale = numeric(0)
+           parscale = numeric(0),
+           random = TRUE
          )
+)
+
+#' @rdname model_classes
+#' @export
+setClass("linear",
+  representation = representation(
+    var = "character",
+    name = "character",
+    f = "formula",
+    random = "logical"
+  ),
+  prototype = list(
+    var = character(0),
+    name = character(0),
+    f = formula(),
+    random = FALSE
+  )
 )
 
 #' @rdname model_classes
@@ -68,21 +97,27 @@ setClass("hiwp",
 setClass("fpoly",
          representation = representation(
            var = "character",
+           name = "character",
+           f = "formula",
            p = "numeric",
            ref_value = "numeric",
            init = "numeric",
            lower = "numeric",
            upper = "numeric",
-           parscale = "numeric"
+           parscale = "numeric",
+           random = "logical"
          ),
          prototype = list(
            var = character(0),
+           name = character(0),
+           f = formula(),
            p = numeric(0),
            ref_value = numeric(0),
            init = numeric(0),
            lower = numeric(0),
            upper = numeric(0),
-           parscale = numeric(0)
+           parscale = numeric(0),
+           random = FALSE
          )
 )
 
@@ -91,15 +126,21 @@ setClass("fpoly",
 setClass("rpoly",
          representation = representation(
            var = "character",
+           name = "character",
+           f = "formula",
            p = "numeric",
            ref_value = "numeric",
-           sd = "numeric"
+           sd = "numeric",
+           random = "logical"
          ),
          prototype = list(
            var = character(0),
+           name = character(0),
+           f = formula(),
            p = numeric(0),
            ref_value = numeric(0),
-           sd = numeric(0)
+           sd = numeric(0),
+           random = TRUE
          )
 )
 
@@ -108,23 +149,29 @@ setClass("rpoly",
 setClass("hrpoly",
          representation = representation(
            var = "character",
+           name = "character",
+           f = "formula",
            p = "numeric",
            ref_value = "numeric",
            group_var = "character",
            init = "numeric",
            lower = "numeric",
            upper = "numeric",
-           parscale = "numeric"
+           parscale = "numeric",
+           random = "logical"
          ),
          prototype = list(
            var = character(0),
+           name = character(0),
+           f = formula(),
            p = numeric(0),
            ref_value = numeric(0),
            group_var = character(0),
            init = numeric(0),
            lower = numeric(0),
            upper = numeric(0),
-           parscale = numeric(0)
+           parscale = numeric(0),
+           random = TRUE
          )
 )
 
@@ -133,17 +180,23 @@ setClass("hrpoly",
 setClass("iid",
          representation = representation(
            var = "character",
+           name = "character",
+           f = "formula",
            init = "numeric",
            lower = "numeric",
            upper = "numeric",
-           parscale = "numeric"
+           parscale = "numeric",
+           random = "logical"
          ),
          prototype = list(
            var = character(0),
+           name = character(0),
+           f = formula(),
            init = numeric(0),
            lower = numeric(0),
            upper = numeric(0),
-           parscale = numeric(0)
+           parscale = numeric(0),
+           random = TRUE
          )
 )
 
@@ -156,6 +209,8 @@ setAs("hiwp", "iwp",
        function(from) {
          new("iwp",
              var = from@var,
+             name = from@name,
+             f = from@f,
              p = from@p,
              ref_value = from@ref_value,
              knots = from@knots,
@@ -163,7 +218,8 @@ setAs("hiwp", "iwp",
              init = from@init,
              lower = from@lower,
              upper = from@upper,
-             parscale = from@parscale)
+             parscale = from@parscale,
+             random = from@random)
        })
 
 #' Update model functions to return class objects

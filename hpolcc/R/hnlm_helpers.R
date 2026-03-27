@@ -24,31 +24,12 @@ collect_terms <- function(formula) {
 
   terms_1 <- lapply(term_labels, function(lab) {
     if (grepl("f\\(", lab)) {
-      term <- eval(parse(text = lab))
-      if (is.null(term$model)) {
-        stop("The term defined with `f()` must specify a model.")
-      }
-      term$f <- formula(paste0("~ 0 + ", term$prefix, lab))
-      term
+      eval(parse(text = lab))
     } else {
-      list(
-        var = lab,
-        model = "",
-        f = formula(paste0("~ 0 + ", lab)),
-        run_as_is = TRUE
-      )
+      linear(lab)
     }
   })
-
-  s_add_poly <- which(
-    unlist(lapply(terms_1, "[[", "model")) %in% c("iwp", "hiwp")
-  )
-  s_add_rpoly <- which(unlist(lapply(terms_1, "[[", "model")) == "hiwp")
-  terms_fpoly <- do.call(c, lapply(terms_1[s_add_poly], add_fpoly))
-  terms_rpoly <- do.call(c, lapply(terms_1[s_add_rpoly], add_rpoly))
-  terms_all <- c(terms_1, terms_fpoly, terms_rpoly)
-
-  names(terms_all) <- NULL
+  terms_all = do.call(c, terms_1)
   terms_all
 }
 

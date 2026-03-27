@@ -161,6 +161,7 @@ res_pm_temp_r <- hnlm(
 )
 
 # saveRDS(res_pm_temp_r, file = "resPmTempR.rds")
+#invisible(sapply(list.files("~/research/adlaplace/hpolcc/R", pattern = "\\.R$", full.names = TRUE), source))
 ```
 
 
