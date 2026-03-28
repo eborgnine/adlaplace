@@ -86,12 +86,20 @@ setClass("linear",
     var = "character",
     name = "character",
     f = "formula",
+    init = "numeric",
+    lower = "numeric",
+    upper = "numeric",
+    parscale = "numeric",
     random = "logical"
   ),
   prototype = list(
     var = character(0),
     name = character(0),
     f = formula(),
+    init = numeric(0),
+    lower = numeric(0),
+    upper = numeric(0),
+    parscale = numeric(0),
     random = FALSE
   )
 )

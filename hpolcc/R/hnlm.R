@@ -151,8 +151,8 @@ hnlm <- function(
   unique_values <- lapply(unique(var_seq), function(xx) unique(data_sub[[xx]]))
   names(unique_values) <- unique(var_seq)
 
-  unique_values_string = lapply(unique_values, function(xx) {
-              formatC(xx, width = ceiling(log10(max(xx))), flag = "0")
+  unique_values_string <- lapply(unique_values, function(xx) {
+    formatC(xx, width = ceiling(log10(max(xx))), flag = "0")
   })
 
   for (D in has_group_var) {
@@ -184,14 +184,16 @@ hnlm <- function(
   theta_setup <- do.call(rbind, theta_info_list)
   theta_setup$id <- seq.int(0, len = nrow(theta_setup))
 
-  gamma_info_list <- lapply(model_terms, gamma_info)
+  beta_setup <- do.call(rbind, lapply(model_terms, beta_info, data = data_sub))
+
+  gamma_info_list <- lapply(model_terms, gamma_info, data = data_sub)
   gamma_setup <- do.call(rbind, gamma_info_list)
   gamma_setup$id <- seq.int(0, len = nrow(gamma_setup))
   gamma_setup$theta_id <- theta_setup[match(
     gamma_setup$name, theta_setup$name
   ), "id"]
 
-  terms_with_gamma <- sapply(model_terms, slot, "name") %in% 
+  terms_with_gamma <- sapply(model_terms, slot, "name") %in%
     unique(gamma_setup$name)
 
   design_list_x <- lapply(model_terms[!terms_with_gamma], design,
@@ -202,286 +204,94 @@ hnlm <- function(
     mc.cores = config$num_threads
   )
 
-  a_matrix = do.call(cbind, design_list_a)
+  gamma_dims <- data.frame(
+    design=sapply(design_list_a, ncol),
+    gamma=unlist(sapply(gamma_info_list, nrow))
+  )
+  if(!all(gamma_dims$design == gamma_dims$gamma)) {
+    warning("gamma sizes wrong")
+    print(gamma_dims)
+  }
+  a_matrix <- do.call(cbind, design_list_a)
+  x_matrix <- do.call(cbind, design_list_x)
+  
+  beta_reorder = match(colnames(x_matrix), beta_setup$beta_name)
+  beta_setup = beta_setup[beta_reorder, ]
+  gamma_reorder = match(colnames(a_matrix), gamma_setup$gamma_name)
+  gamma_setup = gamma_setup[gamma_reorder, ]
 
-  if(any(duplicated(colnames(a_matrix))) ) {
+  gamma_setup_sub = gamma_setup[!is.na(gamma_setup$theta_id), ]
+  gamma_theta_map = Matrix::sparseMatrix(
+    i = gamma_setup_sub$id, j=gamma_setup_sub$theta_id,
+    x = 1.0,
+    index1=FALSE
+  )
+
+  # Create block-diagonal precision matrix, excluding NULL elements
+  valid_precision <- precision_list[!sapply(precision_list, is.null)]
+  if (length(valid_precision) > 0) {
+    precision_matrix <- do.call(Matrix::bdiag, valid_precision)
+  } else {
+    precision_matrix <- Matrix::Diagonal(nrow = 0, ncol = 0)
+  }
+
+  if (any(duplicated(colnames(a_matrix)))) {
     warning("duplicated column names of random effects design matrix, perhaps same term in the model twice?")
   }
-  if (!(all(sort(colnames(a_matrix)) == sort(gamma_setup$gamma_name)))) {
+  if(!(all(colnames(a_matrix) == gamma_setup$gamma_name)) ) {
     warning("some names of A don't match up")
     print(table(colnames(a_matrix) %in% gamma_setup$gamma_name))
     print(str(setdiff(colnames(a_matrix), gamma_setup$gamma_name)))
     print(str(setdiff(gamma_setup$gamma_name, colnames(a_matrix))))
   }
 
-  x_matrix <- do.call(cbind, design_list_x)
-
-  # STOPPED HERE!
-  # NEXT beta info
-
-  # theta setup
-  theta_setup <- lapply(
-    terms[c(is_hrpoly, is_random)],
-    get_theta_setup,
-    theta_info = list()
-  )
-
-  theta_setup <- c(
-    theta_setup,
-    list(data.frame(
-      var = "overdisp",
-      model = "overdisp",
-      global = TRUE,
-      order = NA,
-      init = config$dirichlet_init,
-      lower = config$dirichlet_lower,
-      upper = config$dirichlet_upper,
-      parscale = 1,
-      name = "overdisp"
-    ))
-  )
-
-  theta_info <- do.call(rbind, theta_setup)
-
-
-  # setup of the design matrices and other parameters
-  # terms carries all the information throughout
-  terms <- lapply(
-    terms1,
-    get_extra,
-    data = data_sub,
-    cc_matrix = cc_matrix
-  )
-  for (term_idx in seq_along(terms)) {
-    terms[[term_idx]]$id <- term_idx
+  if (any(duplicated(colnames(x_matrix)))) {
+    warning("duplicated column names of fixed effects design matrix, perhaps same term in the model twice?")
+  }
+  if (!(all(colnames(x_matrix) == beta_setup$beta_name))) {
+    warning("some names of X don't match beta_setup")
+    print(table(colnames(x_matrix) %in% beta_setup$beta_name))
+    print(str(setdiff(colnames(x_matrix), beta_setup$beta_name)))
+    print(str(setdiff(beta_setup$beta_name, colnames(x_matrix))))
   }
 
-  is_fpoly <- which(unlist(lapply(terms, "[[", "model")) == "fpoly")
-  is_hrpoly <- which(unlist(lapply(terms, "[[", "model")) == "hrpoly")
-  is_asis <- which(unlist(lapply(terms, "[[", "run_as_is")))
-  is_random <- setdiff(seq_along(terms), c(is_fpoly, is_hrpoly, is_asis))
-
-  x_as_is <- lapply(terms[is_asis], function(xx, data) {
-    res <- Matrix::sparse.model.matrix(xx$f, data, drop.unused.levels = FALSE)
-    if (is.factor(data[[xx$var]])) {
-      res <- res[, -1, drop = FALSE]
+  if(config$transform_theta) {
+    for(d_par in c("init","lower","upper")) {
+      theta_setup[[d_par]] = log(theta_setup[[d_par]])
+      if(any(is.na(theta_setup[[d_par]]))) {
+        warning("theta ", d_par, "values out of range")
+      }
     }
-    res
-  }, data = data_sub)
-  names(x_as_is) <- unlist(lapply(terms[is_asis], "[[", "var"))
-
-  x_fpoly <- lapply(terms[is_fpoly], function(xx, data) {
-    x_sub <- as(
-      poly(
-        data[[xx$var]] - xx$ref_value,
-        degree = xx$p,
-        raw = TRUE,
-        simple = TRUE
-      ),
-      "TsparseMatrix"
-    )
-    colnames(x_sub) <- paste0(
-      xx$var,
-      "_fpoly_",
-      seq(from = 1, len = ncol(x_sub))
-    )
-    x_sub
-  }, data = data_sub)
-  names(x_fpoly) <- unlist(lapply(terms[is_fpoly], "[[", "var"))
-
-  a_random <- parallel::mclapply(
-    terms[c(is_hrpoly, is_random)],
-    get_design,
-    data = data_sub,
-    mc.cores = config$num_threads
-  )
-
-  qs <- lapply(terms[c(is_hrpoly, is_random)], get_precision)
-  names(qs) <- names(a_random) <- paste(
-    unlist(lapply(terms[is_random], "[[", "var")),
-    unlist(lapply(terms[is_random], "[[", "model")),
-    sep = "_"
-  )
-
-  fpoly_random <- unlist(lapply(terms[is_fpoly], "[[", "boundary_is_random"))
-  is_boundary <- is_fpoly[fpoly_random]
-  x_fpoly_random <- x_fpoly[fpoly_random]
-  x_fpoly_fixed <- if (is.null(fpoly_random)) {
-    x_fpoly
-  } else {
-    x_fpoly[!fpoly_random]
-  }
-
-  if (any(fpoly_random) && is.null(config$prec_boundary)) {
-    config$prec_boundary <- 0
-  }
-
-  # random boundary X's go in A
-  q_fpoly <- lapply(
-    x_fpoly_random,
-    function(xx, prec) Matrix::Diagonal(ncol(xx), x = prec),
-    prec = config$prec_boundary
-  )
-  is_boundary <- is_fpoly
-  x_list <- x_as_is
-
-  a_list <- c(x_fpoly_random, a_random)
-  q_all <- c(q_fpoly, qs)
-  q <- Matrix::bdiag(q_all[!sapply(q_all, is.null)])
-
-  x_list <- c(x_as_is, x_fpoly_fixed)
-
-  # A, Gamma
-  if (length(a_list)) {
-    a_matrix <- do.call(cbind, a_list) |> as("TsparseMatrix")
-  } else {
-    a_matrix <- matrix(nrow = nrow(cc_matrix), ncol = 0) |> as("TsparseMatrix")
-    a_matrix <- as(a_matrix, "dMatrix")
-  }
-
-  gamma_setup <- lapply(
-    terms[c(is_boundary, is_hrpoly, is_random)],
-    get_gamma_setup
-  )
-  gamma_info <- do.call(rbind, gamma_setup)
-  if (!is.null(gamma_info)) {
-    gamma_info$global <- as.logical(
-      pmin(gamma_info$group == "GLOBAL", TRUE, na.rm = TRUE)
-    )
-
-    missing_gamma_info <- setdiff(colnames(a_matrix), gamma_info$name)
-    missing_gamma_a <- setdiff(gamma_info$name, colnames(a_matrix))
-    if (length(missing_gamma_info)) {
-      warning(" missing gamma info ", paste(missing_gamma_info, collapse = ","))
-    }
-    if (length(missing_gamma_a)) {
-      warning(" missing gamma A ", paste(missing_gamma_a, collapse = ","))
-    }
-
-
-    gamma_info <- gamma_info[
-      order(match(gamma_info$name, colnames(a_matrix))),
-    ]
-    gamma_info$gamma_id <- seq(0L, len = nrow(gamma_info))
-    if (any(is.na(gamma_info$var))) {
-      warning("some columns of design matrix not found in gamma")
-    }
-  }
-
-  if (length(x_list)) {
-    x_matrix <- do.call(cbind, x_list)
-    beta_info <- data.frame(
-      var = rep(names(x_list), unlist(lapply(x_list, ncol))),
-      name = colnames(x_matrix)
-    )
-  } else {
-    x_matrix <- matrix(nrow = nrow(data_sub), ncol = 0)
-    beta_info <- data.frame()
-  }
-
-  # theta setup
-  theta_setup <- lapply(
-    terms[c(is_hrpoly, is_random)],
-    get_theta_setup,
-    theta_info = list()
-  )
-
-  theta_setup <- c(
-    theta_setup,
-    list(data.frame(
-      var = "overdisp",
-      model = "overdisp",
-      global = TRUE,
-      order = NA,
-      init = config$dirichlet_init,
-      lower = config$dirichlet_lower,
-      upper = config$dirichlet_upper,
-      parscale = 1,
-      name = "overdisp"
-    ))
-  )
-
-  theta_info <- do.call(rbind, theta_setup)
-
-  if (config$transform_theta) {
-    theta_info$init <- pmax(-6, log(theta_info$init))
-    theta_info$upper <- log(theta_info$upper)
-    theta_info$lower <- pmax(-15, log(theta_info$lower))
-    theta_info$log <- TRUE
-  } else {
-    theta_info$log <- FALSE
-  }
-  theta_info$theta_id <- seq(0L, len = nrow(theta_info))
-
-  if (!is.null(gamma_info)) {
-    gamma_theta <- merge(
-      gamma_info,
-      theta_info[, setdiff(names(theta_info), c("init", "lower", "upper", "parscale", "log"))],
-      by = c("var", "model", "order", "global"),
-      all.x = TRUE,
-      all.y = TRUE,
-      suffixes = c("_gamma", "_theta")
-    )
-
-    if (sum(is.na(gamma_theta$theta_id)) > 10) {
-      warning("problem matching gamma and theta")
-    }
-
-    any_na <- is.na(gamma_theta$theta_id) | is.na(gamma_theta$gamma_id)
-
-    gamma_theta_both <- gamma_theta[!any_na, ]
-    # map matrix column theta, row gamma
-    gamma_theta_map <- Matrix::sparseMatrix(
-      i = gamma_theta_both$gamma_id,
-      j = gamma_theta_both$theta_id,
-      x = rep(1L, nrow(gamma_theta_both)),
-      index1 = FALSE,
-      dims = c(nrow(gamma_info), nrow(theta_info))
-    )
-  } else {
-    gamma_theta_map <- Matrix::sparseMatrix(
-      i = integer(0),
-      j = integer(0),
-      x = numeric(0),
-      index1 = FALSE,
-      dims = c(0, 0)
-    )
   }
 
   tmb_data <- list(
     X = x_matrix,
-    A = a_matrix,
+    A =a_matrix,
     y = data_sub[[outcome_var]],
-    Q = q,
+    Q = precision_matrix,
     map = gamma_theta_map,
     elgm_matrix = cc_matrix
   )
   tmb_data <- formatHpolData(tmb_data)
-  gamma_info$matchA <- match(gamma_info$name, rownames(tmb_data$ATp))
 
   verbose_orig <- config$verbose
   config$verbose <- config$verbose > 1
 
-  if (!length(config$beta)) {
-    config$beta <- rep(0, nrow(tmb_data$XTp))
-  } else {
-    config$beta <- rep_len(config$beta, nrow(tmb_data$XTp))
-  }
-  if (!length(config$theta)) {
-    config$theta <- theta_info$init
-  } else {
-    config$theta <- rep_len(config$theta, length(theta_info$init))
-  }
-  if (!length(config$gamma)) {
-    config$gamma <- rep(0, nrow(tmb_data$ATp))
-  } else {
-    config$gamma <- rep_len(config$gamma, nrow(tmb_data$ATp))
-  }
+  config$beta <- beta_setup$init
+  config$theta <- theta_setup$init
+  config$gamma <- rep(0, nrow(gamma_setup))
+
+  beta_theta_names = intersect(colnames(beta_setup), colnames(theta_setup))
+  beta_theta_names = setdiff(beta_theta_names, "order")
 
   parameters_info <- list(
-    beta = beta_info,
-    gamma = gamma_info,
-    theta = theta_info
+    beta = beta_setup,
+    gamma = gamma_setup,
+    theta = theta_setup,
+    parameters = rbind(
+      beta_setup[,beta_theta_names],
+      theta_setup[,beta_theta_names]
+    )
   )
 
   if (verbose_orig) {
@@ -506,34 +316,17 @@ hnlm <- function(
 
   cache <- new.env()
   assign("gamma", config$gamma, cache)
-  # some checks
-  if (!all(parameters_info$gamma$name == rownames(tmb_data$ATp))) {
-    warning("names of gamma don't match up")
-    setdiff(parameters_info$gamma$name, rownames(tmb_data$ATp))
-  }
 
-  config$opt <- list(
-    init = c(config$beta, config$theta),
-    lower = c(rep(-Inf, nrow(beta_info)), theta_info$lower),
-    upper = c(rep(Inf, nrow(beta_info)), theta_info$upper)
+  config$opt <- as.list(
+    parameters_info$parameteres[c("init","lower","upper","parscale")]
   )
 
-  # Add parscale to config$opt if it exists in theta_info
-  if ("parscale" %in% names(theta_info)) {
-    config$opt$parscale <- c(rep(1, nrow(beta_info)), theta_info$parscale)
-  }
-
-  if (verbose_orig) {
-    cat(for_dev)
-  }
   if (for_dev) {
     return(list(
       tmb_data = tmb_data,
       config = config,
       formula = formula,
       terms = terms,
-      theta_info = theta_info,
-      gamma_info = gamma_info,
       control = control,
       control_inner = control_inner,
       cache = cache,
@@ -550,7 +343,8 @@ hnlm <- function(
     )
   }
 
-  ad_fun <- adlaplace::getAdFun(tmb_data,
+  ad_fun <- adlaplace::getAdFun(
+    tmb_data,
     config,
     package = config$package
   )
@@ -564,9 +358,7 @@ hnlm <- function(
       REPORT = 1,
       maxit = 1000
     )
-    if (!is.null(config$theta_info) && "parscale" %in% names(config$theta_info)) {
-      control_list$parscale <- config$theta_info$parscale
-    }
+    control_list$parscale <- config$opt$parscale
 
     mle <- stats::optim(
       par = config$opt$init,

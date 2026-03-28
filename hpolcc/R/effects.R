@@ -79,11 +79,19 @@ ref_align <- function(ref_value, knots) {
 
 #' @rdname effects_and_utilities
 #' @export
-linear <- function(x, prefix = NULL) {
+linear <- function(x, prefix = NULL,
+                  init = .my_beta_init,
+                  lower = .my_beta_lower,
+                  upper = .my_beta_upper,
+                  parscale = .my_beta_parscale) {
   new("linear",
     var = x,
     name = paste(c(prefix, x, "linear"), collapse = "_"),
-    f = formula(paste0("~ 0 + ", x))
+    f = formula(paste0("~ 0 + ", prefix, x)),
+    init = init[1],
+    lower = lower[1],
+    upper = upper[1],
+    parscale = parscale[1]
   )
 }
 
@@ -377,6 +385,7 @@ setMethod("design", "linear", function(term, data){
     if (is.factor(data[[term@var]])) {
       res <- res[, -1, drop = FALSE]
     }
+    colnames(res) <- paste(term@name, colnames(res), sep="_")
     res
 })
 
@@ -629,6 +638,88 @@ setMethod("theta_info", "linear", function(term) {
   return(NULL)
 })
 
+#' Generic beta_info function
+#'
+#' @param term A model term object
+#' @param data A data frame containing the data (not used for beta_info but kept for consistency with gamma_info)
+#' @return A data frame with beta (fixed effects) parameter information for the term, or NULL for terms without beta parameters
+#' @rdname beta_info
+setGeneric("beta_info", function(term, data) {
+  standardGeneric("beta_info")
+})
+
+#' @rdname beta_info
+#' @export
+setMethod("beta_info", "fpoly", function(term, data) {
+  result <- data.frame(
+    var = term@var,
+    model = "fpoly",
+    name = term@name,
+    order = term@p,
+    beta_name = paste(term@name, term@p, sep="_"),
+    init = term@init,
+    lower = term@lower,
+    upper = term@upper,
+    parscale = term@parscale
+  )
+  return(result)
+})
+
+#' @rdname beta_info
+#' @export
+setMethod("beta_info", "linear", function(term, data) {
+
+  the_colnames = colnames(design(term, data))
+
+  result <- data.frame(
+    var = term@var,
+    model = "linear",
+    name = term@name,
+    order = NA,
+    beta_name = the_colnames,
+    init = term@init,
+    lower = term@lower,
+    upper = term@upper,
+    parscale = term@parscale
+  )
+  return(result)
+})
+
+#' @rdname beta_info
+#' @export
+setMethod("beta_info", "iwp", function(term) {
+  # IWP terms don't have beta parameters
+  return(NULL)
+})
+
+#' @rdname beta_info
+#' @export
+setMethod("beta_info", "hiwp", function(term) {
+  # HIWP terms don't have beta parameters
+  return(NULL)
+})
+
+#' @rdname beta_info
+#' @export
+setMethod("beta_info", "iid", function(term) {
+  # IID terms don't have beta parameters
+  return(NULL)
+})
+
+#' @rdname beta_info
+#' @export
+setMethod("beta_info", "rpoly", function(term) {
+  # Rpoly terms don't have beta parameters (random effects only)
+  return(NULL)
+})
+
+#' @rdname beta_info
+#' @export
+setMethod("beta_info", "hrpoly", function(term) {
+  # HRpoly terms don't have beta parameters (random effects only)
+  return(NULL)
+})
+
 #' Generic gamma_info function
 #'
 #' @param term A model term object
@@ -652,7 +743,8 @@ setMethod("gamma_info", "iwp", function(term, data) {
     groups = NA,
     groups_string = NA,
     basis = basis,
-    order = term@p
+    order = term@p,
+    stringsAsFactors = FALSE
   )
   bnumPad <- formatC(basis,
     width = max(ceiling(c(1, log10(max(basis)))), na.rm = TRUE),
@@ -673,14 +765,16 @@ setMethod("gamma_info", "hiwp", function(term, data) {
     model = "hiwp",
     name = term@name,
     groups = term@groups,
-    groups_string = term@groups_string,
     basis = basis,
-    order = term@p
+    order = term@p,
+    stringsAsFactors = FALSE
   )
+
   bnumPad <- formatC(result$basis,
     width = max(ceiling(c(1, log10(max(result$basis)))), na.rm = TRUE),
     flag = "0"
   )
+  result$groups_string <- term@groups_string[match(result$groups, term@groups)]
   result$gamma_name <- paste(result$name, result$groups_string, bnumPad, sep = "_")
 
   result
@@ -698,16 +792,20 @@ NULL
 #' @export
 setMethod("gamma_info", "hrpoly", function(term, data) {
   basis <- NA
+  if(!length(term@groups)) {
+    term@groups <- unique(data[[term@group_var]])
+  }
 
   result <- expand.grid(
     var = term@var,
     model = "hrpoly",
     name = term@name,
     groups = term@groups,
-    groups_string = term@groups_string,
     basis = basis,
-    order = term@p
+    order = term@p,
+    stringsAsFactors = FALSE
   )
+  result$groups_string <- term@groups_string[match(result$groups, term@groups)]
   result$gamma_name <- paste(result$name, result$groups_string, sep = "_")
   result
 })
@@ -725,7 +823,8 @@ setMethod("gamma_info", "rpoly", function(term, data) {
     groups = NA,
     groups_string = NA,
     basis = basis,
-    order = order
+    order = order,
+    stringsAsFactors = FALSE
   )
   result$gamma_name <- paste(result$name, result$order, sep = "_")
 
@@ -743,7 +842,8 @@ setMethod("gamma_info", "iid", function(term, data) {
     groups = NA,
     groups_string = NA,
     basis = sort(unique(data[[term@var]])),
-    order = NA
+    order = NA,
+    stringsAsFactors = FALSE
   )
   result$gamma_name = paste(result$name, result$basis, sep="_")
 

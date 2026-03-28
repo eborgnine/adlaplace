@@ -2,35 +2,58 @@
 % Please edit documentation in R/effects.R
 \name{f}
 \alias{f}
-\alias{iwp}
-\alias{iwpDesign}
-\alias{iwpPrecision}
-\alias{iwpTheta}
-\alias{hiwp}
-\alias{hiwpDesign}
-\alias{hiwpPrecision}
-\alias{hiwpTheta}
-\alias{fpoly}
-\alias{fpolyDesign}
-\alias{rpoly}
-\alias{rpolyDesign}
-\alias{rpolyPrecision}
-\alias{rpolyTheta}
-\alias{hrpoly}
-\alias{hrpolyDesign}
-\alias{hrpolyPrecision}
-\alias{hrpolyTheta}
+\alias{linear}
 \alias{iid}
-\alias{iidDesign}
-\alias{iidPrecision}
-\alias{iidTheta}
-\alias{fpolyTheta}
+\alias{fpoly}
+\alias{rpoly}
+\alias{hrpoly}
+\alias{iwp}
+\alias{hiwp}
 \title{Functions to Specify Terms of the Formula (and Associated Utility Functions)}
 \usage{
-f(
+f(x, model = c("iwp", "hiwp", "fpoly", "rpoly", "hrpoly", "iid"), ...)
+
+linear(
   x,
-  model = c("iwp", "hiwp", "fpoly", "rpoly", "hfpoly", "hrpoly", "iid"),
-  ...
+  prefix = NULL,
+  init = .my_beta_init,
+  lower = .my_beta_lower,
+  upper = .my_beta_upper,
+  parscale = .my_beta_parscale
+)
+
+iid(
+  x,
+  init = .my_theta_init,
+  lower = .my_theta_lower,
+  upper = .my_theta_upper,
+  parscale = .my_theta_parscale,
+  prefix = NULL
+)
+
+fpoly(
+  x,
+  p = 2,
+  ref_value = 0,
+  init = .my_beta_init,
+  lower = .my_beta_lower,
+  upper = .my_beta_upper,
+  parscale = .my_beta_parscale,
+  prefix = NULL
+)
+
+rpoly(x, p = 2, ref_value, sd = Inf, prefix = NULL)
+
+hrpoly(
+  x,
+  p = 1,
+  ref_value,
+  group_var,
+  init = .my_theta_init,
+  lower = .my_theta_lower,
+  upper = .my_theta_upper,
+  parscale = .my_theta_parscale,
+  prefix = NULL
 )
 
 iwp(
@@ -39,20 +62,14 @@ iwp(
   ref_value,
   knots,
   range = NULL,
-  rpoly_p = 0,
-  fpoly_p = p - 1,
   init = .my_theta_init,
   lower = .my_theta_lower,
   upper = .my_theta_upper,
   parscale = .my_theta_parscale,
-  boundary_is_random = TRUE
+  boundary_is_random = TRUE,
+  include_poly = TRUE,
+  prefix = NULL
 )
-
-iwpDesign(term, data)
-
-iwpPrecision(term)
-
-iwpTheta(theta_info, term)
 
 hiwp(
   x,
@@ -61,86 +78,15 @@ hiwp(
   knots,
   range = NULL,
   group_var,
-  include_global = T,
-  hrpoly_p = p - 1,
-  hfpoly_p = 0,
-  rpoly_p = 0,
-  fpoly_p = include_global * (p - 1),
   init = .my_theta_init,
   lower = .my_theta_lower,
   upper = .my_theta_upper,
   parscale = .my_theta_parscale,
-  boundary_is_random = TRUE
-)
-
-hiwpDesign(term, data)
-
-hiwpPrecision(term)
-
-hiwpTheta(theta_info, term)
-
-fpoly(
-  x,
-  p = 2,
-  ref_value = 0,
   boundary_is_random = TRUE,
-  init = .my_beta_init,
-  lower = .my_beta_lower,
-  upper = .my_beta_upper,
-  parscale = .my_beta_parscale
+  include_poly = TRUE,
+  include_global = TRUE,
+  prefix = NULL
 )
-
-fpolyDesign(term, data)
-
-rpoly(
-  x,
-  p = 2,
-  ref_value,
-  init = .my_beta_init,
-  lower = .my_beta_lower,
-  upper = .my_beta_upper,
-  parscale = .my_beta_parscale
-)
-
-rpolyDesign(term, data)
-
-rpolyPrecision(term)
-
-rpolyTheta(theta_info, term)
-
-hrpoly(
-  x,
-  p = 1,
-  ref_value,
-  group_var,
-  include_global = T,
-  init = .my_theta_init,
-  lower = .my_theta_lower,
-  upper = .my_theta_upper,
-  parscale = .my_theta_parscale
-)
-
-hrpolyDesign(term, data)
-
-hrpolyPrecision(term)
-
-hrpolyTheta(theta_info, term)
-
-iid(
-  x,
-  init = .my_theta_init,
-  lower = .my_theta_lower,
-  upper = .my_theta_upper,
-  parscale = .my_theta_parscale
-)
-
-iidDesign(term, data)
-
-iidPrecision(term)
-
-iidTheta(theta_info, term)
-
-fpolyTheta(theta_info, term)
 }
 \arguments{
 \item{x}{A numeric vector representing the data to which the model is applied.}
@@ -149,7 +95,6 @@ fpolyTheta(theta_info, term)
 \itemize{
 \item \code{"fpoly"}: Fixed polynomial effect terms.
 \item \code{"rpoly"}: Random polynomial effect terms.
-\item \code{"hfpoly"}: Fixed hierarchical polynomial effect terms.
 \item \code{"hrpoly"}: Random hierarchical polynomial effect terms.
 \item \code{"iwp"}: Integrated Wiener process terms (random).
 \item \code{"hiwp"}: Hierarchical integrated Wiener process terms (random).
@@ -161,21 +106,19 @@ fpolyTheta(theta_info, term)
 
 \item{ref_value}{A numeric value specifying the reference point for the basis functions.}
 
+\item{group_var}{A factor or grouping variable used to define hierarchical structures (optional).}
+
 \item{knots}{A numeric vector specifying the knot locations for spline-based models.}
 
 \item{range}{A numeric vector of length 2 specifying the range of the data (optional).}
+
+\item{include_global}{A logical value indicating whether to include a global component in hierarchical models (default: \code{TRUE}).}
 
 \item{rpoly_p}{A numeric value specifying the degree for (random effects) polynomial components to add to the model as a separate term.}
 
 \item{fpoly_p}{A numeric value specifying the degree for (fixed effects) polynomial components to add to the model as a separate term.}
 
-\item{group_var}{A factor or grouping variable used to define hierarchical structures (optional).}
-
-\item{include_global}{A logical value indicating whether to include a global component in hierarchical models (default: \code{TRUE}).}
-
 \item{hrpoly_p}{A numeric value specifying the degree for hierarchical (random effects) polynomial components to add to the model as a separate term.}
-
-\item{hfpoly_p}{A numeric value specifying the degree for hierarchical (fixed effects) polynomial components to add to the model as a separate term.}
 }
 \value{
 A list or matrix, depending on the function, representing the design matrix, precision matrix, or parameter information for the specified model term.
@@ -189,7 +132,6 @@ The \code{f()} function serves as the primary entry point for specifying model t
 \itemize{
 \item \code{"fpoly"}: Calls the \code{fpoly()} function to specify fixed polynomial effect terms.
 \item \code{"rpoly"}: Calls the \code{rpoly()} function to specify random polynomial effect terms.
-\item \code{"hfpoly"}: Calls the \code{hfpoly()} function to specify hierarchical fixed polynomial effect terms.
 \item \code{"hrpoly"}: Calls the \code{hrpoly()} function to specify hierarchical random polynomial effect terms.
 \item \code{"iwp"}: Calls the \code{iwp()} function to construct integrated Wiener process terms.
 \item \code{"hiwp"}: Calls the \code{hiwp()} function for hierarchical integrated Wiener process terms.

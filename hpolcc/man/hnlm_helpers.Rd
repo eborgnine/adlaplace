@@ -3,30 +3,9 @@
 \name{hnlm_helpers}
 \alias{hnlm_helpers}
 \alias{collect_terms}
-\alias{get_extra}
-\alias{get_design}
-\alias{get_gamma_setup}
-\alias{get_precision}
-\alias{get_theta_setup}
-\alias{add_fpoly}
-\alias{add_rpoly}
 \title{Helpers for the \code{hnlm} function}
 \usage{
 collect_terms(formula)
-
-get_extra(term, data, cc_matrix)
-
-get_design(term, data)
-
-get_gamma_setup(term)
-
-get_precision(term)
-
-get_theta_setup(theta_info, term)
-
-add_fpoly(term)
-
-add_rpoly(term)
 }
 \description{
 Common setup helpers used by \code{hnlm()}. These functions collect and
@@ -38,7 +17,7 @@ The helper functions include:
 \item \code{collect_terms()}: set up the terms object used throughout fitting.
 \item \code{get_extra()}: construct effect-specific quantities.
 \item \code{get_design()}: construct the design matrix for a given effect.
-\item \code{get_gamma_setup()}: set up gamma metadata for an effect.
+\item \code{gamma_info()}: set up gamma metadata for an effect.
 \item \code{get_precision()}: construct a precision matrix for a random effect.
 \item \code{get_theta_setup()}: set up theta metadata for an effect.
 \item \code{add_fpoly()}: add fixed polynomial terms implied by an effect.

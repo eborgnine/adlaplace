@@ -134,13 +134,13 @@ res_pm_temp_r <- hnlm(
     f(sqrt_pm,
       model = "hiwp", ref_value = 8, p = 2,
       knots = seq(0, 32, by = 2),
-      group_var = eco_region,
+      group_var = "eco_region",
       lower = 1e-6
     ) +
     f(temp_clean,
       model = "hiwp", ref_value = 25, p = 3,
       knots = seq(-5, 30, by = 2.5),
-      group_var = eco_region,
+      group_var = "eco_region",
       lower = 1e-6
     ),
   data = deaths,
@@ -150,7 +150,7 @@ res_pm_temp_r <- hnlm(
     dirichlet_init = 1e-5,
     boundary_is_random = TRUE,
     num_threads = parallel::detectCores(),
-    verbose = TRUE
+    verbose = 2
   ),
   control = list(
     maxit = 1000,
