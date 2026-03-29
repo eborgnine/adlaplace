@@ -139,28 +139,3 @@ get_effect <- function(
     group = df[[group_var]]
   )
 }
-
-format_result <- function(obj) {
-  fit_list <- list(
-    random = list(
-      hessian = try(obj$env$spHess(par = obj$env$last.par.best, random = TRUE)),
-      est = obj$env$last.par.best[grep("gamma", names(obj$env$last.par.best))]
-    ),
-    param = list(
-      est = obj$env$last.par.best[
-        grep("gamma", names(obj$env$last.par.best), invert = TRUE)
-      ]
-    )
-  )
-
-  names(fit_list$random$est) <- colnames(obj$env$.data$A)
-  if (!inherits(fit_list$random$hessian, "try-error")) {
-    colnames(fit_list$random$hessian) <- colnames(obj$env$.data$A)
-    rownames(fit_list$random$hessian) <- colnames(obj$env$.data$A)
-  }
-
-  names(fit_list$param$est)[grep("beta", names(fit_list$param$est))] <-
-    colnames(obj$env$.data$X)
-
-  fit_list
-}

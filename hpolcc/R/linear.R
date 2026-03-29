@@ -1,0 +1,89 @@
+#' Linear Model Term
+#'
+#' @description Creates a linear model term for fixed effects.
+#'
+#' @param x Variable name
+#' @param prefix Optional prefix for term names
+#' @param init Initial value for beta parameter (default: 0)
+#' @param lower Lower bound for beta parameter (default: -Inf)
+#' @param upper Upper bound for beta parameter (default: Inf)
+#' @param parscale Parameter scale for optimization (default: 1)
+#'
+#' @return A linear term object
+#'
+#' @examples
+#' # Create a linear term
+#' linear_term <- linear(x = "temperature")
+
+# Linear class definition
+setClass("linear",
+         representation = representation(
+         ),
+         contains = "model",
+         prototype = list(
+         )
+)
+
+linear <- function(x, prefix = NULL,
+                  init = .my_beta_init,
+                  lower = .my_beta_lower,
+                  upper = .my_beta_upper,
+                  parscale = .my_beta_parscale) {
+  new("linear",
+    term = x,
+    formula = formula(paste0("~ 0 + ", prefix, x)),
+    init = init,
+    lower = lower,
+    upper = upper,
+    parscale = parscale,
+    type = factor("fixed", levels = .type_factor_levels)
+  )
+}
+
+# Design matrix for linear terms
+setMethod("design", "linear", function(term, data){
+    res <- Matrix::sparse.model.matrix(term@formula, data, drop.unused.levels = FALSE)
+    if (is.factor(data[[term@term]])) {
+      res <- res[, -1, drop = FALSE]
+    }
+    colnames(res) <- paste(term@term, colnames(res), sep="_")
+    res
+})
+
+# Precision matrix for linear terms
+setMethod("precision", "linear", function(term, data) {
+  # Linear terms don't have precision matrices
+  NULL
+})
+
+# Theta info for linear terms
+setMethod("theta_info", "linear", function(term) {
+  # Linear terms don't have random effects parameters
+  return(NULL)
+})
+
+# Beta info for linear terms
+setMethod("beta_info", "linear", function(term, data) {
+
+  the_colnames = colnames(design(term, data))
+  the_label = paste("linear", term@term, sep="_")
+
+  result <- data.frame(
+    term = term@term,
+    model = "linear",
+    label = the_label,
+    order = NA,
+    beta_label = paste(the_label, the_colnames, sep="_"),
+    init = term@init,
+    lower = term@lower,
+    upper = term@upper,
+    parscale = term@parscale
+  )
+
+  return(result)
+})
+
+# Gamma info for linear terms
+setMethod("random_info", "linear", function(term, data) {
+  NULL
+})

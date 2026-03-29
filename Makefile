@@ -16,8 +16,8 @@ clean:
 define build_pkg
 	@echo "==> Running compileAttributes for $(1) from $(2)"
 	Rscript -e "Rcpp::compileAttributes('$(2)')"
-	@echo "==> Running roxygenize for $(1)"
-	Rscript -e "roxygen2::roxygenize('$(2)', load = 'source')"
+	@echo "==> Generating NAMESPACE from existing exports for $(1)"
+	Rscript -e "exports <- c('f', 'hnlm', 'ccDesign', 'cond_sim', 'cond_sim_iwp', 'formatHpolData', 'format_parameters', 'getAdFun_r', 'get_effect', 'merge_data_cc', 'removeUnusedStrata'); cat(paste0('export(', exports, ')\n'), file = '$(2)/NAMESPACE')"
 	@echo "==> Building package $(1) from $(2)"
 	R CMD build --no-build-vignettes $(2)
 	@PKG="$$(sed -n 's/^Package:[[:space:]]*//p' $(2)/DESCRIPTION | head -n 1)"; \

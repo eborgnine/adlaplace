@@ -1,40 +1,4 @@
-#' Fit (some) hierarchical non-linear models (that we like)
-#'
-#' @description
-#' This function fits a hierarchical model using the specified formula
-#' and data, incorporating case-crossover designs, fixed and random
-#' effects, and precision matrices for random effects. It allows for
-#' flexible inclusion of stratification variables, time variables, and
-#' complex random effect structures.
-#'
-#' @param formula A formula object specifying the model to be fitted.
-#' @param data A data frame containing the variables specified in the
-#'   formula and any additional variables required for the model.
-#' @param cc_design An object specifying the case-crossover design,
-#'   including stratification and time variables. Defaults to the output
-#'   of `ccDesign()`.
-#' @param dirichlet If `TRUE`, fit a dirichlet-multinomial model with a
-#'   time-within-strata gamma random effect; otherwise fit a multinomial
-#'   model.
-#' @param for_dev Logical; if `TRUE`, the function returns intermediate
-#'   objects for development purposes. Defaults to `FALSE`.
-#' @param verbose logical, if `TRUE` occasional information is printed
-#'
-#' @return A list containing the fitted TMB object, the formula, terms
-#'   used in the model, the case-crossover design, and information about
-#'   the gamma and theta parameters.
-#' @details The function handles fixed effects, random effects, and
-#'   their associated precision matrices. It also optimizes the model
-#'   using TMB with options for additional preprocessing and handling
-#'   specific random effect structures.
-#'
-#' @import Matrix
-#'
-#' @examples
-#' # See vignette for basic usage
-#'
-#' @useDynLib hpolcc
-#' @export
+
 hnlm <- function(
   formula,
   data,
@@ -86,7 +50,14 @@ hnlm <- function(
   }
 
   model_terms <- collect_terms(formula)
-  covariates <- unique(unlist(lapply(model_terms, slot, "var")))
+
+  if(!any(sapply(model_terms, slot, "type") == "familly")) {
+    model_terms = c(model_terms,
+      overdispersion()
+    )
+  }
+
+  covariates <- unique(unlist(lapply(model_terms, slot, "term")))
   outcome_var <- all.vars(formula)[1]
 
   strat_time_vars <- unique(c(cc_design$strat_vars, cc_design$time_var))
@@ -140,14 +111,10 @@ hnlm <- function(
   # add group info to model
   # to do, also for iid
   # create a function terms_extra(term_list, data)
-  has_group_var <- which(mapply(
-    function(class_name) {
-      any(slotNames(getClass(class_name)) == "group_var")
-    },
-    sapply(model_terms, class)
-  ))
+  var_seq <- sapply(model_terms, slot, "by")
+  has_group_var <- which(unlist(lapply(var_seq, length))>0)
+  var_seq = unlist(var_seq[has_group_var])
 
-  var_seq <- sapply(model_terms[has_group_var], slot, "group_var")
   unique_values <- lapply(unique(var_seq), function(xx) unique(data_sub[[xx]]))
   names(unique_values) <- unique(var_seq)
 
@@ -156,8 +123,8 @@ hnlm <- function(
   })
 
   for (D in has_group_var) {
-    model_terms[[D]]@groups <- unique_values[[model_terms[[D]]@group_var]]
-    model_terms[[D]]@groups_string <- unique_values_string[[model_terms[[D]]@group_var]]
+    model_terms[[D]]@by_levels <- unique_values[[model_terms[[D]]@by]]
+    model_terms[[D]]@by_labels <- unique_values_string[[model_terms[[D]]@by]]
   }
 
   precision_list <- lapply(model_terms, precision)
@@ -186,8 +153,8 @@ hnlm <- function(
 
   beta_setup <- do.call(rbind, lapply(model_terms, beta_info, data = data_sub))
 
-  gamma_info_list <- lapply(model_terms, gamma_info, data = data_sub)
-  gamma_setup <- do.call(rbind, gamma_info_list)
+  random_info_list <- lapply(model_terms, random_info, data = data_sub)
+  gamma_setup <- do.call(rbind, random_info_list)
   gamma_setup$id <- seq.int(0, len = nrow(gamma_setup))
   gamma_setup$theta_id <- theta_setup[match(
     gamma_setup$name, theta_setup$name
@@ -206,7 +173,7 @@ hnlm <- function(
 
   gamma_dims <- data.frame(
     design=sapply(design_list_a, ncol),
-    gamma=unlist(sapply(gamma_info_list, nrow))
+    gamma=unlist(sapply(random_info_list, nrow))
   )
   if(!all(gamma_dims$design == gamma_dims$gamma)) {
     warning("gamma sizes wrong")
@@ -217,7 +184,7 @@ hnlm <- function(
   
   beta_reorder = match(colnames(x_matrix), beta_setup$beta_name)
   beta_setup = beta_setup[beta_reorder, ]
-  gamma_reorder = match(colnames(a_matrix), gamma_setup$gamma_name)
+  gamma_reorder = match(colnames(a_matrix), gamma_setup$gamma_label)
   gamma_setup = gamma_setup[gamma_reorder, ]
 
   gamma_setup_sub = gamma_setup[!is.na(gamma_setup$theta_id), ]
@@ -240,9 +207,9 @@ hnlm <- function(
   }
   if(!(all(colnames(a_matrix) == gamma_setup$gamma_name)) ) {
     warning("some names of A don't match up")
-    print(table(colnames(a_matrix) %in% gamma_setup$gamma_name))
-    print(str(setdiff(colnames(a_matrix), gamma_setup$gamma_name)))
-    print(str(setdiff(gamma_setup$gamma_name, colnames(a_matrix))))
+    print(table(colnames(a_matrix) %in% gamma_setup$gamma_label))
+    print(str(setdiff(colnames(a_matrix), gamma_setup$gamma_label)))
+    print(str(setdiff(gamma_setup$gamma_label, colnames(a_matrix))))
   }
 
   if (any(duplicated(colnames(x_matrix)))) {
@@ -318,7 +285,7 @@ hnlm <- function(
   assign("gamma", config$gamma, cache)
 
   config$opt <- as.list(
-    parameters_info$parameteres[c("init","lower","upper","parscale")]
+    parameters_info$parameters[c("init","lower","upper","parscale")]
   )
 
   if (for_dev) {
@@ -350,6 +317,9 @@ hnlm <- function(
   )
 
   if (!length(cache$gamma)) {
+    if(verbose_orig) {
+      cat("no gammas, only one layer of optimizatino")
+    }
     # no gammas, no inner opt
     # Add parscale to the control if it exists in theta_info
     control_list <- list(
@@ -414,7 +384,7 @@ hnlm <- function(
       formula = formula,
       terms = terms,
       parameters_info = parameters_info,
-      gamma_info = gamma_info,
+      random_info = random_info,
       control_inner = control$inner,
       control = control
     )
@@ -433,7 +403,7 @@ hnlm <- function(
     deriv = 1
   ))
 
-  result$parameters <- try(hpolcc:::format_parameters(
+  result$parameters <- try(format_parameters(
     x = result$extra$full_parameters,
     result$objects$parameters_info
   ))

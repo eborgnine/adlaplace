@@ -4,13 +4,11 @@ Title: Hierarchical air pollution model
 Version: 0.2.0
 Author: Patrick Brown
 Maintainer: Patrick Brown <patrick.borgnine@gmail.com>
-Description: hierarchical functional case crossover
+Description: A package for hierarchical functional case crossover models. This package provides tools for modeling air pollution health effects with hierarchical structures and case crossover designs.
 SystemRequirements: CppAD, OpenMP
 License: GPL-3
 Depends: R (>= 4.1.0)
 LinkingTo: Rcpp, adlaplace, RcppEigen, trustOptim
-Imports: Rcpp, Matrix, data.table, trustOptim
+Imports: Rcpp, Matrix, data.table, trustOptim, methods
 Suggests: GET
 Encoding: UTF-8
-RoxygenNote: 7.3.3
-Roxygen: list(markdown = TRUE)

@@ -1,7 +1,6 @@
 #' parameters_info is a list with elements beta, gamma, theta
 #' each needs columns var, name, theta needs log
 
-#' @export
 format_parameters <- function(x, parameters_info) {
 
   full_parameters = x$extra$full_parameters

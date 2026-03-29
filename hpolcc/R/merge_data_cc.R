@@ -1,29 +1,4 @@
-#' Merge exposure data with event data for case-crossover models
-#'
-#' @description
-#' Build a case-crossover dataset by:
-#' \enumerate{
-#'   \item deriving a time-strata variable from the supplied time column,
-#'   \item aggregating event counts within strata and time,
-#'   \item expanding exposure rows to the strata observed in the event data, and
-#'   \item joining aggregated counts back onto the exposure rows.
-#' }
-#'
-#' @param x A `data.table` containing event rows.
-#' @param exposure A `data.table` containing exposure rows.
-#' @param strata_variables Character vector of stratification variables present
-#'   in `x`, excluding the derived time-strata column.
-#' @param time_variable Name of the date/time column shared by `x` and
-#'   `exposure`.
-#' @param strata_fun Function used to derive the time-strata variable from
-#'   `time_variable`, defaults to a function that formats dates as "Year-Month-DayOfWeek".
-#' @param time_strata_name Name of the derived time-strata column.
-#' @param count_name Name of the aggregated event-count column.
-#'
-#' @return A `data.table` containing the expanded exposure rows and aggregated
-#'   event counts. Missing event counts are filled with zero.
-#'
-#' @export
+
 merge_data_cc <- function(
   x,
   exposure,

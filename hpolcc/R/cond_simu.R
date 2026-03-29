@@ -51,14 +51,14 @@ build_pred_df <- function(terms_pred) {
 get_group_effect <- function(
   a_here,
   sim_global_here,
-  gamma_info_here,
+  random_info_here,
   sim_gamma,
   d_var,
   d_group,
   probs = c(0.025, 0.5, 0.975)
 ) {
-  gamma_here <- gamma_info_here[
-    which(gamma_info_here$group == d_group), ,
+  gamma_here <- random_info_here[
+    which(random_info_here$group == d_group), ,
     drop = FALSE
   ]
   a_here_new_names <- gsub(
@@ -99,7 +99,7 @@ get_group_quantiles <- function(
   sim_f,
   new_xa,
   sim_gamma,
-  gamma_info,
+  random_info,
   weights = NULL,
   probs = c(0.025, 0.5, 0.975),
   probs_envelope = c(0.1, 0.9)
@@ -115,8 +115,8 @@ get_group_quantiles <- function(
   for (d_var in names(sim_f)) {
     a_here <- new_xa[[d_var]]$A
     sim_global_here <- sim_f[[d_var]]
-    gamma_info_here <- gamma_info[gamma_info$var == d_var, , drop = FALSE]
-    d_groups <- setdiff(unique(gamma_info_here$group), c(NA, "GLOBAL"))
+    random_info_here <- random_info[random_info$term == d_var, , drop = FALSE]
+    d_groups <- setdiff(unique(random_info_here$group), c(NA, "GLOBAL"))
 
     if (is.list(weights)) {
       weights_here <- weights[[d_var]]
@@ -147,7 +147,7 @@ get_group_quantiles <- function(
       MoreArgs = list(
         a_here = a_here,
         sim_global_here = sim_global_here,
-        gamma_info_here = gamma_info_here,
+        random_info_here = random_info_here,
         sim_gamma = sim_gamma,
         d_var = d_var,
         probs = probs
@@ -214,7 +214,7 @@ cond_sim_gamma <- function(fit, n) {
 
 get_gamma_sim <- function(fit, term, n) {
   gamma_sim <- cond_sim_gamma(fit, n)
-  gamma_here <- grep(term, fit$gamma_info$var)
+  gamma_here <- grep(term, fit$random_info$term)
   gamma_sim[gamma_here, , drop = FALSE]
 }
 
@@ -271,7 +271,7 @@ cond_sim_iwp <- function(
 ) {
   terms <- fit$objects$terms
   parameters_info <- fit$objects$parameters_info
-  gamma_info <- fit$objects$gamma_info
+  random_info <- fit$objects$random_info
 
   beta <- fit$extra$full_parameters[seq(1, len = nrow(parameters_info$beta))]
 
@@ -324,7 +324,7 @@ cond_sim_iwp <- function(
     sim_f = sim_f,
     new_xa = new_xa,
     sim_gamma = sim_gamma,
-    gamma_info = gamma_info,
+    random_info = random_info,
     weights = weights,
     probs = probs,
     probs_envelope = probs_envelope
@@ -351,7 +351,7 @@ cond_sim_iid <- function(fit, term, n) {
   if (!all(model_here == "iid")) {
     warning("model should be iid to use cond_sim_iid")
   }
-  gamma_here <- grep(term, fit$gamma_info$var)
+  gamma_here <- grep(term, fit$random_info$term)
   sx1 <- colnames(fit$obj$env$data$A)[gamma_here]
   sx <- gsub(paste0("(factor[(])?", term, "[)]?"), "", sx1)
 

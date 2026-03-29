@@ -18,6 +18,6 @@ NULL
 #' @rdname adlaplace_backend_cpp
 #' @export
 getAdFun_r <- function(data, config) {
-    .Call(`_hpolcc_getAdFun_r`, data, config)
+    .Call('_hpolcc_getAdFun_r', PACKAGE = 'hpolcc', data, config)
 }
 
