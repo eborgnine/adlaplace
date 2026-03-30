@@ -28,7 +28,7 @@ adlaplace:
 	VERSION="$$(sed -n 's/^Version:[[:space:]]*//p' $(ADLAPLACE_DIR)/DESCRIPTION | head -n 1)"; \
 	TARBALL="$${PKG}_$${VERSION}.tar.gz"; \
 	test -f "$$TARBALL" || { echo "Expected tarball $$TARBALL not found"; exit 1; }; \
-	echo "==> Built $$TARBALL"
+	echo "==> Built $$TARBALL (installation skipped)"
 
 adlaplaceExample: adlaplace
 	@echo "==> Running cleanup for adlaplaceExample"
@@ -43,12 +43,13 @@ adlaplaceExample: adlaplace
 	VERSION="$$(sed -n 's/^Version:[[:space:]]*//p' $(ADLAPLACE_EXAMPLE_DIR)/DESCRIPTION | head -n 1)"; \
 	TARBALL="$${PKG}_$${VERSION}.tar.gz"; \
 	test -f "$$TARBALL" || { echo "Expected tarball $$TARBALL not found"; exit 1; }; \
-	echo "==> Built $$TARBALL"
+	echo "==> Built $$TARBALL (skipping installation)"
 
 hpolcc: adlaplace
 	@echo "==> Running cleanup for hpolcc"
 	cd $(HPOLCC_DIR) && ./cleanup
-	@echo "==> Skipping roxygen2 for hpolcc (requires adaplace dependency)"
+	@echo "==> Running roxygen2 for hpolcc from $(HPOLCC_DIR)"
+	Rscript -e "roxygen2::roxygenize('$(HPOLCC_DIR)')"
 	@echo "==> Building package hpolcc from $(HPOLCC_DIR)"
 	R CMD build --no-build-vignettes $(HPOLCC_DIR)
 	@PKG="$$(sed -n 's/^Package:[[:space:]]*//p' $(HPOLCC_DIR)/DESCRIPTION | head -n 1)"; \

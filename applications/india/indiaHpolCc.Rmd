@@ -129,7 +129,7 @@ library("hpolcc") # lib.loc = "/home/patrick/R/x86_64-pc-linux-gnu-library/4.3"
 
 load("~/research/adlaplace/applications/india/deaths.RData")
 
-res_pm_temp_r <- hnlm(
+res <- hnlm(
   formula = medical ~ dom +
     f(sqrt_pm,
       model = "hiwp", ref_value = 8, p = 2,
@@ -156,7 +156,7 @@ res_pm_temp_r <- hnlm(
     trace = 3,
     REPORT = 1
   ),
-  for_dev = TRUE
+  for_dev = FALSE
 )
 
 # saveRDS(res_pm_temp_r, file = "resPmTempR.rds")
@@ -330,3 +330,59 @@ knitr::kable(
   kableExtra::column_spec(2, latex_column_spec = "p{0.7\\\\linewidth}")
 ```
 
+```{r derivJointDens}
+
+
+  ad_fun <- adlaplace::getAdFun(
+    res$tmb_data,
+    res$config
+  )
+
+x_joint = c(
+  res$parameters_info$beta$init,
+  rep(0, nrow(res$parameters_info$gamma)),
+  res$parameters_info$theta$init
+  )
+# Perturb one parameter and compare analytic gradient to finite differences.
+Dpar <- 1
+Npar <- 13
+parDf <- data.frame(x = x_joint)[rep(1, Npar)]
+Sx <- seq(-0.1, 0.1, length.out = Npar) + x_joint[Dpar]
+SxD <- Sx[-1] - diff(Sx) / 2
+parDf[Dpar, ] <- Sx
+
+Sgroups <- seq.int(from = 0L, length.out = length(adFun$sparsity))
+
+dens1 <- mapply(
+  adlaplace::jointLogDens,
+  x = as.list(parDf),
+  MoreArgs = list(backendContext = ad_fun, Sgroups = Sgroups),
+  SIMPLIFY = TRUE
+)
+
+grad1 <- mapply(
+  adlaplace::grad,
+  x = as.list(parDf),
+  MoreArgs = list(backendContext = adFun, inner = FALSE, Sgroups = Sgroups),
+  SIMPLIFY = TRUE
+)
+
+fdGrad <- diff(dens1) / diff(Sx)
+gradAlongPath <- grad1[Dpar, ]
+gradMid <- 0.5 * (gradAlongPath[-1] + gradAlongPath[-length(gradAlongPath)])
+
+plot(Sx, dens1, xlab = sprintf("x[%d]", Dpar), ylab = "jointLogDens")
+plot(Sx, gradAlongPath, xlab = sprintf("x[%d]", Dpar), ylab = "d jointLogDens / dx")
+lines(SxD, fdGrad, lwd = 2, col = 2)
+legend("topleft", legend = c("analytic", "finite diff"), lty = 1, col = c(1, 2), bty = "n")
+
+max_abs_err <- max(abs(gradMid - fdGrad))
+max_abs_err
+
+hess1 <- mapply(
+  adlaplace::hess,
+  x = as.list(parDf),
+  MoreArgs = list(backendContext = adFun, inner = FALSE, Sgroups = Sgroups),
+  SIMPLIFY = TRUE
+)
+```

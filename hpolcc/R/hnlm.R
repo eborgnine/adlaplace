@@ -1,3 +1,4 @@
+#' @import data.table
 #' @export
 hnlm <- function(
   formula,
@@ -70,7 +71,13 @@ hnlm <- function(
   ]
 
   required_vars <- unique(c(covariates, strat_time_vars))
+  if(config$verbose) {
+    cat("variables:\n")
+    print(required_vars)
+  }
+  # Remove rows with NA values in required variables
   data <- data[complete.cases(data[, ..required_vars])]
+
   if (anyNA(data[[outcome_var]])) {
     warning("missing values in outcome, treating as zeros")
     data[is.na(get(outcome_var)), (outcome_var) := 0]
@@ -78,7 +85,7 @@ hnlm <- function(
   data.table::setorderv(data, strat_time_vars)
 
   n_per_strata <- data[
-    , .(
+    , list(
       outcome_sum = sum(get(outcome_var)),
       n_rows = .N
     ),
@@ -107,7 +114,7 @@ hnlm <- function(
   }
 
   # add group info to model
-  model_terms = lapply(model_terms, get_by_levels)
+  model_terms = lapply(model_terms, get_by_levels, data = data_sub)
 
 
   theta_info_list <- lapply(model_terms, theta_info)

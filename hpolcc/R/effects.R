@@ -64,16 +64,23 @@ collect_terms <- function(formula) {
 
   terms_1 <- lapply(term_labels, function(lab) {
     if (grepl("f\\(", lab)) {
-      try(eval(parse(text = lab)))
+      tryCatch({
+        term_obj <- eval(parse(text = lab))
+        if (is.null(term_obj)) {
+          stop(paste("Failed to parse term:", lab))
+        }
+        return(term_obj)
+      }, error = function(e) {
+        warning(paste("Error parsing term", lab, ":", e$message))
+        return(list(linear(lab)))
+      })
     } else {
       result = list(linear(lab))
       names(result) = result[[1]]@term
-      result
-
+      return(result)
     }
   })
   terms_all = do.call(c, terms_1)
-
 
   terms_all
 }
@@ -84,12 +91,11 @@ get_by_levels = function(term, data) {
   if(!length(term@by_levels)) {
     unique_values <- unique(data[[term@by]])
     if(is.numeric(unique_values)) {
-      unique_values_string <- lapply(unique_values, function(xx) {
-        formatC(xx, width = ceiling(log10(max(xx))), flag = "0")
-      })
-      } else {
+      unique_values_string <- 
+          formatC(unique_values, width = ceiling(log10(max(unique_values))), flag = "0")
+    } else {
       unique_values_string = as.character(unique_values)
-      }
+    }
     term@by_levels = unique_values
     term@by_labels = unique_values_string
   }

@@ -20,8 +20,6 @@
 \item{upper}{Upper bound for theta parameter}
 
 \item{parscale}{Parameter scale for optimization}
-
-\item{prefix}{Optional prefix for term names}
 }
 \value{
 A hrpoly term object
