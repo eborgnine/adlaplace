@@ -65,8 +65,8 @@ grad <- function(x, backendContext, inner = FALSE, Sgroups = NULL) {
 
 #' @rdname adlaplace_cpp
 #' @export
-hess <- function(x, backendContext, inner = FALSE, Sgroups = NULL) {
-    .Call(`_adlaplace_hess`, x, backendContext, inner, Sgroups)
+hess <- function(x, backendContext, inner = FALSE, Sgroups = NULL, verbose = FALSE) {
+    .Call(`_adlaplace_hess`, x, backendContext, inner, Sgroups, verbose)
 }
 
 #' @rdname adlaplace_cpp

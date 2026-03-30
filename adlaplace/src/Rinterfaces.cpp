@@ -152,13 +152,17 @@ Rcpp::S4 hess(
   const Rcpp::NumericVector& x,
   SEXP backendContext,
   const bool inner = false,
-  SEXP Sgroups = R_NilValue) {
+  SEXP Sgroups = R_NilValue,
+  const bool verbose = false) {
   adlaplace_adpack_handle* h = get_handle(backendContext);
   if (!h->api->f_grad_hess) {
     Rcpp::stop("backendContext api->f_grad_hess is NULL");
   }
   if (!h->api->get_hessian) {
     Rcpp::stop("backendContext api->get_hessian is NULL");
+  }
+  if (verbose) {
+    Rcpp::Rcout << "Starting Hessian computation..." << std::endl;
   }
 
   size_t Nparams = 0, Ngroups = 0, Nbeta = 0, Ngamma = 0, Ntheta = 0;
@@ -182,6 +186,10 @@ Rcpp::S4 hess(
   );
   if (rc_hessian != 0) {
     Rcpp::stop("backend api->get_hessian failed with code %d", rc_hessian);
+  }
+  if (verbose) {
+    Rcpp::Rcout << "Hessian sparsity pattern: " << hess_p_len << " columns, " 
+              << hess_i_len << " non-zero elements" << std::endl;
   }
 
   Rcpp::NumericVector hess_out(hess_i_len, 0.0);
@@ -207,6 +215,9 @@ Rcpp::S4 hess(
       Rcpp::stop("backend api->f_grad_hess failed for group %d with code %d", gi, rc);
     }
   }
+  if (verbose) {
+    Rcpp::Rcout << "Hessian computation completed successfully" << std::endl;
+  }
 
   const int ncol = static_cast<int>(hess_p_len > 0 ? hess_p_len - 1 : 0);
   Rcpp::IntegerVector p_out(hess_p_len);
@@ -223,9 +234,7 @@ Rcpp::S4 hess(
   out.slot("Dim") = Rcpp::IntegerVector::create(ncol, ncol);
   out.slot("uplo") = Rcpp::String("U");
 
-  Rcpp::Function as_function = matrix_ns["as"];
-  Rcpp::S4 out_general = as_function(out, "generalMatrix");
-  return out_general;
+  return out;
 
 }
 

@@ -351,7 +351,12 @@ Sx <- seq(-0.1, 0.1, length.out = Npar) + x_joint[Dpar]
 SxD <- Sx[-1] - diff(Sx) / 2
 parDf[Dpar, ] <- Sx
 
-Sgroups <- seq.int(from = 0L, length.out = length(adFun$sparsity))
+Sgroups <- seq.int(from = 0L, length.out = length(ad_fun$sparsity))
+
+Sgroups = 0L
+
+bob1 = adlaplace::grad(x_joint, ad_fun, Sgroups = Sgroups)
+bob2 = adlaplace::hess(x_joint, ad_fun, Sgroups = Sgroups, verbose=TRUE)
 
 dens1 <- mapply(
   adlaplace::jointLogDens,
@@ -363,7 +368,7 @@ dens1 <- mapply(
 grad1 <- mapply(
   adlaplace::grad,
   x = as.list(parDf),
-  MoreArgs = list(backendContext = adFun, inner = FALSE, Sgroups = Sgroups),
+  MoreArgs = list(backendContext = ad_fun, inner = FALSE, Sgroups = Sgroups),
   SIMPLIFY = TRUE
 )
 
@@ -382,7 +387,8 @@ max_abs_err
 hess1 <- mapply(
   adlaplace::hess,
   x = as.list(parDf),
-  MoreArgs = list(backendContext = adFun, inner = FALSE, Sgroups = Sgroups),
-  SIMPLIFY = TRUE
+  MoreArgs = list(backendContext = ad_fun, inner = FALSE),
+  SIMPLIFY = FALSE
 )
+hess1a = lapply(hess1, as.matrix)
 ```

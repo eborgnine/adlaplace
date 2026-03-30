@@ -50,8 +50,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // hess
-Rcpp::S4 hess(const Rcpp::NumericVector& x, SEXP backendContext, const bool inner, SEXP Sgroups);
-RcppExport SEXP _adlaplace_hess(SEXP xSEXP, SEXP backendContextSEXP, SEXP innerSEXP, SEXP SgroupsSEXP) {
+Rcpp::S4 hess(const Rcpp::NumericVector& x, SEXP backendContext, const bool inner, SEXP Sgroups, const bool verbose);
+RcppExport SEXP _adlaplace_hess(SEXP xSEXP, SEXP backendContextSEXP, SEXP innerSEXP, SEXP SgroupsSEXP, SEXP verboseSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -59,7 +59,8 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< SEXP >::type backendContext(backendContextSEXP);
     Rcpp::traits::input_parameter< const bool >::type inner(innerSEXP);
     Rcpp::traits::input_parameter< SEXP >::type Sgroups(SgroupsSEXP);
-    rcpp_result_gen = Rcpp::wrap(hess(x, backendContext, inner, Sgroups));
+    Rcpp::traits::input_parameter< const bool >::type verbose(verboseSEXP);
+    rcpp_result_gen = Rcpp::wrap(hess(x, backendContext, inner, Sgroups, verbose));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -126,7 +127,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_adlaplace_getAdFun_r", (DL_FUNC) &_adlaplace_getAdFun_r, 2},
     {"_adlaplace_jointLogDens", (DL_FUNC) &_adlaplace_jointLogDens, 3},
     {"_adlaplace_grad", (DL_FUNC) &_adlaplace_grad, 4},
-    {"_adlaplace_hess", (DL_FUNC) &_adlaplace_hess, 4},
+    {"_adlaplace_hess", (DL_FUNC) &_adlaplace_hess, 5},
     {"_adlaplace_traceHinvT", (DL_FUNC) &_adlaplace_traceHinvT, 6},
     {"_adlaplace_hessianMapC", (DL_FUNC) &_adlaplace_hessianMapC, 4},
     {"_adlaplace_all_derivs", (DL_FUNC) &_adlaplace_all_derivs, 3},

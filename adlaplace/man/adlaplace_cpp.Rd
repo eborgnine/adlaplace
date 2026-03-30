@@ -15,7 +15,7 @@ jointLogDens(x, backendContext, Sgroups = NULL)
 
 grad(x, backendContext, inner = FALSE, Sgroups = NULL)
 
-hess(x, backendContext, inner = FALSE, Sgroups = NULL)
+hess(x, backendContext, inner = FALSE, Sgroups = NULL, verbose = FALSE)
 
 traceHinvT(
   x,
