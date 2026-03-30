@@ -9,11 +9,9 @@ hnlm <- function(
     transform_theta = TRUE
   ),
   control = list(
-    fnscale = -1,
-    trace = 3,
-    REPORT = 1,
     maxit = 1000,
-    parscale = NULL
+    trace = 3,
+    REPORT = 1
   ),
   control_inner = list(report.level = 0),
   for_dev = FALSE,
