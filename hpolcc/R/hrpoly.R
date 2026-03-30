@@ -10,7 +10,6 @@
 #' @param lower Lower bound for theta parameter
 #' @param upper Upper bound for theta parameter
 #' @param parscale Parameter scale for optimization
-#' @param prefix Optional prefix for term names
 #'
 #' @return A hrpoly term object
 
@@ -56,7 +55,7 @@ hrpoly <- function(
 
   new("hrpoly",
     term = x,
-    formula = formula(paste0("~ 0 + ", prefix, x)),
+    formula = formula(paste0("~ 0 + ", x)),
     p.order = as.integer(p),
     ref_value = ref_value,
     by = by,
@@ -69,32 +68,41 @@ hrpoly <- function(
   )
 }
 
+
 # Design matrix for hrpoly terms
 setMethod("design", "hrpoly", function(term, data) {
 
-  id_split <- split(1:nrow(data), 
-    factor(data[[term@by]], levels = term@by_levels), 
-  drop = FALSE)
-  mm <- c(0, sapply(id_split, length)) |> cumsum()
+  term = get_by_levels(term, data)
 
-  A0 <- drop(poly(
-    data[[term@term]] - term@ref_value, 
-    raw = TRUE, degree = term@p.order
-  )[,term@p.order])
-    
+  a_base = design(as(term, "rpoly"), data)[,term@p.order]
 
-  Afinal <- Matrix::Matrix(0, nrow = nrow(data), ncol = length(term@groups)) |> as("TsparseMatrix")
-
-  for (k in seq_along(id_split)) {
-    Afinal[id_split[[k]], k] <- A0[id_split[[k]]]
-  }
-  colnames(Afinal) <- paste(
-    term@term,
-    term@by_labels,
-    sep = "_"
+  a_split = mapply(
+    function(x, a_base, id) {
+      the_i = which(x==id)
+      data.frame(
+        i = the_i,
+        j_orig = id,
+        x = a_base[the_i]
+      )
+    },
+    id = term@by_levels,
+    MoreArgs = list(x=data[[term@by]], a_base = a_base),
+    SIMPLIFY=FALSE
   )
+  a_df = do.call(rbind, a_split)
+  a_df$j = match(a_df$j_orig, term@by_levels)
 
-  Afinal
+  result = Matrix::sparseMatrix(i=a_df$i, j=a_df$j, 
+    x = a_df$x, dims = c(length(a_base), length(term@by_levels)),
+    dimnames = list(NULL, paste0(
+    term@term,
+    "_hrpoly_",
+    term@p.order,
+    "_g",
+    term@by_labels
+  )))
+
+  result
 })
 
 # Precision matrix for hrpoly terms
@@ -102,19 +110,21 @@ setMethod("precision", "hrpoly", function(term, data) {
   if (term@p.order == 0) {
     return(NULL)
   }
-  unique_values <- term@by_levels
-  if (!length(unique_values)) {
-    unique_values <- unique(data[[term@term]])
-  }
-  Matrix::Diagonal(length(unique_values), 1)
+  term = get_by_levels(term, data)
+
+  result = Matrix::Diagonal(length(term@by_levels), 1)
+  dimnames(result) = list(
+    paste0(term@term, "_hrpoly_", term@p.order, "_g", term@by_labels)
+  )[c(1,1)]
+  result
+
 })
 
 # Theta info for hrpoly terms
 setMethod("theta_info", "hrpoly", function(term) {
   result <- data.frame(
     term = term@term, model = "hrpoly", 
-    label = paste(c("hrpoly", term@term), collapse = "_"),
-    order = term@p.order,
+    label = paste(c("hrpoly", term@term, term@p.order), collapse = "_"),
     init = term@init,
     lower = term@lower,
     upper = term@upper,
@@ -140,13 +150,13 @@ setMethod("random_info", "hrpoly", function(term, data) {
   result <- expand.grid(
     term = term@term,
     model = "hrpoly",
-    label = paste(c("hrpoly", term@term), collapse = "_"),
+    label = paste(c(term@term, "hrpoly"), collapse = "_"),
     by = term@by_levels,
     basis = basis,
     order = term@p.order,
     stringsAsFactors = FALSE
   )
   result$by_labels <- term@by_labels[match(result$by, term@by_levels)]
-  result$gamma_label <- paste(result$label, result$by_labels, sep = "_")
+  result$gamma_label <- paste0(result$label, "_", result$order, "_g", result$by_labels)
   result
 })

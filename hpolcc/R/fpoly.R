@@ -27,6 +27,7 @@ setClass("fpoly",
     type = factor("fixed", levels = .type_factor_levels)
          )
 )
+
 #' @export
 fpoly <- function(x, p = 2, ref_value = 0,
                   init = .my_beta_init,
@@ -52,7 +53,7 @@ setMethod("design", "fpoly", function(term, data) {
   }
   D <- poly(data[[term@term]]-term@ref_value, degree = term@p.order)
   D <- D[,1:ncol(D),drop=F]
-  colnames(D) <- paste0(term@term, c('', seq(from=1, by=1, len=ncol(D)-1)))
+  colnames(D) <- paste0(term@term, "_fpoly_", c('', seq(from=1, by=1, len=ncol(D)-1)))
   D
 })
 
@@ -77,7 +78,7 @@ setMethod("beta_info", "fpoly", function(term, data) {
     model = "fpoly",
     label = the_label,
     order = term@p.order,
-    beta_label = paste(the_label, term@p.order, sep="_"),
+    beta_label = paste(the_label, "fpoly", term@p.order, sep="_"),
     init = term@init,
     lower = term@lower,
     upper = term@upper,

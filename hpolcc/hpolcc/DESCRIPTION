@@ -7,11 +7,11 @@ Maintainer: Patrick Brown <patrick.borgnine@gmail.com>
 Description: A package for hierarchical functional case crossover models. This package provides tools for modeling air pollution health effects with hierarchical structures and case crossover designs.
 SystemRequirements: CppAD, OpenMP
 License: GPL-3
-Depends: R (>= 4.1.0),
+Depends: R (>= 4.1.0), adaplace
 LinkingTo: Rcpp, adlaplace, RcppEigen, trustOptim
-Imports: Rcpp, Matrix, data.table, trustOptim, methods, Rfast, lubridate, timeDate, numDeriv, stats, adlaplace
+Imports: Rcpp, Matrix, data.table, trustOptim, methods, Rfast, lubridate, timeDate, numDeriv, stats
 Suggests: GET
 Encoding: UTF-8
 RoxygenNote: 7.3.3
 NeedsCompilation: yes
-Packaged: 2026-03-30 04:04:52 UTC; patrick
+Packaged: 2026-03-30 04:09:14 UTC; patrick

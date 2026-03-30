@@ -127,6 +127,9 @@ hiwp <- function(
 
 # Design matrix for hiwp terms
 setMethod("design", "hiwp", function(term, data) {
+
+  by_stuff = get_by_levels(term, data)
+
   term_iwp <- as(term, "iwp")
   A0 <- design(term_iwp, data)
   if(!all(unique(data[[term@by]] %in% term@by_levels))) {
@@ -157,13 +160,13 @@ setMethod("design", "hiwp", function(term, data) {
     dims = c(nrow(data), ncol(A0) * length(id_split)),
     dimnames = list(
       rownames(data),
-      paste(term@term,
-        rep(term@by_labels, each = ncol(A0)),
+      paste0(term@term, "_hiwp_k",
         rep(
           formatC(1:ncol(A0), width = ceiling(log10(ncol(A0))), flag = "0"),
           length(id_split)
         ),
-        sep = "_"
+      "_g",
+                rep(term@by_labels, each = ncol(A0))
       )
     )
   )
@@ -173,17 +176,15 @@ setMethod("design", "hiwp", function(term, data) {
 
 # Precision matrix for hiwp terms
 setMethod("precision", "hiwp", function(term, data) {
-  unique_values <- term@by_levels
-  if (!length(unique_values)) {
-    unique_values <- unique(data[[term@term]])
-  }
+  term = get_by_levels(term, data)
+
   iwp_precision <- precision(as(term, "iwp"), data)
-  result <- Matrix::.bdiag(replicate(length(unique_values), iwp_precision))
-dimnames(result) <- list(
-  paste(
-    rep(colnames(iwp_precision), length(unique_values)),
-    rep(unique_values, each = ncol(iwp_precision)),
-    sep = "_"
+  result <- Matrix::.bdiag(replicate(length(term@by_levels), iwp_precision))
+  dimnames(result) <- list(
+  paste0(
+    rep(gsub("_iwp_k", "_hiwp_k", colnames(iwp_precision)), length(term@by_levels)),
+    "_g",
+    rep(term@by_labels, each = ncol(iwp_precision))
   )
 )[c(1, 1)]
   result
@@ -196,7 +197,6 @@ setMethod("theta_info", "hiwp", function(term) {
     term = term@term,
     model = "hiwp",
     label = paste(c("hiwp", term@term), collapse = "_"),
-    order = NA,
     init = term@init,
     lower = term@lower,
     upper = term@upper,
@@ -221,7 +221,7 @@ setMethod("random_info", "hiwp", function(term, data) {
   result <- expand.grid(
     term = term@term,
     model = "hiwp",
-    label = paste(c("hiwp", term@term), collapse = "_"),
+    label = paste(c(term@term,"hiwp"), collapse = "_"),
     by = term@by_levels,
     basis = basis,
     order = term@p.order,
@@ -233,7 +233,7 @@ setMethod("random_info", "hiwp", function(term, data) {
     flag = "0"
   )
   result$by_labels <- term@by_labels[match(result$by, term@by_levels)]
-  result$gamma_label <- paste(result$label, result$by_label, bnumPad, sep = "_")
+  result$gamma_label <- paste0(result$label, "_k", bnumPad, "_g", result$by_label)
 
   result
 })

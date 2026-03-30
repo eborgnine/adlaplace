@@ -143,7 +143,7 @@ res_pm_temp_r <- hnlm(
       by = "eco_region",
       lower = 1e-6
     ) + 
-    f(NA, model="overdispersion", init=1e-5),
+    f(model="overdispersion", init=1e-5),
   data = deaths,
   cc_design = c("cell", "eco_region", "year_week3_dow"),
   config = list(

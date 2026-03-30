@@ -1,6 +1,6 @@
-PKGS := adlaplace adlaplaceExtra hpolcc
+PKGS := adlaplace adlaplaceExample hpolcc
 ADLAPLACE_DIR := adlaplace
-ADLAPLACE_EXTRA_DIR := adlaplaceExample
+ADLAPLACE_EXAMPLE_DIR := adlaplaceExample
 HPOLCC_DIR := hpolcc
 
 .DEFAULT_GOAL := all
@@ -13,33 +13,42 @@ clean:
 	@echo "==> Cleaning .o and .so files under src folders"
 	@find . -type f \( -name '*.o' -o -name '*.so' \) -path '*/src/*' -delete
 
-define build_pkg
-	@echo "==> Running compileAttributes for $(1) from $(2)"
-	Rscript -e "Rcpp::compileAttributes('$(2)')"
-	@echo "==> Running roxygen2 for $(1) from $(2)"
-	Rscript -e "roxygen2::roxygenize('$(2)')"
-	@echo "==> Generating NAMESPACE from existing exports for $(1)"
-	Rscript -e "exports <- c('f', 'hnlm', 'ccDesign', 'cond_sim', 'cond_sim_iwp', 'formatHpolData', 'format_parameters', 'getAdFun_r', 'get_effect', 'merge_data_cc', 'removeUnusedStrata'); cat(paste0('export(', exports, ')\n'), file = '$(2)/NAMESPACE')"
-	@echo "==> Building package $(1) from $(2)"
-	R CMD build --no-build-vignettes $(2)
-	@PKG="$$(sed -n 's/^Package:[[:space:]]*//p' $(2)/DESCRIPTION | head -n 1)"; \
-	VERSION="$$(sed -n 's/^Version:[[:space:]]*//p' $(2)/DESCRIPTION | head -n 1)"; \
+
+
+adlaplace:
+	@echo "==> Running cleanup for adlaplace"
+	cd $(ADLAPLACE_DIR) && ./cleanup
+	@echo "==> Running compileAttributes for adlaplace from $(ADLAPLACE_DIR)"
+	Rscript -e "Rcpp::compileAttributes('$(ADLAPLACE_DIR)')"
+	@echo "==> Running roxygen2 for adlaplace from $(ADLAPLACE_DIR)"
+	Rscript -e "roxygen2::roxygenize('$(ADLAPLACE_DIR)')"
+	@echo "==> Building package adlaplace from $(ADLAPLACE_DIR)"
+	R CMD build --no-build-vignettes $(ADLAPLACE_DIR)
+	@PKG="$$(sed -n 's/^Package:[[:space:]]*//p' $(ADLAPLACE_DIR)/DESCRIPTION | head -n 1)"; \
+	VERSION="$$(sed -n 's/^Version:[[:space:]]*//p' $(ADLAPLACE_DIR)/DESCRIPTION | head -n 1)"; \
 	TARBALL="$${PKG}_$${VERSION}.tar.gz"; \
 	test -f "$$TARBALL" || { echo "Expected tarball $$TARBALL not found"; exit 1; }; \
 	echo "==> Built $$TARBALL"
-endef
 
-adlaplace:
-	$(call build_pkg,adlaplace,$(ADLAPLACE_DIR))
-
-adlaplaceExtra: adlaplace
-	$(call build_pkg,adlaplaceExtra,$(ADLAPLACE_EXTRA_DIR))
+adlaplaceExample: adlaplace
+	@echo "==> Running cleanup for adlaplaceExample"
+	cd $(ADLAPLACE_EXAMPLE_DIR) && ./cleanup
+	@echo "==> Running compileAttributes for adlaplaceExample from $(ADLAPLACE_EXAMPLE_DIR)"
+	Rscript -e "Rcpp::compileAttributes('$(ADLAPLACE_EXAMPLE_DIR)')"
+	@echo "==> Running roxygen2 for adlaplaceExample from $(ADLAPLACE_EXAMPLE_DIR)"
+	Rscript -e "roxygen2::roxygenize('$(ADLAPLACE_EXAMPLE_DIR)')"
+	@echo "==> Building package adlaplaceExample from $(ADLAPLACE_EXAMPLE_DIR)"
+	R CMD build --no-build-vignettes $(ADLAPLACE_EXAMPLE_DIR)
+	@PKG="$$(sed -n 's/^Package:[[:space:]]*//p' $(ADLAPLACE_EXAMPLE_DIR)/DESCRIPTION | head -n 1)"; \
+	VERSION="$$(sed -n 's/^Version:[[:space:]]*//p' $(ADLAPLACE_EXAMPLE_DIR)/DESCRIPTION | head -n 1)"; \
+	TARBALL="$${PKG}_$${VERSION}.tar.gz"; \
+	test -f "$$TARBALL" || { echo "Expected tarball $$TARBALL not found"; exit 1; }; \
+	echo "==> Built $$TARBALL"
 
 hpolcc: adlaplace
-	@echo "==> Skipping compileAttributes for hpolcc (not a standard R package)"
-	@echo "==> Skipping roxygen2 for hpolcc (not a standard R package)"
-	@echo "==> Generating NAMESPACE from existing exports for hpolcc"
-	Rscript -e "exports <- c('f', 'hnlm'); cat(paste0('export(', exports, ')\n'), file = '$(HPOLCC_DIR)/NAMESPACE')"
+	@echo "==> Running cleanup for hpolcc"
+	cd $(HPOLCC_DIR) && ./cleanup
+	@echo "==> Skipping roxygen2 for hpolcc (requires adaplace dependency)"
 	@echo "==> Building package hpolcc from $(HPOLCC_DIR)"
 	R CMD build --no-build-vignettes $(HPOLCC_DIR)
 	@PKG="$$(sed -n 's/^Package:[[:space:]]*//p' $(HPOLCC_DIR)/DESCRIPTION | head -n 1)"; \

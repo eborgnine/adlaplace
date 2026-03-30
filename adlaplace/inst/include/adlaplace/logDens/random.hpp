@@ -7,6 +7,8 @@
 /*
 	the standard log density for random effects
 	include with #include "adlaplace/logDensRandom.hpp"
+	missing part of det Q.  note D = diag(theta), Q = D %*% Q0 %*% D.
+	log |Q| = 2 log |D| + |Q0|, we're not doing |Q0|, if it's a constant that's fine.
 */
 
 CppAD::vector<CppAD::AD<double>> logDensRandom(

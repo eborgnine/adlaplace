@@ -109,36 +109,18 @@ hnlm <- function(
   }
 
   # add group info to model
-  # to do, also for iid
-  # create a function terms_extra(term_list, data)
-  var_seq <- sapply(model_terms, slot, "by")
-  has_group_var <- which(unlist(lapply(var_seq, length))>0)
-  var_seq = unlist(var_seq[has_group_var])
+  model_terms = lapply(model_terms, get_by_levels)
 
-  unique_values <- lapply(unique(var_seq), function(xx) unique(data_sub[[xx]]))
-  names(unique_values) <- unique(var_seq)
-
-  unique_values_string <- lapply(unique_values, function(xx) {
-    formatC(xx, width = ceiling(log10(max(xx))), flag = "0")
-  })
-
-  for (D in has_group_var) {
-    model_terms[[D]]@by_levels <- unique_values[[model_terms[[D]]@by]]
-    model_terms[[D]]@by_labels <- unique_values_string[[model_terms[[D]]@by]]
-  }
-
-  precision_list <- lapply(model_terms, precision)
 
   theta_info_list <- lapply(model_terms, theta_info)
-
   theta_setup <- do.call(rbind, theta_info_list)
-  theta_setup$id <- seq.int(0, len = nrow(theta_setup))
+  theta_setup$id <- seq.int(0, length.out = nrow(theta_setup))
 
   beta_setup <- do.call(rbind, lapply(model_terms, beta_info, data = data_sub))
 
   random_info_list <- lapply(model_terms, random_info, data = data_sub)
   gamma_setup <- do.call(rbind, random_info_list)
-  gamma_setup$id <- seq.int(0, len = nrow(gamma_setup))
+  gamma_setup$id <- seq.int(0, length.out = nrow(gamma_setup))
   gamma_setup$theta_id <- theta_setup[match(
     gamma_setup$label, theta_setup$label
   ), "id"]
@@ -149,12 +131,20 @@ hnlm <- function(
   design_list_x <- lapply(model_terms[terms_with_beta], design,
     data = data_sub
   )
-  design_list_a <- parallel::mclapply(model_terms[terms_with_gamma], 
+  if(FALSE) {
+  design_list_a <- parallel::mclapply(
+    model_terms[terms_with_gamma], 
     design,
-    data = data_sub,
+    MoreArgs = list(data = data_sub),
     mc.cores = config$num_threads
   )
-
+  } else {
+      design_list_a <- lapply(
+    model_terms[terms_with_gamma], 
+    design,
+    data = data_sub
+  )
+  }
   gamma_dims <- data.frame(
     design=sapply(design_list_a, ncol),
     gamma=unlist(sapply(random_info_list, nrow))
@@ -166,9 +156,14 @@ hnlm <- function(
   a_matrix <- do.call(cbind, design_list_a)
   x_matrix <- do.call(cbind, design_list_x)
   
-  beta_reorder = match(colnames(x_matrix), beta_setup$beta_name)
+  beta_reorder = match(colnames(x_matrix), beta_setup$beta_label)
   beta_setup = beta_setup[beta_reorder, ]
+
   gamma_reorder = match(colnames(a_matrix), gamma_setup$gamma_label)
+  if(any(is.na(gamma_reorder))) {
+    warning("problem with random names")
+    print(setdiff(gamma_setup$gamma_label, colnames(a_matrix))[1])
+  }
   gamma_setup = gamma_setup[gamma_reorder, ]
 
   gamma_setup_sub = gamma_setup[!is.na(gamma_setup$theta_id), ]
@@ -179,9 +174,15 @@ hnlm <- function(
   )
 
   # Create block-diagonal precision matrix, excluding NULL elements
-  valid_precision <- precision_list[!sapply(precision_list, is.null)]
+  valid_precision <- lapply(model_terms[terms_with_gamma], precision)
   if (length(valid_precision) > 0) {
     precision_matrix <- do.call(Matrix::bdiag, valid_precision)
+    dimnames(precision_matrix) = list(unlist(lapply(valid_precision, colnames)))[c(1,1)]
+    if(!all(colnames(precision_matrix) == colnames(a_matrix))) {
+      warning("precision matrix column names wrong")
+      print(setdiff(colnames(precision_matrix), colnames(a_matrix))[1])
+      print(setdiff(colnames(a_matrix),colnames(precision_matrix))[1])
+    }
   } else {
     precision_matrix <- Matrix::Diagonal(nrow = 0, ncol = 0)
   }

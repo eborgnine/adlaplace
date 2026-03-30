@@ -54,16 +54,15 @@ setMethod("design", "rpoly", function(term, data) {
 
   D <- poly(data[[term@term]]-term@ref_value, raw=TRUE, degree = term@p.order)
   D <- D[,1:ncol(D),drop=FALSE]
-  colnames(D) <- paste(term@term, 1:ncol(D), sep="_")
+  colnames(D) <- paste(term@term, "rpoly", 1:ncol(D), sep="_")
   D
 })
 
 # Precision matrix for rpoly terms
 setMethod("precision", "rpoly", function(term, data) {
-  if(term@sd == Inf) {
-    return(NULL)
-  }
-  Matrix::Diagonal(term@p.order, term@sd^(-2))
+  the_sd = term@sd
+  names(the_sd) = paste(term@term, "rpoly", seq.int(from=1, length.out=term@p.order), sep="_")
+  Matrix::Diagonal(length(the_sd), the_sd^(-2), names=TRUE)
 })
 
 # Theta info for rpoly terms
@@ -85,7 +84,7 @@ setMethod("random_info", "rpoly", function(term, data) {
   result <- expand.grid(
     term = term@term,
     model = "rpoly",
-    label = paste(c("rpoly", term@term), collapse = "_"),
+    label = paste(c(term@term, "rpoly"), collapse = "_"),
     by = NA,
     basis = basis,
     order = order,

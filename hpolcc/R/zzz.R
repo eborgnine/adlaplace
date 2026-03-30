@@ -1,7 +1,7 @@
 # Helper function to convert hiwp to iwp
 convert_hiwp_to_iwp <- function(from) {
   # Create a new iwp object with the same basic properties
-  new("iwp",
+  methods::new("iwp",
     term = from@term,
     formula = from@formula,
     knots = from@knots,
@@ -16,4 +16,12 @@ convert_hiwp_to_iwp <- function(from) {
 }
 
 # Register the coercion method properly
-setAs("hiwp", "iwp", convert_hiwp_to_iwp)
+methods::setAs("hiwp", "iwp", convert_hiwp_to_iwp)
+methods::setAs("hrpoly", "rpoly", function(from) {
+  rpoly(
+    x = from@term,
+    p = from@p.order,
+    ref_value = from@ref_value,
+    sd = 1
+  )
+})

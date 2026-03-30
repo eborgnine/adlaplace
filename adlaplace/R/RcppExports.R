@@ -48,35 +48,35 @@ NULL
 
 #' @rdname adlaplace_cpp
 getAdFun_r <- function(data, config) {
-    .Call('_adlaplace_getAdFun_r', PACKAGE = 'adlaplace', data, config)
+    .Call(`_adlaplace_getAdFun_r`, data, config)
 }
 
 #' @rdname adlaplace_cpp
 #' @export
 jointLogDens <- function(x, backendContext, Sgroups = NULL) {
-    .Call('_adlaplace_jointLogDens', PACKAGE = 'adlaplace', x, backendContext, Sgroups)
+    .Call(`_adlaplace_jointLogDens`, x, backendContext, Sgroups)
 }
 
 #' @rdname adlaplace_cpp
 #' @export
 grad <- function(x, backendContext, inner = FALSE, Sgroups = NULL) {
-    .Call('_adlaplace_grad', PACKAGE = 'adlaplace', x, backendContext, inner, Sgroups)
+    .Call(`_adlaplace_grad`, x, backendContext, inner, Sgroups)
 }
 
 #' @rdname adlaplace_cpp
 #' @export
 hess <- function(x, backendContext, inner = FALSE, Sgroups = NULL) {
-    .Call('_adlaplace_hess', PACKAGE = 'adlaplace', x, backendContext, inner, Sgroups)
+    .Call(`_adlaplace_hess`, x, backendContext, inner, Sgroups)
 }
 
 #' @rdname adlaplace_cpp
 #' @export
 traceHinvT <- function(x, LinvPt, LinvPtColumns, backendContext, num_threads, Sgroups = NULL) {
-    .Call('_adlaplace_traceHinvT', PACKAGE = 'adlaplace', x, LinvPt, LinvPtColumns, backendContext, num_threads, Sgroups)
+    .Call(`_adlaplace_traceHinvT`, x, LinvPt, LinvPtColumns, backendContext, num_threads, Sgroups)
 }
 
 hessianMapC <- function(sparsity_list, Nbeta, Ngamma, Ntheta) {
-    .Call('_adlaplace_hessianMapC', PACKAGE = 'adlaplace', sparsity_list, Nbeta, Ngamma, Ntheta)
+    .Call(`_adlaplace_hessianMapC`, sparsity_list, Nbeta, Ngamma, Ntheta)
 }
 
 #' Inner optimization over gamma using trust-region CG (sparse)
@@ -118,12 +118,12 @@ NULL
 #' @rdname innerOpt
 #' @export
 all_derivs <- function(x, adFun, config) {
-    .Call('_adlaplace_all_derivs', PACKAGE = 'adlaplace', x, adFun, config)
+    .Call(`_adlaplace_all_derivs`, x, adFun, config)
 }
 
 #' @rdname innerOpt
 #' @export
 inner_opt <- function(parameters, gamma, config, control, adFun = NULL) {
-    .Call('_adlaplace_inner_opt', PACKAGE = 'adlaplace', parameters, gamma, config, control, adFun)
+    .Call(`_adlaplace_inner_opt`, parameters, gamma, config, control, adFun)
 }
 

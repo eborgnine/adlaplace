@@ -94,14 +94,26 @@ iwp <- function(
 setMethod("design", "iwp", function(term, data) {
   refined_x <- data[[term@term]] - term@ref_value
   basis <- local_poly(term@knots, refined_x, term@p.order)
-  D <- basis[,1:ncol(basis),drop=FALSE]
-  colnames(D) <- paste(term@term, 1:ncol(D), sep="_")
-  D
+  result <- basis[,1:ncol(basis),drop=FALSE]
+
+  knots_string = formatC(seq.int(ncol(result)), 
+    width = ceiling(log10(ncol(result))), flag = "0")
+
+  colnames(result) <- paste0(term@term, "_iwp_k", knots_string)
+  result
 })
 
 # Precision matrix for iwp terms
 setMethod("precision", "iwp", function(term, data) {
-  Matrix::Diagonal(term@p.order, 1)
+  result = Matrix::Matrix(compute_weights_precision(term@knots))
+  
+  knots_string = formatC(seq.int(nrow(result)), 
+    width = ceiling(log10(nrow(result))), flag = "0")
+
+  dimnames(result) = list(
+    paste0(term@term, "_iwp_k", knots_string)
+  )[c(1,1)]
+  result
 })
 
 # Theta info for iwp terms
@@ -109,7 +121,7 @@ setMethod("theta_info", "iwp", function(term) {
   result <- data.frame(
     term = term@term, model = "iwp", 
     label = paste(c("iwp", term@term), collapse = "_"),
-    order = NA, init = term@init,
+    init = term@init,
     lower = term@lower, upper = term@upper,
     parscale = term@parscale,
     type = term@type
@@ -125,12 +137,13 @@ setMethod("beta_info", "iwp", function(term) {
 
 # Gamma info for iwp terms
 setMethod("random_info", "iwp", function(term, data) {
+
   basis <- seq(1, len = length(term@knots) - 1)
 
   result <- expand.grid(
     term = term@term,
     model = "iwp",
-    label = paste(c("iwp", term@term), collapse = "_"),
+    label = paste(c(term@term, "iwp"), collapse = "_"),
     by = NA,  # iwp doesn't have hierarchical structure
     basis = basis,
     order = term@p.order,
@@ -142,7 +155,7 @@ setMethod("random_info", "iwp", function(term, data) {
     flag = "0"
   )
   result$by_labels <- NA  # iwp doesn't have by_labels
-  result$gamma_label <- paste(result$label, bnumPad, sep = "_")
+  result$gamma_label <- paste0(result$label, "_k", bnumPad)
 
   result
 })
@@ -266,6 +279,6 @@ compute_weights_precision <- function(knots) {
     d2 <- diff(knots_pos)
     Precweights1 <- diag(d1)
     Precweights2 <- diag(d2)
-    as(Matrix::bdiag(Precweights1, Precweights2), "matrix")
+    methods::as(Matrix::bdiag(Precweights1, Precweights2), "matrix")
   }
 }

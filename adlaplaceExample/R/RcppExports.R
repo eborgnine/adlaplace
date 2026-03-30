@@ -18,6 +18,6 @@ NULL
 #' @rdname adlaplace_backend_cpp
 #' @export
 getAdFun_r <- function(data, config) {
-    .Call('_adlaplaceExample_getAdFun_r', PACKAGE = 'adlaplaceExample', data, config)
+    .Call(`_adlaplaceExample_getAdFun_r`, data, config)
 }
 

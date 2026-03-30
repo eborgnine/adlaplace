@@ -83,8 +83,8 @@ logLikLaplace = function(
 	Sgamma1 = seq.int(Nbeta+1, len=Ngamma)
 
 	config_inner = config
-	config_inner$beta = x[seq.int(1, len=Nbeta)]
-	config_inner$theta = x[seq.int(Nbeta+1, len=Ntheta)]
+	config_inner$beta = x[seq.int(1, length.out=Nbeta)]
+	config_inner$theta = x[seq.int(Nbeta+1, length.out=Ntheta)]
 	if(!missing(gamma)) {
 		config_inner$gamma = gamma
 		if(length(config$gamma) != length(config_inner$gamma)) {

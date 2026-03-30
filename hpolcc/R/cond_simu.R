@@ -157,7 +157,7 @@ get_group_quantiles <- function(
     names(sim_by_group) <- d_groups
 
     group_quantiles[[d_var]] <- lapply(sim_by_group, function(sim_here) {
-      t(apply(sim_here, 1, quantile, probs = probs))
+      t(apply(sim_here, 1, stats::quantile, probs = probs))
     })
 
     group_envelope[[d_var]] <- lapply(sim_by_group,
@@ -174,10 +174,10 @@ get_group_quantiles <- function(
     if (!is.null(weighted_average[[d_var]])) {
       weighted_envelope[[d_var]] <- get_one_envelope(
         weighted_average[[d_var]],
-        prob = probs_envelope
+        probs = probs_envelope
       )
       weighted_quantiles[[d_var]] <- t(
-        apply(weighted_average[[d_var]], 1, quantile, probs = probs)
+        apply(weighted_average[[d_var]], 1, stats::quantile, probs = probs)
       )
     }
   }
@@ -199,7 +199,7 @@ cond_sim_gamma <- function(fit, n) {
   ngamma <- nrow(half_h)
 
   gamma_hat <- fit$extra$opt$solution
-  sim_ind <- matrix(rnorm(n * ngamma), ngamma, n)
+  sim_ind <- matrix(stats::rnorm(n * ngamma), ngamma, n)
   sim_gamma_1 <- as.matrix(half_h %*% sim_ind)
 
   sim_gamma <- sim_gamma_1 + matrix(
@@ -334,7 +334,7 @@ cond_sim_iwp <- function(
   result$x <- lapply(terms_pred$pred_df, "[[", 1)
   result$sim <- lapply(sim_f, exp)
   result$quantiles$common <- lapply(result$sim, function(sim_here) {
-    t(apply(sim_here, 1, quantile, probs = probs))
+    t(apply(sim_here, 1, stats::quantile, probs = probs))
   })
   result$envelope$common <- lapply(result$sim,
     get_one_envelope,

@@ -99,7 +99,6 @@ setMethod("theta_info", "overdispersion", function(term) {
     term = NA,
     model = "overdispersion",
     label = "overdispersion",
-    order = NA,
     init = term@init,
     lower = term@lower,
     upper = term@upper,

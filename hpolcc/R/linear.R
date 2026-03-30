@@ -50,7 +50,7 @@ setMethod("design", "linear", function(term, data){
     if (is.factor(data[[term@term]])) {
       res <- res[, -1, drop = FALSE]
     }
-    colnames(res) <- paste(term@term, colnames(res), sep="_")
+    colnames(res) = paste0(term@term, "_linear_", colnames(res))
     res
 })
 
@@ -70,14 +70,14 @@ setMethod("theta_info", "linear", function(term) {
 setMethod("beta_info", "linear", function(term, data) {
 
   the_colnames = colnames(design(term, data))
-  the_label = paste("linear", term@term, sep="_")
+  the_label = paste(term@term, "linear", sep="_")
 
   result <- data.frame(
     term = term@term,
     model = "linear",
     label = the_label,
     order = NA,
-    beta_label = paste(the_label, the_colnames, sep="_"),
+    beta_label = the_colnames,
     init = term@init,
     lower = term@lower,
     upper = term@upper,

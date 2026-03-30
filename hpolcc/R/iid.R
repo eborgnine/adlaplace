@@ -57,7 +57,7 @@ setMethod("precision", "iid", function(term, data) {
 setMethod("theta_info", "iid", function(term) {
   result <- data.frame(
     term = term@term, model = "iid", label = paste(c("iid", term@term), collapse = "_"),
-    order = NA, init = term@init,
+    init = term@init,
     lower = term@lower, upper = term@upper,
     parscale = term@parscale,
     type = term@type

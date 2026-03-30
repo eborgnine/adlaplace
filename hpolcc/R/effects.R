@@ -39,24 +39,9 @@
 #'
 #' @export
 f <- function(x, model="iid",  ...) {
-  print("bob")
-  print(model)
   model_fun = get(model)
-  print(model_fun)
   x <- deparse(substitute(x))
   model_fun(x, ...)
-}
-if(FALSE) {  
-
-  switch(model,
-    iwp = iwp(x, ...),
-    hiwp = hiwp(x, ...),
-    fpoly = fpoly(x, ...),
-    rpoly = rpoly(x, ...),
-    hrpoly = hrpoly(x, ...),
-    iid = iid(x, ...),
-    stop("Unknown model")
-  )
 }
 
 .my_beta_init <- 0
@@ -75,10 +60,9 @@ ref_align <- function(ref_value, knots) {
 
 # Collect terms from formula
 collect_terms <- function(formula) {
-  term_labels <- attr(terms(formula), "term.labels")
+  term_labels <- attr(stats::terms(formula), "term.labels")
 
   terms_1 <- lapply(term_labels, function(lab) {
-    print(lab)
     if (grepl("f\\(", lab)) {
       try(eval(parse(text = lab)))
     } else {
@@ -95,3 +79,20 @@ collect_terms <- function(formula) {
 }
 
 
+get_by_levels = function(term, data) {
+  if(length(term@by)) {
+  if(!length(term@by_levels)) {
+    unique_values <- unique(data[[term@by]])
+    if(is.numeric(unique_values)) {
+      unique_values_string <- lapply(unique_values, function(xx) {
+        formatC(xx, width = ceiling(log10(max(xx))), flag = "0")
+      })
+      } else {
+      unique_values_string = as.character(unique_values)
+      }
+    term@by_levels = unique_values
+    term@by_labels = unique_values_string
+  }
+  }
+  term
+}
