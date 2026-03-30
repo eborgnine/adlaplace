@@ -9,7 +9,6 @@
 #' @param lower Lower bounds for beta parameters
 #' @param upper Upper bounds for beta parameters
 #' @param parscale Parameter scales for optimization
-#' @param prefix Optional prefix for term names
 #'
 #' @return A fpoly term object
 #'
@@ -23,26 +22,27 @@ setClass("fpoly",
          ),
          contains = "model",
          prototype = list(
+                     by = character(0),
+                     knots = numeric(0),
+    type = factor("fixed", levels = .type_factor_levels)
          )
 )
-
+#' @export
 fpoly <- function(x, p = 2, ref_value = 0,
                   init = .my_beta_init,
                   lower = .my_beta_lower,
                   upper = .my_beta_upper,
-                  parscale = .my_beta_parscale,
-                  prefix = NULL) {
+                  parscale = .my_beta_parscale
+                  ) {
   new("fpoly",
     term = x,
-    formula = formula(paste0("~ 0 + ", prefix, x)),
-    p.order = p,
+    formula = formula(paste0("~ 0 + ", x)),
+    p.order = as.integer(p),
     ref_value = ref_value,
     init = rep_len(init, p),
     lower = rep_len(lower, p),
     upper = rep_len(upper, p),
-    parscale = rep_len(parscale, p),
-    type = factor("fixed", levels = .type_factor_levels)
-  )
+    parscale = rep_len(parscale, p)  )
 }
 
 # Design matrix for fpoly terms

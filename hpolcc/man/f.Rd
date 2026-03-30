@@ -36,8 +36,4 @@
 \seealso{
   \code{\link{hnlm}} for the main modeling function
 }
-\examples{
-  # Example usage with f()
-  term <- f(x = 0:10, model = "iwp", ref_value = 5, knots = seq(0,10,2))
-  term <- f(x = 0:10, model = "hiwp", ref_value = 5, knots = seq(0,10,2), by = "city")
-}
+

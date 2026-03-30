@@ -36,6 +36,4 @@
 \seealso{
   \code{\link{f}} for specifying model terms
 }
-\examples{
-  # See package vignette for basic usage examples
-}
+

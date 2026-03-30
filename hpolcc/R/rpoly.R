@@ -16,19 +16,33 @@ setClass("rpoly",
            sd = "numeric"
          ),
          contains = "model",
-         prototype = list(
-           sd = numeric(0)
+         prototype = prototype(
+           knots = numeric(0),
+           by = character(0),
+           sd = numeric(0),
+           type = factor("random", levels = .type_factor_levels)
          )
 )
 
-rpoly <- function(x, p = 2, ref_value, sd = Inf, prefix = NULL) {
+rpoly <- function(x, p = 2, ref_value = 0, sd = Inf) {
+  # check sd is positive and length 1.  check p length 2 integer.  check ref value length 1
+  if (!missing(sd) && (length(sd) != 1 || sd <= 0)) {
+    stop("sd must be a single positive numeric value")
+  }
+  if (!missing(p) && (length(p) != 1 || (round(p) != p) || p < 0)) {
+    stop("p must be a single non-negative integer")
+  }
+  if (!missing(ref_value) && length(ref_value) != 1) {
+    stop("ref_value must be a single value")
+  }
+
   new("rpoly",
     term = x,
-    formula = formula(paste0("~ 0 + ", prefix, x)),
-    p.order = p,
+    formula = formula(paste0("~ 0 + ", x)),
+    p.order = as.integer(p),
     ref_value = ref_value,
-    sd = rep_len(sd, p),
-    type = factor("random", levels = .type_factor_levels)
+    sd = rep_len(sd, p)
+    # type is already set in prototype
   )
 }
 
@@ -46,7 +60,10 @@ setMethod("design", "rpoly", function(term, data) {
 
 # Precision matrix for rpoly terms
 setMethod("precision", "rpoly", function(term, data) {
-  Matrix::Diagonal(term@p.order, 1)
+  if(term@sd == Inf) {
+    return(NULL)
+  }
+  Matrix::Diagonal(term@p.order, term@sd^(-2))
 })
 
 # Theta info for rpoly terms
@@ -62,21 +79,20 @@ setMethod("beta_info", "rpoly", function(term) {
 
 # Gamma info for rpoly terms
 setMethod("random_info", "rpoly", function(term, data) {
-  order <- seq_len(term@p)
+  order <- seq_len(term@p.order)
   basis <- NA
 
   result <- expand.grid(
     term = term@term,
     model = "rpoly",
-    name = term@term,
-    groups = NA,
-    groups_string = NA,
+    label = paste(c("rpoly", term@term), collapse = "_"),
+    by = NA,
     basis = basis,
-    order = term@p.order,
-    stringsAsFactors = FALSE,
-    type = as.character(term@type)
+    order = order,
+    by_labels = NA,
+    stringsAsFactors = FALSE
   )
-  result$gamma_label <- paste(result$term, result$order, sep = "_")
+  result$gamma_label <- paste(result$label, result$order, sep = "_")
 
   result
 })

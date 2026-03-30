@@ -21,22 +21,26 @@ setClass("linear",
          ),
          contains = "model",
          prototype = list(
+                    ref_value = numeric(0),
+          p.order = integer(0),
+          knots = numeric(0),
+          by = character(0),
+    type = factor("fixed", levels = .type_factor_levels)
          )
 )
 
-linear <- function(x, prefix = NULL,
+linear <- function(x, 
                   init = .my_beta_init,
                   lower = .my_beta_lower,
                   upper = .my_beta_upper,
                   parscale = .my_beta_parscale) {
   new("linear",
     term = x,
-    formula = formula(paste0("~ 0 + ", prefix, x)),
+    formula = formula(paste0("~ 0 + ", x)),
     init = init,
     lower = lower,
     upper = upper,
-    parscale = parscale,
-    type = factor("fixed", levels = .type_factor_levels)
+    parscale = parscale
   )
 }
 

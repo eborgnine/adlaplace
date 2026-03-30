@@ -11,6 +11,12 @@ setClass("overdispersion",
   ),
   contains = "model",           # Inherits from base model class
   prototype = prototype(
+           term = character(0),
+           formula = formula(),
+           knots = numeric(0),
+           ref_value = numeric(0),
+           p.order = integer(0),
+           by = character(0)
   )
 )
 
@@ -92,11 +98,13 @@ setMethod("theta_info", "overdispersion", function(term) {
   data.frame(
     term = NA,
     model = "overdispersion",
+    label = "overdispersion",
     order = NA,
     init = term@init,
     lower = term@lower,
     upper = term@upper,
     parscale = term@parscale,
+    type = term@type,
     stringsAsFactors = FALSE
   )
 })

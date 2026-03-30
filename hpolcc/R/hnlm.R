@@ -1,4 +1,4 @@
-
+#' @export
 hnlm <- function(
   formula,
   data,
@@ -51,7 +51,7 @@ hnlm <- function(
 
   model_terms <- collect_terms(formula)
 
-  if(!any(sapply(model_terms, slot, "type") == "familly")) {
+  if(!any(sapply(model_terms, slot, "type") == "family")) {
     model_terms = c(model_terms,
       overdispersion()
     )
@@ -131,23 +131,6 @@ hnlm <- function(
 
   theta_info_list <- lapply(model_terms, theta_info)
 
-  # to do: class for overdisp.  can add f(model="overdisp", options), if no f(model="overdisp") in formula it's added by default
-  # to do: add fixed=value to classes. (so can do overdisp with fixed=0)
-  theta_info_list <- c(
-    theta_info_list,
-    list(overdisp = data.frame(
-      var = NA,
-      model = "overdisp",
-      name = "overdisp",
-      global = TRUE,
-      order = NA,
-      init = config$dirichlet_init,
-      lower = config$dirichlet_lower,
-      upper = config$dirichlet_upper,
-      parscale = 1
-    ))
-  )
-
   theta_setup <- do.call(rbind, theta_info_list)
   theta_setup$id <- seq.int(0, len = nrow(theta_setup))
 
@@ -157,16 +140,17 @@ hnlm <- function(
   gamma_setup <- do.call(rbind, random_info_list)
   gamma_setup$id <- seq.int(0, len = nrow(gamma_setup))
   gamma_setup$theta_id <- theta_setup[match(
-    gamma_setup$name, theta_setup$name
+    gamma_setup$label, theta_setup$label
   ), "id"]
 
-  terms_with_gamma <- sapply(model_terms, slot, "name") %in%
-    unique(gamma_setup$name)
+  terms_with_gamma <- sapply(model_terms, slot, "type")=="random"
+  terms_with_beta <- sapply(model_terms, slot, "type")=="fixed"
 
-  design_list_x <- lapply(model_terms[!terms_with_gamma], design,
+  design_list_x <- lapply(model_terms[terms_with_beta], design,
     data = data_sub
   )
-  design_list_a <- parallel::mclapply(model_terms[terms_with_gamma], design,
+  design_list_a <- parallel::mclapply(model_terms[terms_with_gamma], 
+    design,
     data = data_sub,
     mc.cores = config$num_threads
   )

@@ -23,33 +23,49 @@ setClass("hrpoly",
          contains = "model",
          prototype = list(
            by_levels = integer(0),
-           by_labels = character(0)
+           by_labels = character(0),
+           knots = numeric(0),
+           type = factor("random", levels = .type_factor_levels)
          )
 )
 
 hrpoly <- function(
   x,
   p = 1,
-  ref_value,
+  ref_value = 0,
   by,
   init = .my_theta_init,
   lower = .my_theta_lower,
   upper = .my_theta_upper,
-  parscale = .my_theta_parscale,
-  prefix = NULL
+  parscale = .my_theta_parscale
 ) {
+  # Check all arguments are of length 1
+  if (length(x) != 1) stop("x must be a single variable name")
+  if (length(p) != 1) stop("p must be a single value")
+  if (length(ref_value) != 1) stop("ref_value must be a single value")
+  if (length(by) != 1) stop("by must be a single variable name")
+  if (length(init) != 1) stop("init must be a single value")
+  if (length(lower) != 1) stop("lower must be a single value")
+  if (length(upper) != 1) stop("upper must be a single value")
+  if (length(parscale) != 1) stop("parscale must be a single value")
+  
+  # Check that numeric arguments are valid
+  if (p <= 0) stop("p must be positive")
+  if (any(lower >= upper)) stop("lower bounds must be less than upper bounds")
+  if (any(parscale <= 0)) stop("parscale must be positive")
+
   new("hrpoly",
     term = x,
     formula = formula(paste0("~ 0 + ", prefix, x)),
-    p.order = p,
+    p.order = as.integer(p),
     ref_value = ref_value,
     by = by,
     by_levels = integer(0),  # Will be set later when data is available
-    init = init[1],
-    lower = lower[1],
-    upper = upper[1],
-    parscale = parscale[1],
-    type = factor("random", levels = .type_factor_levels)
+    init = init,
+    lower = lower,
+    upper = upper,
+    parscale = parscale
+    # type is already set in prototype
   )
 }
 
@@ -98,12 +114,12 @@ setMethod("theta_info", "hrpoly", function(term) {
   result <- data.frame(
     term = term@term, model = "hrpoly", 
     label = paste(c("hrpoly", term@term), collapse = "_"),
-    global = FALSE, 
     order = term@p.order,
     init = term@init,
     lower = term@lower,
     upper = term@upper,
-    parscale = term@parscale
+    parscale = term@parscale,
+    type = term@type
   )
   return(result)
 })
@@ -124,13 +140,13 @@ setMethod("random_info", "hrpoly", function(term, data) {
   result <- expand.grid(
     term = term@term,
     model = "hrpoly",
-    name = term@term,
+    label = paste(c("hrpoly", term@term), collapse = "_"),
     by = term@by_levels,
     basis = basis,
     order = term@p.order,
     stringsAsFactors = FALSE
   )
   result$by_labels <- term@by_labels[match(result$by, term@by_levels)]
-  result$gamma_label <- paste(result$term, result$by_labels, sep = "_")
+  result$gamma_label <- paste(result$label, result$by_labels, sep = "_")
   result
 })

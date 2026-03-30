@@ -16,7 +16,12 @@ setClass("iid",
          representation = representation(
          ),
          contains = "model",
-         prototype = list(
+         prototype = prototype(
+          ref_value = numeric(0),
+          p.order = as.integer(0),
+          knots = numeric(0),
+          by = character(0),
+          type = factor("random", levels = .type_factor_levels)
          )
 )
 
@@ -24,16 +29,14 @@ iid <- function(x,
                 init = .my_theta_init,
                 lower = .my_theta_lower,
                 upper = .my_theta_upper,
-                parscale = .my_theta_parscale,
-                prefix = NULL) {
+                parscale = .my_theta_parscale) {
   new("iid",
     term = x,
     formula = formula(paste0("~ 0 + ", prefix, x)),
-    init = init[1],
-    lower = lower[1],
-    upper = upper[1],
-    parscale = parscale[1],
-    type = factor("random", levels = .type_factor_levels)
+    init = init ,
+    lower = lower ,
+    upper = upper ,
+    parscale = parscale
   )
 }
 
@@ -54,9 +57,10 @@ setMethod("precision", "iid", function(term, data) {
 setMethod("theta_info", "iid", function(term) {
   result <- data.frame(
     term = term@term, model = "iid", label = paste(c("iid", term@term), collapse = "_"),
-    global = TRUE, order = NA, init = term@init,
+    order = NA, init = term@init,
     lower = term@lower, upper = term@upper,
-    parscale = term@parscale
+    parscale = term@parscale,
+    type = term@type
   )
   return(result)
 })

@@ -32,13 +32,14 @@ setClass("hiwp",
            by = character(0),
            by_levels = integer(0),
            by_labels = character(0),
-           init = numeric(0)
+           init = numeric(0),
+           type = factor("random", levels = .type_factor_levels)
          )
 )
 
 
 hiwp <- function(
-  x, p = 2, ref_value, knots, range = NULL,
+  x, p = 2, ref_value = 0, knots, range = NULL,
   by,
   init = .my_theta_init,
   lower = .my_theta_lower,
@@ -62,7 +63,7 @@ hiwp <- function(
   result[[hiwp_name]] <- new("hiwp",
     term = x,
     formula = the_f,
-    p.order = p,
+    p.order = as.integer(p),
     ref_value = ref_value,
     knots = knots,
     by = by, 
@@ -70,8 +71,8 @@ hiwp <- function(
     init = init[1],
     lower = lower[1],
     upper = upper[1],
-    parscale = parscale[1],
-    type = factor("family", levels = .type_factor_levels)
+    parscale = parscale[1]
+    # type is already set in prototype
   )
 
   if (include_global) {
@@ -79,14 +80,14 @@ hiwp <- function(
     result[[iwp_name]] <- new("iwp",
       term = x,
       formula = the_f,
-      p.order = p,
+      p.order = as.integer(p),
       ref_value = ref_value,
       knots = knots,
       init = init[2],
       lower = lower[2],
       upper = upper[2],
-      parscale = parscale[2],
-      type = factor("random", levels = c("fixed", "random", "family"))
+      parscale = parscale[2]
+      # type is already set in iwp prototype
     )
   }
 
@@ -195,12 +196,12 @@ setMethod("theta_info", "hiwp", function(term) {
     term = term@term,
     model = "hiwp",
     label = paste(c("hiwp", term@term), collapse = "_"),
-    global = TRUE,
     order = NA,
     init = term@init,
     lower = term@lower,
     upper = term@upper,
-    parscale = term@parscale
+    parscale = term@parscale,
+    type = term@type
   )
 
 
@@ -220,7 +221,7 @@ setMethod("random_info", "hiwp", function(term, data) {
   result <- expand.grid(
     term = term@term,
     model = "hiwp",
-    name = term@term,
+    label = paste(c("hiwp", term@term), collapse = "_"),
     by = term@by_levels,
     basis = basis,
     order = term@p.order,

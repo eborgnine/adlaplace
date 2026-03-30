@@ -1,0 +1,21 @@
+#!/bin/sh
+# Cleanup script for hpolcc package
+# This script removes files that are generated during package installation
+# but should not be included in the source package
+
+# Remove src/Makevars if it exists
+if [ -f "src/Makevars" ]; then
+    rm -f src/Makevars
+    echo "Removed src/Makevars"
+fi
+
+# Remove any compiled object files
+find . -type f \( -name '*.o' -o -name '*.so' \) -delete
+
+# Remove Rcpp generated files
+if [ -f "R/RcppExports.R" ]; then
+    rm -f R/RcppExports.R
+    echo "Removed R/RcppExports.R"
+fi
+
+echo "Cleanup complete"

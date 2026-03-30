@@ -12,3 +12,4 @@ LinkingTo: Rcpp, adlaplace, RcppEigen, trustOptim
 Imports: Rcpp, Matrix, data.table, trustOptim, methods
 Suggests: GET
 Encoding: UTF-8
+RoxygenNote: 7.3.3

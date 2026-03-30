@@ -3,7 +3,7 @@ convert_hiwp_to_iwp <- function(from) {
   # Create a new iwp object with the same basic properties
   new("iwp",
     term = from@term,
-    formula = term@formula,
+    formula = from@formula,
     knots = from@knots,
     ref_value = from@ref_value,
     p.order = from@p.order,
@@ -11,8 +11,7 @@ convert_hiwp_to_iwp <- function(from) {
     init = from@init,
     lower = from@lower,
     upper = from@upper,
-    parscale = from@parscale,
-    type = factor("random", levels = .type_factor_levels)
+    parscale = from@parscale
   )
 }
 
