@@ -7,10 +7,10 @@ format_parameters <- function(x) {
   parameters_info = x$objects$parameters_info
   
   Ntheta <- nrow(parameters_info$theta)
-  Nbeta <- nrow(parameters_info$beta)
+  Nbeta <- max(c(0,nrow(parameters_info$beta)))
   Ngamma <- nrow(parameters_info$gamma)
 
-  parameters_info$beta$mle = full_parameters[1:Nbeta]
+  parameters_info$beta$mle = full_parameters[seq(from=1, length.out=Nbeta)]
   parameters_info$theta$mle = full_parameters[seq(to=length(full_parameters), length.out = Ntheta)]
   if(x$objects$config$transform_theta) {
     parameters_info$theta$mle = exp(parameters_info$theta$mle)
