@@ -162,7 +162,8 @@ logLikLaplace = function(
 		full_parameters =  c(config_inner$beta, inner_res$solution, config_inner$theta),
 		hessian = list(
 			H = Houter,
-			cholInner = Hchol
+			cholInner = Hchol,
+      halfLogDet = halfLogDet
 		),
 		opt = inner_res[grep("[hH]essian", names(inner_res), invert=TRUE)]
 	)

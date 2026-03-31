@@ -27,7 +27,7 @@ hnlm <- function(
     verbose = FALSE,
     transform_theta = TRUE,
     num_threads = 1,
-    Ngroups = 1e4,
+    num_groups = 1000L,
     dirichlet_init = 1e-3,
     dirichlet_lower = 0,
     dirichlet_upper = Inf,
@@ -264,7 +264,7 @@ hnlm <- function(
   for_groups@x <- rep(1, length(for_groups@x))
   config$groups <- adlaplace::adFun_groups(
     ATp = for_groups,
-    Ngroups = config$Ngroups
+    Ngroups = config$num_groups
   )
   if (verbose_orig) {
     cat("done.")
@@ -330,7 +330,7 @@ hnlm <- function(
       backendContext = ad_fun,
       control = control_list
     )
-    mle$hessian <- adaplace::hess(
+    mle$hessian <- adlaplace::hess(
       mle$par,
       backendContext = ad_fun
     )

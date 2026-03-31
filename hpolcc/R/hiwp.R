@@ -196,7 +196,7 @@ setMethod("theta_info", "hiwp", function(term) {
   result <- data.frame(
     term = term@term,
     model = "hiwp",
-    label = paste(c("hiwp", term@term), collapse = "_"),
+    label = paste(c(term@term, "hiwp"), collapse = "_"),
     init = term@init,
     lower = term@lower,
     upper = term@upper,

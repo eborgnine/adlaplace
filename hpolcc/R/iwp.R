@@ -120,7 +120,7 @@ setMethod("precision", "iwp", function(term, data) {
 setMethod("theta_info", "iwp", function(term) {
   result <- data.frame(
     term = term@term, model = "iwp", 
-    label = paste(c("iwp", term@term), collapse = "_"),
+    label = paste(c(term@term, "iwp"), collapse = "_"),
     init = term@init,
     lower = term@lower, upper = term@upper,
     parscale = term@parscale,

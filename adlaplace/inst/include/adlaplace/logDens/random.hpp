@@ -40,6 +40,7 @@ CppAD::vector<CppAD::AD<double>> logDensRandom(
 		" ntheta " << config.theta.size();
 		if(data.map.i.size() > 0) {
 		 Rcpp::Rcout << " exp theta map 0 " <<  expTheta[data.map.i[0]] << 
+		 " log theta map 0 " << logTheta[data.map.i[0]] << 
 		             " gamma0 " << x[config.gamma_begin];
 		}
 		Rcpp::Rcout << ".\n";

@@ -56,7 +56,7 @@ setMethod("precision", "iid", function(term, data) {
 # Theta info for iid terms
 setMethod("theta_info", "iid", function(term) {
   result <- data.frame(
-    term = term@term, model = "iid", label = paste(c("iid", term@term), collapse = "_"),
+    term = term@term, model = "iid", label = paste(c(term@term,"iid"), collapse = "_"),
     init = term@init,
     lower = term@lower, upper = term@upper,
     parscale = term@parscale,
