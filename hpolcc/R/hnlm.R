@@ -160,6 +160,7 @@ hnlm <- function(
   }
   a_matrix <- do.call(cbind, design_list_a)
   x_matrix <- do.call(cbind, design_list_x)
+  if(is.null(x_matrix)) x_matrix = matrix()
   
   beta_reorder = match(colnames(x_matrix), beta_setup$beta_label)
   beta_setup = beta_setup[beta_reorder, ]
