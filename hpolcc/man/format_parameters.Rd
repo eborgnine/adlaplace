@@ -5,7 +5,7 @@
 \title{parameters_info is a list with elements beta, gamma, theta
 each needs columns var, name, theta needs log}
 \usage{
-format_parameters(x, parameters_info)
+format_parameters(x)
 }
 \description{
 parameters_info is a list with elements beta, gamma, theta

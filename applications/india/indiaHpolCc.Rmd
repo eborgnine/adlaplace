@@ -135,19 +135,23 @@ res_pm_temp <- hnlm(
       model = "hiwp", ref_value = 8, p = 2,
       knots = seq(0, 32, by = 2),
       by = "eco_region",
-      lower = 1e-6
+      init = c(1e-3, 1e-3, 1e-3),
+      parscale = c(1e-5, 1e-5, 1e-5),
+      lower = 1e-9
     ) +
     f(temp_div10,
       model = "hiwp", ref_value = 25/10, p = 3,
       knots = seq(-5, 30, by = 2.5)/10,
       by = "eco_region",
-      lower = 1e-6
+      init = c(1e-2, 1e-2, 1e-3, 1e-2),
+      parscale = c(1e-6, 1e-4, 1e-3, 1e-3),
+      lower = 1e-9
     ) + 
-    f(model="overdispersion", init=1e-5),
-  data = deaths[seq(1, 5e5),],
+    f(model="overdispersion", init=0.1, parscale = 10),
+  data = deaths, #[seq(1, 5e5),],
   cc_design = c("cell", "eco_region", "year_week3_dow"),
   config = list(
-    transform_theta = TRUE,
+    transform_theta = FALSE,
     num_threads = parallel::detectCores(),
     num_groups = 5e3,
     verbose = TRUE
@@ -166,11 +170,17 @@ res_pm_temp <- hnlm(
 ```
 
 
-
-```{r globalSetup}
-res <- readRDS("resPmTempR.rds")
+```{r par_table}
+res <- res_pm_temp #readRDS("resPmTempR.rds")
 s_var <- names(res$sample$sim)
 s_var_names <- c(temp_div10 = "temperature", sqrt_pm = "PM2.5")[s_var]
+
+theta_table = res$parameters$theta[,c("term","model","mle", "init","lower", "parscale")]
+theta_table$term = s_var_names[theta_table$term]
+theta_table
+```
+
+```{r globalSetup}
 the_x_lim <- list(
   temp_div10 = c(4, 38),
   sqrt_pm = c(0, 450)
@@ -214,6 +224,7 @@ for (d in seq_len(nrow(for_global))) {
   d_var <- for_global[d, "var"]
   x_here <- res$sample$x[[d_var]]
   if (grepl("sqrt", d_var)) x_here <- x_here^2
+  if (grepl("times10", d_var)) x_here <- x_here*10
 
   plot(NA,
     xlim = the_x_lim[[d_var]], ylim = the_y_lim[[d_var]],

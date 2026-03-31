@@ -342,7 +342,9 @@ hnlm <- function(
   if (verbose_orig) {
     cat("optimizing")
     cat(" initial, lower , upper\n")
-    print(do.call(rbind, config$opt))
+    to_print = do.call(cbind, config$opt)
+    rownames(to_print) = parameters_info$parameters$label
+    print(to_print)
   }
 
   # Add parscale to control if it exists in theta_info

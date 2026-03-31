@@ -293,7 +293,7 @@ cond_sim_iwp <- function(
   )
 
 
-  result$x <- lapply(terms_pred, "[[", 1)
+  result$x <- lapply(newx, "[[", 1)
   result$sim <- lapply(sim_f, exp)
   result$quantiles$common <- lapply(result$sim, function(sim_here) {
     t(apply(sim_here, 1, stats::quantile, probs = probs))
