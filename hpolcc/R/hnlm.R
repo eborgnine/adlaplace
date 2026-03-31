@@ -240,7 +240,13 @@ hnlm <- function(
   config$theta <- theta_setup$init
   config$gamma <- rep(0, nrow(gamma_setup))
 
-  beta_theta_names = intersect(colnames(beta_setup), colnames(theta_setup))
+  if(is.null(beta_setup)) {
+    beta_theta_names = names(theta_setup)
+    config$beta = numeric(0)
+  } else {
+    beta_theta_names = intersect(colnames(beta_setup), colnames(theta_setup))
+  }
+
   beta_theta_names = setdiff(beta_theta_names, "order")
 
   parameters_info <- list(
