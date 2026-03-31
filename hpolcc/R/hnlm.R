@@ -372,7 +372,7 @@ hnlm <- function(
       tmb_data = tmb_data,
       config = config,
       formula = formula,
-      terms = terms,
+      terms = model_terms,
       parameters_info = parameters_info,
       random_info = random_info,
       control_inner = control$inner,
@@ -392,11 +392,8 @@ hnlm <- function(
     adFun = ad_fun,
     deriv = 1
   ))
-
-  result$parameters <- try(format_parameters(
-    x = result$extra$full_parameters,
-    result$objects$parameters_info
-  ))
+  result$extra$parameters_orig = result$parameters
+  result$parameters <- try(format_parameters(result))
 
   if (FALSE) {
     result$hessian_parameters <- try(

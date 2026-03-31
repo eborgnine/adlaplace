@@ -1,51 +1,28 @@
-get_terms_pred <- function(terms) {
-  svar <- unlist(lapply(terms, "[[", "var"))
-  smodel <- unlist(lapply(terms, "[[", "model"))
+get_terms_pred <- function(terms, length.out=100) {
+  smodel <- unlist(lapply(terms, class))
 
-  sref1 <- lapply(terms, "[[", "ref_value")
-  sref <- rep(NA_real_, length(svar))
-  sref[unlist(lapply(sref1, length)) > 0] <- unlist(sref1)
+  is_iwp <- which(smodel == "iwp")
+  svar <- unlist(lapply(terms[is_iwp], slot, "term"))
+  sknots <- lapply(terms[is_iwp], slot, "knots")
+  smin = unlist(lapply(sknots, min))
+  smax = unlist(lapply(sknots, max))
 
-  is_hiwp <- which(smodel %in% c("iwp", "hiwp"))
-  sref <- sref[is_hiwp]
-  svar <- svar[is_hiwp]
-  srange <- lapply(terms[is_hiwp], "[[", "range")
-  pred_seq <- lapply(srange, function(xx) seq(min(xx), max(xx), len = 100))
+  pred_seq <- mapply(function(var, from, to, length.out) {
+    result = data.frame(seq(from=from, to=to, length.out=length.out))
+    names(result) = var
+    result
+  },
+    from=smin, to=smax, var = svar, 
+    MoreArgs=list(length.out = length.out), SIMPLIFY=FALSE
+    )
 
-  sgroup <- lapply(terms[is_hiwp], "[[", "group_var")
+  names(pred_seq) = svar
 
-  sref_index <- rep(NA_integer_, length(pred_seq))
-  names(pred_seq) <- names(sref_index) <- names(sgroup) <- names(sref) <- svar
-  for (d in svar) {
-    sref_index[d] <- which.min(abs(sref[d] - pred_seq[[d]]))
-  }
-
-  list(
-    pred_seq = pred_seq,
-    sgroup = sgroup,
-    sref = sref,
-    sref_index = sref_index
-  )
+  return(pred_seq)
 }
 
-build_pred_df <- function(terms_pred) {
-  pred_df <- vector("list", length(terms_pred$pred_seq))
-  names(pred_df) <- names(terms_pred$pred_seq)
 
-  for (d_var in names(terms_pred$pred_seq)) {
-    pred_df_here <- data.frame(x = terms_pred$pred_seq[[d_var]])
-    names(pred_df_here) <- d_var
 
-    group_var <- terms_pred$sgroup[[d_var]]
-    if (!is.null(group_var) && nzchar(group_var)) {
-      pred_df_here[[group_var]] <- "GLOBAL"
-    }
-
-    pred_df[[d_var]] <- pred_df_here
-  }
-
-  pred_df
-}
 
 
 get_group_effect <- function(
@@ -58,27 +35,18 @@ get_group_effect <- function(
   probs = c(0.025, 0.5, 0.975)
 ) {
   gamma_here <- random_info_here[
-    which(random_info_here$group == d_group), ,
+    which(random_info_here$by == d_group), ,
     drop = FALSE
   ]
-  a_here_new_names <- gsub(
-    "_GLOBAL_",
-    paste0("_", d_group, "_"),
-    colnames(a_here)
-  )
-  a_here_new_names <- gsub(
-    "_fpoly_",
-    paste0("_hrpoly_", d_group, "_"),
-    a_here_new_names
-  )
-  gamma_here$matched_cols <- match(gamma_here$name, a_here_new_names)
-  gamma_here$matched_rows <- gamma_here$gamma_id + 1L
-  gamma_here <- gamma_here[!is.na(gamma_here$matched_cols), ]
+  gamma_here$name_for_a = gsub("_g[[:digit:]]+$", "", gamma_here$gamma_label)
+  gamma_here$name_for_a = gsub("_hiwp_", "_iwp_", gamma_here$name_for_a)
+  gamma_here$name_for_a = gsub("_hrpoly_", "_rpoly_", gamma_here$name_for_a)
+  # to do:  won't be rpoly if boundary is fixed. 
 
+  sim_h_here = a_here[,gamma_here$name_for_a] %*% sim_gamma[gamma_here$gamma_label, ]
+  sim_here = sim_h_here + sim_global_here
 
-  sim_here_r <- a_here[, gamma_here$matched_cols, drop = FALSE] %*%
-    sim_gamma[gamma_here$matched_rows, , drop = FALSE]
-  as.matrix(exp(sim_here_r + sim_global_here))
+  as.matrix(exp(sim_here))
 }
 get_one_envelope <- function(x, probs) {
   if (requireNamespace("GET", quietly = TRUE) & !is.null(x)) {
@@ -113,10 +81,10 @@ get_group_quantiles <- function(
 
 
   for (d_var in names(sim_f)) {
-    a_here <- new_xa[[d_var]]$A
+    a_here <- new_xa[[d_var]]$random
     sim_global_here <- sim_f[[d_var]]
     random_info_here <- random_info[random_info$term == d_var, , drop = FALSE]
-    d_groups <- setdiff(unique(random_info_here$group), c(NA, "GLOBAL"))
+    d_groups <- setdiff(unique(random_info_here$by), NA)
 
     if (is.list(weights)) {
       weights_here <- weights[[d_var]]
@@ -165,20 +133,20 @@ get_group_quantiles <- function(
       probs = probs_envelope
     )
 
-    var_weights <- weights_here[d_groups]
+    var_weights <- weights_here[as.character(d_groups)]
     weighted_average[[d_var]] <- Reduce(
       `+`,
       Map(function(sim_here, wt) sim_here * wt, sim_by_group, var_weights)
     )
 
     if (!is.null(weighted_average[[d_var]])) {
-      weighted_envelope[[d_var]] <- get_one_envelope(
+      weighted_envelope[[d_var]] <- try(get_one_envelope(
         weighted_average[[d_var]],
         probs = probs_envelope
-      )
-      weighted_quantiles[[d_var]] <- t(
+      ))
+      weighted_quantiles[[d_var]] <- try(t(
         apply(weighted_average[[d_var]], 1, stats::quantile, probs = probs)
-      )
+      ))
     }
   }
   list(
@@ -198,7 +166,7 @@ cond_sim_gamma <- function(fit, n) {
   # note tcrossprod(half_h) = Hinv
   ngamma <- nrow(half_h)
 
-  gamma_hat <- fit$extra$opt$solution
+  gamma_hat <- fit$parameters$gamma$mode
   sim_ind <- matrix(stats::rnorm(n * ngamma), ngamma, n)
   sim_gamma_1 <- as.matrix(half_h %*% sim_ind)
 
@@ -207,7 +175,7 @@ cond_sim_gamma <- function(fit, n) {
     length(gamma_hat),
     ncol(sim_gamma_1)
   )
-  rownames(sim_gamma) <- names(gamma_hat)
+  rownames(sim_gamma) <- fit$parameters$gamma$gamma_label
 
   sim_gamma
 }
@@ -270,68 +238,62 @@ cond_sim_iwp <- function(
   probs_envelope = c(0.1, 0.9)
 ) {
   terms <- fit$objects$terms
-  parameters_info <- fit$objects$parameters_info
-  random_info <- fit$objects$random_info
+  terms_vars = lapply(terms, slot, "term")
+  terms_no_vars = unlist(lapply(terms_vars, length))==0
+  terms_have_vars = terms[!terms_no_vars]
+  terms_vars = terms_vars[!terms_no_vars]
+  terms_type = unlist(lapply(terms_have_vars, slot, "type"))
 
-  beta <- fit$extra$full_parameters[seq(1, len = nrow(parameters_info$beta))]
+  terms_has_by = unlist(lapply(lapply(terms_have_vars, slot, "by"), length))>0
+  terms_classes = unlist(lapply(terms_have_vars, class))
+  is_iwp = which(terms_classes == "iwp")
+
+  vars_to_sim <- unique(unlist(terms_vars[is_iwp]))
 
   sim_gamma <- cond_sim_gamma(fit, n)
-  rownames(sim_gamma) <- parameters_info$gamma$name
+  beta_hat = fit$parameters$beta$mle
+  names(beta_hat) = fit$parameters$beta$beta_label
 
-  terms_pred <- get_terms_pred(terms)
-
-  if (!missing(newx)) {
-    terms_pred$pred_df <- newx
-  } else {
-    terms_pred$pred_df <- build_pred_df(terms_pred)
+  if(missing(newx)) {
+    newx = get_terms_pred(terms_have_vars[is_iwp])
+  }
+  design_list = sim_global = fixed_pred = sim_f = list()
+  for(D in names(newx)) {
+    newx_here = newx[[D]]
+    which_is_D = terms_vars == D
+    which_here = which(which_is_D & !terms_has_by)
+    design_list_here = mapply(design, 
+      term = terms_have_vars[which_here],
+      MoreArgs = list(data = newx_here), SIMPLIFY=FALSE)
+    is_beta_here = which(terms_type[which_here]  == "fixed")
+    is_gamma_here = which(terms_type[which_here]  == "random")
+    design_list[[D]] = list(
+      fixed = do.call(cbind, design_list_here[is_beta_here]),
+      random = do.call(cbind,design_list_here[is_gamma_here])
+    )
+    sim_global[[D]] = design_list[[D]]$random %*% sim_gamma[colnames(design_list[[D]]$random ), ]
+    if(!is.null(design_list[[D]]$fixed )) {
+      fixed_pred[[D]] = design_list[[D]]$fixed %*% beta_hat[colnames(design_list[[D]]$fixed)]
+    } else {
+      fixed_pred[[D]] = rep(0, nrow(newx_here))
+    }
+    sim_f[[D]] = sim_global[[D]] + fixed_pred[[D]]
   }
 
-  new_xa <- mapply(
-    get_new_xa,
-    df = terms_pred$pred_df,
-    MoreArgs = list(terms = terms),
-    SIMPLIFY = FALSE
-  )
-
-  sim_f <- mapply(
-    function(xa, gamma, beta) {
-      names_both_beta <- intersect(names(beta), colnames(xa$X))
-      names_both_gamma <- intersect(rownames(gamma), colnames(xa$A))
-      if (length(names_both_beta)) {
-        fixed_part <-
-          xa$X[, names_both_beta, drop = FALSE] %*%
-          beta[names_both_beta]
-      } else {
-        fixed_part <- matrix(0, nrow(xa$X), 1)
-      }
-
-      random_part <-
-        xa$A[, names_both_gamma, drop = FALSE] %*%
-        gamma[names_both_gamma, , drop = FALSE]
-
-      as.matrix(
-        random_part + fixed_part[, rep(1, ncol(random_part)),
-          drop = FALSE
-        ]
-      )
-    },
-    xa = new_xa,
-    MoreArgs = list(beta = beta, gamma = sim_gamma),
-    SIMPLIFY = FALSE
-  )
+  #D=1;matplot(unlist(newx[[D]]),sim_f[[D]], type="l" )
 
   result <- get_group_quantiles(
     sim_f = sim_f,
-    new_xa = new_xa,
+    new_xa = design_list,
     sim_gamma = sim_gamma,
-    random_info = random_info,
+    random_info = fit$objects$parameters_info$gamma,
     weights = weights,
     probs = probs,
     probs_envelope = probs_envelope
   )
 
 
-  result$x <- lapply(terms_pred$pred_df, "[[", 1)
+  result$x <- lapply(terms_pred, "[[", 1)
   result$sim <- lapply(sim_f, exp)
   result$quantiles$common <- lapply(result$sim, function(sim_here) {
     t(apply(sim_here, 1, stats::quantile, probs = probs))

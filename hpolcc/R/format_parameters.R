@@ -1,7 +1,7 @@
 #' parameters_info is a list with elements beta, gamma, theta
 #' each needs columns var, name, theta needs log
 
-format_parameters <- function(x, parameters_info) {
+format_parameters <- function(x) {
 
   full_parameters = x$extra$full_parameters
   parameters_info = x$objects$parameters_info
@@ -10,52 +10,16 @@ format_parameters <- function(x, parameters_info) {
   Nbeta <- nrow(parameters_info$beta)
   Ngamma <- nrow(parameters_info$gamma)
 
-  betaNames <- gsub("_fpoly_", "", parameters_info$beta$name)
-  thetaNames <- parameters_info$theta$name
-  gammaNames <- parameters_info$gamma$name
-
-  result <- list(
-    theta = x[seq(to = length(x), len = Ntheta)],
-    beta = x[seq(1, len = Nbeta)]
-  )
-
-  names(result$beta) <- betaNames
-  names(result$theta) <- thetaNames
-
-  isLogged <- parameters_info$theta$log
-  parameters_info$theta$mle_transformed = result$theta
-  if (any(isLogged)) {
-    result$theta[isLogged] <- exp(result$theta[isLogged])
+  parameters_info$beta$mle = full_parameters[1:Nbeta]
+  parameters_info$theta$mle = full_parameters[seq(to=length(full_parameters), length.out = Ntheta)]
+  if(x$objects$config$transform_theta) {
+    parameters_info$theta$mle = exp(parameters_info$theta$mle)
   }
-  parameters_info$theta$mle = result$theta
-
-  theGamma <- data.frame(
-    name = gammaNames,
-    value = x[seq(Nbeta + 1, len = Ngamma)],
-    term = gsub("(_|[[:digit:]]|global)+$", "", gammaNames),
-    ext = gsub("^_", "", regmatches(gammaNames, regexpr("(_|[[:digit:]]|global)+$", gammaNames)))
+  parameters_info$gamma$mode = full_parameters[seq(Nbeta+1, length.out = Ngamma)]
+  
+  list(
+    gamma = parameters_info$gamma,
+    beta = parameters_info$beta,
+    theta = parameters_info$theta
   )
-
-  gammaCat <- strsplit(theGamma$ext, "_")
-  gammaCatN <- lapply(gammaCat, function(x) {
-    c(NA, x)[seq(to = length(x) + 1, by = 1, len = 2)]
-  })
-  gammaCat <- as.data.frame(do.call(rbind, gammaCatN))
-  names(gammaCat) <- c("group", "index")
-  theGamma <- cbind(theGamma, gammaCat)
-
-
-  rownames(theGamma) <- theGamma$name
-  theGamma$index <- as.numeric(theGamma$index)
-  theGamma[is.na(theGamma$group), "group"] <- "global"
-  theGamma$group <- factor(theGamma$group,
-    levels = c("global", sort(setdiff(unique(theGamma$group), "global")))
-  )
-
-  theGamma <- theGamma[order(theGamma$term, theGamma$index, theGamma$group), ]
-
-  result$gamma <- theGamma[, c("term", "group", "index", "value")]
-
-  result$info <- parameters_info
-  result
 }
