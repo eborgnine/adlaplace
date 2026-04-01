@@ -30,8 +30,6 @@
 \item{include_poly}{Whether to include polynomial terms}
 
 \item{include_global}{Whether to include global component}
-
-\item{prefix}{Optional prefix for term names}
 }
 \value{
 A list containing hiwp term object and optionally related terms

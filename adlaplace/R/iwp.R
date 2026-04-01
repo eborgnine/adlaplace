@@ -1,3 +1,5 @@
+
+
 # IWP class definition
 setClass("iwp",
   representation = representation(
@@ -30,6 +32,7 @@ setClass("iwp",
 #'
 #' @return A list containing iwp term object and optionally polynomial terms
 
+#' @export
 iwp <- function(
   x, p = 2,
   ref_value = 0, 
@@ -55,7 +58,7 @@ iwp <- function(
   if (length(boundary_is_random) != 1) stop("boundary_is_random must be a single value")
   if (length(include_poly) != 1) stop("include_poly must be a single value")
 
-  the_f <- formula(paste0("~ 0 + ", x))
+  the_f <- as.formula(paste0("~ 0 + ", x), env=new.env())
   result <- list()
   iwp_name <- paste("model", x, sep = "_")
 
@@ -281,4 +284,19 @@ compute_weights_precision <- function(knots) {
     Precweights2 <- diag(d2)
     methods::as(Matrix::bdiag(Precweights1, Precweights2), "matrix")
   }
+}
+
+#' @title Align Reference Value to Nearest Knot
+#'
+#' @description
+#' Aligns a reference value to the nearest knot in a set of knots.
+#'
+#' @param ref_value The reference value to align
+#' @param knots A vector of knot locations
+#'
+#' @return The nearest knot value to the reference value
+#'
+#' @export
+ref_align <- function(ref_value, knots) {
+  knots[which.min(abs(knots - ref_value))]
 }

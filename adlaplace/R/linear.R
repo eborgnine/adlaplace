@@ -29,6 +29,7 @@ setClass("linear",
          )
 )
 
+#' @export
 linear <- function(x, 
                   init = .my_beta_init,
                   lower = .my_beta_lower,
@@ -36,7 +37,7 @@ linear <- function(x,
                   parscale = .my_beta_parscale) {
   new("linear",
     term = x,
-    formula = formula(paste0("~ 0 + ", x)),
+    formula = as.formula(paste0("~ 0 + ", x), env = new.env()),
     init = init,
     lower = lower,
     upper = upper,

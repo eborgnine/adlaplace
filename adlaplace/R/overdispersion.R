@@ -36,6 +36,7 @@ setClass("overdispersion",
 #' overdisp_term <- overdispersion()
 #' print(overdisp_term)
 
+#' @export
 overdispersion <- function(
   x = NA,
   init = 1e-3,

@@ -7,7 +7,12 @@ HPOLCC_DIR := hpolcc
 
 .PHONY: all clean $(PKGS) dirichlet_multinom.pdf
 
-all: $(PKGS) dirichlet_multinom.pdf
+all:
+	 R -e "devtools::document(\"adlaplace\")" ;
+	 R CMD build --no-build-vignettes adlaplace; 
+	 R -e "devtools::document(\"hpolcc\")";
+	 R CMD build --no-build-vignettes hpolcc 
+
 
 clean:
 	@echo "==> Cleaning .o and .so files under src folders"

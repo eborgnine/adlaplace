@@ -24,6 +24,7 @@ setClass("rpoly",
          )
 )
 
+#' @export
 rpoly <- function(x, p = 2, ref_value = 0, sd = Inf) {
   # check sd is positive and length 1.  check p length 2 integer.  check ref value length 1
   if (!missing(sd) && (length(sd) != 1 || sd <= 0)) {
@@ -38,7 +39,7 @@ rpoly <- function(x, p = 2, ref_value = 0, sd = Inf) {
 
   new("rpoly",
     term = x,
-    formula = formula(paste0("~ 0 + ", x)),
+    formula = as.formula(paste0("~ 0 + ", x), env=new.env()),
     p.order = as.integer(p),
     ref_value = ref_value,
     sd = rep_len(sd, p)

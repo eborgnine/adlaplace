@@ -262,7 +262,7 @@ cond_sim_iwp <- function(
     newx_here = newx[[D]]
     which_is_D = terms_vars == D
     which_here = which(which_is_D & !terms_has_by)
-    design_list_here = mapply(design, 
+    design_list_here = mapply(adlaplace::design, 
       term = terms_have_vars[which_here],
       MoreArgs = list(data = newx_here), SIMPLIFY=FALSE)
     is_beta_here = which(terms_type[which_here]  == "fixed")
@@ -277,7 +277,7 @@ cond_sim_iwp <- function(
     } else {
       fixed_pred[[D]] = rep(0, nrow(newx_here))
     }
-    sim_f[[D]] = sim_global[[D]] + fixed_pred[[D]]
+    sim_f[[D]] = sim_global[[D]] + drop(fixed_pred[[D]])
   }
 
   #D=1;matplot(unlist(newx[[D]]),sim_f[[D]], type="l" )

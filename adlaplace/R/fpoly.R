@@ -29,6 +29,7 @@ setClass("fpoly",
 )
 
 #' @export
+#' @export
 fpoly <- function(x, p = 2, ref_value = 0,
                   init = .my_beta_init,
                   lower = .my_beta_lower,
@@ -37,7 +38,7 @@ fpoly <- function(x, p = 2, ref_value = 0,
                   ) {
   new("fpoly",
     term = x,
-    formula = formula(paste0("~ 0 + ", x)),
+    formula = as.formula(paste0("~ 0 + ", x), env=new.env()),
     p.order = as.integer(p),
     ref_value = ref_value,
     init = rep_len(init, p),
@@ -53,7 +54,9 @@ setMethod("design", "fpoly", function(term, data) {
   }
   D <- poly(data[[term@term]]-term@ref_value, degree = term@p.order)
   D <- D[,1:ncol(D),drop=F]
-  colnames(D) <- paste0(term@term, "_fpoly_", c('', seq(from=1, by=1, len=ncol(D)-1)))
+  seq_order = seq.int(1, len=term@p.order)
+
+  colnames(D) <- paste0(term@term, "_fpoly_", seq_order)
   D
 })
 
@@ -71,14 +74,15 @@ setMethod("theta_info", "fpoly", function(term) {
 
 # Beta info for fpoly terms
 setMethod("beta_info", "fpoly", function(term, data) {
-  the_label = paste("fpoly", term@term, sep="_")
-  
+  the_label = paste(term@term, "fpoly", sep="_")
+    seq_order = seq.int(1, len=term@p.order)
+
   result <- data.frame(
     term = term@term,
     model = "fpoly",
     label = the_label,
-    order = term@p.order,
-    beta_label = paste(the_label, "fpoly", term@p.order, sep="_"),
+    order = seq_order,
+    beta_label = paste(the_label, seq_order, sep="_"),
     init = term@init,
     lower = term@lower,
     upper = term@upper,

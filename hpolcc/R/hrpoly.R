@@ -13,6 +13,7 @@
 #'
 #' @return A hrpoly term object
 
+#' @importFrom adlaplace fpoly rpoly
 # HRPoly class definition
 setClass("hrpoly",
          representation = representation(
@@ -24,10 +25,11 @@ setClass("hrpoly",
            by_levels = integer(0),
            by_labels = character(0),
            knots = numeric(0),
-           type = factor("random", levels = .type_factor_levels)
+           type = factor("random", levels = adlaplace::.type_factor_levels)
          )
 )
 
+#' @export
 hrpoly <- function(
   x,
   p = 1,
@@ -55,7 +57,7 @@ hrpoly <- function(
 
   new("hrpoly",
     term = x,
-    formula = formula(paste0("~ 0 + ", x)),
+    formula = as.formula(paste0("~ 0 + ", x), env = new.env()),
     p.order = as.integer(p),
     ref_value = ref_value,
     by = by,
@@ -74,7 +76,7 @@ setMethod("design", "hrpoly", function(term, data) {
 
   term = get_by_levels(term, data)
 
-  a_base = design(as(term, "rpoly"), data)[,term@p.order]
+  a_base = adlaplace::design(as(term, "rpoly"), data)[,term@p.order]
 
   a_split = mapply(
     function(x, a_base, id) {

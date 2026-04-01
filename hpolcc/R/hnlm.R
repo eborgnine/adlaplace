@@ -1,4 +1,7 @@
 #' @import data.table
+#' @importFrom adlaplace getAdFun jointLogDens grad hess
+#' @importFrom adlaplace traceHinvT outer_fn outer_gr
+#' @importFrom adlaplace logLikLaplace inner_opt
 #' @export
 hnlm <- function(
   formula,
@@ -48,11 +51,15 @@ hnlm <- function(
     stop("Provide a valid stratification (or time) variable.")
   }
 
-  model_terms <- collect_terms(formula)
+  model_terms <- adlaplace::collect_terms(
+    formula,
+    package = "hpolcc", verbose = config$verbose
+  )
 
-  if(!any(sapply(model_terms, slot, "type") == "family")) {
-    model_terms = c(model_terms,
-      overdispersion()
+  if (!any(sapply(model_terms, slot, "type") == "family")) {
+    model_terms <- c(
+      model_terms,
+      adlaplace::overdispersion()
     )
   }
 
@@ -71,7 +78,7 @@ hnlm <- function(
   ]
 
   required_vars <- unique(c(covariates, strat_time_vars))
-  if(config$verbose) {
+  if (config$verbose) {
     cat("variables:\n")
     print(required_vars)
   }
@@ -114,8 +121,7 @@ hnlm <- function(
   }
 
   # add group info to model
-  model_terms = lapply(model_terms, get_by_levels, data = data_sub)
-
+  model_terms <- lapply(model_terms, get_by_levels, data = data_sub)
 
   theta_info_list <- lapply(model_terms, theta_info)
   theta_setup <- do.call(rbind, theta_info_list)
@@ -130,65 +136,65 @@ hnlm <- function(
     gamma_setup$label, theta_setup$label
   ), "id"]
 
-  terms_with_gamma <- sapply(model_terms, slot, "type")=="random"
-  terms_with_beta <- sapply(model_terms, slot, "type")=="fixed"
+  terms_with_gamma <- sapply(model_terms, slot, "type") == "random"
+  terms_with_beta <- sapply(model_terms, slot, "type") == "fixed"
 
-  design_list_x <- lapply(model_terms[terms_with_beta], design,
+  design_list_x <- lapply(model_terms[terms_with_beta], adlaplace::design,
     data = data_sub
   )
-  if(FALSE) {
-  design_list_a <- parallel::mclapply(
-    model_terms[terms_with_gamma], 
-    design,
-    MoreArgs = list(data = data_sub),
-    mc.cores = config$num_threads
-  )
+  if (FALSE) {
+    design_list_a <- parallel::mclapply(
+      model_terms[terms_with_gamma],
+      adlaplace::design,
+      MoreArgs = list(data = data_sub),
+      mc.cores = config$num_threads
+    )
   } else {
-      design_list_a <- lapply(
-    model_terms[terms_with_gamma], 
-    design,
-    data = data_sub
-  )
+    design_list_a <- lapply(
+      model_terms[terms_with_gamma],
+      adlaplace::design,
+      data = data_sub
+    )
   }
   gamma_dims <- data.frame(
-    design=sapply(design_list_a, ncol),
-    gamma=unlist(sapply(random_info_list, nrow))
+    design = sapply(design_list_a, ncol),
+    gamma = unlist(sapply(random_info_list, nrow))
   )
-  if(!all(gamma_dims$design == gamma_dims$gamma)) {
+  if (!all(gamma_dims$design == gamma_dims$gamma)) {
     warning("gamma sizes wrong")
     print(gamma_dims)
   }
   a_matrix <- do.call(cbind, design_list_a)
   x_matrix <- do.call(cbind, design_list_x)
-  if(is.null(x_matrix)) x_matrix = matrix(nrow = nrow(data_sub), ncol=0)
-  if(is.null(a_matrix)) a_matrix = matrix(nrow = nrow(data_sub), ncol=0)
-  
-  beta_reorder = match(colnames(x_matrix), beta_setup$beta_label)
-  beta_setup = beta_setup[beta_reorder, ]
+  if (is.null(x_matrix)) x_matrix <- matrix(nrow = nrow(data_sub), ncol = 0)
+  if (is.null(a_matrix)) a_matrix <- matrix(nrow = nrow(data_sub), ncol = 0)
 
-  gamma_reorder = match(colnames(a_matrix), gamma_setup$gamma_label)
-  if(any(is.na(gamma_reorder))) {
+  beta_reorder <- match(colnames(x_matrix), beta_setup$beta_label)
+  beta_setup <- beta_setup[beta_reorder, ]
+
+  gamma_reorder <- match(colnames(a_matrix), gamma_setup$gamma_label)
+  if (any(is.na(gamma_reorder))) {
     warning("problem with random names")
     print(setdiff(gamma_setup$gamma_label, colnames(a_matrix))[1])
   }
-  gamma_setup = gamma_setup[gamma_reorder, ]
+  gamma_setup <- gamma_setup[gamma_reorder, ]
 
-  gamma_setup_sub = gamma_setup[!is.na(gamma_setup$theta_id), ]
-  gamma_theta_map = Matrix::sparseMatrix(
-    i = gamma_setup_sub$id, j=gamma_setup_sub$theta_id,
+  gamma_setup_sub <- gamma_setup[!is.na(gamma_setup$theta_id), ]
+  gamma_theta_map <- Matrix::sparseMatrix(
+    i = gamma_setup_sub$id, j = gamma_setup_sub$theta_id,
     x = 1.0,
-    index1=FALSE
+    index1 = FALSE
   )
 
   # Create block-diagonal precision matrix, excluding NULL elements
   valid_precision <- lapply(model_terms[terms_with_gamma], precision)
   if (length(valid_precision) > 0) {
     precision_matrix <- do.call(Matrix::bdiag, valid_precision)
-    dimnames(precision_matrix) = list(unlist(lapply(valid_precision, colnames)))[c(1,1)]
-    if(!all(colnames(precision_matrix) == colnames(a_matrix))) {
+    dimnames(precision_matrix) <- list(unlist(lapply(valid_precision, colnames)))[c(1, 1)]
+    if (!all(colnames(precision_matrix) == colnames(a_matrix))) {
       warning("precision matrix column names wrong")
       print(setdiff(colnames(precision_matrix), colnames(a_matrix))[1])
-      print(setdiff(colnames(a_matrix),colnames(precision_matrix))[1])
+      print(setdiff(colnames(a_matrix), colnames(precision_matrix))[1])
     }
   } else {
     precision_matrix <- Matrix::Diagonal(nrow = 0, ncol = 0)
@@ -197,7 +203,7 @@ hnlm <- function(
   if (any(duplicated(colnames(a_matrix)))) {
     warning("duplicated column names of random effects design matrix, perhaps same term in the model twice?")
   }
-  if(!(all(colnames(a_matrix) == gamma_setup$gamma_name)) ) {
+  if (!(all(colnames(a_matrix) == gamma_setup$gamma_name))) {
     warning("some names of A don't match up")
     print(table(colnames(a_matrix) %in% gamma_setup$gamma_label))
     print(str(setdiff(colnames(a_matrix), gamma_setup$gamma_label)))
@@ -214,10 +220,10 @@ hnlm <- function(
     print(str(setdiff(beta_setup$beta_name, colnames(x_matrix))))
   }
 
-  if(config$transform_theta) {
-    for(d_par in c("init","lower","upper")) {
-      theta_setup[[d_par]] = log(theta_setup[[d_par]])
-      if(any(is.na(theta_setup[[d_par]]))) {
+  if (config$transform_theta) {
+    for (d_par in c("init", "lower", "upper")) {
+      theta_setup[[d_par]] <- log(theta_setup[[d_par]])
+      if (any(is.na(theta_setup[[d_par]]))) {
         warning("theta ", d_par, "values out of range")
       }
     }
@@ -225,7 +231,7 @@ hnlm <- function(
 
   tmb_data <- list(
     X = x_matrix,
-    A =a_matrix,
+    A = a_matrix,
     y = data_sub[[outcome_var]],
     Q = precision_matrix,
     map = gamma_theta_map,
@@ -240,22 +246,22 @@ hnlm <- function(
   config$theta <- theta_setup$init
   config$gamma <- rep(0, nrow(gamma_setup))
 
-  if(is.null(beta_setup)) {
-    beta_theta_names = names(theta_setup)
-    config$beta = numeric(0)
+  if (is.null(beta_setup)) {
+    beta_theta_names <- names(theta_setup)
+    config$beta <- numeric(0)
   } else {
-    beta_theta_names = intersect(colnames(beta_setup), colnames(theta_setup))
+    beta_theta_names <- intersect(colnames(beta_setup), colnames(theta_setup))
   }
 
-  beta_theta_names = setdiff(beta_theta_names, "order")
+  beta_theta_names <- setdiff(beta_theta_names, "order")
 
   parameters_info <- list(
     beta = beta_setup,
     gamma = gamma_setup,
     theta = theta_setup,
     parameters = rbind(
-      beta_setup[,beta_theta_names],
-      theta_setup[,beta_theta_names]
+      beta_setup[, beta_theta_names],
+      theta_setup[, beta_theta_names]
     )
   )
 
@@ -283,7 +289,7 @@ hnlm <- function(
   assign("gamma", config$gamma, cache)
 
   config$opt <- as.list(
-    parameters_info$parameters[c("init","lower","upper","parscale")]
+    parameters_info$parameters[c("init", "lower", "upper", "parscale")]
   )
 
   if (for_dev) {
@@ -315,7 +321,7 @@ hnlm <- function(
   )
 
   if (!length(cache$gamma)) {
-    if(verbose_orig) {
+    if (verbose_orig) {
       cat("no gammas, only one layer of optimizatino")
     }
     # no gammas, no inner opt
@@ -350,8 +356,8 @@ hnlm <- function(
   if (verbose_orig) {
     cat("optimizing")
     cat(" initial, lower , upper\n")
-    to_print = do.call(cbind, config$opt)
-    rownames(to_print) = parameters_info$parameters$label
+    to_print <- do.call(cbind, config$opt)
+    rownames(to_print) <- parameters_info$parameters$label
     print(to_print)
   }
 
@@ -402,7 +408,7 @@ hnlm <- function(
     adFun = ad_fun,
     deriv = 1
   ))
-  result$extra$parameters_orig = result$parameters
+  result$extra$parameters_orig <- result$parameters
   result$parameters <- try(format_parameters(result))
 
   if (FALSE) {

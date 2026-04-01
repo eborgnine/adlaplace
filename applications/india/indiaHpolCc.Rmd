@@ -125,9 +125,10 @@ save(deaths, file = "deaths.RData")
 # devtools::install_github("eborgine/adlaplace")
 # devtools::install_github("eborgine/hpolcc")
 
-library("hpolcc") # lib.loc = "/home/patrick/R/x86_64-pc-linux-gnu-library/4.3"
+library("hpolcc")
 
 load("~/research/adlaplace/applications/india/deaths.RData")
+
 
 res_pm_temp <- hnlm(
   formula = medical ~ dom +
@@ -140,15 +141,15 @@ res_pm_temp <- hnlm(
       lower = 1e-9
     ) +
     f(temp_div10,
-      model = "hiwp", ref_value = 25/10, p = 3,
-      knots = seq(-5, 30, by = 2.5)/10,
+      model = "hiwp", ref_value = 25 / 10, p = 3,
+      knots = seq(-5, 30, by = 2.5) / 10,
       by = "eco_region",
       init = c(1e-2, 1e-2, 1e-3, 1e-2),
       parscale = c(1e-6, 1e-4, 1e-3, 1e-3),
       lower = 1e-9
-    ) + 
-    f(model="overdispersion", init=0.1, parscale = 10),
-  data = deaths, #[seq(1, 5e5),],
+    ) +
+    f(model = "overdispersion", init = 0.1, parscale = 10),
+  data = deaths, # [seq(1, 5e5),],
   cc_design = c("cell", "eco_region", "year_week3_dow"),
   config = list(
     transform_theta = FALSE,
@@ -161,7 +162,7 @@ res_pm_temp <- hnlm(
     trace = 3,
     REPORT = 1
   ),
-  control_inner = list(report.level = 0, trust.iter=5000),
+  control_inner = list(report.level = 0, trust.iter = 5000),
   for_dev = FALSE
 )
 

@@ -7,7 +7,6 @@
 #' @param lower Lower bound for theta parameter
 #' @param upper Upper bound for theta parameter
 #' @param parscale Parameter scale for optimization
-#' @param prefix Optional prefix for term names
 #'
 #' @return An iid term object
 
@@ -25,6 +24,7 @@ setClass("iid",
          )
 )
 
+#' @export
 iid <- function(x,
                 init = .my_theta_init,
                 lower = .my_theta_lower,
@@ -32,7 +32,7 @@ iid <- function(x,
                 parscale = .my_theta_parscale) {
   new("iid",
     term = x,
-    formula = formula(paste0("~ 0 + ", prefix, x)),
+    formula = as.formula(paste0("~ 0 + factor(", x, ")"), env=new.env()),
     init = init ,
     lower = lower ,
     upper = upper ,
@@ -42,8 +42,7 @@ iid <- function(x,
 
 # Design matrix for iid terms
 setMethod("design", "iid", function(term, data){
-  ff <- paste0("~ 0 + factor(", term@term, ")") |> formula()
-  Matrix::sparse.model.matrix(ff, data) |> as("TsparseMatrix")
+  as(Matrix::sparse.model.matrix(term@formula, data), "TsparseMatrix")
 })
 
 # Precision matrix for iid terms
@@ -56,7 +55,9 @@ setMethod("precision", "iid", function(term, data) {
 # Theta info for iid terms
 setMethod("theta_info", "iid", function(term) {
   result <- data.frame(
-    term = term@term, model = "iid", label = paste(c(term@term,"iid"), collapse = "_"),
+    term = term@term, model = "iid", 
+    label = paste(c(term@term,"iid"), 
+    collapse = "_"),
     init = term@init,
     lower = term@lower, upper = term@upper,
     parscale = term@parscale,
