@@ -184,8 +184,9 @@ CppAD::vector<CppAD::AD<double>> logDensExtra(
       contribLogYkFact += std::lgamma(1 + data.y[Dobs]);
     }
 
-    contribLogNfact += std::lgamma(1 + sumYhere); 
-    for(size_t Dsum=1;Dsum < sumYhere;Dsum++) {
+    contribLogNfact += std::lgamma(1 + sumYhere);
+    const size_t sumYhereS = sumYhere;
+    for(size_t Dsum=1;Dsum < sumYhereS;Dsum++) {
       contribLog1pjTauSq += CppAD::log1p(Dsum * tauSq);
     }
 
