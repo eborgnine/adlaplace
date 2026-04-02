@@ -126,13 +126,13 @@ hnlm <- function(
   # add group info to model
   model_terms <- lapply(model_terms, get_by_levels, data = data_sub)
 
-  theta_info_list <- lapply(model_terms, theta_info)
+  theta_info_list <- lapply(model_terms, adlaplace::theta_info)
   theta_setup <- do.call(rbind, theta_info_list)
   theta_setup$id <- seq.int(0, length.out = nrow(theta_setup))
 
-  beta_setup <- do.call(rbind, lapply(model_terms, beta_info, data = data_sub))
+  beta_setup <- do.call(rbind, lapply(model_terms, adlaplace::beta_info, data = data_sub))
 
-  random_info_list <- lapply(model_terms, random_info, data = data_sub)
+  random_info_list <- lapply(model_terms, adlaplace::random_info, data = data_sub)
   gamma_setup <- do.call(rbind, random_info_list)
   gamma_setup$id <- seq.int(0, length.out = nrow(gamma_setup))
   gamma_setup$theta_id <- theta_setup[match(
@@ -180,7 +180,8 @@ hnlm <- function(
   gamma_reorder <- match(colnames(a_matrix), gamma_setup$gamma_label)
   if (any(is.na(gamma_reorder))) {
     warning("problem with random names")
-    print(setdiff(gamma_setup$gamma_label, colnames(a_matrix))[1])
+    print(setdiff(gamma_setup$gamma_label, colnames(a_matrix)))
+    print(setdiff(colnames(a_matrix),gamma_setup$gamma_label))
   }
   gamma_setup <- gamma_setup[gamma_reorder, ]
 
@@ -395,7 +396,8 @@ if (config$transform_theta) {
       random_info = random_info,
       control_inner = control$inner,
       control = control,
-      cache = cache
+      cache = cache,
+      data=data_sub
     )
   )
   if (verbose_orig) {

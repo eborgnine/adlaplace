@@ -126,7 +126,7 @@ setMethod("precision", "hrpoly", function(term, data) {
 setMethod("theta_info", "hrpoly", function(term) {
   result <- data.frame(
     term = term@term, model = "hrpoly", 
-    label = paste(c("hrpoly", term@term, term@p.order), collapse = "_"),
+    label = paste(c(term@term, "hrpoly", term@p.order), collapse = "_"),
     init = term@init,
     lower = term@lower,
     upper = term@upper,
@@ -152,13 +152,13 @@ setMethod("random_info", "hrpoly", function(term, data) {
   result <- expand.grid(
     term = term@term,
     model = "hrpoly",
-    label = paste(c(term@term, "hrpoly"), collapse = "_"),
+    label = paste(c(term@term, "hrpoly", term@p.order), collapse = "_"),
     by = term@by_levels,
     basis = basis,
     order = term@p.order,
     stringsAsFactors = FALSE
   )
   result$by_labels <- term@by_labels[match(result$by, term@by_levels)]
-  result$gamma_label <- paste0(result$label, "_", result$order, "_g", result$by_labels)
+  result$gamma_label <- paste0(result$label,  "_g", result$by_labels)
   result
 })
