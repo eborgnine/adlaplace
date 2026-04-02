@@ -15,8 +15,8 @@ format_parameters <- function(x) {
   ]
   if (x$objects$config$transform_theta) {
     parameters_info$theta$log_mle <- parameters_info$theta$mle
-    not_logged = parameters_info$theta$model == "dispersion"
-        parameters_info$theta$log_mle[not_logged] = NA
+    not_logged = parameters_info$theta$model == "overdispersion"
+    parameters_info$theta$log_mle[not_logged] = NA
     parameters_info$theta$mle[!not_logged] <- exp(parameters_info$theta$log_mle[!not_logged])
   }
   parameters_info$gamma$mode <- full_parameters[seq(Nbeta + 1, length.out = Ngamma)]
