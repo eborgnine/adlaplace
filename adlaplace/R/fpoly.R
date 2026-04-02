@@ -52,7 +52,11 @@ setMethod("design", "fpoly", function(term, data) {
   if (term@p.order == 0) {
     return(NULL)
   }
-  D <- poly(data[[term@term]]-term@ref_value, degree = term@p.order)
+  D <- poly(
+    data[[term@term]]-term@ref_value, 
+    degree = term@p.order,
+    raw = TRUE
+    )
   D <- D[,1:ncol(D),drop=F]
   seq_order = seq.int(1, len=term@p.order)
 

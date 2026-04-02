@@ -142,7 +142,9 @@ hnlm <- function(
   terms_with_gamma <- sapply(model_terms, slot, "type") == "random"
   terms_with_beta <- sapply(model_terms, slot, "type") == "fixed"
 
-  design_list_x <- lapply(model_terms[terms_with_beta], adlaplace::design,
+  design_list_x <- lapply(
+    model_terms[terms_with_beta], 
+    adlaplace::design,
     data = data_sub
   )
   if (FALSE) {

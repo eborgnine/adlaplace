@@ -53,7 +53,8 @@ setMethod("design", "rpoly", function(term, data) {
     return(NULL)
   }
 
-  D <- poly(data[[term@term]]-term@ref_value, raw=TRUE, degree = term@p.order)
+  D <- poly(
+    data[[term@term]]-term@ref_value, raw=TRUE, degree = term@p.order)
   D <- D[,1:ncol(D),drop=FALSE]
   colnames(D) <- paste(term@term, "rpoly", 1:ncol(D), sep="_")
   D
