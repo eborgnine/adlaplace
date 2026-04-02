@@ -102,6 +102,9 @@ hnlm <- function(
 
   data_sub <- n_per_strata[data, on = strat_time_vars, nomatch = 0]
 
+  if(!nrow(data_sub)) {
+    warning("no data left after removing missings")
+  }
 
   # setup the data for case-crossover
   if (config$verbose) {
@@ -219,15 +222,15 @@ hnlm <- function(
     print(str(setdiff(colnames(x_matrix), beta_setup$beta_name)))
     print(str(setdiff(beta_setup$beta_name, colnames(x_matrix))))
   }
-
-  if (config$transform_theta) {
-    for (d_par in c("init", "lower", "upper")) {
-      theta_setup[[d_par]] <- log(theta_setup[[d_par]])
-      if (any(is.na(theta_setup[[d_par]]))) {
-        warning("theta ", d_par, "values out of range")
-      }
+if (config$transform_theta) {
+  not_overdisp <- which(theta_setup$model != "overdispersion")
+  for (d_par in c("init", "lower", "upper")) {
+    theta_setup[not_overdisp, d_par] <- log(theta_setup[not_overdisp, d_par])
+    if (any(is.na(theta_setup[[d_par]]))) {
+      warning("theta ", d_par, "values out of range")
     }
   }
+}
 
   tmb_data <- list(
     X = x_matrix,
@@ -361,10 +364,7 @@ hnlm <- function(
     print(to_print)
   }
 
-  # Add parscale to control if it exists in theta_info
-  if (!is.null(config$theta_info) && "parscale" %in% names(config$theta_info)) {
-    control$parscale <- config$theta_info$parscale
-  }
+  control$parscale <- config$theta_info$parscale
 
   mle <- try(stats::optim(
     par = config$opt$init,
@@ -392,7 +392,8 @@ hnlm <- function(
       parameters_info = parameters_info,
       random_info = random_info,
       control_inner = control$inner,
-      control = control
+      control = control,
+      cache = cache
     )
   )
   if (verbose_orig) {

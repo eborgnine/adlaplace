@@ -125,9 +125,7 @@ CppAD::vector<CppAD::AD<double>> logDensObs(
   const size_t endP = have_groups ? config.groups.p[Dgroup + 1] : Dgroup + 1;
 
   const CppAD::AD<double> lastTheta = params[params.size() - 1]; // log(\tau) if transform_theta otherwise tau
-  const CppAD::AD<double> tauSq = config.transform_theta
-                                        ? CppAD::exp(2.0 * lastTheta)
-                                        : lastTheta * lastTheta;
+  const CppAD::AD<double> tauSq = lastTheta * lastTheta;
 
   const bool verbose_here = config.verbose & (Dgroup == 0);
   for (size_t DstrataI = startP; DstrataI < endP; DstrataI++)
@@ -162,9 +160,7 @@ CppAD::vector<CppAD::AD<double>> logDensExtra(
 // \log(N!) - \sum_{k=1}^K \log(y_k!) - \sum_{j=0}^{N-1} \log(1 + j \tau^2) 
 
   const CppAD::AD<double> lastTheta = params[params.size() - 1];
-  const CppAD::AD<double> tauSq = config.transform_theta
-                                        ? CppAD::exp(2.0 * lastTheta)
-                                        : lastTheta * lastTheta;
+  const CppAD::AD<double> tauSq = lastTheta * lastTheta;
 
   const size_t Nstrata = data.elgm_matrix.ncol();
 
