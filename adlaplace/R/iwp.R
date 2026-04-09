@@ -1,5 +1,3 @@
-
-
 # IWP class definition
 setClass("iwp",
   representation = representation(
@@ -35,8 +33,8 @@ setClass("iwp",
 #' @export
 iwp <- function(
   x, p = 2,
-  ref_value = 0, 
-  knots, 
+  ref_value = 0,
+  knots,
   range = NULL,
   init = .my_theta_init,
   lower = .my_theta_lower,
@@ -58,9 +56,11 @@ iwp <- function(
   if (length(boundary_is_random) != 1) stop("boundary_is_random must be a single value")
   if (length(include_poly) != 1) stop("include_poly must be a single value")
 
-  the_f <- as.formula(paste0("~ 0 + ", x), env=new.env())
+  the_f <- as.formula(paste0("~ 0 + ", x), env = new.env())
   result <- list()
-  iwp_name <- paste("model", x, sep = "_")
+  iwp_name <- paste("iwp", x, sep = "_")
+
+  ref_value = ref_align(ref_value, knots)
 
   result[[iwp_name]] <- new("iwp",
     term = x,
@@ -97,10 +97,11 @@ iwp <- function(
 setMethod("design", "iwp", function(term, data) {
   refined_x <- data[[term@term]] - term@ref_value
   basis <- local_poly(term@knots, refined_x, term@p.order)
-  result <- basis[,1:ncol(basis),drop=FALSE]
+  result <- basis[, 1:ncol(basis), drop = FALSE]
 
-  knots_string = formatC(seq.int(ncol(result)), 
-    width = ceiling(log10(ncol(result))), flag = "0")
+  knots_string <- formatC(seq.int(ncol(result)),
+    width = ceiling(log10(ncol(result))), flag = "0"
+  )
 
   colnames(result) <- paste0(term@term, "_iwp_k", knots_string)
   result
@@ -108,21 +109,22 @@ setMethod("design", "iwp", function(term, data) {
 
 # Precision matrix for iwp terms
 setMethod("precision", "iwp", function(term, data) {
-  result = Matrix::Matrix(compute_weights_precision(term@knots))
-  
-  knots_string = formatC(seq.int(nrow(result)), 
-    width = ceiling(log10(nrow(result))), flag = "0")
+  result <- Matrix::Matrix(compute_weights_precision(term@knots))
 
-  dimnames(result) = list(
+  knots_string <- formatC(seq.int(nrow(result)),
+    width = ceiling(log10(nrow(result))), flag = "0"
+  )
+
+  dimnames(result) <- list(
     paste0(term@term, "_iwp_k", knots_string)
-  )[c(1,1)]
+  )[c(1, 1)]
   result
 })
 
 # Theta info for iwp terms
 setMethod("theta_info", "iwp", function(term) {
   result <- data.frame(
-    term = term@term, model = "iwp", 
+    term = term@term, model = "iwp",
     label = paste(c(term@term, "iwp"), collapse = "_"),
     init = term@init,
     lower = term@lower, upper = term@upper,
@@ -140,14 +142,13 @@ setMethod("beta_info", "iwp", function(term) {
 
 # Gamma info for iwp terms
 setMethod("random_info", "iwp", function(term, data) {
-
   basis <- seq(1, len = length(term@knots) - 1)
 
   result <- expand.grid(
     term = term@term,
     model = "iwp",
     label = paste(c(term@term, "iwp"), collapse = "_"),
-    by = NA,  # iwp doesn't have hierarchical structure
+    by = NA, # iwp doesn't have hierarchical structure
     basis = basis,
     order = term@p.order,
     stringsAsFactors = FALSE
@@ -157,7 +158,7 @@ setMethod("random_info", "iwp", function(term, data) {
     width = max(ceiling(c(1, log10(max(result$basis)))), na.rm = TRUE),
     flag = "0"
   )
-  result$by_labels <- NA  # iwp doesn't have by_labels
+  result$by_labels <- NA # iwp doesn't have by_labels
   result$gamma_label <- paste0(result$label, "_k", bnumPad)
 
   result

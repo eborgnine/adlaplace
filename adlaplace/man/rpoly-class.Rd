@@ -12,8 +12,6 @@
 \item{ref_value}{Reference value for the polynomial}
 
 \item{sd}{Standard deviation for random effects}
-
-\item{prefix}{Optional prefix for term names}
 }
 \value{
 A rpoly term object
