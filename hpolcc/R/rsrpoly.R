@@ -13,7 +13,7 @@
 
 setClass("rsrpoly",
   representation = representation(
-    mult = "numeric",
+    mult = "character",
     ref_mult = "numeric",
     sd = "numeric"
   ),
@@ -60,6 +60,10 @@ setMethod("design", "rsrpoly", function(term, data) {
 
   mult_vec <- data[[term@mult]] - term@ref_mult
 
+  if(any(is.na(mult_vec))) {
+    warning("missing values in", term@mult)
+  }
+
   a_matrix <- poly(
     data[[term@term]] - term@ref_value,
     raw = TRUE, degree = term@p.order
@@ -67,16 +71,21 @@ setMethod("design", "rsrpoly", function(term, data) {
   a_matrix <- a_matrix[, 1:ncol(a_matrix), drop = FALSE]
   a_matrix <- a_matrix * mult_vec
   colnames(a_matrix) <- paste(
-    term@term, term@mult, 
-    "rsrpoly", 1:ncol(a_matrix), sep = "_"
-    )
+    term@term, term@mult,
+    "rsrpoly", 1:ncol(a_matrix),
+    sep = "_"
+  )
   a_matrix
 })
 
 # Precision matrix for rpoly terms
 setMethod("precision", "rsrpoly", function(term, data) {
   the_sd <- term@sd
-  names(the_sd) <- paste(term@term, "rsrpoly", seq.int(from = 1, length.out = term@p.order), sep = "_")
+  names(the_sd) <- paste(
+    term@term, term@mult, "rsrpoly",
+    seq.int(from = 1, length.out = term@p.order),
+    sep = "_"
+  )
   Matrix::Diagonal(length(the_sd), the_sd^(-2), names = TRUE)
 })
 

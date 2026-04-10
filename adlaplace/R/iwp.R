@@ -165,6 +165,7 @@ setMethod("random_info", "iwp", function(term, data) {
 })
 
 # Adaptation of the local_poly function from the OSplines packages --------
+#' @export
 local_poly <- function(knots, refined_x, p) {
   if (min(knots) >= 0) {
     dif <- diff(knots)
@@ -266,7 +267,7 @@ local_poly <- function(knots, refined_x, p) {
   D
 }
 
-
+#' @export
 compute_weights_precision <- function(knots) {
   if (min(knots) >= 0) {
     as(diag(diff(knots)), "matrix")

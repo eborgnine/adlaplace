@@ -20,7 +20,7 @@
 # FPoly class definition
 setClass("rsfpoly",
   representation = representation(
-    mult = "numeric",
+    mult = "character",
     ref_mult = "numeric"
   ),
   contains = "model",

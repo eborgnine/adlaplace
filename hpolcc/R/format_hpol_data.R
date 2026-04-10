@@ -8,6 +8,9 @@ formatHpolData <- function(data) {
         as(Matrix::t(data[[Ddata]]), "CsparseMatrix"),
         "dMatrix"
       )
+    if(any(is.na(data[[paste0(Ddata, "Tp")]]@x))) {
+      warning("missing data in ", Ddata)
+    }
   }
 
   data$elgm_matrix <- as(data$elgm_matrix, "CsparseMatrix")

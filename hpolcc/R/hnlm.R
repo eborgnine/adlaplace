@@ -65,6 +65,9 @@ hnlm <- function(
 
   covariates <- unique(unlist(lapply(model_terms, slot, "term")))
   outcome_var <- all.vars(formula)[1]
+  random_slope_terms = unique(sapply(model_terms[
+    grep("^rs", sapply(model_terms, class))
+  ], slot, "mult"))
 
   strat_time_vars <- unique(c(cc_design$strat_vars, cc_design$time_var))
 
@@ -77,7 +80,8 @@ hnlm <- function(
     ), decreasing = FALSE)
   ]
 
-  required_vars <- unique(c(covariates, strat_time_vars))
+
+  required_vars <- unique(c(covariates, strat_time_vars, random_slope_terms))
   if (config$verbose) {
     cat("variables:\n")
     print(required_vars)
@@ -171,8 +175,13 @@ hnlm <- function(
   }
   a_matrix <- do.call(cbind, design_list_a)
   x_matrix <- do.call(cbind, design_list_x)
-  if (is.null(x_matrix)) x_matrix <- matrix(nrow = nrow(data_sub), ncol = 0)
-  if (is.null(a_matrix)) a_matrix <- matrix(nrow = nrow(data_sub), ncol = 0)
+  if (is.null(x_matrix)) {
+    x_matrix <- matrix(nrow = nrow(data_sub), ncol = 0)
+  }
+  
+  if (is.null(a_matrix)) {
+    a_matrix <- matrix(nrow = nrow(data_sub), ncol = 0)
+  } 
 
   beta_reorder <- match(colnames(x_matrix), beta_setup$beta_label)
   beta_setup <- beta_setup[beta_reorder, ]
@@ -303,7 +312,8 @@ if (config$transform_theta) {
       tmb_data = tmb_data,
       config = config,
       formula = formula,
-      terms = terms,
+      terms = model_terms,
+      data = data_sub,
       control = control,
       control_inner = control_inner,
       cache = cache,

@@ -3,7 +3,8 @@
 # IWP class definition
 setClass("rsiwp",
   representation = representation(
-    mult = "numeric"
+    mult = "character",
+    ref_mult = "numeric"
   ),
   contains = "model",
   prototype = prototype(
@@ -85,7 +86,7 @@ rsiwp <- function(
     # type is already set in prototype, no need to repeat
   )
   if (include_poly) {
-    poly_name <- paste(c(x, "rspoly"), collapse = "_")
+    poly_name <- paste(c(x, "rsrpoly"), collapse = "_")
     if (boundary_is_random) {
       result[[poly_name]] <- rsrpoly(
         x = x, mult=mult,
