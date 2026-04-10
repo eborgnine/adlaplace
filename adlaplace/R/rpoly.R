@@ -6,7 +6,6 @@
 #' @param p Polynomial degree (default: 2)
 #' @param ref_value Reference value for the polynomial
 #' @param sd Standard deviation for random effects
-#' @param prefix Optional prefix for term names
 #'
 #' @return A rpoly term object
 
