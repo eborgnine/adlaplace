@@ -4,7 +4,7 @@
 \alias{adFun_groups}
 \title{Find groups of observations with similar sparsity}
 \usage{
-adFun_groups(ATp, Ngroups = ncol(ATp))
+adFun_groups(ATp, elgm_matrix, Ngroups = ncol(ATp))
 }
 \arguments{
 \item{ATp}{A numeric matrix (or matrix-like object) whose columns are to

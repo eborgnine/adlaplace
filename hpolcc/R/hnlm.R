@@ -65,9 +65,9 @@ hnlm <- function(
 
   covariates <- unique(unlist(lapply(model_terms, slot, "term")))
   outcome_var <- all.vars(formula)[1]
-  random_slope_terms = unique(sapply(model_terms[
+  random_slope_terms = unique(unlist(sapply(model_terms[
     grep("^rs", sapply(model_terms, class))
-  ], slot, "mult"))
+  ], slot, "mult")))
 
   strat_time_vars <- unique(c(cc_design$strat_vars, cc_design$time_var))
 
@@ -284,17 +284,12 @@ if (config$transform_theta) {
     cat("getting groups...")
   }
 
-  for_groups_x <- tmb_data$XTp
-  for_groups_A <- tmb_data$ATp
-  for_groups_x@x <- rep(1, length(for_groups_x@x))
-  for_groups_A@x <- rep(1, length(for_groups_A@x))
-
-  for_groups <- rbind(for_groups_x, for_groups_A) %*% tmb_data$elgm_matrix
-  for_groups@x <- rep(1, length(for_groups@x))
   config$groups <- adlaplace::adFun_groups(
-    ATp = for_groups,
+    ATp = tmb_data$ATp,
+    elgm_matrix = tmb_data$elgm_matrix,
     Ngroups = config$num_groups
   )
+
   if (verbose_orig) {
     cat("done.")
   }
