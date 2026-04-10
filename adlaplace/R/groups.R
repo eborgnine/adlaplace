@@ -77,10 +77,15 @@ adFun_groups = function(ATp, elgm_matrix, Ngroups = ncol(ATp), min_groups = 0) {
 		loadings <- sv$v[,1]                 # equals prcomp(...)$rotation
 	}
 
-	uniqueLoadings = unique(loadings)
-	Ngroups = pmin(length(uniqueLoadings), Ngroups)
-	groupCut = unique(stats::quantile(uniqueLoadings, seq(0,1,len=Ngroups+1)))
-	groupCut[1] = groupCut[1]-1;groupCut[length(groupCut)] = groupCut[length(groupCut)]+1
+	uniqueLoadings = sort(unique(loadings))
+  if(length(uniqueLoadings) <= Ngroups) {
+      Ngroups = length(uniqueLoadings)
+      groupCut = uniqueLoadings[-1] - diff(uniqueLoadings)/2
+      groupCut = c(uniqueLoadings[1]-1, groupCut, uniqueLoadings[length(uniqueLoadings)]+1)      
+  } else {
+	  groupCut = unique(stats::quantile(uniqueLoadings, seq(0,1,len=Ngroups+1)))
+	  groupCut[1] = groupCut[1]-1;groupCut[length(groupCut)] = groupCut[length(groupCut)]+1
+  }
 	loadingsCut = cut(loadings, groupCut)
 	loadingsCut2 = factor(loadingsCut, names(sort(table(loadingsCut), decreasing=TRUE)))
 	theJ = as.integer(loadingsCut2)-1L
