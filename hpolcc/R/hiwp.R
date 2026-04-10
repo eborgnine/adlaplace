@@ -202,8 +202,7 @@ setMethod("theta_info", "hiwp", function(term) {
     type = term@type
   )
 
-
-  return(result)
+  result
 })
 
 # Beta info for hiwp terms
@@ -211,7 +210,6 @@ setMethod("beta_info", "hiwp", function(term) {
   # HIWP terms don't have beta parameters
   return(NULL)
 })
-
 # Gamma info for hiwp terms
 setMethod("random_info", "hiwp", function(term, data) {
   basis <- seq(1, len = length(term@knots) - 1)
@@ -219,7 +217,7 @@ setMethod("random_info", "hiwp", function(term, data) {
   result <- expand.grid(
     term = term@term,
     model = "hiwp",
-    label = paste(c(term@term,"hiwp"), collapse = "_"),
+    label = paste(c(term@term, "hiwp"), collapse = "_"),
     by = term@by_levels,
     basis = basis,
     order = term@p.order,
@@ -236,4 +234,23 @@ setMethod("random_info", "hiwp", function(term, data) {
   result
 })
 
+# Register the coercion method properly
+methods::setAs(
+  "hiwp", "iwp",
+  function(from) {
+    # Create a new iwp object with the same basic properties
+    methods::new("iwp",
+      term = from@term,
+      formula = from@formula,
+      knots = from@knots,
+      ref_value = from@ref_value,
+      p.order = from@p.order,
+      by = character(0), # hiwp has hierarchical structure, iwp doesn't
+      init = from@init,
+      lower = from@lower,
+      upper = from@upper,
+      parscale = from@parscale
+    )
+  }
+)
 

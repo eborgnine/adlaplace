@@ -4,7 +4,7 @@
 \alias{adFun_groups}
 \title{Find groups of observations with similar sparsity}
 \usage{
-adFun_groups(ATp, elgm_matrix, Ngroups = ncol(ATp))
+adFun_groups(ATp, elgm_matrix, Ngroups = ncol(ATp), min_groups = 0)
 }
 \arguments{
 \item{ATp}{A numeric matrix (or matrix-like object) whose columns are to
@@ -13,6 +13,8 @@ be grouped. Typically this is a cross-product or design-related matrix.}
 \item{Ngroups}{Integer giving the maximum number of groups to construct.
 The actual number of groups may be smaller if fewer distinct loadings
 are present.}
+
+\item{min_groups}{Integer giving the minimum number of groups}
 }
 \value{
 A sparse matrix of class \code{"dgCMatrix"} (from \pkg{Matrix}), with

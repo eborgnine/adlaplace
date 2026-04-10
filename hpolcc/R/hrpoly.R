@@ -162,3 +162,12 @@ setMethod("random_info", "hrpoly", function(term, data) {
   result$gamma_label <- paste0(result$label,  "_g", result$by_labels)
   result
 })
+
+methods::setAs("hrpoly", "rpoly", function(from) {
+  rpoly(
+    x = from@term,
+    p = from@p.order,
+    ref_value = from@ref_value,
+    sd = 1
+  )
+})

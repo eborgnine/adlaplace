@@ -61,13 +61,14 @@ iwp <- function(
   iwp_name <- paste("iwp", x, sep = "_")
 
   ref_value = ref_align(ref_value, knots)
+  knots_ref = knots - ref_value
 
   result[[iwp_name]] <- new("iwp",
     term = x,
     formula = the_f,
     p.order = as.integer(p),
     ref_value = ref_value,
-    knots = knots,
+    knots = knots_ref,
     init = init[1],
     lower = lower[1],
     upper = upper[1],

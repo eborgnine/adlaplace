@@ -1,11 +1,14 @@
 get_terms_pred <- function(terms, length.out=100) {
-  smodel <- unlist(lapply(terms, class))
 
-  is_iwp <- which(smodel == "iwp")
+  smodel <- unlist(lapply(terms, class))
+  is_iwp <- which(smodel %in% c("iwp","rsiwp"))
+  is_rsiwp <- which(smodel[is_iwp] %in% c("rsiwp"))
+
   svar <- unlist(lapply(terms[is_iwp], slot, "term"))
   sknots <- lapply(terms[is_iwp], slot, "knots")
-  smin = unlist(lapply(sknots, min))
-  smax = unlist(lapply(sknots, max))
+  sref <- unlist(lapply(terms[is_iwp], slot, "ref_value"))
+  smin = unlist(lapply(sknots, min)) + sref
+  smax = unlist(lapply(sknots, max)) + sref
 
   pred_seq <- mapply(function(var, from, to, length.out) {
     result = data.frame(seq(from=from, to=to, length.out=length.out))
@@ -15,8 +18,13 @@ get_terms_pred <- function(terms, length.out=100) {
     from=smin, to=smax, var = svar, 
     MoreArgs=list(length.out = length.out), SIMPLIFY=FALSE
     )
-
   names(pred_seq) = svar
+
+  for(D in is_rsiwp) {
+    pred_seq[[D]][[
+      terms[is_iwp][[D]]@mult
+    ]] = 1
+  }
 
   return(pred_seq)
 }
@@ -246,7 +254,7 @@ cond_sim_iwp <- function(
 
   terms_has_by = unlist(lapply(lapply(terms_have_vars, slot, "by"), length))>0
   terms_classes = unlist(lapply(terms_have_vars, class))
-  is_iwp = which(terms_classes == "iwp")
+  is_iwp = which(terms_classes %in% c("rsiwp","iwp"))
 
   vars_to_sim <- unique(unlist(terms_vars[is_iwp]))
 

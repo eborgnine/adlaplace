@@ -1,5 +1,3 @@
-
-
 # IWP class definition
 setClass("rsiwp",
   representation = representation(
@@ -12,6 +10,25 @@ setClass("rsiwp",
     type = factor("random", levels = adlaplace::.type_factor_levels)
   )
 )
+
+# Register the coercion method properly
+methods::setAs(
+  "rsiwp", "iwp",
+  function(from) {
+    # Create a new iwp object with the same basic properties
+    new("iwp",
+      term = from@term,
+      formula = from@formula,
+      knots = from@knots,
+      ref_value = from@ref_value,
+      p.order = from@p.order,
+      lower = from@lower,
+      upper = from@upper,
+      parscale = from@parscale
+    )
+  }
+)
+
 
 #' @title Random Slope Integrated Wiener Process Term
 #'
@@ -36,12 +53,12 @@ setClass("rsiwp",
 
 #' @export
 rsiwp <- function(
-  x, 
-  mult, 
+  x,
+  mult,
   p = 2,
-  ref_value = 0, 
-  ref_mult= 0, 
-  knots, 
+  ref_value = 0,
+  ref_mult = 0,
+  knots,
   range = NULL,
   init = .my_theta_init,
   lower = .my_theta_lower,
@@ -64,11 +81,12 @@ rsiwp <- function(
   if (length(boundary_is_random) != 1) stop("boundary_is_random must be a single value")
   if (length(include_poly) != 1) stop("include_poly must be a single value")
 
-  the_f <- as.formula(paste0("~ 0 + ", x), env=new.env())
+  the_f <- as.formula(paste0("~ 0 + ", x), env = new.env())
   result <- list()
   iwp_name <- paste("rsiwp", x, sep = "_")
 
-  ref_value = adlaplace::ref_align(ref_value, knots)
+  ref_value <- adlaplace::ref_align(ref_value, knots)
+  knots_ref <- knots - ref_value
 
 
   result[[iwp_name]] <- new("rsiwp",
@@ -78,7 +96,7 @@ rsiwp <- function(
     p.order = as.integer(p),
     ref_value = ref_value,
     ref_mult = ref_mult,
-    knots = knots,
+    knots = knots_ref,
     init = init[1],
     lower = lower[1],
     upper = upper[1],
@@ -86,60 +104,67 @@ rsiwp <- function(
     # type is already set in prototype, no need to repeat
   )
   if (include_poly) {
-    poly_name <- paste(c(x, "rsrpoly"), collapse = "_")
     if (boundary_is_random) {
+    poly_name <- paste(c(x, "rsrpoly"), collapse = "_")
       result[[poly_name]] <- rsrpoly(
-        x = x, mult=mult,
+        x = x, mult = mult,
         p = p - 1,
         ref_value = ref_value, ref_mult = ref_mult
       )
+    result[[paste0(x, "_linear")]] = adlaplace::rpoly(
+      x, p=1, ref_value = ref_value
+    )      
     } else {
+    poly_name <- paste(c(x, "rsfpoly"), collapse = "_")
       result[[poly_name]] <- rsfpoly(
-        x = x, mult=mult,
+        x = x, mult = mult,
         p = p - 1,
         ref_value = ref_value,
         ref_mult = ref_mult
       )
+    result[[paste0(x, "_linear")]] = adlaplace::fpoly(
+      x, p=1, ref_value = ref_value
+    )      
     }
   }
   result
 }
-
 # Design matrix for iwp terms
 setMethod("design", "rsiwp", function(term, data) {
-  refined_x <- data[[term@term]] - term@ref_value
+  design_iwp <- adlaplace::design(as(term, "iwp"), data)
+
   mult_vec <- data[[term@mult]] - term@ref_mult
+  result <- design_iwp * mult_vec
 
+  knots_string <- gsub(".*_k", "", colnames(design_iwp))
 
-  basis <- adlaplace::local_poly(term@knots, refined_x, term@p.order)
-  result <- basis[,1:ncol(basis),drop=FALSE]
-
-  result = result * mult_vec
-
-  knots_string = formatC(seq.int(ncol(result)), 
-    width = ceiling(log10(ncol(result))), flag = "0")
-
-  colnames(result) <- paste0(term@term, "_", term@mult, "_rsiwp_k", knots_string)
+  colnames(result) <- paste0(
+    term@term, "_", term@mult,
+    "_rsiwp_k", knots_string
+  )
   result
 })
 
 # Precision matrix for iwp terms
 setMethod("precision", "rsiwp", function(term, data) {
-  result = Matrix::Matrix(adlaplace::compute_weights_precision(term@knots))
-  
-  knots_string = formatC(seq.int(nrow(result)), 
-    width = ceiling(log10(nrow(result))), flag = "0")
+  result <- Matrix::Matrix(adlaplace::compute_weights_precision(term@knots))
 
-  dimnames(result) = list(
+  knots_string <- formatC(
+    seq.int(nrow(result)),
+    width = ceiling(log10(nrow(result))),
+    flag = "0"
+  )
+
+  dimnames(result) <- list(
     paste0(term@term, "_", term@mult, "_rsiwp_k", knots_string)
-  )[c(1,1)]
+  )[c(1, 1)]
   result
 })
 
 # Theta info for iwp terms
 setMethod("theta_info", "rsiwp", function(term) {
   result <- data.frame(
-    term = term@term, model = "rsiwp", 
+    term = term@term, model = "rsiwp",
     label = paste(c(term@term, term@mult, "rsiwp"), collapse = "_"),
     init = term@init,
     lower = term@lower, upper = term@upper,
@@ -157,7 +182,6 @@ setMethod("beta_info", "rsiwp", function(term) {
 
 # Gamma info for iwp terms
 setMethod("random_info", "rsiwp", function(term, data) {
-
   basis <- seq(1, len = length(term@knots) - 1)
 
   result <- expand.grid(
@@ -174,7 +198,7 @@ setMethod("random_info", "rsiwp", function(term, data) {
     width = max(ceiling(c(1, log10(max(result$basis)))), na.rm = TRUE),
     flag = "0"
   )
-  result$by_labels <- NA  # iwp doesn't have by_labels
+  result$by_labels <- NA # iwp doesn't have by_labels
   result$gamma_label <- paste0(result$label, "_k", bnumPad)
 
   result

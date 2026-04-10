@@ -13,6 +13,7 @@
 #' @param Ngroups Integer giving the maximum number of groups to construct.
 #'   The actual number of groups may be smaller if fewer distinct loadings
 #'   are present.
+#' @param min_groups Integer giving the minimum number of groups
 #'
 #' @details
 #' If the \pkg{RSpectra} package is available, the leading singular vector
@@ -36,8 +37,10 @@
 #' G
 #'
 #' @export
-adFun_groups = function(ATp, elgm_matrix, Ngroups = ncol(ATp)) {
+adFun_groups = function(ATp, elgm_matrix, Ngroups = ncol(ATp), min_groups = 0) {
 
+
+# to do:  implement min_groups
   if(!missing(elgm_matrix)) {
     ATp_t = methods::as(ATp, "TsparseMatrix")
     ATp_t = data.frame(row = ATp_t@j, gamma = ATp_t@i)
