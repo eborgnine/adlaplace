@@ -43,16 +43,19 @@ adFun_groups = function(ATp, elgm_matrix, Ngroups = ncol(ATp)) {
     ATp_t = data.frame(row = ATp_t@j, gamma = ATp_t@i)
     elgm_matrix_t = methods::as(elgm_matrix, "TsparseMatrix")
     elgm_matrix_t = data.frame(row = elgm_matrix_t@i, strata=elgm_matrix_t@j)
-    elgm_split = split(elgm_matrix_t, elgm_matrix_t$strata)
-elgm_groups <- lapply(elgm_split, function(df, ATp_t) {
-  Ahere <- ATp_t[ATp_t$row %in% df$row, ]
-  data.frame(
-    gamma = sort(unique(Ahere$gamma)),
-    strata = df$strata[1]
-  )
-}, ATp_t = ATp_t)
-  elgm_groups = do.call(rbind, elgm_groups)
-  ATp = Matrix::sparseMatrix(i = elgm_groups$gamma, j=elgm_groups$strata,
+
+    data.table::setDT(ATp_t)
+    data.table::setDT(elgm_matrix_t)
+
+    A_elgm_merge = merge(ATp_t, elgm_matrix_t)
+    A_elgm_merge = A_elgm_merge[,c("gamma","strata")]
+    A_elgm_merge = A_elgm_merge[!duplicated(A_elgm_merge),]
+    A_elgm_merge = A_elgm_merge[order(A_elgm_merge$strata, A_elgm_merge$gamma),]
+
+
+  ATp = Matrix::sparseMatrix(
+    i = A_elgm_merge$gamma, 
+    j=A_elgm_merge$strata,
     index1=FALSE, dims = c(nrow(ATp), ncol(elgm_matrix)))
   }
 
