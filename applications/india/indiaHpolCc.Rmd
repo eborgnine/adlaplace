@@ -121,7 +121,7 @@ save(deaths, file = "deaths.RData")
 
 
 
-```{r fit, eval=FALSE}
+```{r fit, cache=TRUE}
 # devtools::install_github("eborgine/adlaplace")
 # devtools::install_github("eborgine/hpolcc")
 
@@ -136,25 +136,23 @@ res_pm_temp <- hnlm(
       model = "hiwp", ref_value = 8, p = 2,
       knots = seq(0, 32, by = 2),
       by = "eco_region",
-      init = c(1e-3, 1e-3, 1e-3),
-      parscale = c(1e-5, 1e-5, 1e-5),
-      lower = 1e-9
+      init = 1e-1,
+      lower = 1e-12
     ) +
     f(temp_div10,
       model = "hiwp", ref_value = 25 / 10, p = 3,
-      knots = seq(-5, 30, by = 2.5) / 10,
+      knots = seq(-5, 42.5, by = 2.5) / 10,
       by = "eco_region",
-      init = c(1e-2, 1e-2, 1e-3, 1e-2),
-      parscale = c(1e-6, 1e-4, 1e-3, 1e-3),
-      lower = 1e-9
+      init = 1e-1,
+      lower = 1e-12
     ) +
     f(model = "overdispersion", init = 0.1, parscale = 10),
   data = deaths, # [seq(1, 5e5),],
   cc_design = c("cell", "eco_region", "year_week3_dow"),
   config = list(
-    transform_theta = FALSE,
+    transform_theta = TRUE,
     num_threads = parallel::detectCores(),
-    num_groups = 5e3,
+    num_groups = 1e4,
     verbose = TRUE
   ),
   control = list(
@@ -166,7 +164,7 @@ res_pm_temp <- hnlm(
   for_dev = FALSE
 )
 
-# saveRDS(res_pm_temp, file = "resPmTemp.rds")
+saveRDS(res_pm_temp, file = "resPmTemp.rds")
 #invisible(sapply(list.files("~/research/adlaplace/hpolcc/R", pattern = "\\.R$", full.names = TRUE), source))
 ```
 
@@ -176,7 +174,7 @@ res <- res_pm_temp #readRDS("resPmTempR.rds")
 s_var <- names(res$sample$sim)
 s_var_names <- c(temp_div10 = "temperature", sqrt_pm = "PM2.5")[s_var]
 
-theta_table = res$parameters$theta[,c("term","model","mle", "init","lower", "parscale")]
+theta_table = res$parameters$theta[,c("term","model","mle", "init","lower", "parscale", "log_mle")]
 theta_table$term = s_var_names[theta_table$term]
 theta_table
 ```
@@ -225,7 +223,7 @@ for (d in seq_len(nrow(for_global))) {
   d_var <- for_global[d, "var"]
   x_here <- res$sample$x[[d_var]]
   if (grepl("sqrt", d_var)) x_here <- x_here^2
-  if (grepl("times10", d_var)) x_here <- x_here*10
+  if (grepl("div10", d_var)) x_here <- x_here*10
 
   plot(NA,
     xlim = the_x_lim[[d_var]], ylim = the_y_lim[[d_var]],
@@ -258,10 +256,13 @@ for (d in seq_len(nrow(for_global))) {
 
 
 
-```{r byRegionTemplate, eval=FALSE, include=FALSE}
+```{r byRegionTemplate}
+#, eval=FALSE, include=FALSE}
 x_here <- res$sample$x[[d_var]]
+s_group = names(res_pm_temp$sample$envelope$group[[d_var]])
 
 if (grepl("sqrt", d_var)) x_here <- x_here^2
+  if (grepl("div10", d_var)) x_here <- x_here*10
 
 sim_global_here_y <- 100 * (res$sample$quantiles$common[[d_var]] - 1)
 
@@ -436,9 +437,10 @@ for(D in 1:prod(par("mfrow"))) {
 
 
 ```{r testLogLgrad, eval=FALSE, include=FALSE}
+res = res_pm_temp
+x_params =  res$objects$cache$last_par_gr
+res$config$gamma = res$objects$cache$gamma
 
-x_params =   c(res$parameters_info$beta$init,
-  res$parameters_info$theta$init)
 ll1 = adlaplace::logLikLaplace(x_params, 
   config = res$config, 
   gamma=res$config$gamma, 
@@ -487,4 +489,70 @@ plot(Sx, Sdet)
 
 plot(Sx, extraDf[Dpar,'dDet',])
 lines(SxD, diff(Sdet)/diff(Sx))
+```
+
+
+```{r fit_nt, cache=TRUE}
+# devtools::install_github("eborgine/adlaplace")
+# devtools::install_github("eborgine/hpolcc")
+
+library("hpolcc")
+
+load("~/research/adlaplace/applications/india/deaths.RData")
+
+
+res_pm_temp_nt <- hnlm(
+  formula = medical ~ dom +
+    f(sqrt_pm,
+      model = "hiwp", ref_value = 8, p = 2,
+      knots = seq(0, 32, by = 2),
+      by = "eco_region",
+      init = 1e-2,
+      lower = 1e-12
+    ) +
+    f(temp_div10,
+      model = "hiwp", ref_value = 25 / 10, p = 3,
+      knots = seq(-5, 42.5, by = 2.5) / 10,
+      by = "eco_region",
+      init = 1e-2,
+      lower = 1e-12
+    ) +
+    f(model = "overdispersion", init = 0.1, parscale = 1),
+  data = deaths, # [seq(1, 5e5),],
+  cc_design = c("cell", "eco_region", "year_week3_dow"),
+  config = list(
+    transform_theta = FALSE,
+    num_threads = parallel::detectCores(),
+    num_groups = 1e4,
+    verbose = TRUE
+  ),
+  control = list(
+    maxit = 1000,
+    trace = 3,
+    REPORT = 1
+  ),
+  control_inner = list(report.level = 0, trust.iter = 5000),
+  for_dev = FALSE
+)
+
+saveRDS(res_pm_temp_nt, file = "resPmTempNt.rds")
+#invisible(sapply(list.files("~/research/adlaplace/hpolcc/R", pattern = "\\.R$", full.names = TRUE), source))
+```
+
+
+```{r par_table2}
+res <- res_pm_temp_nt #readRDS("resPmTempR.rds")
+s_var <- names(res$sample$sim)
+s_var_names <- c(temp_div10 = "temperature", sqrt_pm = "PM2.5")[s_var]
+
+theta_table = res$parameters$theta[,c("term","model","mle", "init","lower", "parscale", "log_mle")]
+theta_table$term = s_var_names[theta_table$term]
+theta_table
+```
+
+here
+
+```{r optstuf, echo=TRUE}
+res_pm_temp_nt$opt
+res_pm_temp$opt
 ```
