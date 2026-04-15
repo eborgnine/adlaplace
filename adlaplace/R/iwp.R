@@ -75,6 +75,9 @@ iwp <- function(
     parscale = parscale[1]
     # type is already set in prototype, no need to repeat
   )
+  if(p==1) {
+    include_poly = FALSE
+  }
   if (include_poly) {
     poly_name <- paste(c(x, "poly"), collapse = "_")
     if (boundary_is_random) {
