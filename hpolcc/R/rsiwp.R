@@ -103,6 +103,9 @@ rsiwp <- function(
     parscale = parscale[1]
     # type is already set in prototype, no need to repeat
   )
+  if(p==1) {
+    include_poly = FALSE
+  }
   if (include_poly) {
     if (boundary_is_random) {
     poly_name <- paste(c(x, "rsrpoly"), collapse = "_")
