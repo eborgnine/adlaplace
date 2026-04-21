@@ -30,14 +30,12 @@ sparsity information.}
 \code{inner_opt()} (see \pkg{trustOptim}).}
 }
 \value{
-\itemize{
-  \item{\code{all_derivs()}}{Returns \code{fval}, \code{gradient}, and
+\item{\code{all_derivs()}}{Returns \code{fval}, \code{gradient}, and
   \code{hessian} for full/outer derivatives at \code{x}.}
   \item{\code{inner_opt()}}{Returns \code{fval}, \code{solution},
   \code{gradient} (full/outer gradient at the optimized \code{gamma}),
   \code{hessian} (sparse list), \code{iterations}, \code{status},
   \code{trust.radius}, and \code{method}.}
-}
 }
 \description{
 Runs the inner optimization problem (typically over \eqn{\gamma}) using the
