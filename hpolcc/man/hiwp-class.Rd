@@ -4,6 +4,11 @@
 \name{hiwp-class}
 \alias{hiwp-class}
 \alias{hiwp}
+\alias{design,hiwp-method}
+\alias{precision,hiwp-method}
+\alias{theta_info,hiwp-method}
+\alias{beta_info,hiwp-method}
+\alias{random_info,hiwp-method}
 \title{Hierarchical Integrated Wiener Process Model Term}
 \usage{
 hiwp(
@@ -21,6 +26,16 @@ hiwp(
   include_poly = TRUE,
   include_global = TRUE
 )
+
+\S4method{design}{hiwp}(term, data)
+
+\S4method{precision}{hiwp}(term, data)
+
+\S4method{theta_info}{hiwp}(term)
+
+\S4method{beta_info}{hiwp}(term, data)
+
+\S4method{random_info}{hiwp}(term, data)
 }
 \arguments{
 \item{x}{Variable name}
@@ -48,9 +63,23 @@ hiwp(
 \item{include_poly}{Whether to include polynomial terms}
 
 \item{include_global}{Whether to include global component}
+
+\item{term}{An `hiwp` term object.}
+
+\item{data}{A data frame containing the variables used in the term.}
 }
 \value{
 A list containing hiwp term object and optionally related terms
+
+A design matrix for the HIWP term.
+
+A precision matrix for the HIWP term.
+
+A data frame containing theta parameter information for the HIWP term.
+
+NULL (HIWP terms don't have beta parameters).
+
+A data frame containing random effects information for the HIWP term.
 }
 \description{
 Creates and manages hierarchical integrated Wiener process (HIWP) model terms.

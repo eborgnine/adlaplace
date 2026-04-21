@@ -34,11 +34,31 @@ rsfpoly(
 \S4method{random_info}{rsfpoly}(term, data)
 }
 \arguments{
+\item{x}{Variable name.}
+
+\item{mult}{Variable to multiply the polynomial by.}
+
+\item{p}{Polynomial degree (default: 2).}
+
+\item{ref_value}{Reference value for the polynomial.}
+
+\item{ref_mult}{Reference value for the covariate.}
+
+\item{init}{Initial values for beta parameters.}
+
+\item{lower}{Lower bounds for beta parameters.}
+
+\item{upper}{Upper bounds for beta parameters.}
+
+\item{parscale}{Parameter scales for optimization.}
+
 \item{term}{A rsfpoly term object}
 
 \item{data}{A data frame containing the term variables}
 }
 \value{
+A `rsfpoly` term object.
+
 A design matrix for the random slope fixed polynomial term, or NULL if p.order is 0
 
 NULL (fixed effects don't have precision matrices)

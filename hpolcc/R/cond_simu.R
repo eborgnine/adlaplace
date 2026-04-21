@@ -100,7 +100,7 @@ get_group_quantiles <- function(
       weights_here <- weights
     }
     if (is.null(weights_here)) {
-      weights_here <- setNames(
+      weights_here <- stats::setNames(
         rep(1 / length(d_groups), length(d_groups)),
         d_groups
       )
@@ -194,7 +194,6 @@ get_gamma_sim <- function(fit, term, n) {
   gamma_sim[gamma_here, , drop = FALSE]
 }
 
-#' @export
 cond_sim <- function(fit, term, newx, n = 500) {
   terms_here <- grep(term, unlist(lapply(fit$terms, function(xx) xx$var)))
   model_here <- unlist(lapply(fit$terms[terms_here], function(xx) xx$model))
@@ -225,6 +224,8 @@ cond_sim <- function(fit, term, newx, n = 500) {
 #'   such vectors keyed by variable. If `NULL`, equal weights are used.
 #' @param probs Numeric vector of probabilities used when computing
 #'   quantiles.
+#' @param probs_envelope Numeric vector of probabilities used for computing
+#'   prediction intervals/envelopes.
 #'
 #' @return A list with components:
 #' \describe{

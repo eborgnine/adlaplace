@@ -27,6 +27,9 @@ such vectors keyed by variable. If `NULL`, equal weights are used.}
 
 \item{probs}{Numeric vector of probabilities used when computing
 quantiles.}
+
+\item{probs_envelope}{Numeric vector of probabilities used for computing
+prediction intervals/envelopes.}
 }
 \value{
 A list with components:

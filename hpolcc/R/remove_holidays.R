@@ -29,7 +29,7 @@ removeHolidays <- function(data, type = "rm_all") {
 
   keep_within <- cbind(begin_day, end_day)
   to_keep <- unlist(lapply(seq_len(nrow(keep_within)), function(i) {
-    which(data$date %between% keep_within[i, ])
+    which(data$date >= min(keep_within[i, ]) & data$date <= max(keep_within[i,]))
   }))
 
   data <- data[to_keep, ]

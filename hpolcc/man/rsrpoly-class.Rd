@@ -24,11 +24,25 @@ rsrpoly(x, mult, p = 2, ref_value = 0, ref_mult = 0, sd = Inf)
 \S4method{random_info}{rsrpoly}(term, data)
 }
 \arguments{
+\item{x}{Variable name.}
+
+\item{mult}{Variable to multiply the polynomial by.}
+
+\item{p}{Polynomial degree (default: 2).}
+
+\item{ref_value}{Reference value for the polynomial.}
+
+\item{ref_mult}{Reference value for the covariate.}
+
+\item{sd}{Standard deviation for random effects.}
+
 \item{term}{A rsrpoly term object}
 
 \item{data}{A data frame containing the term variables}
 }
 \value{
+A `rsrpoly` term object.
+
 A design matrix for the random slope polynomial term, or NULL if p.order is 0
 
 A precision matrix for the random slope polynomial term

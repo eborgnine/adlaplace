@@ -79,7 +79,7 @@ ccDesign <- function(...) {
 
 
 removeUnusedStrata = function(x, Sstrata, outcome, NeventCutoff = 0) {
-  setDT(x)
+  data.table::setDT(x)
   
   if (!all(Sstrata %in% names(x)))
     stop("Some strata columns not found in data")

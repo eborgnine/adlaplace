@@ -32,6 +32,13 @@ setClass("rsrpoly",
 )
 
 #' @rdname rsrpoly-class
+#' @param x Variable name.
+#' @param mult Variable to multiply the polynomial by.
+#' @param p Polynomial degree (default: 2).
+#' @param ref_value Reference value for the polynomial.
+#' @param ref_mult Reference value for the covariate.
+#' @param sd Standard deviation for random effects.
+#' @return A `rsrpoly` term object.
 #' @export
 rsrpoly <- function(x, mult, p = 2, ref_value = 0, ref_mult = 0, sd = Inf) {
   # check sd is positive and length 1.  check p length 2 integer.  check ref value length 1

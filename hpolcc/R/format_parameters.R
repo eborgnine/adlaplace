@@ -1,6 +1,3 @@
-#' parameters_info is a list with elements beta, gamma, theta
-#' each needs columns var, name, theta needs log
-
 format_parameters <- function(x) {
   full_parameters <- x$extra$full_parameters
   parameters_info <- x$objects$parameters_info

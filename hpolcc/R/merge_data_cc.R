@@ -1,4 +1,3 @@
-
 merge_data_cc <- function(
   x,
   exposure,
@@ -34,7 +33,7 @@ merge_data_cc <- function(
   }
 
   x_agg <- x[
-    , data.table::setNames(list(.N), count_name),
+    , stats::setNames(list(.N), count_name),
     by = c(time_variable, strata_variables)
   ]
 

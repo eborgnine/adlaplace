@@ -3,27 +3,83 @@
 \docType{class}
 \name{hrpoly-class}
 \alias{hrpoly-class}
+\alias{hrpoly}
+\alias{design,hrpoly-method}
+\alias{precision,hrpoly-method}
+\alias{theta_info,hrpoly-method}
+\alias{beta_info,hrpoly-method}
+\alias{random_info,hrpoly-method}
 \title{Hierarchical Random Polynomial Model Term}
+\usage{
+hrpoly(
+  x,
+  p = 1,
+  ref_value = 0,
+  by,
+  init = .my_theta_init,
+  lower = .my_theta_lower,
+  upper = .my_theta_upper,
+  parscale = .my_theta_parscale
+)
+
+\S4method{design}{hrpoly}(term, data)
+
+\S4method{precision}{hrpoly}(term, data)
+
+\S4method{theta_info}{hrpoly}(term)
+
+\S4method{beta_info}{hrpoly}(term, data)
+
+\S4method{random_info}{hrpoly}(term, data)
+}
 \arguments{
-\item{x}{Variable name}
+\item{x}{Variable name.}
 
-\item{p}{Polynomial degree (default: 1)}
+\item{p}{Polynomial degree (default: 1).}
 
-\item{ref_value}{Reference value for the polynomial}
+\item{ref_value}{Reference value for the polynomial.}
 
-\item{by}{Grouping variable for hierarchical structure}
+\item{by}{Grouping variable for hierarchical structure.}
 
-\item{init}{Initial value for theta parameter}
+\item{init}{Initial value for theta parameter.}
 
-\item{lower}{Lower bound for theta parameter}
+\item{lower}{Lower bound for theta parameter.}
 
-\item{upper}{Upper bound for theta parameter}
+\item{upper}{Upper bound for theta parameter.}
 
-\item{parscale}{Parameter scale for optimization}
+\item{parscale}{Parameter scale for optimization.}
+
+\item{term}{An `hrpoly` term object.}
+
+\item{data}{A data frame containing the variables used in the term.}
 }
 \value{
-A hrpoly term object
+An `hrpoly` term object.
+
+A design matrix for the hrpoly term.
+
+A precision matrix for the hrpoly term.
+
+A data frame containing theta parameter information for the hrpoly term.
+
+NULL (hrpoly terms don't have beta parameters).
+
+A data frame containing random effects information for the hrpoly term.
 }
 \description{
+Creates and manages hierarchical random polynomial model terms.
+
 Creates a hierarchical random polynomial model term.
 }
+\section{Methods}{
+
+The following methods are available for `hrpoly` objects:
+\describe{
+  \item{\code{design(term, data)}}{Creates design matrix for hrpoly term}
+  \item{\code{precision(term, data)}}{Creates precision matrix for hrpoly term}
+  \item{\code{theta_info(term)}}{Extracts theta parameter information}
+  \item{\code{beta_info(term, data)}}{Extracts beta parameter information}
+  \item{\code{random_info(term, data)}}{Extracts random effects information}
+}
+}
+

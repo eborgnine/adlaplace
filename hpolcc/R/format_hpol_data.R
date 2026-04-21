@@ -1,4 +1,3 @@
-#' @export
 formatHpolData <- function(data) {
 
   result <- NULL

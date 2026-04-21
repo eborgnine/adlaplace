@@ -170,7 +170,8 @@ setMethod("design", "rsiwp", function(term, data) {
 #' @param data A data frame containing the term variable
 #' @export
 setMethod("precision", "rsiwp", function(term, data) {
-  result <- Matrix::Matrix(adlaplace::compute_weights_precision(term@knots))
+  term_iwp = methods::as(term, "iwp")
+  result <- Matrix::Matrix(adlaplace::precision(term_iwp))
 
   knots_string <- formatC(
     seq.int(nrow(result)),

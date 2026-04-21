@@ -1,20 +1,22 @@
 #' Hierarchical Random Polynomial Model Term
 #'
-#' @description Creates a hierarchical random polynomial model term.
+#' @description Creates and manages hierarchical random polynomial model terms.
+#' @name hrpoly-class
+#' @docType class
+#' @exportClass hrpoly
 #'
-#' @param x Variable name
-#' @param p Polynomial degree (default: 1)
-#' @param ref_value Reference value for the polynomial
-#' @param by Grouping variable for hierarchical structure
-#' @param init Initial value for theta parameter
-#' @param lower Lower bound for theta parameter
-#' @param upper Upper bound for theta parameter
-#' @param parscale Parameter scale for optimization
-#'
-#' @return A hrpoly term object
+#' @section Methods:
+#' The following methods are available for `hrpoly` objects:
+#' \describe{
+#'   \item{\code{design(term, data)}}{Creates design matrix for hrpoly term}
+#'   \item{\code{precision(term, data)}}{Creates precision matrix for hrpoly term}
+#'   \item{\code{theta_info(term)}}{Extracts theta parameter information}
+#'   \item{\code{beta_info(term, data)}}{Extracts beta parameter information}
+#'   \item{\code{random_info(term, data)}}{Extracts random effects information}
+#' }
+NULL
 
 #' @importFrom adlaplace fpoly rpoly
-# HRPoly class definition
 setClass("hrpoly",
          representation = representation(
            by_levels = "integer",
@@ -29,6 +31,19 @@ setClass("hrpoly",
          )
 )
 
+#' Hierarchical Random Polynomial Term Constructor
+#'
+#' @description Creates a hierarchical random polynomial model term.
+#' @rdname hrpoly-class
+#' @param x Variable name.
+#' @param p Polynomial degree (default: 1).
+#' @param ref_value Reference value for the polynomial.
+#' @param by Grouping variable for hierarchical structure.
+#' @param init Initial value for theta parameter.
+#' @param lower Lower bound for theta parameter.
+#' @param upper Upper bound for theta parameter.
+#' @param parscale Parameter scale for optimization.
+#' @return An `hrpoly` term object.
 #' @export
 hrpoly <- function(
   x,
@@ -71,7 +86,11 @@ hrpoly <- function(
 }
 
 
-# Design matrix for hrpoly terms
+#' @rdname hrpoly-class
+#' @param term An `hrpoly` term object.
+#' @param data A data frame containing the variables used in the term.
+#' @return A design matrix for the hrpoly term.
+#' @export
 setMethod("design", "hrpoly", function(term, data) {
 
   term = get_by_levels(term, data)
@@ -107,7 +126,11 @@ setMethod("design", "hrpoly", function(term, data) {
   result
 })
 
-# Precision matrix for hrpoly terms
+#' @rdname hrpoly-class
+#' @param term An `hrpoly` term object.
+#' @param data A data frame containing the variables used in the term.
+#' @return A precision matrix for the hrpoly term.
+#' @export
 setMethod("precision", "hrpoly", function(term, data) {
   if (term@p.order == 0) {
     return(NULL)
@@ -122,7 +145,10 @@ setMethod("precision", "hrpoly", function(term, data) {
 
 })
 
-# Theta info for hrpoly terms
+#' @rdname hrpoly-class
+#' @param term An `hrpoly` term object.
+#' @return A data frame containing theta parameter information for the hrpoly term.
+#' @export
 setMethod("theta_info", "hrpoly", function(term) {
   result <- data.frame(
     term = term@term, model = "hrpoly", 
@@ -136,13 +162,21 @@ setMethod("theta_info", "hrpoly", function(term) {
   return(result)
 })
 
-# Beta info for hrpoly terms
-setMethod("beta_info", "hrpoly", function(term) {
+#' @rdname hrpoly-class
+#' @param term An `hrpoly` term object.
+#' @param data A data frame containing the variables used in the term.
+#' @return NULL (hrpoly terms don't have beta parameters).
+#' @export
+setMethod("beta_info", "hrpoly", function(term, data) {
   # HRpoly terms don't have beta parameters (random effects only)
   return(NULL)
 })
 
-# Gamma info for hrpoly terms
+#' @rdname hrpoly-class
+#' @param term An `hrpoly` term object.
+#' @param data A data frame containing the variables used in the term.
+#' @return A data frame containing random effects information for the hrpoly term.
+#' @export
 setMethod("random_info", "hrpoly", function(term, data) {
   basis <- NA
   if(!length(term@by_levels)) {

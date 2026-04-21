@@ -30,6 +30,16 @@ setClass("rsfpoly",
 )
 
 #' @rdname rsfpoly-class
+#' @param x Variable name.
+#' @param mult Variable to multiply the polynomial by.
+#' @param p Polynomial degree (default: 2).
+#' @param ref_value Reference value for the polynomial.
+#' @param ref_mult Reference value for the covariate.
+#' @param init Initial values for beta parameters.
+#' @param lower Lower bounds for beta parameters.
+#' @param upper Upper bounds for beta parameters.
+#' @param parscale Parameter scales for optimization.
+#' @return A `rsfpoly` term object.
 #' @export
 rsfpoly <- function(
   x, mult, p = 2,

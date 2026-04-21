@@ -79,7 +79,7 @@ hiwp <- function(
   the_f <- stats::as.formula(paste0("~ 0 + ", x), env=new.env())
   result <- list()
   hiwp_name <- paste(c(x, "hiwp"), collapse = "_")
-  result[[hiwp_name]] <- new("hiwp",
+  result[[hiwp_name]] <- methods::new("hiwp",
     term = x,
     formula = the_f,
     p.order = as.integer(p),
@@ -95,7 +95,7 @@ hiwp <- function(
 
   if (include_global) {
     iwp_name <- paste(c(x, "iwp"), collapse = "_")
-    result[[iwp_name]] <- new("iwp",
+    result[[iwp_name]] <- methods::new("iwp",
       term = x,
       formula = the_f,
       p.order = as.integer(p),
@@ -142,6 +142,11 @@ hiwp <- function(
   result
 }
 
+#' @rdname hiwp-class
+#' @param term An `hiwp` term object.
+#' @param data A data frame containing the variables used in the term.
+#' @return A design matrix for the HIWP term.
+#' @export
 setMethod("design", "hiwp", function(term, data) {
 
   by_stuff = get_by_levels(term, data)
@@ -190,6 +195,11 @@ setMethod("design", "hiwp", function(term, data) {
   Afinal
 })
 
+#' @rdname hiwp-class
+#' @param term An `hiwp` term object.
+#' @param data A data frame containing the variables used in the term.
+#' @return A precision matrix for the HIWP term.
+#' @export
 setMethod("precision", "hiwp", function(term, data) {
   term = get_by_levels(term, data)
 
@@ -205,6 +215,10 @@ setMethod("precision", "hiwp", function(term, data) {
   result
 })
 
+#' @rdname hiwp-class
+#' @param term An `hiwp` term object.
+#' @return A data frame containing theta parameter information for the HIWP term.
+#' @export
 setMethod("theta_info", "hiwp", function(term) {
   # Global and local parameters
   result <- data.frame(
@@ -221,11 +235,21 @@ setMethod("theta_info", "hiwp", function(term) {
   result
 })
 
-setMethod("beta_info", "hiwp", function(term) {
+#' @rdname hiwp-class
+#' @param term An `hiwp` term object.
+#' @param data A data frame containing the variables used in the term.
+#' @return NULL (HIWP terms don't have beta parameters).
+#' @export
+setMethod("beta_info", "hiwp", function(term, data) {
   # HIWP terms don't have beta parameters
   return(NULL)
 })
 
+#' @rdname hiwp-class
+#' @param term An `hiwp` term object.
+#' @param data A data frame containing the variables used in the term.
+#' @return A data frame containing random effects information for the HIWP term.
+#' @export
 setMethod("random_info", "hiwp", function(term, data) {
   basis <- seq(1, len = length(term@knots) - 1)
 

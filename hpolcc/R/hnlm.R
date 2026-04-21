@@ -1,7 +1,48 @@
-#' @import data.table
-#' @importFrom adlaplace getAdFun jointLogDens grad hess
-#' @importFrom adlaplace traceHinvT outer_fn outer_gr
-#' @importFrom adlaplace logLikLaplace inner_opt
+#' Fit Hierarchical Non-Linear Models
+#'
+#' @description
+#' This function fits a hierarchical model using the specified formula and data,
+#' incorporating case-crossover designs, fixed and random effects, and precision
+#' matrices for random effects.
+#'
+#' @param formula A formula object specifying the model to be fitted.
+#' @param data A data frame containing the variables specified in the formula.
+#' @param cc_design An object specifying the case-crossover design.
+#' @param config A list of configuration options including:
+#'        \itemize{
+#'          \item dirichlet: Logical; whether to use Dirichlet distribution (default: TRUE)
+#'          \item boundary_is_random: Logical; whether boundary should be treated as random (default: FALSE)
+#'          \item transform_theta: Logical; whether to transform theta parameters (default: TRUE)
+#'        }
+#' @param control A list of control options for optimization including:
+#'        \itemize{
+#'          \item maxit: Maximum number of iterations (default: 1000)
+#'          \item trace: Level of tracing output (default: 3)
+#'          \item REPORT: Reporting frequency (default: 1)
+#'        }
+#' @param control_inner A list of control options for inner optimization including:
+#'        \itemize{
+#'          \item report.level: Reporting level for inner optimization (default: 0)
+#'        }
+#' @param for_dev Logical; if TRUE, returns intermediate objects for development (default: FALSE).
+#' @param ... Additional arguments passed to methods.
+#'
+#' @details
+#' The function handles fixed effects, random effects, and their associated
+#' precision matrices. It also optimizes the model using TMB with options for
+#' additional preprocessing and handling specific random effect structures.
+#'
+#' @return
+#' A list containing the fitted model object and related information.
+#'
+#' @seealso
+#' \code{\link{f}} for specifying model terms
+#'
+#' @examples
+#' # Example usage
+#' # data <- data.frame(y = rnorm(100), x1 = rnorm(100), x2 = rnorm(100))
+#' # result <- hnlm(y ~ x1 + x2, data = data)
+#'
 #' @export
 hnlm <- function(
   formula,
@@ -22,7 +63,7 @@ hnlm <- function(
   ...
 ) {
   # Check inputs
-  if (!is(formula, "formula")) {
+  if (!methods::is(formula, "formula")) {
     stop("formula must be a formula.")
   }
 
@@ -67,7 +108,7 @@ hnlm <- function(
   outcome_var <- all.vars(formula)[1]
   random_slope_terms = unique(unlist(sapply(model_terms[
     grep("^rs", sapply(model_terms, class))
-  ], slot, "mult")))
+  ], methods::slot, "mult")))
 
   strat_time_vars <- unique(c(cc_design$strat_vars, cc_design$time_var))
 
@@ -87,7 +128,7 @@ hnlm <- function(
     print(required_vars)
   }
   # Remove rows with NA values in required variables
-  data <- data[complete.cases(data[, ..required_vars])]
+  data <- data[stats::complete.cases(data[, ..required_vars])]
 
   if (anyNA(data[[outcome_var]])) {
     warning("missing values in outcome, treating as zeros")
@@ -133,6 +174,10 @@ hnlm <- function(
     data = data_sub,
     verbose = config$verbose
   )
+
+  beta_setup = model_stuff$info$beta
+  theta_setup = model_stuff$info$theta
+  gamma_setup = model_stuff$info$gamma
 
   # Extract components from model_setup result
   tmb_data <- model_stuff$data
