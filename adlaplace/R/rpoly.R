@@ -87,9 +87,9 @@ setMethod("random_info", "rpoly", function(term, data) {
     model = "rpoly",
     label = paste(c(term@term, "rpoly"), collapse = "_"),
     by = NA,
+    by_labels = NA,
     basis = basis,
     order = order,
-    by_labels = NA,
     stringsAsFactors = FALSE
   )
   result$gamma_label <- paste(result$label, result$order, sep = "_")

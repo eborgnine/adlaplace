@@ -6,33 +6,36 @@
 #' The function delegates the inner optimization to \code{inner_opt()} from the
 #' selected backend package (by default \pkg{adlaplace}).
 #'
-#' @param x Numeric vector of outer parameters \code{c(beta, theta)} with length
-#'   \code{length(config$beta) + length(config$theta)}.
+#' @param x Numeric vector of outer parameters, expected to have length
+#'   \code{length(config$beta) + length(config$theta)}. Elements are split
+#'   into \code{beta} (first \code{length(config$beta)} elements) and \code{theta}
+#'   (remaining elements) before passing to the inner optimizer.
 #' @param config A list containing model dimensions/starting values and backend
 #'   options. Must include \code{beta}, \code{gamma}, and \code{theta}; may also
 #'   include \code{package}, \code{verbose}, and \code{num_threads}.
 #' @param gamma Optional numeric vector of starting values for the inner
-#'   parameter \code{gamma}. Defaults to \code{config$gamma}.
-#' @param control List of control parameters passed to the backend inner optimizer.
-#'   (e.g. \code{report.level}, \code{report.freq}).
+#'   parameter \code{gamma}. If missing, defaults to \code{config$gamma}.
+#' @param control List of control parameters passed *as-is* to the backend inner
+#'   optimizer (e.g., \code{report.level}, \code{report.freq}). See backend
+#'   documentation (e.g., \pkg{trustOptim}) for supported options.
 #' @param adFun Optional AD object returned by the backend \code{getAdFun()}.
 #'   This is a single backend handle (no separate inner/outer handles). If
-#'   missing, it will be constructed automatically.
+#'   missing, it will be constructed automatically using \code{data}.
 #' @param data Optional data list used to build \code{adFun} when \code{adFun}
 #'   is not supplied.
 #' @param package Character scalar naming the backend package to use for
-#'   \code{getAdFun()} and \code{inner_opt()}. Defaults to the first element of
-#'   \code{c(config$package, "adlaplace")}.
+#'   \code{getAdFun()} and \code{inner_opt()}. Defaults to \code{"adlaplace"}.
+#'   Other backends must export \code{getAdFun_r()} and \code{inner_opt()}.
 #' @param deriv Logical scalar. If \code{TRUE}, include derivative quantities in
-#'   the output.
+#'   the output (gradient, intermediate derivatives).
 #'
 #' @details
 #' The parameter vector \code{x} is split into \code{beta} and \code{theta} and
 #' inserted into \code{config} (as \code{config_inner$beta} and
 #' \code{config_inner$theta}) before calling the backend inner optimizer.
 #'
-#' Current backends use a single AD handle. This function passes that handle to
-#' \code{inner_opt(..., adFun = adFun)}.
+#' The default \pkg{adlaplace} backend uses a single AD handle. This function
+#' passes that handle to \code{inner_opt(..., adFun = adFun)}.
 #'
 #' The inner objective is treated as negative joint log density; this function
 #' returns both the Laplace-approximated log-likelihood (\code{logLik}) and its
@@ -46,27 +49,28 @@
 #'   \item{parameters}{The input outer parameter vector \code{x}.}
 #'   \item{full_parameters}{Concatenation of \code{beta}, optimized \code{gamma},
 #'   and \code{theta}.}
-#'   \item{hessian}{List with \code{H} (outer Hessian sparse matrix) and
-#'   \code{cholInner} (sparse LDL decomposition of inner Hessian).}
+#'   \item{hessian}{List with \code{H} (outer Hessian sparse matrix), \code{cholInner}
+#'   (sparse LDL decomposition of inner Hessian), and \code{halfLogDet} (half the
+#'   log-determinant of the inner Hessian).}
 #'   \item{opt}{Inner optimizer outputs (excluding Hessian objects), including
 #'   \code{solution}, \code{gradient}, \code{iterations}, \code{status}, and
 #'   \code{trust.radius}.}
-#'   \item{grad}{When \code{deriv=TRUE}: gradient currently returned with the
-#'   package's outer-objective sign convention (negative log-likelihood).}
+#'   \item{grad}{When \code{deriv=TRUE}: gradient of the Laplace-approximated
+#'   log-likelihood w.r.t. \code{x}, with sign convention matching \code{-logLik}.}
 #'   \item{deriv, extra}{When \code{deriv=TRUE}: intermediate derivative pieces
 #'   returned by \code{logLikDeriv()}.}
 #' }
 #'
+#' @note The Laplace approximation assumes the inner Hessian \code{Hinner} is
+#'   positive definite at the optimum. If \code{inner_opt()} fails to converge
+#'   or returns a non-invertible Hessian, \code{logLikLaplace()} issues a warning
+#'   or error.
 #'
-#' @examples
-#' \dontrun{
-#' # x <- c(beta, theta)
-#' # out <- logLikLaplace(x = x, config = config, data = data, deriv = TRUE)
-#' # out$logLik
-#' # out$grad
-#' }
 #'
-
+#' @seealso
+#' \code{\link[adlaplace]{getAdFun}}, \code{\link[adlaplace]{inner_opt}},
+#' \code{\link[adlaplace]{logLikDeriv}}
+#'
 #' @export
 logLikLaplace = function(
 	x, config, 
@@ -111,7 +115,7 @@ logLikLaplace = function(
 
 
 	if(any(config$verbose)) {
-		cat("logLikLaplace using package ", package, "for objective funcion\n")
+		cat("logLikLaplace using package ", package, " for objective function\n")
 	}
 
 	Niter = 0;tryAgain=TRUE

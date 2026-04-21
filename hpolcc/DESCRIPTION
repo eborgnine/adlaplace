@@ -9,7 +9,7 @@ SystemRequirements: CppAD, OpenMP
 License: GPL-3
 Depends: R (>= 4.1.0),
 LinkingTo: Rcpp, adlaplace, RcppEigen, trustOptim
-Imports: Rcpp, Matrix, data.table, trustOptim, methods, Rfast, lubridate, timeDate, numDeriv, stats, adlaplace
+Imports: Rcpp, Matrix, data.table, trustOptim, methods, lubridate, timeDate, numDeriv, stats, adlaplace
 Suggests: GET
 Encoding: UTF-8
 RoxygenNote: 7.3.3

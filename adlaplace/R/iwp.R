@@ -153,6 +153,7 @@ setMethod("random_info", "iwp", function(term, data) {
     model = "iwp",
     label = paste(c(term@term, "iwp"), collapse = "_"),
     by = NA, # iwp doesn't have hierarchical structure
+    by_labels = NA,
     basis = basis,
     order = term@p.order,
     stringsAsFactors = FALSE
@@ -162,7 +163,6 @@ setMethod("random_info", "iwp", function(term, data) {
     width = max(ceiling(c(1, log10(max(result$basis)))), na.rm = TRUE),
     flag = "0"
   )
-  result$by_labels <- NA # iwp doesn't have by_labels
   result$gamma_label <- paste0(result$label, "_k", bnumPad)
 
   result

@@ -1,23 +1,30 @@
-# requires timeDate and lubridate package!
-removeHolidays <- function(data, type) {
+#' Remove Holidays from Data
+#'
+#' This function removes holidays from a dataset based on the specified type.
+#'
+#' @param data A data frame containing a 'date' column.
+#' @param type A character string specifying the type of holiday removal. Options are "rm_none", "rm_all".
+#' @return A data frame with holidays removed according to the specified type.
+#' @export
+removeHolidays <- function(data, type = "rm_all") {
   if (type == "rm_none") {
     return(data)
   }
 
-  if (!("year" %in% names(data))) {
-    cat("Computing <year> variable from data$date. Hopefully it exists\n")
-    years <- year(data$date)
-  } else {
-    years <- data$year
+  date_var = grep("^[Dd]ate$", names(data), value=TRUE)
+  if (length(date_var) ==0 ) {
+    warning("no date variable")
   }
+  years <- as.integer(foramt(data$date, "%Y"))
+
   year_range <- min(years):max(years)
 
   # First Wed not in the same week as New Year
-  new_year_wday <- lubridate::wday(paste(year_range, "01", "01", sep = "-"))
+  new_year_wday <- as.POSIXlt(paste(year_range, "01", "01", sep = "-"))$wday
   begin_day <- paste(year_range, "01", 12 - new_year_wday, sep = "-")
 
   # Last Tuesday not in the same week of Christmas
-  christmas_wday <- lubridate::wday(paste(year_range, "12", "25", sep = "-"))
+  christmas_wday <- as.POSIXlt(paste(year_range, "12", "25", sep = "-"))$wday
   end_day <- paste(year_range, "12", 25 - (5:11)[christmas_wday], sep = "-")
 
   keep_within <- cbind(begin_day, end_day)

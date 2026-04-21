@@ -127,131 +127,19 @@ hnlm <- function(
     cat("\ncollecting terms\n")
   }
 
-  # add group info to model
-  model_terms <- lapply(model_terms, get_by_levels, data = data_sub)
-
-  theta_info_list <- lapply(model_terms, adlaplace::theta_info)
-  theta_setup <- do.call(rbind, theta_info_list)
-  theta_setup$id <- seq.int(0, length.out = nrow(theta_setup))
-
-  beta_setup <- do.call(rbind, lapply(model_terms, adlaplace::beta_info, data = data_sub))
-
-  random_info_list <- lapply(model_terms, adlaplace::random_info, data = data_sub)
-  gamma_setup <- do.call(rbind, random_info_list)
-  gamma_setup$id <- seq.int(0, length.out = nrow(gamma_setup))
-  gamma_setup$theta_id <- theta_setup[match(
-    gamma_setup$label, theta_setup$label
-  ), "id"]
-
-  terms_with_gamma <- sapply(model_terms, slot, "type") == "random"
-  terms_with_beta <- sapply(model_terms, slot, "type") == "fixed"
-
-  design_list_x <- lapply(
-    model_terms[terms_with_beta], 
-    adlaplace::design,
-    data = data_sub
-  )
-  if (FALSE) {
-    design_list_a <- parallel::mclapply(
-      model_terms[terms_with_gamma],
-      adlaplace::design,
-      MoreArgs = list(data = data_sub),
-      mc.cores = config$num_threads
-    )
-  } else {
-    design_list_a <- lapply(
-      model_terms[terms_with_gamma],
-      adlaplace::design,
-      data = data_sub
-    )
-  }
-  gamma_dims <- data.frame(
-    design = sapply(design_list_a, ncol),
-    gamma = unlist(sapply(random_info_list, nrow))
-  )
-  if (!all(gamma_dims$design == gamma_dims$gamma)) {
-    warning("gamma sizes wrong")
-    print(gamma_dims)
-  }
-  a_matrix <- do.call(cbind, design_list_a)
-  x_matrix <- do.call(cbind, design_list_x)
-  if (is.null(x_matrix)) {
-    x_matrix <- matrix(nrow = nrow(data_sub), ncol = 0)
-  }
-  
-  if (is.null(a_matrix)) {
-    a_matrix <- matrix(nrow = nrow(data_sub), ncol = 0)
-  } 
-
-  beta_reorder <- match(colnames(x_matrix), beta_setup$beta_label)
-  beta_setup <- beta_setup[beta_reorder, ]
-
-  gamma_reorder <- match(colnames(a_matrix), gamma_setup$gamma_label)
-  if (any(is.na(gamma_reorder))) {
-    warning("problem with random names")
-    print(setdiff(gamma_setup$gamma_label, colnames(a_matrix)))
-    print(setdiff(colnames(a_matrix),gamma_setup$gamma_label))
-  }
-  gamma_setup <- gamma_setup[gamma_reorder, ]
-
-  gamma_setup_sub <- gamma_setup[!is.na(gamma_setup$theta_id), ]
-  gamma_theta_map <- Matrix::sparseMatrix(
-    i = gamma_setup_sub$id, j = gamma_setup_sub$theta_id,
-    x = 1.0,
-    index1 = FALSE
+  # Use adlaplace::model_setup for standardized model preparation
+  model_stuff <- adlaplace::model_setup(
+    formula = formula,
+    data = data_sub,
+    verbose = config$verbose
   )
 
-  # Create block-diagonal precision matrix, excluding NULL elements
-  valid_precision <- lapply(model_terms[terms_with_gamma], precision)
-  if (length(valid_precision) > 0) {
-    precision_matrix <- do.call(Matrix::bdiag, valid_precision)
-    dimnames(precision_matrix) <- list(unlist(lapply(valid_precision, colnames)))[c(1, 1)]
-    if (!all(colnames(precision_matrix) == colnames(a_matrix))) {
-      warning("precision matrix column names wrong")
-      print(setdiff(colnames(precision_matrix), colnames(a_matrix))[1])
-      print(setdiff(colnames(a_matrix), colnames(precision_matrix))[1])
-    }
-  } else {
-    precision_matrix <- Matrix::Diagonal(nrow = 0, ncol = 0)
-  }
+  # Extract components from model_setup result
+  tmb_data <- model_stuff$data
+  parameters_info <- model_stuff$info
 
-  if (any(duplicated(colnames(a_matrix)))) {
-    warning("duplicated column names of random effects design matrix, perhaps same term in the model twice?")
-  }
-  if (!(all(colnames(a_matrix) == gamma_setup$gamma_name))) {
-    warning("some names of A don't match up")
-    print(table(colnames(a_matrix) %in% gamma_setup$gamma_label))
-    print(str(setdiff(colnames(a_matrix), gamma_setup$gamma_label)))
-    print(str(setdiff(gamma_setup$gamma_label, colnames(a_matrix))))
-  }
-
-  if (any(duplicated(colnames(x_matrix)))) {
-    warning("duplicated column names of fixed effects design matrix, perhaps same term in the model twice?")
-  }
-  if (!(all(colnames(x_matrix) == beta_setup$beta_name))) {
-    warning("some names of X don't match beta_setup")
-    print(table(colnames(x_matrix) %in% beta_setup$beta_name))
-    print(str(setdiff(colnames(x_matrix), beta_setup$beta_name)))
-    print(str(setdiff(beta_setup$beta_name, colnames(x_matrix))))
-  }
-if (config$transform_theta) {
-  not_overdisp <- which(theta_setup$model != "overdispersion")
-  for (d_par in c("init", "lower", "upper")) {
-    theta_setup[not_overdisp, d_par] <- log(theta_setup[not_overdisp, d_par])
-    if (any(is.na(theta_setup[[d_par]]))) {
-      warning("theta ", d_par, "values out of range")
-    }
-  }
-}
-
-  tmb_data <- list(
-    X = x_matrix,
-    A = a_matrix,
-    y = data_sub[[outcome_var]],
-    Q = precision_matrix,
-    map = gamma_theta_map,
-    elgm_matrix = cc_matrix
-  )
+  # Add case-crossover specific components
+  tmb_data$elgm_matrix <- cc_matrix
   tmb_data <- formatHpolData(tmb_data)
 
   verbose_orig <- config$verbose
@@ -421,7 +309,6 @@ if (config$transform_theta) {
   result$extra$parameters_orig <- result$parameters
   result$parameters <- try(format_parameters(result))
 
-  if (FALSE) {
     result$hessian_parameters <- try(
       numDeriv::jacobian(
         adlaplace::outer_gr,
@@ -434,7 +321,6 @@ if (config$transform_theta) {
         cache = cache
       )
     )
-  }
 
   result$sample <- try(cond_sim_iwp(
     fit = result,
