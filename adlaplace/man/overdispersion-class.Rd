@@ -3,9 +3,80 @@
 \docType{class}
 \name{overdispersion-class}
 \alias{overdispersion-class}
+\alias{overdispersion}
+\alias{design,overdispersion-method}
+\alias{precision,overdispersion-method}
+\alias{theta_info,overdispersion-method}
+\alias{beta_info,overdispersion-method}
+\alias{random_info,overdispersion-method}
 \title{Overdispersion Class}
+\usage{
+overdispersion(x = NA, init = 0.001, lower = 0, upper = Inf, parscale = 1)
+
+\S4method{design}{overdispersion}(term, data)
+
+\S4method{precision}{overdispersion}(term)
+
+\S4method{theta_info}{overdispersion}(term)
+
+\S4method{beta_info}{overdispersion}(term, data)
+
+\S4method{random_info}{overdispersion}(term, data)
+}
+\arguments{
+\item{x}{Variable name (not used, included for interface consistency)}
+
+\item{init}{Initial value for the overdispersion parameter (default: 1e-3)}
+
+\item{lower}{Lower bound for the overdispersion parameter (default: 0)}
+
+\item{upper}{Upper bound for the overdispersion parameter (default: Inf)}
+
+\item{parscale}{Parameter scale for optimization (default: 1)}
+
+\item{term}{An overdispersion term object}
+
+\item{data}{A data frame containing the term variable}
+}
+\value{
+An overdispersion object
+}
 \description{
 A class for representing overdispersion terms in hierarchical models.
 This class handles the additional variance introduced by overdispersion
 in count data models.
+
+Creates an overdispersion term for hierarchical models.
+}
+\details{
+Overdispersion Class
+}
+\section{Functions}{
+\itemize{
+\item \code{design(overdispersion)}: Creates design matrix for overdispersion term
+
+\item \code{precision(overdispersion)}: Creates precision matrix for overdispersion term
+
+\item \code{theta_info(overdispersion)}: Extracts theta parameter information for overdispersion term
+
+\item \code{beta_info(overdispersion)}: Extracts beta parameter information for overdispersion term
+
+\item \code{random_info(overdispersion)}: Extracts random effects information for overdispersion term
+
+}}
+\section{Methods}{
+
+The following methods are available for `overdispersion` objects:
+\describe{
+  \item{\code{design(term, data)}}{Creates design matrix for overdispersion term}
+  \item{\code{precision(term, data)}}{Creates precision matrix for overdispersion term}
+  \item{\code{theta_info(term)}}{Extracts theta parameter information}
+  \item{\code{beta_info(term, data)}}{Extracts beta parameter information}
+  \item{\code{random_info(term, data)}}{Extracts random effects information}
+}
+}
+
+\examples{
+overdisp_term <- overdispersion()
+print(overdisp_term)
 }

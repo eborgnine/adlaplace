@@ -8,8 +8,8 @@
 #' correspond to groups and whose entries are the singular-vector loadings.
 #' Groups are ordered from most heterogeneous to most homogeneous
 #'
-#' @param ATp A numeric matrix (or matrix-like object) whose columns are to
-#'   be grouped. Typically this is a cross-product or design-related matrix.
+#' @param ATp The random effects design matrix.
+#' @param elgm_matrix A numeric matrix (or matrix-like object) for extended latent gaussian models.
 #' @param Ngroups Integer giving the maximum number of groups to construct.
 #'   The actual number of groups may be smaller if fewer distinct loadings
 #'   are present.
@@ -33,7 +33,7 @@
 #' @examples
 #' set.seed(1)
 #' A <- matrix(rnorm(100), 20, 5)
-#' G <- adFun_groups(A, 3)
+#' G <- adFun_groups(A, Ngroups = 3)
 #' G
 #'
 #' @export
@@ -42,7 +42,7 @@ adFun_groups = function(ATp, elgm_matrix, Ngroups = ncol(ATp), min_groups = 0) {
 
 # to do:  implement min_groups
   if(!missing(elgm_matrix)) {
-    ATp_t = methods::as(ATp, "TsparseMatrix")
+    ATp_t = methods::as(Matrix::Matrix(ATp), "TsparseMatrix")
     ATp_t = data.frame(row = ATp_t@j, gamma = ATp_t@i)
     elgm_matrix_t = methods::as(elgm_matrix, "TsparseMatrix")
     elgm_matrix_t = data.frame(row = elgm_matrix_t@i, strata=elgm_matrix_t@j)

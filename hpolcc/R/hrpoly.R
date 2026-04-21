@@ -55,9 +55,9 @@ hrpoly <- function(
   if (any(lower >= upper)) stop("lower bounds must be less than upper bounds")
   if (any(parscale <= 0)) stop("parscale must be positive")
 
-  new("hrpoly",
+  methods::new("hrpoly",
     term = x,
-    formula = as.formula(paste0("~ 0 + ", x), env = new.env()),
+    formula = stats::as.formula(paste0("~ 0 + ", x), env = new.env()),
     p.order = as.integer(p),
     ref_value = ref_value,
     by = by,
@@ -76,7 +76,7 @@ setMethod("design", "hrpoly", function(term, data) {
 
   term = get_by_levels(term, data)
 
-  a_base = adlaplace::design(as(term, "rpoly"), data)[,term@p.order]
+  a_base = adlaplace::design(methods::as(term, "rpoly"), data)[,term@p.order]
 
   a_split = mapply(
     function(x, a_base, id) {

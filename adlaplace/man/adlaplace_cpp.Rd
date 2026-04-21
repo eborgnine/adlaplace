@@ -46,11 +46,15 @@ If omitted, uses all groups \code{0:(Ngroups-1)}.}
 \item{inner}{Logical scalar. If \code{TRUE}, evaluate inner-\eqn{\gamma}
 derivatives; otherwise evaluate outer/full derivatives.}
 
+\item{verbose}{Logical scalar indicating whether to print verbose output.}
+
 \item{LinvPt}{Sparse \code{dgCMatrix} for columns of
 \eqn{P^\top L^{-1} D^{-1/2}} (or equivalent) used in trace contractions.}
 
 \item{LinvPtColumns}{Sparse \code{ngCMatrix}/\code{dgCMatrix} mapping
 selected columns of \code{LinvPt} to each group.}
+
+\item{num_threads}{Integer specifying the number of threads to use for parallel computation.}
 }
 \value{
 \itemize{

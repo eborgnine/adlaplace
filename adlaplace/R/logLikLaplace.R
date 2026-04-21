@@ -68,8 +68,7 @@
 #'
 #'
 #' @seealso
-#' \code{\link[adlaplace]{getAdFun}}, \code{\link[adlaplace]{inner_opt}},
-#' \code{\link[adlaplace]{logLikDeriv}}
+#' \code{\link[adlaplace]{getAdFun}}, \code{\link[adlaplace]{inner_opt}}
 #'
 #' @export
 logLikLaplace = function(
@@ -84,7 +83,7 @@ logLikLaplace = function(
 	Nbeta = length(config$beta)
 	Ntheta = length(config$theta)
 	Ngamma = length(config$gamma)
-	Sgamma1 = seq.int(Nbeta+1, len=Ngamma)
+	Sgamma1 = seq.int(Nbeta+1, length.out=Ngamma)
 
 	config_inner = config
 	config_inner$beta = x[seq.int(1, length.out=Nbeta)]

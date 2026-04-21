@@ -4,9 +4,9 @@ get_terms_pred <- function(terms, length.out=100) {
   is_iwp <- which(smodel %in% c("iwp","rsiwp"))
   is_rsiwp <- which(smodel[is_iwp] %in% c("rsiwp"))
 
-  svar <- unlist(lapply(terms[is_iwp], slot, "term"))
-  sknots <- lapply(terms[is_iwp], slot, "knots")
-  sref <- unlist(lapply(terms[is_iwp], slot, "ref_value"))
+  svar <- unlist(lapply(terms[is_iwp], methods::slot, "term"))
+  sknots <- lapply(terms[is_iwp], methods::slot, "knots")
+  sref <- unlist(lapply(terms[is_iwp], methods::slot, "ref_value"))
   smin = unlist(lapply(sknots, min)) + sref
   smax = unlist(lapply(sknots, max)) + sref
 
@@ -246,13 +246,13 @@ cond_sim_iwp <- function(
   probs_envelope = c(0.1, 0.9)
 ) {
   terms <- fit$objects$terms
-  terms_vars = lapply(terms, slot, "term")
+  terms_vars = lapply(terms, methods::slot, "term")
   terms_no_vars = unlist(lapply(terms_vars, length))==0
   terms_have_vars = terms[!terms_no_vars]
   terms_vars = terms_vars[!terms_no_vars]
-  terms_type = unlist(lapply(terms_have_vars, slot, "type"))
+  terms_type = unlist(lapply(terms_have_vars, methods::slot, "type"))
 
-  terms_has_by = unlist(lapply(lapply(terms_have_vars, slot, "by"), length))>0
+  terms_has_by = unlist(lapply(lapply(terms_have_vars, methods::slot, "by"), length))>0
   terms_classes = unlist(lapply(terms_have_vars, class))
   is_iwp = which(terms_classes %in% c("rsiwp","iwp"))
 

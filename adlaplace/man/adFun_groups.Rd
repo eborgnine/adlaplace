@@ -7,8 +7,9 @@
 adFun_groups(ATp, elgm_matrix, Ngroups = ncol(ATp), min_groups = 0)
 }
 \arguments{
-\item{ATp}{A numeric matrix (or matrix-like object) whose columns are to
-be grouped. Typically this is a cross-product or design-related matrix.}
+\item{ATp}{The random effects design matrix.}
+
+\item{elgm_matrix}{A numeric matrix (or matrix-like object) for extended latent gaussian models.}
 
 \item{Ngroups}{Integer giving the maximum number of groups to construct.
 The actual number of groups may be smaller if fewer distinct loadings
@@ -43,7 +44,7 @@ variability appear first.
 \examples{
 set.seed(1)
 A <- matrix(rnorm(100), 20, 5)
-G <- adFun_groups(A, 3)
+G <- adFun_groups(A, Ngroups = 3)
 G
 
 }

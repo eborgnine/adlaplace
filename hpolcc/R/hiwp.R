@@ -1,25 +1,26 @@
 #' Hierarchical Integrated Wiener Process Model Term
 #'
-#' @description Creates a hierarchical integrated Wiener process (HIWP) model term.
-#'
-#' @param x Variable name
-#' @param p Order of the integrated Wiener process (default: 2)
-#' @param ref_value Reference value for the basis
-#' @param knots Vector of knot locations
-#' @param range Range of the data (optional)
-#' @param by Grouping variable for hierarchical structure
-#' @param init Initial values for theta parameters
-#' @param lower Lower bounds for theta parameters
-#' @param upper Upper bounds for theta parameters
-#' @param parscale Parameter scales for optimization
-#' @param boundary_is_random Whether boundary should be treated as random
-#' @param include_poly Whether to include polynomial terms
-#' @param include_global Whether to include global component
-#'
-#' @return A list containing hiwp term object and optionally related terms
+#' @description Creates and manages hierarchical integrated Wiener process (HIWP) model terms.
+#' @name hiwp-class
+#' @aliases hiwp
+#' @docType class
+#' @title Hierarchical Integrated Wiener Process Model Term
 #' @importFrom adlaplace iwp
-#' 
-# HIWP class definition
+#' @importFrom adlaplace .type_factor_levels
+#' @importFrom adlaplace rpoly
+#' @importFrom adlaplace fpoly
+#'
+#' @section Methods:
+#' The following methods are available for `hiwp` objects:
+#' \describe{
+#'   \item{\code{design(term, data)}}{Creates design matrix for HIWP term}
+#'   \item{\code{precision(term, data)}}{Creates precision matrix for HIWP term}
+#'   \item{\code{theta_info(term)}}{Extracts theta parameter information}
+#'   \item{\code{beta_info(term, data)}}{Extracts beta parameter information}
+#'   \item{\code{random_info(term, data)}}{Extracts random effects information}
+#' }
+NULL
+
 setClass("hiwp",
   representation = representation(
     by = "character",
@@ -37,8 +38,26 @@ setClass("hiwp",
   )
 )
 
-
 #' @export
+#' @rdname hiwp-class
+#' @param x Variable name
+#' @param p Order of the integrated Wiener process (default: 2)
+#' @param ref_value Reference value for the basis
+#' @param knots Vector of knot locations
+#' @param range Range of the data (optional)
+#' @param by Grouping variable for hierarchical structure
+#' @param init Initial values for theta parameters
+#' @param lower Lower bounds for theta parameters
+#' @param upper Upper bounds for theta parameters
+#' @param parscale Parameter scales for optimization
+#' @param boundary_is_random Whether boundary should be treated as random
+#' @param include_poly Whether to include polynomial terms
+#' @param include_global Whether to include global component
+#' @return A list containing hiwp term object and optionally related terms
+#' @examples
+#' # Example usage:
+#' # knots <- seq(0, 1, length.out = 5)
+#' # hiwp_term <- hiwp(x = "age", knots = knots, by = "group")
 hiwp <- function(
   x, p = 2, ref_value = 0, knots, range = NULL,
   by,
@@ -57,7 +76,7 @@ hiwp <- function(
 
   ref_value <- adlaplace::ref_align(ref_value, knots)
 
-  the_f <- as.formula(paste0("~ 0 + ", x), env=new.env())
+  the_f <- stats::as.formula(paste0("~ 0 + ", x), env=new.env())
   result <- list()
   hiwp_name <- paste(c(x, "hiwp"), collapse = "_")
   result[[hiwp_name]] <- new("hiwp",
@@ -123,12 +142,11 @@ hiwp <- function(
   result
 }
 
-# Design matrix for hiwp terms
 setMethod("design", "hiwp", function(term, data) {
 
   by_stuff = get_by_levels(term, data)
 
-  term_iwp <- as(term, "iwp")
+  term_iwp <- methods::as(term, "iwp")
   A0 <- adlaplace::design(term_iwp, data)
   if(!all(unique(data[[term@by]] %in% term@by_levels))) {
     warning("by levels in data not in the model")
@@ -140,7 +158,7 @@ setMethod("design", "hiwp", function(term, data) {
 
   A0split <- mapply(
     function(AA, xx) {
-      res <- as(AA[xx, , drop = FALSE], "TsparseMatrix")
+      res <- methods::as(AA[xx, , drop = FALSE], "TsparseMatrix")
       cbind(i = xx[1 + res@i], j = res@j + 1, x = res@x)
     },
     xx = id_split, MoreArgs = list(AA = A0), SIMPLIFY = FALSE
@@ -172,11 +190,10 @@ setMethod("design", "hiwp", function(term, data) {
   Afinal
 })
 
-# Precision matrix for hiwp terms
 setMethod("precision", "hiwp", function(term, data) {
   term = get_by_levels(term, data)
 
-  iwp_precision <- precision(as(term, "iwp"), data)
+  iwp_precision <- precision(methods::as(term, "iwp"), data)
   result <- Matrix::.bdiag(replicate(length(term@by_levels), iwp_precision))
   dimnames(result) <- list(
   paste0(
@@ -188,7 +205,6 @@ setMethod("precision", "hiwp", function(term, data) {
   result
 })
 
-# Theta info for hiwp terms
 setMethod("theta_info", "hiwp", function(term) {
   # Global and local parameters
   result <- data.frame(
@@ -205,12 +221,11 @@ setMethod("theta_info", "hiwp", function(term) {
   result
 })
 
-# Beta info for hiwp terms
 setMethod("beta_info", "hiwp", function(term) {
   # HIWP terms don't have beta parameters
   return(NULL)
 })
-# Gamma info for hiwp terms
+
 setMethod("random_info", "hiwp", function(term, data) {
   basis <- seq(1, len = length(term@knots) - 1)
 

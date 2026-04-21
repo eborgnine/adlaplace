@@ -3,33 +3,77 @@
 \docType{class}
 \name{rsfpoly-class}
 \alias{rsfpoly-class}
-\title{Random slope Fixed Polynomial Model Term f}
+\alias{rsfpoly}
+\alias{design,rsfpoly-method}
+\alias{precision,rsfpoly-method}
+\alias{theta_info,rsfpoly-method}
+\alias{beta_info,rsfpoly-method}
+\alias{random_info,rsfpoly-method}
+\title{Random Slope Fixed Polynomial Model Term}
+\usage{
+rsfpoly(
+  x,
+  mult,
+  p = 2,
+  ref_value = 0,
+  ref_mult = 0,
+  init = .my_beta_init,
+  lower = .my_beta_lower,
+  upper = .my_beta_upper,
+  parscale = .my_beta_parscale
+)
+
+\S4method{design}{rsfpoly}(term, data)
+
+\S4method{precision}{rsfpoly}(term, data)
+
+\S4method{theta_info}{rsfpoly}(term)
+
+\S4method{beta_info}{rsfpoly}(term, data)
+
+\S4method{random_info}{rsfpoly}(term, data)
+}
 \arguments{
-\item{x}{Variable name}
+\item{term}{A rsfpoly term object}
 
-\item{mult}{covariate name}
-
-\item{p}{Polynomial degree (default: 2)}
-
-\item{ref_value}{Reference value for the polynomial}
-
-\item{ref_mult}{Reference value for the covariate}
-
-\item{init}{Initial values for beta parameters}
-
-\item{lower}{Lower bounds for beta parameters}
-
-\item{upper}{Upper bounds for beta parameters}
-
-\item{parscale}{Parameter scales for optimization}
+\item{data}{A data frame containing the term variables}
 }
 \value{
-A rsfpoly term object
+A design matrix for the random slope fixed polynomial term, or NULL if p.order is 0
+
+NULL (fixed effects don't have precision matrices)
+
+NULL (fixed effects don't have theta parameters)
+
+A data frame containing beta parameter information for the random slope fixed polynomial term
+
+NULL (fixed effects don't have random effects information)
 }
 \description{
 Creates a fixed polynomial model term for random slope models.
 }
-\examples{
-# Create a fixed polynomial term
-fpoly_term <- fpoly(x = "temp", p = 3, ref_value = 15)
+\section{Functions}{
+\itemize{
+\item \code{design(rsfpoly)}: Creates design matrix for rsfpoly term
+
+\item \code{precision(rsfpoly)}: Creates precision matrix for rsfpoly term
+
+\item \code{theta_info(rsfpoly)}: Extracts theta parameter information for rsfpoly term
+
+\item \code{beta_info(rsfpoly)}: Extracts beta parameter information for rsfpoly term
+
+\item \code{random_info(rsfpoly)}: Extracts random effects information for rsfpoly term
+
+}}
+\section{Methods}{
+
+The following methods are available for `rsfpoly` objects:
+\describe{
+  \item{\code{design(term, data)}}{Creates design matrix for rsfpoly term}
+  \item{\code{precision(term, data)}}{Creates precision matrix for rsfpoly term}
+  \item{\code{theta_info(term)}}{Extracts theta parameter information}
+  \item{\code{beta_info(term, data)}}{Extracts beta parameter information}
+  \item{\code{random_info(term, data)}}{Extracts random effects information}
 }
+}
+

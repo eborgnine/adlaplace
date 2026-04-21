@@ -41,8 +41,8 @@ model_setup <- function(formula, data, verbose = FALSE) {
   )
   
   # Identify fixed and random effects
-  terms_with_gamma <- sapply(the_terms, slot, "type") == "random"
-  terms_with_beta <- sapply(the_terms, slot, "type") == "fixed"
+  terms_with_gamma <- sapply(the_terms, methods::slot, "type") == "random"
+  terms_with_beta <- sapply(the_terms, methods::slot, "type") == "fixed"
   
   # Build X (fixed effects) and A (random effects) matrices
   if (any(terms_with_beta)) {
@@ -141,8 +141,8 @@ model_setup <- function(formula, data, verbose = FALSE) {
     if (!(all(colnames(a_matrix) == gamma_setup$gamma_label))) {
       warning("some names of A don't match up")
       print(table(colnames(a_matrix) %in% gamma_setup$gamma_label))
-      print(str(setdiff(colnames(a_matrix), gamma_setup$gamma_label)))
-      print(str(setdiff(gamma_setup$gamma_label, colnames(a_matrix))))
+      print(utils::str(setdiff(colnames(a_matrix), gamma_setup$gamma_label)))
+      print(utils::str(setdiff(gamma_setup$gamma_label, colnames(a_matrix))))
     }
   }
   
@@ -150,8 +150,8 @@ model_setup <- function(formula, data, verbose = FALSE) {
     if (!(all(colnames(x_matrix) == beta_setup$beta_name))) {
       warning("some names of X don't match beta_setup")
       print(table(colnames(x_matrix) %in% beta_setup$beta_name))
-      print(str(setdiff(colnames(x_matrix), beta_setup$beta_name)))
-      print(str(setdiff(beta_setup$beta_name, colnames(x_matrix))))
+      print(utils::str(setdiff(colnames(x_matrix), beta_setup$beta_name)))
+      print(utils::str(setdiff(beta_setup$beta_name, colnames(x_matrix))))
     }
   }
   
@@ -162,7 +162,7 @@ model_setup <- function(formula, data, verbose = FALSE) {
   if (ncol(a_matrix) > 0) {
     ATp <- Matrix::t(a_matrix)
     if (!inherits(ATp, "CsparseMatrix")) {
-      ATp <- as(ATp, "dgCMatrix")
+      ATp <- methods::as(ATp, "dgCMatrix")
     }
   } else {
     ATp <- Matrix::sparseMatrix(dims = c(0, 0))
@@ -171,13 +171,13 @@ model_setup <- function(formula, data, verbose = FALSE) {
   if (ncol(x_matrix) > 0) {
     XTp <- Matrix::t(x_matrix)
     if (!inherits(XTp, "CsparseMatrix")) {
-      XTp <- as(XTp, "dgCMatrix")
+      XTp <- methods::as(XTp, "dgCMatrix")
     }
   } else {
     XTp <- Matrix::sparseMatrix(dims = c(0, 0))
   }
   
-  for_q_offdiag = as(precision_matrix, 'TsparseMatrix')
+  for_q_offdiag = methods::as(precision_matrix, 'TsparseMatrix')
   which_offdiag = which(for_q_offdiag@i != for_q_offdiag@j)
   q_offdiag = Matrix::sparseMatrix(
     i = for_q_offdiag@i[which_offdiag],

@@ -1,17 +1,26 @@
+#' @include 000.R
 #' Random Polynomial Model Term
 #'
-#' @description Creates a random polynomial model term.
+#' @description Creates and manages random polynomial model terms.
+#' @name rpoly-class
+#' @aliases rpoly
+#' @docType class
+#' @title Random Polynomial Model Term
+#' @exportClass rpoly
 #'
-#' @param x Variable name
-#' @param p Polynomial degree (default: 2)
-#' @param ref_value Reference value for the polynomial
-#' @param sd Standard deviation for random effects
-#'
-#' @return A rpoly term object
+#' @section Methods:
+#' The following methods are available for `rpoly` objects:
+#' \describe{
+#'   \item{\code{design(term, data)}}{Creates design matrix for rpoly term}
+#'   \item{\code{precision(term, data)}}{Creates precision matrix for rpoly term}
+#'   \item{\code{theta_info(term)}}{Extracts theta parameter information}
+#'   \item{\code{beta_info(term, data)}}{Extracts beta parameter information}
+#'   \item{\code{random_info(term, data)}}{Extracts random effects information}
+#' }
+NULL
 
-# RPoly class definition
 setClass("rpoly",
-         representation = representation(
+         slots = list(
            sd = "numeric"
          ),
          contains = "model",
@@ -23,9 +32,16 @@ setClass("rpoly",
          )
 )
 
+#' @rdname rpoly-class
+#' @param x Variable name.
+#' @param p Polynomial degree (default: 2).
+#' @param ref_value Reference value for the polynomial.
+#' @param sd Standard deviation for random effects.
+#' @param term A `rpoly` term object.
+#' @param data A data frame containing the variables used in the term.
+#' @return A `rpoly` term object.
 #' @export
 rpoly <- function(x, p = 2, ref_value = 0, sd = Inf) {
-  # check sd is positive and length 1.  check p length 2 integer.  check ref value length 1
   if (!missing(sd) && (length(sd) != 1 || sd <= 0)) {
     stop("sd must be a single positive numeric value")
   }
@@ -36,9 +52,9 @@ rpoly <- function(x, p = 2, ref_value = 0, sd = Inf) {
     stop("ref_value must be a single value")
   }
 
-  new("rpoly",
+  methods::new("rpoly",
     term = x,
-    formula = as.formula(paste0("~ 0 + ", x), env=new.env()),
+    formula = stats::as.formula(paste0("~ 0 + ", x), env=new.env()),
     p.order = as.integer(p),
     ref_value = ref_value,
     sd = rep_len(sd, p)
@@ -46,53 +62,87 @@ rpoly <- function(x, p = 2, ref_value = 0, sd = Inf) {
   )
 }
 
-# Design matrix for rpoly terms
+#' @describeIn rpoly-class Theta info method for rpoly objects
+#' @export
+#' @param term A `rpoly` term object.
+#' @return NULL (random polynomial terms don't have theta info).
+setMethod("theta_info", "rpoly", function(term) {
+  # Random polynomial terms don't have theta info
+  return(NULL)
+})
+
+#' @describeIn rpoly-class Design method for rpoly objects
+#' @export
+#' @param term A `rpoly` term object.
+#' @param data A data frame containing the variables used in the term.
+#' @return A design matrix for the random polynomial term.
 setMethod("design", "rpoly", function(term, data) {
   if (term@p.order == 0) {
     return(NULL)
   }
-
-  D <- poly(
-    data[[term@term]]-term@ref_value, raw=TRUE, degree = term@p.order)
-  D <- D[,1:ncol(D),drop=FALSE]
-  colnames(D) <- paste(term@term, "rpoly", 1:ncol(D), sep="_")
+  D <- stats::poly(
+    data[[term@term]] - term@ref_value,
+    degree = term@p.order,
+    raw = TRUE
+  )
+  D <- D[, 1:ncol(D), drop = FALSE]
+  
+  colnames(D) <- paste0(term@term, "_rpoly_", seq.int(1, length.out = term@p.order))
   D
 })
 
-# Precision matrix for rpoly terms
+#' @describeIn rpoly-class Precision method for rpoly objects
+#' @export
+#' @param term A `rpoly` term object.
+#' @param data A data frame containing the variables used in the term.
+#' @return A precision matrix for the random polynomial term.
 setMethod("precision", "rpoly", function(term, data) {
-  the_sd = term@sd
-  names(the_sd) = paste(term@term, "rpoly", seq.int(from=1, length.out=term@p.order), sep="_")
-  Matrix::Diagonal(length(the_sd), the_sd^(-2), names=TRUE)
+  if (term@p.order == 0) {
+    return(NULL)
+  }
+  
+  # Create precision matrix based on standard deviation
+  p <- term@p.order
+  sd_values <- rep_len(term@sd, p)
+  
+  # For random effects, we typically use identity matrix scaled by 1/sd^2
+  precision_mat <- diag(1 / (sd_values^2), nrow = p, ncol = p)
+  
+  return(precision_mat)
 })
 
-# Theta info for rpoly terms
-setMethod("theta_info", "rpoly", function(term) {
-  NULL
+#' @describeIn rpoly-class Random info method for rpoly objects
+#' @export
+#' @param term A `rpoly` term object.
+#' @param data A data frame containing the variables used in the term.
+#' @return A data frame containing random effects information for the random polynomial term.
+setMethod("random_info", "rpoly", function(term, data) {
+  if (term@p.order == 0) {
+    return(NULL)
+  }
+  
+  the_colnames <- colnames(design(term, data))
+  the_label <- paste(term@term, "rpoly", sep = "_")
+  
+  result <- data.frame(
+    term = term@term,
+    model = "rpoly",
+    label = the_label,
+    order = NA,
+    random_label = the_colnames,
+    sd = rep_len(term@sd, term@p.order)
+  )
+  
+  return(result)
 })
 
-# Beta info for rpoly terms
-setMethod("beta_info", "rpoly", function(term) {
-  # Rpoly terms don't have beta parameters (random effects only)
+#' @describeIn rpoly-class Beta info method for rpoly objects
+#' @export
+#' @param term A `rpoly` term object.
+#' @param data A data frame containing the variables used in the term.
+#' @return NULL (random polynomial terms don't have beta info).
+setMethod("beta_info", "rpoly", function(term, data) {
+  # Random polynomial terms don't have beta info
   return(NULL)
 })
 
-# Gamma info for rpoly terms
-setMethod("random_info", "rpoly", function(term, data) {
-  order <- seq_len(term@p.order)
-  basis <- NA
-
-  result <- expand.grid(
-    term = term@term,
-    model = "rpoly",
-    label = paste(c(term@term, "rpoly"), collapse = "_"),
-    by = NA,
-    by_labels = NA,
-    basis = basis,
-    order = order,
-    stringsAsFactors = FALSE
-  )
-  result$gamma_label <- paste(result$label, result$order, sep = "_")
-
-  result
-})

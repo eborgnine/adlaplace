@@ -34,7 +34,7 @@ merge_data_cc <- function(
   }
 
   x_agg <- x[
-    , setNames(list(.N), count_name),
+    , data.table::setNames(list(.N), count_name),
     by = c(time_variable, strata_variables)
   ]
 

@@ -7,13 +7,21 @@
 ref_align(ref_value, knots)
 }
 \arguments{
-\item{ref_value}{The reference value to align}
+\item{ref_value}{A numeric value representing the desired reference point.}
 
-\item{knots}{A vector of knot locations}
+\item{knots}{A numeric vector of knot positions.}
 }
 \value{
-The nearest knot value to the reference value
+The knot value that is closest to the specified reference value.
 }
 \description{
 Aligns a reference value to the nearest knot in a set of knots.
+This is useful for ensuring that reference values used in polynomial terms
+are aligned with the actual knot positions.
+}
+\examples{
+# Align reference value to nearest knot
+knots <- c(10, 20, 30, 40, 50)
+ref_align(23, knots)  # Returns 20
+
 }

@@ -3,21 +3,63 @@
 \docType{class}
 \name{iid-class}
 \alias{iid-class}
-\title{Independent and Identically Distributed Random Effects}
+\alias{iid}
+\alias{design,iid-method}
+\alias{precision,iid-method}
+\alias{random_info,iid-method}
+\alias{theta_info,iid-method}
+\alias{beta_info,iid-method}
+\title{IID Random Effects Term}
+\usage{
+iid(
+  x,
+  init = .my_theta_init,
+  lower = .my_theta_lower,
+  upper = .my_theta_upper,
+  parscale = .my_theta_parscale
+)
+
+\S4method{design}{iid}(term, data)
+
+\S4method{precision}{iid}(term, data)
+
+\S4method{random_info}{iid}(term, data)
+
+\S4method{theta_info}{iid}(term)
+
+\S4method{beta_info}{iid}(term)
+}
 \arguments{
-\item{x}{Variable name (typically a factor)}
+\item{x}{Variable name (typically a factor).}
 
-\item{init}{Initial value for theta parameter}
+\item{init}{Initial value for theta parameter.}
 
-\item{lower}{Lower bound for theta parameter}
+\item{lower}{Lower bound for theta parameter.}
 
-\item{upper}{Upper bound for theta parameter}
+\item{upper}{Upper bound for theta parameter.}
 
-\item{parscale}{Parameter scale for optimization}
+\item{parscale}{Parameter scale for optimization.}
+
+\item{term}{An iid term object}
+
+\item{data}{A data frame containing the term variable}
 }
 \value{
-An iid term object
+An `iid` term object (in a named list).
 }
 \description{
-Creates an IID (independent and identically distributed) random effects term.
+Creates and manages IID (independent and identically distributed) random effects terms.
 }
+\section{Functions}{
+\itemize{
+\item \code{design(iid)}: Creates design matrix for iid term
+
+\item \code{precision(iid)}: Creates precision matrix for iid term
+
+\item \code{random_info(iid)}: Extracts random effects information for iid term
+
+\item \code{theta_info(iid)}: Extracts theta parameter information for iid term
+
+\item \code{beta_info(iid)}: Extracts beta parameter information for iid term
+
+}}

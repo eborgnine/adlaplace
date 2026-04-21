@@ -1,19 +1,12 @@
-#' Independent and Identically Distributed Random Effects
+#' IID Random Effects Term
 #'
-#' @description Creates an IID (independent and identically distributed) random effects term.
-#'
-#' @param x Variable name (typically a factor)
-#' @param init Initial value for theta parameter
-#' @param lower Lower bound for theta parameter
-#' @param upper Upper bound for theta parameter
-#' @param parscale Parameter scale for optimization
-#'
-#' @return An iid term object
-
-# IID class definition
+#' @description Creates and manages IID (independent and identically distributed) random effects terms.
+#' @name iid-class
+#' @aliases iid
+#' @exportClass iid
+#' @export
 setClass("iid",
-         representation = representation(
-         ),
+         slots = list(),
          contains = "model",
          prototype = prototype(
           ref_value = numeric(0),
@@ -24,15 +17,22 @@ setClass("iid",
          )
 )
 
+#' @param x Variable name (typically a factor).
+#' @param init Initial value for theta parameter.
+#' @param lower Lower bound for theta parameter.
+#' @param upper Upper bound for theta parameter.
+#' @param parscale Parameter scale for optimization.
+#' @return An `iid` term object (in a named list).
+#' @rdname iid-class
 #' @export
 iid <- function(x,
                 init = .my_theta_init,
                 lower = .my_theta_lower,
                 upper = .my_theta_upper,
                 parscale = .my_theta_parscale) {
-  result = list(new("iid",
+  result = list(methods::new("iid",
     term = x,
-    formula = as.formula(paste0("~ 0 + ", x), env=new.env()),
+    formula = stats::as.formula(paste0("~ 0 + ", x), env=new.env()),
     init = init ,
     lower = lower ,
     upper = upper ,
@@ -42,24 +42,52 @@ iid <- function(x,
   result
 }
 
-# Design matrix for iid terms
+#' @describeIn iid-class Creates design matrix for iid term
+#' @param term An iid term object
+#' @param data A data frame containing the term variable
+#' @export
 setMethod("design", "iid", function(term, data){
   if(is.numeric(data[[term@term]])) {
     data[[term@term]] = factor(data[[term@term]])
   }
-  result = as(Matrix::sparse.model.matrix(term@formula, data), "TsparseMatrix")
+  result = methods::as(Matrix::sparse.model.matrix(term@formula, data), "TsparseMatrix")
   colnames(result) = gsub(paste0("^", term@term), paste0(term@term, "_iid_"), colnames(result))
   result
 })
 
-# Precision matrix for iid terms
+#' @describeIn iid-class Creates precision matrix for iid term
+#' @param term An iid term object
+#' @param data A data frame containing the term variable
+#' @export
 setMethod("precision", "iid", function(term, data) {
   # Identity matrix for iid terms
   n <- length(unique(data[[term@term]]))
   Matrix::Diagonal(n, 1)
 })
 
-# Theta info for iid terms
+#' @describeIn iid-class Extracts random effects information for iid term
+#' @param term An iid term object
+#' @param data A data frame containing the term variable
+#' @export
+setMethod("random_info", "iid", function(term, data) {
+  
+  result <- expand.grid(
+    term = term@term,
+    model = "iid",
+    label = paste(term@term, "iid", sep = "_"),
+    by = NA,
+    by_labels = NA,
+    basis = sort(unique(data[[term@term]])),
+    order = NA
+  )
+  result$gamma_label = paste(result$label, result$basis, sep="_")
+
+  result
+})
+
+#' @describeIn iid-class Extracts theta parameter information for iid term
+#' @param term An iid term object
+#' @export
 setMethod("theta_info", "iid", function(term) {
   result <- data.frame(
     term = term@term, model = "iid", 
@@ -73,26 +101,10 @@ setMethod("theta_info", "iid", function(term) {
   return(result)
 })
 
-# Beta info for iid terms
+#' @describeIn iid-class Extracts beta parameter information for iid term
+#' @param term An iid term object
+#' @export
 setMethod("beta_info", "iid", function(term) {
   # IID terms don't have beta parameters
   return(NULL)
-})
-
-# Gamma info for iid terms
-setMethod("random_info", "iid", function(term, data) {
-    
-  result <- expand.grid(
-    term = term@term,
-    model = "iid",
-    label = paste(term@term,"iid", sep="_"),
-    by = NA,
-    by_labels = NA,
-    basis = sort(unique(data[[term@term]])),
-    order = NA,
-    stringsAsFactors = FALSE
-  )
-  result$gamma_label = paste(result$label, result$basis, sep="_")
-
-  result
 })

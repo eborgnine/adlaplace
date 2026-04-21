@@ -3,19 +3,77 @@
 \docType{class}
 \name{rpoly-class}
 \alias{rpoly-class}
+\alias{rpoly}
+\alias{theta_info,rpoly-method}
+\alias{design,rpoly-method}
+\alias{precision,rpoly-method}
+\alias{random_info,rpoly-method}
+\alias{beta_info,rpoly-method}
 \title{Random Polynomial Model Term}
+\usage{
+rpoly(x, p = 2, ref_value = 0, sd = Inf)
+
+\S4method{theta_info}{rpoly}(term)
+
+\S4method{design}{rpoly}(term, data)
+
+\S4method{precision}{rpoly}(term, data)
+
+\S4method{random_info}{rpoly}(term, data)
+
+\S4method{beta_info}{rpoly}(term, data)
+}
 \arguments{
-\item{x}{Variable name}
+\item{x}{Variable name.}
 
-\item{p}{Polynomial degree (default: 2)}
+\item{p}{Polynomial degree (default: 2).}
 
-\item{ref_value}{Reference value for the polynomial}
+\item{ref_value}{Reference value for the polynomial.}
 
-\item{sd}{Standard deviation for random effects}
+\item{sd}{Standard deviation for random effects.}
+
+\item{term}{A `rpoly` term object.}
+
+\item{data}{A data frame containing the variables used in the term.}
 }
 \value{
-A rpoly term object
+A `rpoly` term object.
+
+NULL (random polynomial terms don't have theta info).
+
+A design matrix for the random polynomial term.
+
+A precision matrix for the random polynomial term.
+
+A data frame containing random effects information for the random polynomial term.
+
+NULL (random polynomial terms don't have beta info).
 }
 \description{
-Creates a random polynomial model term.
+Creates and manages random polynomial model terms.
 }
+\section{Functions}{
+\itemize{
+\item \code{theta_info(rpoly)}: Theta info method for rpoly objects
+
+\item \code{design(rpoly)}: Design method for rpoly objects
+
+\item \code{precision(rpoly)}: Precision method for rpoly objects
+
+\item \code{random_info(rpoly)}: Random info method for rpoly objects
+
+\item \code{beta_info(rpoly)}: Beta info method for rpoly objects
+
+}}
+\section{Methods}{
+
+The following methods are available for `rpoly` objects:
+\describe{
+  \item{\code{design(term, data)}}{Creates design matrix for rpoly term}
+  \item{\code{precision(term, data)}}{Creates precision matrix for rpoly term}
+  \item{\code{theta_info(term)}}{Extracts theta parameter information}
+  \item{\code{beta_info(term, data)}}{Extracts beta parameter information}
+  \item{\code{random_info(term, data)}}{Extracts random effects information}
+}
+}
+

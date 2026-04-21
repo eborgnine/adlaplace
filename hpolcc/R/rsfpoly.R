@@ -1,23 +1,21 @@
-#' Random slope Fixed Polynomial Model Term f
+#' Random Slope Fixed Polynomial Model Term
 #'
 #' @description Creates a fixed polynomial model term for random slope models.
+#' @name rsfpoly-class
+#' @docType class
+#' @exportClass rsfpoly
 #'
-#' @param x Variable name
-#' @param mult covariate name
-#' @param p Polynomial degree (default: 2)
-#' @param ref_value Reference value for the polynomial
-#' @param ref_mult Reference value for the covariate
-#' @param init Initial values for beta parameters
-#' @param lower Lower bounds for beta parameters
-#' @param upper Upper bounds for beta parameters
-#' @param parscale Parameter scales for optimization
-#'
-#' @return A rsfpoly term object
-#'
-#' @examples
-#' # Create a fixed polynomial term
-#' fpoly_term <- fpoly(x = "temp", p = 3, ref_value = 15)
-# FPoly class definition
+#' @section Methods:
+#' The following methods are available for `rsfpoly` objects:
+#' \describe{
+#'   \item{\code{design(term, data)}}{Creates design matrix for rsfpoly term}
+#'   \item{\code{precision(term, data)}}{Creates precision matrix for rsfpoly term}
+#'   \item{\code{theta_info(term)}}{Extracts theta parameter information}
+#'   \item{\code{beta_info(term, data)}}{Extracts beta parameter information}
+#'   \item{\code{random_info(term, data)}}{Extracts random effects information}
+#' }
+NULL
+
 setClass("rsfpoly",
   representation = representation(
     mult = "character",
@@ -31,7 +29,7 @@ setClass("rsfpoly",
   )
 )
 
-#' @export
+#' @rdname rsfpoly-class
 #' @export
 rsfpoly <- function(
   x, mult, p = 2,
@@ -41,10 +39,10 @@ rsfpoly <- function(
   upper = .my_beta_upper,
   parscale = .my_beta_parscale
 ) {
-  new("rsfpoly",
+  methods::new("rsfpoly",
     term = x,
     mult = mult,
-    formula = as.formula(paste0("~ 0 + ", x), env = new.env()),
+    formula = stats::as.formula(paste0("~ 0 + ", x), env = new.env()),
     p.order = as.integer(p),
     ref_value = ref_value,
     ref_mult = ref_mult,
@@ -55,6 +53,11 @@ rsfpoly <- function(
   )
 }
 
+#' @describeIn rsfpoly-class Creates design matrix for rsfpoly term
+#' @param term A rsfpoly term object
+#' @param data A data frame containing the term variables
+#' @return A design matrix for the random slope fixed polynomial term, or NULL if p.order is 0
+#' @export
 setMethod("design", "rsfpoly", function(term, data) {
   if (term@p.order == 0) {
     return(NULL)
@@ -62,35 +65,46 @@ setMethod("design", "rsfpoly", function(term, data) {
 
   mult_vec <- data[[term@mult]] - term@ref_mult
 
-  D <- poly(
+  D <- stats::poly(
     data[[term@term]] - term@ref_value,
     degree = term@p.order,
     raw = TRUE
   )
   D <- D[, 1:ncol(D), drop = F]
   D <- D * mult_vec
-  seq_order <- seq.int(1, len = term@p.order)
+  seq_order <- seq.int(1, length.out = term@p.order)
 
   colnames(D) <- paste(term@term, term@mult, "rsfpoly", seq_order, sep = "_")
   D
 })
 
-# Precision matrix for fpoly terms
+#' @describeIn rsfpoly-class Creates precision matrix for rsfpoly term
+#' @param term A rsfpoly term object
+#' @param data A data frame containing the term variables
+#' @return NULL (fixed effects don't have precision matrices)
+#' @export
 setMethod("precision", "rsfpoly", function(term, data) {
   # Fixed effects don't have precision matrices
   NULL
 })
 
-# Theta info for fpoly terms
+#' @describeIn rsfpoly-class Extracts theta parameter information for rsfpoly term
+#' @param term A rsfpoly term object
+#' @return NULL (fixed effects don't have theta parameters)
+#' @export
 setMethod("theta_info", "rsfpoly", function(term) {
   # not thetas for fpoly
   NULL
 })
 
-# Beta info for fpoly terms
+#' @describeIn rsfpoly-class Extracts beta parameter information for rsfpoly term
+#' @param term A rsfpoly term object
+#' @param data A data frame containing the term variables
+#' @return A data frame containing beta parameter information for the random slope fixed polynomial term
+#' @export
 setMethod("beta_info", "rsfpoly", function(term, data) {
   the_label <- paste(term@term, term@mult, "rsfpoly", sep = "_")
-  seq_order <- seq.int(1, len = term@p.order)
+  seq_order <- seq.int(1, length.out = term@p.order)
 
   result <- data.frame(
     term = term@term,
@@ -107,7 +121,11 @@ setMethod("beta_info", "rsfpoly", function(term, data) {
   return(result)
 })
 
-# Gamma info for fpoly terms
+#' @describeIn rsfpoly-class Extracts random effects information for rsfpoly term
+#' @param term A rsfpoly term object
+#' @param data A data frame containing the term variables
+#' @return NULL (fixed effects don't have random effects information)
+#' @export
 setMethod("random_info", "rsfpoly", function(term, data) {
   # no gammas for fpoly
   NULL

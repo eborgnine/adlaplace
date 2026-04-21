@@ -3,23 +3,67 @@
 \docType{class}
 \name{rsrpoly-class}
 \alias{rsrpoly-class}
+\alias{rsrpoly}
+\alias{design,rsrpoly-method}
+\alias{precision,rsrpoly-method}
+\alias{theta_info,rsrpoly-method}
+\alias{beta_info,rsrpoly-method}
+\alias{random_info,rsrpoly-method}
 \title{Random Polynomial Model for Random Slope}
+\usage{
+rsrpoly(x, mult, p = 2, ref_value = 0, ref_mult = 0, sd = Inf)
+
+\S4method{design}{rsrpoly}(term, data)
+
+\S4method{precision}{rsrpoly}(term, data)
+
+\S4method{theta_info}{rsrpoly}(term)
+
+\S4method{beta_info}{rsrpoly}(term)
+
+\S4method{random_info}{rsrpoly}(term, data)
+}
 \arguments{
-\item{x}{Variable name}
+\item{term}{A rsrpoly term object}
 
-\item{mult}{covariate to be mulitplied}
-
-\item{p}{Polynomial degree (default: 2)}
-
-\item{ref_value}{Reference value for the polynomial}
-
-\item{ref_mult}{Reference value for the covariate}
-
-\item{sd}{Standard deviation for random effects}
+\item{data}{A data frame containing the term variables}
 }
 \value{
-A rsrpoly term object
+A design matrix for the random slope polynomial term, or NULL if p.order is 0
+
+A precision matrix for the random slope polynomial term
+
+NULL (random slope polynomial terms don't have theta parameters)
+
+NULL (random slope polynomial terms don't have beta parameters)
+
+A data frame containing random effects information for the random slope polynomial term
 }
 \description{
 Creates a random polynomial model term for use in a random slope model.
 }
+\section{Functions}{
+\itemize{
+\item \code{design(rsrpoly)}: Creates design matrix for rsrpoly term
+
+\item \code{precision(rsrpoly)}: Creates precision matrix for rsrpoly term
+
+\item \code{theta_info(rsrpoly)}: Extracts theta parameter information for rsrpoly term
+
+\item \code{beta_info(rsrpoly)}: Extracts beta parameter information for rsrpoly term
+
+\item \code{random_info(rsrpoly)}: Extracts random effects information for rsrpoly term
+
+}}
+\section{Methods}{
+
+The following methods are available for `rsrpoly` objects:
+\describe{
+  \item{\code{design(term, data)}}{Creates design matrix for rsrpoly term}
+  \item{\code{precision(term, data)}}{Creates precision matrix for rsrpoly term}
+  \item{\code{theta_info(term)}}{Extracts theta parameter information}
+  \item{\code{beta_info(term, data)}}{Extracts beta parameter information}
+  \item{\code{random_info(term, data)}}{Extracts random effects information}
+}
+}
+

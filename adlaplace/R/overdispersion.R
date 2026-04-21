@@ -1,11 +1,25 @@
 #' Overdispersion Class
 #'
-#' @description
-#' A class for representing overdispersion terms in hierarchical models.
+#' @description A class for representing overdispersion terms in hierarchical models.
 #' This class handles the additional variance introduced by overdispersion
 #' in count data models.
+#' @name overdispersion-class
+#' @aliases overdispersion
+#' @docType class
+#' @title Overdispersion Class
+#' @exportClass overdispersion
+#'
+#' @section Methods:
+#' The following methods are available for `overdispersion` objects:
+#' \describe{
+#'   \item{\code{design(term, data)}}{Creates design matrix for overdispersion term}
+#'   \item{\code{precision(term, data)}}{Creates precision matrix for overdispersion term}
+#'   \item{\code{theta_info(term)}}{Extracts theta parameter information}
+#'   \item{\code{beta_info(term, data)}}{Extracts beta parameter information}
+#'   \item{\code{random_info(term, data)}}{Extracts random effects information}
+#' }
+NULL
 
-# Overdispersion class definition
 setClass("overdispersion",
   representation = representation(
   ),
@@ -20,22 +34,19 @@ setClass("overdispersion",
   )
 )
 
-#' @title Create an Overdispersion Term
+#' Overdispersion Term Constructor
 #'
-#' @description
-#' Creates an overdispersion term for hierarchical models.
-#'
+#' @description Creates an overdispersion term for hierarchical models.
+#' @rdname overdispersion-class
+#' @param x Variable name (not used, included for interface consistency)
 #' @param init Initial value for the overdispersion parameter (default: 1e-3)
 #' @param lower Lower bound for the overdispersion parameter (default: 0)
 #' @param upper Upper bound for the overdispersion parameter (default: Inf)
 #' @param parscale Parameter scale for optimization (default: 1)
-#'
 #' @return An overdispersion object
-#'
 #' @examples
 #' overdisp_term <- overdispersion()
 #' print(overdisp_term)
-
 #' @export
 overdispersion <- function(
   x = NA,
@@ -44,7 +55,7 @@ overdispersion <- function(
   upper = Inf,
   parscale = 1
 ) {
-  new("overdispersion",
+  methods::new("overdispersion",
     term = character(0),
     init = init,
     lower = lower,
@@ -55,46 +66,24 @@ overdispersion <- function(
 }
 
 # Method implementations for overdispersion class
-
-#' @title Design Matrix for Overdispersion
-#'
-#' @description
-#' Creates design matrix for overdispersion term.
-#'
-#' @param object overdispersion object
-#' @param data data frame containing the variables
-#' @param ... additional arguments
-#'
-#' @return NULL (overdispersion doesn't contribute to design matrix)
-
+#' @describeIn overdispersion-class Creates design matrix for overdispersion term
+#' @param term An overdispersion term object
+#' @param data A data frame containing the term variable
+#' @export
 setMethod("design", "overdispersion", function(term, data) {
   NULL
 })
 
-#' @title Precision Matrix for Overdispersion
-#'
-#' @description
-#' Creates precision matrix for overdispersion term.
-#'
-#' @param object overdispersion object
-#' @param ... additional arguments
-#'
-#' @return NULL (overdispersion doesn't have random effects)
-
+#' @describeIn overdispersion-class Creates precision matrix for overdispersion term
+#' @param term An overdispersion term object
+#' @export
 setMethod("precision", "overdispersion", function(term) {
   NULL
 })
 
-#' @title Theta Information for Overdispersion
-#'
-#' @description
-#' Extracts theta parameter information for overdispersion term.
-#'
-#' @param object overdispersion object
-#' @param ... additional arguments
-#'
-#' @return data frame with theta parameter information
-
+#' @describeIn overdispersion-class Extracts theta parameter information for overdispersion term
+#' @param term An overdispersion term object
+#' @export
 setMethod("theta_info", "overdispersion", function(term) {
   data.frame(
     term = NA,
@@ -109,32 +98,18 @@ setMethod("theta_info", "overdispersion", function(term) {
   )
 })
 
-#' @title Beta Information for Overdispersion
-#'
-#' @description
-#' Extracts beta parameter information for overdispersion term.
-#'
-#' @param object overdispersion object
-#' @param data data frame
-#' @param ... additional arguments
-#'
-#' @return NULL (overdispersion doesn't have beta parameters)
-
+#' @describeIn overdispersion-class Extracts beta parameter information for overdispersion term
+#' @param term An overdispersion term object
+#' @param data A data frame containing the term variable
+#' @export
 setMethod("beta_info", "overdispersion", function(term, data) {
   NULL
 })
 
-#' @title Random Information for Overdispersion
-#'
-#' @description
-#' Extracts random effects information for overdispersion term.
-#'
-#' @param object overdispersion object
-#' @param data data frame
-#' @param ... additional arguments
-#'
-#' @return NULL (overdispersion doesn't have random effects)
-
+#' @describeIn overdispersion-class Extracts random effects information for overdispersion term
+#' @param term An overdispersion term object
+#' @param data A data frame containing the term variable
+#' @export
 setMethod("random_info", "overdispersion", function(term, data) {
   NULL
 })

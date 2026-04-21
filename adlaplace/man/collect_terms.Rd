@@ -9,7 +9,9 @@ collect_terms(formula, package = character(0), verbose = FALSE)
 \arguments{
 \item{formula}{Model formula containing f() calls}
 
-\item{model_package}{Character vector of package names to search for model constructors}
+\item{package}{Character vector of package names to search for model constructors}
+
+\item{verbose}{print extra information}
 }
 \value{
 List of model term objects
@@ -19,6 +21,6 @@ Parses a formula and creates model terms using constructors from specified packa
 }
 \examples{
 # Parse formula using hpolcc models
-terms <- collect_terms(y ~ f(x, model = "iwp"), model_package = "hpolcc")
+terms <- collect_terms(y ~ f(x, model = "iwp"), package = "hpolcc")
 
 }

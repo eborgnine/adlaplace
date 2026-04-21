@@ -2,7 +2,7 @@
 % Please edit documentation in R/rsiwp.R
 \name{rsiwp}
 \alias{rsiwp}
-\title{Random Slope Integrated Wiener Process Term}
+\title{Random Slope Integrated Wiener Process Term Constructor}
 \usage{
 rsiwp(
   x,
@@ -21,35 +21,35 @@ rsiwp(
 )
 }
 \arguments{
-\item{x}{Variable name}
+\item{x}{Variable name.}
 
-\item{mult}{variable to multiply the IWP by}
+\item{mult}{Variable to multiply the IWP by.}
 
-\item{p}{Order of the integrated Wiener process (default: 2)}
+\item{p}{Order of the integrated Wiener process (default: 2).}
 
-\item{ref_value}{Reference value for the basis}
+\item{ref_value}{Reference value for the basis.}
 
-\item{ref_mult}{Reference value for the covariate}
+\item{ref_mult}{Reference value for the covariate.}
 
-\item{knots}{Vector of knot locations}
+\item{knots}{Vector of knot locations.}
 
-\item{range}{Range of the data (optional)}
+\item{range}{Range of the data (optional).}
 
-\item{init}{Initial values for theta parameters}
+\item{init}{Initial values for theta parameters.}
 
-\item{lower}{Lower bounds for theta parameters}
+\item{lower}{Lower bounds for theta parameters.}
 
-\item{upper}{Upper bounds for theta parameters}
+\item{upper}{Upper bounds for theta parameters.}
 
-\item{parscale}{Parameter scales for optimization}
+\item{parscale}{Parameter scales for optimization.}
 
-\item{boundary_is_random}{Whether boundary should be treated as random}
+\item{boundary_is_random}{Whether boundary should be treated as random.}
 
-\item{include_poly}{Whether to include polynomial terms}
+\item{include_poly}{Whether to include polynomial terms.}
 }
 \value{
-A list containing iwp term object and optionally polynomial terms
+A list containing the `rsiwp` term object and optionally polynomial terms.
 }
 \description{
-Creates a Random Slope Integrated Wiener Process term.
+Creates a random slope integrated Wiener process (RSIWP) model term.
 }

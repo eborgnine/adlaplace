@@ -3,28 +3,94 @@
 \docType{class}
 \name{fpoly-class}
 \alias{fpoly-class}
+\alias{fpoly}
+\alias{design,fpoly-method}
+\alias{precision,fpoly-method}
+\alias{theta_info,fpoly-method}
+\alias{beta_info,fpoly-method}
+\alias{random_info,fpoly-method}
 \title{Fixed Polynomial Model Term}
+\usage{
+fpoly(
+  x,
+  p = 2,
+  ref_value = 0,
+  init = .my_beta_init,
+  lower = .my_beta_lower,
+  upper = .my_beta_upper,
+  parscale = .my_beta_parscale
+)
+
+\S4method{design}{fpoly}(term, data)
+
+\S4method{precision}{fpoly}(term, data)
+
+\S4method{theta_info}{fpoly}(term)
+
+\S4method{beta_info}{fpoly}(term, data)
+
+\S4method{random_info}{fpoly}(term, data)
+}
 \arguments{
-\item{x}{Variable name}
+\item{x}{Variable name.}
 
-\item{p}{Polynomial degree (default: 2)}
+\item{p}{Polynomial degree (default: 2).}
 
-\item{ref_value}{Reference value for the polynomial}
+\item{ref_value}{Reference value for the polynomial.}
 
-\item{init}{Initial values for beta parameters}
+\item{init}{Initial values for beta parameters.}
 
-\item{lower}{Lower bounds for beta parameters}
+\item{lower}{Lower bounds for beta parameters.}
 
-\item{upper}{Upper bounds for beta parameters}
+\item{upper}{Upper bounds for beta parameters.}
 
-\item{parscale}{Parameter scales for optimization}
+\item{parscale}{Parameter scales for optimization.}
+
+\item{term}{A `fpoly` term object.}
+
+\item{data}{A data frame containing the variables used in the term.}
 }
 \value{
-A fpoly term object
+A `fpoly` term object.
+
+A design matrix for the fixed polynomial term, or NULL if p.order is 0.
+
+NULL (fixed effects don't have precision matrices).
+
+NULL (fixed effects don't have random effects parameters).
+
+A data frame containing beta parameter information for the fixed polynomial term.
+
+NULL (fixed effects don't have random effects information).
 }
 \description{
-Creates a fixed polynomial model term.
+Creates and manages fixed polynomial model terms.
 }
+\section{Functions}{
+\itemize{
+\item \code{design(fpoly)}: Design method for fpoly objects
+
+\item \code{precision(fpoly)}: Precision method for fpoly objects
+
+\item \code{theta_info(fpoly)}: Theta info method for fpoly objects
+
+\item \code{beta_info(fpoly)}: Beta info method for fpoly objects
+
+\item \code{random_info(fpoly)}: Random info method for fpoly objects
+
+}}
+\section{Methods}{
+
+The following methods are available for `fpoly` objects:
+\describe{
+  \item{\code{design(term, data)}}{Creates design matrix for fpoly term}
+  \item{\code{precision(term, data)}}{Creates precision matrix for fpoly term}
+  \item{\code{theta_info(term)}}{Extracts theta parameter information}
+  \item{\code{beta_info(term, data)}}{Extracts beta parameter information}
+  \item{\code{random_info(term, data)}}{Extracts random effects information}
+}
+}
+
 \examples{
 # Create a fixed polynomial term
 fpoly_term <- fpoly(x = "temp", p = 3, ref_value = 15)

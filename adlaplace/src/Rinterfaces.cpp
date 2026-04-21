@@ -34,6 +34,8 @@ Rcpp::S4 hess(const Rcpp::NumericVector& x, SEXP backendContext, bool inner, SEX
 //'   \eqn{P^\top L^{-1} D^{-1/2}} (or equivalent) used in trace contractions.
 //' @param LinvPtColumns Sparse \code{ngCMatrix}/\code{dgCMatrix} mapping
 //'   selected columns of \code{LinvPt} to each group.
+//' @param verbose Logical scalar indicating whether to print verbose output.
+//' @param num_threads Integer specifying the number of threads to use for parallel computation.
 //'
 //' @return
 //' \itemize{

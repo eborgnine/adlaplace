@@ -15,7 +15,7 @@ removeHolidays <- function(data, type = "rm_all") {
   if (length(date_var) ==0 ) {
     warning("no date variable")
   }
-  years <- as.integer(foramt(data$date, "%Y"))
+  years <- as.integer(format(data$date, "%Y"))
 
   year_range <- min(years):max(years)
 

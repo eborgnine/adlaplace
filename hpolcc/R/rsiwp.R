@@ -1,4 +1,21 @@
-# IWP class definition
+#' Random Slope Integrated Wiener Process Term
+#'
+#' @description Creates and manages random slope integrated Wiener process (RSIWP) model terms.
+#' @name rsiwp-class
+#' @docType class
+#' @exportClass rsiwp
+#'
+#' @section Methods:
+#' The following methods are available for `rsiwp` objects:
+#' \describe{
+#'   \item{\code{design(term, data)}}{Creates design matrix for RSIWP term}
+#'   \item{\code{precision(term, data)}}{Creates precision matrix for RSIWP term}
+#'   \item{\code{theta_info(term)}}{Extracts theta parameter information}
+#'   \item{\code{beta_info(term, data)}}{Extracts beta parameter information}
+#'   \item{\code{random_info(term, data)}}{Extracts random effects information}
+#' }
+NULL
+
 setClass("rsiwp",
   representation = representation(
     mult = "character",
@@ -16,7 +33,7 @@ methods::setAs(
   "rsiwp", "iwp",
   function(from) {
     # Create a new iwp object with the same basic properties
-    new("iwp",
+    methods::new("iwp",
       term = from@term,
       formula = from@formula,
       knots = from@knots,
@@ -30,27 +47,24 @@ methods::setAs(
 )
 
 
-#' @title Random Slope Integrated Wiener Process Term
+#' Random Slope Integrated Wiener Process Term Constructor
 #'
-#' @description
-#' Creates a Random Slope Integrated Wiener Process term.
-#'
-#' @param x Variable name
-#' @param mult variable to multiply the IWP by
-#' @param p Order of the integrated Wiener process (default: 2)
-#' @param ref_value Reference value for the basis
-#' @param ref_mult Reference value for the covariate
-#' @param knots Vector of knot locations
-#' @param range Range of the data (optional)
-#' @param init Initial values for theta parameters
-#' @param lower Lower bounds for theta parameters
-#' @param upper Upper bounds for theta parameters
-#' @param parscale Parameter scales for optimization
-#' @param boundary_is_random Whether boundary should be treated as random
-#' @param include_poly Whether to include polynomial terms
-#'
-#' @return A list containing iwp term object and optionally polynomial terms
-
+#' @description Creates a random slope integrated Wiener process (RSIWP) model term.
+#' @name rsiwp
+#' @param x Variable name.
+#' @param mult Variable to multiply the IWP by.
+#' @param p Order of the integrated Wiener process (default: 2).
+#' @param ref_value Reference value for the basis.
+#' @param ref_mult Reference value for the covariate.
+#' @param knots Vector of knot locations.
+#' @param range Range of the data (optional).
+#' @param init Initial values for theta parameters.
+#' @param lower Lower bounds for theta parameters.
+#' @param upper Upper bounds for theta parameters.
+#' @param parscale Parameter scales for optimization.
+#' @param boundary_is_random Whether boundary should be treated as random.
+#' @param include_poly Whether to include polynomial terms.
+#' @return A list containing the `rsiwp` term object and optionally polynomial terms.
 #' @export
 rsiwp <- function(
   x,
@@ -81,7 +95,7 @@ rsiwp <- function(
   if (length(boundary_is_random) != 1) stop("boundary_is_random must be a single value")
   if (length(include_poly) != 1) stop("include_poly must be a single value")
 
-  the_f <- as.formula(paste0("~ 0 + ", x), env = new.env())
+  the_f <- stats::as.formula(paste0("~ 0 + ", x), env = new.env())
   result <- list()
   iwp_name <- paste("rsiwp", x, sep = "_")
 
@@ -89,7 +103,7 @@ rsiwp <- function(
   knots_ref <- knots - ref_value
 
 
-  result[[iwp_name]] <- new("rsiwp",
+  result[[iwp_name]] <- methods::new("rsiwp",
     term = x,
     mult = mult,
     formula = the_f,
@@ -132,9 +146,12 @@ rsiwp <- function(
   }
   result
 }
-# Design matrix for iwp terms
+#' @describeIn rsiwp-class Creates design matrix for RSIWP term
+#' @param term An rsiwp term object
+#' @param data A data frame containing the term variable
+#' @export
 setMethod("design", "rsiwp", function(term, data) {
-  design_iwp <- adlaplace::design(as(term, "iwp"), data)
+  design_iwp <- adlaplace::design(methods::as(term, "iwp"), data)
 
   mult_vec <- data[[term@mult]] - term@ref_mult
   result <- design_iwp * mult_vec
@@ -148,7 +165,10 @@ setMethod("design", "rsiwp", function(term, data) {
   result
 })
 
-# Precision matrix for iwp terms
+#' @describeIn rsiwp-class Creates precision matrix for RSIWP term
+#' @param term An rsiwp term object
+#' @param data A data frame containing the term variable
+#' @export
 setMethod("precision", "rsiwp", function(term, data) {
   result <- Matrix::Matrix(adlaplace::compute_weights_precision(term@knots))
 
@@ -164,7 +184,9 @@ setMethod("precision", "rsiwp", function(term, data) {
   result
 })
 
-# Theta info for iwp terms
+#' @describeIn rsiwp-class Extracts theta parameter information for RSIWP term
+#' @param term An rsiwp term object
+#' @export
 setMethod("theta_info", "rsiwp", function(term) {
   result <- data.frame(
     term = term@term, model = "rsiwp",
@@ -177,13 +199,18 @@ setMethod("theta_info", "rsiwp", function(term) {
   return(result)
 })
 
-# Beta info for iwp terms
+#' @describeIn rsiwp-class Extracts beta parameter information for RSIWP term
+#' @param term An rsiwp term object
+#' @export
 setMethod("beta_info", "rsiwp", function(term) {
   # IWP terms don't have beta parameters
   return(NULL)
 })
 
-# Gamma info for iwp terms
+#' @describeIn rsiwp-class Extracts random effects information for RSIWP term
+#' @param term An rsiwp term object
+#' @param data A data frame containing the term variable
+#' @export
 setMethod("random_info", "rsiwp", function(term, data) {
   basis <- seq(1, len = length(term@knots) - 1)
 

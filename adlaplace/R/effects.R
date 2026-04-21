@@ -23,7 +23,6 @@ f <- function(x, model = "iid", ...) {
 #my_env$f = function(...) {
 #  adlaplace::f(...)
 #}
-#eval(parse(text="f(x , model = \"hiwp\")"), envir = my_env)
 
 #' Parse Model Terms from Formula
 #'
@@ -31,12 +30,13 @@ f <- function(x, model = "iid", ...) {
 #' Parses a formula and creates model terms using constructors from specified packages.
 #'
 #' @param formula Model formula containing f() calls
-#' @param model_package Character vector of package names to search for model constructors
+#' @param package Character vector of package names to search for model constructors
+#' @param verbose print extra information
 #' @return List of model term objects
 #'
 #' @examples
 #' # Parse formula using hpolcc models
-#' terms <- collect_terms(y ~ f(x, model = "iwp"), model_package = "hpolcc")
+#' terms <- collect_terms(y ~ f(x, model = "iwp"), package = "hpolcc")
 #'
 #' @export
 collect_terms <- function(formula, package = character(0), verbose = FALSE) {
@@ -103,22 +103,7 @@ collect_terms <- function(formula, package = character(0), verbose = FALSE) {
   do.call(c, terms_1)
 }
 
-#' Create Formula with Empty Environment
-#'
-#' @description
-#' Creates a formula with a new empty environment, useful for avoiding
-#' unintended variable capture from the calling environment.
-#'
-#' @param prefix Optional prefix to add to variables
-#' @param x Variable name
-#'
-#' @return A formula object with empty environment
-#'
-#' @examples
-#' # Create formula with empty environment
-#' make_empty_formula("my_", "var")
-#'
-#' @export
+
 make_empty_formula <- function(prefix = "", x) {
-  formula(paste0("~ 0 + ", prefix, x), env = new.env())
+  stats::formula(paste0("~ 0 + ", prefix, x), env = new.env())
 }

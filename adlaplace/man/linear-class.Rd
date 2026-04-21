@@ -3,11 +3,34 @@
 \docType{class}
 \name{linear-class}
 \alias{linear-class}
+\alias{linear}
+\alias{design,linear-method}
+\alias{precision,linear-method}
+\alias{theta_info,linear-method}
+\alias{beta_info,linear-method}
+\alias{random_info,linear-method}
 \title{Linear Model Term}
+\usage{
+linear(
+  x,
+  init = .my_beta_init,
+  lower = .my_beta_lower,
+  upper = .my_beta_upper,
+  parscale = .my_beta_parscale
+)
+
+\S4method{design}{linear}(term, data)
+
+\S4method{precision}{linear}(term, data)
+
+\S4method{theta_info}{linear}(term)
+
+\S4method{beta_info}{linear}(term, data)
+
+\S4method{random_info}{linear}(term, data)
+}
 \arguments{
 \item{x}{Variable name}
-
-\item{prefix}{Optional prefix for term names}
 
 \item{init}{Initial value for beta parameter (default: 0)}
 
@@ -16,13 +39,45 @@
 \item{upper}{Upper bound for beta parameter (default: Inf)}
 
 \item{parscale}{Parameter scale for optimization (default: 1)}
+
+\item{term}{A linear term object}
+
+\item{data}{A data frame containing the term variable}
 }
 \value{
 A linear term object
 }
 \description{
-Creates a linear model term for fixed effects.
+Creates and manages linear model terms for fixed effects.
 }
+\details{
+Linear Model Term
+}
+\section{Functions}{
+\itemize{
+\item \code{design(linear)}: Creates design matrix for linear term
+
+\item \code{precision(linear)}: Creates precision matrix for linear term
+
+\item \code{theta_info(linear)}: Extracts theta parameter information for linear term
+
+\item \code{beta_info(linear)}: Extracts beta parameter information for linear term
+
+\item \code{random_info(linear)}: Extracts random effects information for linear term
+
+}}
+\section{Methods}{
+
+The following methods are available for `linear` objects:
+\describe{
+  \item{\code{design(term, data)}}{Creates design matrix for linear term}
+  \item{\code{precision(term, data)}}{Creates precision matrix for linear term}
+  \item{\code{theta_info(term)}}{Extracts theta parameter information}
+  \item{\code{beta_info(term, data)}}{Extracts beta parameter information}
+  \item{\code{random_info(term, data)}}{Extracts random effects information}
+}
+}
+
 \examples{
 # Create a linear term
 linear_term <- linear(x = "temperature")

@@ -93,6 +93,5 @@ The Laplace approximation assumes the inner Hessian \code{Hinner} is
   or error.
 }
 \seealso{
-\code{\link[adlaplace]{getAdFun}}, \code{\link[adlaplace]{inner_opt}},
-\code{\link[adlaplace]{logLikDeriv}}
+\code{\link[adlaplace]{getAdFun}}, \code{\link[adlaplace]{inner_opt}}
 }

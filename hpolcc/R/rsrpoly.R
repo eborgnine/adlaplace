@@ -1,15 +1,20 @@
 #' Random Polynomial Model for Random Slope
 #'
 #' @description Creates a random polynomial model term for use in a random slope model.
+#' @name rsrpoly-class
+#' @docType class
+#' @exportClass rsrpoly
 #'
-#' @param x Variable name
-#' @param mult covariate to be mulitplied
-#' @param p Polynomial degree (default: 2)
-#' @param ref_value Reference value for the polynomial
-#' @param ref_mult Reference value for the covariate
-#' @param sd Standard deviation for random effects
-#'
-#' @return A rsrpoly term object
+#' @section Methods:
+#' The following methods are available for `rsrpoly` objects:
+#' \describe{
+#'   \item{\code{design(term, data)}}{Creates design matrix for rsrpoly term}
+#'   \item{\code{precision(term, data)}}{Creates precision matrix for rsrpoly term}
+#'   \item{\code{theta_info(term)}}{Extracts theta parameter information}
+#'   \item{\code{beta_info(term, data)}}{Extracts beta parameter information}
+#'   \item{\code{random_info(term, data)}}{Extracts random effects information}
+#' }
+NULL
 
 setClass("rsrpoly",
   representation = representation(
@@ -26,6 +31,7 @@ setClass("rsrpoly",
   )
 )
 
+#' @rdname rsrpoly-class
 #' @export
 rsrpoly <- function(x, mult, p = 2, ref_value = 0, ref_mult = 0, sd = Inf) {
   # check sd is positive and length 1.  check p length 2 integer.  check ref value length 1
@@ -42,10 +48,10 @@ rsrpoly <- function(x, mult, p = 2, ref_value = 0, ref_mult = 0, sd = Inf) {
     stop("ref_mult must be a single value")
   }
 
-  new("rsrpoly",
+  methods::new("rsrpoly",
     term = x,
     mult = mult,
-    formula = as.formula(paste0("~ 0 + ", x), env = new.env()),
+    formula = stats::as.formula(paste0("~ 0 + ", x), env = new.env()),
     p.order = as.integer(p),
     ref_value = ref_value,
     ref_mult = ref_mult,
@@ -53,6 +59,11 @@ rsrpoly <- function(x, mult, p = 2, ref_value = 0, ref_mult = 0, sd = Inf) {
   )
 }
 
+#' @describeIn rsrpoly-class Creates design matrix for rsrpoly term
+#' @param term A rsrpoly term object
+#' @param data A data frame containing the term variables
+#' @return A design matrix for the random slope polynomial term, or NULL if p.order is 0
+#' @export
 setMethod("design", "rsrpoly", function(term, data) {
   if (term@p.order == 0) {
     return(NULL)
@@ -64,7 +75,7 @@ setMethod("design", "rsrpoly", function(term, data) {
     warning("missing values in", term@mult)
   }
 
-  a_matrix <- poly(
+  a_matrix <- stats::poly(
     data[[term@term]] - term@ref_value,
     raw = TRUE, degree = term@p.order
   )
@@ -79,6 +90,11 @@ setMethod("design", "rsrpoly", function(term, data) {
 })
 
 # Precision matrix for rpoly terms
+#' @describeIn rsrpoly-class Creates precision matrix for rsrpoly term
+#' @param term A rsrpoly term object
+#' @param data A data frame containing the term variables
+#' @return A precision matrix for the random slope polynomial term
+#' @export
 setMethod("precision", "rsrpoly", function(term, data) {
   the_sd <- term@sd
   names(the_sd) <- paste(
@@ -90,17 +106,30 @@ setMethod("precision", "rsrpoly", function(term, data) {
 })
 
 # Theta info for rpoly terms
+#' @describeIn rsrpoly-class Extracts theta parameter information for rsrpoly term
+#' @param term A rsrpoly term object
+#' @return NULL (random slope polynomial terms don't have theta parameters)
+#' @export
 setMethod("theta_info", "rsrpoly", function(term) {
   NULL
 })
 
 # Beta info for rpoly terms
+#' @describeIn rsrpoly-class Extracts beta parameter information for rsrpoly term
+#' @param term A rsrpoly term object
+#' @return NULL (random slope polynomial terms don't have beta parameters)
+#' @export
 setMethod("beta_info", "rsrpoly", function(term) {
   # Rpoly terms don't have beta parameters (random effects only)
   return(NULL)
 })
 
 # Gamma info for rpoly terms
+#' @describeIn rsrpoly-class Extracts random effects information for rsrpoly term
+#' @param term A rsrpoly term object
+#' @param data A data frame containing the term variables
+#' @return A data frame containing random effects information for the random slope polynomial term
+#' @export
 setMethod("random_info", "rsrpoly", function(term, data) {
   order <- seq_len(term@p.order)
 

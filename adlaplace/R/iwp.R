@@ -1,8 +1,9 @@
-# IWP class definition
+#' @include 000.R
+#' @include rpoly.R
+NULL
+
 setClass("iwp",
-  representation = representation(
-    # Inherits all slots from model class
-  ),
+  slots = list(),
   contains = "model",
   prototype = prototype(
     # Default values for iwp-specific behavior
@@ -11,25 +12,44 @@ setClass("iwp",
   )
 )
 
-#' @title Create an Integrated Wiener Process Term
+#' Integrated Wiener Process Term
 #'
-#' @description
-#' Creates an integrated Wiener process (IWP) model term.
+#' @description Creates and manages integrated Wiener process (IWP) model terms.
+#' @name iwp-class
+#' @docType class
+#' @exportClass iwp
 #'
-#' @param x Variable name
-#' @param p Order of the integrated Wiener process (default: 2)
-#' @param ref_value Reference value for the basis
-#' @param knots Vector of knot locations
-#' @param range Range of the data (optional)
-#' @param init Initial values for theta parameters
-#' @param lower Lower bounds for theta parameters
-#' @param upper Upper bounds for theta parameters
-#' @param parscale Parameter scales for optimization
-#' @param boundary_is_random Whether boundary should be treated as random
-#' @param include_poly Whether to include polynomial terms
-#'
-#' @return A list containing iwp term object and optionally polynomial terms
+#' @section Methods:
+#' The following methods are available for `iwp` objects:
+#' \describe{
+#'   \item{\code{design(term, data)}}{Creates design matrix for IWP term}
+#'   \item{\code{precision(term, data)}}{Creates precision matrix for IWP term}
+#'   \item{\code{theta_info(term)}}{Extracts theta parameter information}
+#'   \item{\code{beta_info(term, data)}}{Extracts beta parameter information}
+#'   \item{\code{random_info(term, data)}}{Extracts random effects information}
+#' }
+NULL
 
+#' Integrated Wiener Process Term Constructor
+#'
+#' @description Creates an integrated Wiener process (IWP) model term.
+#' @name iwp
+#' @param x Variable name.
+#' @param p Order of the integrated Wiener process (default: 2).
+#' @param ref_value Reference value for the basis.
+#' @param knots Vector of knot locations.
+#' @param range Range of the data (optional).
+#' @param init Initial values for theta parameters.
+#' @param lower Lower bounds for theta parameters.
+#' @param upper Upper bounds for theta parameters.
+#' @param parscale Parameter scales for optimization.
+#' @param boundary_is_random Whether boundary should be treated as random.
+#' @param include_poly Whether to include polynomial terms.
+#' @return A list containing the `iwp` term object and optionally polynomial terms.
+#' @examples
+#' # Example usage:
+#' # knots <- seq(0, 1, length.out = 5)
+#' # iwp_term <- iwp(x = "age", knots = knots)
 #' @export
 iwp <- function(
   x, p = 2,
@@ -56,14 +76,14 @@ iwp <- function(
   if (length(boundary_is_random) != 1) stop("boundary_is_random must be a single value")
   if (length(include_poly) != 1) stop("include_poly must be a single value")
 
-  the_f <- as.formula(paste0("~ 0 + ", x), env = new.env())
+  the_f <- stats::as.formula(paste0("~ 0 + ", x), env = new.env())
   result <- list()
   iwp_name <- paste("iwp", x, sep = "_")
 
   ref_value = ref_align(ref_value, knots)
   knots_ref = knots - ref_value
 
-  result[[iwp_name]] <- new("iwp",
+  result[[iwp_name]] <- methods::new("iwp",
     term = x,
     formula = the_f,
     p.order = as.integer(p),
@@ -97,79 +117,8 @@ iwp <- function(
   result
 }
 
-# Design matrix for iwp terms
-setMethod("design", "iwp", function(term, data) {
-  refined_x <- data[[term@term]] - term@ref_value
-  basis <- local_poly(term@knots, refined_x, term@p.order)
-  result <- basis[, 1:ncol(basis), drop = FALSE]
 
-  knots_string <- formatC(seq.int(ncol(result)),
-    width = ceiling(log10(ncol(result))), flag = "0"
-  )
 
-  colnames(result) <- paste0(term@term, "_iwp_k", knots_string)
-  result
-})
-
-# Precision matrix for iwp terms
-setMethod("precision", "iwp", function(term, data) {
-  result <- Matrix::Matrix(compute_weights_precision(term@knots))
-
-  knots_string <- formatC(seq.int(nrow(result)),
-    width = ceiling(log10(nrow(result))), flag = "0"
-  )
-
-  dimnames(result) <- list(
-    paste0(term@term, "_iwp_k", knots_string)
-  )[c(1, 1)]
-  result
-})
-
-# Theta info for iwp terms
-setMethod("theta_info", "iwp", function(term) {
-  result <- data.frame(
-    term = term@term, model = "iwp",
-    label = paste(c(term@term, "iwp"), collapse = "_"),
-    init = term@init,
-    lower = term@lower, upper = term@upper,
-    parscale = term@parscale,
-    type = term@type
-  )
-  return(result)
-})
-
-# Beta info for iwp terms
-setMethod("beta_info", "iwp", function(term) {
-  # IWP terms don't have beta parameters
-  return(NULL)
-})
-
-# Gamma info for iwp terms
-setMethod("random_info", "iwp", function(term, data) {
-  basis <- seq(1, len = length(term@knots) - 1)
-
-  result <- expand.grid(
-    term = term@term,
-    model = "iwp",
-    label = paste(c(term@term, "iwp"), collapse = "_"),
-    by = NA, # iwp doesn't have hierarchical structure
-    by_labels = NA,
-    basis = basis,
-    order = term@p.order,
-    stringsAsFactors = FALSE
-  )
-
-  bnumPad <- formatC(result$basis,
-    width = max(ceiling(c(1, log10(max(result$basis)))), na.rm = TRUE),
-    flag = "0"
-  )
-  result$gamma_label <- paste0(result$label, "_k", bnumPad)
-
-  result
-})
-
-# Adaptation of the local_poly function from the OSplines packages --------
-#' @export
 local_poly <- function(knots, refined_x, p) {
   if (min(knots) >= 0) {
     dif <- diff(knots)
@@ -271,14 +220,13 @@ local_poly <- function(knots, refined_x, p) {
   D
 }
 
-#' @export
 compute_weights_precision <- function(knots) {
   if (min(knots) >= 0) {
-    as(diag(diff(knots)), "matrix")
+    methods::as(diag(diff(knots)), "matrix")
   } else if (max(knots) < 0) {
     knots_neg <- knots
     knots_neg <- unique(sort(ifelse(knots < 0, -knots, 0)))
-    as(diag(diff(knots_neg)), "matrix")
+    methods::as(diag(diff(knots_neg)), "matrix")
   } else {
     knots_neg <- knots
     knots_neg <- unique(sort(ifelse(knots < 0, -knots, 0)))
@@ -292,17 +240,109 @@ compute_weights_precision <- function(knots) {
   }
 }
 
-#' @title Align Reference Value to Nearest Knot
+#' Align Reference Value to Nearest Knot
 #'
-#' @description
-#' Aligns a reference value to the nearest knot in a set of knots.
+#' @description Aligns a reference value to the nearest knot in a set of knots.
+#' This is useful for ensuring that reference values used in polynomial terms
+#' are aligned with the actual knot positions.
 #'
-#' @param ref_value The reference value to align
-#' @param knots A vector of knot locations
+#' @param ref_value A numeric value representing the desired reference point.
+#' @param knots A numeric vector of knot positions.
 #'
-#' @return The nearest knot value to the reference value
+#' @return The knot value that is closest to the specified reference value.
+#'
+#' @examples
+#' # Align reference value to nearest knot
+#' knots <- c(10, 20, 30, 40, 50)
+#' ref_align(23, knots)  # Returns 20
 #'
 #' @export
 ref_align <- function(ref_value, knots) {
   knots[which.min(abs(knots - ref_value))]
 }
+
+# Method definitions for iwp class
+#' @describeIn iwp-class Creates design matrix for IWP term
+#' @param term An iwp term object
+#' @param data A data frame containing the term variable
+#' @export
+setMethod("design", "iwp", function(term, data) {
+  refined_x <- data[[term@term]] - term@ref_value
+  basis <- local_poly(term@knots, refined_x, term@p.order)
+  result <- basis[, 1:ncol(basis), drop = FALSE]
+
+  knots_string <- formatC(seq.int(ncol(result)),
+    width = ceiling(log10(ncol(result))), flag = "0"
+  )
+
+  colnames(result) <- paste0(term@term, "_iwp_k", knots_string)
+  result
+})
+
+#' @describeIn iwp-class Creates precision matrix for IWP term
+#' @param term An iwp term object
+#' @param data A data frame containing the term variable
+#' @export
+setMethod("precision", "iwp", function(term, data) {
+  result <- Matrix::Matrix(compute_weights_precision(term@knots))
+
+  knots_string <- formatC(seq.int(nrow(result)),
+    width = ceiling(log10(nrow(result))), flag = "0"
+  )
+
+  dimnames(result) <- list(
+    paste0(term@term, "_iwp_k", knots_string)
+  )[c(1, 1)]
+  result
+})
+
+#' @describeIn iwp-class Extracts theta parameter information for IWP term
+#' @param term An iwp term object
+#' @export
+setMethod("theta_info", "iwp", function(term) {
+  result <- data.frame(
+    term = term@term, model = "iwp",
+    label = paste(c(term@term, "iwp"), collapse = "_"),
+    init = term@init,
+    lower = term@lower, upper = term@upper,
+    parscale = term@parscale,
+    type = term@type
+  )
+  return(result)
+})
+
+#' @describeIn iwp-class Extracts beta parameter information for IWP term
+#' @param term An iwp term object
+#' @param data A data frame containing the term variable
+#' @export
+setMethod("beta_info", "iwp", function(term, data) {
+  # IWP terms don't have beta parameters
+  return(NULL)
+})
+
+#' @describeIn iwp-class Extracts random effects information for IWP term
+#' @param term An iwp term object
+#' @param data A data frame containing the term variable
+#' @export
+setMethod("random_info", "iwp", function(term, data) {
+  basis <- seq(1, length.out = length(term@knots) - 1)
+
+  result <- expand.grid(
+    term = term@term,
+    model = "iwp",
+    label = paste(c(term@term, "iwp"), collapse = "_"),
+    by = NA, # iwp doesn't have hierarchical structure
+    by_labels = NA,
+    basis = basis,
+    order = term@p.order,
+    stringsAsFactors = FALSE
+  )
+
+  bnumPad <- formatC(result$basis,
+    width = max(ceiling(c(1, log10(max(result$basis)))), na.rm = TRUE),
+    flag = "0"
+  )
+  result$gamma_label <- paste0(result$label, "_k", bnumPad)
+
+  result
+})

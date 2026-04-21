@@ -56,14 +56,14 @@ hnlm <- function(
     package = "hpolcc", verbose = config$verbose
   )
 
-  if (!any(sapply(model_terms, slot, "type") == "family")) {
+  if (!any(sapply(model_terms, methods::slot, "type") == "family")) {
     model_terms <- c(
       model_terms,
       adlaplace::overdispersion()
     )
   }
 
-  covariates <- unique(unlist(lapply(model_terms, slot, "term")))
+  covariates <- unique(unlist(lapply(model_terms, methods::slot, "term")))
   outcome_var <- all.vars(formula)[1]
   random_slope_terms = unique(unlist(sapply(model_terms[
     grep("^rs", sapply(model_terms, class))

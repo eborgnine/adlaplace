@@ -3,7 +3,25 @@
 \docType{class}
 \name{hiwp-class}
 \alias{hiwp-class}
+\alias{hiwp}
 \title{Hierarchical Integrated Wiener Process Model Term}
+\usage{
+hiwp(
+  x,
+  p = 2,
+  ref_value = 0,
+  knots,
+  range = NULL,
+  by,
+  init = .my_theta_init,
+  lower = .my_theta_lower,
+  upper = .my_theta_upper,
+  parscale = .my_theta_parscale,
+  boundary_is_random = TRUE,
+  include_poly = TRUE,
+  include_global = TRUE
+)
+}
 \arguments{
 \item{x}{Variable name}
 
@@ -35,5 +53,25 @@
 A list containing hiwp term object and optionally related terms
 }
 \description{
-Creates a hierarchical integrated Wiener process (HIWP) model term.
+Creates and manages hierarchical integrated Wiener process (HIWP) model terms.
+}
+\details{
+Hierarchical Integrated Wiener Process Model Term
+}
+\section{Methods}{
+
+The following methods are available for `hiwp` objects:
+\describe{
+  \item{\code{design(term, data)}}{Creates design matrix for HIWP term}
+  \item{\code{precision(term, data)}}{Creates precision matrix for HIWP term}
+  \item{\code{theta_info(term)}}{Extracts theta parameter information}
+  \item{\code{beta_info(term, data)}}{Extracts beta parameter information}
+  \item{\code{random_info(term, data)}}{Extracts random effects information}
+}
+}
+
+\examples{
+# Example usage:
+# knots <- seq(0, 1, length.out = 5)
+# hiwp_term <- hiwp(x = "age", knots = knots, by = "group")
 }

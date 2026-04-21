@@ -8,22 +8,37 @@ NULL
 #' @export
 .type_factor_levels <- c("fixed", "random", "family")
 
-# Define generic functions for model methods
+#' Model Term Generics
+#'
+#' @description Generic functions for extracting model matrices and parameter information from model terms.
+#' @param term A model term object.
+#' @param data A data frame containing the variables.
+#' @return Method-specific return values.
+#' @name model-generics
+NULL
+
+#' @rdname model-generics
 #' @export
 setGeneric("design", function(term, data) standardGeneric("design"))
+#' @rdname model-generics
 #' @export
 setGeneric("precision", function(term, data) standardGeneric("precision"))
+#' @rdname model-generics
 #' @export
 setGeneric("theta_info", function(term) standardGeneric("theta_info"))
+#' @rdname model-generics
 #' @export
 setGeneric("beta_info", function(term, data) standardGeneric("beta_info"))
+#' @rdname model-generics
 #' @export
 setGeneric("random_info", function(term, data) standardGeneric("random_info"))
 
-# Define the base model class that all specific model classes inherit from
-#' @export
+#' Base Model Class
+#'
+#' @description The base S4 class that all specific model term classes inherit from.
+#' @exportClass model
 setClass("model",
-         representation(
+         slots = list(
            term = "character",
            formula = "formula",
            knots = "numeric",

@@ -1,21 +1,23 @@
 #' Linear Model Term
 #'
-#' @description Creates a linear model term for fixed effects.
+#' @description Creates and manages linear model terms for fixed effects.
+#' @name linear-class
+#' @aliases linear
+#' @docType class
+#' @title Linear Model Term
+#' @exportClass linear
 #'
-#' @param x Variable name
-#' @param prefix Optional prefix for term names
-#' @param init Initial value for beta parameter (default: 0)
-#' @param lower Lower bound for beta parameter (default: -Inf)
-#' @param upper Upper bound for beta parameter (default: Inf)
-#' @param parscale Parameter scale for optimization (default: 1)
-#'
-#' @return A linear term object
-#'
-#' @examples
-#' # Create a linear term
-#' linear_term <- linear(x = "temperature")
+#' @section Methods:
+#' The following methods are available for `linear` objects:
+#' \describe{
+#'   \item{\code{design(term, data)}}{Creates design matrix for linear term}
+#'   \item{\code{precision(term, data)}}{Creates precision matrix for linear term}
+#'   \item{\code{theta_info(term)}}{Extracts theta parameter information}
+#'   \item{\code{beta_info(term, data)}}{Extracts beta parameter information}
+#'   \item{\code{random_info(term, data)}}{Extracts random effects information}
+#' }
+NULL
 
-# Linear class definition
 setClass("linear",
          representation = representation(
          ),
@@ -30,14 +32,24 @@ setClass("linear",
 )
 
 #' @export
+#' @rdname linear-class
+#' @param x Variable name
+#' @param init Initial value for beta parameter (default: 0)
+#' @param lower Lower bound for beta parameter (default: -Inf)
+#' @param upper Upper bound for beta parameter (default: Inf)
+#' @param parscale Parameter scale for optimization (default: 1)
+#' @return A linear term object
+#' @examples
+#' # Create a linear term
+#' linear_term <- linear(x = "temperature")
 linear <- function(x, 
                   init = .my_beta_init,
                   lower = .my_beta_lower,
                   upper = .my_beta_upper,
                   parscale = .my_beta_parscale) {
-  new("linear",
+  methods::new("linear",
     term = x,
-    formula = as.formula(paste0("~ 0 + ", x), env = new.env()),
+    formula = stats::as.formula(paste0("~ 0 + ", x), env = new.env()),
     init = init,
     lower = lower,
     upper = upper,
@@ -45,7 +57,10 @@ linear <- function(x,
   )
 }
 
-# Design matrix for linear terms
+#' @describeIn linear-class Creates design matrix for linear term
+#' @param term A linear term object
+#' @param data A data frame containing the term variable
+#' @export
 setMethod("design", "linear", function(term, data){
     res <- Matrix::sparse.model.matrix(term@formula, data, drop.unused.levels = FALSE)
     if (is.factor(data[[term@term]])) {
@@ -55,21 +70,28 @@ setMethod("design", "linear", function(term, data){
     res
 })
 
-# Precision matrix for linear terms
+#' @describeIn linear-class Creates precision matrix for linear term
+#' @param term A linear term object
+#' @param data A data frame containing the term variable
+#' @export
 setMethod("precision", "linear", function(term, data) {
   # Linear terms don't have precision matrices
   NULL
 })
 
-# Theta info for linear terms
+#' @describeIn linear-class Extracts theta parameter information for linear term
+#' @param term A linear term object
+#' @export
 setMethod("theta_info", "linear", function(term) {
   # Linear terms don't have random effects parameters
   return(NULL)
 })
 
-# Beta info for linear terms
+#' @describeIn linear-class Extracts beta parameter information for linear term
+#' @param term A linear term object
+#' @param data A data frame containing the term variable
+#' @export
 setMethod("beta_info", "linear", function(term, data) {
-
   the_colnames = colnames(design(term, data))
   the_label = paste(term@term, "linear", sep="_")
 
@@ -88,7 +110,10 @@ setMethod("beta_info", "linear", function(term, data) {
   return(result)
 })
 
-# Gamma info for linear terms
+#' @describeIn linear-class Extracts random effects information for linear term
+#' @param term A linear term object
+#' @param data A data frame containing the term variable
+#' @export
 setMethod("random_info", "linear", function(term, data) {
   NULL
 })
