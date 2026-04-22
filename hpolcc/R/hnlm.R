@@ -191,10 +191,10 @@ hnlm <- function(
     model_stuff$info$theta[not_overdisp, transform_cols] <- log(
       model_stuff$info$theta[not_overdisp, transform_cols]
     )
-    all_par_cols = colnames(model_stuff$info$parameters)
-    model_stuff$info$parameters = rbind(
-      model_stuff$info$beta[,all_par_cols],
-      model_stuff$info$theta[,all_par_cols]
+    all_par_cols <- colnames(model_stuff$info$parameters)
+    model_stuff$info$parameters <- rbind(
+      model_stuff$info$beta[, all_par_cols],
+      model_stuff$info$theta[, all_par_cols]
     )
   }
 
@@ -210,9 +210,9 @@ hnlm <- function(
   config$theta <- model_stuff$info$theta$init
   config$gamma <- rep(0, nrow(model_stuff$info$gamma))
 
-  for(D in c("beta","theta","gamma")) {
-    if(is.null(config[[D]])) {
-      config[[D]] = numeric(0)
+  for (D in c("beta", "theta", "gamma")) {
+    if (is.null(config[[D]])) {
+      config[[D]] <- numeric(0)
     }
   }
 
@@ -346,7 +346,7 @@ hnlm <- function(
   }
 
   result$extra <- try(adlaplace::logLikLaplace(
-    x= result$opt[[grep("solution|par", names(result$opt), value = TRUE)[1]]],
+    x = result$opt[[grep("solution|par", names(result$opt), value = TRUE)[1]]],
     gamma = result$objects$cache$gamma,
     data = result$objects$tmb_data,
     config = result$objects$config,
@@ -361,9 +361,9 @@ hnlm <- function(
     cat("hessian of parameters\n")
   }
   result$hessian_parameters <- try(
-     Matrix::forceSymmetric(numDeriv::jacobian(
-      func=adlaplace::outer_gr,
-      x=result$opt[[grep("solution|par", names(result$opt), value = TRUE)[1]]],
+    Matrix::forceSymmetric(numDeriv::jacobian(
+      func = adlaplace::outer_gr,
+      x = result$opt[[grep("solution|par", names(result$opt), value = TRUE)[1]]],
       package = "hpolcc",
       data = result$objects$tmb_data,
       config = result$objects$config,
@@ -379,6 +379,26 @@ hnlm <- function(
     fit = result,
     n = c(result$objects$config$num_sim, 500)[1]
   ))
+
+  seq_inner <- seq(
+    from = max(c(0, nrow(result$parameters$beta))) + 1,
+    length.out = nrow(result$parameters$gamma)
+  )
+
+  result$extra$hessian$H_inner <- result$extra$hessian$H[seq_inner, seq_inner]
+
+  which_is_iid <- grepl("iid", result$parameters$gamma$model)
+  if (any(which_is_iid) & requireNamespace("WoodburyMatrix", quietly = TRUE)) {
+    Dinv <- H_inner[which_is_iid, which_is_iid]
+
+    for_var_years <- WoodburyMatrix::WoodburyMatrix(
+      A = Matrix::solve(Dinv),
+      B = H_inner[!which_is_iid, !which_is_iid],
+      X = H_inner[which_is_iid, !which_is_iid],
+      symmetric = TRUE
+    )
+    result$extra$hessian$var_iid <- WoodburyMatrix::solve(for_var_years)
+  }
 
   result
 }
