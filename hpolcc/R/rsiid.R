@@ -133,7 +133,7 @@ setMethod("random_info", "rsiid", function(term, data) {
 
   result = adlaplace::random_info(methods::as(term, "iid"), data)
   result$model = "rsiid"
-  result$label = gsub("_iid$", "_rsiid_", result$label)
+  result$label = gsub("_iid$", "_rsiid", result$label)
   result$gamma_label = gsub("_iid_", "_rsiid_", result$gamma_label)
   result
 })

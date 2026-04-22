@@ -182,7 +182,8 @@ model_setup <- function(formula, data, verbose = FALSE) {
       ATp <- methods::as(ATp, "dgCMatrix")
     }
   } else {
-    ATp <- Matrix::sparseMatrix(dims = c(0, 0))
+    ATp <- methods::as(Matrix::sparseMatrix(
+      dims = c(0, nrow(data))), "dMatrix")
   }
 
   if (ncol(x_matrix) > 0) {
@@ -191,7 +192,9 @@ model_setup <- function(formula, data, verbose = FALSE) {
       XTp <- methods::as(XTp, "dgCMatrix")
     }
   } else {
-    XTp <- Matrix::sparseMatrix(i=c(), j=c(), dims = c(0, 0))
+    XTp <- methods::as(
+      Matrix::sparseMatrix(i=c(), j=c(), 
+    dims = c(0, nrow(data))), "dMatrix")
   }
 
   for_q_offdiag <- methods::as(precision_matrix, "TsparseMatrix")

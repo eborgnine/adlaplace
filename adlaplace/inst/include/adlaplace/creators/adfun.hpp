@@ -278,7 +278,9 @@ if(config.verbose) {
 		for(size_t D=0;D<config.Nparams;D++) {
 			ad_params[D] = ad_params_G[D];
 		}
-
+if(config.verbose) {
+	Rcpp::Rcout << ".";
+}
 //    # pragma omp for schedule(dynamic,1) nowait
 		for(size_t D=0;D<NgroupsObs;D++) {
 
@@ -297,7 +299,9 @@ if(config.verbose) {
 				result[D],
 				config.verbose);
 		}
-
+if(config.verbose) {
+	Rcpp::Rcout << ".";
+}
 //# pragma omp single nowait
 		{
 			const size_t D = NgroupsObs;
@@ -316,7 +320,9 @@ if(config.verbose) {
 				result[D],
 				config.verbose);
 		}
-
+if(config.verbose) {
+	Rcpp::Rcout << ".";
+}
 //		# pragma omp single nowait
 		{
 			const size_t D = NgroupsObs + 1;

@@ -113,10 +113,6 @@ logLikLaplace = function(
 	}
 
 
-	if(any(config$verbose)) {
-		cat("logLikLaplace using package ", package, " for objective function\n")
-	}
-
 	Niter = 0;tryAgain=TRUE
 	while(tryAgain & (Niter < 3) ) {
 		Niter = Niter + 1
@@ -143,9 +139,6 @@ logLikLaplace = function(
 	}
 	if(sum(abs(inner_res$gradient[Sgamma1])) > 1) {
 		warning("inner_opt failed, large gradient")
-	}
-	if(any(config$verbose)) {
-		cat("done inner opt\n")
 	}
 
 	Houter = do.call(Matrix::sparseMatrix, inner_res$hessian)

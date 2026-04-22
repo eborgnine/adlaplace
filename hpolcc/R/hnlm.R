@@ -184,6 +184,20 @@ hnlm <- function(
     verbose = config$verbose
   )
 
+  # log transform
+  if (config$transform_theta) {
+    not_overdisp <- model_stuff$info$theta$model != "overdispersion"
+    transform_cols <- c("init", "lower", "upper")
+    model_stuff$info$theta[not_overdisp, transform_cols] <- log(
+      model_stuff$info$theta[not_overdisp, transform_cols]
+    )
+    all_par_cols = colnames(model_stuff$info$parameters)
+    model_stuff$info$parameters = rbind(
+      model_stuff$info$beta[,all_par_cols],
+      model_stuff$info$theta[,all_par_cols]
+    )
+  }
+
   # Add case-crossover specific components
   model_stuff$data$elgm_matrix <- cc_matrix
   model_stuff$data$y <- data_sub[[outcome_var]]
@@ -193,8 +207,14 @@ hnlm <- function(
   config$verbose <- config$verbose > 1
 
   config$beta <- model_stuff$info$beta$init
-  config$theta <- model_stuff$infoo$theta$init
+  config$theta <- model_stuff$info$theta$init
   config$gamma <- rep(0, nrow(model_stuff$info$gamma))
+
+  for(D in c("beta","theta","gamma")) {
+    if(is.null(config[[D]])) {
+      config[[D]] = numeric(0)
+    }
+  }
 
   if (verbose_orig) {
     cat("getting groups...")
@@ -220,15 +240,14 @@ hnlm <- function(
 
   if (for_dev) {
     return(list(
-      tmb_data = model_stuff$data,
+      model = model_stuff,
       config = config,
       formula = formula,
       terms = model_terms,
       data = data_sub,
       control = control,
       control_inner = control_inner,
-      cache = cache,
-      parameters_info = model_stuff$info
+      cache = cache
     ))
   }
 
@@ -318,38 +337,44 @@ hnlm <- function(
       control_inner = control$inner,
       control = control,
       cache = cache,
-      data = data_sub
+      data = data_sub,
+      ad_fun = ad_fun
     )
   )
   if (verbose_orig) {
-    cat("done")
+    cat("one last evaulation of likelihhood\n")
   }
 
   result$extra <- try(adlaplace::logLikLaplace(
-    result$opt[[grep("solution|par", names(result$opt), value = TRUE)[1]]],
-    gamma = result$objects$config$gamma,
+    x= result$opt[[grep("solution|par", names(result$opt), value = TRUE)[1]]],
+    gamma = result$objects$cache$gamma,
     data = result$objects$tmb_data,
     config = result$objects$config,
-    control = control_inner,
+    control = result$objects$control_inner,
     adFun = ad_fun,
     deriv = 1
   ))
   result$extra$parameters_orig <- result$parameters
   result$parameters <- try(format_parameters(result))
 
+  if (verbose_orig) {
+    cat("hessian of parameters\n")
+  }
   result$hessian_parameters <- try(
-    numDeriv::jacobian(
-      adlaplace::outer_gr,
-      x = mle$solution,
+     Matrix::forceSymmetric(numDeriv::jacobian(
+      func=adlaplace::outer_gr,
+      x=result$opt[[grep("solution|par", names(result$opt), value = TRUE)[1]]],
       package = "hpolcc",
       data = result$objects$tmb_data,
-      config = config,
-      control_inner = control_inner,
+      config = result$objects$config,
+      control_inner = result$objects$control_inner,
       adFun = ad_fun,
-      cache = cache
-    )
+      cache = result$objects$cache
+    ), "U")
   )
-
+  if (verbose_orig) {
+    cat("conditional samples\n")
+  }
   result$sample <- try(cond_sim_iwp(
     fit = result,
     n = c(result$objects$config$num_sim, 500)[1]

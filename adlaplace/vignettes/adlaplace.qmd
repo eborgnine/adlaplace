@@ -1,14 +1,15 @@
 ---
 title: "Laplace Approximations with adlaplace"
-format: 
-  html:
-    theme: cosmo
+author: "Patrick Brown"
+date: "`r Sys.Date()`"
+output:
+  rmarkdown::html_vignette:
     toc: true
-    toc-depth: 3
-    code-fold: true
-    code-tools: true
-jupyter: 
-  kernel: ir
+    toc_depth: 3
+vignette: >
+  %\VignetteIndexEntry{Laplace Approximations with adlaplace}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
 ---
 
 

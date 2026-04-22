@@ -127,16 +127,29 @@ CppAD::vector<CppAD::AD<double>> logDensObs(
   const CppAD::AD<double> lastTheta = params[params.size() - 1]; // log(\tau) if transform_theta otherwise tau
   const CppAD::AD<double> tauSq = lastTheta * lastTheta;
 
-  const bool verbose_here = config.verbose & (Dgroup == 0);
-  for (size_t DstrataI = startP; DstrataI < endP; DstrataI++)
-  {
-    const size_t Dstrata = have_groups ? config.groups.i[DstrataI] : DstrataI;
-
-    const auto etaHere = compute_eta_for_stratum(Dstrata, data, config, params);
-    const auto contrib = accumulate_contrib_for_stratum(Dstrata, data, etaHere, tauSq);
+  const bool verbose_here = config.verbose & (Dgroup < 1);
 
   if(verbose_here) {
-		Rcpp::Rcout << "strata  " << Dstrata << " contrib " << contrib << " eta[0] " << etaHere[0] << "\n"; 
+		Rcpp::Rcout << "group  " << Dgroup << " startP " << startP << " endP " << endP << "\n"; 
+  }  
+
+  for (size_t DstrataI = startP; DstrataI < endP; DstrataI++)
+  {
+  if(verbose_here) {
+		Rcpp::Rcout << DstrataI;
+  }
+    const size_t Dstrata = have_groups ? config.groups.i[DstrataI] : DstrataI;
+
+  if(verbose_here) {
+		Rcpp::Rcout << ".";
+  }
+    const auto etaHere = compute_eta_for_stratum(Dstrata, data, config, params);
+  if(verbose_here) {
+		Rcpp::Rcout << ".";
+  }
+    const auto contrib = accumulate_contrib_for_stratum(Dstrata, data, etaHere, tauSq);
+  if(verbose_here) {
+		Rcpp::Rcout << "strata  " << Dstrata << " contrib " << contrib << " eta[0] " << etaHere[0] << "\n";
   }  
 
     result1 += contrib;

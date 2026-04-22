@@ -9,6 +9,7 @@ Description: Computes Laplace approximations for hierarchical models using
 License: MPL-2.0
 Imports: Matrix (>= 1.2.18), Rcpp (>= 1.0.3), trustOptim, methods
 Suggests: knitr, numDeriv, abind
+VignetteBuilder: knitr
 Enhances: RSpectra
 LinkingTo: Rcpp, trustOptim
 Encoding: UTF-8
