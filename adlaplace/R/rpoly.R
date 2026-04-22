@@ -106,8 +106,10 @@ setMethod("precision", "rpoly", function(term, data) {
   sd_values <- rep_len(term@sd, p)
   
   # For random effects, we typically use identity matrix scaled by 1/sd^2
-  precision_mat <- diag(1 / (sd_values^2), nrow = p, ncol = p)
-  
+  precision_mat <- Matrix::Diagonal(n = p, x = 1 / (sd_values^2) )
+  dimnames(precision_mat) = list(
+     paste0(term@term, "_rpoly_", seq.int(1, length.out = term@p.order))
+  )[c(1,1)]
   return(precision_mat)
 })
 
@@ -121,16 +123,17 @@ setMethod("random_info", "rpoly", function(term, data) {
     return(NULL)
   }
   
-  the_colnames <- colnames(design(term, data))
   the_label <- paste(term@term, "rpoly", sep = "_")
+  the_colnames <- paste0(the_label, "_", seq.int(1, length.out = term@p.order))
   
   result <- data.frame(
     term = term@term,
     model = "rpoly",
     label = the_label,
-    order = NA,
-    random_label = the_colnames,
-    sd = rep_len(term@sd, term@p.order)
+    by = NA, by_labels = NA, 
+    basis = NA, 
+    order = seq.int(1, term@p.order),
+    gamma_label = the_colnames
   )
   
   return(result)

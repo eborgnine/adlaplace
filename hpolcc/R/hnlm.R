@@ -43,6 +43,7 @@
 #' # data <- data.frame(y = rnorm(100), x1 = rnorm(100), x2 = rnorm(100))
 #' # result <- hnlm(y ~ x1 + x2, data = data)
 #'
+#' @import data.table
 #' @export
 hnlm <- function(
   formula,
@@ -106,7 +107,7 @@ hnlm <- function(
 
   covariates <- unique(unlist(lapply(model_terms, methods::slot, "term")))
   outcome_var <- all.vars(formula)[1]
-  random_slope_terms = unique(unlist(sapply(model_terms[
+  random_slope_terms <- unique(unlist(sapply(model_terms[
     grep("^rs", sapply(model_terms, class))
   ], methods::slot, "mult")))
 
@@ -126,9 +127,17 @@ hnlm <- function(
   if (config$verbose) {
     cat("variables:\n")
     print(required_vars)
+    cat("excluding data colnames:\n")
+    print(setdiff(required_vars, colnames(data)))
   }
   # Remove rows with NA values in required variables
-  data <- data[stats::complete.cases(data[, ..required_vars])]
+
+  data <- data[complete.cases(data[, required_vars, with = FALSE])]
+
+
+  if (config$verbose) {
+    cat("data has ", nrow(data), " rows\n")
+  }
 
   if (anyNA(data[[outcome_var]])) {
     warning("missing values in outcome, treating as zeros")
@@ -147,7 +156,7 @@ hnlm <- function(
 
   data_sub <- n_per_strata[data, on = strat_time_vars, nomatch = 0]
 
-  if(!nrow(data_sub)) {
+  if (!nrow(data_sub)) {
     warning("no data left after removing missings")
   }
 
@@ -170,56 +179,30 @@ hnlm <- function(
 
   # Use adlaplace::model_setup for standardized model preparation
   model_stuff <- adlaplace::model_setup(
-    formula = formula,
+    formula = model_terms,
     data = data_sub,
     verbose = config$verbose
   )
 
-  beta_setup = model_stuff$info$beta
-  theta_setup = model_stuff$info$theta
-  gamma_setup = model_stuff$info$gamma
-
-  # Extract components from model_setup result
-  tmb_data <- model_stuff$data
-  parameters_info <- model_stuff$info
-
   # Add case-crossover specific components
-  tmb_data$elgm_matrix <- cc_matrix
-  tmb_data <- formatHpolData(tmb_data)
+  model_stuff$data$elgm_matrix <- cc_matrix
+  model_stuff$data$y <- data_sub[[outcome_var]]
+
 
   verbose_orig <- config$verbose
   config$verbose <- config$verbose > 1
 
-  config$beta <- beta_setup$init
-  config$theta <- theta_setup$init
-  config$gamma <- rep(0, nrow(gamma_setup))
-
-  if (is.null(beta_setup)) {
-    beta_theta_names <- names(theta_setup)
-    config$beta <- numeric(0)
-  } else {
-    beta_theta_names <- intersect(colnames(beta_setup), colnames(theta_setup))
-  }
-
-  beta_theta_names <- setdiff(beta_theta_names, "order")
-
-  parameters_info <- list(
-    beta = beta_setup,
-    gamma = gamma_setup,
-    theta = theta_setup,
-    parameters = rbind(
-      beta_setup[, beta_theta_names],
-      theta_setup[, beta_theta_names]
-    )
-  )
+  config$beta <- model_stuff$info$beta$init
+  config$theta <- model_stuff$infoo$theta$init
+  config$gamma <- rep(0, nrow(model_stuff$info$gamma))
 
   if (verbose_orig) {
     cat("getting groups...")
   }
 
   config$groups <- adlaplace::adFun_groups(
-    ATp = tmb_data$ATp,
-    elgm_matrix = tmb_data$elgm_matrix,
+    ATp = model_stuff$data$ATp,
+    elgm_matrix = model_stuff$data$elgm_matrix,
     Ngroups = config$num_groups
   )
 
@@ -232,12 +215,12 @@ hnlm <- function(
   assign("gamma", config$gamma, cache)
 
   config$opt <- as.list(
-    parameters_info$parameters[c("init", "lower", "upper", "parscale")]
+    model_stuff$info$parameters[c("init", "lower", "upper", "parscale")]
   )
 
   if (for_dev) {
     return(list(
-      tmb_data = tmb_data,
+      tmb_data = model_stuff$data,
       config = config,
       formula = formula,
       terms = model_terms,
@@ -245,7 +228,7 @@ hnlm <- function(
       control = control,
       control_inner = control_inner,
       cache = cache,
-      parameters_info = parameters_info
+      parameters_info = model_stuff$info
     ))
   }
 
@@ -259,7 +242,7 @@ hnlm <- function(
   }
 
   ad_fun <- adlaplace::getAdFun(
-    tmb_data,
+    model_stuff$data,
     config,
     package = config$package
   )
@@ -301,7 +284,7 @@ hnlm <- function(
     cat("optimizing")
     cat(" initial, lower , upper\n")
     to_print <- do.call(cbind, config$opt)
-    rownames(to_print) <- parameters_info$parameters$label
+    rownames(to_print) <- model_stuff$info$parameters$label
     print(to_print)
   }
 
@@ -326,16 +309,16 @@ hnlm <- function(
   result <- list(
     opt = mle,
     objects = list(
-      tmb_data = tmb_data,
+      tmb_data = model_stuff$data,
       config = config,
       formula = formula,
       terms = model_terms,
-      parameters_info = parameters_info,
+      parameters_info = model_stuff$info,
       random_info = random_info,
       control_inner = control$inner,
       control = control,
       cache = cache,
-      data=data_sub
+      data = data_sub
     )
   )
   if (verbose_orig) {
@@ -354,18 +337,18 @@ hnlm <- function(
   result$extra$parameters_orig <- result$parameters
   result$parameters <- try(format_parameters(result))
 
-    result$hessian_parameters <- try(
-      numDeriv::jacobian(
-        adlaplace::outer_gr,
-        x = mle$solution,
-        package = "hpolcc",
-        data = tmb_data,
-        config = config,
-        control_inner = control_inner,
-        adFun = ad_fun,
-        cache = cache
-      )
+  result$hessian_parameters <- try(
+    numDeriv::jacobian(
+      adlaplace::outer_gr,
+      x = mle$solution,
+      package = "hpolcc",
+      data = result$objects$tmb_data,
+      config = config,
+      control_inner = control_inner,
+      adFun = ad_fun,
+      cache = cache
     )
+  )
 
   result$sample <- try(cond_sim_iwp(
     fit = result,

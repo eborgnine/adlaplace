@@ -61,8 +61,17 @@ setMethod("design", "iid", function(term, data){
 #' @export
 setMethod("precision", "iid", function(term, data) {
   # Identity matrix for iid terms
-  n <- length(unique(data[[term@term]]))
-  Matrix::Diagonal(n, 1)
+  term_here = data[[term@term]]
+  if(is.factor(term_here)) {
+    n = nlevels(term_here)
+    labels_here = levels(term_here)
+  } else {
+    labels_here = as.character(unique(term_here))
+    n <- length(labels_here)
+  }
+  result = Matrix::Diagonal(n, 1)
+  dimnames(result) = list(paste0(term@term , "_iid_", labels_here))[c(1,1)]
+  result
 })
 
 #' @describeIn iid-class Extracts random effects information for iid term
@@ -71,13 +80,13 @@ setMethod("precision", "iid", function(term, data) {
 #' @export
 setMethod("random_info", "iid", function(term, data) {
   
-  result <- expand.grid(
+  result <- data.frame(
     term = term@term,
     model = "iid",
     label = paste(term@term, "iid", sep = "_"),
     by = NA,
     by_labels = NA,
-    basis = sort(unique(data[[term@term]])),
+    basis = as.character(sort(unique(data[[term@term]]))),
     order = NA
   )
   result$gamma_label = paste(result$label, result$basis, sep="_")

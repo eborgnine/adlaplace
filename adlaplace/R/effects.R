@@ -39,7 +39,9 @@ f <- function(x, model = "iid", ...) {
 #' terms <- collect_terms(y ~ f(x, model = "iwp"), package = "hpolcc")
 #'
 #' @export
-collect_terms <- function(formula, package = character(0), verbose = FALSE) {
+collect_terms <- function(
+  formula, package = character(0), verbose = FALSE
+  ) {
   model_package <- unique(c(package, "adlaplace"))
   term_labels <- attr(stats::terms(formula), "term.labels")
 
