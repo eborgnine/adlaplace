@@ -31,6 +31,43 @@ $$$
 set.seed(1)
 
 Nobs <- 20000
+Nrandom1 <- 15
+Nrandom2 <- 25
+
+X <- Matrix::Matrix(cbind(1, rbinom(Nobs, 1, prob = 0.5)))
+beta_true <- c(0.4, -0.3)
+
+A1 <- Matrix::sparseMatrix(i = 1:Nobs, j = sample(Nrandom1, Nobs, replace = TRUE), x = 1)
+A2 <- Matrix::sparseMatrix(i = 1:Nobs, j = sample(Nrandom2, Nobs, replace = TRUE), x = 1)
+A <- cbind(A1, A2)
+
+NperEffect <- c(Nrandom1, Nrandom2)
+map <- Matrix::sparseMatrix(
+  i = 0:(ncol(A) - 1L),
+  j = rep(0:(length(NperEffect) - 1L), NperEffect),
+  x = 1L,
+  dims = c(ncol(A), length(NperEffect)),
+  index1 = FALSE
+)
+
+sd_random <- c(0.25, 0.15)
+gamma_true <- rnorm(ncol(A), sd = rep(sd_random, NperEffect))
+
+omega_true <- 0.7
+alpha_true <- 0.8
+
+
+eta <- as.vector(X %*% beta_true + A %*% gamma_true)
+y <- sn::rsn(Nobs, xi = eta, omega = omega_true, alpha=alpha_true)
+
+data <- list(
+  y = y,
+  ATp = as(Matrix::t(A), "dMatrix"),
+  XTp = as(Matrix::t(X), "CsparseMatrix"),
+  map = map,
+  Qdiag = rep(1, ncol(A))
+)
+```
 
 
 ## Configure model and build AD object
@@ -70,9 +107,8 @@ quantile(eigen(H)$values)
 
 ## Trust-optimization and Laplace log-likelihood interface
 
-```{r trustOptimInterface, eval=FALSE}
+```{r trustOptimInterface}
 adFun <- adlaplace::getAdFun(data, config, package = "adlaplaceExample")
-
 
 res <- adlaplace::logLikLaplace(
   x = c(config$beta, config$theta),
@@ -84,9 +120,7 @@ res$grad
 ```
 
 
-```{r trustOptimOuterWrappers, eval=FALSE}
-adFun <- adlaplace::getAdFun(data, config)
-
+```{r trustOptimOuterWrappers}
 cache <- new.env(parent = emptyenv())
 cache$gamma <- config$gamma
 
@@ -121,7 +155,6 @@ outer_fit$fval
 
 
 ```{r testLogLgrad}
-adFun = adlaplace::getAdFun(data,config)
 x = c(config$beta,config$theta)
 Npar=13;Dpar = length(x)
 
@@ -147,11 +180,11 @@ gradMat = do.call(rbind, lapply(res, '[[', 'grad'))
 gradVec = unlist(lapply(res, function(xx) xx$deriv[Dpar,'dL']))
 
 
-plot(Sx, Slik)
-
 plot(Sx, gradVec)
 lines(SxD, diff(Slik)/diff(Sx), lwd=2, type='o', pch='.')
+```
 
+```{r more_plots, eval=FALSE}
 Du = 1
 plot(Sx, uHat[,Du])
 

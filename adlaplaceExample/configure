@@ -35,6 +35,8 @@ if [ -n "$RCPP_EIGEN_INCLUDE_DIR" ]; then
   EIGEN_SYSTEM_CPPFLAGS="-isystem $RCPP_EIGEN_INCLUDE_DIR"
 fi
 
+ADLAPLACE_INCLUDE_DIR="$(Rscript -e 'p <- system.file("include", package="adlaplace"); if (!nzchar(p)) { fp <- suppressWarnings(find.package("adlaplace", quiet=TRUE)); if (length(fp)) p <- file.path(fp[1], "include") }; cat(p)' 2>/dev/null || true)"
+
 check_cxxflag () {
   flag="$1"
   tmpdir="config.$$"
@@ -127,6 +129,7 @@ sed \
   -e "s/@BREW_CPPFLAGS@/$(esc_sed "$BREW_CPPFLAGS")/g" \
   -e "s/@CPPAD_CPPFLAGS@/$(esc_sed "$CPPAD_CPPFLAGS")/g" \
   -e "s/@EIGEN_SYSTEM_CPPFLAGS@/$(esc_sed "$EIGEN_SYSTEM_CPPFLAGS")/g" \
+  -e "s/@ADLAPLACE_INCLUDE@/$(esc_sed "$ADLAPLACE_INCLUDE_DIR")/g" \
 "$infile" > "$outfile"
 
 chmod 644 "$outfile"
