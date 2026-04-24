@@ -1,0 +1,36 @@
+---
+name: R-CMD-check
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  R-CMD-check:
+    runs-on: ubuntu-latest
+    container:
+      image: rocker/r-ver:4.5.3
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          apt-get update -qq
+          apt-get install -y libcppad-dev libgmp-dev libomp-dev g++ gfortran
+
+      - name: Install R dependencies
+        run: |
+          Rscript -e "install.packages(c('remotes', 'rcmdcheck', 'knitr', 'Matrix', 'Rcpp', 'trustOptim'), repos='https://cloud.r-project.org/')"
+          Rscript -e "remotes::install_local('.', dependencies=TRUE, upgrade=TRUE)"
+
+      - name: Run R CMD check
+        run: |
+          Rscript -e "rcmdcheck::rcmdcheck(args = c('--no-manual', '--no-multiarch'), error_on = 'warning', check_dir = '.')"
+
+      - name: Test installation
+        run: |
+          R CMD INSTALL .
+          Rscript -e "library(adlaplace); print('Package loaded successfully')"
