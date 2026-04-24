@@ -230,7 +230,7 @@ hnlm <- function(
   }
 
   config$groups <- adlaplace::adFun_groups(
-    ATp = rbind(model_stuff$data$XTP, model_stuff$data$ATp),
+    ATp = rbind(model_stuff$data$XTp, model_stuff$data$ATp),
     elgm_matrix = model_stuff$data$elgm_matrix,
     Ngroups = config$num_groups
   )
@@ -314,7 +314,8 @@ hnlm <- function(
     to_print <- do.call(cbind, config$opt)
     rownames(to_print) <- model_stuff$info$parameters$label
     print(to_print)
-  }
+    cat("threads: ", config$num_threads, "\n")
+    }
 
   control$parscale <- config$theta_info$parscale
 

@@ -42,7 +42,7 @@ setClass("intercept",
 #' @return A intercept term object
 #' @examples
 #' # Create a intercept term
-#' intercept_term <- intercept(x = "temperature")
+#' intercept_term <- intercept(init=2)
 #' @export
 intercept <- function(init = .my_beta_init,
                       lower = .my_beta_lower,

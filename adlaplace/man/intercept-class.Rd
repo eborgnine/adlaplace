@@ -77,5 +77,5 @@ The following methods are available for `intercept` objects:
 
 \examples{
 # Create a intercept term
-intercept_term <- intercept(x = "temperature")
+intercept_term <- intercept(init=2)
 }

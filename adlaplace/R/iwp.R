@@ -268,6 +268,11 @@ ref_align <- function(ref_value, knots) {
 #' @export
 setMethod("design", "iwp", function(term, data) {
   refined_x <- data[[term@term]] - term@ref_value
+
+  if(any(refined_x < min(term@knots)) || any(refined_x > max(term@knots))) {
+    warning("knots don't span the range of x ", term@term)
+  }
+
   basis <- local_poly(term@knots, refined_x, term@p.order)
   result <- basis[, 1:ncol(basis), drop = FALSE]
 
