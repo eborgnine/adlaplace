@@ -27,6 +27,7 @@ Collate:
     'groups.R'
     'hessian_map.R'
     'iid.R'
+    'intercept.R'
     'rpoly.R'
     'iwp.R'
     'linear.R'

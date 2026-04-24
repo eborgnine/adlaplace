@@ -92,7 +92,7 @@ hnlm <- function(
 
   if(methods::is(formula, "formula")) {
   model_terms <- adlaplace::collect_terms(
-    formula,
+    update.formula(formula, .~.-1), # no intercept
     package = "hpolcc", verbose = config$verbose
   )
   } else {

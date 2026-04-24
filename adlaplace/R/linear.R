@@ -42,6 +42,7 @@ setClass("linear",
 #' @examples
 #' # Create a linear term
 #' linear_term <- linear(x = "temperature")
+#' @export
 linear <- function(x, 
                   init = .my_beta_init,
                   lower = .my_beta_lower,

@@ -1,7 +1,7 @@
 Package: adlaplaceExample
 Type: Package
 Title: Example Backend for 'adlaplace'
-Version: 0.1.0
+Version: 0.2.0
 Authors@R: person(given = "Patrick", family = "Brown",
     email = "patrick.borgnine@gmail.com",
     role = c("aut", "cre", "cph"))
@@ -14,8 +14,9 @@ License: GPL-3
 Depends: R (>= 4.1.0)
 LinkingTo: Rcpp, adlaplace, RcppEigen, trustOptim
 Imports: Rcpp
-Suggests: knitr, rmarkdown, Matrix, trustOptim, sn, abind, adlaplace
-VignetteBuilder: knitr
+Suggests: Matrix, trustOptim, sn, abind, adlaplace, quarto
+Enhances: sn
+VignetteBuilder: quarto
 Encoding: UTF-8
 RoxygenNote: 7.3.3
 Roxygen: list(markdown = TRUE)

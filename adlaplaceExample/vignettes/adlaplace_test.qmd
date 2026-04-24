@@ -1,9 +1,14 @@
 ---
 title: "Laplace Approximations with adlaplaceExample"
-output: rmarkdown::html_vignette
+author: "Patrick Brown"
+date: "`r Sys.Date()`"
+format:
+  html:
+    toc: true
+    toc-depth: 3
 vignette: >
   %\VignetteIndexEntry{Laplace Approximations with adlaplaceExample}
-  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEngine{quarto::html}
   %\VignetteEncoding{UTF-8}
 ---
 
@@ -13,14 +18,12 @@ This vignette mirrors the workflow in `adlaplace`, but uses the
 
 Skew-normal contribution for one observation:
 
-$$
+$$$
 \ell(y;\xi,\omega,\alpha)
 = -\log\omega - \frac12\log(2\pi)
   -\frac12\left(\frac{y-\xi}{\omega}\right)^2
   + \log\left[\operatorname{erfc}\left(-\frac{\alpha(y-\xi)}{\sqrt{2}\,\omega}\right)\right].
-$$
-
-
+$$$
 
 ## Simulate data
 
@@ -28,43 +31,7 @@ $$
 set.seed(1)
 
 Nobs <- 20000
-Nrandom1 <- 15
-Nrandom2 <- 25
 
-X <- Matrix::Matrix(cbind(1, rbinom(Nobs, 1, prob = 0.5)))
-beta_true <- c(0.4, -0.3)
-
-A1 <- Matrix::sparseMatrix(i = 1:Nobs, j = sample(Nrandom1, Nobs, replace = TRUE), x = 1)
-A2 <- Matrix::sparseMatrix(i = 1:Nobs, j = sample(Nrandom2, Nobs, replace = TRUE), x = 1)
-A <- cbind(A1, A2)
-
-NperEffect <- c(Nrandom1, Nrandom2)
-map <- Matrix::sparseMatrix(
-  i = 0:(ncol(A) - 1L),
-  j = rep(0:(length(NperEffect) - 1L), NperEffect),
-  x = 1L,
-  dims = c(ncol(A), length(NperEffect)),
-  index1 = FALSE
-)
-
-sd_random <- c(0.25, 0.15)
-gamma_true <- rnorm(ncol(A), sd = rep(sd_random, NperEffect))
-
-omega_true <- 0.7
-alpha_true <- 0.8
-
-
-eta <- as.vector(X %*% beta_true + A %*% gamma_true)
-y <- sn::rsn(Nobs, xi = eta, omega = omega_true, alpha=alpha_true)
-
-data <- list(
-  y = y,
-  ATp = as(Matrix::t(A), "dMatrix"),
-  XTp = as(Matrix::t(X), "CsparseMatrix"),
-  map = map,
-  Qdiag = rep(1, ncol(A))
-)
-```
 
 ## Configure model and build AD object
 
@@ -117,7 +84,6 @@ res$grad
 ```
 
 
-
 ```{r trustOptimOuterWrappers, eval=FALSE}
 adFun <- adlaplace::getAdFun(data, config)
 
@@ -154,7 +120,6 @@ outer_fit$fval
 ```
 
 
-
 ```{r testLogLgrad}
 adFun = adlaplace::getAdFun(data,config)
 x = c(config$beta,config$theta)
@@ -174,7 +139,8 @@ res = mapply(
 
 Slik = unlist(lapply(res, "[[", 'logLik'))
 Sdet = unlist(lapply(res, function(xx) xx$opt$halfLogDet))
-dU = do.call(abind::abind, c(lapply(res, function(xx) as.matrix(xx$extra$dU)), along=3))
+dU = do.call(
+  abind::abind, c(lapply(res, function(xx) as.matrix(xx$extra$dU)), along=3))
 uHat = do.call(rbind, lapply(res, function(xx) xx$opt$solution))
 extraDf = do.call(abind::abind, c(lapply(res, '[[', "deriv"), along=3))
 gradMat = do.call(rbind, lapply(res, '[[', 'grad'))
@@ -199,21 +165,6 @@ lines(SxD, diff(Sdet)/diff(Sx))
 ```
 
 
-
-
-
-
-
-## Notes
-
-- `adlaplaceExample` provides model-specific C++ objective code.
-- `adlaplace` provides shared optimization and Laplace tooling.
-- For production use, optimize outer parameters with `adlaplace` wrappers and
-  call `adlaplaceExample` for objective-specific derivatives.
-
-
-
-
 ```{r derivJointDens, eval=FALSE}
 config$gamma = rep(1, length(config$gamma))
 x = c(config$beta, config$gamma, config$theta)
@@ -221,7 +172,6 @@ adFun = adlaplace::getAdFun(data, modifyList(config, list(verbose=TRUE)))
 
 inner = FALSE
 type = c('outer','inner')[1+inner]
-
 
 Sgamma1 = seq.int(length(config$beta)+1, length.out = length(config$gamma))
 
@@ -240,11 +190,10 @@ bob = as(adFun$hessians$hessian[[type]], 'TsparseMatrix')
   xx = whichGlobal) -1L)
 
 
-
 do.call(rbind, adFun$sparsity[[
   whichP[1] 
   ]][c('row_hess','col_hess')])
-do.call(rbind, adFun$sparsity[[
+do.call(rbind, adlaplace$sparsity[[
   whichP[1] 
   ]][c('row_hess_inner', 'col_hess_inner')])
   
@@ -299,3 +248,9 @@ lines(SxD, gradD[,Dpar2])
 ```
 
 
+## Notes
+
+- `adlaplaceExample` provides model-specific C++ objective code.
+- `adlaplace` provides shared optimization and Laplace tooling.
+- For production use, optimize outer parameters with `adlaplace` wrappers and
+  call `adlaplaceExample` for objective-specific derivatives.

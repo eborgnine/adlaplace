@@ -16,13 +16,13 @@
 #' @export
 f <- function(x, model = "iid", ...) {
   x_str <- deparse(substitute(x))
-  model_fun <- get(model, envir = parent.frame(), mode="function")
+  model_fun <- get(model, envir = parent.frame(), mode = "function")
   model_fun(x_str, ...)
 }
-#my_env = new.env(parent = asNamespace("hpolcc"))
-#my_env$f = function(...) {
+# my_env = new.env(parent = asNamespace("hpolcc"))
+# my_env$f = function(...) {
 #  adlaplace::f(...)
-#}
+# }
 
 #' Parse Model Terms from Formula
 #'
@@ -41,74 +41,79 @@ f <- function(x, model = "iid", ...) {
 #' @export
 collect_terms <- function(
   formula, package = character(0), verbose = FALSE
-  ) {
-  if(!methods::is(formula, "formula")) {
+) {
+  if (!methods::is(formula, "formula")) {
     warning("formula must be of class formula")
   }
   model_package <- unique(c(package, "adlaplace"))
   term_labels <- attr(stats::terms(formula), "term.labels")
 
   # Ensure packages are loaded
+  pkg_env <- list()
   for (pkg in model_package) {
     if (!requireNamespace(pkg, quietly = TRUE)) {
       warning(paste("Package", pkg, "not available, skipping"))
     }
+    pkg_env[[pkg]] <- asNamespace(pkg)
   }
 
+
   terms_1 <- lapply(term_labels, function(lab) {
-    if (grepl("f\\(", lab)) {
-      term_obj <- NULL
+    term_obj <- NULL
 
-      # Try each package's namespace until we find one that works
-      for (pkg in model_package) {
-        pkg_env <- tryCatch(
-          {
-            asNamespace(pkg)
-          },
-          error = function(e) NULL
-        )
+    # Try each package's namespace until we find one that works
 
-        if (!is.null(pkg_env)) {
-          try_result <- try(
-            {
-              eval(parse(text = lab), envir = pkg_env)
-            },
-            silent = TRUE
+    for (pkg in names(pkg_env)) {
+      try_result <- try(
+        {
+          eval(parse(text = lab), envir = pkg_env[[pkg]])
+        },
+        silent = TRUE
+      )
+
+      if (!inherits(try_result, "try-error")) {
+        term_obj <- try_result
+        if (verbose) {
+          message(
+            paste(
+              "Model term", substr(lab, 1, 20),
+              "... found in package", pkg
+            )
           )
-
-          if (!inherits(try_result, "try-error")) {
-            term_obj <- try_result
-            if (verbose) {
-              message(
-                paste(
-                  "Model term", substr(lab, 1, 20),
-                  "... found in package", pkg
-                )
-              )
-            }
-            break
-          }
         }
+        break
       }
-
-      if (is.null(term_obj)) {
-        warning(paste("Failed to parse term", lab, "in any of the specified packages"))
-        # Fallback to linear term
-        return(list(lab))
-      }
-
-      return(term_obj)
-    } else {
-      result <- list(linear(lab))
-      names(result) <- result[[1]]@term
-      return(result)
     }
+
+    if (is.null(term_obj)) {
+      # term is probably a variable name, but if it has () in it, it's probably a model that wasn't found
+      if (grepl("[(]", lab)) {
+        warning(paste("Failed to parse term", lab, "in any of the specified packages"))
+      }
+      term_obj <- linear(lab)
+    }
+    if (!is.list(term_obj)) {
+      term_obj <- list(term_obj)
+      names(term_obj) <- lab
+    }
+
+    term_obj
   })
 
-  outcome_var <- all.vars(formula)[1]
-  terms_1$response = response(outcome_var)
+  terms_1 <- do.call(c, terms_1)
 
-  result = do.call(c, terms_1)
+  # add intercept
+  if (
+    attr(stats::terms(formula), "intercept") &&
+      !any(vapply(terms_1, inherits, logical(1), what = "intercept"))
+  ) {
+    terms_1$intercept <- intercept()
+  }
+
+  outcome_var <- all.vars(formula)[1]
+  terms_1$response <- response(outcome_var)
+
+  terms_1
 }
 
 

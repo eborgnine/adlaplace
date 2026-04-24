@@ -1,0 +1,152 @@
+---
+title: "AIS data in adlaplaceExample"
+author: "Patrick Brown"
+date: "`r Sys.Date()`"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+vignette: >
+  %\VignetteIndexEntry{AIS data in adlaplaceExample}
+  %\VignetteEngine{quarto::html}
+  %\VignetteEncoding{UTF-8}
+---
+```{r}
+data("ais", package = "sn")
+hist(ais$BMI)
+```
+
+```{r}
+model_stuff <- adlaplace::model_setup(
+  data = ais,
+  formula = BMI ~ intercept(init = mean(ais$BMI)) + sex + f(sport, model="iid"),
+  verbose=TRUE
+)
+
+config <- list(
+  beta = model_stuff$info$beta$init,
+  gamma = rep(0, nrow(model_stuff$info$gamma)),
+  theta = c(log(model_stuff$info$theta$init), 1, 1), # two skew-normal parameters
+  transform_theta = TRUE,
+  groups = adlaplace::adFun_groups(model_stuff$data$ATp, Ngroups = 100),
+  num_threads = 2L,
+  verbose = TRUE,
+  package = "adlaplaceExample"
+)
+```
+
+```{r}
+adFun <- adlaplace::getAdFun(model_stuff$data, config)
+res <- adlaplace::logLikLaplace(
+  x = c(config$beta, config$theta),
+  adFun = adFun,
+  config = modifyList(config, list(verbose = FALSE)),
+  deriv = TRUE
+)
+res$parameters
+res$fval
+res$grad
+```
+
+
+
+```{r trustOptimOuterWrappers}
+cache <- new.env(parent = emptyenv())
+cache$gamma <- config$gamma
+
+x0 <- c(config$beta, config$theta)
+
+adlaplace::outer_fn(x = x0, cache = cache, config = config, adFun = adFun)
+adlaplace::outer_gr(x = x0, cache = cache, config = config, adFun = adFun)
+
+outer_fit <- stats::optim(
+  par = x0,
+  fn = adlaplace::outer_fn,
+  gr = adlaplace::outer_gr,
+  method = "L-BFGS-B",
+  control = list(
+    maxit = 400,
+    trace = 3,
+    REPORT = 1
+  ),
+  config = config,
+  adFun = adFun,
+  cache = cache
+)
+outer_fit$par
+outer_fit$value
+```
+
+```{r}
+res <- adlaplace::logLikLaplace(
+  x = outer_fit$par,
+  adFun = adFun,
+  config = modifyList(config, list(verbose = FALSE)),
+  deriv = TRUE
+)
+model_stuff$info$gamma$mode = res$opt$solution
+model_stuff$info$beta$mle = res$parameters[seq(1, nrow(model_stuff$info$beta))]
+
+model_stuff$info$beta
+```
+
+```{r}
+hist(ais$BMI, prob = TRUE, breaks = 31)
+x_seq <- seq(par("usr")[1], par("usr")[2], len = 1001)
+lines(x_seq, 
+    sn::dsn(x_seq,
+        xi = model_stuff$info$beta$mle[1],
+        omega = exp(res$parameters[length(res$parameters) - 1]),
+        alpha = res$parameters[length(res$parameters)],
+    ),
+    col = "red"
+)
+```
+
+
+```{r testLogLgrad}
+x <- outer_fit$par
+Npar <- 13
+Dpar <- length(x)
+
+parDf <- data.frame(x)[, rep(1, Npar)]
+Sx <- seq(-0.1, 0.1, len = 13) + parDf[Dpar, 1]
+SxD <- Sx[-1] - diff(Sx) / 2
+parDf[Dpar, ] <- Sx
+
+res <- mapply(
+  adlaplace::logLikLaplace,
+  x = as.list(parDf),
+  MoreArgs = list(adFun = adFun, config = config, deriv = TRUE),
+  SIMPLIFY = FALSE
+)
+Slik <- unlist(lapply(res, "[[", "logLik"))
+Sdet <- unlist(lapply(res, function(xx) sum(log(xx$hessian$cholInner$D@x) / 2)))
+dU <- do.call(
+  abind::abind,
+  c(lapply(res, function(xx) as.matrix(xx$extra$dU)), along = 3)
+)
+uHat <- do.call(rbind, lapply(res, function(xx) xx$opt$solution))
+extraDf <- do.call(abind::abind, c(lapply(res, "[[", "deriv"), along = 3))
+gradMat <- do.call(rbind, lapply(res, "[[", "grad"))
+gradVec <- unlist(lapply(res, function(xx) xx$deriv[Dpar, "dL"]))
+
+
+plot(Sx, Slik)
+
+plot(Sx, gradVec)
+lines(SxD, diff(Slik) / diff(Sx), lwd = 2)
+
+Du <- 1
+plot(Sx, uHat[, Du])
+
+plot(Sx, dU[Du, Dpar, ])
+lines(SxD, diff(uHat[, Du]) / diff(Sx))
+
+plot(Sx, Sdet)
+
+plot(Sx, extraDf[Dpar, "dDet", ])
+lines(SxD, diff(Sdet) / diff(Sx))
+```
+
+
