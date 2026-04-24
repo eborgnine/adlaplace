@@ -37,8 +37,6 @@ model_stuff <- adlaplace::model_setup(
   f(fac, model = "iid") + f(model="overdispersion", lower = 1e-9)
 )
 
-
-
 config <- list(
   beta = model_stuff$info$beta$init,
   gamma = rep(0, nrow(model_stuff$info$gamma)),

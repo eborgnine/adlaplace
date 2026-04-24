@@ -64,9 +64,6 @@ hnlm <- function(
   ...
 ) {
   # Check inputs
-  if (!methods::is(formula, "formula")) {
-    stop("formula must be a formula.")
-  }
 
   config_defaults <- list(
     verbose = FALSE,
@@ -93,20 +90,24 @@ hnlm <- function(
     stop("Provide a valid stratification (or time) variable.")
   }
 
+  if(methods::is(formula, "formula")) {
   model_terms <- adlaplace::collect_terms(
     formula,
     package = "hpolcc", verbose = config$verbose
   )
+  } else {
+    model_terms = formula
+  }
 
-  if (!any(sapply(model_terms, methods::slot, "type") == "family")) {
+  if (!any(sapply(model_terms, class) == "overdispersion")) {
     model_terms <- c(
       model_terms,
       adlaplace::overdispersion()
     )
   }
 
-  covariates <- unique(unlist(lapply(model_terms, methods::slot, "term")))
-  outcome_var <- all.vars(formula)[1]
+  covariates <- unique(unlist(lapply(model_terms, methods::slot, "term")), value=TRUE, invert=TRUE)
+  covariates = unique(unlist(strsplit(covariates, ":")))
   random_slope_terms <- unique(unlist(sapply(model_terms[
     grep("^rs", sapply(model_terms, class))
   ], methods::slot, "mult")))
@@ -138,6 +139,14 @@ hnlm <- function(
   if (config$verbose) {
     cat("data has ", nrow(data), " rows\n")
   }
+
+  the_response = which(
+    unlist(lapply(model_terms, function(xx) any(class(xx) == "response")))
+  )
+  if(length(the_response)!= 1) {
+    warning("cant find response variable")
+  }
+  outcome_var = model_terms[[the_response[1]]]@term
 
   if (anyNA(data[[outcome_var]])) {
     warning("missing values in outcome, treating as zeros")
@@ -186,10 +195,10 @@ hnlm <- function(
 
   # log transform
   if (config$transform_theta) {
-    not_overdisp <- model_stuff$info$theta$model != "overdispersion"
+    transform_rows <- model_stuff$info$theta$type == "random"
     transform_cols <- c("init", "lower", "upper")
-    model_stuff$info$theta[not_overdisp, transform_cols] <- log(
-      model_stuff$info$theta[not_overdisp, transform_cols]
+    model_stuff$info$theta[transform_rows, transform_cols] <- log(
+      model_stuff$info$theta[transform_rows, transform_cols]
     )
     all_par_cols <- colnames(model_stuff$info$parameters)
     model_stuff$info$parameters <- rbind(
@@ -221,7 +230,7 @@ hnlm <- function(
   }
 
   config$groups <- adlaplace::adFun_groups(
-    ATp = model_stuff$data$ATp,
+    ATp = rbind(model_stuff$data$XTP, model_stuff$data$ATp),
     elgm_matrix = model_stuff$data$elgm_matrix,
     Ngroups = config$num_groups
   )
@@ -385,7 +394,7 @@ hnlm <- function(
     length.out = nrow(result$parameters$gamma)
   )
 
-  result$extra$hessian$H_inner <- result$extra$hessian$H[seq_inner, seq_inner]
+  H_inner = result$extra$hessian$H_inner <- result$extra$hessian$H[seq_inner, seq_inner]
 
   which_is_iid <- grepl("iid", result$parameters$gamma$model)
   if (any(which_is_iid) & requireNamespace("WoodburyMatrix", quietly = TRUE)) {

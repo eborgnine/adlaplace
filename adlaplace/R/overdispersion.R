@@ -30,7 +30,8 @@ setClass("overdispersion",
            knots = numeric(0),
            ref_value = numeric(0),
            p.order = integer(0),
-           by = character(0)
+           by = character(0),
+          type = factor("response", levels = .type_factor_levels)
   )
 )
 
@@ -60,8 +61,7 @@ overdispersion <- function(
     init = init,
     lower = lower,
     upper = upper,
-    parscale = parscale,
-    type = factor("family", levels = .type_factor_levels)
+    parscale = parscale
   )
 }
 

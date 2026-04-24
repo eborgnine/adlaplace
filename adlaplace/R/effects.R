@@ -42,6 +42,9 @@ f <- function(x, model = "iid", ...) {
 collect_terms <- function(
   formula, package = character(0), verbose = FALSE
   ) {
+  if(!methods::is(formula, "formula")) {
+    warning("formula must be of class formula")
+  }
   model_package <- unique(c(package, "adlaplace"))
   term_labels <- attr(stats::terms(formula), "term.labels")
 
@@ -102,7 +105,10 @@ collect_terms <- function(
     }
   })
 
-  do.call(c, terms_1)
+  outcome_var <- all.vars(formula)[1]
+  terms_1$response = response(outcome_var)
+
+  result = do.call(c, terms_1)
 }
 
 

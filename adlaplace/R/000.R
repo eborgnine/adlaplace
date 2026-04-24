@@ -6,7 +6,7 @@ NULL
 
 # Define factor levels for model type
 #' @export
-.type_factor_levels <- c("fixed", "random", "family")
+.type_factor_levels <- c("fixed", "random", "response")
 
 #' Model Term Generics
 #'

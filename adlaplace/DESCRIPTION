@@ -8,7 +8,7 @@ Description: Computes Laplace approximations for hierarchical models using
     automatic differentiation (CppAD) and trust-region optimization.
 License: MPL-2.0
 Imports: Matrix (>= 1.2.18), Rcpp (>= 1.0.3), trustOptim, methods
-Suggests: knitr, rmarkdown, numDeriv, abind, quarto
+Suggests: numDeriv, abind, quarto
 VignetteBuilder: quarto
 Enhances: RSpectra
 LinkingTo: Rcpp, trustOptim
@@ -18,3 +18,21 @@ RoxygenNote: 7.3.3
 NeedsCompilation: yes
 Packaged: 2026-01-22 18:49:30 UTC; patrick
 Author: Patrick Brown [aut, cre, cph]
+Collate: 
+    '000.R'
+    'RcppExports.R'
+    'effects.R'
+    'fpoly.R'
+    'getAdFun.R'
+    'groups.R'
+    'hessian_map.R'
+    'iid.R'
+    'rpoly.R'
+    'iwp.R'
+    'linear.R'
+    'logLikDeriv.R'
+    'logLikLaplace.R'
+    'model_setup.R'
+    'overdispersion.R'
+    'response.R'
+    'wrappers.R'

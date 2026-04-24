@@ -27,20 +27,18 @@ model_setup <- function(formula, data, verbose = FALSE) {
   # Extract outcome variable and covariates
 
   # Get model terms and collect information
-  if(any(class(formula) == "formula")) {
-  outcome_var <- all.vars(formula)[1]
-  the_terms <- collect_terms(
-    formula,
-    verbose = verbose
-  )
+  if (methods::is(formula, "formula")) {
+    the_terms <- collect_terms(
+      formula,
+      verbose = verbose
+    )
   } else {
-    outcome_var = NULL
-    the_terms = formula
-    if(inherits(the_terms, "model")) {
-      the_terms = list(the_terms)
+    the_terms <- formula
+    if (inherits(the_terms, "model")) {
+      the_terms <- list(the_terms)
     }
-    inherits_seq = unlist(lapply(the_terms, inherits, what = "model"))
-    if(!all(inherits_seq)) {
+    inherits_seq <- unlist(lapply(the_terms, inherits, what = "model"))
+    if (!all(inherits_seq)) {
       warning("formula must be of class formula or a list of objects which inherit class model")
     }
   }
@@ -179,22 +177,26 @@ model_setup <- function(formula, data, verbose = FALSE) {
   if (ncol(a_matrix) > 0) {
     ATp <- Matrix::t(a_matrix)
     if (!inherits(ATp, "CsparseMatrix")) {
-      ATp <- methods::as(ATp, "dgCMatrix")
+      ATp <- methods::as(ATp, "CsparseMatrix")
     }
   } else {
     ATp <- methods::as(Matrix::sparseMatrix(
-      dims = c(0, nrow(data))), "dMatrix")
+      dims = c(0, nrow(data))
+    ), "dMatrix")
   }
 
   if (ncol(x_matrix) > 0) {
     XTp <- Matrix::t(x_matrix)
     if (!inherits(XTp, "CsparseMatrix")) {
-      XTp <- methods::as(XTp, "dgCMatrix")
+      XTp <- methods::as(XTp, "CsparseMatrix")
     }
   } else {
     XTp <- methods::as(
-      Matrix::sparseMatrix(i=c(), j=c(), 
-    dims = c(0, nrow(data))), "dMatrix")
+      Matrix::sparseMatrix(
+        i = c(), j = c(),
+        dims = c(0, nrow(data))
+      ), "dMatrix"
+    )
   }
 
   for_q_offdiag <- methods::as(precision_matrix, "TsparseMatrix")
@@ -216,8 +218,18 @@ model_setup <- function(formula, data, verbose = FALSE) {
     Qdiag = Matrix::diag(precision_matrix),
     QsansDiag = q_offdiag
   )
-  if(length(outcome_var)) {
-    adlaplace_data$y = data[[outcome_var]]
+
+  the_response <- which(
+    unlist(lapply(the_terms, function(xx) any(class(xx) == "response")))
+  )
+  if (length(the_response) == 1) {
+    adlaplace_data$y <- data[[
+      the_terms[[
+        the_response[1]
+      ]]@term
+    ]]
+  } else {
+    warning("no response variable")
   }
 
   if (is.null(beta_setup)) {
