@@ -24,7 +24,8 @@ jobs:
 
       - name: Install R dependencies
         run: |
-          Rscript -e "install.packages(c('remotes', 'rcmdcheck', 'quarto'), repos='https://cloud.r-project.org/')"
+          Rscript -e "install.packages(c('remotes', 'rcmdcheck'), repos='https://cloud.r-project.org/')"
+          Rscript -e "install.packages('quarto', dependencies=TRUE, repos='https://cloud.r-project.org/')"
           Rscript -e "remotes::install_local('adlaplace', dependencies=NA, upgrade=TRUE)"
 
       - name: Run R CMD check
