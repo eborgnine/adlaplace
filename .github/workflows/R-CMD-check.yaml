@@ -18,8 +18,8 @@ jobs:
         run: |
           apt-get update -qq
           apt-get install -y \
-            r2u-data.table r2u-rcpp r2u-matrix r2u-numderiv r2u-abind \
-            r2u-knitr r2u-rmarkdown r2u-rcppeigen \
+            r-cran-data.table r-cran-rcpp r-cran-matrix r-cran-numderiv r-cran-abind \
+            r-cran-knitr r-cran-rmarkdown r-cran-rcppeigen \
             libcppad-dev libgmp-dev libomp-dev g++ gfortran \
             libcurl4-openssl-dev libuv1-dev
 
