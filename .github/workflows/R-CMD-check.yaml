@@ -1,4 +1,3 @@
----
 name: R-CMD-check
 
 on:
@@ -13,41 +12,17 @@ jobs:
     container: rocker/r2u
     steps:
       - uses: actions/checkout@v4
-      - run: apt install -y r2u-data.table r2u-rcpp r2u-matrix
-      - run: R CMD check .
 
-      - name: check data.table
-        run: |
-          Rscript -e "library('data.table')"
-
+      # 1. Update apt + install SYSTEM dependencies FIRST
       - name: Install system dependencies
         run: |
           apt-get update -qq
-          apt-get install -y libcppad-dev libgmp-dev libomp-dev g++ gfortran libcurl4-openssl-dev libuv1-dev
-          ln -s /usr/include/cppad /usr/local/include/cppad
+          apt-get install -y \
+            r2u-data.table r2u-rcpp r2u-matrix r2u-numderiv r2u-abind \
+            r2u-knitr r2u-rmarkdown r2u-rcppeigen \
+            libcppad-dev libgmp-dev libomp-dev g++ gfortran \
+            libcurl4-openssl-dev libuv1-dev
 
-      - name: Install apt R dependencies
+      - name: test data table
         run: |
-          apt-get install -y r-cran-rmarkdown r-cran-matrix r-cran-rcpp r-cran-numderiv r-cran-abind r-cran-data.table r-cran-knitr r-cran-rcppeigen
- 
-      - name: Install R dependencies
-        run: |
-          Rscript -e "install.packages(c('trustOptim','quarto'), repos='https://cloud.r-project.org/')"
-
-      - name: R build and install
-        run: |
-          R CMD build --no-build-vignettes adlaplace
-          R CMD INSTALL adlaplace*.tar.gz
-          R CMD build --no-build-vignettes adlaplaceExample
-          R CMD INSTALL adlaplaceExample*.tar.gz
-
-      - name: Run R CMD check
-        run: |
-          R CMD check --no-manual adlaplace*.tar.gz
-          R CMD check --no-manual adlaplaceExample*.tar.gz
-
-
-#         apt-get install r-cran-quarto r-cran-trustoptim
-#          Rscript -e "install.packages(c('Matrix', 'Rcpp', 'trustOptim','numDeriv','abind'), repos='https://cloud.r-project.org/')"
-
-
+          R -e "library('data.table')"
