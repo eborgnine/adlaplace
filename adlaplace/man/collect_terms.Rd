@@ -20,7 +20,6 @@ List of model term objects
 Parses a formula and creates model terms using constructors from specified packages.
 }
 \examples{
-# Parse formula using hpolcc models
-terms <- collect_terms(y ~ f(x, model = "iwp"), package = "hpolcc")
+terms <- collect_terms(y ~ f(x, model = "iwp"))
 
 }

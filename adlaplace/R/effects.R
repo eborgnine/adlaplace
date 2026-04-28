@@ -19,10 +19,6 @@ f <- function(x, model = "iid", ...) {
   model_fun <- get(model, envir = parent.frame(), mode = "function")
   model_fun(x_str, ...)
 }
-# my_env = new.env(parent = asNamespace("hpolcc"))
-# my_env$f = function(...) {
-#  adlaplace::f(...)
-# }
 
 #' Parse Model Terms from Formula
 #'
@@ -35,8 +31,7 @@ f <- function(x, model = "iid", ...) {
 #' @return List of model term objects
 #'
 #' @examples
-#' # Parse formula using hpolcc models
-#' terms <- collect_terms(y ~ f(x, model = "iwp"), package = "hpolcc")
+#' terms <- collect_terms(y ~ f(x, model = "iwp"))
 #'
 #' @export
 collect_terms <- function(

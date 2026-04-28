@@ -19,7 +19,7 @@ jobs:
       - name: Install system dependencies
         run: |
           apt-get update -qq
-          apt-get install -y libcppad-dev libgmp-dev libomp-dev g++ gfortran libcurl4-openssl-dev libuv1-dev 
+          apt-get install -y libcppad-dev libgmp-dev libomp-dev g++ gfortran libcurl4-openssl-dev libuv1-dev
           ln -s /usr/include/cppad /usr/local/include/cppad
 
       - name: Install R dependencies
@@ -31,5 +31,5 @@ jobs:
         run: |
           R CMD build --no-build-vignettes adlaplace
           R CMD INSTALL adlaplace*.tar.gz
-          R CMD check adlaplace*.tar.gz
+          R CMD check --no-manual adlaplace*.tar.gz
 

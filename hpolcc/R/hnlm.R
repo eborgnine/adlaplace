@@ -339,7 +339,7 @@ hnlm <- function(
   result <- list(
     opt = mle,
     objects = list(
-      tmb_data = model_stuff$data,
+#      tmb_data = model_stuff$data,
       config = config,
       formula = formula,
       terms = model_terms,
@@ -348,7 +348,7 @@ hnlm <- function(
       control_inner = control$inner,
       control = control,
       cache = cache,
-      data = data_sub,
+#      data = data_sub,
       ad_fun = ad_fun
     )
   )
@@ -359,7 +359,7 @@ hnlm <- function(
   result$extra <- try(adlaplace::logLikLaplace(
     x = result$opt[[grep("solution|par", names(result$opt), value = TRUE)[1]]],
     gamma = result$objects$cache$gamma,
-    data = result$objects$tmb_data,
+    data =  model_stuff$data, #result$objects$tmb_data,
     config = result$objects$config,
     control = result$objects$control_inner,
     adFun = ad_fun,
@@ -376,7 +376,7 @@ hnlm <- function(
       func = adlaplace::outer_gr,
       x = result$opt[[grep("solution|par", names(result$opt), value = TRUE)[1]]],
       package = "hpolcc",
-      data = result$objects$tmb_data,
+      data =  model_stuff$data,#result$objects$tmb_data,
       config = result$objects$config,
       control_inner = result$objects$control_inner,
       adFun = ad_fun,
@@ -396,7 +396,8 @@ hnlm <- function(
     length.out = nrow(result$parameters$gamma)
   )
 
-  H_inner = result$extra$hessian$H_inner <- result$extra$hessian$H[seq_inner, seq_inner]
+  H_inner <- result$extra$hessian$H_inner <-
+    result$extra$hessian$H[seq_inner, seq_inner]
 
   which_is_iid <- grepl("iid", result$parameters$gamma$model)
   if (any(which_is_iid) & requireNamespace("WoodburyMatrix", quietly = TRUE)) {
