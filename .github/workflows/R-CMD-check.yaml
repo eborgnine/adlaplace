@@ -24,8 +24,8 @@ jobs:
 
       - name: Install R dependencies
         run: |
-          Rscript -e "install.packages(c('Matrix', 'Rcpp', 'trustOptim'), repos='https://cloud.r-project.org/')"
           Rscript -e "install.packages(c("rmarkdown",'quarto'), repos='https://cloud.r-project.org/')"
+          Rscript -e "install.packages(c('Matrix', 'Rcpp', 'trustOptim'), repos='https://cloud.r-project.org/')"
 
       - name: Run R CMD check
         run: |
