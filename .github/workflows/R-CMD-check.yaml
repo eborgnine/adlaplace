@@ -17,6 +17,13 @@ jobs:
       - uses: actions/checkout@v4
 
 
+      - name: Setup CRAN repository
+        run: |
+          sudo mkdir -p /etc/apt/keyrings
+          curl -fsSL https://cloud.r-project.org/bin/linux/ubuntu/marutter_pubkey.asc | sudo gpg --dearmor -o /etc/apt/keyrings/cran.gpg
+          echo "deb [signed-by=/etc/apt/keyrings/cran.gpg] https://cloud.r-project.org/bin/linux/ubuntu $(lsb_release -cs)-cran40/ /" | sudo tee /etc/apt/sources.list.d/cran.list
+          sudo apt-get update
+
       - name: Install data.table
         run: |
           apt-get install -y r-cran-data.table
