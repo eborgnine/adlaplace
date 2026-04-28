@@ -20,7 +20,7 @@ jobs:
       - name: Setup CRAN repository
         run: |
           apt-get update
-          sudo apt-get install -y curl gnupg
+          apt-get install -y curl gnupg
           mkdir -p /etc/apt/keyrings
           curl -fsSL https://cloud.r-project.org/bin/linux/ubuntu/marutter_pubkey.asc | gpg --dearmor -o /etc/apt/keyrings/cran.gpg
           echo "deb [signed-by=/etc/apt/keyrings/cran.gpg] https://cloud.r-project.org/bin/linux/ubuntu $(lsb_release -cs)-cran40/ /" | tee /etc/apt/sources.list.d/cran.list
