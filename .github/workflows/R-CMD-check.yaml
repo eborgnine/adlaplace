@@ -23,9 +23,11 @@ jobs:
           apt-get install -y curl gnupg
           mkdir -p /etc/apt/keyrings
           curl -fsSL https://cloud.r-project.org/bin/linux/ubuntu/marutter_pubkey.asc | gpg --dearmor -o /etc/apt/keyrings/cran.gpg
-          echo "deb [signed-by=/etc/apt/keyrings/cran.gpg] https://cloud.r-project.org/bin/linux/ubuntu $(lsb_release -cs)-cran40/ /" | tee /etc/apt/sources.list.d/cran.list
+          CODENAME=$(. /etc/os-release && echo $VERSION_CODENAME)
+          echo "deb [signed-by=/etc/apt/keyrings/cran.gpg] https://cloud.r-project.org/bin/linux/ubuntu ${CODENAME}-cran40/ /" | tee /etc/apt/sources.list.d/cran.list
           apt-get update
-
+    
+    
       - name: Install data.table
         run: |
           apt-get install -y r-cran-data.table
