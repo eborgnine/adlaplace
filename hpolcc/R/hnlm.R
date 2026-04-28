@@ -232,7 +232,8 @@ hnlm <- function(
   config$groups <- adlaplace::adFun_groups(
     ATp = rbind(model_stuff$data$XTp, model_stuff$data$ATp),
     elgm_matrix = model_stuff$data$elgm_matrix,
-    Ngroups = config$num_groups
+    Ngroups = config$num_groups,
+    min_groups = config$num_threads*4
   )
 
   if (verbose_orig) {

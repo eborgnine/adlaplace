@@ -59,6 +59,7 @@ adFun_groups = function(ATp, elgm_matrix, Ngroups = ncol(ATp), min_groups = 0) {
   ATp = Matrix::sparseMatrix(
     i = A_elgm_merge$gamma, 
     j=A_elgm_merge$strata,
+    x = rep(1.0, nrow(A_elgm_merge)),
     index1=FALSE, dims = c(nrow(ATp), ncol(elgm_matrix)))
   }
 
@@ -66,7 +67,7 @@ adFun_groups = function(ATp, elgm_matrix, Ngroups = ncol(ATp), min_groups = 0) {
  		 ATp <- methods::as(ATp, "dMatrix")  # numeric sparse, no dense copy
 	}
 	if(requireNamespace("RSpectra", quietly=TRUE) & (
-    nrow(ATp) > 3
+    max(dim(ATp)) > 100
   ) ) {
 		loadings <- RSpectra::svds(ATp, k = 1)$v[,1]
 	} else {
@@ -78,7 +79,18 @@ adFun_groups = function(ATp, elgm_matrix, Ngroups = ncol(ATp), min_groups = 0) {
 	}
 
 	uniqueLoadings = sort(unique(loadings))
-  if(length(uniqueLoadings) <= Ngroups) {
+  if(length(uniqueLoadings) < min_groups){
+        the_min_diff =abs(diff(uniqueLoadings))
+        if(length(the_min_diff) == 0) {
+          the_min_diff = 1
+        } else {
+          the_min_diff = min(the_min_diff)/2
+        }
+        loadings = loadings + stats::runif(length(loadings), -the_min_diff, the_min_diff)
+        groupCut = stats::quantile(loadings, seq(0, 1, len=min_groups+1))
+        groupCut[1] = groupCut[1]-1       
+        groupCut[length(groupCut)] = groupCut[length(groupCut)]+1
+  } else if(length(uniqueLoadings) <= Ngroups) {
       Ngroups = length(uniqueLoadings)
       groupCut = uniqueLoadings[-1] - diff(uniqueLoadings)/2
       groupCut = c(uniqueLoadings[1]-1, groupCut, uniqueLoadings[length(uniqueLoadings)]+1)      
