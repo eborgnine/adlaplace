@@ -24,7 +24,7 @@ jobs:
 
       - name: Install R dependencies
         run: |
-          apt-get install r-cran-rmarkdown r-cran-matrix r-cran-rcpp r-cran-numderiv r-cran-abind r-cran-datatable
+          apt-get install r-cran-rmarkdown r-cran-matrix r-cran-rcpp r-cran-numderiv r-cran-abind r-cran-data.table
           Rscript -e "install.packages(c('trustOptim','quarto'), repos='https://cloud.r-project.org/')"
 
 #         apt-get isntall r-cran-quarto r-cran-trustoptim
