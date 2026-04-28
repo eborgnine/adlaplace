@@ -37,6 +37,7 @@ jobs:
       - name: Install data.table
         run: |
           apt-get install -y --no-install-recommends r-cran-data.table
+          echo "R_LIBS_SITE=/usr/lib/R/site-library:${R_LIBS_SITE}" >> $GITHUB_ENV
           Rscript -e "library('data.table')"
 
       - name: Install system dependencies
