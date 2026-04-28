@@ -20,17 +20,18 @@ jobs:
         run: |
           apt-get update -qq
           apt-get install -y libcppad-dev libgmp-dev libomp-dev g++ gfortran libcurl4-openssl-dev
+          ln -s /usr/include/cppad /usr/local/include/cppad
 
       - name: Install R dependencies
         run: |
           Rscript -e "install.packages(c('remotes', 'rcmdcheck'), repos='https://cloud.r-project.org/')"
-          Rscript -e "remotes::install_local('adlaplace', dependencies=TRUE, upgrade=TRUE)"
+          Rscript -e "remotes::install_local('adlaplace', dependencies=NA, upgrade=TRUE)"
 
       - name: Run R CMD check
         run: |
-          Rscript -e "rcmdcheck::rcmdcheck(args = c('--no-manual', '--no-multiarch'), error_on = 'warning', check_dir = 'adlaplace')"
+          cd adlaplace && Rscript -e "rcmdcheck::rcmdcheck(args = c('--no-manual', '--no-multiarch'), error_on = 'warning')"
 
       - name: Test installation
         run: |
-          R CMD INSTALL adlaplace
+          cd adlaplace && R CMD INSTALL .
           Rscript -e "library(adlaplace); print('Package loaded successfully')"
