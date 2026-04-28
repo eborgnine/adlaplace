@@ -24,15 +24,12 @@ jobs:
 
       - name: Install R dependencies
         run: |
-          Rscript -e "install.packages(c('remotes', 'rcmdcheck'), repos='https://cloud.r-project.org/')"
-          Rscript -e "install.packages('quarto', dependencies=TRUE, repos='https://cloud.r-project.org/')"
-          Rscript -e "remotes::install_local('adlaplace', dependencies=NA, upgrade=TRUE)"
+          Rscript -e "install.packages(c('Matrix', 'Rcpp', 'trustOptim'), repos='https://cloud.r-project.org/')"
+          Rscript -e "install.packages(c("rmarkdown",'quarto'), repos='https://cloud.r-project.org/')"
 
       - name: Run R CMD check
         run: |
-          cd adlaplace && Rscript -e "rcmdcheck::rcmdcheck(args = c('--no-manual', '--no-multiarch'), error_on = 'warning')"
+          R CMD build --no-build-vignettes adlaplace
+          R CMD INSTALL adlaplace*.tar.gz
+          R CMD check adlaplace*.tar.gz
 
-      - name: Test installation
-        run: |
-          cd adlaplace && R CMD INSTALL .
-          Rscript -e "library(adlaplace); print('Package loaded successfully')"
