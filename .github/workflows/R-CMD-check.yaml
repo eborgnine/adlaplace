@@ -19,19 +19,18 @@ jobs:
 
       - name: Setup CRAN repository
         run: |
-          apt-get update
-          apt-get install -y curl gnupg
-          mkdir -p /etc/apt/keyrings
-          curl -fsSL https://cloud.r-project.org/bin/linux/ubuntu/marutter_pubkey.asc | gpg --dearmor -o /etc/apt/keyrings/cran.gpg
-          CODENAME=$(. /etc/os-release && echo $VERSION_CODENAME)
-          echo "deb [signed-by=/etc/apt/keyrings/cran.gpg] https://cloud.r-project.org/bin/linux/ubuntu ${CODENAME}-cran40/ /" | tee /etc/apt/sources.list.d/cran.list
-          cat /etc/apt/sources.list.d/cran.list          
-          apt-get update
+          apt update -qq
+          apt install --no-install-recommends software-properties-common dirmngr
+          wget -qO- https://cloud.r-project.org/bin/linux/ubuntu/marutter_pubkey.asc | tee -a /etc/apt/trusted.gpg.d/cran_ubuntu_key.asc
+          add-apt-repository "deb https://cloud.r-project.org/bin/linux/ubuntu $(lsb_release -cs)-cran40/"
+          apt update -qq
+          apt install -y --no-install-recommends r-base
+
     
     
       - name: Install data.table
         run: |
-          apt-get install -y r-cran-data.table
+          apt-get install -y --no-install-recommends r-cran-data.table
           Rscript -e "library('data.table')"
 
       - name: Install system dependencies
