@@ -23,14 +23,14 @@ jobs:
 
       - name: Install R dependencies
         run: |
-          Rscript -e "install.packages(c('remotes', 'rcmdcheck', 'knitr', 'Matrix', 'Rcpp', 'trustOptim'), repos='https://cloud.r-project.org/')"
-          Rscript -e "remotes::install_local('.', dependencies=TRUE, upgrade=TRUE)"
+          Rscript -e "install.packages(c('remotes', 'rcmdcheck'), repos='https://cloud.r-project.org/')"
+          Rscript -e "remotes::install_local('adlaplace', dependencies=TRUE, upgrade=TRUE)"
 
       - name: Run R CMD check
         run: |
-          Rscript -e "rcmdcheck::rcmdcheck(args = c('--no-manual', '--no-multiarch'), error_on = 'warning', check_dir = '.')"
+          Rscript -e "rcmdcheck::rcmdcheck(args = c('--no-manual', '--no-multiarch'), error_on = 'warning', check_dir = 'adlaplace')"
 
       - name: Test installation
         run: |
-          R CMD INSTALL .
+          R CMD INSTALL adlaplace
           Rscript -e "library(adlaplace); print('Package loaded successfully')"
