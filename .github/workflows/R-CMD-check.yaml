@@ -10,34 +10,14 @@ on:
 jobs:
   R-CMD-check:
     runs-on: ubuntu-latest
-    container:
-      image: rocker/r-ver:4.5.3
-
+    container: rocker/r2u
     steps:
       - uses: actions/checkout@v4
+      - run: apt install -y r2u-data.table r2u-rcpp r2u-matrix
+      - run: R CMD check .
 
-
-      - name: Setup CRAN repository1
+      - name: check data.table
         run: |
-          apt-get update -qq
-          apt-get install -y --no-install-recommends software-properties-common dirmngr wget
-
-      - name: Setup CRAN repository2
-        run: |
-          wget -qO- https://cloud.r-project.org/bin/linux/ubuntu/marutter_pubkey.asc | tee -a /etc/apt/trusted.gpg.d/cran_ubuntu_key.asc
-          add-apt-repository "deb https://cloud.r-project.org/bin/linux/ubuntu $(lsb_release -cs)-cran40/"
-          apt-get update -qq
-
-      - name: Setup CRAN repository3
-        run: |
-          apt-get install -y --no-install-recommends r-base
-
-    
-    
-      - name: Install data.table
-        run: |
-          apt-get install -y --no-install-recommends r-cran-data.table
-          echo "R_LIBS_SITE=/usr/lib/R/site-library:${R_LIBS_SITE}" >> $GITHUB_ENV
           Rscript -e "library('data.table')"
 
       - name: Install system dependencies
