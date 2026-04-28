@@ -22,16 +22,16 @@ jobs:
           apt-get install -y libcppad-dev libgmp-dev libomp-dev g++ gfortran libcurl4-openssl-dev libuv1-dev
           ln -s /usr/include/cppad /usr/local/include/cppad
 
+      - name: Install apt R dependencies
+        run: |
+          apt-get install -y r-cran-rmarkdown r-cran-matrix r-cran-rcpp r-cran-numderiv r-cran-abind r-cran-data.table r-cran-knitr r-cran-rcppeigen
+ 
       - name: Install R dependencies
         run: |
-          apt-get install -y r-cran-rmarkdown r-cran-matrix r-cran-rcpp r-cran-numderiv r-cran-abind r-cran-data.table
+          Rscript -e "library('data.table')"
           Rscript -e "install.packages(c('trustOptim','quarto'), repos='https://cloud.r-project.org/')"
 
-#         apt-get isntall r-cran-quarto r-cran-trustoptim
-#          Rscript -e "install.packages(c('Matrix', 'Rcpp', 'trustOptim','numDeriv','abind'), repos='https://cloud.r-project.org/')"
-
-
-      - name: R buld and install
+      - name: R build and install
         run: |
           R CMD build --no-build-vignettes adlaplace
           R CMD INSTALL adlaplace*.tar.gz
@@ -42,5 +42,9 @@ jobs:
         run: |
           R CMD check --no-manual adlaplace*.tar.gz
           R CMD check --no-manual adlaplaceExample*.tar.gz
+
+
+#         apt-get install r-cran-quarto r-cran-trustoptim
+#          Rscript -e "install.packages(c('Matrix', 'Rcpp', 'trustOptim','numDeriv','abind'), repos='https://cloud.r-project.org/')"
 
 
