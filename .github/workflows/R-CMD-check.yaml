@@ -32,12 +32,12 @@ jobs:
       - name: build
         run: |
           R CMD build adlaplace
-          R CMD INSTALL adlaplace*.gz
+          R CMD INSTALL adlaplace_*.gz
           R CMD build adlaplaceExample
 
       - name: check adlaplace
         run: |
-          R CMD check adlaplace*.gz
+          R CMD check adlaplace_*.gz
 
       - name: check adlaplaceExample
         run: |
