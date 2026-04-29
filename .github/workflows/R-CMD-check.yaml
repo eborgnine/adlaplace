@@ -20,7 +20,7 @@ jobs:
             r-cran-data.table r-cran-numderiv r-cran-abind \
             r-cran-quarto r-cran-rcpp r-cran-trustoptim \
             libcppad-dev libgmp-dev libomp-dev \
-            libcurl4-openssl-dev libuv1-dev curl
+            libcurl4-openssl-dev libuv1-dev curl wget
 
       - name: Set up Quarto
         uses: quarto-dev/quarto-actions/setup@v2
