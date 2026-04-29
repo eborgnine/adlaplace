@@ -21,8 +21,10 @@ jobs:
             r-cran-quarto r-cran-rcpp r-cran-trustoptim \
             libcppad-dev libgmp-dev libomp-dev \
             libcurl4-openssl-dev libuv1-dev curl
-          curl -sL https://github.com/quarto-dev/quarto-cli/releases/latest/download/quarto-linux-amd64.deb -o quarto.deb
-          dpkg -i quarto.deb
+      - name: Install quarto
+        run: |
+            curl -sL https://quarto.org/download-cl.sh | sh
+
 
       - name: test data table
         run: |
