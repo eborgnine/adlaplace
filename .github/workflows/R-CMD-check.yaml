@@ -9,7 +9,7 @@ on:
 jobs:
   R-CMD-check:
     runs-on: ubuntu-latest
-    container: rocker/r2u
+    container: ghcr.io/r-universe-org/base-image:4.4.0
     steps:
       - uses: actions/checkout@v4
 
@@ -17,13 +17,13 @@ jobs:
         run: |
           apt-get update -qq 
           apt-get install -y \
-            r-cran-data.table r-cran-numderiv r-cran-abind \
+#            r-cran-data.table r-cran-numderiv r-cran-abind \
             r-cran-quarto r-cran-rcpp r-cran-trustoptim r-cran-sn \
             r-cran-get r-cran-timedate r-cran-woodburymatrix \
-            texlive-latex-base texinfo texlive-fonts-extra texlive-latex-extra\
-            texlive-fonts-recommended texlive-latex-recommended \
+#            texlive-latex-base texinfo texlive-fonts-extra texlive-latex-extra\
+#            texlive-fonts-recommended texlive-latex-recommended \
             libcppad-dev libgmp-dev libomp-dev \
-            libcurl4-openssl-dev libuv1-dev curl wget
+            libcurl4-openssl-dev libuv1-dev curl
 
       - name: Set up Quarto
         run: |

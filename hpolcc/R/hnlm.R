@@ -90,13 +90,13 @@ hnlm <- function(
     stop("Provide a valid stratification (or time) variable.")
   }
 
-  if(methods::is(formula, "formula")) {
-  model_terms <- adlaplace::collect_terms(
-    stats::update.formula(formula, .~.-1), # no intercept
-    package = "hpolcc", verbose = config$verbose
-  )
+  if (methods::is(formula, "formula")) {
+    model_terms <- adlaplace::collect_terms(
+      stats::update.formula(formula, . ~ . - 1), # no intercept
+      package = "hpolcc", verbose = config$verbose
+    )
   } else {
-    model_terms = formula
+    model_terms <- formula
   }
 
   if (!any(sapply(model_terms, class) == "overdispersion")) {
@@ -106,8 +106,13 @@ hnlm <- function(
     )
   }
 
-  covariates <- unique(unlist(lapply(model_terms, methods::slot, "term")), value=TRUE, invert=TRUE)
-  covariates = unique(unlist(strsplit(covariates, ":")))
+  covariates <- unique(
+    unlist(
+      lapply(model_terms, methods::slot, "term")
+    ),
+    value = TRUE, invert = TRUE
+  )
+  covariates <- unique(unlist(strsplit(covariates, ":")))
   random_slope_terms <- unique(unlist(sapply(model_terms[
     grep("^rs", sapply(model_terms, class))
   ], methods::slot, "mult")))
@@ -140,13 +145,13 @@ hnlm <- function(
     cat("data has ", nrow(data), " rows\n")
   }
 
-  the_response = which(
+  the_response <- which(
     unlist(lapply(model_terms, function(xx) any(class(xx) == "response")))
   )
-  if(length(the_response)!= 1) {
+  if (length(the_response) != 1) {
     warning("cant find response variable")
   }
-  outcome_var = model_terms[[the_response[1]]]@term
+  outcome_var <- model_terms[[the_response[1]]]@term
 
   if (anyNA(data[[outcome_var]])) {
     warning("missing values in outcome, treating as zeros")
@@ -233,7 +238,7 @@ hnlm <- function(
     ATp = rbind(model_stuff$data$XTp, model_stuff$data$ATp),
     elgm_matrix = model_stuff$data$elgm_matrix,
     Ngroups = config$num_groups,
-    min_groups = config$num_threads*4
+    min_groups = config$num_threads * 4
   )
 
   if (verbose_orig) {
@@ -316,7 +321,7 @@ hnlm <- function(
     rownames(to_print) <- model_stuff$info$parameters$label
     print(to_print)
     cat("threads: ", config$num_threads, "\n")
-    }
+  }
 
   control$parscale <- config$theta_info$parscale
 
@@ -339,7 +344,7 @@ hnlm <- function(
   result <- list(
     opt = mle,
     objects = list(
-#      tmb_data = model_stuff$data,
+      #      tmb_data = model_stuff$data,
       config = config,
       formula = formula,
       terms = model_terms,
@@ -348,7 +353,7 @@ hnlm <- function(
       control_inner = control$inner,
       control = control,
       cache = cache,
-#      data = data_sub,
+      #      data = data_sub,
       ad_fun = ad_fun
     )
   )
@@ -359,7 +364,7 @@ hnlm <- function(
   result$extra <- try(adlaplace::logLikLaplace(
     x = result$opt[[grep("solution|par", names(result$opt), value = TRUE)[1]]],
     gamma = result$objects$cache$gamma,
-    data =  model_stuff$data, #result$objects$tmb_data,
+    data = model_stuff$data, # result$objects$tmb_data,
     config = result$objects$config,
     control = result$objects$control_inner,
     adFun = ad_fun,
@@ -376,7 +381,7 @@ hnlm <- function(
       func = adlaplace::outer_gr,
       x = result$opt[[grep("solution|par", names(result$opt), value = TRUE)[1]]],
       package = "hpolcc",
-      data =  model_stuff$data,#result$objects$tmb_data,
+      data = model_stuff$data, # result$objects$tmb_data,
       config = result$objects$config,
       control_inner = result$objects$control_inner,
       adFun = ad_fun,
