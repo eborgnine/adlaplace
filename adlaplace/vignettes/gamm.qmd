@@ -21,79 +21,84 @@ library("adlaplace")
 ```
 
 ```{r gamm}
-dat <- mgcv::gamSim(6, n = 200, scale = .2, dist = "poisson")
-b2 <- mgcv::gamm(y ~ s(x2),
+if (requireNamespace("mgcv", quietly = TRUE)) {
+  dat <- mgcv::gamSim(6, n = 200, scale = .2, dist = "poisson")
+  b2 <- mgcv::gamm(y ~ s(x2),
     family = poisson,
     data = dat, random = list(fac = ~1)
-)
-plot(b2$gam, pages = 1)
+  )
+  plot(b2$gam, pages = 1)
+}
 ```
 
 
 ```{r}
-model_stuff <- adlaplace::model_setup(
-  data = dat,
-  formula = y ~ x1 + f(x2, model = "iwp", p = 2, knots = seq(0, 1, len = 11)) + 
-  f(fac, model = "iid") + f(model="overdispersion", lower = 1e-9)
-)
+if (requireNamespace("mgcv", quietly = TRUE)) {
+  model_stuff <- adlaplace::model_setup(
+    data = dat,
+    formula = y ~ x1 + f(x2, model = "iwp", p = 2, knots = seq(0, 1, len = 11)) +
+      f(fac, model = "iid") + f(model = "overdispersion", lower = 1e-9)
+  )
 
-config <- list(
-  beta = model_stuff$info$beta$init,
-  gamma = rep(0, nrow(model_stuff$info$gamma)),
-  theta = log(model_stuff$info$theta$init),
-  transform_theta = TRUE,
-  groups = adlaplace::adFun_groups(model_stuff$data$ATp, Ngroups = 100),
-  num_threads = 2L,
-  verbose = TRUE,
-  package = "adlaplace"
-)
+  config <- list(
+    beta = model_stuff$info$beta$init,
+    gamma = rep(0, nrow(model_stuff$info$gamma)),
+    theta = log(model_stuff$info$theta$init),
+    transform_theta = TRUE,
+    groups = adlaplace::adFun_groups(model_stuff$data$ATp, Ngroups = 100),
+    num_threads = 2L,
+    verbose = TRUE,
+    package = "adlaplace"
+  )
 
 
-adFun <- adlaplace::getAdFun(model_stuff$data, config)
-res <- adlaplace::logLikLaplace(
-  x = c(config$beta, config$theta),
-  adFun = adFun,
-  config = c(config, list(verbose = FALSE)),
-  deriv = TRUE
-)
-res$parameters
-res$fval
-res$grad
+  adFun <- adlaplace::getAdFun(model_stuff$data, config)
+  res <- adlaplace::logLikLaplace(
+    x = c(config$beta, config$theta),
+    adFun = adFun,
+    config = c(config, list(verbose = FALSE)),
+    deriv = TRUE
+  )
+  res$parameters
+  res$fval
+  res$grad
+}
 ```
 
 
 ```{r trustOptimOuterWrappers}
+if (requireNamespace("mgcv", quietly = TRUE)) {
+  theta_for_opt <- model_stuff$info$theta
+  to_transform <- c("init", "lower", "upper")
+  theta_for_opt[, to_transform] <- log(theta_for_opt[, to_transform])
 
-  theta_for_opt = model_stuff$info$theta
-  to_transform = c("init","lower","upper")
-  theta_for_opt[,to_transform] = log(theta_for_opt[,to_transform])
-
-  to_keep = c("init", "lower", "upper", "parscale")
+  to_keep <- c("init", "lower", "upper", "parscale")
 
   config$opt <- as.list(
     rbind(
-      model_stuff$info$beta[,to_keep],
-     theta_for_opt[,to_keep]
-  ))
+      model_stuff$info$beta[, to_keep],
+      theta_for_opt[, to_keep]
+    )
+  )
 
-cache <- new.env(parent = emptyenv())
-cache$gamma <- rep(0, nrow(model_stuff$info$gamma))
+  cache <- new.env(parent = emptyenv())
+  cache$gamma <- rep(0, nrow(model_stuff$info$gamma))
 
-x0 <- config$opt$init
+  x0 <- config$opt$init
 
-adlaplace::outer_fn(x=x0, cache=cache, config=config, adFun = adFun)
-adlaplace::outer_gr(x=x0, cache=cache, config=config, adFun = adFun)
+  adlaplace::outer_fn(x = x0, cache = cache, config = config, adFun = adFun)
+  adlaplace::outer_gr(x = x0, cache = cache, config = config, adFun = adFun)
 
-outer_fit <- stats::optim(
+  outer_fit <- stats::optim(
     par = config$opt$init,
     fn = adlaplace::outer_fn,
     gr = adlaplace::outer_gr,
     method = "L-BFGS-B",
     control = list(
-    maxit = 1000,
-    trace = 3,
-    REPORT = 1
-  ),
+      maxit = 1000,
+      trace = 3,
+      REPORT = 1
+    ),
     lower = config$opt$lower,
     upper = config$opt$upper,
     config = config,
@@ -101,6 +106,7 @@ outer_fit <- stats::optim(
     cache = cache
   )
 
-outer_fit$par
-outer_fit$value
+  outer_fit$par
+  outer_fit$value
+}
 ```

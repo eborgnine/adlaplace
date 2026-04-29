@@ -19,7 +19,7 @@ jobs:
           apt-get install -y \
             r-cran-data.table r-cran-numderiv r-cran-abind \
             r-cran-quarto r-cran-rcpp r-cran-trustoptim r-cran-sn \
-            texlive-latex-base texinfo texlive-fonts-extra\
+            texlive-latex-base texinfo texlive-fonts-extra texlive-latex-extra\
             libcppad-dev libgmp-dev libomp-dev \
             libcurl4-openssl-dev libuv1-dev curl wget
 

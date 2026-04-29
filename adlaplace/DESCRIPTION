@@ -10,7 +10,7 @@ License: MPL-2.0
 Imports: Matrix (>= 1.2.18), Rcpp (>= 1.0.3), trustOptim, methods, data.table
 Suggests: numDeriv, abind, quarto
 VignetteBuilder: quarto
-Enhances: RSpectra
+Enhances: RSpectra, mgcv
 LinkingTo: Rcpp, trustOptim
 Encoding: UTF-8
 SystemRequirements: CppAD, OpenMP
@@ -18,22 +18,4 @@ RoxygenNote: 7.3.3
 NeedsCompilation: yes
 Packaged: 2026-01-22 18:49:30 UTC; patrick
 Author: Patrick Brown [aut, cre, cph]
-Collate: 
-    '000.R'
-    'RcppExports.R'
-    'effects.R'
-    'fpoly.R'
-    'getAdFun.R'
-    'groups.R'
-    'hessian_map.R'
-    'iid.R'
-    'intercept.R'
-    'rpoly.R'
-    'iwp.R'
-    'linear.R'
-    'logLikDeriv.R'
-    'logLikLaplace.R'
-    'model_setup.R'
-    'overdispersion.R'
-    'response.R'
-    'wrappers.R'
+
