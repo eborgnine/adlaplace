@@ -23,7 +23,7 @@ jobs:
             
       - name: install R dependencies
         run: |
-          R -e "install.packages(c('GET','WoodburyMatrix', 'trustOptim', 'quarto'))"
+          R -e "install.packages(c('GET','WoodburyMatrix', 'trustOptim', 'cli', 'quarto'))"
 
       - name: Verify Quarto CLI
         run: quarto --version
