@@ -21,7 +21,7 @@ if(requireNamespace("sn", quietly=TRUE)){
     sport = rep(1:5, each=2),
     BMI = rnorm(10)
   )
-
+}
 ```
 
 ```{r}

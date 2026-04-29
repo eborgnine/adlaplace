@@ -18,12 +18,12 @@ This vignette mirrors the workflow in `adlaplace`, but uses the
 
 Skew-normal contribution for one observation:
 
-$$$
+$$
 \ell(y;\xi,\omega,\alpha)
 = -\log\omega - \frac12\log(2\pi)
   -\frac12\left(\frac{y-\xi}{\omega}\right)^2
   + \log\left[\operatorname{erfc}\left(-\frac{\alpha(y-\xi)}{\sqrt{2}\,\omega}\right)\right].
-$$$
+$$
 
 ## Simulate data
 
@@ -58,8 +58,8 @@ alpha_true <- 0.8
 
 
 eta <- as.vector(X %*% beta_true + A %*% gamma_true)
-if(requireNamespace("sn", quietly=TRUE)) {
-  y <- sn::rsn(Nobs, xi = eta, omega = omega_true, alpha=alpha_true)
+if (requireNamespace("sn", quietly = TRUE)) {
+  y <- sn::rsn(Nobs, xi = eta, omega = omega_true, alpha = alpha_true)
 } else {
   y <- stats::rnorm(Nobs, mean = eta, sd = omega_true)
 }
@@ -84,18 +84,19 @@ config <- list(
   groups = adlaplace::adFun_groups(data$ATp),
   num_threads = 8L,
   package = "adlaplaceExample",
-  verbose = TRUE)
+  verbose = TRUE
+)
 ```
 
 ## Evaluate objective, gradient, and Hessian
 
 ```{r derivs}
 adFun <- adlaplace::getAdFun(data, config, package = "adlaplaceExample")
-true_theta = c(log(c(sd_random, omega_true)), alpha_true)
+true_theta <- c(log(c(sd_random, omega_true)), alpha_true)
 x <- c(beta_true, gamma_true, true_theta)
 
-Sgroups = seq.int(0L, length.out= length(adFun$sparsity))
-#Sgroups = 0L
+Sgroups <- seq.int(0L, length.out = length(adFun$sparsity))
+# Sgroups = 0L
 
 adlaplace::jointLogDens(x, adFun, Sgroups)
 
@@ -116,8 +117,9 @@ adFun <- adlaplace::getAdFun(data, config, package = "adlaplaceExample")
 res <- adlaplace::logLikLaplace(
   x = c(config$beta, config$theta),
   config = config,
-  adFun = adFun, 
-  deriv=TRUE)
+  adFun = adFun,
+  deriv = TRUE
+)
 res$fval
 res$grad
 ```
@@ -129,21 +131,21 @@ cache$gamma <- config$gamma
 
 x0 <- c(config$beta, config$theta)
 
-adlaplace::outer_fn(x=x0, cache=cache, config=config, adFun = adFun)
-adlaplace::outer_gr(x=x0, cache=cache, config=config, adFun = adFun)
+adlaplace::outer_fn(x = x0, cache = cache, config = config, adFun = adFun)
+adlaplace::outer_gr(x = x0, cache = cache, config = config, adFun = adFun)
 
 outer_fit <- trustOptim::trust.optim(
   x = x0,
   fn = adlaplace::outer_fn,
   gr = adlaplace::outer_gr,
   method = "SR1",
-  config = modifyList(config,list(verbose=FALSE)),
+  config = modifyList(config, list(verbose = FALSE)),
   adFun = adFun,
   cache = cache,
   control = list(
     maxit = 1000,
     report.level = 4,
-    report.freq =1 
+    report.freq = 1
   ),
   control_inner = list(
     maxit = 100,
@@ -158,129 +160,138 @@ outer_fit$fval
 
 
 ```{r testLogLgrad}
-x = c(config$beta,config$theta)
-Npar=13;Dpar = length(x)
+x <- c(config$beta, config$theta)
+Npar <- 13
+Dpar <- length(x)
 
-parDf = data.frame(x)[,rep(1, Npar)]
-Sx = seq(-0.1, 0.1, len=13) + parDf[Dpar,1]
-SxD = Sx[-1] - diff(Sx)/2
-parDf[Dpar,] = Sx
+parDf <- data.frame(x)[, rep(1, Npar)]
+Sx <- seq(-0.1, 0.1, len = 13) + parDf[Dpar, 1]
+SxD <- Sx[-1] - diff(Sx) / 2
+parDf[Dpar, ] <- Sx
 
-res = mapply(
+res <- mapply(
   adlaplace::logLikLaplace,
   x = as.list(parDf),
-  MoreArgs = list(adFun = adFun, config = config, deriv=TRUE),
-  SIMPLIFY=FALSE
-  )
+  MoreArgs = list(adFun = adFun, config = config, deriv = TRUE),
+  SIMPLIFY = FALSE
+)
 
-Slik = unlist(lapply(res, "[[", 'logLik'))
-Sdet = unlist(lapply(res, function(xx) xx$opt$halfLogDet))
-dU = do.call(
-  abind::abind, c(lapply(res, function(xx) as.matrix(xx$extra$dU)), along=3))
-uHat = do.call(rbind, lapply(res, function(xx) xx$opt$solution))
-extraDf = do.call(abind::abind, c(lapply(res, '[[', "deriv"), along=3))
-gradMat = do.call(rbind, lapply(res, '[[', 'grad'))
-gradVec = unlist(lapply(res, function(xx) xx$deriv[Dpar,'dL']))
+Slik <- unlist(lapply(res, "[[", "logLik"))
+Sdet <- unlist(lapply(res, function(xx) xx$opt$halfLogDet))
+dU <- do.call(
+  abind::abind, c(lapply(res, function(xx) as.matrix(xx$extra$dU)), along = 3)
+)
+uHat <- do.call(rbind, lapply(res, function(xx) xx$opt$solution))
+extraDf <- do.call(abind::abind, c(lapply(res, "[[", "deriv"), along = 3))
+gradMat <- do.call(rbind, lapply(res, "[[", "grad"))
+gradVec <- unlist(lapply(res, function(xx) xx$deriv[Dpar, "dL"]))
 
 
 plot(Sx, gradVec)
-lines(SxD, diff(Slik)/diff(Sx), lwd=2, type='o', pch='.')
+lines(SxD, diff(Slik) / diff(Sx), lwd = 2, type = "o", pch = ".")
 ```
 
 ```{r more_plots, eval=FALSE}
-Du = 1
-plot(Sx, uHat[,Du])
+Du <- 1
+plot(Sx, uHat[, Du])
 
-plot(Sx, dU[Du,Dpar,])
-lines(SxD, diff(uHat[,Du])/diff(Sx))
+plot(Sx, dU[Du, Dpar, ])
+lines(SxD, diff(uHat[, Du]) / diff(Sx))
 
 plot(Sx, Sdet)
 
-plot(Sx, extraDf[Dpar,'dDet',])
-lines(SxD, diff(Sdet)/diff(Sx))
+plot(Sx, extraDf[Dpar, "dDet", ])
+lines(SxD, diff(Sdet) / diff(Sx))
 ```
 
 
 ```{r derivJointDens, eval=FALSE}
-config$gamma = rep(1, length(config$gamma))
-x = c(config$beta, config$gamma, config$theta)
-adFun = adlaplace::getAdFun(data, modifyList(config, list(verbose=TRUE)))
+config$gamma <- rep(1, length(config$gamma))
+x <- c(config$beta, config$gamma, config$theta)
+adFun <- adlaplace::getAdFun(data, modifyList(config, list(verbose = TRUE)))
 
-inner = FALSE
-type = c('outer','inner')[1+inner]
+inner <- FALSE
+type <- c("outer", "inner")[1 + inner]
 
-Sgamma1 = seq.int(length(config$beta)+1, length.out = length(config$gamma))
+Sgamma1 <- seq.int(length(config$beta) + 1, length.out = length(config$gamma))
 
-Npar=13;Dpar = length(x)-1
-if(inner) {
-  Dpar = match(Dpar, Sgamma1)
+Npar <- 13
+Dpar <- length(x) - 1
+if (inner) {
+  Dpar <- match(Dpar, Sgamma1)
 }
-Dpar0=Dpar-1L
+Dpar0 <- Dpar - 1L
 
-bob = as(adFun$hessians$hessian[[type]], 'TsparseMatrix')
-(whichIndex = which(bob@i == Dpar0 & bob@j == Dpar0)-1L)
-(whichGlobal = which(adFun$hessians$map[[type]]$global==whichIndex)-1L)
+bob <- as(adFun$hessians$hessian[[type]], "TsparseMatrix")
+(whichIndex <- which(bob@i == Dpar0 & bob@j == Dpar0) - 1L)
+(whichGlobal <- which(adFun$hessians$map[[type]]$global == whichIndex) - 1L)
 
-(whichP = mapply(
+(whichP <- mapply(
   function(xx) min(which(adFun$hessian$map[[type]]$p >= xx)),
-  xx = whichGlobal) -1L)
+  xx = whichGlobal
+) - 1L)
 
 
 do.call(rbind, adFun$sparsity[[
-  whichP[1] 
-  ]][c('row_hess','col_hess')])
+  whichP[1]
+]][c("row_hess", "col_hess")])
 do.call(rbind, adlaplace$sparsity[[
-  whichP[1] 
-  ]][c('row_hess_inner', 'col_hess_inner')])
-  
-
-#Sgroups = length(adFun$sparsity)-12L
-#Sgroups = seq.int(from=0, length.out = length(adFun$sparsity))
-
-Sgroups = 376
+  whichP[1]
+]][c("row_hess_inner", "col_hess_inner")])
 
 
-parDf = data.frame(x)[,rep(1, Npar)]
-Sx = seq(-0.1, 0.1, len=Npar) + parDf[Dpar,1]
-SxD = Sx[-1] - diff(Sx)/2
-parDf[Dpar,] = Sx
+# Sgroups = length(adFun$sparsity)-12L
+# Sgroups = seq.int(from=0, length.out = length(adFun$sparsity))
+
+Sgroups <- 376
 
 
-dens1 = mapply(
+parDf <- data.frame(x)[, rep(1, Npar)]
+Sx <- seq(-0.1, 0.1, len = Npar) + parDf[Dpar, 1]
+SxD <- Sx[-1] - diff(Sx) / 2
+parDf[Dpar, ] <- Sx
+
+
+dens1 <- mapply(
   adlaplace::jointLogDens,
   x = as.list(parDf),
   MoreArgs = list(backendContext = adFun, Sgroups = Sgroups),
-  SIMPLIFY=TRUE
-  )
+  SIMPLIFY = TRUE
+)
 
 plot(Sx, dens1)
 
 
-grad1 = mapply(
+grad1 <- mapply(
   adlaplace::grad,
   x = as.list(parDf),
-  MoreArgs = list(backendContext = adFun, inner=inner, Sgroups = Sgroups),
-  SIMPLIFY=TRUE
-  )
-plot(Sx, grad1[Dpar,])
-lines(SxD, diff(dens1)/diff(Sx))
+  MoreArgs = list(backendContext = adFun, inner = inner, Sgroups = Sgroups),
+  SIMPLIFY = TRUE
+)
+plot(Sx, grad1[Dpar, ])
+lines(SxD, diff(dens1) / diff(Sx))
 
 
-hes1 = mapply(
+hes1 <- mapply(
   adlaplace::hess,
   x = as.list(parDf),
-  MoreArgs = list(backendContext = adFun, inner=inner, Sgroups = Sgroups),
-  SIMPLIFY=FALSE)
+  MoreArgs = list(backendContext = adFun, inner = inner, Sgroups = Sgroups),
+  SIMPLIFY = FALSE
+)
 
-hes2 = do.call(abind::abind, c(
-  lapply(hes1, as.matrix), along=3))
+hes2 <- do.call(abind::abind, c(
+  lapply(hes1, as.matrix),
+  along = 3
+))
 
-gradD = apply(grad1, 1, diff) / mean(diff(Sx))
+gradD <- apply(grad1, 1, diff) / mean(diff(Sx))
 
-Dpar2 = Dpar
-plot(Sx, hes2[Dpar,Dpar2, ], ylab = paste(Dpar, Dpar2),
-  ylim = range(hes2[Dpar, Dpar2,], na.rm=TRUE))
-lines(SxD, gradD[,Dpar2])
+Dpar2 <- Dpar
+plot(Sx, hes2[Dpar, Dpar2, ],
+  ylab = paste(Dpar, Dpar2),
+  ylim = range(hes2[Dpar, Dpar2, ], na.rm = TRUE)
+)
+lines(SxD, gradD[, Dpar2])
 ```
 
 
