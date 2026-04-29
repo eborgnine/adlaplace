@@ -20,7 +20,15 @@ jobs:
           apt-get update -qq
           apt-get install -y \
             libcppad-dev libgmp-dev libomp-dev r-cran-data.table
-            
+
+      - name: Rebuild ABI-mismatched R packages
+        run: |
+          R -e "install.packages(
+          c('Rcpp', 'cli', 'quarto'), 
+          repos = 'https://cloud.r-project.org/', 
+          type = 'source',
+          dependencies = FALSE)"
+
       - name: install R dependencies
         run: |
           R -e "install.packages(c('GET','WoodburyMatrix', 'trustOptim', 'cli', 'quarto'))"
