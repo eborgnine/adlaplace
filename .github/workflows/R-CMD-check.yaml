@@ -19,7 +19,7 @@ jobs:
         run: |
           apt-get update -qq
           apt-get install -y \
-            libcppad-dev libgmp-dev libomp-dev
+            libcppad-dev libgmp-dev libomp-dev r-cran-data.table
             
       - name: install R dependencies
         run: |
