@@ -7,26 +7,21 @@ on:
     branches: [ main ]
 
 jobs:
-  R-CMD-check:
+   R-CMD-check:
     runs-on: ubuntu-latest
-    container: ghcr.io/r-universe-org/latest
+    container: ghcr.io/r-universe-org/base-image:latest  # ✅ Has TinyTeX + Quarto pre-installed
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install system dependencies
+      # ✅ Install ONLY what's NOT pre-installed (CppAD + niche R packages)
+      - name: Install missing dependencies
         run: |
-          apt-get update -qq 
+          apt-get update -qq
           apt-get install -y \
-            r-cran-quarto r-cran-trustoptim r-cran-sn \
-            r-cran-get r-cran-timedate r-cran-woodburymatrix \
             libcppad-dev libgmp-dev libomp-dev \
-            libcurl4-openssl-dev libuv1-dev curl
+            r-cran-trustoptim r-cran-sn r-cran-get r-cran-timedate r-cran-woodburymatrix
 
-      - name: Set up Quarto
-        run: |
-          curl -L -o quarto.deb \
-            "https://github.com/quarto-dev/quarto-cli/releases/download/v1.5.29/quarto-1.5.29-linux-amd64.deb"
-          apt-get install -y ./quarto.deb
 
       - name: build
         run: |
