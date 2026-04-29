@@ -20,6 +20,7 @@ jobs:
             r-cran-data.table r-cran-numderiv r-cran-abind \
             r-cran-quarto r-cran-rcpp r-cran-trustoptim r-cran-sn \
             texlive-latex-base texinfo texlive-fonts-extra texlive-latex-extra\
+            texlive-fonts-recommended texlive-latex-recommended \
             libcppad-dev libgmp-dev libomp-dev \
             libcurl4-openssl-dev libuv1-dev curl wget
 

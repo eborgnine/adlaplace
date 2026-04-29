@@ -7,8 +7,8 @@ Maintainer: Patrick Brown <patrick.brown@gmail.com>
 Description: Computes Laplace approximations for hierarchical models using
     automatic differentiation (CppAD) and trust-region optimization.
 License: MPL-2.0
-Imports: Matrix (>= 1.2.18), Rcpp (>= 1.0.3), trustOptim, methods, data.table
-Suggests: numDeriv, abind, quarto
+Imports: Matrix (>= 1.2.18), Rcpp (>= 1.0.3), methods, data.table
+Suggests: numDeriv, abind, quarto, trustOptim
 VignetteBuilder: quarto
 Enhances: RSpectra, mgcv
 LinkingTo: Rcpp, trustOptim
