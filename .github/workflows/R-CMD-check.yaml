@@ -23,7 +23,7 @@ jobs:
             
       - name: install R dependencies
         run: |
-          R -e "install.packages(c('GET','trustOptim','WoodburyMatrix'))"
+          R -e "install.packages(c('GET','trustOptim','WoodburyMatrix', 'quarto'))"
 
       - name: build
         run: |
