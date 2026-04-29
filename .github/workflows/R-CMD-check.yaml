@@ -20,8 +20,11 @@ jobs:
           apt-get update -qq
           apt-get install -y \
             libcppad-dev libgmp-dev libomp-dev \
-            r-cran-trustoptim r-cran-sn r-cran-get r-cran-timedate r-cran-woodburymatrix
+            r-cran-sn r-cran-timedate r-cran-rcolorbrewer r-cran-ggplot2
 
+      - name: install R dependencies
+        run: |
+          R -e "install.packages('GET','trustOptim','WoodburyMatrix')"
 
       - name: build
         run: |
