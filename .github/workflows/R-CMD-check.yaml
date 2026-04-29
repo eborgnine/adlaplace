@@ -18,7 +18,7 @@ jobs:
           apt-get update -qq 
           apt-get install -y \
             r-cran-data.table r-cran-numderiv r-cran-abind \
-            r-cran-quarto r-cran-rcpp r-cran-trustoptim \
+            r-cran-quarto r-cran-rcpp r-cran-trustoptim r-cran-sn \
             libcppad-dev libgmp-dev libomp-dev \
             libcurl4-openssl-dev libuv1-dev curl wget
 
@@ -27,11 +27,6 @@ jobs:
           curl -L -o quarto.deb \
             "https://github.com/quarto-dev/quarto-cli/releases/download/v1.5.29/quarto-1.5.29-linux-amd64.deb"
           apt-get install -y ./quarto.deb
-
-      - name: test data table
-        run: |
-          find /usr -name cppad.hpp
-          R -e "library('data.table')"
 
       - name: build
         run: |
@@ -46,3 +41,11 @@ jobs:
       - name: check adlaplaceExample
         run: |
           R CMD check adlaplaceExample*.gz
+
+      - name: build hpolcc
+        run: |
+          R CMD build hpolcc
+
+      - name: check hpolcc
+        run: |
+          R CMD check hpolcc*.gz

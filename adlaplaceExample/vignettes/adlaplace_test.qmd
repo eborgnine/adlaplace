@@ -58,8 +58,11 @@ alpha_true <- 0.8
 
 
 eta <- as.vector(X %*% beta_true + A %*% gamma_true)
-y <- sn::rsn(Nobs, xi = eta, omega = omega_true, alpha=alpha_true)
-
+if(requireNamespace("sn", quietly=TRUE)) {
+  y <- sn::rsn(Nobs, xi = eta, omega = omega_true, alpha=alpha_true)
+} else {
+  y <- stats::rnorm(Nobs, mean = eta, sd = omega_true)
+}
 data <- list(
   y = y,
   ATp = as(Matrix::t(A), "dMatrix"),
