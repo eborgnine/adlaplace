@@ -25,6 +25,9 @@ jobs:
         run: |
           R -e "install.packages(c('GET','WoodburyMatrix', 'trustOptim', 'quarto'))"
 
+      - name: show dependencies
+          R -e "library('quarto');library('data.table')"
+
       - name: build
         run: |
           R CMD build adlaplace
