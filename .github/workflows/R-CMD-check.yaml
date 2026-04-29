@@ -21,10 +21,9 @@ jobs:
             r-cran-quarto r-cran-rcpp r-cran-trustoptim \
             libcppad-dev libgmp-dev libomp-dev \
             libcurl4-openssl-dev libuv1-dev curl
-      - name: Install quarto
-        run: |
-            curl -sL https://quarto.org/download-cl.sh | sh
 
+      - name: Set up Quarto
+        uses: quarto-dev/quarto-actions/setup@v2
 
       - name: test data table
         run: |
