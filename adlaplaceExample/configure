@@ -217,7 +217,6 @@ if [ "$UNAME_S" = "Darwin" ] && command -v brew >/dev/null 2>&1; then
   fi
 fi
 
-# ---- CppAD detection ----
 CPPAD_INCLUDE_DIR="$(detect_cppad_include_dir || true)"
 if [ -n "$CPPAD_INCLUDE_DIR" ]; then
   CPPAD_INCLUDE_CPPFLAGS="-I$CPPAD_INCLUDE_DIR"
@@ -261,13 +260,13 @@ else
   fi
 fi
 
-# ---- data.table OpenMP detection ----
 if [ -n "$OPENMP_CXXFLAGS" ]; then
   DATATABLE_SO="$(detect_datatable_so || true)"
 
   DT_HAS_DISPATCH=0
   DT_OMP_LIB=""
   if [ -n "$DATATABLE_SO" ] && datatable_uses_kmpc_dispatch "$DATATABLE_SO"; then
+    # Set DT_HAS_DISPATCH based on OS
     if [ "$UNAME_S" = "Linux" ]; then
       DT_HAS_DISPATCH=1
       msg "configure: data.table uses kmpc_dispatch symbols: YES (Linux - enabling dispatch)"
