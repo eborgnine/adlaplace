@@ -24,14 +24,14 @@ jobs:
       - name: Rebuild ABI-mismatched R packages
         run: |
           R -e "install.packages(
-          c('Rcpp', 'cli', 'quarto', 'xfun'), 
+          c('Rcpp', 'cli',  'xfun'), 
           repos = 'https://cloud.r-project.org/', 
           type = 'source',
           dependencies = FALSE)"
 
       - name: install R dependencies
         run: |
-          R -e "install.packages(c('GET','WoodburyMatrix', 'trustOptim', 'cli', 'quarto'))"
+          R -e "install.packages(c('GET','WoodburyMatrix', 'trustOptim', 'quarto'))"
 
       - name: Verify Quarto CLI
         run: quarto --version
