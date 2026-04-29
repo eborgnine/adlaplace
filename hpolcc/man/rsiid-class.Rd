@@ -38,11 +38,17 @@ rsiid(
 
 \item{ref_mult}{Reference value for the covariate.}
 
+\item{init}{Initial values for beta parameters.}
+
+\item{lower}{Lower bounds for beta parameters.}
+
+\item{upper}{Upper bounds for beta parameters.}
+
+\item{parscale}{Parameter scales for optimization.}
+
 \item{term}{A rsiid term object}
 
 \item{data}{A data frame containing the term variables}
-
-\item{sd}{Standard deviation for random effects.}
 }
 \value{
 A `rsiid` term object.

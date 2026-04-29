@@ -46,7 +46,10 @@ methods::setAs(
 #' @param x Variable name.
 #' @param mult Variable to multiply the polynomial by.
 #' @param ref_mult Reference value for the covariate.
-#' @param sd Standard deviation for random effects.
+#' @param init Initial values for beta parameters.
+#' @param lower Lower bounds for beta parameters.
+#' @param upper Upper bounds for beta parameters.
+#' @param parscale Parameter scales for optimization.
 #' @return A `rsiid` term object.
 #' @export
 rsiid <- function(

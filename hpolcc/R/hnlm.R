@@ -92,7 +92,7 @@ hnlm <- function(
 
   if(methods::is(formula, "formula")) {
   model_terms <- adlaplace::collect_terms(
-    update.formula(formula, .~.-1), # no intercept
+    stats::update.formula(formula, .~.-1), # no intercept
     package = "hpolcc", verbose = config$verbose
   )
   } else {
@@ -133,7 +133,7 @@ hnlm <- function(
   }
   # Remove rows with NA values in required variables
 
-  data <- data[complete.cases(data[, required_vars, with = FALSE])]
+  data <- data[stats::complete.cases(data[, required_vars, with = FALSE])]
 
 
   if (config$verbose) {
