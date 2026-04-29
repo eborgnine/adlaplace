@@ -36,6 +36,7 @@ jobs:
       - name: build
         run: |
           R CMD build adlaplace
+          R CMD INSTALL adlaplace*.gz
           R CMD build adlaplaceExample
 
       - name: check adlaplace
