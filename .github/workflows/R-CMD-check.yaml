@@ -19,11 +19,11 @@ jobs:
         run: |
           apt-get update -qq
           apt-get install -y \
-            libcppad-dev libgmp-dev libomp-dev r-cran-data.table
+            libcppad-dev libgmp-dev libomp-dev r-cran-data.table r-cran-trustoptim
             
       - name: install R dependencies
         run: |
-          R -e "install.packages(c('GET','trustOptim','WoodburyMatrix', 'quarto'))"
+          R -e "install.packages(c('GET','WoodburyMatrix', 'quarto'))"
 
       - name: build
         run: |
