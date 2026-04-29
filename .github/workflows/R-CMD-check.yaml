@@ -24,6 +24,9 @@ jobs:
 
       - name: Set up Quarto
         uses: quarto-dev/quarto-actions/setup@v2
+        with:
+          version: "1.5.29"  # ← Pin to a known version (no API call → no jq needed)
+          tinytex: false
 
       - name: test data table
         run: |
