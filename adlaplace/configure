@@ -115,6 +115,7 @@ detect_cppad_include_dir () {
   for base in \
     "$BREW_PREFIX/opt/cppad/include" \
     /opt/homebrew/include \
+    /usr/include \
     /usr/local/include \
     /opt/include
   do

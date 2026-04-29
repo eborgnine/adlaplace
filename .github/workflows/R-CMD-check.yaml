@@ -18,9 +18,9 @@ jobs:
         run: |
           apt-get update -qq 
           apt-get install -y \
-            r-cran-data.table r-cran-matrix r-cran-numderiv r-cran-abind \
+            r-cran-data.table r-cran-numderiv r-cran-abind \
             r-cran-quarto r-cran-rcpp r-cran-trustoptim \
-            libcppad-dev libgmp-dev libomp-dev g++ gfortran \
+            libcppad-dev libgmp-dev libomp-dev \
             libcurl4-openssl-dev libuv1-dev
 
       - name: test data table
