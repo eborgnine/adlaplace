@@ -16,13 +16,26 @@ jobs:
       # 1. Update apt + install SYSTEM dependencies FIRST
       - name: Install system dependencies
         run: |
-          apt-get update -qq
+          apt-get update -qq 
           apt-get install -y \
-            r-cran-data.table r-cran-rcpp r-cran-matrix r-cran-numderiv r-cran-abind \
-            r-cran-knitr r-cran-rmarkdown r-cran-rcppeigen \
+            r-cran-data.table r-cran-matrix r-cran-numderiv r-cran-abind \
+            r-cran-quarto r-cran-rcpp r-cran-trustoptim \
             libcppad-dev libgmp-dev libomp-dev g++ gfortran \
             libcurl4-openssl-dev libuv1-dev
 
       - name: test data table
         run: |
           R -e "library('data.table')"
+
+      - name: build
+        run: |
+          R CMD build adlaplace
+          R CMD build adlaplaceExample
+
+      - name: check adlaplace
+        run: |
+          R CMD check adlaplace*.gz
+
+      - name: check adlaplaceExample
+        run: |
+          R CMD check adlaplaceExample*.gz
