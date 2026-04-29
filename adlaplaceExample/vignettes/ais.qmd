@@ -12,15 +12,23 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 ```{r}
-data("ais", package = "sn")
-hist(ais$BMI)
+if(requireNamespace("sn", quietly=TRUE)){
+  data("ais", package = "sn")
+  hist(ais$BMI)
+} else {
+  ais = data.frame(
+    sex = rep(c("male","female"), 5),
+    sport = rep(1:5, each=2),
+    BMI = rnorm(10)
+  )
+
 ```
 
 ```{r}
 model_stuff <- adlaplace::model_setup(
   data = ais,
-  formula = BMI ~ intercept(init = mean(ais$BMI)) + sex + f(sport, model="iid"),
-  verbose=TRUE
+  formula = BMI ~ intercept(init = mean(ais$BMI)) + sex + f(sport, model = "iid"),
+  verbose = TRUE
 )
 
 config <- list(
@@ -84,8 +92,8 @@ res <- adlaplace::logLikLaplace(
   config = modifyList(config, list(verbose = FALSE)),
   deriv = TRUE
 )
-model_stuff$info$gamma$mode = res$opt$solution
-model_stuff$info$beta$mle = res$parameters[seq(1, nrow(model_stuff$info$beta))]
+model_stuff$info$gamma$mode <- res$opt$solution
+model_stuff$info$beta$mle <- res$parameters[seq(1, nrow(model_stuff$info$beta))]
 
 model_stuff$info$beta
 ```
@@ -93,14 +101,16 @@ model_stuff$info$beta
 ```{r}
 hist(ais$BMI, prob = TRUE, breaks = 31)
 x_seq <- seq(par("usr")[1], par("usr")[2], len = 1001)
-lines(x_seq, 
+if (requireNamespace("sn", quietly = TRUE)) {
+  lines(x_seq,
     sn::dsn(x_seq,
-        xi = model_stuff$info$beta$mle[1],
-        omega = exp(res$parameters[length(res$parameters) - 1]),
-        alpha = res$parameters[length(res$parameters)],
+      xi = model_stuff$info$beta$mle[1],
+      omega = exp(res$parameters[length(res$parameters) - 1]),
+      alpha = res$parameters[length(res$parameters)],
     ),
     col = "red"
-)
+  )
+}
 ```
 
 
