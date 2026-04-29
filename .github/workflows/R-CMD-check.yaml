@@ -26,7 +26,9 @@ jobs:
           R -e "install.packages(c('GET','WoodburyMatrix', 'trustOptim', 'quarto'))"
 
       - name: show dependencies
-          R -e "library('quarto');library('data.table')"
+        run: |
+          R -e "library('quarto')"
+          R -e "library('data.table')"
 
       - name: build
         run: |
