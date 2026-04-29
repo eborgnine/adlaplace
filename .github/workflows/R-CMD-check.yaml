@@ -24,7 +24,7 @@ jobs:
       - name: Rebuild ABI-mismatched R packages
         run: |
           R -e "install.packages(
-          c('Rcpp', 'cli', 'quarto'), 
+          c('Rcpp', 'cli', 'quarto', 'xfun'), 
           repos = 'https://cloud.r-project.org/', 
           type = 'source',
           dependencies = FALSE)"
