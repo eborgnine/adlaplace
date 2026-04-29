@@ -13,7 +13,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # 1. Update apt + install SYSTEM dependencies FIRST
       - name: Install system dependencies
         run: |
           apt-get update -qq 
@@ -25,6 +24,7 @@ jobs:
 
       - name: test data table
         run: |
+          find /usr -name cppad.hpp
           R -e "library('data.table')"
 
       - name: build
