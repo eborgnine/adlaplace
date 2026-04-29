@@ -9,7 +9,7 @@ on:
 jobs:
   R-CMD-check:
     runs-on: ubuntu-latest
-    container: ghcr.io/r-universe-org/base-image:4.4.0
+    container: ghcr.io/r-universe-org/latest
     steps:
       - uses: actions/checkout@v4
 
