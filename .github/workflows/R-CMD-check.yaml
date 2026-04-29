@@ -7,39 +7,29 @@ on:
     branches: [ main ]
 
 jobs:
-   R-CMD-check:
+  R-CMD-check:
     runs-on: ubuntu-latest
-    container: ghcr.io/r-universe-org/base-image:latest  # ✅ Has TinyTeX + Quarto pre-installed
-
+    container: rocker/r2u
     steps:
       - uses: actions/checkout@v4
 
-      # ✅ Install ONLY what's NOT pre-installed (CppAD + niche R packages)
-      - name: Install missing dependencies
+      - name: Install system dependencies
         run: |
-          apt-get update -qq
+          apt-get update -qq 
           apt-get install -y \
-            libcppad-dev libgmp-dev libomp-dev r-cran-data.table
+            r-cran-data.table r-cran-numderiv r-cran-abind \
+            r-cran-quarto r-cran-rcpp r-cran-trustoptim r-cran-sn \
+            r-cran-get r-cran-timedate r-cran-woodburymatrix \
+            texlive-latex-base texinfo texlive-fonts-extra texlive-latex-extra\
+            texlive-fonts-recommended texlive-latex-recommended \
+            libcppad-dev libgmp-dev libomp-dev \
+            libcurl4-openssl-dev libuv1-dev curl wget
 
-      - name: Rebuild ABI-mismatched R packages
+      - name: Set up Quarto
         run: |
-          R -e "install.packages(
-          c('Rcpp', 'cli',  'xfun', 'quarto'), 
-          repos = 'https://cloud.r-project.org/', 
-          type = 'source',
-          dependencies = FALSE)"
-
-      - name: install R dependencies
-        run: |
-          R -e "install.packages(c('GET','WoodburyMatrix', 'trustOptim'))"
-
-      - name: Verify Quarto CLI
-        run: quarto --version
-
-      - name: show dependencies
-        run: |
-          R -e "library('quarto')"
-          R -e "library('data.table')"
+          curl -L -o quarto.deb \
+            "https://github.com/quarto-dev/quarto-cli/releases/download/v1.5.29/quarto-1.5.29-linux-amd64.deb"
+          apt-get install -y ./quarto.deb
 
       - name: build
         run: |
