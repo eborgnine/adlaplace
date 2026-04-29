@@ -20,9 +20,9 @@ jobs:
             r-cran-data.table r-cran-numderiv r-cran-abind \
             r-cran-quarto r-cran-rcpp r-cran-trustoptim \
             libcppad-dev libgmp-dev libomp-dev \
-            libcurl4-openssl-dev libuv1-dev
-          wget -q https://github.com/quarto-dev/quarto-cli/releases/latest/download/quarto-linux-amd64.deb
-          dpkg -i quarto-*.deb
+            libcurl4-openssl-dev libuv1-dev wget
+          curl -sL https://github.com/quarto-dev/quarto-cli/releases/latest/download/quarto-linux-amd64.deb -o quarto.deb
+          dpkg -i quarto.deb
 
       - name: test data table
         run: |
