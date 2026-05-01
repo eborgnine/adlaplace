@@ -20,8 +20,6 @@ jobs:
             r-cran-data.table r-cran-numderiv r-cran-abind \
             r-cran-quarto r-cran-rcpp r-cran-trustoptim r-cran-sn \
             r-cran-get r-cran-timedate r-cran-woodburymatrix \
-            texlive-latex-base texinfo texlive-fonts-extra texlive-latex-extra\
-            texlive-fonts-recommended texlive-latex-recommended \
             libcppad-dev libgmp-dev libomp-dev \
             libcurl4-openssl-dev libuv1-dev curl wget
 
@@ -30,6 +28,13 @@ jobs:
           curl -L -o quarto.deb \
             "https://github.com/quarto-dev/quarto-cli/releases/download/v1.5.29/quarto-1.5.29-linux-amd64.deb"
           apt-get install -y ./quarto.deb
+
+      - name: Install TinyTeX
+        run: |
+          Rscript -e "install.packages('tinytex', repos = 'https://cloud.r-project.org/')"
+          Rscript -e "tinytex::install_tinytex()"
+          echo "$(Rscript -e 'cat(tinytex:::tl_path())')/bin" >> $GITHUB_PATH
+ 
 
       - name: build
         run: |
