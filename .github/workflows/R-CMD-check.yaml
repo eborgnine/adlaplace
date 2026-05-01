@@ -26,6 +26,12 @@ jobs:
             libcppad-dev libgmp-dev libomp-dev \
             libcurl4-openssl-dev libuv1-dev curl wget
 
+      - name: Cache TinyTeX
+        uses: actions/cache@v4
+        with:
+          path: ~/.TinyTeX
+          key: tinytex-${{ hashFiles('.github/workflows/R-CMD-check.yaml') }}
+          restore-keys: tinytex-
 
       - name: Install TinyTeX (if not cached)
         env:
@@ -42,7 +48,7 @@ jobs:
           fi
           echo "$HOME/.TinyTeX/bin/x86_64-linux" >> $GITHUB_PATH
 
-      - name: Check1 for pcrr8t.tfm
+      - name: Check2 for pcrr8t.tfm
         run: |
           echo "Searching for pcrr8t.tfm in TinyTeX..."
           find ~/.TinyTeX -name "pcrr8t.tfm"
