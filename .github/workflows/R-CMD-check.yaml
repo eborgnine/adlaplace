@@ -20,6 +20,7 @@ jobs:
             --no-install-recommends \
             --no-install-suggests \
             r-cran-abind r-cran-sn \
+            r-cran-data.table \
             r-cran-quarto r-cran-tinytex r-cran-trustoptim \
             r-cran-get r-cran-timedate r-cran-woodburymatrix \
             libcppad-dev libgmp-dev libomp-dev \
@@ -49,7 +50,7 @@ jobs:
           fi
           # Always add to PATH (works whether cached or fresh)
           echo "$HOME/.TinyTeX/bin/x86_64-linux" >> $GITHUB_PATH
-          
+
       - name: build
         run: |
           R CMD build adlaplace
