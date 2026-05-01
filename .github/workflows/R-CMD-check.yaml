@@ -47,20 +47,15 @@ jobs:
           # Verify
           quarto --version
 
-      - name: Cache TinyTeX
-        uses: actions/cache@v4
-        with:
-          path: ~/.TinyTeX
-          key: tinytex-${{ runner.os }}-${{ hashFiles('**/DESCRIPTION') }}
-          restore-keys: |
-            tinytex-${{ runner.os }}-
-
       - name: Install TinyTeX (if not cached)
+        env:
+          TEXLIVE_MIRROR: https://ctan.mirror.rafal.ca/systems/texlive/tlnet
         run: |
           if [ ! -f ~/.TinyTeX/bin/x86_64-linux/pdflatex ]; then
             Rscript -e "install.packages('tinytex', repos = 'https://cloud.r-project.org/')"
-            Rscript -e "tinytex::install_tinytex(repository = 'https://ctan.math.utah.edu/systems/texlive/tlnet')"
-            tlmgr install --repository=https://ctan.math.utah.edu/systems/texlive/tlnet collection-basic collection-latex \
+            Rscript -e "tinytex::install_tinytex(repository = '$TEXLIVE_MIRROR')"
+            tlmgr install --repository=$TEXLIVE_MIRROR \
+              collection-basic collection-latex \
               collection-fontsrecommended collection-fontsextra cm-super \
               lmodern courier ae aecompl \
               preprint 2>/dev/null || true
@@ -68,8 +63,10 @@ jobs:
           echo "$HOME/.TinyTeX/bin/x86_64-linux" >> $GITHUB_PATH
 
       - name: Reinstall courier package with updated mirror
+        env:
+          TEXLIVE_MIRROR: https://ctan.math.utah.edu/systems/texlive/tlnet
         run: |
-          tlmgr install --repository=https://ctan.math.utah.edu/systems/texlive/tlnet --reinstall courier
+          tlmgr install --repository=$TEXLIVE_MIRROR --reinstall courier
           updmap-sys
 
       - name: Check for pcrr8t.tfm
