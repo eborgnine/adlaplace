@@ -26,11 +26,26 @@ jobs:
             libcppad-dev libgmp-dev libomp-dev \
             libcurl4-openssl-dev libuv1-dev curl wget
 
-      - name: Set up Quarto
+      - name: Cache Quarto installer
+        uses: actions/cache@v4
+        with:
+          path: /tmp/quarto.deb
+          key: quarto-deb-1.5.29-linux-amd64
+          restore-keys: quarto-deb-
+
+      - name: Set up Quarto CLI
         run: |
-          curl -L -o quarto.deb \
-            "https://github.com/quarto-dev/quarto-cli/releases/download/v1.5.29/quarto-1.5.29-linux-amd64.deb"
-          apt-get install -y ./quarto.deb
+          # Only download if not cached
+          if [ ! -f /tmp/quarto.deb ]; then
+            curl -L -o /tmp/quarto.deb \
+              "https://github.com/quarto-dev/quarto-cli/releases/download/v1.5.29/quarto-1.5.29-linux-amd64.deb"
+          fi
+          
+          # Install (fast if already installed, or installs on first run)
+          dpkg -i /tmp/quarto.deb || apt-get install -f -y  # Fix deps if needed
+          
+          # Verify
+          quarto --version
 
       - name: Cache TinyTeX
         uses: actions/cache@v4
@@ -46,7 +61,9 @@ jobs:
           if [ ! -f ~/.TinyTeX/bin/x86_64-linux/pdflatex ]; then
             Rscript -e "install.packages('tinytex', repos = 'https://cloud.r-project.org/')"
             Rscript -e "tinytex::install_tinytex(repository = 'https://ctan.math.illinois.edu/systems/texlive/tlnet')"
-            tlmgr install collection-basic collection-latex collection-fontsrecommended preprint 2>/dev/null || true
+            tlmgr install collection-basic collection-latex \
+              collection-fontsrecommended collection-fontsextra cm-super \
+              preprint 2>/dev/null || true
           fi
           # Always add to PATH (works whether cached or fresh)
           echo "$HOME/.TinyTeX/bin/x86_64-linux" >> $GITHUB_PATH
@@ -55,7 +72,6 @@ jobs:
         run: |
           R CMD build adlaplace
           R CMD INSTALL adlaplace_*.gz
-          R CMD build adlaplaceExample
 
       - name: check adlaplace
         run: |
@@ -71,6 +87,7 @@ jobs:
 
       - name: check adlaplaceExample
         run: |
+          R CMD build adlaplaceExample
           R CMD check adlaplaceExample*.gz
 
       - name: build hpolcc
