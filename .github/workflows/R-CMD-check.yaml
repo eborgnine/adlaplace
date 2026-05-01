@@ -19,8 +19,8 @@ jobs:
           apt-get install -y \
             --no-install-recommends \
             --no-install-suggests \
-            r-cran-data.table r-cran-numderiv r-cran-abind \
-            r-cran-quarto r-cran-tinytex r-cran-rcpp r-cran-trustoptim r-cran-sn \
+            r-cran-abind r-cran-sn \
+            r-cran-quarto r-cran-tinytex r-cran-trustoptim \
             r-cran-get r-cran-timedate r-cran-woodburymatrix \
             libcppad-dev libgmp-dev libomp-dev \
             libcurl4-openssl-dev libuv1-dev curl wget
@@ -31,12 +31,25 @@ jobs:
             "https://github.com/quarto-dev/quarto-cli/releases/download/v1.5.29/quarto-1.5.29-linux-amd64.deb"
           apt-get install -y ./quarto.deb
 
-      - name: Install TinyTeX
-        run: |
-          Rscript -e "tinytex::install_tinytex()" && \
-            echo 'export PATH=$(Rscript -e "cat(tinytex:::tl_path())")/bin:$PATH' >> ~/.bashrc
- 
+      - name: Cache TinyTeX
+        uses: actions/cache@v4
+        with:
+          path: ~/.TinyTeX
+          key: tinytex-${{ runner.os }}-${{ hashFiles('**/DESCRIPTION') }}
+          restore-keys: |
+            tinytex-${{ runner.os }}-
 
+      - name: Install TinyTeX (if not cached)
+        run: |
+          # Only install if cache missed
+          if [ ! -f ~/.TinyTeX/bin/x86_64-linux/pdflatex ]; then
+            Rscript -e "install.packages('tinytex', repos = 'https://cloud.r-project.org/')"
+            Rscript -e "tinytex::install_tinytex(repository = 'https://ctan.math.illinois.edu/systems/texlive/tlnet')"
+            tlmgr install collection-basic collection-latex collection-fontsrecommended preprint 2>/dev/null || true
+          fi
+          # Always add to PATH (works whether cached or fresh)
+          echo "$HOME/.TinyTeX/bin/x86_64-linux" >> $GITHUB_PATH
+          
       - name: build
         run: |
           R CMD build adlaplace
