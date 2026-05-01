@@ -69,6 +69,12 @@ jobs:
           # Always add to PATH (works whether cached or fresh)
           echo "$HOME/.TinyTeX/bin/x86_64-linux" >> $GITHUB_PATH
 
+
+      - name: Check for pcrr8t.tfm
+        run: |
+          echo "Searching for pcrr8t.tfm in TinyTeX..."
+          find ~/.TinyTeX -name "pcrr8t.tfm" 2>/dev/null || echo "pcrr8t.tfm NOT FOUND in TinyTeX"
+
       - name: build
         run: |
           R CMD build adlaplace
