@@ -18,7 +18,7 @@ jobs:
           apt-get update -qq 
           apt-get install -y \
             r-cran-data.table r-cran-numderiv r-cran-abind \
-            r-cran-quarto r-cran-rcpp r-cran-trustoptim r-cran-sn \
+            r-cran-quarto r-cran-tinytex r-cran-rcpp r-cran-trustoptim r-cran-sn \
             r-cran-get r-cran-timedate r-cran-woodburymatrix \
             libcppad-dev libgmp-dev libomp-dev \
             libcurl4-openssl-dev libuv1-dev curl wget
@@ -31,7 +31,6 @@ jobs:
 
       - name: Install TinyTeX
         run: |
-          Rscript -e "install.packages('tinytex', repos = 'https://cloud.r-project.org/')"
           Rscript -e "tinytex::install_tinytex()"
           echo "$(Rscript -e 'cat(tinytex:::tl_path())')/bin" >> $GITHUB_PATH
  
