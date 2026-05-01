@@ -73,7 +73,9 @@ jobs:
       - name: Check for pcrr8t.tfm
         run: |
           echo "Searching for pcrr8t.tfm in TinyTeX..."
-          find ~/.TinyTeX -name "pcrr8t.tfm" 2>/dev/null || echo "pcrr8t.tfm NOT FOUND in TinyTeX"
+          find ~/.TinyTeX -name "pcrr8t.tfm"
+          find ~/ -name "pcrr8t.tfm"
+          find /usr -name "pcrr8t.tfm"
 
       - name: build
         run: |
