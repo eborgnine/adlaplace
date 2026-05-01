@@ -69,6 +69,10 @@ jobs:
           # Always add to PATH (works whether cached or fresh)
           echo "$HOME/.TinyTeX/bin/x86_64-linux" >> $GITHUB_PATH
 
+      - name: Install missing pcrr8t.tfm
+        run: |
+          tlmgr install --reinstall courier
+          updmap-sys
 
       - name: Check for pcrr8t.tfm
         run: |
