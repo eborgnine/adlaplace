@@ -246,25 +246,13 @@ hnlm <- function(
   }
 
 
-  cache <- new.env()
-  assign("gamma", config$gamma, cache)
-
   config$opt <- as.list(
     model_stuff$info$parameters[c("init", "lower", "upper", "parscale")]
   )
+  control$parscale <- config$opt$parscale
 
-  if (for_dev) {
-    return(list(
-      model = model_stuff,
-      config = config,
-      formula = formula,
-      terms = model_terms,
-      data = data_sub,
-      control = control,
-      control_inner = control_inner,
-      cache = cache
-    ))
-  }
+  cache <- new.env(parent = emptyenv())
+  cache$gamma <- config$gamma
 
   if (verbose_orig) {
     cat(
@@ -281,19 +269,26 @@ hnlm <- function(
     package = config$package
   )
 
+  if (for_dev) {
+    return(list(
+      model = model_stuff,
+      config = config,
+      formula = formula,
+      terms = model_terms,
+      data = data_sub,
+      control = control,
+      control_inner = control_inner,
+      cache = cache,
+      ad_fun = ad_fun
+    ))
+  }
+
+
   if (!length(cache$gamma)) {
     if (verbose_orig) {
       cat("no gammas, only one layer of optimizatino")
     }
     # no gammas, no inner opt
-    # Add parscale to the control if it exists in theta_info
-    control_list <- list(
-      fnscale = -1,
-      trace = 3,
-      REPORT = 1,
-      maxit = 1000
-    )
-    control_list$parscale <- config$opt$parscale
 
     mle <- stats::optim(
       par = config$opt$init,
@@ -303,7 +298,7 @@ hnlm <- function(
       lower = config$opt$lower,
       upper = config$opt$upper,
       backendContext = ad_fun,
-      control = control_list
+      control = control
     )
     mle$hessian <- adlaplace::hess(
       mle$par,
@@ -312,8 +307,7 @@ hnlm <- function(
     return(mle)
   }
 
-  cache <- new.env(parent = emptyenv())
-  cache$gamma <- config$gamma
+
   if (verbose_orig) {
     cat("optimizing")
     cat(" initial, lower , upper\n")
@@ -322,8 +316,6 @@ hnlm <- function(
     print(to_print)
     cat("threads: ", config$num_threads, "\n")
   }
-
-  control$parscale <- config$theta_info$parscale
 
   mle <- try(stats::optim(
     par = config$opt$init,
@@ -345,6 +337,7 @@ hnlm <- function(
     opt = mle,
     objects = list(
       #      tmb_data = model_stuff$data,
+      #      data = data_sub,
       config = config,
       formula = formula,
       terms = model_terms,
@@ -353,7 +346,6 @@ hnlm <- function(
       control_inner = control$inner,
       control = control,
       cache = cache,
-      #      data = data_sub,
       ad_fun = ad_fun
     )
   )

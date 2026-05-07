@@ -15,7 +15,7 @@ removeHolidays <- function(data, type = "rm_all") {
   if (length(date_var) ==0 ) {
     warning("no date variable")
   }
-  years <- as.integer(format(data$date, "%Y"))
+  years <- as.integer(format(data[[date_var]], "%Y"))
 
   year_range <- min(years):max(years)
 
@@ -29,7 +29,7 @@ removeHolidays <- function(data, type = "rm_all") {
 
   keep_within <- cbind(begin_day, end_day)
   to_keep <- unlist(lapply(seq_len(nrow(keep_within)), function(i) {
-    which(data$date >= min(keep_within[i, ]) & data$date <= max(keep_within[i,]))
+    which(data[[date_var]] >= min(keep_within[i, ]) & data[[date_var]] <= max(keep_within[i,]))
   }))
 
   data <- data[to_keep, ]
@@ -52,7 +52,7 @@ removeHolidays <- function(data, type = "rm_all") {
       hol_to_rm
     ) |>
       as.Date()
-    data <- data[!(data$date %in% holiday_index), ]
+    data <- data[!(data[[date_var]] %in% holiday_index), ]
   }
 
   data

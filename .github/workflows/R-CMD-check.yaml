@@ -101,6 +101,7 @@ jobs:
           R CMD check adlaplace_*.gz
 
       - name: Upload R CMD check logs
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: adlaplace-check-logs
