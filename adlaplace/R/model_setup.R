@@ -43,6 +43,8 @@ model_setup <- function(formula, data, verbose = FALSE) {
     }
   }
 
+  the_terms = lapply(the_terms, add_by_levels, data)
+
   # Create design matrices
   design_list <- lapply(
     the_terms,
@@ -244,6 +246,7 @@ model_setup <- function(formula, data, verbose = FALSE) {
   # Return both data structures and info
   list(
     data = adlaplace_data,
+    terms = the_terms,
     info = list(
       beta = beta_setup,
       gamma = gamma_setup,

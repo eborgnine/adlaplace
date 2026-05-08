@@ -1,3 +1,5 @@
+#' @include 000.R
+#' @include rpoly.R
 #' Hierarchical Random Polynomial Model Term
 #'
 #' @description Creates and manages hierarchical random polynomial model terms.
@@ -14,20 +16,31 @@
 #'   \item{\code{beta_info(term, data)}}{Extracts beta parameter information}
 #'   \item{\code{random_info(term, data)}}{Extracts random effects information}
 #' }
+#' @examples
+#' # Create an hrpoly term for variable 'age' with grouping by 'site'
+#' term <- hrpoly(x = "age", p = 2, ref_value = 0, by = "site")
+#' str(term)
+#' # Create sample data
+#' set.seed(42)
+#' dat <- data.frame(
+#'   age = rep(seq(0, 80, by = 10), each = 3),
+#'   site = rep(c("A", "B", "C"), times = 9)
+#' )
+#' by_group(term@by@term, dat)
+#' # Compute the design matrix
+#' design_mat <- design(term, dat)
+#' print(design_mat)
 NULL
 
-#' @importFrom adlaplace fpoly rpoly
 setClass("hrpoly",
          representation = representation(
-           by_levels = "integer",
-           by_labels = "character"
+           by = "by_group"
          ),
          contains = "model",
          prototype = list(
-           by_levels = integer(0),
-           by_labels = character(0),
+           by = methods::new("by_group"),
            knots = numeric(0),
-           type = factor("random", levels = adlaplace::.type_factor_levels)
+           type = factor("random", levels = .type_factor_levels)
          )
 )
 
@@ -59,7 +72,6 @@ hrpoly <- function(
   if (length(x) != 1) stop("x must be a single variable name")
   if (length(p) != 1) stop("p must be a single value")
   if (length(ref_value) != 1) stop("ref_value must be a single value")
-  if (length(by) != 1) stop("by must be a single variable name")
   if (length(init) != 1) stop("init must be a single value")
   if (length(lower) != 1) stop("lower must be a single value")
   if (length(upper) != 1) stop("upper must be a single value")
@@ -70,13 +82,18 @@ hrpoly <- function(
   if (any(lower >= upper)) stop("lower bounds must be less than upper bounds")
   if (any(parscale <= 0)) stop("parscale must be positive")
 
+  # Handle by: can be character or by_group
+  if (is.character(by)) {
+    by <- by_group(term = by)
+  }
+  # If by is already a by_group, use as is
+
   methods::new("hrpoly",
     term = x,
     formula = stats::as.formula(paste0("~ 0 + ", x), env = new.env()),
     p.order = as.integer(p),
     ref_value = ref_value,
     by = by,
-    by_levels = integer(0),  # Will be set later when data is available
     init = init,
     lower = lower,
     upper = upper,
@@ -93,9 +110,19 @@ hrpoly <- function(
 #' @export
 setMethod("design", "hrpoly", function(term, data) {
 
-  term = get_by_levels(term, data)
+  if (length(term@by@levels) == 0) {
+    term@by <- by_group(term = term@by@term, data = data)
+  }
 
-  a_base = adlaplace::design(methods::as(term, "rpoly"), data)[,term@p.order]
+  # Create an rpoly version of the term (without by slot)
+  rpoly_term <- methods::new("rpoly",
+    term = term@term,
+    formula = term@formula,
+    p.order = term@p.order,
+    ref_value = term@ref_value,
+    sd = rep_len(Inf, term@p.order)
+  )
+  a_base <- design(rpoly_term, data)[,term@p.order]
 
   a_split = mapply(
     function(x, a_base, id) {
@@ -106,21 +133,21 @@ setMethod("design", "hrpoly", function(term, data) {
         x = a_base[the_i]
       )
     },
-    id = term@by_levels,
-    MoreArgs = list(x=data[[term@by]], a_base = a_base),
+    id = term@by@levels,
+    MoreArgs = list(x=data[[term@by@term]], a_base = a_base),
     SIMPLIFY=FALSE
   )
   a_df = do.call(rbind, a_split)
-  a_df$j = match(a_df$j_orig, term@by_levels)
+  a_df$j = match(a_df$j_orig, term@by@levels)
 
   result = Matrix::sparseMatrix(i=a_df$i, j=a_df$j, 
-    x = a_df$x, dims = c(length(a_base), length(term@by_levels)),
+    x = a_df$x, dims = c(length(a_base), length(term@by@levels)),
     dimnames = list(NULL, paste0(
     term@term,
     "_hrpoly_",
     term@p.order,
     "_g",
-    term@by_labels
+    term@by@labels
   )))
 
   result
@@ -135,11 +162,13 @@ setMethod("precision", "hrpoly", function(term, data) {
   if (term@p.order == 0) {
     return(NULL)
   }
-  term = get_by_levels(term, data)
+  if (length(term@by@levels) == 0) {
+    term@by <- by_group(term = term@by@term, data = data)
+  }
 
-  result = Matrix::Diagonal(length(term@by_levels), 1)
+  result = Matrix::Diagonal(length(term@by@levels), 1)
   dimnames(result) = list(
-    paste0(term@term, "_hrpoly_", term@p.order, "_g", term@by_labels)
+    paste0(term@term, "_hrpoly_", term@p.order, "_g", term@by@labels)
   )[c(1,1)]
   result
 
@@ -179,29 +208,22 @@ setMethod("beta_info", "hrpoly", function(term, data) {
 #' @export
 setMethod("random_info", "hrpoly", function(term, data) {
   basis <- NA
-  if(!length(term@by_levels)) {
-    term@by_levels <- unique(data[[term@by]])
+  if (length(term@by@levels) == 0) {
+    term@by <- by_group(term = term@by@term, data = data)
   }
 
   result <- expand.grid(
     term = term@term,
     model = "hrpoly",
     label = paste(c(term@term, "hrpoly", term@p.order), collapse = "_"),
-    by = term@by_levels,
+    by = term@by@levels,
     basis = basis,
     order = term@p.order,
     stringsAsFactors = FALSE
   )
-  result$by_labels <- term@by_labels[match(result$by, term@by_levels)]
+  result$by_labels <- term@by@labels[match(result$by, term@by@levels)]
   result$gamma_label <- paste0(result$label,  "_g", result$by_labels)
   result
 })
 
-methods::setAs("hrpoly", "rpoly", function(from) {
-  rpoly(
-    x = from@term,
-    p = from@p.order,
-    ref_value = from@ref_value,
-    sd = 1
-  )
-})
+

@@ -21,10 +21,12 @@ Author: Patrick Brown [aut, cre, cph]
 Collate: 
     '000.R'
     'RcppExports.R'
+    'by_group.R'
     'effects.R'
     'fpoly.R'
     'getAdFun.R'
     'groups.R'
+    'hrpoly.R'
     'iid.R'
     'intercept.R'
     'rpoly.R'

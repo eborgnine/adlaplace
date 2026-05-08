@@ -30,7 +30,6 @@ setClass("overdispersion",
            knots = numeric(0),
            ref_value = numeric(0),
            p.order = integer(0),
-           by = character(0),
           type = factor("response", levels = .type_factor_levels)
   )
 )

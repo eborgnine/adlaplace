@@ -7,7 +7,6 @@ setClass("iwp",
   contains = "model",
   prototype = prototype(
     # Default values for iwp-specific behavior
-    by = character(0),
     type = factor("random", levels = .type_factor_levels)
   )
 )
@@ -267,14 +266,15 @@ ref_align <- function(ref_value, knots) {
 #' @param data A data frame containing the term variable
 #' @export
 setMethod("design", "iwp", function(term, data) {
-  refined_x <- data[[term@term]] - term@ref_value
-
-  if(any(refined_x < min(term@knots)) || any(refined_x > max(term@knots))) {
+  if(any(data[[term@term]] < min(term@knots)) || any(data[[term@term]] > max(term@knots))) {
     warning("knots don't span the range of x ", term@term)
+    print(range(term@knots))
+    print(range(data[[term@term]]))
   }
 
-  basis <- local_poly(term@knots, refined_x, term@p.order)
-  result <- basis[, 1:ncol(basis), drop = FALSE]
+  refined_x <- data[[term@term]] - term@ref_value
+
+  result <- local_poly(term@knots- term@ref_value, refined_x, term@p.order)
 
   knots_string <- formatC(seq.int(ncol(result)),
     width = ceiling(log10(ncol(result))), flag = "0"
@@ -289,7 +289,7 @@ setMethod("design", "iwp", function(term, data) {
 #' @param data A data frame containing the term variable
 #' @export
 setMethod("precision", "iwp", function(term, data) {
-  result <- Matrix::Matrix(compute_weights_precision(term@knots))
+  result <- Matrix::Matrix(compute_weights_precision(term@knots - term@ref_value))
 
   knots_string <- formatC(seq.int(nrow(result)),
     width = ceiling(log10(nrow(result))), flag = "0"

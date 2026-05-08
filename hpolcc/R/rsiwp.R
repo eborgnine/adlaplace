@@ -23,7 +23,6 @@ setClass("rsiwp",
   ),
   contains = "model",
   prototype = prototype(
-    by = character(0),
     type = factor("random", levels = adlaplace::.type_factor_levels)
   )
 )

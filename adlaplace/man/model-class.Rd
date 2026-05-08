@@ -6,4 +6,31 @@
 \title{Base Model Class}
 \description{
 The base S4 class that all specific model term classes inherit from.
+Subclasses that need hierarchical grouping should include a \code{by} slot
+(either \code{character} or \code{by_group} type) and optionally \code{by_levels}
+and \code{by_labels} slots.
 }
+\section{Slots}{
+
+\describe{
+\item{\code{term}}{Character vector of length 1, the term name}
+
+\item{\code{formula}}{Formula object for the term}
+
+\item{\code{knots}}{Numeric vector of knot locations (for spline terms)}
+
+\item{\code{ref_value}}{Numeric reference value for centering}
+
+\item{\code{p.order}}{Integer polynomial order}
+
+\item{\code{init}}{Numeric vector of initial values}
+
+\item{\code{lower}}{Numeric vector of lower bounds}
+
+\item{\code{upper}}{Numeric vector of upper bounds}
+
+\item{\code{parscale}}{Numeric vector of parameter scales for optimization}
+
+\item{\code{type}}{Factor indicating term type ("fixed", "random", or "response")}
+}}
+

@@ -9,6 +9,7 @@
 #' @importFrom adlaplace .type_factor_levels
 #' @importFrom adlaplace rpoly
 #' @importFrom adlaplace fpoly
+#' @importFrom adlaplace hrpoly
 #'
 #' @section Methods:
 #' The following methods are available for `hiwp` objects:
@@ -23,16 +24,12 @@ NULL
 
 setClass("hiwp",
   representation = representation(
-    by = "character",
-    by_levels = "integer",
-    by_labels = "character",
+    by = "by_group",
     init = "numeric"
   ),
   contains = "model",
   prototype = prototype(
-    by = character(0),
-    by_levels = integer(0),
-    by_labels = character(0),
+    by = adlaplace::by_group(),
     init = numeric(0),
     type = factor("random", levels = adlaplace::.type_factor_levels)
   )
@@ -79,20 +76,20 @@ hiwp <- function(
   the_f <- stats::as.formula(paste0("~ 0 + ", x), env=new.env())
   result <- list()
   hiwp_name <- paste(c(x, "hiwp"), collapse = "_")
+
   result[[hiwp_name]] <- methods::new("hiwp",
     term = x,
     formula = the_f,
     p.order = as.integer(p),
     ref_value = ref_value,
     knots = knots,
-    by = by,
-    by_levels = integer(0),
+    by = adlaplace::by_group(term=by),
     init = init[1],
     lower = lower[1],
     upper = upper[1],
     parscale = parscale[1]
   )
-
+  print(2)
   if (include_global) {
     iwp_name <- paste(c(x, "iwp"), collapse = "_")
     result[[iwp_name]] <- methods::new("iwp",
@@ -107,7 +104,7 @@ hiwp <- function(
       parscale = parscale[2]
     )
   }
-
+  print(3)
   if (include_poly) {
     for (D_poly in seq(1, len = p - 1)) {
       hrpoly_name <- paste(c(x, "hrpoly", D_poly), collapse = "_")
@@ -149,15 +146,15 @@ hiwp <- function(
 #' @export
 setMethod("design", "hiwp", function(term, data) {
 
-  by_stuff = get_by_levels(term, data)
+  term <- adlaplace::add_by_levels(term, data)
 
   term_iwp <- methods::as(term, "iwp")
   A0 <- adlaplace::design(term_iwp, data)
-  if(!all(unique(data[[term@by]] %in% term@by_levels))) {
+  if(!all(unique(data[[term@by@term]] %in% term@by@levels))) {
     warning("by levels in data not in the model")
   }
   id_split <- split(1:nrow(data),
-    factor(data[[term@by]], levels = term@by_levels),
+    factor(data[[term@by@term]], levels = term@by@levels),
     drop = FALSE
   )
 
@@ -187,7 +184,7 @@ setMethod("design", "hiwp", function(term, data) {
           length(id_split)
         ),
       "_g",
-                rep(term@by_labels, each = ncol(A0))
+                rep(term@by@labels, each = ncol(A0))
       )
     )
   )
@@ -201,15 +198,15 @@ setMethod("design", "hiwp", function(term, data) {
 #' @return A precision matrix for the HIWP term.
 #' @export
 setMethod("precision", "hiwp", function(term, data) {
-  term = get_by_levels(term, data)
+  term <- adlaplace::add_by_levels(term, data)
 
   iwp_precision <- precision(methods::as(term, "iwp"), data)
-  result <- Matrix::.bdiag(replicate(length(term@by_levels), iwp_precision))
+  result <- Matrix::.bdiag(replicate(length(term@by@levels), iwp_precision))
   dimnames(result) <- list(
   paste0(
-    rep(gsub("_iwp_k", "_hiwp_k", colnames(iwp_precision)), length(term@by_levels)),
+    rep(gsub("_iwp_k", "_hiwp_k", colnames(iwp_precision)), length(term@by@levels)),
     "_g",
-    rep(term@by_labels, each = ncol(iwp_precision))
+    rep(term@by@labels, each = ncol(iwp_precision))
   )
 )[c(1, 1)]
   result
@@ -257,7 +254,7 @@ setMethod("random_info", "hiwp", function(term, data) {
     term = term@term,
     model = "hiwp",
     label = paste(c(term@term, "hiwp"), collapse = "_"),
-    by = term@by_levels,
+    by = term@by@levels,
     basis = basis,
     order = term@p.order,
     stringsAsFactors = FALSE
@@ -267,8 +264,8 @@ setMethod("random_info", "hiwp", function(term, data) {
     width = max(ceiling(c(1, log10(max(result$basis)))), na.rm = TRUE),
     flag = "0"
   )
-  result$by_labels <- term@by_labels[match(result$by, term@by_levels)]
-  result$gamma_label <- paste0(result$label, "_k", bnumPad, "_g", result$by_label)
+  result$by_labels <- term@by@labels[match(result$by, term@by@levels)]
+  result$gamma_label <- paste0(result$label, "_k", bnumPad, "_g", result$by_labels)
 
   result
 })
@@ -284,7 +281,6 @@ methods::setAs(
       knots = from@knots,
       ref_value = from@ref_value,
       p.order = from@p.order,
-      by = character(0), # hiwp has hierarchical structure, iwp doesn't
       init = from@init,
       lower = from@lower,
       upper = from@upper,

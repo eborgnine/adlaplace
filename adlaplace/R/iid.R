@@ -12,7 +12,6 @@ setClass("iid",
           ref_value = numeric(0),
           p.order = as.integer(0),
           knots = numeric(0),
-          by = character(0),
           type = factor("random", levels = .type_factor_levels)
          )
 )

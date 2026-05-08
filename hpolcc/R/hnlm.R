@@ -92,7 +92,7 @@ hnlm <- function(
 
   if (methods::is(formula, "formula")) {
     model_terms <- adlaplace::collect_terms(
-      stats::update.formula(formula, . ~ . - 1), # no intercept
+      formula = stats::update.formula(formula, . ~ . - 1), # no intercept
       package = "hpolcc", verbose = config$verbose
     )
   } else {
@@ -275,7 +275,6 @@ hnlm <- function(
       model = model_stuff,
       config = config,
       formula = formula,
-      terms = model_terms,
       data = data_sub,
       control = control,
       control_inner = control_inner,
@@ -341,7 +340,7 @@ hnlm <- function(
       #      data = data_sub,
       config = config,
       formula = formula,
-      terms = model_terms,
+      terms = model_stuff$terms,
       parameters_info = model_stuff$info,
       random_info = random_info,
       control_inner = control$inner,

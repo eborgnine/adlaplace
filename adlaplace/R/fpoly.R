@@ -27,7 +27,6 @@ setClass("fpoly",
          contains = "model",
          prototype = prototype(
            knots = numeric(0),
-           by = character(0),
            init = numeric(0),
            lower = numeric(0),
            upper = numeric(0),
