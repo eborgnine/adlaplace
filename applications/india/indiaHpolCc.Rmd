@@ -156,7 +156,7 @@ res_pm_temp <- hnlm(
     verbose = TRUE
   ),
   control = list(
-    maxit = 1000,
+    maxit = 10,#00,
     trace = 3,
     REPORT = 1
   ),

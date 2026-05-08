@@ -99,7 +99,6 @@ rsiwp <- function(
   iwp_name <- paste("rsiwp", x, sep = "_")
 
   ref_value <- adlaplace::ref_align(ref_value, knots)
-  knots_ref <- knots - ref_value
 
 
   result[[iwp_name]] <- methods::new("rsiwp",
@@ -109,40 +108,40 @@ rsiwp <- function(
     p.order = as.integer(p),
     ref_value = ref_value,
     ref_mult = ref_mult,
-    knots = knots_ref,
+    knots = knots,
     init = init[1],
     lower = lower[1],
     upper = upper[1],
     parscale = parscale[1]
     # type is already set in prototype, no need to repeat
   )
-  if(p==1) {
-    include_poly = FALSE
+  if (p == 1) {
+    include_poly <- FALSE
   }
   if (include_poly) {
     if (boundary_is_random) {
-    poly_name <- paste(c(x, "rsrpoly"), collapse = "_")
+      poly_name <- paste(c(x, "rsrpoly"), collapse = "_")
       result[[poly_name]] <- rsrpoly(
         x = x, mult = mult,
         p = p - 1,
         ref_value = ref_value, ref_mult = ref_mult
       )
-    result[[paste0(x, "_linear")]] = adlaplace::rpoly(
-      x, p=1, ref_value = ref_value
-    )      
     } else {
-    poly_name <- paste(c(x, "rsfpoly"), collapse = "_")
+      poly_name <- paste(c(x, "rsfpoly"), collapse = "_")
       result[[poly_name]] <- rsfpoly(
         x = x, mult = mult,
         p = p - 1,
         ref_value = ref_value,
         ref_mult = ref_mult
       )
-    result[[paste0(x, "_linear")]] = adlaplace::fpoly(
-      x, p=1, ref_value = ref_value
-    )      
     }
   }
+
+  result[[paste0(x, "_", mult, "_linear")]] <- adlaplace::fpoly(
+    mult,
+    p = 1, ref_value = ref_mult
+  )
+
   result
 }
 #' @describeIn rsiwp-class Creates design matrix for RSIWP term
@@ -169,7 +168,7 @@ setMethod("design", "rsiwp", function(term, data) {
 #' @param data A data frame containing the term variable
 #' @export
 setMethod("precision", "rsiwp", function(term, data) {
-  term_iwp = methods::as(term, "iwp")
+  term_iwp <- methods::as(term, "iwp")
   result <- Matrix::Matrix(adlaplace::precision(term_iwp))
 
   knots_string <- formatC(

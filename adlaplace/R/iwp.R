@@ -80,14 +80,13 @@ iwp <- function(
   iwp_name <- paste("iwp", x, sep = "_")
 
   ref_value = ref_align(ref_value, knots)
-  knots_ref = knots - ref_value
 
   result[[iwp_name]] <- methods::new("iwp",
     term = x,
     formula = the_f,
     p.order = as.integer(p),
     ref_value = ref_value,
-    knots = knots_ref,
+    knots = knots,
     init = init[1],
     lower = lower[1],
     upper = upper[1],
@@ -272,9 +271,10 @@ setMethod("design", "iwp", function(term, data) {
     print(range(data[[term@term]]))
   }
 
-  refined_x <- data[[term@term]] - term@ref_value
-
-  result <- local_poly(term@knots- term@ref_value, refined_x, term@p.order)
+  result <- local_poly(
+    term@knots - term@ref_value, 
+    data[[term@term]] - term@ref_value, 
+    term@p.order)
 
   knots_string <- formatC(seq.int(ncol(result)),
     width = ceiling(log10(ncol(result))), flag = "0"

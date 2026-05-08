@@ -89,7 +89,6 @@ hiwp <- function(
     upper = upper[1],
     parscale = parscale[1]
   )
-  print(2)
   if (include_global) {
     iwp_name <- paste(c(x, "iwp"), collapse = "_")
     result[[iwp_name]] <- methods::new("iwp",
@@ -104,7 +103,6 @@ hiwp <- function(
       parscale = parscale[2]
     )
   }
-  print(3)
   if (include_poly) {
     for (D_poly in seq(1, len = p - 1)) {
       hrpoly_name <- paste(c(x, "hrpoly", D_poly), collapse = "_")
