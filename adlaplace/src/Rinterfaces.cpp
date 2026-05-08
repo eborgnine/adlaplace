@@ -227,8 +227,6 @@ Rcpp::S4 hess(
   for (size_t k = 0; k < hess_p_len; ++k) p_out[k] = static_cast<int>(hess_p[k]);
   for (size_t k = 0; k < hess_i_len; ++k) i_out[k] = static_cast<int>(hess_i[k]);
 
-  Rcpp::Environment matrix_ns = Rcpp::Environment::namespace_env("Matrix");
-  (void)matrix_ns;
   Rcpp::S4 out("dsCMatrix");
   out.slot("i") = i_out;
   out.slot("p") = p_out;

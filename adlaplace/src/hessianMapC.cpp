@@ -5,13 +5,13 @@
 #include <limits>
 #include <vector>
 
-namespace {
-
 inline void require_name(const Rcpp::List& x, const char* name) {
   if (!x.containsElementNamed(name)) {
     Rcpp::stop("sparsity shard missing `%s`", name);
   }
 }
+
+
 
 struct SparseTriplet {
   int shard;
@@ -38,7 +38,6 @@ inline int cell_sparse_id(const std::vector<long long>& sorted_cells, long long 
   return static_cast<int>(it - sorted_cells.begin());
 }
 
-}  // namespace
 
 // cpp version of hessianMap, written by codex.
 
@@ -84,7 +83,7 @@ Rcpp::List hessianMapC(
 
       outer_entries.push_back(SparseTriplet{
         shard, row, col, static_cast<int>(k), cell
-      });
+        });
     }
 
     const Rcpp::IntegerVector row_hess_inner = shard_list["row_hess_inner"];
@@ -109,7 +108,7 @@ Rcpp::List hessianMapC(
 
       inner_entries.push_back(SparseTriplet{
         shard, row_inner, col_inner, static_cast<int>(k), cell
-      });
+        });
     }
   }
 
@@ -169,48 +168,78 @@ Rcpp::List hessianMapC(
     }
   }
 
-  Rcpp::Function sparse_matrix = Rcpp::Environment::namespace_env("Matrix")["sparseMatrix"];
+  // Cached Matrix sparseMatrix function
+  static Rcpp::Function sparseMatrix = Rcpp::Environment::namespace_env("Matrix")["sparseMatrix"];
   const bool index1 = false;
   const bool symmetric = true;
 
-  const Rcpp::S4 hessian = Rcpp::as<Rcpp::S4>(sparse_matrix(
+  const Rcpp::S4 hessian = sparseMatrix(
     Rcpp::Named("i") = Rcpp::wrap(outer_unique_row),
     Rcpp::Named("j") = Rcpp::wrap(outer_unique_col),
     Rcpp::Named("x") = Rcpp::wrap(outer_unique_x),
     Rcpp::Named("symmetric") = symmetric,
     Rcpp::Named("index1") = index1,
     Rcpp::Named("dims") = Rcpp::IntegerVector::create(Nparams, Nparams)
-  ));
+  );
 
-  const Rcpp::S4 hessian_inner = Rcpp::as<Rcpp::S4>(sparse_matrix(
+  const Rcpp::S4 hessian_inner = sparseMatrix(
     Rcpp::Named("i") = Rcpp::wrap(inner_unique_row),
     Rcpp::Named("j") = Rcpp::wrap(inner_unique_col),
     Rcpp::Named("x") = Rcpp::wrap(inner_unique_x),
     Rcpp::Named("symmetric") = symmetric,
     Rcpp::Named("index1") = index1,
     Rcpp::Named("dims") = Rcpp::IntegerVector::create(Ngamma, Ngamma)
-  ));
+  );
 
-  const Rcpp::S4 hessian_outer_map = Rcpp::as<Rcpp::S4>(sparse_matrix(
+  const Rcpp::S4 hessian_outer_map = sparseMatrix(
     Rcpp::Named("i") = Rcpp::wrap(outer_cell_sparse),
     Rcpp::Named("j") = Rcpp::wrap(outer_shard),
     Rcpp::Named("x") = Rcpp::wrap(outer_local),
     Rcpp::Named("index1") = index1,
     Rcpp::Named("dims") = Rcpp::IntegerVector::create(
-      static_cast<int>(outer_cells.size()), Ngroups
-    )
-  ));
+      static_cast<int>(outer_cells.size()), Ngroups)
+  );
 
-  const Rcpp::S4 hessian_inner_map = Rcpp::as<Rcpp::S4>(sparse_matrix(
+  const Rcpp::S4 hessian_inner_map = sparseMatrix(
     Rcpp::Named("i") = Rcpp::wrap(inner_cell_sparse),
     Rcpp::Named("j") = Rcpp::wrap(inner_shard),
     Rcpp::Named("x") = Rcpp::wrap(inner_local),
     Rcpp::Named("index1") = index1,
     Rcpp::Named("dims") = Rcpp::IntegerVector::create(
-      static_cast<int>(inner_cells.size()), Ngroups
-    )
-  ));
+      static_cast<int>(inner_cells.size()), Ngroups)
+  );
 
+  // Compute Cholesky of dummy inner Hessian using Matrix package
+  SEXP chol_inner = R_NilValue;
+  
+  if (Ngamma > 0 && !inner_unique_row.empty()) {
+    try {
+      // Build sparse dummy inner Hessian with diagonal=10, off-diagonal=1
+      // This ensures positive definiteness
+      Rcpp::NumericVector dummy_x(inner_unique_row.size());
+      for (size_t k = 0; k < inner_unique_row.size(); ++k) {
+        if (inner_unique_row[k] == inner_unique_col[k]) {
+          dummy_x[k] = 10.0;  // Diagonal elements = 10
+        } else {
+          dummy_x[k] = 1.0;   // Off-diagonal elements = 1
+        }
+      }
+      SEXP hessian_inner_dummy = sparseMatrix(
+        Rcpp::Named("i") = Rcpp::wrap(inner_unique_row),
+        Rcpp::Named("j") = Rcpp::wrap(inner_unique_col),
+        Rcpp::Named("x") = dummy_x,
+        Rcpp::Named("symmetric") = true,
+        Rcpp::Named("index1") = false,
+        Rcpp::Named("dims") = Rcpp::IntegerVector::create(Ngamma, Ngamma)
+      );
+      
+      // Compute Cholesky decomposition using Matrix package with LDL and perm
+      static Rcpp::Function Cholesky = Rcpp::Environment::namespace_env("Matrix")["Cholesky"];
+      chol_inner = Cholesky(hessian_inner_dummy, Rcpp::Named("perm") = true, Rcpp::Named("ldl") = true);
+    } catch (...) {
+      chol_inner = R_NilValue;
+    }
+  }
   const Rcpp::IntegerVector inner_map_i = hessian_inner_map.slot("i");
   const Rcpp::NumericVector inner_hessian_x_num = hessian_inner.slot("x");
   Rcpp::IntegerVector inner_hessian_x(inner_hessian_x_num.size());
@@ -244,7 +273,8 @@ Rcpp::List hessianMapC(
   return Rcpp::List::create(
     Rcpp::Named("hessian") = Rcpp::List::create(
       Rcpp::Named("outer") = hessian,
-      Rcpp::Named("inner") = hessian_inner
+      Rcpp::Named("inner") = hessian_inner,
+      Rcpp::Named("chol_inner") = chol_inner
     ),
     Rcpp::Named("map") = result_map
   );

@@ -51,15 +51,17 @@ outer_fn = function(x, config, cache, adFun, control_inner = list(), ...) {
 	if(is.null(cache$gamma) || length(cache$gamma) != length(config$gamma)) {
 		cache$gamma <- config$gamma
 	}
+	
+	
 	result = adlaplace::logLikLaplace(
-		x=x, config=config,
+		x=x, config,
 		gamma = cache$gamma,
 		control = control_inner,
 		adFun = adFun, 
 		deriv = FALSE, ...
 	)
 	assign('gamma', result$opt$solution, cache)
-	result$fval
+	-result$logLik
 }
 
 #' @rdname outer_optim_wrappers
@@ -72,8 +74,15 @@ outer_gr = function(x, config, cache, adFun, control_inner = list(), ...) {
 	if(is.null(cache$gamma) || length(cache$gamma) != length(config$gamma)) {
 		cache$gamma <- config$gamma
 	}
+	
+	# Pass chol_inner from adFun to config if available
+	config_inner <- config
+	if (!is.null(adFun) && !is.null(adFun$hessians) && !is.null(adFun$hessians$chol_inner)) {
+		config_inner$chol_inner <- adFun$hessians$chol_inner
+	}
+	
 	result = adlaplace::logLikLaplace(
-		x=x, config=config,
+		x=x, config=config_inner,
 		gamma = cache$gamma,
 		control = control_inner,
 		adFun = adFun, 

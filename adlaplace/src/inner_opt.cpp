@@ -23,87 +23,71 @@
 //'   \item{\code{all_derivs()}}{Returns \code{fval}, \code{gradient}, and
 //'   \code{hessian} for full/outer derivatives at \code{x}.}
 //'   \item{\code{inner_opt()}}{Returns \code{fval}, \code{solution},
-//'   \code{gradient} (full/outer gradient at the optimized \code{gamma}),
-//'   \code{hessian} (sparse list), \code{iterations}, \code{status},
-//'   \code{trust.radius}, and \code{method}.}
+//'   \code{gradient} (inner gradient if \code{inner_only} is set, otherwise full gradient),
+//'   \code{hessian} (inner Hessian if \code{inner_only} is set, otherwise full Hessian),
+//'   \code{iterations}, \code{status}, \code{trust.radius}, and \code{method}.}
 //'
 //' @details
 //' This calls the sparse method from the \code{TrustOptim} package via the Cpp interface.  
 //'
 //' @name innerOpt
 
-
-#include <Rcpp.h>
-#include <Eigen/Sparse>
+// Standard C
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 
-// from trustOptim
-#include <CG-sparse.h> 
+// Eigen
+#include <Eigen/Sparse>
 
+// Rcpp
+#include <Rcpp.h>
+
+// trustOptim
+#include <CG-sparse.h>
+
+// Local
+#include "adlaplace/math/constants.hpp"
 #include "adlaplace/runtime/rviews.hpp"
 #include "adlaplace/ompad.hpp"
-#include "adlaplace/math/constants.hpp"
 #include "trustOptimWrappers.hpp"
 
 auto get_double_ctrl = [](const Rcpp::List& ctl, const char* key, double def) {
-	return ctl.containsElementNamed(key) ? Rcpp::as<double>(ctl[key]) : def;
-};
+	if (ctl.containsElementNamed(key) && !Rf_isNull(ctl[key])) {
+		return Rcpp::as<double>(ctl[key]);
+	}
+	return def;
+	};
 auto get_int_ctrl = [](const Rcpp::List& ctl, const char* key, int def) {
-	return ctl.containsElementNamed(key) ? Rcpp::as<int>(ctl[key]) : def;
-};
-
-Rcpp::List eigen_to_list(
-	const Eigen::SparseMatrix<double> &M,
-	const bool upper = true) {
-
-	Eigen::SparseMatrix<double> Mcopy;
-	if (upper) {
-		Mcopy = M.triangularView<Eigen::Upper>();
-	} else {
-		Mcopy = M;
+	if (ctl.containsElementNamed(key) && !Rf_isNull(ctl[key])) {
+		return Rcpp::as<int>(ctl[key]);
 	}
-	Mcopy.makeCompressed();
+	return def;
+	};
 
 
-	const Eigen::Index nnz  = Mcopy.nonZeros();
-	const Eigen::Index ncolP1 = Mcopy.cols()+1;
 
+// Convert Eigen sparse matrix to Matrix::dgCMatrix S4 object directly
+Rcpp::S4 eigen_to_dgCMatrix(const Eigen::SparseMatrix<double>& M) {
+	const Eigen::Index nrow = M.rows();
+	const Eigen::Index ncol = M.cols();
+	const Eigen::Index nnz = M.nonZeros();
 
-	Rcpp::NumericVector x(nnz);
 	Rcpp::IntegerVector i(nnz);
-	Rcpp::IntegerVector p(ncolP1);
+	Rcpp::IntegerVector p(ncol + 1);
+	Rcpp::NumericVector x(nnz);
 
-    // copy from Eigen into R vectors
-	std::copy(Mcopy.valuePtr(),
-		Mcopy.valuePtr() + nnz,
-		x.begin());
+	// Copy data from Eigen (already in CSC format, 0-based)
+	std::copy(M.innerIndexPtr(), M.innerIndexPtr() + nnz, i.begin());
+	std::copy(M.outerIndexPtr(), M.outerIndexPtr() + ncol + 1, p.begin());
+	std::copy(M.valuePtr(), M.valuePtr() + nnz, x.begin());
 
-	std::copy(Mcopy.innerIndexPtr(),
-		Mcopy.innerIndexPtr() + nnz,
-		i.begin());
-
-	std::copy(Mcopy.outerIndexPtr(),
-		Mcopy.outerIndexPtr() + ncolP1,
-		p.begin());
-
-	Rcpp::List result = Rcpp::List::create(
-		Rcpp::_["i"] = i, 
-		Rcpp::_["p"] = p,
-		Rcpp::_["x"] = x,
-		Rcpp::_["dims"] = Rcpp::IntegerVector::create(
-			static_cast<int>(M.rows()),
-			static_cast<int>(M.cols())
-			),
-		Rcpp::_["index1"] = false
-		);
-	if (upper) {
-		result["symmetric"] = true;
-	} else {
-		result["triangular"] = true;
-	}
-	return(result);
+	Rcpp::S4 mat("dgCMatrix");
+	mat.slot("i") = i;
+	mat.slot("p") = p;
+	mat.slot("x") = x;
+	mat.slot("Dim") = Rcpp::IntegerVector::create(static_cast<int>(nrow), static_cast<int>(ncol));
+	return mat;
 }
 
 
@@ -123,7 +107,7 @@ Rcpp::List all_derivs(
 			"all_derivs: x has length %d but expected Nparams=%d",
 			static_cast<int>(x.size()),
 			static_cast<int>(configC.Nparams)
-			);
+		);
 	}
 	std::vector<double> params_init(configC.Nparams);
 	for (size_t d = 0; d < configC.Nparams; ++d) {
@@ -135,7 +119,7 @@ Rcpp::List all_derivs(
 		params_init,
 		false,           // inner=false
 		num_threads
-		);
+	);
 	const Eigen::Index nvars = static_cast<Eigen::Index>(funObj.get_nvars());
 	Eigen::VectorXd x_eval(nvars);
 	for (Eigen::Index d = 0; d < nvars; ++d) {
@@ -151,12 +135,12 @@ Rcpp::List all_derivs(
 	}
 
 
-  // mirror inner_opt list structure as closely as possible
+	// mirror inner_opt list structure as closely as possible
 	Rcpp::List res = Rcpp::List::create(
-		Rcpp::Named("fval")          = Rcpp::wrap(fval),
-		Rcpp::Named("gradient")      = Rcpp::wrap(grad),
-		Rcpp::Named("hessian")       = eigen_to_list(H)
-		);
+		Rcpp::Named("fval") = Rcpp::wrap(fval),
+		Rcpp::Named("gradient") = Rcpp::wrap(grad),
+		Rcpp::Named("hessian") = eigen_to_dgCMatrix(H)
+	);
 
 	return res;
 }
@@ -172,8 +156,9 @@ Rcpp::List inner_opt(
 	const Rcpp::List& config,
 	const Rcpp::List& control,
 	SEXP adFun = R_NilValue
-	) {
-	const Config configC(config);
+) {
+	try {
+		const Config configC(config);
 	if (adFun == R_NilValue) {
 		Rcpp::stop("inner_opt requires a non-NULL adFun");
 	}
@@ -199,8 +184,8 @@ Rcpp::List inner_opt(
 	const int num_threads = configC.num_threads > 0 ? configC.num_threads : 1;
 
 
-	using Tvec   = Eigen::VectorXd;
-	using THess   = Eigen::SparseMatrix<double>; 
+	using Tvec = Eigen::VectorXd;
+	using THess = Eigen::SparseMatrix<double>;
 	using TPreLLt = Eigen::SimplicialLLT<THess>;
 
 	if (parameters.size() != static_cast<R_xlen_t>(configC.Nbeta + configC.Ntheta)) {
@@ -208,26 +193,28 @@ Rcpp::List inner_opt(
 			"parameters has length %d but expected Nbeta+Ntheta=%d",
 			static_cast<int>(parameters.size()),
 			static_cast<int>(configC.Nbeta + configC.Ntheta)
-			);
+		);
 	}
 	if (gamma.size() != static_cast<R_xlen_t>(configC.Ngamma)) {
 		Rcpp::stop(
 			"gamma has length %d but expected Ngamma=%d",
 			static_cast<int>(gamma.size()),
 			static_cast<int>(configC.Ngamma)
-			);
+		);
+	}
+	if (configC.Ngamma == 0) {
+		Rcpp::stop("Ngamma must be > 0");
 	}
 
 	Tvec gamma_start(configC.Ngamma), solution(configC.Ngamma);
 	Tvec fullParams(configC.Nparams);
-	Tvec grad(configC.Ngamma), gradOuter(configC.Nparams);
+	Tvec grad(configC.Ngamma);
 
-	for (size_t d = 0; d < configC.Ngamma; ++d) {
-		gamma_start[d] = gamma[d];
-	}
+	// Copy gamma to gamma_start
+	std::copy(gamma.begin(), gamma.end(), gamma_start.data());
 
 	std::vector<double> params_init(configC.Nparams);
-	// copy in beta and theta from parameters, and gamma from the gamma argument
+	// Copy beta, gamma, theta into params_init and fullParams
 	for (size_t d = 0; d < configC.Nbeta; ++d) {
 		params_init[configC.beta_begin + d] = parameters[d];
 		fullParams[configC.beta_begin + d] = parameters[d];
@@ -237,31 +224,48 @@ Rcpp::List inner_opt(
 	}
 	for (size_t d = 0; d < configC.Ntheta; ++d) {
 		params_init[configC.theta_begin + d] = parameters[configC.Nbeta + d];
-		fullParams[configC.theta_begin + d] = parameters[configC.Nbeta +d];
+		fullParams[configC.theta_begin + d] = parameters[configC.Nbeta + d];
 	}
 
-
-
-	AD_Func_Opt 
-	funObj(
+	AD_Func_Opt funObj(
 		adFun,
 		params_init,
 		true,
-		num_threads),
-	funObjOuter(
+		num_threads);
+
+	Eigen::SparseMatrix<double> H = funObj.Htemplate.cast<double>();
+
+// cholesky template
+    Rcpp::List adFun_list(adFun);
+    Rcpp::List hessians = adFun_list["hessians"];
+	bool use_chol_template;
+	SEXP chol_template;
+    if (hessians.containsElementNamed("chol_inner") && 
+            !Rf_isNull(hessians["chol_inner"])) {
+		use_chol_template = true;
+		chol_template = hessians["chol_inner"];
+	} else {
+		use_chol_template = false;
+	}
+
+	AD_Func_Opt funObjOuter(
 		adFun,
 		params_init,
 		false,           // inner=false
 		num_threads);
 
+	Eigen::SparseMatrix<double>	Houter;
+	Tvec gradOuter;
 
-	Eigen::SparseMatrix<double> H = funObj.Htemplate.cast<double>(),
-		Houter = funObjOuter.Htemplate.cast<double>();
-
+	// Check if we should return inner-only results
+	bool use_inner = false;
+	if (config.containsElementNamed("inner_only") && !Rf_isNull(config["inner_only"])) {
+		use_inner = Rcpp::as<bool>(config["inner_only"]);
+	}
 
 	double fval = NA_REAL, radius = NA_REAL;
 	int iterations = NA_INTEGER;
-	MB_Status status;
+	MB_Status status = SUCCESS;
 
 	{
 		cppad_parallel_setup(static_cast<std::size_t>(num_threads));
@@ -271,39 +275,86 @@ Rcpp::List inner_opt(
 			maxit, contract_factor, expand_factor, contract_threshold,
 			expand_threshold_rad, expand_threshold_ap, function_scale_factor,
 			precond_refresh_freq, precond_ID, trust_iter
-			);
+		);
 
 		opt.run();
 		// H and grad won't be populated
-		status = opt.get_current_state(solution, fval, grad, 
+		status = opt.get_current_state(solution, fval, grad,
 			H, iterations, radius);
+
 		// copy gamma to full parameters
 		for (size_t d = 0; d < configC.Ngamma; ++d) {
 			fullParams[configC.gamma_begin + d] = solution[d];
 		}
-		// get full hessian, gradient
-		funObjOuter.get_fdfh(fullParams, fval, gradOuter, Houter);
-	}
 
-	Rcpp::NumericVector solutionR(solution.size());
-	for(size_t D=0;D<solution.size();D++) {
-		solutionR[D] = solution[D];
+		// get full hessian, gradient (only if not inner_only or inner_only is FALSE)
+		if (!use_inner) {
+			gradOuter = Tvec(configC.Nparams);
+			Houter = funObjOuter.Htemplate.cast<double>();
+
+			funObjOuter.get_fdfh(fullParams, fval, gradOuter, Houter);
+		}
+
+	} // parallel block
+
+	// Compute Cholesky decomposition of inner Hessian using Matrix package
+
+	static Rcpp::Function Matrix_Cholesky = Rcpp::Environment::namespace_env("Matrix")["Cholesky"];
+	static Rcpp::Function Matrix_update = Rcpp::Environment::namespace_env("Matrix")["update"];
+	static Rcpp::Function Matrix_determinant = Rcpp::Environment::namespace_env("Matrix")["determinant"];
+
+
+	SEXP H_mat = eigen_to_dgCMatrix(H);
+	SEXP H_chol;
+
+	if(use_chol_template) {
+		Rcpp::Rcout << "!";
+		H_chol = Matrix_update(
+			Rcpp::Named("object") = chol_template, 
+			Rcpp::Named("parent") = H_mat);
+	} else{
+		H_chol = Matrix_Cholesky(H_mat, Rcpp::Named("perm") = true, Rcpp::Named("LDL") = true);
 	}
-	Rcpp::NumericVector gradientR(gradOuter.size());
-	for(size_t D=0;D<gradientR.size();D++) {
-		gradientR[D] = gradOuter[D];
+    Rcpp::List log_det_list = Matrix_determinant(H_chol, Rcpp::Named("logarithm") = true, Rcpp::Named("sqrt") = true);
+
+	double half_log_det = Rcpp::as<double>(log_det_list["modulus"]);
+	double log_lik_val = -fval + configC.Ngamma * ONEHALFLOGTWOPI - half_log_det;
+
+
+
+	// Conditionally return inner or outer gradient/Hessian
+	// If config has "inner_only" and it's not FALSE, return inner H/grad
+	SEXP hessian_out_mat;
+	if (!use_inner) {
+		hessian_out_mat = eigen_to_dgCMatrix(Houter);
+	} else {
+		hessian_out_mat = H_mat;
 	}
+	const Tvec& gradient_out = use_inner ? grad : gradOuter;
+
+	Rcpp::NumericVector gradientR = Rcpp::wrap(gradient_out);
+	Rcpp::NumericVector full_parameters_R = Rcpp::wrap(fullParams);
+	Rcpp::NumericVector solutionR = Rcpp::wrap(solution);
 
 	Rcpp::List res = Rcpp::List::create(
+		Rcpp::Named("log_lik") = Rcpp::wrap(log_lik_val),
 		Rcpp::Named("fval") = Rcpp::wrap(fval),
 		Rcpp::Named("solution") = solutionR,
+		Rcpp::Named("full_parameters") = full_parameters_R,
 		Rcpp::Named("gradient") = gradientR,
-		Rcpp::Named("hessian") = eigen_to_list(Houter),
+		Rcpp::Named("hessian") = hessian_out_mat,
+		Rcpp::Named("Hchol") = H_chol,
+		Rcpp::Named("half_log_det") = Rcpp::wrap(half_log_det),
 		Rcpp::Named("iterations") = Rcpp::wrap(iterations),
-		Rcpp::Named("status") = Rcpp::wrap((std::string) MB_strerror(status)),
+		Rcpp::Named("status") = Rcpp::wrap(std::string(MB_strerror(status))),
 		Rcpp::Named("trust.radius") = Rcpp::wrap(radius),
 		Rcpp::Named("method") = Rcpp::wrap("Sparse")
-		);
+	);
 
 	return(res);
+	} catch (const Rcpp::exception& e) {
+		Rcpp::stop("inner_opt failed: %s", e.what());
+	} catch (...) {
+		Rcpp::stop("inner_opt failed with unknown error");
+	}
 }

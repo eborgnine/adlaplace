@@ -1,36 +1,4 @@
----
-title: "Laplace Approximations with adlaplace"
-author: "Patrick Brown"
-date: "`r Sys.Date()`"
-format:
-  html:
-    toc: true
-    toc-depth: 3
-vignette: >
-  %\VignetteIndexEntry{Laplace Approximations with adlaplace}
-  %\VignetteEngine{quarto::html}
-  %\VignetteEncoding{UTF-8}
----
-
-
-Neg Binoma, $E(y) = \mu$, $\theta$ is size, $1/\sqrt(\theta)$ is sd of Gamma random effect
-
-$$
-\begin{aligned}
-f(y;\mu,\theta) =  & \log\Gamma(y + r) - \log\Gamma(r) - \log\Gamma(y + 1) 
-	+ r \log(\frac{r}{r + \mu})
-	+ y \log(\frac{\mu}{r + \mu}) \\
-	= &  \log\Gamma(y + r) - \log\Gamma(r) - \log\Gamma(y + 1)  + r \log r - r \log(r + \mu) + y \log(\mu) - y\log(r + \mu)
-\end{aligned}
-$$
-
-To Do:
-
-- non-diagonal precision matrix
-- getAdFun in parallel
-- precision matrix has non-multiplicative parameters, AD cholesky
-
-```{r theData}
+## ----theData----------------------------------------------------------------------------------------------------------------------------------------
 Nobs <- 1000
 Nrandom1 <- 10
 Nrandom2 <- 25
@@ -86,36 +54,23 @@ config <- list(
   num_threads = 2L,
   verbose = TRUE, package = "adlaplace"
 )
-```
 
 
-model is defined in the file `src/objectiveFunction.cpp`
-
-
-
-```{r testLogLik}
+## ----testLogLik-------------------------------------------------------------------------------------------------------------------------------------
 adFun <- adlaplace::getAdFun(data, config)
 
 res <- adlaplace::logLikLaplace(
   x = c(config$beta, config$theta),
   adFun = adFun,
   config = modifyList(config, list(verbose = FALSE)),
-  deriv = FALSE
-)
-res <- adlaplace::logLikLaplace(
-  x = c(config$beta, config$theta),
-  adFun = adFun,
-  config = modifyList(config, list(verbose = TRUE)),
   deriv = TRUE
 )
 res$parameters
-res$logLik
+res$fval
 res$grad
-```
 
 
-
-```{r trustOptimOuterWrappers}
+## ----trustOptimOuterWrappers------------------------------------------------------------------------------------------------------------------------
 adFun <- adlaplace::getAdFun(data, config)
 
 cache <- new.env(parent = emptyenv())
@@ -149,10 +104,9 @@ outer_fit <- trustOptim::trust.optim(
 
 outer_fit$solution
 outer_fit$fval
-```
 
 
-```{r testLogLgrad}
+## ----testLogLgrad-----------------------------------------------------------------------------------------------------------------------------------
 adFun <- adlaplace::getAdFun(data, config)
 x <- c(config$beta, config$theta)
 Npar <- 13
@@ -171,7 +125,7 @@ res <- mapply(
 )
 Slik <- unlist(lapply(res, "[[", "logLik"))
 Sdet <- unlist(lapply(res, function(xx) Matrix::determinant(
-  xx$hessian$chol_inner, sqrt=TRUE, logarithm=TRUE
+  res$hessian$chol_inner, sqrt=TRUE, logarithm=TRUE
   )$modulus))
 dU <- do.call(
   abind::abind,
@@ -198,13 +152,9 @@ plot(Sx, Sdet)
 
 plot(Sx, extraDf[Dpar, "dDet", ])
 lines(SxD, diff(Sdet) / diff(Sx))
-```
 
 
-
-
-
-```{r testDeriv}
+## ----testDeriv--------------------------------------------------------------------------------------------------------------------------------------
 adFun = adlaplace::getAdFun(data, modifyList(config, list(verbose=TRUE)))
 
 x = c(config$beta, rep(0.1, length(config$gamma)), config$theta)
@@ -228,31 +178,28 @@ h1@x[hseq]
 
 
 str(h2 <- adlaplace::hess(x, adFun, TRUE))
-```
-
-```{r trustOptimInterface, eval=FALSE}
-adFun <- adlaplace::getAdFun(data, config)
-inner_res <- adlaplace::inner_opt(
-  parameters = c(config$beta, config$theta),
-  gamma = config$gamma,
-  control = list(
-    maxit = 50,
-    report.level = 0,
-    report.freq = 0
-  ),
-  config = config,
-  adFun = adFun
-)
-
-str(inner_res)
-
-quantile(inner_res$gradient)
-```
-
-Check the derivatives of the joint log density.
 
 
-```{r derivJointDens, eval=TRUE}
+## ----trustOptimInterface, eval=FALSE----------------------------------------------------------------------------------------------------------------
+# adFun <- adlaplace::getAdFun(data, config)
+# inner_res <- adlaplace::inner_opt(
+#   parameters = c(config$beta, config$theta),
+#   gamma = config$gamma,
+#   control = list(
+#     maxit = 50,
+#     report.level = 0,
+#     report.freq = 0
+#   ),
+#   config = config,
+#   adFun = adFun
+# )
+# 
+# str(inner_res)
+# 
+# quantile(inner_res$gradient)
+
+
+## ----derivJointDens, eval=TRUE----------------------------------------------------------------------------------------------------------------------
 config$gamma <- rep(1, length(config$gamma))
 x <- c(config$beta, config$gamma, config$theta)
 adFun <- adlaplace::getAdFun(data, modifyList(config, list(verbose = TRUE)))
@@ -335,4 +282,4 @@ plot(Sx, hes2[Dpar, Dpar2, ],
   ylim = range(hes2[Dpar, Dpar2, ], na.rm = TRUE)
 )
 lines(SxD, gradD[, Dpar2])
-```
+

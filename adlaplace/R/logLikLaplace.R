@@ -71,112 +71,126 @@
 #' \code{\link[adlaplace]{getAdFun}}, \code{\link[adlaplace]{inner_opt}}
 #'
 #' @export
-logLikLaplace = function(
-	x, config, 
-	gamma, 	
-	control = list(report.level=4, report.freq=1), 
-	adFun, data, 
-	package = c(config$package, 'adlaplace')[1],
-	deriv = FALSE
-) {
+logLikLaplace <- function(x, config,
+                          gamma,
+                          control = list(report.level = 4, report.freq = 1),
+                          adFun, data,
+                          package = c(config$package, "adlaplace")[1],
+                          deriv = FALSE) {
+  Nbeta <- length(config$beta)
+  Ntheta <- length(config$theta)
+  Ngamma <- length(config$gamma)
 
-	Nbeta = length(config$beta)
-	Ntheta = length(config$theta)
-	Ngamma = length(config$gamma)
-	Sgamma1 = seq.int(Nbeta+1, length.out=Ngamma)
+  config_inner <- config
+  config_inner$beta <- x[seq.int(1, length.out = Nbeta)]
+  config_inner$theta <- x[seq.int(Nbeta + 1, length.out = Ntheta)]
+  config_inner$inner_only <- !deriv
 
-	config_inner = config
-	config_inner$beta = x[seq.int(1, length.out=Nbeta)]
-	config_inner$theta = x[seq.int(Nbeta+1, length.out=Ntheta)]
-	if(!missing(gamma)) {
-		config_inner$gamma = gamma
-		if(length(config$gamma) != length(config_inner$gamma)) {
-			warning("gamma is the wrong length; resetting to config$gamma")
-			config_inner$gamma = config$gamma
-		}
-	} 
+  # Pass chol_inner from adFun to config for Cholesky factorization
+  if (!missing(adFun) && !is.null(adFun) && !is.null(adFun$hessians) &&
+    !is.null(adFun$hessians$chol_inner)) {
+    config_inner$chol_inner <- adFun$hessians$chol_inner
+  }
 
-	if(missing(adFun)) {
-		if(missing(data)) {
-			stop("at least one of data and adFun must be supplied")
-		}
-		adFun = adlaplace::getAdFun(data, config, package = package)
-	} else {
-		adfun_backend <- attr(adFun, "adlaplace.backend", exact = TRUE)
-		if(!is.null(adfun_backend) && !identical(adfun_backend, package)) {
-			stop(
-				"adFun was built with backend package '", adfun_backend,
-				"' but `package` is '", package, "'. ",
-				"Rebuild with adlaplace::getAdFun(..., package = '", package, "')."
-			)
-		}
-	}
+  if (deriv) {
+    Sgamma1 <- seq.int(Nbeta + 1, length.out = Ngamma)
+  } else {
+    Sgamma1 <- seq.int(1, length.out = Ngamma)
+  }
 
+  if (!missing(gamma)) {
+    config_inner$gamma <- gamma
+    if (length(config$gamma) != length(config_inner$gamma)) {
+      warning("gamma is the wrong length; resetting to config$gamma")
+      config_inner$gamma <- config$gamma
+    }
+  }
 
-	Niter = 0;tryAgain=TRUE
-	while(tryAgain & (Niter < 3) ) {
-		Niter = Niter + 1
-		inner_res = try(adlaplace::inner_opt(
-			x, 
-			config_inner$gamma,
-			config=config_inner,
-			control=control,
-			adFun = adFun))
+  if (missing(adFun)) {
+    if (missing(data)) {
+      stop("at least one of data and adFun must be supplied")
+    }
+    adFun <- adlaplace::getAdFun(data, config, package = package)
+  } else {
+    adfun_backend <- attr(adFun, "adlaplace.backend", exact = TRUE)
+    if (!is.null(adfun_backend) && !identical(adfun_backend, package)) {
+      stop(
+        "adFun was built with backend package '", adfun_backend,
+        "' but `package` is '", package, "'. ",
+        "Rebuild with adlaplace::getAdFun(..., package = '", package, "')."
+      )
+    }
+  }
 
-		tryAgain = any(class(inner_res) == 'try-error')
-		if(!tryAgain) {
-			tryAgain = sum(abs(inner_res$gradient[Sgamma1])) > 1
-		}
-		if(tryAgain) {
-			cat("resetting starting values to all zero, ")
-			cat("theta: ", paste(x, collapse=", "), "\n")
-			config_inner$gamma = rep(0.0, length(config$gamma))
-		}
+  Niter <- 0
+  tryAgain <- TRUE
+  while (tryAgain & (Niter < 3)) {
+    Niter <- Niter + 1
+    inner_res <- try(adlaplace::inner_opt(
+      x,
+      config_inner$gamma,
+      config = config_inner,
+      control = control,
+      adFun = adFun
+    ))
 
-	} # while
-	if(any(class(inner_res) == 'try-error')) {
-		stop("inner_opt failed in logLikLaplace: ", as.character(inner_res))
-	}
-	if(sum(abs(inner_res$gradient[Sgamma1])) > 1) {
-		warning("inner_opt failed, large gradient")
-	}
+    tryAgain <- any(class(inner_res) == "try-error")
+    if (!tryAgain) {
+      tryAgain <- sum(abs(inner_res$gradient[Sgamma1])) > 1
+    }
+    if (tryAgain) {
+      cat("resetting starting values to all zero, ")
+      cat("theta: ", paste(x, collapse = ", "), "\n")
+      config_inner$gamma <- rep(0.0, length(config$gamma))
+    }
+  } # while
+  if (any(class(inner_res) == "try-error")) {
+    stop("inner_opt failed in logLikLaplace: ", as.character(inner_res))
+  }
+  if (sum(abs(inner_res$gradient[Sgamma1])) > 1) {
+    warning("inner_opt failed, large gradient")
+  }
 
-	Houter = do.call(Matrix::sparseMatrix, inner_res$hessian)
-	Hinner = Houter[Sgamma1, Sgamma1]
-	Hchol = Matrix::expand2(Matrix::Cholesky(Hinner, perm=TRUE, ldl=TRUE))
-	
-	halfLogDet = sum(log(Hchol$D@x))/2
-	ONEHALFLOGTWOPI = 0.9189385332046727417803297364056176398613974736377834128171515404;
+  Hresult <- inner_res$hessian
+  if (deriv) {
+    Houter <- Hresult
+    Hinner <- Hresult[Sgamma1, Sgamma1]
+  } else {
+    Houter <- NULL
+    Hinner <- Hresult
+  }
 
-	logLik = -inner_res$fval - halfLogDet + Ngamma * ONEHALFLOGTWOPI;  
+  result <- list(
+    logLik = inner_res$log_lik,
+    parameters = x,
+    hessian = list(
+      outer = Houter,
+      inner = Hinner,
+      chol_inner = inner_res$Hchol
+    ),
+    opt = inner_res[
+      c(
+        "iterations", "trust.radius", "status", "method",
+        "fval", "half_log_det",
+        "solution", "gradient", "full_parameters"
+      )
+    ]
+  )
 
+  if (!deriv) {
+    return(result)
+  }
 
-	result = list(
-		logLik = logLik,
-		fval = -logLik,
-		parameters = x,
-		full_parameters =  c(config_inner$beta, inner_res$solution, config_inner$theta),
-		hessian = list(
-			H = Houter,
-			cholInner = Hchol,
-      halfLogDet = halfLogDet
-		),
-		opt = inner_res[grep("[hH]essian", names(inner_res), invert=TRUE)]
-	)
+  theDeriv <- logLikDeriv(
+    full_parameters = result$opt$full_parameters,
+    hessian_pack = result$hessian,
+    grad = inner_res$gradient,
+    config, adFun
+  )
 
-	if(!deriv) {
-		return(result)
-	}	
+  result$grad <- -theDeriv$deriv$dL
+  result$deriv <- theDeriv$deriv
+  result$extra <- theDeriv$extra
 
-	theDeriv = logLikDeriv(
-		full_parameters = result$full_parameters, 
-		hessianPack = result$hessian,
-		grad = inner_res$gradient,
-		config, adFun)
-
-	result$grad = -theDeriv$deriv$dL
-	result$deriv = theDeriv$deriv
-	result$extra = theDeriv$extra
-
-	return(result)
+  return(result)
 }

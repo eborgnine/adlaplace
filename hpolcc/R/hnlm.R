@@ -269,6 +269,7 @@ hnlm <- function(
     package = config$package
   )
 
+
   if (for_dev) {
     return(list(
       model = model_stuff,

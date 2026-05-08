@@ -105,9 +105,9 @@ hessianMapC <- function(sparsity_list, Nbeta, Ngamma, Ntheta) {
 #'   \item{\code{all_derivs()}}{Returns \code{fval}, \code{gradient}, and
 #'   \code{hessian} for full/outer derivatives at \code{x}.}
 #'   \item{\code{inner_opt()}}{Returns \code{fval}, \code{solution},
-#'   \code{gradient} (full/outer gradient at the optimized \code{gamma}),
-#'   \code{hessian} (sparse list), \code{iterations}, \code{status},
-#'   \code{trust.radius}, and \code{method}.}
+#'   \code{gradient} (inner gradient if \code{inner_only} is set, otherwise full gradient),
+#'   \code{hessian} (inner Hessian if \code{inner_only} is set, otherwise full Hessian),
+#'   \code{iterations}, \code{status}, \code{trust.radius}, and \code{method}.}
 #'
 #' @details
 #' This calls the sparse method from the \code{TrustOptim} package via the Cpp interface.  

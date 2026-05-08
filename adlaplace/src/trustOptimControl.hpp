@@ -8,13 +8,19 @@
 inline double get_double_ctrl(const Rcpp::List& ctl,
   const char* key,
   double def) {
-  return ctl.containsElementNamed(key) ? Rcpp::as<double>(ctl[key]) : def;
+  if (ctl.containsElementNamed(key) && !Rf_isNull(ctl[key])) {
+    return Rcpp::as<double>(ctl[key]);
+  }
+  return def;
 }
 
 inline int get_int_ctrl(const Rcpp::List& ctl,
   const char* key,
   int def) {
-  return ctl.containsElementNamed(key) ? Rcpp::as<int>(ctl[key]) : def;
+  if (ctl.containsElementNamed(key) && !Rf_isNull(ctl[key])) {
+    return Rcpp::as<int>(ctl[key]);
+  }
+  return def;
 }
 
 

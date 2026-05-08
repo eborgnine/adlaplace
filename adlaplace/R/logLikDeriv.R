@@ -1,13 +1,16 @@
 reformat_chol <- function(x) {
+  x_orig <- x
+  x <- Matrix::expand2(x_orig)
+
   Linv <- Matrix::solve(x$L1)
-  halfDinv <- Matrix::Diagonal(length(x$D@x), (x$D@x)^(-0.5))
+  halfDinv <- Matrix::Diagonal(ncol(x_orig), (x$D@x)^(-0.5))
 
   # H^{-1/2} = P^T (L^{-1} D^{-1/2})
   # H^{-1/2} =  (L^{-1 T} D^{-1/2} ) P
 
   #  halfH <- (Matrix::t(Linv) %*% halfDinv)[1 + x$P, ]
 
-  halfH <- Matrix::crossprod(Linv, halfDinv)[x$P1@perm, ]
+  halfH <- Matrix::crossprod(Linv, halfDinv)[1 + x_orig@perm, ]
   Hinv <- Matrix::tcrossprod(halfH)
 
   return(list(halfH = halfH, Hinv = Hinv))
@@ -15,12 +18,12 @@ reformat_chol <- function(x) {
 
 logLikDeriv <- function(
   full_parameters,
-  hessianPack,
+  hessian_pack,
   grad,
   config,
   adFun
 ) {
-  Hstuff <- reformat_chol(hessianPack$cholInner)
+  Hstuff <- reformat_chol(hessian_pack$chol_inner)
 
   Sgamma1 <- seq.int(length(config$beta) + 1, length.out = length(config$gamma))
   Sgamma0 <- Sgamma1 - 1L
@@ -55,7 +58,7 @@ logLikDeriv <- function(
     c(config$num_threads, 1L)[1]
   )
 
-  dU <- -Hstuff$Hinv %*% hessianPack$H[Sgamma1, -Sgamma1]
+  dU <- -Hstuff$Hinv %*% hessian_pack$outer[Sgamma1, -Sgamma1]
 
   result <- list(extra = list(dU = dU, trace3 = theTrace, halfHinv = Hstuff$halfH))
 
