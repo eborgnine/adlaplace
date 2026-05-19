@@ -72,6 +72,8 @@ model_setup <- function(formula, data, verbose = FALSE) {
   # Get parameter information
   theta_info_list <- lapply(the_terms, theta_info)
   theta_setup <- do.call(rbind, theta_info_list)
+  theta_setup = theta_setup[order(theta_setup$type, theta_setup$label), ]
+
   theta_setup$id <- seq.int(0, length.out = nrow(theta_setup))
 
   beta_setup <- do.call(rbind, lapply(the_terms, beta_info, data = data))

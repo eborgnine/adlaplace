@@ -78,7 +78,8 @@ rsiwp <- function(
   upper = .my_theta_upper,
   parscale = .my_theta_parscale,
   boundary_is_random = TRUE,
-  include_poly = TRUE
+  include_poly = TRUE,
+  include_linear = TRUE
 ) {
   # Check all arguments other than knots are length 1. knots must be length > 1
   if (length(x) != 1) stop("x must be a single variable name")
@@ -137,11 +138,12 @@ rsiwp <- function(
     }
   }
 
-  result[[paste0(x, "_", mult, "_linear")]] <- adlaplace::fpoly(
-    mult,
-    p = 1, ref_value = ref_mult
-  )
-
+  if (include_linear) {
+    result[[paste0(x, "_", mult, "_linear")]] <- adlaplace::fpoly(
+      mult,
+      p = 1, ref_value = ref_mult
+    )
+  }
   result
 }
 #' @describeIn rsiwp-class Creates design matrix for RSIWP term

@@ -110,10 +110,6 @@ hrpoly <- function(
 #' @export
 setMethod("design", "hrpoly", function(term, data) {
 
-  if (length(term@by@levels) == 0) {
-    term@by <- by_group(term = term@by@term, data = data)
-  }
-
   # Create an rpoly version of the term (without by slot)
   rpoly_term <- methods::new("rpoly",
     term = term@term,
@@ -162,9 +158,6 @@ setMethod("precision", "hrpoly", function(term, data) {
   if (term@p.order == 0) {
     return(NULL)
   }
-  if (length(term@by@levels) == 0) {
-    term@by <- by_group(term = term@by@term, data = data)
-  }
 
   result = Matrix::Diagonal(length(term@by@levels), 1)
   dimnames(result) = list(
@@ -208,9 +201,6 @@ setMethod("beta_info", "hrpoly", function(term, data) {
 #' @export
 setMethod("random_info", "hrpoly", function(term, data) {
   basis <- NA
-  if (length(term@by@levels) == 0) {
-    term@by <- by_group(term = term@by@term, data = data)
-  }
 
   result <- expand.grid(
     term = term@term,

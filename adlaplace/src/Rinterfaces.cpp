@@ -58,11 +58,11 @@ Rcpp::S4 hess(const Rcpp::NumericVector& x, SEXP backendContext, bool inner, SEX
 
 //' @rdname adlaplace_cpp
 // [[Rcpp::export]]
-SEXP getAdFun_r(
+SEXP getAdFun(
   Rcpp::List data,
   Rcpp::List config)
 {
-  return getAdFun_h(data, config);
+  return ad_fun_obs_h(data, config);
 }
 
 //' @rdname adlaplace_cpp
@@ -70,20 +70,10 @@ SEXP getAdFun_r(
 // [[Rcpp::export]]
 double jointLogDens(
   const Rcpp::NumericVector& x,
-  SEXP backendContext,
+  SEXP adpack,
   SEXP Sgroups = R_NilValue) {
-  adlaplace_adpack_handle* h = get_handle(backendContext);
 
-  size_t Nparams = 0, Ngroups = 0, Nbeta = 0, Ngamma = 0, Ntheta = 0;
-  const int rc_sizes = h->api->get_sizes(
-    h->ctx, &Nparams, &Ngroups, &Nbeta, &Ngamma, &Ntheta
-  );
-  if (rc_sizes != 0) {
-    Rcpp::stop("backend api->get_sizes failed with code %d", rc_sizes);
-  }
-  if (static_cast<size_t>(x.size()) != Nparams) {
-    Rcpp::stop("x has length %d but expected Nparams=%d", x.size(), (int)Nparams);
-  }
+  adlaplace_adpack_handle* h = get_handle(adpack);
 
   const Rcpp::IntegerVector Sgroups_vec = (Sgroups == R_NilValue)
     ? Rcpp::IntegerVector()

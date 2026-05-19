@@ -250,15 +250,13 @@ cond_sim_iwp <- function(
   terms_vars <- terms_vars[!terms_no_vars]
   terms_type <- unlist(lapply(terms_have_vars, methods::slot, "type"))
 
-  terms_has_by <- unlist(
-    lapply(
-      lapply(
-        terms_have_vars,
-        methods::slot, "by"
-      ),
-      length
-    )
-  ) > 0
+terms_has_by <- vapply(terms_have_vars, function(x) {
+  if (methods::hasSlot(x, "by")) {
+    length(methods::slot(x, "by")) > 0
+  } else {
+    FALSE
+  }
+}, logical(1))
 
   terms_classes <- unlist(lapply(terms_have_vars, class))
   is_iwp <- which(terms_classes %in% c("rsiwp", "iwp"))
