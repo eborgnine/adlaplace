@@ -2,29 +2,22 @@
 % Please edit documentation in R/RcppExports.R
 \name{adlaplace_cpp}
 \alias{adlaplace_cpp}
-\alias{getAdFun_r}
+\alias{getAdFun}
 \alias{jointLogDens}
 \alias{grad}
-\alias{hess}
+\alias{hessian}
 \alias{traceHinvT}
 \title{C++ backend entry points}
 \usage{
-getAdFun_r(data, config)
+getAdFun(data, config, package = c(config$package, "adlaplace")[1])
 
-jointLogDens(x, backendContext, Sgroups = NULL)
+jointLogDens(ad_fun, x, Sgroups = NULL)
 
-grad(x, backendContext, inner = FALSE, Sgroups = NULL)
+grad(ad_fun, x, inner, Sgroups)
 
-hess(x, backendContext, inner = FALSE, Sgroups = NULL, verbose = FALSE)
+hessian(ad_fun, x, inner, Sgroups, verbose)
 
-traceHinvT(
-  x,
-  LinvPt,
-  LinvPtColumns,
-  backendContext,
-  num_threads,
-  Sgroups = NULL
-)
+traceHinvT(ad_fun, x, LinvPt, LinvPtColumns, num_threads, Sgroups)
 }
 \arguments{
 \item{data}{An R list containing model data objects required by the backend
@@ -33,12 +26,12 @@ traceHinvT(
 \item{config}{An R list of configuration options required by the backend
 (used by \code{getAdFun_r()}).}
 
-\item{x}{Numeric parameter vector of length \code{Nparams}.}
-
-\item{backendContext}{Backend object returned by \code{getAdFun_r()}.
+\item{ad_fun}{Backend object returned by \code{getAdFun_r()}.
 For the default backend this can be either the full returned list
 (containing \code{adFun}, \code{sparsity}, \code{hessians}) or the
 external pointer in \code{$adFun}.}
+
+\item{x}{Numeric parameter vector of length \code{Nparams}.}
 
 \item{Sgroups}{Optional integer vector of 0-based group indices to evaluate.
 If omitted, uses all groups \code{0:(Ngroups-1)}.}
@@ -63,8 +56,7 @@ selected columns of \code{LinvPt} to each group.}
     \code{hessians}.
   \item \code{jointLogDens}: scalar objective value summed over groups.
   \item \code{grad}: numeric gradient vector.
-  \item \code{hess}: sparse symmetric Hessian as a Matrix
-    \code{dsCMatrix} object.
+  \item \code{hessian}: data frame with columns group, row, col, value.
   \item \code{traceHinvT}: numeric vector of third-derivative contractions.
 }
 }

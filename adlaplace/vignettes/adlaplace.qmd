@@ -93,10 +93,16 @@ model is defined in the file `src/objectiveFunction.cpp`
 
 
 ```{r testLogDens}
-adFun <- adlaplace::getAdFun(data, config)
+ad_fun <- adlaplace::getAdFun(data, config)
 
 x = c(config$beta, rep(0.1, length(config$gamma)), config$theta)
-adlaplace::jointLogDens(x, adFun)
+s_groups = 0:3
+adlaplace::jointLogDens(ad_fun, x, s_groups)
+(my_grad = adlaplace::grad(ad_fun, x, s_groups))
+my_hess = adlaplace::hessian(ad_fun, x,  s_groups)
+my_hess2 = aggregate(my_hess[,'value'], my_hess[,c("row","col")], sum)
+my_hess3 = Matrix::sparseMatrix(i = my_hess2[,'row'], j = my_hess2[,'col'], 
+  x = my_hess2[,'x'], index1=FALSE, symmetric=TRUE, dims = rep(length(x), 2))
 ```
 
 

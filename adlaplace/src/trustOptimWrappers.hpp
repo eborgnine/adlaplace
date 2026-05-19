@@ -31,6 +31,10 @@ struct AD_Func_Opt {
   Eigen::SparseMatrix<int, Eigen::ColMajor, int> Htemplate;
   std::vector<int> h_index_upper;
 
+  // backend map from local to global
+  int* backend_hess_map;
+  size_t backend_hess_map_len;
+
   // full parameter vector reused across calls
   std::vector<double> parameters;
   std::vector<double> hess_upper_accum;
@@ -72,12 +76,16 @@ struct AD_Func_Opt {
     const bool inner_flag = inner;
     const int* p = NULL;
     const int* i = NULL;
+    int* map = NULL;
     size_t p_len = 0;
     size_t i_len = 0;
-    const int rc_hess = handle->api->get_hessian(ctx, &inner_flag, &p, &p_len, &i, &i_len);
+    size_t map_len = 0;
+    const int rc_hess = handle->api->get_hessian(ctx, &inner_flag, &p, &p_len, &i, &i_len, &map, &map_len);
     if (rc_hess != 0) {
       Rcpp::stop("backend api->get_hessian failed with code %d", rc_hess);
     }
+    backend_hess_map = map;
+    backend_hess_map_len = map_len;
     if (p_len != (nvars_opt + 1)) {
       Rcpp::stop(
         "%s Hessian p_len=%d but expected nvars+1=%d",
@@ -212,7 +220,7 @@ struct AD_Func_Opt {
         int gi = g;
         (void)handle->api->f_grad_hess(
           handle->ctx, &gi, params_local.data(), &inner_flag,
-          &f_local, grad_local.data(), hess_local.data()
+          &f_local, grad_local.data(), hess_local.data(), backend_hess_map
           );
       }
 

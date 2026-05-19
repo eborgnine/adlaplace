@@ -22,16 +22,28 @@ typedef struct adlaplace_adpack_api {
     double* out_f, double* out_grad);
   int (*f_grad_hess)(void* ctx, const int *i, const double* x, const bool *inner,
                  double* out_f,
-                     double* out_grad, double* out_hess);
+                     double* out_grad, double* out_hes, int* map);
 
 
 int (*get_sizes)(void* ctx, size_t* Nparams, size_t* Ngroups,
                  size_t* Nbeta, size_t* Ngamma, size_t* Ntheta);
 
 
+int (*get_sparse_sizes)(void* ctx, const int* i,
+    int* n_inner, int* n_outer,
+    int* nnz_grad_inner, int* nnz_grad_outer,
+    int* nnz_hes_inner, int* nnz_hes_outer);
+
+int (*get_sparse_pattern)(void* ctx, const int* i,
+    int* pattern_grad_inner, int* pattern_grad_outer,
+    int* pattern_hes_inner_row, int* pattern_hes_inner_col,
+    int* pattern_hes_outer_row, int* pattern_hes_outer_col);
+
+
 int (*get_hessian)(void* ctx, const bool *inner,
                             const int** p, size_t* p_len,
-                            const int** i, size_t* i_len);
+                            const int** i, size_t* i_len,
+                            int** map, size_t* map_len);
 
 int (*trace_hinv_t)(
   void* ctx,

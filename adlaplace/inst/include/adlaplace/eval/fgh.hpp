@@ -9,6 +9,7 @@
 #include <cstdio>
 
 #include "adlaplace/runtime/backend.hpp"
+#include "adlaplace/runtime/sizes.hpp"
 
 
 static int get_sizes(void* vctx, size_t* Nparams, size_t* Ngroups,
@@ -28,7 +29,8 @@ static int get_sizes(void* vctx, size_t* Nparams, size_t* Ngroups,
 static int get_hessian(void* vctx,
 	const bool *inner,
 	const int** p, size_t* p_len,
-	const int** i, size_t* i_len){
+	const int** i, size_t* i_len,
+	int** map, size_t* map_len){
 
 	auto* ctx = static_cast<BackendContext*>(vctx);
 	const bool innerv = *inner;
@@ -37,6 +39,8 @@ static int get_hessian(void* vctx,
 	*i = innerv ? ctx->hessian_inner.hessian_i.data() : ctx->hessian_outer.hessian_i.data();
 	*p_len = innerv ? ctx->hessian_inner.hessian_p.size() : ctx->hessian_outer.hessian_p.size();
 	*i_len = innerv ? ctx->hessian_inner.hessian_i.size() : ctx->hessian_outer.hessian_i.size();
+	*map = const_cast<int*>(innerv ? ctx->hessian_inner.map_global.data() : ctx->hessian_outer.map_global.data());
+	*map_len = innerv ? ctx->hessian_inner.map_global.size() : ctx->hessian_outer.map_global.size();
 
 	return 0L;
 }
@@ -106,7 +110,7 @@ static int eval_grad(void* vctx, const int *i,
 
 static int eval_hess(void* vctx, const int *i, const double* x, 
 	const bool *inner, double* out_f,
-	double* out_grad, double* out_hess) {
+	double* out_grad, double* out_hes, int* map) {
 
 	auto* ctx = static_cast<BackendContext*>(vctx);
 	if (*i < 0) return 2;
@@ -127,10 +131,8 @@ static int eval_hess(void* vctx, const int *i, const double* x,
 	auto &pattern_here_grad = innerv?gp.pattern_grad_inner:gp.pattern_grad;
 	auto &work_here_grad = innerv?gp.work_inner_grad:gp.work_grad;
 
-	auto &pattern_here_hess = innerv?gp.pattern_hessian_inner:gp.pattern_hessian;
-	auto &work_here_hess = innerv?gp.work_inner_hess:gp.work_hess;
-
-	const auto &map_here = innerv?ctx->hessian_inner:ctx->hessian_outer;
+	auto &pattern_here_hes = innerv?gp.pattern_hessian_inner:gp.pattern_hessian;
+	auto &work_here_hes = innerv?gp.work_inner_hess:gp.work_hess;
 
 	gp.fun.sparse_jac_rev(
 		gp.x,
@@ -142,10 +144,10 @@ static int eval_hess(void* vctx, const int *i, const double* x,
 	gp.fun.sparse_hes(
 		gp.x,  
 		gp.w,
-		pattern_here_hess,              
+		pattern_here_hes,              
 		gp.unused_pattern,
 		"cppad.symmetric",
-		work_here_hess);
+		work_here_hes);
 
 	const size_t NoutGrad = pattern_here_grad.nnz();
 	const auto& cols = pattern_here_grad.col();
@@ -155,17 +157,44 @@ static int eval_hess(void* vctx, const int *i, const double* x,
 		out_grad[cols[D]] += vals[D];
 	}
 
-	const std::size_t start = map_here.map_p[ist];
-	const std::size_t end   = map_here.map_p[ist+1];;
-	const auto& vals_hess = pattern_here_hess.val();
+	const size_t n_hes = pattern_here_hes.nnz();
+	const auto& vals_hes = pattern_here_hes.val();
 
-
-	for(size_t Di=start;Di < end; Di++) {
-		out_hess[ map_here.map_global[Di] ] += vals_hess[ map_here.map_local[Di] ];
+	for(size_t Di = 0; Di < n_hes; Di++) {
+		out_hes[map[Di]] = vals_hes[Di];
 	}
 	return 0;
 }
 
+static int get_sparse_sizes(void* vctx, const int* i,
+    int* n_inner, int* n_outer,
+    int* nnz_grad_inner, int* nnz_grad_outer,
+    int* nnz_hes_inner, int* nnz_hes_outer) {
+
+	auto* ctx = static_cast<BackendContext*>(vctx);
+	if (*i < 0) return 2;
+	size_t ist = (size_t)*i;
+	if (ist >= ctx->adFun->size()) return 3;
+
+	GroupPack &gp = (*(ctx->adFun))[ist];
+	return ::get_sizes(gp, n_inner, n_outer, nnz_grad_inner, nnz_grad_outer, nnz_hes_inner, nnz_hes_outer);
+}
+
+static int get_sparse_pattern(void* vctx, const int* i,
+    int* pattern_grad_inner, int* pattern_grad_outer,
+    int* pattern_hes_inner_row, int* pattern_hes_inner_col,
+    int* pattern_hes_outer_row, int* pattern_hes_outer_col) {
+
+	auto* ctx = static_cast<BackendContext*>(vctx);
+	if (*i < 0) return 2;
+	size_t ist = (size_t)*i;
+	if (ist >= ctx->adFun->size()) return 3;
+
+	GroupPack &gp = (*(ctx->adFun))[ist];
+	return ::get_pattern(gp, pattern_grad_inner, pattern_grad_outer,
+	    pattern_hes_inner_row, pattern_hes_inner_col,
+	    pattern_hes_outer_row, pattern_hes_outer_col);
+}
 
 
 

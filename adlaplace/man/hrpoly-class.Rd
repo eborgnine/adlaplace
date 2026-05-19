@@ -9,7 +9,7 @@
 \alias{theta_info,hrpoly-method}
 \alias{beta_info,hrpoly-method}
 \alias{random_info,hrpoly-method}
-\title{Hierarchical Random Polynomial Model Term}
+\title{Hierarchical Random Polynomial Term Constructor}
 \usage{
 hrpoly(
   x,

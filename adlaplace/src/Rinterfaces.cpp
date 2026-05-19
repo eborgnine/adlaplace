@@ -5,9 +5,10 @@
 #include "adlaplace/runtime/interfaces.hpp"
 #include "adlaplace/ompad.hpp"
 
-double jointLogDens(const Rcpp::NumericVector& x, SEXP backendContext, SEXP Sgroups);
-Rcpp::NumericVector grad(const Rcpp::NumericVector& x, SEXP backendContext, bool inner, SEXP Sgroups);
-Rcpp::S4 hess(const Rcpp::NumericVector& x, SEXP backendContext, bool inner, SEXP Sgroups);
+double jointLogDens(SEXP ad_fun, const Rcpp::NumericVector& x, SEXP Sgroups);
+Rcpp::NumericVector grad(SEXP ad_fun, const Rcpp::NumericVector& x, bool inner, SEXP Sgroups);
+Rcpp::DataFrame hessian(SEXP ad_fun, const Rcpp::NumericVector& x, bool inner, SEXP Sgroups, const bool verbose);
+Rcpp::NumericVector traceHinvT(SEXP ad_fun, const Rcpp::NumericVector& x, const Rcpp::S4& LinvPt, const Rcpp::S4& LinvPtColumns, const int num_threads, SEXP Sgroups);
 
 
 //' C++ backend entry points
@@ -21,11 +22,11 @@ Rcpp::S4 hess(const Rcpp::NumericVector& x, SEXP backendContext, bool inner, SEX
 //'   (used by \code{getAdFun_r()}).
 //' @param config An R list of configuration options required by the backend
 //'   (used by \code{getAdFun_r()}).
-//' @param x Numeric parameter vector of length \code{Nparams}.
-//' @param backendContext Backend object returned by \code{getAdFun_r()}.
+//' @param ad_fun Backend object returned by \code{getAdFun_r()}.
 //'   For the default backend this can be either the full returned list
 //'   (containing \code{adFun}, \code{sparsity}, \code{hessians}) or the
 //'   external pointer in \code{$adFun}.
+//' @param x Numeric parameter vector of length \code{Nparams}.
 //' @param inner Logical scalar. If \code{TRUE}, evaluate inner-\eqn{\gamma}
 //'   derivatives; otherwise evaluate outer/full derivatives.
 //' @param Sgroups Optional integer vector of 0-based group indices to evaluate.
@@ -44,8 +45,7 @@ Rcpp::S4 hess(const Rcpp::NumericVector& x, SEXP backendContext, bool inner, SEX
 //'     \code{hessians}.
 //'   \item \code{jointLogDens}: scalar objective value summed over groups.
 //'   \item \code{grad}: numeric gradient vector.
-//'   \item \code{hess}: sparse symmetric Hessian as a Matrix
-//'     \code{dsCMatrix} object.
+//'   \item \code{hessian}: data frame with columns group, row, col, value.
 //'   \item \code{traceHinvT}: numeric vector of third-derivative contractions.
 //' }
 //'
@@ -62,18 +62,29 @@ SEXP getAdFun(
   Rcpp::List data,
   Rcpp::List config)
 {
-  return ad_fun_obs_h(data, config);
+  return getAdFun_h(data, config);
 }
 
 //' @rdname adlaplace_cpp
 //' @export
 // [[Rcpp::export]]
 double jointLogDens(
+  SEXP ad_fun,
   const Rcpp::NumericVector& x,
-  SEXP adpack,
   SEXP Sgroups = R_NilValue) {
 
-  adlaplace_adpack_handle* h = get_handle(adpack);
+  adlaplace_adpack_handle* h = get_handle(ad_fun);
+
+  size_t Nparams = 0, Ngroups = 0, Nbeta = 0, Ngamma = 0, Ntheta = 0;
+  const int rc_sizes = h->api->get_sizes(
+    h->ctx, &Nparams, &Ngroups, &Nbeta, &Ngamma, &Ntheta
+  );
+  if (rc_sizes != 0) {
+    Rcpp::stop("backend api->get_sizes failed with code %d", rc_sizes);
+  }
+  if (static_cast<size_t>(x.size()) != Nparams) {
+    Rcpp::stop("x has length %d but expected Nparams=%d", x.size(), (int)Nparams);
+  }
 
   const Rcpp::IntegerVector Sgroups_vec = (Sgroups == R_NilValue)
     ? Rcpp::IntegerVector()
@@ -97,13 +108,13 @@ double jointLogDens(
 //' @export
 // [[Rcpp::export]]
 Rcpp::NumericVector grad(
+  SEXP ad_fun,
   const Rcpp::NumericVector& x,
-  SEXP backendContext,
-  const bool inner = false,
+  bool inner = false,
   SEXP Sgroups = R_NilValue) {
-  adlaplace_adpack_handle* h = get_handle(backendContext);
+  adlaplace_adpack_handle* h = get_handle(ad_fun);
   if (!h->api->f_grad) {
-    Rcpp::stop("backendContext api->f_grad is NULL");
+    Rcpp::stop("ad_fun api->f_grad is NULL");
   }
 
   size_t Nparams = 0, Ngroups = 0, Nbeta = 0, Ngamma = 0, Ntheta = 0;
@@ -140,18 +151,24 @@ Rcpp::NumericVector grad(
 //' @rdname adlaplace_cpp
 //' @export
 // [[Rcpp::export]]
-Rcpp::S4 hess(
+Rcpp::DataFrame hessian(
+  SEXP ad_fun,
   const Rcpp::NumericVector& x,
-  SEXP backendContext,
-  const bool inner = false,
+  bool inner = false,
   SEXP Sgroups = R_NilValue,
   const bool verbose = false) {
-  adlaplace_adpack_handle* h = get_handle(backendContext);
+  adlaplace_adpack_handle* h = get_handle(ad_fun);
   if (!h->api->f_grad_hess) {
-    Rcpp::stop("backendContext api->f_grad_hess is NULL");
+    Rcpp::stop("ad_fun api->f_grad_hess is NULL");
   }
-  if (!h->api->get_hessian) {
-    Rcpp::stop("backendContext api->get_hessian is NULL");
+  if (!h->api->get_sizes) {
+    Rcpp::stop("ad_fun api->get_sizes is NULL");
+  }
+  if (!h->api->get_sparse_sizes) {
+    Rcpp::stop("ad_fun api->get_sparse_sizes is NULL");
+  }
+  if (!h->api->get_sparse_pattern) {
+    Rcpp::stop("ad_fun api->get_sparse_pattern is NULL");
   }
   if (verbose) {
     Rcpp::Rcout << "Starting Hessian computation..." << std::endl;
@@ -169,31 +186,92 @@ Rcpp::S4 hess(
   }
 
   const bool inner_local = inner;
-  const int* hess_p = NULL;
-  const int* hess_i = NULL;
-  size_t hess_p_len = 0;
-  size_t hess_i_len = 0;
-  const int rc_hessian = h->api->get_hessian(
-    h->ctx, &inner_local, &hess_p, &hess_p_len, &hess_i, &hess_i_len
-  );
-  if (rc_hessian != 0) {
-    Rcpp::stop("backend api->get_hessian failed with code %d", rc_hessian);
-  }
-  if (verbose) {
-    Rcpp::Rcout << "Hessian sparsity pattern: " << hess_p_len << " columns, " 
-              << hess_i_len << " non-zero elements" << std::endl;
-  }
-
-  Rcpp::NumericVector hess_out(hess_i_len, 0.0);
-  Rcpp::NumericVector grad_scratch(Nparams, 0.0);
-  double f_total = 0.0;
   const Rcpp::IntegerVector Sgroups_vec = (Sgroups == R_NilValue)
     ? Rcpp::IntegerVector()
     : Rcpp::as<Rcpp::IntegerVector>(Sgroups);
   const std::vector<size_t> groups = resolve_groups(Ngroups, Sgroups_vec);
 
+  // First pass: get sparsity info for each group and compute total size
+  std::vector<int> group_nnz;
+  std::vector<int*> group_pattern_rows;
+  std::vector<int*> group_pattern_cols;
+  size_t total_nnz = 0;
+
   for (size_t g : groups) {
     int gi = static_cast<int>(g);
+    
+    int n_inner = 0, n_outer = 0;
+    int nnz_grad_inner = 0, nnz_grad_outer = 0;
+    int nnz_hes_inner = 0, nnz_hes_outer = 0;
+    const int rc_group_sizes = h->api->get_sparse_sizes(
+      h->ctx, &gi, &n_inner, &n_outer,
+      &nnz_grad_inner, &nnz_grad_outer,
+      &nnz_hes_inner, &nnz_hes_outer
+    );
+    if (rc_group_sizes != 0) {
+      Rcpp::stop("backend api->get_sparse_sizes failed for group %d with code %d", gi, rc_group_sizes);
+    }
+    
+    int nnz_hes = inner ? nnz_hes_inner : nnz_hes_outer;
+    group_nnz.push_back(nnz_hes);
+    total_nnz += nnz_hes;
+    
+    int* pattern_grad_inner = new int[nnz_grad_inner];
+    int* pattern_grad_outer = new int[nnz_grad_outer];
+    int* pattern_hes_inner_row = new int[nnz_hes_inner];
+    int* pattern_hes_inner_col = new int[nnz_hes_inner];
+    int* pattern_hes_outer_row = new int[nnz_hes_outer];
+    int* pattern_hes_outer_col = new int[nnz_hes_outer];
+    
+    const int rc_pattern = h->api->get_sparse_pattern(
+      h->ctx, &gi,
+      pattern_grad_inner, pattern_grad_outer,
+      pattern_hes_inner_row, pattern_hes_inner_col,
+      pattern_hes_outer_row, pattern_hes_outer_col
+    );
+    
+    // Store the pattern for this group
+    group_pattern_rows.push_back(inner ? pattern_hes_inner_row : pattern_hes_outer_row);
+    group_pattern_cols.push_back(inner ? pattern_hes_inner_col : pattern_hes_outer_col);
+    
+    // Clean up arrays we don't need
+    delete[] pattern_grad_inner;
+    delete[] pattern_grad_outer;
+    if (inner) {
+      delete[] pattern_hes_outer_row;
+      delete[] pattern_hes_outer_col;
+    } else {
+      delete[] pattern_hes_inner_row;
+      delete[] pattern_hes_inner_col;
+    }
+    
+    if (rc_pattern != 0) {
+      Rcpp::stop("backend api->get_sparse_pattern failed for group %d with code %d", gi, rc_pattern);
+    }
+  }
+
+  // Allocate buffer for all Hessian values
+  Rcpp::NumericVector hes_values(total_nnz, 0.0);
+  Rcpp::NumericVector grad_scratch(Nparams, 0.0);
+  double f_total = 0.0;
+
+  // Second pass: compute Hessian for each group
+  size_t offset = 0;
+  std::vector<int> group;
+  std::vector<int> row_idx;
+  std::vector<int> col_idx;
+
+  for (size_t g_idx = 0; g_idx < groups.size(); g_idx++) {
+    size_t g = groups[g_idx];
+    int gi = static_cast<int>(g);
+    int nnz_hes = group_nnz[g_idx];
+    
+    // Create map: local index -> position in hes_values
+    int* map = new int[nnz_hes];
+    for (int i = 0; i < nnz_hes; i++) {
+      map[i] = static_cast<int>(offset + i);
+    }
+    
     const int rc = h->api->f_grad_hess(
       h->ctx,
       &gi,
@@ -201,30 +279,44 @@ Rcpp::S4 hess(
       &inner_local,
       &f_total,
       grad_scratch.begin(),
-      hess_out.begin()
+      hes_values.begin(),
+      map
     );
+    delete[] map;
+    
     if (rc != 0) {
       Rcpp::stop("backend api->f_grad_hess failed for group %d with code %d", gi, rc);
     }
+    
+    // Store group and indices
+    int* rows = group_pattern_rows[g_idx];
+    int* cols = group_pattern_cols[g_idx];
+    for (int i = 0; i < nnz_hes; i++) {
+      group.push_back(static_cast<int>(g));
+      row_idx.push_back(rows[i]);
+      col_idx.push_back(cols[i]);
+    }
+    
+    // Clean up pattern arrays
+    delete[] rows;
+    delete[] cols;
+    
+    offset += nnz_hes;
   }
+
   if (verbose) {
     Rcpp::Rcout << "Hessian computation completed successfully" << std::endl;
   }
 
-  const int ncol = static_cast<int>(hess_p_len > 0 ? hess_p_len - 1 : 0);
-  Rcpp::IntegerVector p_out(hess_p_len);
-  Rcpp::IntegerVector i_out(hess_i_len);
-  for (size_t k = 0; k < hess_p_len; ++k) p_out[k] = static_cast<int>(hess_p[k]);
-  for (size_t k = 0; k < hess_i_len; ++k) i_out[k] = static_cast<int>(hess_i[k]);
+  // Build data frame
+  Rcpp::DataFrame result = Rcpp::DataFrame::create(
+    Rcpp::Named("group") = group,
+    Rcpp::Named("row") = row_idx,
+    Rcpp::Named("col") = col_idx,
+    Rcpp::Named("value") = hes_values
+  );
 
-  Rcpp::S4 out("dsCMatrix");
-  out.slot("i") = i_out;
-  out.slot("p") = p_out;
-  out.slot("x") = hess_out;
-  out.slot("Dim") = Rcpp::IntegerVector::create(ncol, ncol);
-  out.slot("uplo") = Rcpp::String("U");
-
-  return out;
+  return result;
 
 }
 
@@ -232,16 +324,16 @@ Rcpp::S4 hess(
 //' @export
 // [[Rcpp::export]]
 Rcpp::NumericVector traceHinvT( // to do: pass num threads
+  SEXP ad_fun,
   const Rcpp::NumericVector& x,
   const Rcpp::S4& LinvPt,
   const Rcpp::S4& LinvPtColumns,
-  SEXP backendContext,
   const int num_threads,
-  SEXP Sgroups = R_NilValue
+  SEXP Sgroups
 ) {
-  adlaplace_adpack_handle* h = get_handle(backendContext);
+  adlaplace_adpack_handle* h = get_handle(ad_fun);
   if (!h->api->trace_hinv_t) {
-    Rcpp::stop("backendContext api->trace_hinv_t is NULL");
+    Rcpp::stop("ad_fun api->trace_hinv_t is NULL");
   }
 
   size_t Nparams = 0, Ngroups = 0, Nbeta = 0, Ngamma = 0, Ntheta = 0;

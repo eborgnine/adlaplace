@@ -12,11 +12,11 @@
 #'   (used by \code{getAdFun_r()}).
 #' @param config An R list of configuration options required by the backend
 #'   (used by \code{getAdFun_r()}).
-#' @param x Numeric parameter vector of length \code{Nparams}.
-#' @param backendContext Backend object returned by \code{getAdFun_r()}.
+#' @param ad_fun Backend object returned by \code{getAdFun_r()}.
 #'   For the default backend this can be either the full returned list
 #'   (containing \code{adFun}, \code{sparsity}, \code{hessians}) or the
 #'   external pointer in \code{$adFun}.
+#' @param x Numeric parameter vector of length \code{Nparams}.
 #' @param inner Logical scalar. If \code{TRUE}, evaluate inner-\eqn{\gamma}
 #'   derivatives; otherwise evaluate outer/full derivatives.
 #' @param Sgroups Optional integer vector of 0-based group indices to evaluate.
@@ -35,8 +35,7 @@
 #'     \code{hessians}.
 #'   \item \code{jointLogDens}: scalar objective value summed over groups.
 #'   \item \code{grad}: numeric gradient vector.
-#'   \item \code{hess}: sparse symmetric Hessian as a Matrix
-#'     \code{dsCMatrix} object.
+#'   \item \code{hessian}: data frame with columns group, row, col, value.
 #'   \item \code{traceHinvT}: numeric vector of third-derivative contractions.
 #' }
 #'
@@ -49,32 +48,32 @@
 NULL
 
 #' @rdname adlaplace_cpp
-getAdFun_r <- function(data, config) {
-    .Call(`_adlaplace_getAdFun_r`, data, config)
+getAdFun <- function(data, config) {
+    .Call(`_adlaplace_getAdFun`, data, config)
 }
 
 #' @rdname adlaplace_cpp
 #' @export
-jointLogDens <- function(x, backendContext, Sgroups = NULL) {
-    .Call(`_adlaplace_jointLogDens`, x, backendContext, Sgroups)
+jointLogDens <- function(ad_fun, x, Sgroups = NULL) {
+    .Call(`_adlaplace_jointLogDens`, ad_fun, x, Sgroups)
 }
 
 #' @rdname adlaplace_cpp
 #' @export
-grad <- function(x, backendContext, inner = FALSE, Sgroups = NULL) {
-    .Call(`_adlaplace_grad`, x, backendContext, inner, Sgroups)
+grad <- function(ad_fun, x, Sgroups = NULL, inner = FALSE) {
+    .Call(`_adlaplace_grad`, ad_fun, x, inner, Sgroups)
 }
 
 #' @rdname adlaplace_cpp
 #' @export
-hess <- function(x, backendContext, inner = FALSE, Sgroups = NULL, verbose = FALSE) {
-    .Call(`_adlaplace_hess`, x, backendContext, inner, Sgroups, verbose)
+hessian <- function(ad_fun, x, Sgroups = NULL, inner = FALSE, verbose = FALSE) {
+    .Call(`_adlaplace_hessian`, ad_fun, x, inner, Sgroups, verbose)
 }
 
 #' @rdname adlaplace_cpp
 #' @export
-traceHinvT <- function(x, LinvPt, LinvPtColumns, backendContext, num_threads, Sgroups = NULL) {
-    .Call(`_adlaplace_traceHinvT`, x, LinvPt, LinvPtColumns, backendContext, num_threads, Sgroups)
+traceHinvT <- function(ad_fun, x, LinvPt, LinvPtColumns, num_threads, Sgroups) {
+    .Call(`_adlaplace_traceHinvT`, ad_fun, x, LinvPt, LinvPtColumns, num_threads, Sgroups)
 }
 
 hessianMapC <- function(sparsity_list, Nbeta, Ngamma, Ntheta) {

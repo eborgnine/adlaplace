@@ -42,7 +42,7 @@ getAdFun <- function(data, config, package = c(config$package, "adlaplace")[1]) 
   package <- package[[1]]
 
   if (identical(package, "adlaplace")) {
-    out <- getAdFun_r(data, config)
+    out <- .Call(`_adlaplace_getAdFun`, data, config)
     attr(out, "adlaplace.backend") <- package
     return(out)
   }

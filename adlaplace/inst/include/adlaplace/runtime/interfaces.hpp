@@ -19,6 +19,8 @@ static const adlaplace_adpack_api AD_API = {
 	&eval_grad,
 	&eval_hess,
 	&get_sizes,
+	&get_sparse_sizes,
+	&get_sparse_pattern,
 	&get_hessian,
 	&eval_trace_hinv_t,
 	&backend_destroy,

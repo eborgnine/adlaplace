@@ -249,24 +249,20 @@ Rcpp::List inner_opt(
 			use_chol_template = false;
 		}
 
-		AD_Func_Opt funObjOuter;
-
-		if (!use_inner) {
-			funObjOuter = AD_Func_Opt(
-				adFun,
-				params_init,
-				false,           // inner=false
-				num_threads);
-		}
-
-		Eigen::SparseMatrix<double>	Houter;
-		Tvec gradOuter;
-
 		// Check if we should return inner-only results
 		bool use_inner = false;
 		if (config.containsElementNamed("inner_only") && !Rf_isNull(config["inner_only"])) {
 			use_inner = Rcpp::as<bool>(config["inner_only"]);
 		}
+
+		AD_Func_Opt funObjOuter(
+			adFun,
+			params_init,
+			false,           // inner=false
+			num_threads);
+
+		Eigen::SparseMatrix<double>	Houter;
+		Tvec gradOuter;
 
 		double fval = NA_REAL, radius = NA_REAL;
 		int iterations = NA_INTEGER;
