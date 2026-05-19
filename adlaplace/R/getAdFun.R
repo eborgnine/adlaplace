@@ -42,7 +42,24 @@ getAdFun <- function(data, config, package = c(config$package, "adlaplace")[1]) 
   package <- package[[1]]
 
   if (identical(package, "adlaplace")) {
-    out <- .Call(`_adlaplace_getAdFun`, data, config)
+    ad_ptr <- adlaplace_build_groups(data, config)
+    sparsity <- lapply(seq_len(adlaplace_n_groups(ad_ptr)) - 1L, function(g) {
+      c(
+        adlaplace_get_sparse_sizes(ad_ptr, g),
+        adlaplace_get_sparse_pattern(ad_ptr, g)
+      )
+    })
+    hessians <- hessianMapC(
+      sparsity,
+      Nbeta = length(config$beta),
+      Ngamma = length(config$gamma),
+      Ntheta = length(config$theta)
+    )
+    out <- list(
+      adFun = ad_ptr,
+      sparsity = sparsity,
+      hessians = hessians
+    )
     attr(out, "adlaplace.backend") <- package
     return(out)
   }

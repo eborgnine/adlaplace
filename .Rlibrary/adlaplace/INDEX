@@ -1,0 +1,24 @@
+adFun_groups                                 Find groups of observations with similar sparsity
+adlaplace_cpp                                C++ backend entry points
+by_group                                     By-Group Classes and Functions
+by_group-class                               By-Group Class
+collect_terms                                Parse Model Terms from Formula
+f                                            Create Model Terms
+fpoly-class                                  Fixed Polynomial Model Term
+getAdFun                                     Build backend AD function handle
+hrpoly-class                                 Hierarchical Random Polynomial Term Constructor
+iid-class                                    IID Random Effects Term
+innerOpt                                     Inner optimization over gamma using trust-region CG (sparse)
+intercept-class                              intercept Model Term
+iwp                                          Integrated Wiener Process Term Constructor
+iwp-class                                    Integrated Wiener Process Term
+linear-class                                 Linear Model Term
+logLikLaplace                                Log-likelihood with inner Laplace optimization
+model-class                                  Base Model Class
+model-generics                               Model Term Generics
+model_setup                                  Set up model for adlaplace
+outer_optim_wrappers                         Outer objective and gradient wrappers
+overdispersion-class                         Overdispersion Class
+ref_align                                    Align Reference Value to Nearest Knot
+response-class                               response Class
+rpoly-class                                  Random Polynomial Model Term

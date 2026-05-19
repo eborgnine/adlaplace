@@ -1,0 +1,162 @@
+#include <Rcpp.h>
+
+#include <map>
+#include <vector>
+
+#include "adlaplace/runtime/interfaces.hpp"
+
+//' @rdname adlaplace_cpp
+//' @export
+// [[Rcpp::export]]
+double jointLogDens(
+  SEXP ad_fun,
+  const Rcpp::NumericVector& x,
+  SEXP Sgroups = R_NilValue) {
+
+  adlaplace_adpack_handle* h = get_handle(ad_fun);
+
+  size_t Nparams = 0, Ngroups = 0, Nbeta = 0, Ngamma = 0, Ntheta = 0;
+  const int rc_sizes = h->api->get_sizes(
+    h->ctx, &Nparams, &Ngroups, &Nbeta, &Ngamma, &Ntheta
+  );
+  if (rc_sizes != 0) {
+    Rcpp::stop("backend api->get_sizes failed with code %d", rc_sizes);
+  }
+  if (static_cast<size_t>(x.size()) != Nparams) {
+    Rcpp::stop("x has length %d but expected Nparams=%d", x.size(), (int)Nparams);
+  }
+
+  const Rcpp::IntegerVector Sgroups_vec = (Sgroups == R_NilValue)
+    ? Rcpp::IntegerVector()
+    : Rcpp::as<Rcpp::IntegerVector>(Sgroups);
+  const std::vector<size_t> groups = resolve_groups(Ngroups, Sgroups_vec);
+
+  double total = 0.0;
+  for (size_t g : groups) {
+    double fg = 0.0;
+    int gi = static_cast<int>(g);
+    const int rc = h->api->f(h->ctx, &gi, x.begin(), &fg);
+    if (rc != 0) {
+      Rcpp::stop("backend api->f failed for group %d with code %d", gi, rc);
+    }
+    total += fg;
+  }
+  return total;
+}
+
+//' @rdname adlaplace_cpp
+//' @export
+// [[Rcpp::export]]
+Rcpp::NumericVector grad(
+  SEXP ad_fun,
+  const Rcpp::NumericVector& x,
+  SEXP Sgroups = R_NilValue,
+  bool inner = false) {
+
+  adlaplace_adpack_handle* h = get_handle(ad_fun);
+  if (!h->api->f_grad) Rcpp::stop("ad_fun api->f_grad is NULL");
+
+  const size_t Nparams = x.size();
+  const size_t Ngroups = groups_ctx(h->ctx)->size();
+  const Rcpp::IntegerVector Sgroups_vec = (Sgroups == R_NilValue)
+    ? Rcpp::IntegerVector()
+    : Rcpp::as<Rcpp::IntegerVector>(Sgroups);
+  const std::vector<size_t> groups = resolve_groups(Ngroups, Sgroups_vec);
+
+  Rcpp::NumericVector grad_out(Nparams, 0.0);
+  double f_dummy = 0.0;
+
+  for (size_t g : groups) {
+    int gi = static_cast<int>(g);
+    if (h->api->f_grad(h->ctx, &gi, x.begin(), &inner, &f_dummy, grad_out.begin()) != 0)
+      Rcpp::stop("backend api->f_grad failed for group %d", gi);
+  }
+  return grad_out;
+}
+
+//' @rdname adlaplace_cpp
+//' @export
+// [[Rcpp::export]]
+Rcpp::S4 hessian(
+  SEXP ad_fun,
+  const Rcpp::NumericVector& x,
+  SEXP Sgroups = R_NilValue,
+  bool inner = false,
+  const bool verbose = false) {
+  adlaplace_adpack_handle* h = get_handle(ad_fun);
+  if (!h->api->f_grad_hess) Rcpp::stop("ad_fun api->f_grad_hess is NULL");
+
+  const size_t Nparams = x.size();
+  const size_t Ngroups = groups_ctx(h->ctx)->size();
+  const Rcpp::IntegerVector Sgroups_vec = (Sgroups == R_NilValue)
+    ? Rcpp::IntegerVector()
+    : Rcpp::as<Rcpp::IntegerVector>(Sgroups);
+  const std::vector<size_t> groups = resolve_groups(Ngroups, Sgroups_vec);
+
+  std::map<std::pair<int, int>, double> acc_map;
+
+  if (verbose) Rcpp::Rcout << "Starting Hessian computation..." << std::endl;
+
+  for (size_t g : groups) {
+    int gi = static_cast<int>(g);
+    int n_inner, n_outer, nnz_grad_i, nnz_grad_o, nnz_hes_i, nnz_hes_o;
+    if (h->api->get_sparse_sizes(h->ctx, &gi, &n_inner, &n_outer, &nnz_grad_i, &nnz_grad_o, &nnz_hes_i, &nnz_hes_o) != 0)
+      Rcpp::stop("backend api->get_sparse_sizes failed for group %d", gi);
+
+    int nnz = inner ? nnz_hes_i : nnz_hes_o;
+    if (nnz == 0) continue;
+
+    std::vector<int> p_gi(nnz_grad_i), p_go(nnz_grad_o);
+    std::vector<int> p_hir(nnz_hes_i), p_hic(nnz_hes_i);
+    std::vector<int> p_hor(nnz_hes_o), p_hoc(nnz_hes_o);
+
+    if (h->api->get_sparse_pattern(h->ctx, &gi,
+        p_gi.data(), p_go.data(),
+        p_hir.data(), p_hic.data(),
+        p_hor.data(), p_hoc.data()) != 0)
+      Rcpp::stop("backend api->get_sparse_pattern failed for group %d", gi);
+
+    const int* rows = inner ? p_hir.data() : p_hor.data();
+    const int* cols = inner ? p_hic.data() : p_hoc.data();
+
+    std::vector<double> vals(nnz);
+    std::vector<int> map(nnz);
+    for (int i = 0; i < nnz; ++i) map[i] = i;
+
+    std::vector<double> grad_scratch(Nparams, 0.0);
+    double f_dummy = 0.0;
+    if (h->api->f_grad_hess(h->ctx, &gi, x.begin(), &inner, &f_dummy, grad_scratch.data(), vals.data(), map.data()) != 0)
+      Rcpp::stop("backend api->f_grad_hess failed for group %d", gi);
+
+    for (int i = 0; i < nnz; ++i) {
+      acc_map[{rows[i], cols[i]}] += vals[i];
+    }
+  }
+
+  if (verbose) Rcpp::Rcout << "Hessian computation completed successfully" << std::endl;
+
+  std::vector<int> agg_row, agg_col;
+  std::vector<double> agg_value;
+  agg_row.reserve(acc_map.size());
+  agg_col.reserve(acc_map.size());
+  agg_value.reserve(acc_map.size());
+
+  for (const auto& kv : acc_map) {
+    agg_row.push_back(kv.first.first);
+    agg_col.push_back(kv.first.second);
+    agg_value.push_back(kv.second);
+  }
+
+  static Rcpp::Function sparseMatrix =
+    Rcpp::Environment::namespace_env("Matrix")["sparseMatrix"];
+  const int n = static_cast<int>(Nparams);
+
+  return sparseMatrix(
+    Rcpp::Named("i") = Rcpp::wrap(agg_row),
+    Rcpp::Named("j") = Rcpp::wrap(agg_col),
+    Rcpp::Named("x") = Rcpp::wrap(agg_value),
+    Rcpp::Named("index1") = false,
+    Rcpp::Named("symmetric") = true,
+    Rcpp::Named("dims") = Rcpp::IntegerVector::create(n, n)
+  );
+}

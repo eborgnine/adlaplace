@@ -35,7 +35,7 @@
 #'     \code{hessians}.
 #'   \item \code{jointLogDens}: scalar objective value summed over groups.
 #'   \item \code{grad}: numeric gradient vector.
-#'   \item \code{hessian}: data frame with columns group, row, col, value.
+#'   \item \code{hessian}: symmetric sparse Hessian (\code{dsCMatrix}).
 #'   \item \code{traceHinvT}: numeric vector of third-derivative contractions.
 #' }
 #'
@@ -53,6 +53,36 @@ getAdFun <- function(data, config) {
 }
 
 #' @rdname adlaplace_cpp
+adlaplace_build_groups <- function(data, config) {
+    .Call(`_adlaplace_adlaplace_build_groups`, data, config)
+}
+
+#' @rdname adlaplace_cpp
+adlaplace_n_groups <- function(handle) {
+    .Call(`_adlaplace_adlaplace_n_groups`, handle)
+}
+
+#' @rdname adlaplace_cpp
+adlaplace_get_sizes <- function(handle) {
+    .Call(`_adlaplace_adlaplace_get_sizes`, handle)
+}
+
+#' @rdname adlaplace_cpp
+adlaplace_get_sparse_sizes <- function(handle, group) {
+    .Call(`_adlaplace_adlaplace_get_sparse_sizes`, handle, group)
+}
+
+#' @rdname adlaplace_cpp
+adlaplace_get_sparse_pattern <- function(handle, group) {
+    .Call(`_adlaplace_adlaplace_get_sparse_pattern`, handle, group)
+}
+
+#' @rdname adlaplace_cpp
+adlaplace_finalize_handle <- function(handle, hessians) {
+    invisible(.Call(`_adlaplace_adlaplace_finalize_handle`, handle, hessians))
+}
+
+#' @rdname adlaplace_cpp
 #' @export
 jointLogDens <- function(ad_fun, x, Sgroups = NULL) {
     .Call(`_adlaplace_jointLogDens`, ad_fun, x, Sgroups)
@@ -61,19 +91,13 @@ jointLogDens <- function(ad_fun, x, Sgroups = NULL) {
 #' @rdname adlaplace_cpp
 #' @export
 grad <- function(ad_fun, x, Sgroups = NULL, inner = FALSE) {
-    .Call(`_adlaplace_grad`, ad_fun, x, inner, Sgroups)
+    .Call(`_adlaplace_grad`, ad_fun, x, Sgroups, inner)
 }
 
 #' @rdname adlaplace_cpp
 #' @export
 hessian <- function(ad_fun, x, Sgroups = NULL, inner = FALSE, verbose = FALSE) {
-    .Call(`_adlaplace_hessian`, ad_fun, x, inner, Sgroups, verbose)
-}
-
-#' @rdname adlaplace_cpp
-#' @export
-traceHinvT <- function(ad_fun, x, LinvPt, LinvPtColumns, num_threads, Sgroups) {
-    .Call(`_adlaplace_traceHinvT`, ad_fun, x, LinvPt, LinvPtColumns, num_threads, Sgroups)
+    .Call(`_adlaplace_hessian`, ad_fun, x, Sgroups, inner, verbose)
 }
 
 hessianMapC <- function(sparsity_list, Nbeta, Ngamma, Ntheta) {
@@ -124,5 +148,11 @@ all_derivs <- function(x, adFun, config) {
 #' @export
 inner_opt <- function(parameters, gamma, config, control, adFun = NULL) {
     .Call(`_adlaplace_inner_opt`, parameters, gamma, config, control, adFun)
+}
+
+#' @rdname adlaplace_cpp
+#' @export
+traceHinvT <- function(ad_fun, x, LinvPt, LinvPtColumns, num_threads, Sgroups) {
+    .Call(`_adlaplace_traceHinvT`, ad_fun, x, LinvPt, LinvPtColumns, num_threads, Sgroups)
 }
 
