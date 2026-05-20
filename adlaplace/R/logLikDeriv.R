@@ -1,16 +1,21 @@
 reformat_chol <- function(x) {
-  x_orig <- x
-  x <- Matrix::expand2(x_orig)
+  if (inherits(x, "dCHMsimpl")) {
+    x_orig <- x
+    x <- Matrix::expand2(x_orig)
+    L <- x$L1
+    D <- x$D@x
+    perm <- x_orig@perm
+  } else {
+    L <- x$L
+    D <- x$D
+    perm <- x$perm
+  }
 
-  Linv <- Matrix::solve(x$L1)
-  halfDinv <- Matrix::Diagonal(ncol(x_orig), (x$D@x)^(-0.5))
+  Linv <- Matrix::solve(L)
+  halfDinv <- Matrix::Diagonal(length(D), D^(-0.5))
 
-  # H^{-1/2} = P^T (L^{-1} D^{-1/2})
-  # H^{-1/2} =  (L^{-1 T} D^{-1/2} ) P
-
-  #  halfH <- (Matrix::t(Linv) %*% halfDinv)[1 + x$P, ]
-
-  halfH <- Matrix::crossprod(Linv, halfDinv)[1 + x_orig@perm, ]
+  # H^{-1/2} = P^T (L^{-1} D^{-1/2}); row reorder [1 + perm] maps permuted -> original
+  halfH <- Matrix::crossprod(Linv, halfDinv)[1 + perm, ]
   Hinv <- Matrix::tcrossprod(halfH)
 
   return(list(halfH = halfH, Hinv = Hinv))

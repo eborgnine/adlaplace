@@ -2,72 +2,66 @@
 % Please edit documentation in R/RcppExports.R
 \name{adlaplace_cpp}
 \alias{adlaplace_cpp}
-\alias{getAdFun}
+\alias{adlaplace_n_groups}
+\alias{adlaplace_get_sparse_sizes}
+\alias{adlaplace_get_sparse_pattern}
 \alias{jointLogDens}
 \alias{grad}
 \alias{hessian}
 \alias{traceHinvT}
 \title{C++ backend entry points}
 \usage{
-getAdFun(data, config, package = c(config$package, "adlaplace")[1])
+adlaplace_n_groups(handle)
+
+adlaplace_get_sparse_sizes(handle, group)
+
+adlaplace_get_sparse_pattern(handle, group)
 
 jointLogDens(ad_fun, x, Sgroups = NULL)
 
-grad(ad_fun, x, inner, Sgroups)
+grad(ad_fun, x, Sgroups = NULL, inner = FALSE)
 
-hessian(ad_fun, x, inner, Sgroups, verbose)
+hessian(ad_fun, x, Sgroups = NULL, inner = FALSE, verbose = FALSE)
 
 traceHinvT(ad_fun, x, LinvPt, LinvPtColumns, num_threads, Sgroups)
 }
 \arguments{
-\item{data}{An R list containing model data objects required by the backend
-(used by \code{getAdFun_r()}).}
+\item{handle}{External pointer returned by \code{build_adfun()}.}
 
-\item{config}{An R list of configuration options required by the backend
-(used by \code{getAdFun_r()}).}
-
-\item{ad_fun}{Backend object returned by \code{getAdFun_r()}.
-For the default backend this can be either the full returned list
-(containing \code{adFun}, \code{sparsity}, \code{hessians}) or the
-external pointer in \code{$adFun}.}
+\item{group}{0-based group index for per-shard sparsity queries.}
 
 \item{x}{Numeric parameter vector of length \code{Nparams}.}
 
-\item{Sgroups}{Optional integer vector of 0-based group indices to evaluate.
-If omitted, uses all groups \code{0:(Ngroups-1)}.}
+\item{Sgroups}{Optional integer vector of 0-based group indices.}
 
-\item{inner}{Logical scalar. If \code{TRUE}, evaluate inner-\eqn{\gamma}
-derivatives; otherwise evaluate outer/full derivatives.}
+\item{inner}{Logical scalar for inner-\eqn{\gamma} vs outer derivatives.}
 
-\item{verbose}{Logical scalar indicating whether to print verbose output.}
+\item{LinvPt, LinvPtColumns, verbose, num_threads}{See \code{traceHinvT()}.}
 
-\item{LinvPt}{Sparse \code{dgCMatrix} for columns of
-\eqn{P^\top L^{-1} D^{-1/2}} (or equivalent) used in trace contractions.}
+\item{data}{Model data list required by the backend builder.}
 
-\item{LinvPtColumns}{Sparse \code{ngCMatrix}/\code{dgCMatrix} mapping
-selected columns of \code{LinvPt} to each group.}
-
-\item{num_threads}{Integer specifying the number of threads to use for parallel computation.}
-}
-\value{
-\itemize{
-  \item \code{getAdFun_r}: backend object. For the default backend: a list
-    with \code{adFun} (external pointer), \code{sparsity}, and
-    \code{hessians}.
-  \item \code{jointLogDens}: scalar objective value summed over groups.
-  \item \code{grad}: numeric gradient vector.
-  \item \code{hessian}: data frame with columns group, row, col, value.
-  \item \code{traceHinvT}: numeric vector of third-derivative contractions.
-}
+\item{config}{Model configuration list required by the backend builder.}
 }
 \description{
 Low-level C++ entry points exposed to R via Rcpp.
-These create and operate on backend state returned by \code{getAdFun_r()}.
-For the default backend this state is a list with an opaque external pointer
-plus sparsity/Hessian metadata.
 }
-\details{
-In the default backend, \code{$adFun} is an opaque external pointer and not
-user-modifiable. It may hold substantial memory (AD tapes and caches).
-Do not save backend objects across R sessions.
+
+\section{Sign convention}{
+
+\code{jointLogDens()}, \code{grad()}, and \code{hessian()} evaluate the
+\strong{joint log density} \eqn{\ell(x)} and its derivatives (maximization sign).
+\code{all_derivs()} and the objective inside \code{inner_opt()} use the
+\strong{negative} log density \eqn{-\ell(x)} and its derivatives for
+\pkg{trustOptim} minimization. At the same \code{x} and \code{ad_fun},
+\code{all_derivs()$fval == -jointLogDens(ad_fun, x)},
+\code{all_derivs()$gradient == -grad(ad_fun, x)}, and
+\code{all_derivs()$hessian == -hessian(ad_fun, x)} (outer, full parameter vector).
+}
+
+\value{
+\code{jointLogDens()}: scalar \strong{joint log density} \eqn{\ell(x)} (not negative log density).
+
+\code{grad()}: gradient of \strong{log density} \eqn{\nabla \ell(x)} (not negative log density).
+
+\code{hessian()}: sparse Hessian of \strong{log density} \eqn{\nabla^2 \ell(x)} (not negative log density).
 }

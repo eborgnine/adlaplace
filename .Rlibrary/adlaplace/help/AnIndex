@@ -1,6 +1,10 @@
 add_by_levels	by_group
 adFun_groups	adFun_groups
 adlaplace_cpp	adlaplace_cpp
+adlaplace_get_sizes	adlaplace_cpp
+adlaplace_get_sparse_pattern	adlaplace_cpp
+adlaplace_get_sparse_sizes	adlaplace_cpp
+adlaplace_n_groups	adlaplace_cpp
 all_derivs	innerOpt
 beta_info	model-generics
 beta_info,fpoly-method	fpoly-class
@@ -12,6 +16,9 @@ beta_info,linear-method	linear-class
 beta_info,overdispersion-method	overdispersion-class
 beta_info,response-method	response-class
 beta_info,rpoly-method	rpoly-class
+build_adfun	adlaplace_cpp
+build_adfun	build_adfun
+build_adpack	build_adfun
 by_group	by_group
 by_group-class	by_group-class
 collect_terms	collect_terms
@@ -28,10 +35,10 @@ design,rpoly-method	rpoly-class
 f	f
 fpoly	fpoly-class
 fpoly-class	fpoly-class
-getAdFun	adlaplace_cpp
 getAdFun	getAdFun
 grad	adlaplace_cpp
 hessian	adlaplace_cpp
+hessianMap	hessianMap
 hrpoly	hrpoly-class
 hrpoly-class	hrpoly-class
 iid	iid-class

@@ -35,7 +35,7 @@
 #' \code{config_inner$theta}) before calling the backend inner optimizer.
 #'
 #' The default \pkg{adlaplace} backend uses a single AD handle. This function
-#' passes that handle to \code{inner_opt(..., adFun = adFun)}.
+#' passes that handle to \code{inner_opt(..., ad_fun = adFun)}.
 #'
 #' The inner objective is treated as negative joint log density; this function
 #' returns both the Laplace-approximated log-likelihood (\code{logLik}) and its
@@ -84,19 +84,7 @@ logLikLaplace <- function(x, config,
   config_inner <- config
   config_inner$beta <- x[seq.int(1, length.out = Nbeta)]
   config_inner$theta <- x[seq.int(Nbeta + 1, length.out = Ntheta)]
-  config_inner$inner_only <- !deriv
-
-  # Pass chol_inner from adFun to config for Cholesky factorization
-  if (!missing(adFun) && !is.null(adFun) && !is.null(adFun$hessians) &&
-    !is.null(adFun$hessians$chol_inner)) {
-    config_inner$chol_inner <- adFun$hessians$chol_inner
-  }
-
-  if (deriv) {
-    Sgamma1 <- seq.int(Nbeta + 1, length.out = Ngamma)
-  } else {
-    Sgamma1 <- seq.int(1, length.out = Ngamma)
-  }
+  config_inner$deriv <- deriv
 
   if (!missing(gamma)) {
     config_inner$gamma <- gamma
@@ -106,21 +94,20 @@ logLikLaplace <- function(x, config,
     }
   }
 
+
   if (missing(adFun)) {
     if (missing(data)) {
       stop("at least one of data and adFun must be supplied")
     }
     adFun <- adlaplace::getAdFun(data, config, package = package)
-  } else {
-    adfun_backend <- attr(adFun, "adlaplace.backend", exact = TRUE)
-    if (!is.null(adfun_backend) && !identical(adfun_backend, package)) {
-      stop(
-        "adFun was built with backend package '", adfun_backend,
-        "' but `package` is '", package, "'. ",
-        "Rebuild with adlaplace::getAdFun(..., package = '", package, "')."
-      )
-    }
   }
+
+  if (deriv) {
+    Sgamma1 <- seq.int(Nbeta + 1, length.out = Ngamma)
+  } else {
+    Sgamma1 <- seq.int(1, length.out = Ngamma)
+  }
+
 
   Niter <- 0
   tryAgain <- TRUE
@@ -131,7 +118,8 @@ logLikLaplace <- function(x, config,
       config_inner$gamma,
       config = config_inner,
       control = control,
-      adFun = adFun
+      ad_fun = adFun,
+      deriv = deriv
     ))
 
     tryAgain <- any(class(inner_res) == "try-error")
@@ -166,7 +154,11 @@ logLikLaplace <- function(x, config,
     hessian = list(
       outer = Houter,
       inner = Hinner,
-      chol_inner = inner_res$Hchol
+      chol_inner = list(
+        L = inner_res$hessian_L,
+        D = inner_res$hessian_D,
+        perm = adFun$chol_inner@perm
+      )
     ),
     opt = inner_res[
       c(

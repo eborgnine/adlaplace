@@ -77,8 +77,8 @@ outer_gr = function(x, config, cache, adFun, control_inner = list(), ...) {
 	
 	# Pass chol_inner from adFun to config if available
 	config_inner <- config
-	if (!is.null(adFun) && !is.null(adFun$hessians) && !is.null(adFun$hessians$chol_inner)) {
-		config_inner$chol_inner <- adFun$hessians$chol_inner
+	if (!is.null(adFun) && !is.null(adFun$chol_inner)) {
+		config_inner$chol_inner <- adFun$chol_inner
 	}
 	
 	result = adlaplace::logLikLaplace(

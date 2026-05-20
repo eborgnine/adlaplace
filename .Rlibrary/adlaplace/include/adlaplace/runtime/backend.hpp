@@ -4,7 +4,7 @@
 #include <cppad/cppad.hpp>
 #include <vector>
 
-// Aggregated Hessian template + shard maps (built in R via hessianMapC).
+// Aggregated Hessian template + shard maps (built in R via hessianMap).
 // Not stored on the AD handle; kept here for Rcpp conversion helpers.
 struct HessianPack {
   std::vector<int> hessian_p;

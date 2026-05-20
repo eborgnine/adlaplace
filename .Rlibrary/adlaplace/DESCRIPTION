@@ -18,6 +18,7 @@ RoxygenNote: 7.3.3
 NeedsCompilation: yes
 Packaged: 2026-01-22 18:49:30 UTC; patrick
 Author: Patrick Brown [aut, cre, cph]
-Collate: '000.R' 'RcppExports.R' 'by_group.R' 'effects.R' 'fpoly.R' 'getAdFun.R' 'groups.R' 'rpoly.R' 'hrpoly.R' 'iid.R' 'intercept.R'
-               'iwp.R' 'linear.R' 'logLikDeriv.R' 'logLikLaplace.R' 'model_setup.R' 'overdispersion.R' 'response.R' 'wrappers.R'
-Built: R 4.6.0; aarch64-apple-darwin23; 2026-05-19 20:35:46 UTC; unix
+Collate: '000.R' 'RcppExports.R' 'build_adpack.R' 'by_group.R' 'effects.R' 'fpoly.R' 'getAdFun.R' 'groups.R' 'hessianMap.R' 'rpoly.R'
+               'hrpoly.R' 'iid.R' 'intercept.R' 'iwp.R' 'linear.R' 'logLikDeriv.R' 'logLikLaplace.R' 'model_setup.R'
+               'overdispersion.R' 'response.R' 'wrappers.R'
+Built: R 4.6.0; aarch64-apple-darwin23; 2026-05-20 12:03:07 UTC; unix

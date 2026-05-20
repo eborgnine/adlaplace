@@ -140,7 +140,7 @@ inline Rcpp::List sparsity_list_from_handle(adlaplace_adpack_handle* h) {
 	return sparsity;
 }
 
-inline SEXP buildAdGroups_h(
+inline SEXP build_adfun_h(
 	const Rcpp::List& data,
 	const Rcpp::List& config) {
 
@@ -159,13 +159,6 @@ inline SEXP buildAdGroups_h(
 	return handle;
 }
 
-inline void finalizeAdHandle_h(
-	SEXP handle_sexp,
-	const Rcpp::List& hessians) {
-	(void)handle_sexp;
-	(void)hessians;
-}
-
 inline Rcpp::List get_sizes_from_handle(adlaplace_adpack_handle* h) {
 	size_t Nparams = 0;
 	size_t Ngroups = 0;
@@ -182,12 +175,6 @@ inline Rcpp::List get_sizes_from_handle(adlaplace_adpack_handle* h) {
 		Rcpp::Named("Nparams") = static_cast<int>(Nparams),
 		Rcpp::Named("Ngroups") = static_cast<int>(Ngroups)
 	);
-}
-
-inline SEXP getAdFun_h(
-	const Rcpp::List &data,
-	const Rcpp::List &config) {
-	return buildAdGroups_h(data, config);
 }
 
 #endif

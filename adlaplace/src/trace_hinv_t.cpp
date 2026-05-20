@@ -17,18 +17,10 @@ Rcpp::NumericVector traceHinvT(
   const int num_threads,
   SEXP Sgroups
 ) {
-  adlaplace_adpack_handle* h = get_handle(ad_fun);
-  if (!h->api->trace_hinv_t) {
-    Rcpp::stop("ad_fun api->trace_hinv_t is NULL");
-  }
-
-  size_t Nparams = 0, Ngroups = 0, Nbeta = 0, Ngamma = 0, Ntheta = 0;
-  const int rc_sizes = h->api->get_sizes(
-    h->ctx, &Nparams, &Ngroups, &Nbeta, &Ngamma, &Ntheta
-  );
-  if (rc_sizes != 0) {
-    Rcpp::stop("backend api->get_sizes failed with code %d", rc_sizes);
-  }
+  ad_groups* groups = get_ad_groups(ad_fun);
+  const size_t Ngroups = groups->fun.size();
+  if (Ngroups == 0) Rcpp::stop("ad_groups.fun is empty");
+  const size_t Nparams = pack_ctx(groups->fun[0]->ctx)->x.size();
   if (static_cast<size_t>(x.size()) != Nparams) {
     Rcpp::stop("x has length %d but expected Nparams=%d", x.size(), (int)Nparams);
   }
@@ -52,11 +44,11 @@ Rcpp::NumericVector traceHinvT(
   const Rcpp::IntegerVector Sgroups_vec = (Sgroups == R_NilValue)
     ? Rcpp::IntegerVector()
     : Rcpp::as<Rcpp::IntegerVector>(Sgroups);
-  const std::vector<size_t> groups = resolve_groups(Ngroups, Sgroups_vec);
+  const std::vector<size_t> group_idx = resolve_groups(Ngroups, Sgroups_vec);
 
   int rc_error = 0;
   int rc_group = -1;
-  const int n_groups = static_cast<int>(groups.size());
+  const int n_groups = static_cast<int>(group_idx.size());
 
   if (n_groups > 0) {
     cppad_parallel_setup(static_cast<std::size_t>(num_threads));
@@ -69,10 +61,15 @@ Rcpp::NumericVector traceHinvT(
 
 #pragma omp for schedule(static,1)
       for (int gidx = 0; gidx < n_groups; ++gidx) {
-        const int gi = static_cast<int>(groups[static_cast<std::size_t>(gidx)]);
+        const size_t g = group_idx[static_cast<std::size_t>(gidx)];
+        adlaplace_adpack_handle* h = shard_handle(groups, g);
+        if (!h->api->trace_hinv_t) {
+          rc_local = 1;
+          rc_group_local = static_cast<int>(g);
+          continue;
+        }
         const int rc = h->api->trace_hinv_t(
           h->ctx,
-          &gi,
           x.begin(),
           LinvPt_p.begin(),
           LinvPt_i.begin(),
@@ -89,7 +86,7 @@ Rcpp::NumericVector traceHinvT(
         );
         if (rc != 0 && rc_local == 0) {
           rc_local = rc;
-          rc_group_local = gi;
+          rc_group_local = static_cast<int>(g);
         }
       }
 

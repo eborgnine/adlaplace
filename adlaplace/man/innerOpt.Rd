@@ -6,15 +6,15 @@
 \alias{inner_opt}
 \title{Inner optimization over gamma using trust-region CG (sparse)}
 \usage{
-all_derivs(x, adFun, config)
+all_derivs(x, ad_fun, config)
 
-inner_opt(parameters, gamma, config, control, adFun = NULL)
+inner_opt(parameters, gamma, config, control, ad_fun)
 }
 \arguments{
 \item{x}{Numeric full parameter vector of length \code{Nparams} used by
 \code{all_derivs()}.}
 
-\item{adFun}{External pointer returned by \code{getAdFun()}.}
+\item{ad_fun}{List returned by \code{getAdFun()} (must contain \code{ad_fun}).}
 
 \item{config}{Configuration list with model dimensions, groups, and
 sparsity information.}
@@ -30,12 +30,17 @@ sparsity information.}
 \code{inner_opt()} (see \pkg{trustOptim}).}
 }
 \value{
-\item{\code{all_derivs()}}{Returns \code{fval}, \code{gradient}, and
-  \code{hessian} for full/outer derivatives at \code{x}.}
+\item{\code{all_derivs()}}{List with \code{fval}, \code{gradient}, and
+  \code{hessian} of the \strong{negative log density} \eqn{-\ell(x)} at full
+  outer parameters \code{x} (minimization / \pkg{trustOptim} sign). Compare
+  \code{\link{jointLogDens}}, \code{\link{grad}}, and \code{\link{hessian}}
+  for \eqn{\ell(x)} and its derivatives at the same point.}
   \item{\code{inner_opt()}}{Returns \code{fval}, \code{solution},
   \code{gradient} (inner gradient if \code{inner_only} is set, otherwise full gradient),
   \code{hessian} (inner Hessian if \code{inner_only} is set, otherwise full Hessian),
-  \code{iterations}, \code{status}, \code{trust.radius}, and \code{method}.}
+  \code{iterations}, \code{status}, \code{trust.radius}, and \code{method}.
+  Objective and derivatives use the same \strong{negative log-density} convention as
+  \code{all_derivs()}.}
 }
 \description{
 Runs the inner optimization problem (typically over \eqn{\gamma}) using the
@@ -45,4 +50,6 @@ evaluates the objective, gradient, and Hessian through the pre-built AD pack
 }
 \details{
 This calls the sparse method from the \code{TrustOptim} package via the Cpp interface.
+\code{all_derivs()} and \code{inner_opt()} negate the tape log-density values in
+C++; \code{\link{jointLogDens}} / \code{\link{grad}} / \code{\link{hessian}} do not.
 }

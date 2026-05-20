@@ -10,21 +10,21 @@
 #' @param config Model configuration list passed to the backend builder.
 #'   Must contain \code{beta}, \code{gamma}, and \code{theta} (vectors of starting
 #'   values), and may include \code{verbose}, \code{num_threads}, and other backend-
-#'   specific options. The \code{config$package} field is ignored here — use the
+#'   specific options. The \code{config$package} field is ignored here <U+2014> use the
 #'   \code{package} argument instead.
 #' @param package Character scalar naming the backend package to use for
 #'   \code{getAdFun_r()}. Defaults to \code{"adlaplace"}. Supported backends must
 #'   export a \code{getAdFun_r(data, config)} function.
 #'
 #' @return Backend object returned by \code{<package>::getAdFun_r()}. For the
-#'   default \pkg{adlaplace} backend, this is a list containing \code{adFun}
+#'   default \pkg{adlaplace} backend, this is a list containing \code{ad_fun}
 #'   (external pointer handle), \code{sparsity}, and \code{hessians}. The object
 #'   carries an \code{"adlaplace.backend"} attribute indicating which package built it,
 #'   enabling runtime validation in functions like \code{logLikLaplace()}.
 #'
 #' @examples
 #' \dontrun{
-#' # Minimal example — requires valid data and config
+#' # Minimal example <U+2014> requires valid data and config
 #' data <- list(y = rnorm(10), X = matrix(1, 10, 1), Z = matrix(1, 10, 1))
 #' config <- list(beta = 0, gamma = rep(0, 1), theta = 1, verbose = FALSE)
 #' adFun <- getAdFun(data, config, package = "adlaplace")
@@ -42,24 +42,24 @@ getAdFun <- function(data, config, package = c(config$package, "adlaplace")[1]) 
   package <- package[[1]]
 
   if (identical(package, "adlaplace")) {
-    ad_ptr <- adlaplace_build_groups(data, config)
+    ad_ptr <- build_adfun(data, config)
     sparsity <- lapply(seq_len(adlaplace_n_groups(ad_ptr)) - 1L, function(g) {
       c(
         adlaplace_get_sparse_sizes(ad_ptr, g),
         adlaplace_get_sparse_pattern(ad_ptr, g)
       )
     })
-    hessians <- hessianMapC(
+    hessian_pack <- hessian_map(
       sparsity,
       Nbeta = length(config$beta),
       Ngamma = length(config$gamma),
       Ntheta = length(config$theta)
     )
-    out <- list(
-      adFun = ad_ptr,
-      sparsity = sparsity,
-      hessians = hessians
+    out <- c(
+      list(ad_fun = ad_ptr),
+      hessian_pack
     )
+
     attr(out, "adlaplace.backend") <- package
     return(out)
   }
@@ -77,7 +77,7 @@ getAdFun <- function(data, config, package = c(config$package, "adlaplace")[1]) 
   }
 
   out <- builder(data, config)
-  if(config$verbose) {
+  if (config$verbose) {
     cat("got AFun\n")
   }
   attr(out, "adlaplace.backend") <- package

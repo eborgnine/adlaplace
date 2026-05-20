@@ -2,12 +2,77 @@
 #define ADLAPLACE_DEFS_HPP
 
 #include <Rcpp.h>
+#include <Rinternals.h>
 #include <vector>
 #include <cstddef>
+#include <cstring>
 #include <numeric>
 
-#include "adlaplace/runtime/backend.hpp"
+// View into integer vector SEXP (valid while parent SEXP is protected).
+struct IntVecView {
+  SEXP sexp = R_NilValue;
 
+  IntVecView() = default;
+  explicit IntVecView(SEXP x) : sexp(x) {}
+  explicit IntVecView(const Rcpp::IntegerVector& v) : sexp(v) {}
+
+  R_xlen_t size() const { return XLENGTH(sexp); }
+  int operator[](R_xlen_t k) const {
+    const int type = TYPEOF(sexp);
+    if (type == INTSXP) return INTEGER(sexp)[k];
+    if (type == REALSXP) return static_cast<int>(REAL(sexp)[k]);
+    Rcpp::stop("IntVecView: expected integer or numeric vector");
+  }
+  bool empty() const { return sexp == R_NilValue || XLENGTH(sexp) == 0; }
+
+  bool has_name(const char* key) const {
+    if (sexp == R_NilValue) return false;
+    SEXP names = Rf_getAttrib(sexp, R_NamesSymbol);
+    if (names == R_NilValue) return false;
+    const R_xlen_t n = XLENGTH(sexp);
+    for (R_xlen_t k = 0; k < n; ++k) {
+      if (std::strcmp(CHAR(STRING_ELT(names, k)), key) == 0) return true;
+    }
+    return false;
+  }
+
+  int named(const char* key) const {
+    if (sexp == R_NilValue) Rcpp::stop("IntVecView: NULL sexp");
+    SEXP names = Rf_getAttrib(sexp, R_NamesSymbol);
+    if (names == R_NilValue) Rcpp::stop("IntVecView: unnamed vector");
+    const R_xlen_t n = XLENGTH(sexp);
+    const int type = TYPEOF(sexp);
+    for (R_xlen_t k = 0; k < n; ++k) {
+      if (std::strcmp(CHAR(STRING_ELT(names, k)), key) == 0) {
+        if (type == INTSXP) return INTEGER(sexp)[k];
+        if (type == REALSXP) return static_cast<int>(REAL(sexp)[k]);
+        Rcpp::stop("IntVecView: expected integer or numeric vector");
+      }
+    }
+    Rcpp::stop("IntVecView: name '%s' not found", key);
+  }
+};
+
+// Views into hessian_map() map_outer / map_inner list components.
+struct hessian_map_view {
+  IntVecView p;
+  IntVecView local;
+  IntVecView global;
+  int nrow = 0;
+  int ncol = 0;
+
+  hessian_map_view() = default;
+  explicit hessian_map_view(const Rcpp::List& map)
+    : p(map["p"]),
+      local(map["local"]),
+      global(map["global"]) {
+    if (map.containsElementNamed("dims")) {
+      Rcpp::IntegerVector dims = map["dims"];
+      nrow = dims[0];
+      ncol = dims[1];
+    }
+  }
+};
 
 // Lightweight view into Matrix::*gCMatrix slots (points to R memory)
 struct DgCView {
@@ -42,7 +107,7 @@ struct NumVecView {
   double operator[](std::size_t i) const;
 };
 
-// Thread-safe CSC pattern copied into std::vector
+// Thread-safe CSC pattern copied into std::vector (e.g. config$groups).
 struct CscPattern {
   std::vector<int> i;
   std::vector<int> p;
@@ -96,8 +161,6 @@ struct Data {
   explicit Data(const Rcpp::List& data);
 };
 
-
-std::array<HessianPack,2> hessianPackFromList(const Rcpp::List &x);
 
 inline bool adlaplace_get_bool(const Rcpp::List& cfg, const char* key, bool def) {
   return cfg.containsElementNamed(key) ? Rcpp::as<bool>(cfg[key]) : def;
@@ -235,58 +298,6 @@ inline Config::Config(const Rcpp::List& cfg)
     Sgroups.resize(Ngroups);
     std::iota(Sgroups.begin(), Sgroups.end(), std::size_t(0));
   }
-}
-
-inline std::array<HessianPack, 2> hessianPackFromList(const Rcpp::List& x) {
-  std::array<HessianPack, 2> result;
-  HessianPack& hessian_inner = result[0];
-  HessianPack& hessian_outer = result[1];
-
-  if (!x.containsElementNamed("hessian")) {
-    Rcpp::Rcout << "hessians missing, input should be list(hessian =list(inner=... outer=..))\n";
-    return result;
-  }
-
-  const Rcpp::List hessian = x["hessian"];
-  if (!hessian.containsElementNamed("outer") || !hessian.containsElementNamed("inner")) {
-    Rcpp::Rcout << "inner, outer hessian missing, input should be list(hessian =list(inner=... outer=..))\n";
-    return result;
-  }
-
-  {
-    CscPattern hessianCSC(Rcpp::as<Rcpp::S4>(hessian["outer"]));
-    hessian_outer.hessian_p = hessianCSC.p;
-    hessian_outer.hessian_i = hessianCSC.i;
-    hessian_outer.dim = hessianCSC.dim;
-  }
-  {
-    CscPattern hessianCSC(Rcpp::as<Rcpp::S4>(hessian["inner"]));
-    hessian_inner.hessian_p = hessianCSC.p;
-    hessian_inner.hessian_i = hessianCSC.i;
-    hessian_inner.dim = hessianCSC.dim;
-  }
-
-  if (!x.containsElementNamed("map")) {
-    Rcpp::Rcout << "map missing, input should be list(map =list(inner=... outer=..))\n";
-    return result;
-  }
-  Rcpp::List map = x["map"];
-  if (!map.containsElementNamed("inner") || !map.containsElementNamed("outer")) {
-    Rcpp::Rcout << "map inner, outer missing, input should be list(map =list(inner=... outer=..))\n";
-    return result;
-  }
-
-  Rcpp::List inner = map["inner"];
-  hessian_inner.map_p = adlaplace_as_int_vec(Rcpp::as<Rcpp::IntegerVector>(inner["p"]));
-  hessian_inner.map_local = adlaplace_as_int_vec(Rcpp::as<Rcpp::IntegerVector>(inner["local"]));
-  hessian_inner.map_global = adlaplace_as_int_vec(Rcpp::as<Rcpp::IntegerVector>(inner["global"]));
-
-  Rcpp::List outer = map["outer"];
-  hessian_outer.map_p = adlaplace_as_int_vec(Rcpp::as<Rcpp::IntegerVector>(outer["p"]));
-  hessian_outer.map_local = adlaplace_as_int_vec(Rcpp::as<Rcpp::IntegerVector>(outer["local"]));
-  hessian_outer.map_global = adlaplace_as_int_vec(Rcpp::as<Rcpp::IntegerVector>(outer["global"]));
-
-  return result;
 }
 
 inline Data::Data(const Rcpp::List& data)

@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <omp.h>
+#include <cppad/cppad.hpp>
 #include <cppad/utility/thread_alloc.hpp>
 
 static inline bool in_parallel_wrapper() { return omp_in_parallel() != 0; }

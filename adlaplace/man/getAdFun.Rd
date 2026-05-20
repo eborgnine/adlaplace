@@ -14,7 +14,7 @@ minimum components required by the selected backend (e.g., \code{y}, \code{X},
 \item{config}{Model configuration list passed to the backend builder.
 Must contain \code{beta}, \code{gamma}, and \code{theta} (vectors of starting
 values), and may include \code{verbose}, \code{num_threads}, and other backend-
-specific options. The \code{config$package} field is ignored here — use the
+specific options. The \code{config$package} field is ignored here <U+2014> use the
 \code{package} argument instead.}
 
 \item{package}{Character scalar naming the backend package to use for
@@ -23,7 +23,7 @@ export a \code{getAdFun_r(data, config)} function.}
 }
 \value{
 Backend object returned by \code{<package>::getAdFun_r()}. For the
-  default \pkg{adlaplace} backend, this is a list containing \code{adFun}
+  default \pkg{adlaplace} backend, this is a list containing \code{ad_fun}
   (external pointer handle), \code{sparsity}, and \code{hessians}. The object
   carries an \code{"adlaplace.backend"} attribute indicating which package built it,
   enabling runtime validation in functions like \code{logLikLaplace()}.
@@ -35,7 +35,7 @@ Safe frontend for constructing AD handles. This is the only public
 }
 \examples{
 \dontrun{
-# Minimal example — requires valid data and config
+# Minimal example <U+2014> requires valid data and config
 data <- list(y = rnorm(10), X = matrix(1, 10, 1), Z = matrix(1, 10, 1))
 config <- list(beta = 0, gamma = rep(0, 1), theta = 1, verbose = FALSE)
 adFun <- getAdFun(data, config, package = "adlaplace")

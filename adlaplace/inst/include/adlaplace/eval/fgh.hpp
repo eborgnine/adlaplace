@@ -11,24 +11,8 @@
 #include "adlaplace/runtime/backend.hpp"
 #include "adlaplace/runtime/sizes.hpp"
 
-static inline AdGroups* groups_ctx(void* vctx) {
-  return static_cast<AdGroups*>(vctx);
-}
-
-static int get_sizes(void* vctx, size_t* Nparams, size_t* Ngroups,
-	size_t* Nbeta, size_t* Ngamma, size_t* Ntheta) {
-
-	AdGroups* groups = groups_ctx(vctx);
-	if (!groups) return 1;
-
-	*Ngroups = groups->size();
-	*Nparams = groups->empty() ? 0 : (*groups)[0].x.size();
-	// beta/gamma/theta partition lives in model config, not on GroupPack
-	*Nbeta = 0;
-	*Ngamma = 0;
-	*Ntheta = 0;
-
-	return 0;
+static inline GroupPack* pack_ctx(void* vctx) {
+  return static_cast<GroupPack*>(vctx);
 }
 
 static int get_hessian(void* vctx,
@@ -47,13 +31,8 @@ static int get_hessian(void* vctx,
 	return 1;
 }
 
-static int eval_f(void* vctx, const int *i, const double* x, double* out_f) {
-	AdGroups* groups = groups_ctx(vctx);
-	if (*i < 0) return 2;
-	size_t ist = (size_t)*i;
-	if (ist >= groups->size()) return 3;
-
-	GroupPack &gp = (*groups)[ist];
+static int eval_f(void* vctx, const double* x, double* out_f) {
+	GroupPack& gp = *pack_ctx(vctx);
 	const size_t Nparams = gp.x.size();
 	const size_t Ndomain = gp.fun.Domain();
 	const size_t Nrange = gp.fun.Range();
@@ -69,18 +48,12 @@ static int eval_f(void* vctx, const int *i, const double* x, double* out_f) {
 	return 0;
 }
 
-static int eval_grad(void* vctx, const int *i,
+static int eval_grad(void* vctx,
 	const double* x, const bool *inner,
 	double* out_f, double* out_grad) {
 
-	AdGroups* groups = groups_ctx(vctx);
-	if (*i < 0) return 2;
-	size_t ist = (size_t)*i;
-	if (ist >= groups->size()) return 3;
-
 	const bool innerv = *inner;
-
-	GroupPack &gp = (*groups)[ist];
+	GroupPack& gp = *pack_ctx(vctx);
 
 	const size_t Nparams = gp.x.size();
 	for(size_t D=0;D<Nparams;D++) {
@@ -108,18 +81,12 @@ static int eval_grad(void* vctx, const int *i,
 	return 0;
 }
 
-static int eval_hess(void* vctx, const int *i, const double* x,
+static int eval_hess(void* vctx, const double* x,
 	const bool *inner, double* out_f,
 	double* out_grad, double* out_hes, int* map) {
 
-	AdGroups* groups = groups_ctx(vctx);
-	if (*i < 0) return 2;
-	size_t ist = (size_t)*i;
-	if (ist >= groups->size()) return 3;
-
 	const bool innerv = *inner;
-
-	GroupPack &gp = (*groups)[ist];
+	GroupPack& gp = *pack_ctx(vctx);
 
 	const size_t Nparams = gp.x.size();
 	for(size_t D=0;D<Nparams;D++) {
@@ -166,31 +133,21 @@ static int eval_hess(void* vctx, const int *i, const double* x,
 	return 0;
 }
 
-static int get_sparse_sizes(void* vctx, const int* i,
+static int get_sparse_sizes(void* vctx,
     int* n_inner, int* n_outer,
     int* nnz_grad_inner, int* nnz_grad_outer,
     int* nnz_hes_inner, int* nnz_hes_outer) {
 
-	AdGroups* groups = groups_ctx(vctx);
-	if (*i < 0) return 2;
-	size_t ist = (size_t)*i;
-	if (ist >= groups->size()) return 3;
-
-	GroupPack &gp = (*groups)[ist];
+	GroupPack& gp = *pack_ctx(vctx);
 	return ::get_sizes(gp, n_inner, n_outer, nnz_grad_inner, nnz_grad_outer, nnz_hes_inner, nnz_hes_outer);
 }
 
-static int get_sparse_pattern(void* vctx, const int* i,
+static int get_sparse_pattern(void* vctx,
     int* pattern_grad_inner, int* pattern_grad_outer,
     int* pattern_hes_inner_row, int* pattern_hes_inner_col,
     int* pattern_hes_outer_row, int* pattern_hes_outer_col) {
 
-	AdGroups* groups = groups_ctx(vctx);
-	if (*i < 0) return 2;
-	size_t ist = (size_t)*i;
-	if (ist >= groups->size()) return 3;
-
-	GroupPack &gp = (*groups)[ist];
+	GroupPack& gp = *pack_ctx(vctx);
 	return ::get_pattern(gp, pattern_grad_inner, pattern_grad_outer,
 	    pattern_hes_inner_row, pattern_hes_inner_col,
 	    pattern_hes_outer_row, pattern_hes_outer_col);

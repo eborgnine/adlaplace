@@ -80,7 +80,7 @@ inserted into \code{config} (as \code{config_inner$beta} and
 \code{config_inner$theta}) before calling the backend inner optimizer.
 
 The default \pkg{adlaplace} backend uses a single AD handle. This function
-passes that handle to \code{inner_opt(..., adFun = adFun)}.
+passes that handle to \code{inner_opt(..., ad_fun = adFun)}.
 
 The inner objective is treated as negative joint log density; this function
 returns both the Laplace-approximated log-likelihood (\code{logLik}) and its

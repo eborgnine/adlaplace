@@ -3,89 +3,75 @@
 #include <Rinternals.h>
 #include "adlaplace/runtime/interfaces.hpp"
 
-//' C++ backend entry points
+//' Build AD pack external pointer handle
 //'
-//' Low-level C++ entry points exposed to R via Rcpp.
-//' These create and operate on backend state returned by \code{getAdFun_r()}.
-//' For the default backend this state is a list with an opaque external pointer
-//' plus sparsity/Hessian metadata.
+//' Constructs grouped CppAD tapes and returns an opaque \code{ad_groups}
+//' handle (fun only; attach Hessian templates via \code{adlaplace_attach_hessian()}).
 //'
-//' @param data An R list containing model data objects required by the backend
-//'   (used by \code{getAdFun_r()}).
-//' @param config An R list of configuration options required by the backend
-//'   (used by \code{getAdFun_r()}).
-//' @param ad_fun Backend object returned by \code{getAdFun_r()}.
-//'   For the default backend this can be either the full returned list
-//'   (containing \code{adFun}, \code{sparsity}, \code{hessians}) or the
-//'   external pointer in \code{$adFun}.
-//' @param x Numeric parameter vector of length \code{Nparams}.
-//' @param inner Logical scalar. If \code{TRUE}, evaluate inner-\eqn{\gamma}
-//'   derivatives; otherwise evaluate outer/full derivatives.
-//' @param Sgroups Optional integer vector of 0-based group indices to evaluate.
-//'   If omitted, uses all groups \code{0:(Ngroups-1)}.
-//' @param LinvPt Sparse \code{dgCMatrix} for columns of
-//'   \eqn{P^\top L^{-1} D^{-1/2}} (or equivalent) used in trace contractions.
-//' @param LinvPtColumns Sparse \code{ngCMatrix}/\code{dgCMatrix} mapping
-//'   selected columns of \code{LinvPt} to each group.
-//' @param verbose Logical scalar indicating whether to print verbose output.
-//' @param num_threads Integer specifying the number of threads to use for parallel computation.
+//' @param data Model data list passed to the backend builder.
+//' @param config Model configuration list passed to the backend builder.
 //'
-//' @return
-//' \itemize{
-//'   \item \code{getAdFun}: external pointer handle to the built AD groups.
-//'     Use \code{getAdFun()} in R to also assemble \code{sparsity} and
-//'     \code{hessians}.
-//'   \item \code{jointLogDens}: scalar objective value summed over groups.
-//'   \item \code{grad}: numeric gradient vector.
-//'   \item \code{hessian}: symmetric sparse Hessian (\code{dsCMatrix}).
-//'   \item \code{traceHinvT}: numeric vector of third-derivative contractions.
-//' }
+//' @return External pointer of class \code{adlaplace_handle_ptr}.
 //'
-//' @details
-//' In the default backend, \code{$adFun} is an opaque external pointer and not
-//' user-modifiable. It may hold substantial memory (AD tapes and caches).
-//' Do not save backend objects across R sessions.
+//' @seealso \code{\link{getAdFun}}
+//' @export
+// [[Rcpp::export]]
+SEXP build_adfun(Rcpp::List data, Rcpp::List config) {
+  return build_adfun_h(data, config);
+}
+
+//' Attach hessian_map() result to an ad_groups handle
 //'
+//' Copies outer/inner templates and maps into \code{ad_groups}.
+//'
+//' @param handle External pointer from \code{build_adfun()} or \code{getAdFun()}.
+//' @param hessian_pack List returned by \code{hessian_map()}.
+//' @export
+// [[Rcpp::export]]
+void adlaplace_attach_hessian(SEXP handle, Rcpp::List hessian_map) {
+  ad_groups* groups = ad_groups_from_handle(handle);
+  ad_groups_attach_hessians_from_list(*groups, hessian_map);
+  ad_groups_attach_chol_pattern(*groups, hessian_map);
+}
+
+//' @title C++ backend entry points
 //' @name adlaplace_cpp
-
-//' @rdname adlaplace_cpp
-// [[Rcpp::export]]
-SEXP getAdFun(
-  Rcpp::List data,
-  Rcpp::List config)
-{
-  return getAdFun_h(data, config);
-}
-
-//' @rdname adlaplace_cpp
-// [[Rcpp::export]]
-SEXP adlaplace_build_groups(Rcpp::List data, Rcpp::List config) {
-  return buildAdGroups_h(data, config);
-}
-
+//' @description Low-level C++ entry points exposed to R via Rcpp.
+//'
+//' @section Sign convention:
+//' \code{jointLogDens()}, \code{grad()}, and \code{hessian()} evaluate the
+//' \strong{joint log density} \eqn{\ell(x)} and its derivatives (maximization sign).
+//' \code{all_derivs()} and the objective inside \code{inner_opt()} use the
+//' \strong{negative} log density \eqn{-\ell(x)} and its derivatives for
+//' \pkg{trustOptim} minimization. At the same \code{x} and \code{ad_fun},
+//' \code{all_derivs()$fval == -jointLogDens(ad_fun, x)},
+//' \code{all_derivs()$gradient == -grad(ad_fun, x)}, and
+//' \code{all_derivs()$hessian == -hessian(ad_fun, x)} (outer, full parameter vector).
+//' @param handle External pointer returned by \code{build_adfun()}.
+//' @param group 0-based group index for per-shard sparsity queries.
+//' @param data Model data list required by the backend builder.
+//' @param config Model configuration list required by the backend builder.
+//' @param x Numeric parameter vector of length \code{Nparams}.
+//' @param inner Logical scalar for inner-\eqn{\gamma} vs outer derivatives.
+//' @param Sgroups Optional integer vector of 0-based group indices.
+//' @param LinvPt,LinvPtColumns,verbose,num_threads See \code{traceHinvT()}.
+//'
 //' @rdname adlaplace_cpp
 // [[Rcpp::export]]
 int adlaplace_n_groups(SEXP handle) {
-  adlaplace_adpack_handle* h = get_handle(handle);
-  AdGroups* groups = groups_ctx(h->ctx);
-  return static_cast<int>(groups->size());
-}
-
-//' @rdname adlaplace_cpp
-// [[Rcpp::export]]
-Rcpp::List adlaplace_get_sizes(SEXP handle) {
-  return get_sizes_from_handle(get_handle(handle));
+  ad_groups* groups = ad_groups_from_handle(handle);
+  return static_cast<int>(groups->fun.size());
 }
 
 //' @rdname adlaplace_cpp
 // [[Rcpp::export]]
 Rcpp::List adlaplace_get_sparse_sizes(SEXP handle, int group) {
-  adlaplace_adpack_handle* h = get_handle(handle);
+  ad_groups* groups = ad_groups_from_handle(handle);
+  adlaplace_adpack_handle* h = shard_handle(groups, static_cast<size_t>(group));
   if (!h->api->get_sparse_sizes) {
     Rcpp::stop("backend api->get_sparse_sizes is NULL");
   }
 
-  int gi = group;
   int n_inner = 0;
   int n_outer = 0;
   int nnz_grad_inner = 0;
@@ -93,10 +79,10 @@ Rcpp::List adlaplace_get_sparse_sizes(SEXP handle, int group) {
   int nnz_hes_inner = 0;
   int nnz_hes_outer = 0;
   if (h->api->get_sparse_sizes(
-      h->ctx, &gi, &n_inner, &n_outer,
+      h->ctx, &n_inner, &n_outer,
       &nnz_grad_inner, &nnz_grad_outer,
       &nnz_hes_inner, &nnz_hes_outer) != 0) {
-    Rcpp::stop("backend api->get_sparse_sizes failed for group %d", gi);
+    Rcpp::stop("backend api->get_sparse_sizes failed for group %d", group);
   }
 
   return Rcpp::List::create(
@@ -112,11 +98,6 @@ Rcpp::List adlaplace_get_sparse_sizes(SEXP handle, int group) {
 //' @rdname adlaplace_cpp
 // [[Rcpp::export]]
 Rcpp::List adlaplace_get_sparse_pattern(SEXP handle, int group) {
-  return sparsity_shard_from_handle(get_handle(handle), group);
-}
-
-//' @rdname adlaplace_cpp
-// [[Rcpp::export]]
-void adlaplace_finalize_handle(SEXP handle, Rcpp::List hessians) {
-  finalizeAdHandle_h(handle, hessians);
+  ad_groups* groups = ad_groups_from_handle(handle);
+  return sparsity_shard_from_handle(shard_handle(groups, static_cast<size_t>(group)));
 }

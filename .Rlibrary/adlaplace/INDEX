@@ -1,11 +1,13 @@
 adFun_groups                                 Find groups of observations with similar sparsity
 adlaplace_cpp                                C++ backend entry points
+build_adfun                                  Build AD pack external pointer handle
 by_group                                     By-Group Classes and Functions
 by_group-class                               By-Group Class
 collect_terms                                Parse Model Terms from Formula
 f                                            Create Model Terms
 fpoly-class                                  Fixed Polynomial Model Term
 getAdFun                                     Build backend AD function handle
+hessianMap                                   Build grouped Hessian sparsity structures
 hrpoly-class                                 Hierarchical Random Polynomial Term Constructor
 iid-class                                    IID Random Effects Term
 innerOpt                                     Inner optimization over gamma using trust-region CG (sparse)

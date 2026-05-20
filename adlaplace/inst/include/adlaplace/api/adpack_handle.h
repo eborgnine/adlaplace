@@ -9,32 +9,26 @@ extern "C" {
 #endif
 
 // Versioning so you can evolve the API safely
-#define ADLAPLACE_ADPACK_API_VERSION 2
+#define ADLAPLACE_ADPACK_API_VERSION 4
 
 typedef struct adlaplace_adpack_api {
   int api_version;     // must be ADLAPLACE_ADPACK_API_VERSION
   int thread_safe;     // 1 if safe under OpenMP (no R calls)
 
-  // Evaluate f, grad, hess for "inner" problem (gamma), at x (length Ngamma).
-  // Return 0 on success; nonzero error code otherwise.
-  int (*f)(void* ctx, const int *i, const double* x, double* out_f);
-  int (*f_grad)(void* ctx, const int *i, const double* x, const bool *inner, 
+  // ctx points to a single GroupPack
+  int (*f)(void* ctx, const double* x, double* out_f);
+  int (*f_grad)(void* ctx, const double* x, const bool *inner,
     double* out_f, double* out_grad);
-  int (*f_grad_hess)(void* ctx, const int *i, const double* x, const bool *inner,
+  int (*f_grad_hess)(void* ctx, const double* x, const bool *inner,
                  double* out_f,
                      double* out_grad, double* out_hes, int* map);
 
-
-int (*get_sizes)(void* ctx, size_t* Nparams, size_t* Ngroups,
-                 size_t* Nbeta, size_t* Ngamma, size_t* Ntheta);
-
-
-int (*get_sparse_sizes)(void* ctx, const int* i,
+int (*get_sparse_sizes)(void* ctx,
     int* n_inner, int* n_outer,
     int* nnz_grad_inner, int* nnz_grad_outer,
     int* nnz_hes_inner, int* nnz_hes_outer);
 
-int (*get_sparse_pattern)(void* ctx, const int* i,
+int (*get_sparse_pattern)(void* ctx,
     int* pattern_grad_inner, int* pattern_grad_outer,
     int* pattern_hes_inner_row, int* pattern_hes_inner_col,
     int* pattern_hes_outer_row, int* pattern_hes_outer_col);
@@ -47,7 +41,6 @@ int (*get_hessian)(void* ctx, const bool *inner,
 
 int (*trace_hinv_t)(
   void* ctx,
-  const int* i,
   const double* x,
   const int* LinvPt_p,
   const int* LinvPt_i,
@@ -63,7 +56,7 @@ int (*trace_hinv_t)(
   double* out_trace);
 
 
-  // Optional destructor for ctx
+  // Optional destructor for ctx (single GroupPack)
   void (*destroy)(void* ctx);
 
   // Optional: return last error message (thread-local if parallel)

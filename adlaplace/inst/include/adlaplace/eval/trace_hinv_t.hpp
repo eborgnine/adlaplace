@@ -21,7 +21,6 @@ struct CscView {
 // Disabled until trace path is redesigned without BackendContext metadata.
 inline int eval_trace_hinv_t(
   void* vctx,
-  const int* i,
   const double* x,
   const int* LinvPt_p,
   const int* LinvPt_i,
@@ -37,7 +36,6 @@ inline int eval_trace_hinv_t(
   double* out_trace
 ) {
   (void)vctx;
-  (void)i;
   (void)x;
   (void)LinvPt_p;
   (void)LinvPt_i;

@@ -2,18 +2,27 @@
 #define ADLAPLACE_BACKEND_HPP
 
 #include <cppad/cppad.hpp>
+#include <Rcpp.h>
+#include <Eigen/Sparse>
 #include <vector>
 
-// Aggregated Hessian template + shard maps (built in R via hessianMapC).
-// Not stored on the AD handle; kept here for Rcpp conversion helpers.
-struct HessianPack {
-  std::vector<int> hessian_p;
-  std::vector<int> hessian_i;
-  std::vector<int> dim;
+#include "adlaplace/api/adpack_handle.h"
+#include "adlaplace/runtime/rviews.hpp"
 
-  std::vector<int> map_p;
-  std::vector<int> map_local;
-  std::vector<int> map_global;
+// Stored copy of a Matrix dCHMsimpl object (symbolic shell from hessian_map()).
+struct CholPattern {
+	int n = 0;
+	std::vector<int> p;
+	std::vector<int> i;
+	std::vector<int> nz;
+	std::vector<int> nxt;
+	std::vector<int> prv;
+	std::vector<int> type;
+	std::vector<int> colcount;
+	std::vector<int> perm;
+	// Inverse permutation for Eigen (pinv.indices()[orig] = j if perm[j] = orig); used with twistedBy(P).
+	Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic, int> pinv;
+	std::vector<int> dim;
 };
 
 struct GroupPack {
@@ -33,6 +42,24 @@ struct GroupPack {
   CPPAD_TESTVECTOR(double) x;
 };
 
-using AdGroups = std::vector<GroupPack>;
+// One AD shard (GroupPack) exposed through the C API.
+using ad_vector = std::vector<adlaplace_adpack_handle*>;
+
+using hessian_template = Eigen::SparseMatrix<int, Eigen::ColMajor, int>;
+
+
+// Shard handles + Hessian templates/maps (filled from getAdFun() list via get_ad_groups()).
+struct ad_groups {
+  ad_vector fun;
+  hessian_template hessian_outer;
+  hessian_template hessian_inner;
+  hessian_map_view map_outer;
+  hessian_map_view map_inner;
+  IntVecView sizes;
+  CholPattern chol_pattern;
+  bool hessians_attached = false;
+};
+
+void ad_groups_attach_chol_pattern(ad_groups& groups, const Rcpp::List& ad_fun);
 
 #endif
