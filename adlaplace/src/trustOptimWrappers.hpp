@@ -11,8 +11,8 @@
 #include <omp.h>
 
 #include "adlaplace/api/adpack_handle.h"
-#include "adlaplace/runtime/interfaces.hpp"
-#include "adlaplace/runtime/rviews.hpp"
+#include "adlaplace/runtime/interfaces_detail.hpp"
+#include "adlaplace/creators/rviews.hpp"
 
 struct AD_Func_Opt {
   ad_groups* const groups;

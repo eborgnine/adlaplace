@@ -2,3 +2,5 @@
 ^\.lintr$
 ^\.gitignore$
 ^\.\.Rcheck$
+^config\.
+^config\.[0-9]+/

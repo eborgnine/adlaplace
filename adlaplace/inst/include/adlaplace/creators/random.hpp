@@ -2,11 +2,13 @@
 #define LOGDENSRANDOM_HPP
 
 #include "adlaplace/math/constants.hpp"
-#include "adlaplace/adlaplace.hpp"
+#include "adlaplace/creators/rviews.hpp"
+#include "adlaplace/api/adpack_handle.h"
+#include "adlaplace/api/backend.hpp"
 
 /*
 	the standard log density for random effects
-	include with #include "adlaplace/logDensRandom.hpp"
+	include with #include "adlaplace/creators/random.hpp"
 	missing part of det Q.  note D = diag(theta), Q = D %*% Q0 %*% D.
 	log |Q| = 2 log |D| + |Q0|, we're not doing |Q0|, if it's a constant that's fine.
 */

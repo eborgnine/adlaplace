@@ -4,7 +4,7 @@
 #include <Rcpp.h>
 #include <Eigen/Sparse>
 
-#include "adlaplace/runtime/backend.hpp"
+#include "adlaplace/api/backend.hpp"
 
 #include <vector>
 

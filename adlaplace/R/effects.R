@@ -111,9 +111,3 @@ collect_terms <- function(
   terms_1
 }
 
-
-make_empty_formula <- function(prefix = "", x) {
-  stats::formula(paste0("~ 0 + ", prefix, x), env = new.env())
-}
-
-

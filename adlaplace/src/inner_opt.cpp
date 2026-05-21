@@ -60,7 +60,7 @@
 
 // Local
 #include "adlaplace/math/constants.hpp"
-#include "adlaplace/runtime/rviews.hpp"
+#include "adlaplace/creators/rviews.hpp"
 #include "adlaplace/ompad.hpp"
 #include "chol_update.hpp"
 #include "trustOptimWrappers.hpp"

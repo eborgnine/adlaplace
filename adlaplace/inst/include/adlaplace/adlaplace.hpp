@@ -1,6 +1,10 @@
+#ifndef ADLAPLACE_HPP
+#define ADLAPLACE_HPP
 
-// for accessing functions in adlaplace
+// Deprecated umbrella: prefer explicit includes below.
 
-#include "adlaplace/runtime/backend.hpp"
-#include "adlaplace/runtime/rviews.hpp"
+#include "adlaplace/creators/rviews.hpp"
 #include "adlaplace/api/adpack_handle.h"
+#include "adlaplace/api/backend.hpp"
+
+#endif

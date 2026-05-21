@@ -3,8 +3,8 @@
 
 #include <Rcpp.h>
 
-#include "adlaplace/runtime/backend.hpp"
-#include "adlaplace/runtime/rviews.hpp"
+#include "adlaplace/api/backend.hpp"
+#include "adlaplace/creators/rviews.hpp"
 
 inline hessian_template hessian_template_from_dgc(
   const DgCView& tpl,

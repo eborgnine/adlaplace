@@ -4,7 +4,8 @@
 #include <vector>
 
 #include "adlaplace/ompad.hpp"
-#include "adlaplace/runtime/interfaces.hpp"
+#include "adlaplace/eval/trace_hinv_t.hpp"
+#include "adlaplace/runtime/interfaces_detail.hpp"
 
 //' @rdname adlaplace_cpp
 //' @export

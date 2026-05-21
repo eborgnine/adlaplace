@@ -1,12 +1,10 @@
+# Define factor levels for model type (must be available before term classes load)
+#' @export
+.type_factor_levels <- c("fixed", "random", "response")
+
 #' @useDynLib adlaplace, .registration = TRUE
 #' @importFrom Rcpp evalCpp
 NULL
-
-
-
-# Define factor levels for model type
-#' @export
-.type_factor_levels <- c("fixed", "random", "response")
 
 #' Model Term Generics
 #'

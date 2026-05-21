@@ -8,7 +8,7 @@
 #include <cstddef>
 #include <cstdio>
 
-#include "adlaplace/runtime/backend.hpp"
+#include "adlaplace/api/backend.hpp"
 
 
 // Get sparsity sizes for a single GroupPack

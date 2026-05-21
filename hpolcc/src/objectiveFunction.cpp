@@ -3,7 +3,7 @@
 #include "adlaplace/adlaplace.hpp"
 
 // use the standard log density for random effects
-#include "adlaplace/logDens/random.hpp"
+#include "adlaplace/creators/random.hpp"
 
 CppAD::AD<double> stable_logsumexp(const CppAD::vector<CppAD::AD<double>> &eta)
 {

@@ -1,6 +1,6 @@
 #include "adlaplace/adlaplace.hpp"
 #include "adlaplace/math/constants.hpp"
-#include "adlaplace/logDens/random.hpp"
+#include "adlaplace/creators/random.hpp"
 
 CppAD::vector<CppAD::AD<double>> logDensObs(
   const CppAD::vector<CppAD::AD<double>>& x,

@@ -15,7 +15,9 @@
 #include <numeric>
 #include <vector>
 
-#include "adlaplace/adlaplace.hpp" // data and config
+#include "adlaplace/creators/rviews.hpp"
+#include "adlaplace/api/adpack_handle.h"
+#include "adlaplace/api/backend.hpp"
 
 
 static const std::string JAC_COLOR  = "cppad";

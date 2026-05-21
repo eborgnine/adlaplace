@@ -88,18 +88,13 @@ The following methods are available for `hrpoly` objects:
 term <- hrpoly(x = "age", p = 2, ref_value = 0, by = "site")
 str(term)
 # Create sample data
-
 set.seed(42)
 dat <- data.frame(
   age = rep(seq(0, 80, by = 10), each = 3),
   site = rep(c("A", "B", "C"), times = 9)
 )
 by_group(term@by@term, dat)
-term <- hrpoly(x = "age", p = 2, ref_value = 0, 
-by = by_group(term = "site", data = dat))
-
-
 # Compute the design matrix
 design_mat <- design(term, dat)
-head(design_mat)
+print(design_mat)
 }

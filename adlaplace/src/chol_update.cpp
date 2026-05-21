@@ -7,7 +7,7 @@
 #include <Rcpp.h>
 #include <Rinternals.h>
 
-#include "adlaplace/runtime/backend.hpp"
+#include "adlaplace/api/backend.hpp"
 
 namespace {
 

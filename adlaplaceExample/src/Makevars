@@ -1,4 +1,4 @@
 # ADLAPLACE_HAVE_KMPC_DISPATCH_DEINIT is set by configure.
 PKG_CPPFLAGS = -I../inst/include -DCPPAD_HAS_COLPACK=0 -I/opt/homebrew/Cellar/cppad/20260000.0/include -I/opt/homebrew/opt/libomp/include -I/opt/homebrew/include -isystem /Library/Frameworks/R.framework/Versions/4.6/Resources/library/RcppEigen/include -DADLAPLACE_HAVE_KMPC_DISPATCH_DEINIT=0 -DEIGEN_DONT_PARALLELIZE
 PKG_CXXFLAGS = -Xpreprocessor -fopenmp
-PKG_LIBS     = -L/opt/homebrew/Cellar/cppad/20260000.0/lib -lcppad_lib /Library/Frameworks/R.framework/Versions/4.6/Resources/lib/libomp.dylib -Wl,-rpath,/Library/Frameworks/R.framework/Versions/4.6/Resources/lib
+PKG_LIBS     = -L/opt/homebrew/Cellar/cppad/20260000.0/lib -lcppad_lib /Library/Frameworks/R.framework/Versions/4.6/Resources/lib/libomp.dylib -Wl,-rpath,/Library/Frameworks/R.framework/Versions/4.6/Resources/lib /Library/Frameworks/R.framework/Versions/4.6/Resources/library/adlaplace/libs/adlaplace.so -Wl,-rpath,/Library/Frameworks/R.framework/Versions/4.6/Resources/library/adlaplace/libs

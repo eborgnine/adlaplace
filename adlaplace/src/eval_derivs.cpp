@@ -3,7 +3,7 @@
 #include <map>
 #include <vector>
 
-#include "adlaplace/runtime/interfaces.hpp"
+#include "adlaplace/runtime/interfaces_detail.hpp"
 
 //' @title C++ backend entry points
 //' @name adlaplace_cpp

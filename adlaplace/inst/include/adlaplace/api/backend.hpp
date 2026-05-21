@@ -7,7 +7,7 @@
 #include <vector>
 
 #include "adlaplace/api/adpack_handle.h"
-#include "adlaplace/runtime/rviews.hpp"
+#include "adlaplace/creators/rviews.hpp"
 
 // Symbolic LDL pattern from hessian_map() chol_inner (dCHMsimpl): p, i, perm only.
 struct CholPattern {

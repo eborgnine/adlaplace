@@ -6,7 +6,7 @@
 #include <cstddef>
 #include <vector>
 
-#include "adlaplace/runtime/backend.hpp"
+#include "adlaplace/api/backend.hpp"
 
 inline const char* trace_hinv_t_strerror(int rc) {
   switch (rc) {

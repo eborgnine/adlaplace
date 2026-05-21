@@ -1,7 +1,7 @@
 #include <Rcpp.h>
 #include <cppad/cppad.hpp>
 
-#include "adlaplace/runtime/interfaces.hpp"
+#include "adlaplace/api/register.hpp"
 
 //' Backend AD builder for hpolcc
 //'

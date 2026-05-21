@@ -1,7 +1,8 @@
 #include <Rcpp.h>
 
 #include <Rinternals.h>
-#include "adlaplace/runtime/interfaces.hpp"
+#include "adlaplace/api/register.hpp"
+#include "adlaplace/runtime/interfaces_detail.hpp"
 
 //' Build raw AD pack external pointer handle
 //'

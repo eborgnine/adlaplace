@@ -9,7 +9,7 @@
 //#define DEBUG can't multi-thread with debug enabled
 
 // use the standard logDensRandom from logDensRandom.hpp
-#include "adlaplace/logDens/random.hpp"
+#include "adlaplace/creators/random.hpp"
 
 
 CppAD::vector<CppAD::AD<double>> logDensObs(

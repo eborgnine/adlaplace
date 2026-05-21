@@ -1,0 +1,53 @@
+---
+title: "Extending adlaplace with a custom backend"
+---
+
+## Overview
+
+Backend packages (such as **adlaplaceExample**) supply model-specific C++ log-density
+shards and register an AD handle with **adlaplace**. **adlaplace** provides Laplace
+approximation, inner optimization, and Hessian tooling.
+
+## Two source files
+
+| File | Role |
+|------|------|
+| `src/objectiveFunction.cpp` | Define `logDensObs`, `logDensRandom`, `logDensExtra`; include `adlaplace/creators/adfun.hpp` last |
+| `src/Rinterfaces.cpp` | Export `getAdFun_r()` via `get_ad_fun_raw_h()` from `adlaplace/api/register.hpp` |
+
+## Public headers (`LinkingTo: adlaplace`)
+
+| Header | Use |
+|--------|-----|
+| `adlaplace/creators/rviews.hpp` | `Data`, `Config`, R matrix views |
+| `adlaplace/api/backend.hpp` | `GroupPack`, `ad_groups` |
+| `adlaplace/creators/adfun.hpp` | Build CppAD tapes after density callbacks |
+| `adlaplace/creators/random.hpp` | Optional default `logDensRandom` |
+| `adlaplace/creators/extra_empty.hpp` | Optional zero `logDensExtra` shard |
+| `adlaplace/math/constants.hpp` | Shared constants |
+| `adlaplace/math/lgamma.hpp` | CppAD `lgamma_ad()` atomic for custom likelihoods |
+| `adlaplace/api/register.hpp` | `get_ad_fun_raw_h()` for R export |
+| `adlaplace/api/adpack_handle.h` | C ABI for advanced use |
+
+Deprecated shim (still installed):
+
+- `adlaplace/adlaplace.hpp` → includes `rviews.hpp`, `adpack_handle.h`, `backend.hpp`
+
+## R wrapper contract
+
+`getAdFun_r(data, config)` should return the same structure as `adlaplace::get_ad_fun()`:
+`ad_fun` (external pointer), `group_sparsity`, and the list from `hessian_map()`.
+See **adlaplaceExample** `R/getAdFun_r.R`.
+
+Link the backend shared library to **adlaplace** (see `configure` in **adlaplaceExample**).
+
+## Usage from R
+
+```r
+ad_fun <- adlaplace::get_ad_fun(data, config, package = "myBackend")
+res <- adlaplace::logLikLaplace(
+  x = c(config$beta, config$theta),
+  config = config,
+  ad_fun = ad_fun
+)
+```

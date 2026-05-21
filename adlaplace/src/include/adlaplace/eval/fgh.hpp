@@ -1,14 +1,14 @@
 #ifndef API_FUNCTIONS_HPP
 #define API_FUNCTIONS_HPP
 
+#include <Rcpp.h>
 #include <cppad/cppad.hpp>
-#include <Rinternals.h>
 
 #include <vector>
 #include <cstddef>
 #include <cstdio>
 
-#include "adlaplace/runtime/backend.hpp"
+#include "adlaplace/api/backend.hpp"
 #include "adlaplace/runtime/sizes.hpp"
 
 static int get_hessian(void* vctx,
