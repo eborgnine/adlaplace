@@ -3,23 +3,14 @@
 
 #include "adlaplace/runtime/interfaces.hpp"
 
-//' Backend AD builder for adlaplaceExample
-//'
-//' Builds model-specific AD tapes/metadata for this backend package.
-//' Evaluation should be done through \pkg{adlaplace} functions
-//' (\code{jointLogDens()}, \code{grad()}, \code{hess()}, \code{traceHinvT()}).
+//' Build raw AD pack external pointer (adlaplaceExample)
 //'
 //' @param data Model data list.
 //' @param config Model configuration list.
-//'
-//' @return External pointer AD handle used by \pkg{adlaplace}.
-//'
-//' @name adlaplace_backend_cpp
-
-//' @rdname adlaplace_backend_cpp
-//' @export
+//' @return External pointer of class \code{adlaplace_handle_ptr}.
+//' @keywords internal
 // [[Rcpp::export]]
-SEXP getAdFun_r(
+SEXP get_ad_fun_raw_example(
   Rcpp::List data,
   Rcpp::List config)
 {

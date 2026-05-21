@@ -28,10 +28,10 @@ SEXP get_ad_fun_raw(Rcpp::List data, Rcpp::List config) {
 //' @param hessian_pack List returned by \code{hessian_map()}.
 //' @export
 // [[Rcpp::export]]
-void adlaplace_attach_hessian(SEXP handle, Rcpp::List hessian_map) {
+void adlaplace_attach_hessian(SEXP handle, Rcpp::List hessian_pack) {
   ad_groups* groups = ad_groups_from_handle(handle);
-  ad_groups_attach_hessians_from_list(*groups, hessian_map);
-  ad_groups_attach_chol_pattern(*groups, hessian_map);
+  ad_groups_attach_hessians_from_list(*groups, hessian_pack);
+  ad_groups_attach_chol_pattern(*groups, hessian_pack);
 }
 
 //' Number of AD shards in an \code{ad_groups} handle

@@ -2,4 +2,8 @@
 
 export(getAdFun_r)
 importFrom(Rcpp,evalCpp)
+importFrom(adlaplace,get_sparse_pattern)
+importFrom(adlaplace,get_sparse_sizes)
+importFrom(adlaplace,hessian_map)
+importFrom(adlaplace,n_groups)
 useDynLib(adlaplaceExample, .registration = TRUE)

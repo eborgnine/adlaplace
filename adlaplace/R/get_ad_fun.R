@@ -31,8 +31,8 @@
 #' }
 #'
 #' @seealso
-#' \code{\link[adlaplace]{inner_opt}}, \code{\link[adlaplace]{logLikLaplace}},
-#' \code{\link[adlaplace]{get_adFun_r}}
+#' \code{\link{inner_opt}}, \code{\link{logLikLaplace}}, \code{\link{hessian_map}}.
+#' Backend packages should export \code{getAdFun_r()}.
 #'
 #' @export
 get_ad_fun <- function(data, config, package = c(config$package, "adlaplace")[1]) {

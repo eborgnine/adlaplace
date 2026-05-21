@@ -4,7 +4,7 @@
 \alias{adlaplace_attach_hessian}
 \title{Attach hessian_map() result to an ad_groups handle}
 \usage{
-adlaplace_attach_hessian(handle, hessian_map)
+adlaplace_attach_hessian(handle, hessian_pack)
 }
 \arguments{
 \item{handle}{External pointer from \code{get_ad_fun_raw()} or \code{get_ad_fun()}.}

@@ -44,15 +44,15 @@ config <- list(
 ```
 
 ```{r}
-adFun <- adlaplace::get_ad_fun(model_stuff$data, config)
+ad_fun <- adlaplace::get_ad_fun(model_stuff$data, config, package = "adlaplaceExample")
 res <- adlaplace::logLikLaplace(
   x = c(config$beta, config$theta),
-  adFun = adFun,
+  ad_fun = ad_fun,
   config = modifyList(config, list(verbose = FALSE)),
   deriv = TRUE
 )
 res$parameters
-res$fval
+-res$logLik
 res$grad
 ```
 
@@ -64,8 +64,8 @@ cache$gamma <- config$gamma
 
 x0 <- c(config$beta, config$theta)
 
-adlaplace::outer_fn(x = x0, cache = cache, config = config, adFun = adFun)
-adlaplace::outer_gr(x = x0, cache = cache, config = config, adFun = adFun)
+adlaplace::outer_fn(x = x0, cache = cache, config = config, ad_fun = ad_fun)
+adlaplace::outer_gr(x = x0, cache = cache, config = config, ad_fun = ad_fun)
 
 outer_fit <- stats::optim(
   par = x0,
@@ -78,7 +78,7 @@ outer_fit <- stats::optim(
     REPORT = 1
   ),
   config = config,
-  adFun = adFun,
+  ad_fun = ad_fun,
   cache = cache
 )
 outer_fit$par
@@ -88,7 +88,7 @@ outer_fit$value
 ```{r}
 res <- adlaplace::logLikLaplace(
   x = outer_fit$par,
-  adFun = adFun,
+  ad_fun = ad_fun,
   config = modifyList(config, list(verbose = FALSE)),
   deriv = TRUE
 )
@@ -127,11 +127,11 @@ parDf[Dpar, ] <- Sx
 res <- mapply(
   adlaplace::logLikLaplace,
   x = as.list(parDf),
-  MoreArgs = list(adFun = adFun, config = config, deriv = TRUE),
+  MoreArgs = list(ad_fun = ad_fun, config = config, deriv = TRUE),
   SIMPLIFY = FALSE
 )
 Slik <- unlist(lapply(res, "[[", "logLik"))
-Sdet <- unlist(lapply(res, function(xx) sum(log(xx$hessian$cholInner$D@x) / 2)))
+Sdet <- unlist(lapply(res, function(xx) xx$opt$half_log_det))
 dU <- do.call(
   abind::abind,
   c(lapply(res, function(xx) as.matrix(xx$extra$dU)), along = 3)

@@ -24,8 +24,8 @@ get_ad_fun_raw <- function(data, config) {
 #' @param handle External pointer from \code{get_ad_fun_raw()} or \code{get_ad_fun()}.
 #' @param hessian_pack List returned by \code{hessian_map()}.
 #' @export
-adlaplace_attach_hessian <- function(handle, hessian_map) {
-    invisible(.Call(`_adlaplace_adlaplace_attach_hessian`, handle, hessian_map))
+adlaplace_attach_hessian <- function(handle, hessian_pack) {
+    invisible(.Call(`_adlaplace_adlaplace_attach_hessian`, handle, hessian_pack))
 }
 
 #' Number of AD shards in an \code{ad_groups} handle

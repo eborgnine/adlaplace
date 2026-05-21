@@ -91,17 +91,17 @@ config <- list(
 ## Evaluate objective, gradient, and Hessian
 
 ```{r derivs}
-adFun <- adlaplace::get_ad_fun(data, config, package = "adlaplaceExample")
+ad_fun <- adlaplace::get_ad_fun(data, config, package = "adlaplaceExample")
 true_theta <- c(log(c(sd_random, omega_true)), alpha_true)
 x <- c(beta_true, gamma_true, true_theta)
 
-Sgroups <- seq.int(0L, length.out = length(adFun$sparsity))
+Sgroups <- seq.int(0L, length.out = adlaplace::n_groups(ad_fun$ad_fun))
 # Sgroups = 0L
 
-adlaplace::jointLogDens(x, adFun, Sgroups)
+adlaplace::jointLogDens(ad_fun, x, Sgroups)
 
-g <- adlaplace::grad(x, adFun, inner = FALSE)
-H <- adlaplace::hess(x, adFun, inner = FALSE)
+g <- adlaplace::grad(ad_fun, x, inner = FALSE)
+H <- adlaplace::hessian(ad_fun, x, inner = FALSE)
 
 str(g)
 str(H)
@@ -112,15 +112,15 @@ quantile(eigen(H)$values)
 ## Trust-optimization and Laplace log-likelihood interface
 
 ```{r trustOptimInterface}
-adFun <- adlaplace::get_ad_fun(data, config, package = "adlaplaceExample")
+ad_fun <- adlaplace::get_ad_fun(data, config, package = "adlaplaceExample")
 
 res <- adlaplace::logLikLaplace(
   x = c(config$beta, config$theta),
   config = config,
-  adFun = adFun,
+  ad_fun = ad_fun,
   deriv = TRUE
 )
-res$fval
+-res$logLik
 res$grad
 ```
 
@@ -131,8 +131,8 @@ cache$gamma <- config$gamma
 
 x0 <- c(config$beta, config$theta)
 
-adlaplace::outer_fn(x = x0, cache = cache, config = config, adFun = adFun)
-adlaplace::outer_gr(x = x0, cache = cache, config = config, adFun = adFun)
+adlaplace::outer_fn(x = x0, cache = cache, config = config, ad_fun = ad_fun)
+adlaplace::outer_gr(x = x0, cache = cache, config = config, ad_fun = ad_fun)
 
 outer_fit <- trustOptim::trust.optim(
   x = x0,
@@ -140,7 +140,7 @@ outer_fit <- trustOptim::trust.optim(
   gr = adlaplace::outer_gr,
   method = "SR1",
   config = modifyList(config, list(verbose = FALSE)),
-  adFun = adFun,
+  ad_fun = ad_fun,
   cache = cache,
   control = list(
     maxit = 1000,
@@ -172,12 +172,12 @@ parDf[Dpar, ] <- Sx
 res <- mapply(
   adlaplace::logLikLaplace,
   x = as.list(parDf),
-  MoreArgs = list(adFun = adFun, config = config, deriv = TRUE),
+  MoreArgs = list(ad_fun = ad_fun, config = config, deriv = TRUE),
   SIMPLIFY = FALSE
 )
 
 Slik <- unlist(lapply(res, "[[", "logLik"))
-Sdet <- unlist(lapply(res, function(xx) xx$opt$halfLogDet))
+Sdet <- unlist(lapply(res, function(xx) xx$opt$half_log_det))
 dU <- do.call(
   abind::abind, c(lapply(res, function(xx) as.matrix(xx$extra$dU)), along = 3)
 )
@@ -208,7 +208,7 @@ lines(SxD, diff(Sdet) / diff(Sx))
 ```{r derivJointDens, eval=FALSE}
 config$gamma <- rep(1, length(config$gamma))
 x <- c(config$beta, config$gamma, config$theta)
-adFun <- adlaplace::get_ad_fun(data, modifyList(config, list(verbose = TRUE)))
+ad_fun <- adlaplace::get_ad_fun(data, modifyList(config, list(verbose = TRUE)))
 
 inner <- FALSE
 type <- c("outer", "inner")[1 + inner]
@@ -222,26 +222,31 @@ if (inner) {
 }
 Dpar0 <- Dpar - 1L
 
-bob <- as(adFun$hessians$hessian[[type]], "TsparseMatrix")
+bob <- as(ad_fun[[type]], "TsparseMatrix")
 (whichIndex <- which(bob@i == Dpar0 & bob@j == Dpar0) - 1L)
-(whichGlobal <- which(adFun$hessians$map[[type]]$global == whichIndex) - 1L)
-
+map_type <- if (inner) ad_fun$map_inner else ad_fun$map_outer
+(whichGlobal <- which(map_type$global == whichIndex) - 1L)
 (whichP <- mapply(
-  function(xx) min(which(adFun$hessian$map[[type]]$p >= xx)),
+  function(xx) min(which(map_type$p >= xx)),
   xx = whichGlobal
 ) - 1L)
 
+sparsity_shard <- lapply(
+  seq_len(adlaplace::n_groups(ad_fun$ad_fun)) - 1L,
+  function(g) {
+    c(
+      adlaplace::get_sparse_sizes(ad_fun$ad_fun, g),
+      adlaplace::get_sparse_pattern(ad_fun$ad_fun, g)
+    )
+  }
+)
 
-do.call(rbind, adFun$sparsity[[
-  whichP[1]
-]][c("row_hess", "col_hess")])
-do.call(rbind, adlaplace$sparsity[[
-  whichP[1]
-]][c("row_hess_inner", "col_hess_inner")])
+do.call(rbind, sparsity_shard[[whichP[1] + 1L]][c("row_hess", "col_hess")])
+do.call(rbind, sparsity_shard[[whichP[1] + 1L]][c("row_hess_inner", "col_hess_inner")])
 
 
-# Sgroups = length(adFun$sparsity)-12L
-# Sgroups = seq.int(from=0, length.out = length(adFun$sparsity))
+# Sgroups = length(sparsity_shard)-12L
+# Sgroups = seq.int(from=0, length.out = length(sparsity_shard))
 
 Sgroups <- 376
 
@@ -255,7 +260,7 @@ parDf[Dpar, ] <- Sx
 dens1 <- mapply(
   adlaplace::jointLogDens,
   x = as.list(parDf),
-  MoreArgs = list(backendContext = adFun, Sgroups = Sgroups),
+  MoreArgs = list(ad_fun = ad_fun, Sgroups = Sgroups),
   SIMPLIFY = TRUE
 )
 
@@ -265,7 +270,7 @@ plot(Sx, dens1)
 grad1 <- mapply(
   adlaplace::grad,
   x = as.list(parDf),
-  MoreArgs = list(backendContext = adFun, inner = inner, Sgroups = Sgroups),
+  MoreArgs = list(ad_fun = ad_fun, inner = inner, Sgroups = Sgroups),
   SIMPLIFY = TRUE
 )
 plot(Sx, grad1[Dpar, ])
@@ -273,9 +278,9 @@ lines(SxD, diff(dens1) / diff(Sx))
 
 
 hes1 <- mapply(
-  adlaplace::hess,
+  adlaplace::hessian,
   x = as.list(parDf),
-  MoreArgs = list(backendContext = adFun, inner = inner, Sgroups = Sgroups),
+  MoreArgs = list(ad_fun = ad_fun, inner = inner, Sgroups = Sgroups),
   SIMPLIFY = FALSE
 )
 

@@ -80,7 +80,7 @@ by_group <- function(term, data = NULL, levels = NULL) {
 #' dat <- data.frame(age = 1:10, site = rep(c("A", "B"), each = 5))
 #' hrp <- add_by_levels(hrp, dat)
 add_by_levels <- function(term, data) {
-  if (!"by" %in% slotNames(term)) {
+  if (!"by" %in% methods::slotNames(term)) {
     return(term)
   }
 

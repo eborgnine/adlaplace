@@ -26,7 +26,7 @@ Collate:
     'fpoly.R'
     'get_ad_fun.R'
     'groups.R'
-    'hessianMap.R'
+    'hessian_map.R'
     'rpoly.R'
     'hrpoly.R'
     'iid.R'

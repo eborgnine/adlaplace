@@ -23,13 +23,13 @@ BEGIN_RCPP
 END_RCPP
 }
 // adlaplace_attach_hessian
-void adlaplace_attach_hessian(SEXP handle, Rcpp::List hessian_map);
-RcppExport SEXP _adlaplace_adlaplace_attach_hessian(SEXP handleSEXP, SEXP hessian_mapSEXP) {
+void adlaplace_attach_hessian(SEXP handle, Rcpp::List hessian_pack);
+RcppExport SEXP _adlaplace_adlaplace_attach_hessian(SEXP handleSEXP, SEXP hessian_packSEXP) {
 BEGIN_RCPP
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< SEXP >::type handle(handleSEXP);
-    Rcpp::traits::input_parameter< Rcpp::List >::type hessian_map(hessian_mapSEXP);
-    adlaplace_attach_hessian(handle, hessian_map);
+    Rcpp::traits::input_parameter< Rcpp::List >::type hessian_pack(hessian_packSEXP);
+    adlaplace_attach_hessian(handle, hessian_pack);
     return R_NilValue;
 END_RCPP
 }

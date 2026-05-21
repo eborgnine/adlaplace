@@ -13,8 +13,8 @@ SystemRequirements: CppAD, OpenMP
 License: GPL-3
 Depends: R (>= 4.1.0)
 LinkingTo: Rcpp, adlaplace, RcppEigen, trustOptim
-Imports: Rcpp
-Suggests: Matrix, trustOptim, abind, adlaplace, quarto
+Imports: Rcpp, adlaplace, Matrix
+Suggests: trustOptim, abind, quarto
 Enhances: sn
 VignetteBuilder: quarto
 Encoding: UTF-8

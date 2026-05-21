@@ -155,7 +155,7 @@ hessian_map <- function(sparsity_list, Nbeta, Ngamma, Ntheta) {
   }
 
   L <- Matrix::expand2(chol_inner)$L1
-  Linv <- as(Matrix::solve(L), "nMatrix")
+  Linv <- methods::as(Matrix::solve(L), "nMatrix")
 
   list(
     outer = hessian_outer,
