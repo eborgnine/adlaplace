@@ -7,7 +7,7 @@
 n_groups(handle)
 }
 \arguments{
-\item{handle}{External pointer from \code{build_adfun()} or \code{getAdFun()}.}
+\item{handle}{External pointer from \code{get_ad_fun_raw()} or \code{get_ad_fun()}.}
 }
 \value{
 Integer count of groups (shards).

@@ -3,7 +3,7 @@
 #include <Rinternals.h>
 #include "adlaplace/runtime/interfaces.hpp"
 
-//' Build AD pack external pointer handle
+//' Build raw AD pack external pointer handle
 //'
 //' Constructs grouped CppAD tapes and returns an opaque \code{ad_groups}
 //' handle (fun only; attach Hessian templates via \code{adlaplace_attach_hessian()}).
@@ -13,18 +13,18 @@
 //'
 //' @return External pointer of class \code{adlaplace_handle_ptr}.
 //'
-//' @seealso \code{\link{getAdFun}}
+//' @seealso \code{\link{get_ad_fun}}
 //' @export
 // [[Rcpp::export]]
-SEXP build_adfun(Rcpp::List data, Rcpp::List config) {
-  return build_adfun_h(data, config);
+SEXP get_ad_fun_raw(Rcpp::List data, Rcpp::List config) {
+  return get_ad_fun_raw_h(data, config);
 }
 
 //' Attach hessian_map() result to an ad_groups handle
 //'
 //' Copies outer/inner templates and maps into \code{ad_groups}.
 //'
-//' @param handle External pointer from \code{build_adfun()} or \code{getAdFun()}.
+//' @param handle External pointer from \code{get_ad_fun_raw()} or \code{get_ad_fun()}.
 //' @param hessian_pack List returned by \code{hessian_map()}.
 //' @export
 // [[Rcpp::export]]
@@ -36,7 +36,7 @@ void adlaplace_attach_hessian(SEXP handle, Rcpp::List hessian_map) {
 
 //' Number of AD shards in an \code{ad_groups} handle
 //'
-//' @param handle External pointer from \code{build_adfun()} or \code{getAdFun()}.
+//' @param handle External pointer from \code{get_ad_fun_raw()} or \code{get_ad_fun()}.
 //' @return Integer count of groups (shards).
 //' @export
 // [[Rcpp::export]]
@@ -47,7 +47,7 @@ int n_groups(SEXP handle) {
 
 //' Sparse structure sizes for one AD shard
 //'
-//' @param handle External pointer from \code{build_adfun()} or \code{getAdFun()}.
+//' @param handle External pointer from \code{get_ad_fun_raw()} or \code{get_ad_fun()}.
 //' @param group 0-based group index.
 //' @return List with \code{n_inner}, \code{n_outer}, \code{nnz_grad_*}, \code{nnz_hes_*}.
 //' @export
@@ -84,7 +84,7 @@ Rcpp::List get_sparse_sizes(SEXP handle, int group) {
 
 //' Sparse index patterns for one AD shard
 //'
-//' @param handle External pointer from \code{build_adfun()} or \code{getAdFun()}.
+//' @param handle External pointer from \code{get_ad_fun_raw()} or \code{get_ad_fun()}.
 //' @param group 0-based group index.
 //' @return List with \code{grad}, \code{grad_inner}, \code{row_hess}, \code{col_hess}, etc.
 //' @export

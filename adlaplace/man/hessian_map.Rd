@@ -7,7 +7,7 @@
 hessian_map(sparsity_list, Nbeta, Ngamma, Ntheta)
 }
 \arguments{
-\item{sparsity_list}{List of per-group sparsity shards from \code{getAdFun()}.}
+\item{sparsity_list}{List of per-group sparsity shards from \code{get_ad_fun()}.}
 
 \item{Nbeta}{Number of fixed-effect parameters.}
 

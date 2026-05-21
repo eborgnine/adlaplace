@@ -30,7 +30,7 @@ forres <- hpolcc::hnlm(
 ```
 
 ```{r testInner}
-adFun <- adlaplace::getAdFun(forres$tmb_data, forres$config, package = "hpolcc")
+adFun <- adlaplace::get_ad_fun(forres$tmb_data, forres$config, package = "hpolcc")
 
 x <- c(4.71461887751959e-06, -8.04120825920749e-06, -3.17136170320387e-06, 7.02530508805759e-06, -2.58659812942438e-07, 1.35860339851067e-06, -4.23664816890871e-06, -3.38219589166039e-06, 2.92665837902961e-05, -6.80603081362575e-06, 1.06149246332859e-05, -5.9823264698775e-06, 2.634080302724e-06, 1.74072873708512e-05, 3.69992211723326e-06, -7.67913851683587e-06, 5.88780670241202e-06, -8.21165864414836e-06, 1.95032602644481e-05, -5.66686794853859e-06, -8.67738975579335e-06, -6.60252885083634e-06, -7.90656224114487e-06, 1.26660585340989e-06, -6.502213741154e-06, -1.3180163384068e-05, 3.12152660766921e-06, -1.0476354760902e-05, -7.92620635119666e-07, -1.11439028417037e-06, -4.00000008020657, -4.00000015597001, -4.00000006437399, -4.00000044784534, -7.30258509272937)
 inner_res <- adlaplace::logLikLaplace(
@@ -54,7 +54,7 @@ quantile(inner_res$grad)
 
 
 ```{r trustOptimOuterWrappers, eval=TRUE}
-adFun <- adlaplace::getAdFun(forres$tmb_data, forres$config)
+adFun <- adlaplace::get_ad_fun(forres$tmb_data, forres$config)
 
 cache <- new.env(parent = emptyenv())
 cache$gamma <- forres$config$gamma
@@ -138,7 +138,7 @@ hess1 <- mapply(
 ```
 
 ```{r testLogLgrad, eval=FALSE}
-adFun <- adlaplace::getAdFun(forres$tmb_data, forres$config, package = "hpolcc")
+adFun <- adlaplace::get_ad_fun(forres$tmb_data, forres$config, package = "hpolcc")
 config_ll <- modifyList(forres$config, list(verbose = FALSE))
 x <- c(config_ll$beta, config_ll$theta)
 Npar <- 7

@@ -57,7 +57,7 @@ config <- list(
 
 
 ## ----testLogLik-------------------------------------------------------------------------------------------------------------------------------------
-ad_fun <- adlaplace::getAdFun(data, config)
+ad_fun <- adlaplace::get_ad_fun(data, config)
 
 res <- adlaplace::logLikLaplace(
   x = c(config$beta, config$theta),
@@ -71,7 +71,7 @@ res$grad
 
 
 ## ----trustOptimOuterWrappers------------------------------------------------------------------------------------------------------------------------
-ad_fun <- adlaplace::getAdFun(data, config)
+ad_fun <- adlaplace::get_ad_fun(data, config)
 
 cache <- new.env(parent = emptyenv())
 cache$gamma <- config$gamma
@@ -107,7 +107,7 @@ outer_fit$fval
 
 
 ## ----testLogLgrad-----------------------------------------------------------------------------------------------------------------------------------
-ad_fun <- adlaplace::getAdFun(data, config)
+ad_fun <- adlaplace::get_ad_fun(data, config)
 x <- c(config$beta, config$theta)
 Npar <- 13
 Dpar <- length(x)
@@ -155,7 +155,7 @@ lines(SxD, diff(Sdet) / diff(Sx))
 
 
 ## ----testDeriv--------------------------------------------------------------------------------------------------------------------------------------
-ad_fun = adlaplace::getAdFun(data, modifyList(config, list(verbose=TRUE)))
+ad_fun = adlaplace::get_ad_fun(data, modifyList(config, list(verbose=TRUE)))
 
 x = c(config$beta, rep(0.1, length(config$gamma)), config$theta)
 adlaplace::jointLogDens(x, ad_fun)
@@ -181,7 +181,7 @@ str(h2 <- adlaplace::hess(x, ad_fun, TRUE))
 
 
 ## ----trustOptimInterface, eval=FALSE----------------------------------------------------------------------------------------------------------------
-# ad_fun <- adlaplace::getAdFun(data, config)
+# ad_fun <- adlaplace::get_ad_fun(data, config)
 # inner_res <- adlaplace::inner_opt(
 #   parameters = c(config$beta, config$theta),
 #   gamma = config$gamma,
@@ -202,7 +202,7 @@ str(h2 <- adlaplace::hess(x, ad_fun, TRUE))
 ## ----derivJointDens, eval=TRUE----------------------------------------------------------------------------------------------------------------------
 config$gamma <- rep(1, length(config$gamma))
 x <- c(config$beta, config$gamma, config$theta)
-ad_fun <- adlaplace::getAdFun(data, modifyList(config, list(verbose = TRUE)))
+ad_fun <- adlaplace::get_ad_fun(data, modifyList(config, list(verbose = TRUE)))
 
 inner <- FALSE
 type <- c("outer", "inner")[1 + inner]

@@ -91,7 +91,7 @@ config <- list(
 ## Evaluate objective, gradient, and Hessian
 
 ```{r derivs}
-adFun <- adlaplace::getAdFun(data, config, package = "adlaplaceExample")
+adFun <- adlaplace::get_ad_fun(data, config, package = "adlaplaceExample")
 true_theta <- c(log(c(sd_random, omega_true)), alpha_true)
 x <- c(beta_true, gamma_true, true_theta)
 
@@ -112,7 +112,7 @@ quantile(eigen(H)$values)
 ## Trust-optimization and Laplace log-likelihood interface
 
 ```{r trustOptimInterface}
-adFun <- adlaplace::getAdFun(data, config, package = "adlaplaceExample")
+adFun <- adlaplace::get_ad_fun(data, config, package = "adlaplaceExample")
 
 res <- adlaplace::logLikLaplace(
   x = c(config$beta, config$theta),
@@ -208,7 +208,7 @@ lines(SxD, diff(Sdet) / diff(Sx))
 ```{r derivJointDens, eval=FALSE}
 config$gamma <- rep(1, length(config$gamma))
 x <- c(config$beta, config$gamma, config$theta)
-adFun <- adlaplace::getAdFun(data, modifyList(config, list(verbose = TRUE)))
+adFun <- adlaplace::get_ad_fun(data, modifyList(config, list(verbose = TRUE)))
 
 inner <- FALSE
 type <- c("outer", "inner")[1 + inner]

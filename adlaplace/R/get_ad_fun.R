@@ -1,7 +1,7 @@
 #' Build backend AD function handle
 #'
 #' Safe frontend for constructing AD handles. This is the only public
-#' \code{getAdFun()} entry point; backend packages should expose
+#' \code{get_ad_fun()} entry point; backend packages should expose
 #' \code{getAdFun_r()}.
 #'
 #' @param data Model data list passed to the backend builder. Must contain at
@@ -10,7 +10,7 @@
 #' @param config Model configuration list passed to the backend builder.
 #'   Must contain \code{beta}, \code{gamma}, and \code{theta} (vectors of starting
 #'   values), and may include \code{verbose}, \code{num_threads}, and other backend-
-#'   specific options. The \code{config$package} field is ignored here <U+2014> use the
+#'   specific options. The \code{config$package} field is ignored here — use the
 #'   \code{package} argument instead.
 #' @param package Character scalar naming the backend package to use for
 #'   \code{getAdFun_r()}. Defaults to \code{"adlaplace"}. Supported backends must
@@ -24,25 +24,25 @@
 #'
 #' @examples
 #' \dontrun{
-#' # Minimal example <U+2014> requires valid data and config
+#' # Minimal example — requires valid data and config
 #' data <- list(y = rnorm(10), X = matrix(1, 10, 1), Z = matrix(1, 10, 1))
 #' config <- list(beta = 0, gamma = rep(0, 1), theta = 1, verbose = FALSE)
-#' ad_fun <- getAdFun(data, config, package = "adlaplace")
+#' ad_fun <- get_ad_fun(data, config, package = "adlaplace")
 #' }
 #'
 #' @seealso
 #' \code{\link[adlaplace]{inner_opt}}, \code{\link[adlaplace]{logLikLaplace}},
-#' \code{\link[adlaplace]{getAdFun_r}}
+#' \code{\link[adlaplace]{get_adFun_r}}
 #'
 #' @export
-getAdFun <- function(data, config, package = c(config$package, "adlaplace")[1]) {
+get_ad_fun <- function(data, config, package = c(config$package, "adlaplace")[1]) {
   if (!is.character(package) || length(package) < 1 || is.na(package[[1]]) || !nzchar(package[[1]])) {
     stop("`package` must be a non-empty character scalar")
   }
   package <- package[[1]]
 
   if (identical(package, "adlaplace")) {
-    ad_ptr <- build_adfun(data, config)
+    ad_ptr <- get_ad_fun_raw(data, config)
     sparsity <- lapply(
       seq_len(n_groups(ad_ptr)) - 1L,
       function(g) {
@@ -81,7 +81,7 @@ getAdFun <- function(data, config, package = c(config$package, "adlaplace")[1]) 
     stop(
       "Backend package '", package,
       "' does not export `getAdFun_r(data, config)`. ",
-      "Use adlaplace::getAdFun(..., package='adlaplace') or update backend package exports."
+      "Use adlaplace::get_ad_fun(..., package='adlaplace') or update backend package exports."
     )
   }
 

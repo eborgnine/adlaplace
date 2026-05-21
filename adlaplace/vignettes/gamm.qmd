@@ -36,7 +36,7 @@ if (requireNamespace("mgcv", quietly = TRUE)) {
 if (requireNamespace("mgcv", quietly = TRUE)) {
   model_stuff <- adlaplace::model_setup(
     data = dat,
-    formula = y ~ x1 + f(x2, model = "iwp", p = 2, knots = seq(0, 1, len = 11)) +
+    formula = y ~ x1 + f(x2, model = "iwp", p = 2, knots = seq(0, 1, len = 11), ref_value = 0.5) +
       f(fac, model = "iid") + f(model = "overdispersion", lower = 1e-9)
   )
 
@@ -52,7 +52,7 @@ if (requireNamespace("mgcv", quietly = TRUE)) {
   )
 
 
-  ad_fun <- adlaplace::getAdFun(model_stuff$data, config)
+  ad_fun <- adlaplace::get_ad_fun(model_stuff$data, config)
   res <- adlaplace::logLikLaplace(
     x = c(config$beta, config$theta),
     ad_fun = ad_fun,
@@ -122,7 +122,7 @@ if (requireNamespace("mgcv", quietly = TRUE)) {
     deriv = FALSE
   )
 
-  newx <- data.frame(x2 = seq(0, 1, len = 101), x1 = 0, fac = dat$fac[1])
+  newx <- data.frame(x2 = seq(0, 1, len = 101))
 
   sim <- adlaplace::sim_fit(
     x = newx,
@@ -131,6 +131,9 @@ if (requireNamespace("mgcv", quietly = TRUE)) {
     n = 500L
   )
 
-  matplot(newx$x2, sim$eta, type = "l")
+  matplot(newx$x2, sim, type = "l", col = "#00000010", lty = 1)
+
+  sim_sumzero <- sim - matrix(apply(sim, 2, mean), nrow(sim), ncol(sim), byrow = TRUE)
+  matplot(newx$x2, sim_sumzero, type = "l", col = "#00000010", lty = 1)
 }
 ```

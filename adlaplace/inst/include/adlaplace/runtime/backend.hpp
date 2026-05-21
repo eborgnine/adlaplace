@@ -49,7 +49,7 @@ using ad_vector = std::vector<adlaplace_adpack_handle*>;
 using hessian_template = Eigen::SparseMatrix<int, Eigen::ColMajor, int>;
 
 
-// Shard handles + Hessian templates/maps (filled from getAdFun() list via get_ad_groups()).
+// Shard handles + Hessian templates/maps (filled from get_ad_fun() list via get_ad_groups()).
 struct ad_groups {
   ad_vector fun;
   hessian_template hessian_outer;

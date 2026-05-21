@@ -243,7 +243,7 @@ inline void adpack_sparsity(
 }
 
 
-std::vector<GroupPack> getAdFun(
+std::vector<GroupPack> get_ad_fun(
 	const Data& data,
 	const Config& config) {
 

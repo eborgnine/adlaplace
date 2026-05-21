@@ -18,13 +18,13 @@
 #' @param control List of control parameters passed *as-is* to the backend inner
 #'   optimizer (e.g., \code{report.level}, \code{report.freq}). See backend
 #'   documentation (e.g., \pkg{trustOptim}) for supported options.
-#' @param ad_fun Optional AD object returned by the backend \code{getAdFun()}.
+#' @param ad_fun Optional AD object returned by the backend \code{get_ad_fun()}.
 #'   This is a single backend handle (no separate inner/outer handles). If
 #'   missing, it will be constructed automatically using \code{data}.
 #' @param data Optional data list used to build \code{ad_fun} when \code{ad_fun}
 #'   is not supplied.
 #' @param package Character scalar naming the backend package to use for
-#'   \code{getAdFun()} and \code{inner_opt()}. Defaults to \code{"adlaplace"}.
+#'   \code{get_ad_fun()} and \code{inner_opt()}. Defaults to \code{"adlaplace"}.
 #'   Other backends must export \code{getAdFun_r()} and \code{inner_opt()}.
 #' @param deriv Logical scalar. If \code{TRUE}, include derivative quantities in
 #'   the output (gradient, intermediate derivatives).
@@ -68,7 +68,7 @@
 #'
 #'
 #' @seealso
-#' \code{\link[adlaplace]{getAdFun}}, \code{\link[adlaplace]{inner_opt}}
+#' \code{\link[adlaplace]{get_ad_fun}}, \code{\link[adlaplace]{inner_opt}}
 #'
 #' @export
 logLikLaplace <- function(x, config,
@@ -99,7 +99,7 @@ logLikLaplace <- function(x, config,
     if (missing(data)) {
       stop("at least one of data and ad_fun must be supplied")
     }
-    ad_fun <- adlaplace::getAdFun(data, config, package = package)
+    ad_fun <- adlaplace::get_ad_fun(data, config, package = package)
   }
 
   if (deriv) {

@@ -92,7 +92,7 @@ model is defined in the file `src/objectiveFunction.cpp`
 
 
 ```{r testLogDens}
-ad_fun_plain <- adlaplace::build_adfun(data, config)
+ad_fun_plain <- adlaplace::get_ad_fun_raw(data, config)
 
 x <- c(config$beta, rep(0.1, length(config$gamma)), config$theta)
 s_groups <- 0:3
@@ -112,7 +112,7 @@ Check the derivatives of the joint log density.
 
 
 ```{r derivJointDens, eval=TRUE}
-ad_fun <- adlaplace::build_adfun(data, modifyList(config, list(verbose = TRUE)))
+ad_fun_plain <- adlaplace::get_ad_fun_raw(data, modifyList(config, list(verbose = TRUE)))
 
 inner <- FALSE
 type <- c("outer", "inner")[1 + inner]
@@ -137,7 +137,7 @@ parDf[Dpar, ] <- Sx
 dens1 <- mapply(
   adlaplace::jointLogDens,
   x = as.list(parDf),
-  MoreArgs = list(ad_fun = ad_fun, Sgroups = Sgroups),
+  MoreArgs = list(ad_fun = ad_fun_plain, Sgroups = Sgroups),
   SIMPLIFY = TRUE
 )
 
@@ -147,7 +147,7 @@ plot(Sx, dens1)
 grad1 <- mapply(
   adlaplace::grad,
   x = as.list(parDf),
-  MoreArgs = list(ad_fun = ad_fun, inner = inner, Sgroups = Sgroups),
+  MoreArgs = list(ad_fun = ad_fun_plain, inner = inner, Sgroups = Sgroups),
   SIMPLIFY = TRUE
 )
 plot(Sx, grad1[Dpar, ])
@@ -157,7 +157,7 @@ lines(SxD, diff(dens1) / diff(Sx))
 hes1 <- mapply(
   adlaplace::hessian,
   x = as.list(parDf),
-  MoreArgs = list(ad_fun = ad_fun, inner = inner, Sgroups = Sgroups),
+  MoreArgs = list(ad_fun = ad_fun_plain, inner = inner, Sgroups = Sgroups),
   SIMPLIFY = FALSE
 )
 
@@ -179,22 +179,11 @@ lines(SxD, gradD[, Dpar2])
 
 Make ad function with sparsity information, evaluate derivates to test the accumulation over shards is done correctly.  
 
-```{r test_all_derivs}  
-ad_fun <- adlaplace::getAdFun(data, config)
-x <- c(config$beta, config$gamma, config$theta)
-my_derivs <- adlaplace::all_derivs(x, ad_fun, config)
 
-c(my_derivs$fval, -adlaplace::jointLogDens(ad_fun, x))
-
-my_grad <- adlaplace::grad(ad_fun, x)
-rbind(my_grad, my_derivs$gradient)[, 1:5]
-
-my_hessian <- adlaplace::hessian(ad_fun, x)
-abind::abind(as.matrix(my_hessian), as.matrix(my_derivs$hessian), along = 3)[1:5, 1:5, ]
-quantile(my_hessian@x + Matrix::forceSymmetric(my_derivs$hessian)@x)
-```
 
 ```{r testInnerOpt}
+ad_fun <- adlaplace::get_ad_fun(data, modifyList(config, list(verbose = TRUE)))
+
 inner_res <- adlaplace::inner_opt(
   parameters = c(config$beta, config$theta),
   gamma = config$gamma,
@@ -210,7 +199,7 @@ inner_res <- adlaplace::inner_opt(
 chol_test <- Matrix::expand2(Matrix::Cholesky(inner_res$hessian, perm = TRUE, LDL = TRUE))
 inner_res$chol_inner$L1[1:5, 1:5]
 chol_test$L1[1:5, 1:5]
-quantile(inner_res$hessian_D - chol_test$D@x)
+quantile(inner_res$chol_inner$D - chol_test$D@x)
 ```
 
 ```{r testLogLik}
@@ -234,7 +223,7 @@ res$grad
 
 
 ```{r trustOptimOuterWrappers}
-ad_fun <- adlaplace::getAdFun(data, config)
+ad_fun <- adlaplace::get_ad_fun(data, config)
 
 cache <- new.env(parent = emptyenv())
 cache$gamma <- config$gamma
@@ -271,7 +260,7 @@ outer_fit$fval
 
 
 ```{r testLogLgrad}
-ad_fun <- adlaplace::getAdFun(data, config)
+ad_fun <- adlaplace::get_ad_fun(data, config)
 x <- outer_fit$solution
 Npar <- 13
 Dpar <- length(x)
@@ -319,51 +308,4 @@ lines(SxD, diff(Sdet) / diff(Sx))
 
 
 
-
-
-```{r testDeriv}
-ad_fun <- adlaplace::getAdFun(data, modifyList(config, list(verbose = TRUE)))
-
-x <- c(config$beta, rep(0.1, length(config$gamma)), config$theta)
-adlaplace::jointLogDens(x, ad_fun)
-
-
-str(adlaplace::grad(ad_fun, x, inner = FALSE))
-str(adlaplace::grad(ad_fun, x, inner = TRUE))
-
-
-Dgroup <- ncol(config$groups) + 1
-str(h1 <- adlaplace::hess(x, ad_fun, FALSE, Sgroups = Dgroup))
-ad_fun$sparsity[1 + Dgroup]
-(Shere <- 1 + seq(
-  ad_fun$hessians$map$outer$p[Dgroup + 1],
-  ad_fun$hessians$map$outer$p[Dgroup + 2] - 1
-))
-ad_fun$hessians$map$outer$local[Shere]
-ad_fun$hessians$map$outer$global[Shere]
-(hseq <- which(h1@x != 0))
-h1@x[hseq]
-
-
-str(h2 <- adlaplace::hess(x, ad_fun, TRUE))
-```
-
-```{r trustOptimInterface, eval=FALSE}
-ad_fun <- adlaplace::getAdFun(data, config)
-inner_res <- adlaplace::inner_opt(
-  parameters = c(config$beta, config$theta),
-  gamma = config$gamma,
-  control = list(
-    maxit = 50,
-    report.level = 0,
-    report.freq = 0
-  ),
-  config = config,
-  ad_fun = ad_fun
-)
-
-str(inner_res)
-
-quantile(inner_res$gradient)
-```
 

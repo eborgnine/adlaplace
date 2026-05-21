@@ -3,7 +3,7 @@
 #' Constructs Hessian sparsity templates (global/outer and inner-gamma)
 #' and per-group maps from shard sparsity patterns.
 #'
-#' @param sparsity_list List of per-group sparsity shards from \code{getAdFun()}.
+#' @param sparsity_list List of per-group sparsity shards from \code{get_ad_fun()}.
 #' @param Nbeta Number of fixed-effect parameters.
 #' @param Ngamma Number of random-effect parameters.
 #' @param Ntheta Number of variance parameters.

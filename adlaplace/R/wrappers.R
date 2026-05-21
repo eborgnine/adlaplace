@@ -12,7 +12,7 @@
 #'
 #' @param x Numeric outer parameter vector \code{c(beta, theta)}.
 #' @param config Configuration list passed to \code{\link{logLikLaplace}}.
-#' @param ad_fun Backend handle from \code{\link{getAdFun}}.
+#' @param ad_fun Backend handle from \code{\link{get_ad_fun}}.
 #' @param ... Additional arguments forwarded to \code{\link{logLikLaplace}}
 #'   (for example \code{data} or \code{package}).
 #' @param control_inner A list of control options forwarded to the \code{control}
@@ -34,7 +34,7 @@
 #' \dontrun{
 #' cache <- new.env(parent = emptyenv())
 #' cache$gamma <- rep(0, nrow(data$ATp))
-#' ad_fun <- getAdFun(data, config)
+#' ad_fun <- get_ad_fun(data, config)
 #'
 #' val <- outer_fn(x = x0, data = data, config = config, cache = cache, ad_fun = ad_fun)
 #' gr <- outer_gr(x = x0, data = data, config = config, cache = cache, ad_fun = ad_fun)

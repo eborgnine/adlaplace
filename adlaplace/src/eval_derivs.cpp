@@ -18,7 +18,7 @@
 //' \code{all_derivs()$fval == -jointLogDens(ad_fun, x)},
 //' \code{all_derivs()$gradient == -grad(ad_fun, x)}, and
 //' \code{all_derivs()$hessian == -hessian(ad_fun, x)} (outer, full parameter vector).
-//' @param ad_fun External pointer or list from \code{getAdFun()}.
+//' @param ad_fun External pointer or list from \code{get_ad_fun()}.
 //' @param x Numeric parameter vector of length \code{Nparams}.
 //' @param Sgroups Optional integer vector of 0-based group indices.
 //' @param inner Logical scalar for inner-\eqn{\gamma} vs outer derivatives.

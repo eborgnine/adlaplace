@@ -17,7 +17,7 @@ hessian(ad_fun, x, Sgroups = NULL, inner = FALSE, verbose = FALSE)
 traceHinvT(ad_fun, x, LinvPt, LinvPtColumns, num_threads, Sgroups = NULL)
 }
 \arguments{
-\item{ad_fun}{External pointer or list from \code{getAdFun()}.}
+\item{ad_fun}{External pointer or list from \code{get_ad_fun()}.}
 
 \item{x}{Numeric parameter vector of length \code{Nparams}.}
 

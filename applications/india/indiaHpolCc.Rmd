@@ -358,7 +358,7 @@ res$config$theta = rep(-1, length(res$config$theta))
 #  j = rep(0,1), i=groupHere@i[1], x=1, dims = dim(groupHere), index1=FALSE
 #)
 
-  ad_fun <- adlaplace::getAdFun(
+  ad_fun <- adlaplace::get_ad_fun(
     res$tmb_data,
     res$config
   )

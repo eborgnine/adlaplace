@@ -10,7 +10,7 @@
 #include "adlaplace/eval/trace_hinv_t.hpp"
 #include "adlaplace/runtime/ad_groups_pack.hpp"
 
-std::vector<GroupPack> getAdFun(const Data& data, const Config& config);
+std::vector<GroupPack> get_ad_fun(const Data& data, const Config& config);
 Rcpp::List extract_sparsity(const std::vector<GroupPack> &ad_fun);
 
 static const adlaplace_adpack_api AD_API = {
@@ -53,7 +53,7 @@ static inline SEXP ad_fun_handle_sexp(const Rcpp::List& ad_fun) {
 	Rcpp::stop("ad_fun list must contain component 'ad_fun'");
 }
 
-// Resolve ad_groups from the full getAdFun() list; attach Hessian templates and chol shell.
+// Resolve ad_groups from the full get_ad_fun() list; attach Hessian templates and chol shell.
 static inline ad_groups* get_ad_groups(const Rcpp::List& ad_fun) {
 	SEXP handle_ptr = ad_fun_handle_sexp(ad_fun);
 	auto* groups = static_cast<ad_groups*>(R_ExternalPtrAddr(handle_ptr));
@@ -75,7 +75,7 @@ static inline ad_groups* ad_groups_from_handle(SEXP handle) {
 	return groups;
 }
 
-// getAdFun() list or bare external pointer from build_adfun().
+// get_ad_fun() list or bare external pointer from get_ad_fun_raw().
 static inline ad_groups* resolve_ad_groups(SEXP ad_fun) {
 	if (Rf_isNull(ad_fun)) {
 		Rcpp::stop("ad_fun must not be NULL");
@@ -86,7 +86,7 @@ static inline ad_groups* resolve_ad_groups(SEXP ad_fun) {
 	if (TYPEOF(ad_fun) == VECSXP) {
 		return get_ad_groups(Rcpp::as<Rcpp::List>(ad_fun));
 	}
-	Rcpp::stop("ad_fun must be a list from getAdFun() or an external pointer from build_adfun()");
+	Rcpp::stop("ad_fun must be a list from get_ad_fun() or an external pointer from get_ad_fun_raw()");
 }
 
 static inline std::vector<size_t> resolve_groups(
@@ -164,11 +164,11 @@ inline Rcpp::List sparsity_shard_from_handle(adlaplace_adpack_handle* h) {
 	);
 }
 
-inline ad_groups* build_adfun_h(
+inline ad_groups* get_ad_fun_raw_h(
 	const Data& data,
 	const Config& config) {
 
-	std::vector<GroupPack> packs = getAdFun(data, config);
+	std::vector<GroupPack> packs = get_ad_fun(data, config);
 	auto* groups = new ad_groups();
 	groups->fun.reserve(packs.size());
 	for (size_t g = 0; g < packs.size(); ++g) {
@@ -184,14 +184,14 @@ inline ad_groups* build_adfun_h(
 	return groups;
 }
 
-inline SEXP build_adfun_h(
+inline SEXP get_ad_fun_raw_h(
 	const Rcpp::List& data,
 	const Rcpp::List& config) {
 
 	const Data dataC(data);
 	const Config configC(config);
 
-	ad_groups* groups = build_adfun_h(dataC, configC);
+	ad_groups* groups = get_ad_fun_raw_h(dataC, configC);
 
 	SEXP handle = R_MakeExternalPtr(static_cast<void*>(groups), R_NilValue, R_NilValue);
 	R_RegisterCFinalizerEx(handle, adgroups_finalizer, TRUE);

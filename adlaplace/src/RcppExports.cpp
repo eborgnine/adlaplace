@@ -10,15 +10,15 @@ Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
 Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
-// build_adfun
-SEXP build_adfun(Rcpp::List data, Rcpp::List config);
-RcppExport SEXP _adlaplace_build_adfun(SEXP dataSEXP, SEXP configSEXP) {
+// get_ad_fun_raw
+SEXP get_ad_fun_raw(Rcpp::List data, Rcpp::List config);
+RcppExport SEXP _adlaplace_get_ad_fun_raw(SEXP dataSEXP, SEXP configSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< Rcpp::List >::type data(dataSEXP);
     Rcpp::traits::input_parameter< Rcpp::List >::type config(configSEXP);
-    rcpp_result_gen = Rcpp::wrap(build_adfun(data, config));
+    rcpp_result_gen = Rcpp::wrap(get_ad_fun_raw(data, config));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -157,7 +157,7 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_adlaplace_build_adfun", (DL_FUNC) &_adlaplace_build_adfun, 2},
+    {"_adlaplace_get_ad_fun_raw", (DL_FUNC) &_adlaplace_get_ad_fun_raw, 2},
     {"_adlaplace_adlaplace_attach_hessian", (DL_FUNC) &_adlaplace_adlaplace_attach_hessian, 2},
     {"_adlaplace_n_groups", (DL_FUNC) &_adlaplace_n_groups, 1},
     {"_adlaplace_get_sparse_sizes", (DL_FUNC) &_adlaplace_get_sparse_sizes, 2},

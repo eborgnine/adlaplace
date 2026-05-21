@@ -19,7 +19,7 @@ outer_gr(x, config, cache, ad_fun, control_inner = list(), ...)
 optimization. It should contain \code{gamma}. Both functions update
 \code{cache$gamma} to the latest \code{gamma} solution.}
 
-\item{ad_fun}{Backend handle from \code{\link{getAdFun}}.}
+\item{ad_fun}{Backend handle from \code{\link{get_ad_fun}}.}
 
 \item{control_inner}{A list of control options forwarded to the \code{control}
 argument of \code{\link{logLikLaplace}} for the inner optimization.}
@@ -50,7 +50,7 @@ the inner problem over \code{gamma} via \code{\link{logLikLaplace}} and update a
 \dontrun{
 cache <- new.env(parent = emptyenv())
 cache$gamma <- rep(0, nrow(data$ATp))
-ad_fun <- getAdFun(data, config)
+ad_fun <- get_ad_fun(data, config)
 
 val <- outer_fn(x = x0, data = data, config = config, cache = cache, ad_fun = ad_fun)
 gr <- outer_gr(x = x0, data = data, config = config, cache = cache, ad_fun = ad_fun)

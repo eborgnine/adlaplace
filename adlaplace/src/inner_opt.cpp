@@ -13,7 +13,7 @@
 //'   \code{inner_opt()}.
 //' @param gamma Numeric vector of starting values for inner parameters
 //'   (\code{gamma}; length \code{Ngamma}) used by \code{inner_opt()}.
-//' @param ad_fun List returned by \code{getAdFun()} (must contain \code{ad_fun}).
+//' @param ad_fun List returned by \code{get_ad_fun()} (must contain \code{ad_fun}).
 //' @param config Configuration list with model dimensions, groups, and
 //'   sparsity information.
 //' @param control List of trust-region control parameters for

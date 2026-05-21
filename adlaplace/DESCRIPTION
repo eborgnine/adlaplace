@@ -24,7 +24,7 @@ Collate:
     'by_group.R'
     'effects.R'
     'fpoly.R'
-    'getAdFun.R'
+    'get_ad_fun.R'
     'groups.R'
     'hessianMap.R'
     'rpoly.R'

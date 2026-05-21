@@ -44,7 +44,7 @@ config <- list(
 ```
 
 ```{r}
-adFun <- adlaplace::getAdFun(model_stuff$data, config)
+adFun <- adlaplace::get_ad_fun(model_stuff$data, config)
 res <- adlaplace::logLikLaplace(
   x = c(config$beta, config$theta),
   adFun = adFun,

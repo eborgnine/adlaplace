@@ -46,7 +46,7 @@ inline hessian_template hessian_template_from_dgc(
   return out;
 }
 
-// Copy Hessian sparsity templates and maps from a getAdFun()-style list
+// Copy Hessian sparsity templates and maps from a get_ad_fun()-style list
 // (components outer, inner, map_outer, map_inner, sizes from hessian_map()).
 inline void ad_groups_attach_hessians_from_list(
   ad_groups& groups,

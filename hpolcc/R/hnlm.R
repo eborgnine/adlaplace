@@ -263,7 +263,7 @@ hnlm <- function(
     )
   }
 
-  ad_fun <- adlaplace::getAdFun(
+  ad_fun <- adlaplace::get_ad_fun(
     model_stuff$data,
     config,
     package = config$package

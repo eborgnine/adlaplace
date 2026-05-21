@@ -14,7 +14,7 @@ inner_opt(parameters, gamma, config, ad_fun, control = NULL, deriv = NULL)
 \item{x}{Numeric full parameter vector of length \code{Nparams} used by
 \code{all_derivs()}.}
 
-\item{ad_fun}{List returned by \code{getAdFun()} (must contain \code{ad_fun}).}
+\item{ad_fun}{List returned by \code{get_ad_fun()} (must contain \code{ad_fun}).}
 
 \item{config}{Configuration list with model dimensions, groups, and
 sparsity information.}

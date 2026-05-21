@@ -94,8 +94,8 @@ library(hpolcc)
 
 
 library(hpolcc)
-adFun = getAdFun(res$gamma_start, res$tmb_data, res$config)
-adFunFull = getAdFun(res$parameters_and_gamma, res$tmb_data, res$config)
+adFun = get_ad_fun(res$gamma_start, res$tmb_data, res$config)
+adFunFull = get_ad_fun(res$parameters_and_gamma, res$tmb_data, res$config)
 
 #res$tmb_data$Qdiag = rep(1, 0)
 res$config$dense = TRUE

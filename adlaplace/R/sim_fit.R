@@ -32,6 +32,9 @@ sim_fit <- function(x, model, fit, n = 500L) {
   design_list <- lapply(
     model$terms,
     function(term) {
+      if (!any(term@term %in% names(x))) {
+        return(NULL)
+      }
       beta_here <- beta_info(term, data = x)
       if (!is.null(beta_here)) {
         if (any(beta_here$term %in% names(x))) {
@@ -95,11 +98,5 @@ sim_fit <- function(x, model, fit, n = 500L) {
 
   eta <- as.vector(eta_fixed) + eta_random
 
-  list(
-    eta = eta,
-    eta_fixed = eta_fixed,
-    eta_random = eta_random,
-    gamma_sims = gamma_sims,
-    x = x
-  )
+  eta
 }

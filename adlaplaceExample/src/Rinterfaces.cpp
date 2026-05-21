@@ -23,5 +23,5 @@ SEXP getAdFun_r(
   Rcpp::List data,
   Rcpp::List config)
 {
-  return build_adfun_h(data, config);
+  return get_ad_fun_raw_h(data, config);
 }

@@ -34,7 +34,7 @@ if (requireNamespace("mgcv", quietly = TRUE)) {
   )
 
 
-  ad_fun <- adlaplace::getAdFun(model_stuff$data, config)
+  ad_fun <- adlaplace::get_ad_fun(model_stuff$data, config)
   res <- adlaplace::logLikLaplace(
     x = c(config$beta, config$theta),
     ad_fun = ad_fun,
