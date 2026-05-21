@@ -2,33 +2,22 @@
 % Please edit documentation in R/RcppExports.R
 \name{adlaplace_cpp}
 \alias{adlaplace_cpp}
-\alias{adlaplace_n_groups}
-\alias{adlaplace_get_sparse_sizes}
-\alias{adlaplace_get_sparse_pattern}
 \alias{jointLogDens}
 \alias{grad}
 \alias{hessian}
 \alias{traceHinvT}
 \title{C++ backend entry points}
 \usage{
-adlaplace_n_groups(handle)
-
-adlaplace_get_sparse_sizes(handle, group)
-
-adlaplace_get_sparse_pattern(handle, group)
-
 jointLogDens(ad_fun, x, Sgroups = NULL)
 
 grad(ad_fun, x, Sgroups = NULL, inner = FALSE)
 
 hessian(ad_fun, x, Sgroups = NULL, inner = FALSE, verbose = FALSE)
 
-traceHinvT(ad_fun, x, LinvPt, LinvPtColumns, num_threads, Sgroups)
+traceHinvT(ad_fun, x, LinvPt, LinvPtColumns, num_threads, Sgroups = NULL)
 }
 \arguments{
-\item{handle}{External pointer returned by \code{build_adfun()}.}
-
-\item{group}{0-based group index for per-shard sparsity queries.}
+\item{ad_fun}{External pointer or list from \code{getAdFun()}.}
 
 \item{x}{Numeric parameter vector of length \code{Nparams}.}
 
@@ -36,16 +25,20 @@ traceHinvT(ad_fun, x, LinvPt, LinvPtColumns, num_threads, Sgroups)
 
 \item{inner}{Logical scalar for inner-\eqn{\gamma} vs outer derivatives.}
 
-\item{LinvPt, LinvPtColumns, verbose, num_threads}{See \code{traceHinvT()}.}
+\item{verbose}{Logical passed to \code{hessian()}.}
 
-\item{data}{Model data list required by the backend builder.}
+\item{LinvPt, LinvPtColumns, num_threads}{See \code{traceHinvT()}.}
+}
+\value{
+Scalar **joint log density** \eqn{\ell(x)} (sum over shards; not negative log density).
 
-\item{config}{Model configuration list required by the backend builder.}
+Gradient of **log density** \eqn{\nabla \ell(x)} (not negative log density).
+
+Sparse Hessian of **log density** \eqn{\nabla^2 \ell(x)} (not negative log density).
 }
 \description{
 Low-level C++ entry points exposed to R via Rcpp.
 }
-
 \section{Sign convention}{
 
 \code{jointLogDens()}, \code{grad()}, and \code{hessian()} evaluate the
@@ -58,10 +51,3 @@ Low-level C++ entry points exposed to R via Rcpp.
 \code{all_derivs()$hessian == -hessian(ad_fun, x)} (outer, full parameter vector).
 }
 
-\value{
-\code{jointLogDens()}: scalar \strong{joint log density} \eqn{\ell(x)} (not negative log density).
-
-\code{grad()}: gradient of \strong{log density} \eqn{\nabla \ell(x)} (not negative log density).
-
-\code{hessian()}: sparse Hessian of \strong{log density} \eqn{\nabla^2 \ell(x)} (not negative log density).
-}

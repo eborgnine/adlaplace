@@ -11,7 +11,7 @@
 #include "adlaplace/runtime/ad_groups_pack.hpp"
 
 std::vector<GroupPack> getAdFun(const Data& data, const Config& config);
-Rcpp::List extract_sparsity(const std::vector<GroupPack> &adFun);
+Rcpp::List extract_sparsity(const std::vector<GroupPack> &ad_fun);
 
 static const adlaplace_adpack_api AD_API = {
 	ADLAPLACE_ADPACK_API_VERSION,
@@ -50,9 +50,6 @@ static inline SEXP ad_fun_handle_sexp(const Rcpp::List& ad_fun) {
 	if (ad_fun.containsElementNamed("ad_fun")) {
 		return ad_fun["ad_fun"];
 	}
-	if (ad_fun.containsElementNamed("adFun")) {
-		return ad_fun["adFun"];
-	}
 	Rcpp::stop("ad_fun list must contain component 'ad_fun'");
 }
 
@@ -76,6 +73,20 @@ static inline ad_groups* ad_groups_from_handle(SEXP handle) {
 		Rcpp::stop("ad_groups external pointer is NULL (cleared?)");
 	}
 	return groups;
+}
+
+// getAdFun() list or bare external pointer from build_adfun().
+static inline ad_groups* resolve_ad_groups(SEXP ad_fun) {
+	if (Rf_isNull(ad_fun)) {
+		Rcpp::stop("ad_fun must not be NULL");
+	}
+	if (TYPEOF(ad_fun) == EXTPTRSXP) {
+		return ad_groups_from_handle(ad_fun);
+	}
+	if (TYPEOF(ad_fun) == VECSXP) {
+		return get_ad_groups(Rcpp::as<Rcpp::List>(ad_fun));
+	}
+	Rcpp::stop("ad_fun must be a list from getAdFun() or an external pointer from build_adfun()");
 }
 
 static inline std::vector<size_t> resolve_groups(
@@ -160,8 +171,11 @@ inline ad_groups* build_adfun_h(
 	std::vector<GroupPack> packs = getAdFun(data, config);
 	auto* groups = new ad_groups();
 	groups->fun.reserve(packs.size());
-	for (GroupPack& gp : packs) {
-		auto* pack = new GroupPack(std::move(gp));
+	for (size_t g = 0; g < packs.size(); ++g) {
+		auto* pack = new GroupPack(std::move(packs[g]));
+		pack->shard_index = g;
+		pack->n_beta = config.Nbeta;
+		pack->n_gamma = config.Ngamma;
 		auto* h = new adlaplace_adpack_handle();
 		h->api = &AD_API;
 		h->ctx = static_cast<void*>(pack);

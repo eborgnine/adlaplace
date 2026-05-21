@@ -32,7 +32,7 @@
 //'   \code{gradient} (inner gradient if \code{deriv=FALSE}, otherwise full gradient),
 //'   \code{hessian} (inner Hessian if \code{deriv=FALSE}, otherwise full Hessian),
 //'   \code{iterations}, \code{status}, \code{trust.radius}, \code{method},
-//'   \code{hessian_L}, \code{hessian_D} (Eigen LDLT of permuted inner Hessian).
+//'   \code{chol_inner} (list \code{L1}, \code{D}, \code{perm}, as \code{Matrix::expand2}).
 //'   Objective and derivatives use the same **negative log-density** convention as
 //'   \code{all_derivs()}.}
 //'
@@ -62,6 +62,7 @@
 #include "adlaplace/math/constants.hpp"
 #include "adlaplace/runtime/rviews.hpp"
 #include "adlaplace/ompad.hpp"
+#include "chol_update.hpp"
 #include "trustOptimWrappers.hpp"
 #include "trustOptimControl.hpp"
 
@@ -88,7 +89,42 @@ Rcpp::S4 eigen_to_dgCMatrix(const Eigen::SparseMatrix<double>& M) {
 	return mat;
 }
 
+// Unit-lower triangular factor L from chol_inner CSC pattern (0-based p, i).
+Rcpp::S4 csc_to_dtCMatrix_lower(
+	const std::vector<int>& p,
+	const std::vector<int>& i,
+	const std::vector<double>& x,
+	int n)
+{
+	if (static_cast<size_t>(n + 1) != p.size()) {
+		Rcpp::stop("csc_to_dtCMatrix_lower: p length must be nrow + 1");
+	}
+	if (i.size() != x.size()) {
+		Rcpp::stop("csc_to_dtCMatrix_lower: i and x length must match");
+	}
 
+	Rcpp::S4 mat("dtCMatrix");
+	mat.slot("p") = Rcpp::IntegerVector(p.begin(), p.end());
+	mat.slot("i") = Rcpp::IntegerVector(i.begin(), i.end());
+	mat.slot("x") = Rcpp::NumericVector(x.begin(), x.end());
+	mat.slot("Dim") = Rcpp::IntegerVector::create(n, n);
+	mat.slot("uplo") = Rcpp::String("L");
+	mat.slot("diag") = Rcpp::String("N");
+	return mat;
+}
+
+// L1 matches Matrix::expand2(); D is numeric diagonal (expand2 uses D@x on ddiMatrix).
+Rcpp::List chol_inner_list(
+	const CholPattern& chol_pat,
+	const std::vector<double>& x_out,
+	const std::vector<double>& d_out)
+{
+	return Rcpp::List::create(
+		Rcpp::Named("L1") = csc_to_dtCMatrix_lower(chol_pat.p, chol_pat.i, x_out, chol_pat.n),
+		Rcpp::Named("D") = Rcpp::NumericVector(d_out.begin(), d_out.end()),
+		Rcpp::Named("perm") = Rcpp::IntegerVector(chol_pat.perm.begin(), chol_pat.perm.end())
+	);
+}
 
 struct InnerOptResult {
 	double fval = NA_REAL;
@@ -97,8 +133,8 @@ struct InnerOptResult {
 	Eigen::VectorXd full_parameters;
 	Eigen::VectorXd gradient;
 	Eigen::SparseMatrix<double> hessian;
-	Eigen::SparseMatrix<double> hessian_L;
-	Eigen::VectorXd hessian_D;
+	std::vector<double> x_out;
+	std::vector<double> d_out;
 	int iterations = NA_INTEGER;
 	MB_Status status = SUCCESS;
 	double trust_radius = NA_REAL;
@@ -226,9 +262,14 @@ InnerOptResult inner_opt(
 	int iterations = NA_INTEGER;
 	MB_Status status = SUCCESS;
 
+	InnerOptResult out;
+	out.x_out.assign(groups.chol_pattern.i.size(), 0.0);
+	out.d_out.assign(H.rows(), 0.0);
+
 
 	{
 		cppad_parallel_setup(static_cast<std::size_t>(num_threads));
+		
 		Trust_CG_Sparse<Tvec, AD_Func_Opt, THess, TPreLLt> opt(
 			funObj, gamma_start,
 			control.rad, control.min_rad, control.tol, control.prec,
@@ -243,6 +284,23 @@ InnerOptResult inner_opt(
 		opt.run();
 		status = opt.get_current_state(solution, fval, grad, H, iterations, radius);
 
+		const double grad_l2_sq = grad.squaredNorm();
+		if (status != SUCCESS || grad_l2_sq > 10.0) {
+			gamma_start = gamma_start.cwiseMax(-0.1).cwiseMin(0.1);
+			Trust_CG_Sparse<Tvec, AD_Func_Opt, THess, TPreLLt> opt_retry(
+				funObj, gamma_start,
+				control.rad, control.min_rad, control.tol, control.prec,
+				control.report_freq, control.report_level, control.header_freq,
+				control.report_precision,
+				control.maxit, control.contract_factor, control.expand_factor,
+				control.contract_threshold, control.expand_threshold_rad,
+				control.expand_threshold_ap, control.function_scale_factor,
+				control.precond_refresh_freq, control.precond_ID, control.trust_iter
+			);
+			opt_retry.run();
+			status = opt_retry.get_current_state(solution, fval, grad, H, iterations, radius);
+		}
+
 		for (size_t d = 0; d < config.Ngamma; ++d) {
 			fullParams[config.gamma_begin + d] = solution[d];
 		}
@@ -254,20 +312,17 @@ InnerOptResult inner_opt(
 		}
 	}
 
-	// cholesky the hessian
-	const int n = static_cast<int>(H.rows());
-	const auto P = groups.chol_pattern.pinv.inverse();
-	Eigen::SparseMatrix<double> H_perm(n, n);
-	H_perm.selfadjointView<Eigen::Upper>() =
-		H.selfadjointView<Eigen::Upper>().twistedBy(P);
 
-	Eigen::SimplicialLDLT<
-		Eigen::SparseMatrix<double>,
-		Eigen::Upper,
-		Eigen::NaturalOrdering<int>> chol_H;
-	chol_H.compute(H_perm);
+	H.makeCompressed();
+	const double log_det = chol_update(
+		H,
+		groups.chol_pattern.perm,
+		groups.chol_pattern.p,
+		groups.chol_pattern.i,
+		out.x_out,
+		out.d_out
+	);
 
-	InnerOptResult out;
 	out.fval = fval;
 	out.solution = solution;
 	out.full_parameters = fullParams;
@@ -275,23 +330,13 @@ InnerOptResult inner_opt(
 	out.status = status;
 	out.trust_radius = radius;
 
-	if (chol_H.info() == Eigen::Success) {
-		out.hessian_L = chol_H.matrixL();
-		out.hessian_D = chol_H.vectorD();
-		const Eigen::VectorXd& D = out.hessian_D;
-		if (!((D.array() <= 0.0).any() || !(D.array().isFinite().all()))) {
-			out.half_log_det = 0.5 * D.array().log().sum();
-			out.log_lik = -out.fval + config.Ngamma * ONEHALFLOGTWOPI - out.half_log_det;
-			out.chol_ok = true;
-		} else {
-			Rcpp::warning(
-				"inner_opt: non-positive or non-finite D; half_log_det not computed"
-			);
-		}
+	if (R_finite(log_det)) {
+		out.half_log_det = 0.5 * log_det;
+		out.log_lik = -out.fval + config.Ngamma * ONEHALFLOGTWOPI - out.half_log_det;
+		out.chol_ok = true;
 	} else {
 		Rcpp::warning(
-			"inner_opt: Eigen LDLT failed (info = %d); half_log_det not computed",
-			static_cast<int>(chol_H.info())
+			"inner_opt: non-positive or non-finite D; half_log_det not computed"
 		);
 	}
 
@@ -321,13 +366,15 @@ static bool resolve_deriv(SEXP deriv_arg, const Rcpp::List& config)
 	return true;
 }
 
+//' @rdname innerOpt
+//' @export
 // [[Rcpp::export]]
-Rcpp::List inner_opt_cpp(
+Rcpp::List inner_opt(
 	const Rcpp::NumericVector parameters,
 	const Rcpp::NumericVector gamma,
 	const Rcpp::List& config,
-	const Rcpp::List& control,
-	const Rcpp::List& ad_fun = Rcpp::List(),
+	const Rcpp::List& ad_fun,
+	SEXP control = R_NilValue,
 	SEXP deriv = R_NilValue)
 {
 	try {
@@ -336,7 +383,10 @@ Rcpp::List inner_opt_cpp(
 		}
 
 		const Config config_c(config);
-		const TrustControl control_c(control);
+		const Rcpp::List control_list = (control == R_NilValue)
+			? Rcpp::List()
+			: Rcpp::as<Rcpp::List>(control);
+		const TrustControl control_c(control_list);
 		ad_groups* groups_ptr = get_ad_groups(ad_fun);
 
 		const bool deriv_flag = resolve_deriv(deriv, config);
@@ -353,6 +403,8 @@ Rcpp::List inner_opt_cpp(
 			deriv_flag
 		);
 
+		const CholPattern& chol_pat = groups_ptr->chol_pattern;
+
 		return Rcpp::List::create(
 			Rcpp::Named("log_lik") = Rcpp::wrap(result.log_lik),
 			Rcpp::Named("fval") = Rcpp::wrap(result.fval),
@@ -360,8 +412,11 @@ Rcpp::List inner_opt_cpp(
 			Rcpp::Named("full_parameters") = Rcpp::wrap(result.full_parameters),
 			Rcpp::Named("gradient") = Rcpp::wrap(result.gradient),
 			Rcpp::Named("hessian") = eigen_to_dgCMatrix(result.hessian),
-			Rcpp::Named("hessian_L") = eigen_to_dgCMatrix(result.hessian_L),
-			Rcpp::Named("hessian_D") = Rcpp::wrap(result.hessian_D),
+			Rcpp::Named("chol_inner") = chol_inner_list(
+				chol_pat,
+				result.x_out,
+				result.d_out
+			),
 			Rcpp::Named("half_log_det") = Rcpp::wrap(result.half_log_det),
 			Rcpp::Named("iterations") = Rcpp::wrap(result.iterations),
 			Rcpp::Named("status") = Rcpp::wrap(std::string(MB_strerror(result.status))),

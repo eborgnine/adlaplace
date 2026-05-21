@@ -27,7 +27,7 @@
 #' # Minimal example <U+2014> requires valid data and config
 #' data <- list(y = rnorm(10), X = matrix(1, 10, 1), Z = matrix(1, 10, 1))
 #' config <- list(beta = 0, gamma = rep(0, 1), theta = 1, verbose = FALSE)
-#' adFun <- getAdFun(data, config, package = "adlaplace")
+#' ad_fun <- getAdFun(data, config, package = "adlaplace")
 #' }
 #'
 #' @seealso
@@ -43,20 +43,29 @@ getAdFun <- function(data, config, package = c(config$package, "adlaplace")[1]) 
 
   if (identical(package, "adlaplace")) {
     ad_ptr <- build_adfun(data, config)
-    sparsity <- lapply(seq_len(adlaplace_n_groups(ad_ptr)) - 1L, function(g) {
-      c(
-        adlaplace_get_sparse_sizes(ad_ptr, g),
-        adlaplace_get_sparse_pattern(ad_ptr, g)
-      )
-    })
+    sparsity <- lapply(
+      seq_len(n_groups(ad_ptr)) - 1L,
+      function(g) {
+        c(
+          get_sparse_sizes(ad_ptr, g),
+          get_sparse_pattern(ad_ptr, g)
+        )
+      }
+    )
     hessian_pack <- hessian_map(
-      sparsity,
+      sparsity_list = sparsity,
       Nbeta = length(config$beta),
       Ngamma = length(config$gamma),
       Ntheta = length(config$theta)
     )
     out <- c(
-      list(ad_fun = ad_ptr),
+      list(
+        ad_fun = ad_ptr,
+        group_sparsity = lapply(
+          sparsity,
+          function(xx) xx$grad_inner
+        )
+      ),
       hessian_pack
     )
 

@@ -38,7 +38,7 @@ Safe frontend for constructing AD handles. This is the only public
 # Minimal example <U+2014> requires valid data and config
 data <- list(y = rnorm(10), X = matrix(1, 10, 1), Z = matrix(1, 10, 1))
 config <- list(beta = 0, gamma = rep(0, 1), theta = 1, verbose = FALSE)
-adFun <- getAdFun(data, config, package = "adlaplace")
+ad_fun <- getAdFun(data, config, package = "adlaplace")
 }
 
 }

@@ -18,10 +18,10 @@
 #' @param control List of control parameters passed *as-is* to the backend inner
 #'   optimizer (e.g., \code{report.level}, \code{report.freq}). See backend
 #'   documentation (e.g., \pkg{trustOptim}) for supported options.
-#' @param adFun Optional AD object returned by the backend \code{getAdFun()}.
+#' @param ad_fun Optional AD object returned by the backend \code{getAdFun()}.
 #'   This is a single backend handle (no separate inner/outer handles). If
 #'   missing, it will be constructed automatically using \code{data}.
-#' @param data Optional data list used to build \code{adFun} when \code{adFun}
+#' @param data Optional data list used to build \code{ad_fun} when \code{ad_fun}
 #'   is not supplied.
 #' @param package Character scalar naming the backend package to use for
 #'   \code{getAdFun()} and \code{inner_opt()}. Defaults to \code{"adlaplace"}.
@@ -35,7 +35,7 @@
 #' \code{config_inner$theta}) before calling the backend inner optimizer.
 #'
 #' The default \pkg{adlaplace} backend uses a single AD handle. This function
-#' passes that handle to \code{inner_opt(..., ad_fun = adFun)}.
+#' passes that handle to \code{inner_opt(..., ad_fun = ad_fun)}.
 #'
 #' The inner objective is treated as negative joint log density; this function
 #' returns both the Laplace-approximated log-likelihood (\code{logLik}) and its
@@ -74,7 +74,7 @@
 logLikLaplace <- function(x, config,
                           gamma,
                           control = list(report.level = 4, report.freq = 1),
-                          adFun, data,
+                          ad_fun, data,
                           package = c(config$package, "adlaplace")[1],
                           deriv = FALSE) {
   Nbeta <- length(config$beta)
@@ -95,11 +95,11 @@ logLikLaplace <- function(x, config,
   }
 
 
-  if (missing(adFun)) {
+  if (missing(ad_fun)) {
     if (missing(data)) {
-      stop("at least one of data and adFun must be supplied")
+      stop("at least one of data and ad_fun must be supplied")
     }
-    adFun <- adlaplace::getAdFun(data, config, package = package)
+    ad_fun <- adlaplace::getAdFun(data, config, package = package)
   }
 
   if (deriv) {
@@ -109,35 +109,14 @@ logLikLaplace <- function(x, config,
   }
 
 
-  Niter <- 0
-  tryAgain <- TRUE
-  while (tryAgain & (Niter < 3)) {
-    Niter <- Niter + 1
-    inner_res <- try(adlaplace::inner_opt(
-      x,
-      config_inner$gamma,
-      config = config_inner,
-      control = control,
-      ad_fun = adFun,
-      deriv = deriv
-    ))
-
-    tryAgain <- any(class(inner_res) == "try-error")
-    if (!tryAgain) {
-      tryAgain <- sum(abs(inner_res$gradient[Sgamma1])) > 1
-    }
-    if (tryAgain) {
-      cat("resetting starting values to all zero, ")
-      cat("theta: ", paste(x, collapse = ", "), "\n")
-      config_inner$gamma <- rep(0.0, length(config$gamma))
-    }
-  } # while
-  if (any(class(inner_res) == "try-error")) {
-    stop("inner_opt failed in logLikLaplace: ", as.character(inner_res))
-  }
-  if (sum(abs(inner_res$gradient[Sgamma1])) > 1) {
-    warning("inner_opt failed, large gradient")
-  }
+  inner_res <- inner_opt(
+    x,
+    config_inner$gamma,
+    config = config_inner,
+    control = control,
+    ad_fun = ad_fun,
+    deriv = deriv
+  )
 
   Hresult <- inner_res$hessian
   if (deriv) {
@@ -154,11 +133,7 @@ logLikLaplace <- function(x, config,
     hessian = list(
       outer = Houter,
       inner = Hinner,
-      chol_inner = list(
-        L = inner_res$hessian_L,
-        D = inner_res$hessian_D,
-        perm = adFun$chol_inner@perm
-      )
+      chol_inner = inner_res$chol_inner
     ),
     opt = inner_res[
       c(
@@ -177,7 +152,7 @@ logLikLaplace <- function(x, config,
     full_parameters = result$opt$full_parameters,
     hessian_pack = result$hessian,
     grad = inner_res$gradient,
-    config, adFun
+    config, ad_fun
   )
 
   result$grad <- -theDeriv$deriv$dL

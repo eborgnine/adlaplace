@@ -34,38 +34,25 @@ void adlaplace_attach_hessian(SEXP handle, Rcpp::List hessian_map) {
   ad_groups_attach_chol_pattern(*groups, hessian_map);
 }
 
-//' @title C++ backend entry points
-//' @name adlaplace_cpp
-//' @description Low-level C++ entry points exposed to R via Rcpp.
+//' Number of AD shards in an \code{ad_groups} handle
 //'
-//' @section Sign convention:
-//' \code{jointLogDens()}, \code{grad()}, and \code{hessian()} evaluate the
-//' \strong{joint log density} \eqn{\ell(x)} and its derivatives (maximization sign).
-//' \code{all_derivs()} and the objective inside \code{inner_opt()} use the
-//' \strong{negative} log density \eqn{-\ell(x)} and its derivatives for
-//' \pkg{trustOptim} minimization. At the same \code{x} and \code{ad_fun},
-//' \code{all_derivs()$fval == -jointLogDens(ad_fun, x)},
-//' \code{all_derivs()$gradient == -grad(ad_fun, x)}, and
-//' \code{all_derivs()$hessian == -hessian(ad_fun, x)} (outer, full parameter vector).
-//' @param handle External pointer returned by \code{build_adfun()}.
-//' @param group 0-based group index for per-shard sparsity queries.
-//' @param data Model data list required by the backend builder.
-//' @param config Model configuration list required by the backend builder.
-//' @param x Numeric parameter vector of length \code{Nparams}.
-//' @param inner Logical scalar for inner-\eqn{\gamma} vs outer derivatives.
-//' @param Sgroups Optional integer vector of 0-based group indices.
-//' @param LinvPt,LinvPtColumns,verbose,num_threads See \code{traceHinvT()}.
-//'
-//' @rdname adlaplace_cpp
+//' @param handle External pointer from \code{build_adfun()} or \code{getAdFun()}.
+//' @return Integer count of groups (shards).
+//' @export
 // [[Rcpp::export]]
-int adlaplace_n_groups(SEXP handle) {
+int n_groups(SEXP handle) {
   ad_groups* groups = ad_groups_from_handle(handle);
   return static_cast<int>(groups->fun.size());
 }
 
-//' @rdname adlaplace_cpp
+//' Sparse structure sizes for one AD shard
+//'
+//' @param handle External pointer from \code{build_adfun()} or \code{getAdFun()}.
+//' @param group 0-based group index.
+//' @return List with \code{n_inner}, \code{n_outer}, \code{nnz_grad_*}, \code{nnz_hes_*}.
+//' @export
 // [[Rcpp::export]]
-Rcpp::List adlaplace_get_sparse_sizes(SEXP handle, int group) {
+Rcpp::List get_sparse_sizes(SEXP handle, int group) {
   ad_groups* groups = ad_groups_from_handle(handle);
   adlaplace_adpack_handle* h = shard_handle(groups, static_cast<size_t>(group));
   if (!h->api->get_sparse_sizes) {
@@ -95,9 +82,14 @@ Rcpp::List adlaplace_get_sparse_sizes(SEXP handle, int group) {
   );
 }
 
-//' @rdname adlaplace_cpp
+//' Sparse index patterns for one AD shard
+//'
+//' @param handle External pointer from \code{build_adfun()} or \code{getAdFun()}.
+//' @param group 0-based group index.
+//' @return List with \code{grad}, \code{grad_inner}, \code{row_hess}, \code{col_hess}, etc.
+//' @export
 // [[Rcpp::export]]
-Rcpp::List adlaplace_get_sparse_pattern(SEXP handle, int group) {
+Rcpp::List get_sparse_pattern(SEXP handle, int group) {
   ad_groups* groups = ad_groups_from_handle(handle);
   return sparsity_shard_from_handle(shard_handle(groups, static_cast<size_t>(group)));
 }

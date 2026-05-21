@@ -52,10 +52,10 @@ if (requireNamespace("mgcv", quietly = TRUE)) {
   )
 
 
-  adFun <- adlaplace::getAdFun(model_stuff$data, config)
+  ad_fun <- adlaplace::getAdFun(model_stuff$data, config)
   res <- adlaplace::logLikLaplace(
     x = c(config$beta, config$theta),
-    adFun = adFun,
+    ad_fun = ad_fun,
     config = c(config, list(verbose = FALSE)),
     deriv = TRUE
   )
@@ -86,8 +86,8 @@ if (requireNamespace("mgcv", quietly = TRUE)) {
 
   x0 <- config$opt$init
 
-  adlaplace::outer_fn(x = x0, cache = cache, config = config, adFun = adFun)
-  adlaplace::outer_gr(x = x0, cache = cache, config = config, adFun = adFun)
+  adlaplace::outer_fn(x = x0, cache = cache, config = config, ad_fun = ad_fun)
+  adlaplace::outer_gr(x = x0, cache = cache, config = config, ad_fun = ad_fun)
 
   outer_fit <- stats::optim(
     par = config$opt$init,
@@ -102,11 +102,35 @@ if (requireNamespace("mgcv", quietly = TRUE)) {
     lower = config$opt$lower,
     upper = config$opt$upper,
     config = config,
-    adFun = adFun,
+    ad_fun = ad_fun,
     cache = cache
   )
 
   outer_fit$par
   outer_fit$value
+}
+```
+
+
+```{r plot_results}
+if (requireNamespace("mgcv", quietly = TRUE)) {
+  res <- adlaplace::logLikLaplace(
+    x = outer_fit$par,
+    gamma = cache$gamma,
+    ad_fun = ad_fun,
+    config = config,
+    deriv = FALSE
+  )
+
+  newx <- data.frame(x2 = seq(0, 1, len = 101), x1 = 0, fac = dat$fac[1])
+
+  sim <- adlaplace::sim_fit(
+    x = newx,
+    model = model_stuff,
+    fit = res,
+    n = 500L
+  )
+
+  matplot(newx$x2, sim$eta, type = "l")
 }
 ```

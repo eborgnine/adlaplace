@@ -28,6 +28,35 @@ adlaplace_attach_hessian <- function(handle, hessian_map) {
     invisible(.Call(`_adlaplace_adlaplace_attach_hessian`, handle, hessian_map))
 }
 
+#' Number of AD shards in an \code{ad_groups} handle
+#'
+#' @param handle External pointer from \code{build_adfun()} or \code{getAdFun()}.
+#' @return Integer count of groups (shards).
+#' @export
+n_groups <- function(handle) {
+    .Call(`_adlaplace_n_groups`, handle)
+}
+
+#' Sparse structure sizes for one AD shard
+#'
+#' @param handle External pointer from \code{build_adfun()} or \code{getAdFun()}.
+#' @param group 0-based group index.
+#' @return List with \code{n_inner}, \code{n_outer}, \code{nnz_grad_*}, \code{nnz_hes_*}.
+#' @export
+get_sparse_sizes <- function(handle, group) {
+    .Call(`_adlaplace_get_sparse_sizes`, handle, group)
+}
+
+#' Sparse index patterns for one AD shard
+#'
+#' @param handle External pointer from \code{build_adfun()} or \code{getAdFun()}.
+#' @param group 0-based group index.
+#' @return List with \code{grad}, \code{grad_inner}, \code{row_hess}, \code{col_hess}, etc.
+#' @export
+get_sparse_pattern <- function(handle, group) {
+    .Call(`_adlaplace_get_sparse_pattern`, handle, group)
+}
+
 #' @title C++ backend entry points
 #' @name adlaplace_cpp
 #' @description Low-level C++ entry points exposed to R via Rcpp.
@@ -41,30 +70,13 @@ adlaplace_attach_hessian <- function(handle, hessian_map) {
 #' \code{all_derivs()$fval == -jointLogDens(ad_fun, x)},
 #' \code{all_derivs()$gradient == -grad(ad_fun, x)}, and
 #' \code{all_derivs()$hessian == -hessian(ad_fun, x)} (outer, full parameter vector).
-#' @param handle External pointer returned by \code{build_adfun()}.
-#' @param group 0-based group index for per-shard sparsity queries.
-#' @param data Model data list required by the backend builder.
-#' @param config Model configuration list required by the backend builder.
+#' @param ad_fun External pointer or list from \code{getAdFun()}.
 #' @param x Numeric parameter vector of length \code{Nparams}.
-#' @param inner Logical scalar for inner-\eqn{\gamma} vs outer derivatives.
 #' @param Sgroups Optional integer vector of 0-based group indices.
-#' @param LinvPt,LinvPtColumns,verbose,num_threads See \code{traceHinvT()}.
+#' @param inner Logical scalar for inner-\eqn{\gamma} vs outer derivatives.
+#' @param verbose Logical passed to \code{hessian()}.
+#' @param LinvPt,LinvPtColumns,num_threads See \code{traceHinvT()}.
 #'
-#' @rdname adlaplace_cpp
-adlaplace_n_groups <- function(handle) {
-    .Call(`_adlaplace_adlaplace_n_groups`, handle)
-}
-
-#' @rdname adlaplace_cpp
-adlaplace_get_sparse_sizes <- function(handle, group) {
-    .Call(`_adlaplace_adlaplace_get_sparse_sizes`, handle, group)
-}
-
-#' @rdname adlaplace_cpp
-adlaplace_get_sparse_pattern <- function(handle, group) {
-    .Call(`_adlaplace_adlaplace_get_sparse_pattern`, handle, group)
-}
-
 #' @rdname adlaplace_cpp
 #' @return Scalar **joint log density** \eqn{\ell(x)} (sum over shards; not negative log density).
 #' @export
@@ -119,7 +131,7 @@ hessian <- function(ad_fun, x, Sgroups = NULL, inner = FALSE, verbose = FALSE) {
 #'   \code{gradient} (inner gradient if \code{deriv=FALSE}, otherwise full gradient),
 #'   \code{hessian} (inner Hessian if \code{deriv=FALSE}, otherwise full Hessian),
 #'   \code{iterations}, \code{status}, \code{trust.radius}, \code{method},
-#'   \code{hessian_L}, \code{hessian_D} (Eigen LDLT of permuted inner Hessian).
+#'   \code{chol_inner} (list \code{L1}, \code{D}, \code{perm}, as \code{Matrix::expand2}).
 #'   Objective and derivatives use the same **negative log-density** convention as
 #'   \code{all_derivs()}.}
 #'
@@ -137,13 +149,15 @@ all_derivs <- function(x, ad_fun, config) {
     .Call(`_adlaplace_all_derivs`, x, ad_fun, config)
 }
 
-inner_opt_cpp <- function(parameters, gamma, config, control, ad_fun, deriv = NULL) {
-    .Call(`_adlaplace_inner_opt_cpp`, parameters, gamma, config, control, ad_fun, deriv)
+#' @rdname innerOpt
+#' @export
+inner_opt <- function(parameters, gamma, config, ad_fun, control = NULL, deriv = NULL) {
+    .Call(`_adlaplace_inner_opt`, parameters, gamma, config, ad_fun, control, deriv)
 }
 
 #' @rdname adlaplace_cpp
 #' @export
-traceHinvT <- function(ad_fun, x, LinvPt, LinvPtColumns, num_threads, Sgroups) {
+traceHinvT <- function(ad_fun, x, LinvPt, LinvPtColumns, num_threads, Sgroups = NULL) {
     .Call(`_adlaplace_traceHinvT`, ad_fun, x, LinvPt, LinvPtColumns, num_threads, Sgroups)
 }
 

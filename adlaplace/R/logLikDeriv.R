@@ -1,24 +1,8 @@
 reformat_chol <- function(x) {
-  if (inherits(x, "dCHMsimpl")) {
-    x_orig <- x
-    x <- Matrix::expand2(x_orig)
-    L <- x$L1
-    D <- x$D@x
-    perm <- x_orig@perm
-  } else {
-    L <- x$L
-    D <- x$D
-    perm <- x$perm
-  }
-
-  Linv <- Matrix::solve(L)
-  halfDinv <- Matrix::Diagonal(length(D), D^(-0.5))
-
-  # H^{-1/2} = P^T (L^{-1} D^{-1/2}); row reorder [1 + perm] maps permuted -> original
-  halfH <- Matrix::crossprod(Linv, halfDinv)[1 + perm, ]
+  ldl <- as_ldl_list(x)
+  halfH <- halfH_from_ldl(ldl)
   Hinv <- Matrix::tcrossprod(halfH)
-
-  return(list(halfH = halfH, Hinv = Hinv))
+  list(halfH = halfH, Hinv = Hinv)
 }
 
 logLikDeriv <- function(
@@ -26,7 +10,7 @@ logLikDeriv <- function(
   hessian_pack,
   grad,
   config,
-  adFun
+  ad_fun
 ) {
   Hstuff <- reformat_chol(hessian_pack$chol_inner)
 
@@ -37,8 +21,8 @@ logLikDeriv <- function(
 
   # to do: grad_inner_gamma computed when ADfun is created
   whichColumnsByGroup1 <- lapply(
-    adFun$sparsity, function(xx, refmat) {
-      grad_inner_gamma <- match(xx$grad_inner, Sgamma0)
+    ad_fun$group_sparsity, function(xx, refmat) {
+      grad_inner_gamma <- match(xx, Sgamma0)
       linvHere <- refmat[grad_inner_gamma, , drop = FALSE]
       which(diff(linvHere@p) > 0) - 1L # which columns have at least one non-zero
     },
@@ -57,9 +41,10 @@ logLikDeriv <- function(
 
   # need to pass num threads
   theTrace <- adlaplace::traceHinvT(
-    full_parameters, Hstuff$halfH,
+    x = full_parameters,
+    Hstuff$halfH,
     whichColumnsByGroup,
-    adFun,
+    ad_fun = ad_fun,
     c(config$num_threads, 1L)[1]
   )
 

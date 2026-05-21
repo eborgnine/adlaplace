@@ -16,12 +16,11 @@ Encoding: UTF-8
 SystemRequirements: CppAD, OpenMP
 RoxygenNote: 7.3.3
 NeedsCompilation: yes
-Packaged: 2026-01-22 18:49:30 UTC; patrick
+Packaged: 2026-05-21 13:22:13 UTC; patrick
 Author: Patrick Brown [aut, cre, cph]
 Collate: 
     '000.R'
     'RcppExports.R'
-    'inner_opt.R'
     'by_group.R'
     'effects.R'
     'fpoly.R'
@@ -39,4 +38,6 @@ Collate:
     'model_setup.R'
     'overdispersion.R'
     'response.R'
+    'rmvnldl.R'
+    'sim_fit.R'
     'wrappers.R'

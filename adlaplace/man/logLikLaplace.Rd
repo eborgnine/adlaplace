@@ -9,7 +9,7 @@ logLikLaplace(
   config,
   gamma,
   control = list(report.level = 4, report.freq = 1),
-  adFun,
+  ad_fun,
   data,
   package = c(config$package, "adlaplace")[1],
   deriv = FALSE
@@ -32,11 +32,11 @@ parameter \code{gamma}. If missing, defaults to \code{config$gamma}.}
 optimizer (e.g., \code{report.level}, \code{report.freq}). See backend
 documentation (e.g., \pkg{trustOptim}) for supported options.}
 
-\item{adFun}{Optional AD object returned by the backend \code{getAdFun()}.
+\item{ad_fun}{Optional AD object returned by the backend \code{getAdFun()}.
 This is a single backend handle (no separate inner/outer handles). If
 missing, it will be constructed automatically using \code{data}.}
 
-\item{data}{Optional data list used to build \code{adFun} when \code{adFun}
+\item{data}{Optional data list used to build \code{ad_fun} when \code{ad_fun}
 is not supplied.}
 
 \item{package}{Character scalar naming the backend package to use for
@@ -80,7 +80,7 @@ inserted into \code{config} (as \code{config_inner$beta} and
 \code{config_inner$theta}) before calling the backend inner optimizer.
 
 The default \pkg{adlaplace} backend uses a single AD handle. This function
-passes that handle to \code{inner_opt(..., ad_fun = adFun)}.
+passes that handle to \code{inner_opt(..., ad_fun = ad_fun)}.
 
 The inner objective is treated as negative joint log density; this function
 returns both the Laplace-approximated log-likelihood (\code{logLik}) and its

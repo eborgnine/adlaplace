@@ -12,7 +12,7 @@
 #'
 #' @param x Numeric outer parameter vector \code{c(beta, theta)}.
 #' @param config Configuration list passed to \code{\link{logLikLaplace}}.
-#' @param adFun Backend handle from \code{\link{getAdFun}}.
+#' @param ad_fun Backend handle from \code{\link{getAdFun}}.
 #' @param ... Additional arguments forwarded to \code{\link{logLikLaplace}}
 #'   (for example \code{data} or \code{package}).
 #' @param control_inner A list of control options forwarded to the \code{control}
@@ -34,60 +34,61 @@
 #' \dontrun{
 #' cache <- new.env(parent = emptyenv())
 #' cache$gamma <- rep(0, nrow(data$ATp))
-#' adFun <- getAdFun(data, config)
+#' ad_fun <- getAdFun(data, config)
 #'
-#' val <- outer_fn(x = x0, data = data, config = config, cache = cache, adFun = adFun)
-#' gr  <- outer_gr(x = x0, data = data, config = config, cache = cache, adFun = adFun)
+#' val <- outer_fn(x = x0, data = data, config = config, cache = cache, ad_fun = ad_fun)
+#' gr <- outer_gr(x = x0, data = data, config = config, cache = cache, ad_fun = ad_fun)
 #' }
 #'
 #' @name outer_optim_wrappers
 #' @rdname outer_optim_wrappers
 #' @export
-outer_fn = function(x, config, cache, adFun, control_inner = list(), ...) {
-	assign('last_par_fn', x, cache)
-	if(is.null(config$gamma)) {
-		stop("outer_fn requires config$gamma")
-	}
-	if(is.null(cache$gamma) || length(cache$gamma) != length(config$gamma)) {
-		cache$gamma <- config$gamma
-	}
-	
-	
-	result = adlaplace::logLikLaplace(
-		x=x, config,
-		gamma = cache$gamma,
-		control = control_inner,
-		adFun = adFun, 
-		deriv = FALSE, ...
-	)
-	assign('gamma', result$opt$solution, cache)
-	-result$logLik
+outer_fn <- function(x, config, cache, ad_fun, control_inner = list(), ...) {
+    assign("last_par_fn", x, cache)
+    if (is.null(config$gamma)) {
+        stop("outer_fn requires config$gamma")
+    }
+    if (is.null(cache$gamma) || length(cache$gamma) != length(config$gamma)) {
+        cache$gamma <- config$gamma
+    }
+
+    result <- adlaplace::inner_opt(
+        parameters = x,
+        gamma = cache$gamma,
+        config = config,
+        ad_fun = ad_fun,
+        control = control_inner,
+        deriv = FALSE
+    )
+
+    assign("gamma", result$solution, cache)
+    -result$log_lik
 }
 
 #' @rdname outer_optim_wrappers
 #' @export
-outer_gr = function(x, config, cache, adFun, control_inner = list(), ...) {
-	assign('last_par_gr', x, cache)
-	if(is.null(config$gamma)) {
-		stop("outer_gr requires config$gamma")
-	}
-	if(is.null(cache$gamma) || length(cache$gamma) != length(config$gamma)) {
-		cache$gamma <- config$gamma
-	}
-	
-	# Pass chol_inner from adFun to config if available
-	config_inner <- config
-	if (!is.null(adFun) && !is.null(adFun$chol_inner)) {
-		config_inner$chol_inner <- adFun$chol_inner
-	}
-	
-	result = adlaplace::logLikLaplace(
-		x=x, config=config_inner,
-		gamma = cache$gamma,
-		control = control_inner,
-		adFun = adFun, 
-		deriv = TRUE, ...
-	)
-	assign('gamma', result$opt$solution, cache)
-	result$grad
+outer_gr <- function(x, config, cache, ad_fun, control_inner = list(), ...) {
+    assign("last_par_gr", x, cache)
+    if (is.null(config$gamma)) {
+        stop("outer_gr requires config$gamma")
+    }
+    if (is.null(cache$gamma) || length(cache$gamma) != length(config$gamma)) {
+        cache$gamma <- config$gamma
+    }
+
+    # Pass chol_inner from ad_fun to config if available
+    config_inner <- config
+    if (!is.null(ad_fun) && !is.null(ad_fun$chol_inner)) {
+        config_inner$chol_inner <- ad_fun$chol_inner
+    }
+
+    result <- adlaplace::logLikLaplace(
+        x = x, config = config_inner,
+        gamma = cache$gamma,
+        control = control_inner,
+        ad_fun = ad_fun,
+        deriv = TRUE, ...
+    )
+    assign("gamma", result$opt$solution, cache)
+    result$grad
 }

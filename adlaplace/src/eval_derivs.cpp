@@ -5,6 +5,26 @@
 
 #include "adlaplace/runtime/interfaces.hpp"
 
+//' @title C++ backend entry points
+//' @name adlaplace_cpp
+//' @description Low-level C++ entry points exposed to R via Rcpp.
+//'
+//' @section Sign convention:
+//' \code{jointLogDens()}, \code{grad()}, and \code{hessian()} evaluate the
+//' \strong{joint log density} \eqn{\ell(x)} and its derivatives (maximization sign).
+//' \code{all_derivs()} and the objective inside \code{inner_opt()} use the
+//' \strong{negative} log density \eqn{-\ell(x)} and its derivatives for
+//' \pkg{trustOptim} minimization. At the same \code{x} and \code{ad_fun},
+//' \code{all_derivs()$fval == -jointLogDens(ad_fun, x)},
+//' \code{all_derivs()$gradient == -grad(ad_fun, x)}, and
+//' \code{all_derivs()$hessian == -hessian(ad_fun, x)} (outer, full parameter vector).
+//' @param ad_fun External pointer or list from \code{getAdFun()}.
+//' @param x Numeric parameter vector of length \code{Nparams}.
+//' @param Sgroups Optional integer vector of 0-based group indices.
+//' @param inner Logical scalar for inner-\eqn{\gamma} vs outer derivatives.
+//' @param verbose Logical passed to \code{hessian()}.
+//' @param LinvPt,LinvPtColumns,num_threads See \code{traceHinvT()}.
+//'
 //' @rdname adlaplace_cpp
 //' @return Scalar **joint log density** \eqn{\ell(x)} (sum over shards; not negative log density).
 //' @export
@@ -14,7 +34,7 @@ double jointLogDens(
   const Rcpp::NumericVector& x,
   SEXP Sgroups = R_NilValue) {
 
-  ad_groups* groups = get_ad_groups(ad_fun);
+  ad_groups* groups = resolve_ad_groups(ad_fun);
   const size_t Ngroups = groups->fun.size();
   if (Ngroups == 0) Rcpp::stop("ad_groups.fun is empty");
   const size_t Nparams = pack_ctx(groups->fun[0]->ctx)->x.size();
@@ -50,7 +70,7 @@ Rcpp::NumericVector grad(
   SEXP Sgroups = R_NilValue,
   bool inner = false) {
 
-  ad_groups* groups = get_ad_groups(ad_fun);
+  ad_groups* groups = resolve_ad_groups(ad_fun);
   const size_t Nparams = x.size();
   const size_t Ngroups = groups->fun.size();
   const Rcpp::IntegerVector Sgroups_vec = (Sgroups == R_NilValue)
@@ -79,7 +99,7 @@ Rcpp::S4 hessian(
   SEXP Sgroups = R_NilValue,
   bool inner = false,
   const bool verbose = false) {
-  ad_groups* groups = get_ad_groups(ad_fun);
+  ad_groups* groups = resolve_ad_groups(ad_fun);
   if (groups->fun.empty() || !groups->fun[0]->api->f_grad_hess) {
     Rcpp::stop("ad_fun api->f_grad_hess is NULL");
   }

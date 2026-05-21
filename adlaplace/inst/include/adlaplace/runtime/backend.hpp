@@ -9,20 +9,12 @@
 #include "adlaplace/api/adpack_handle.h"
 #include "adlaplace/runtime/rviews.hpp"
 
-// Stored copy of a Matrix dCHMsimpl object (symbolic shell from hessian_map()).
+// Symbolic LDL pattern from hessian_map() chol_inner (dCHMsimpl): p, i, perm only.
 struct CholPattern {
 	int n = 0;
 	std::vector<int> p;
 	std::vector<int> i;
-	std::vector<int> nz;
-	std::vector<int> nxt;
-	std::vector<int> prv;
-	std::vector<int> type;
-	std::vector<int> colcount;
 	std::vector<int> perm;
-	// Inverse permutation for Eigen (pinv.indices()[orig] = j if perm[j] = orig); used with twistedBy(P).
-	Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic, int> pinv;
-	std::vector<int> dim;
 };
 
 struct GroupPack {
@@ -40,7 +32,16 @@ struct GroupPack {
   CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> unused_pattern;
 
   CPPAD_TESTVECTOR(double) x;
+
+  // Shard index and global parameter layout (for trace_hinv_t / LinvPtColumns).
+  std::size_t shard_index = 0;
+  std::size_t n_beta = 0;
+  std::size_t n_gamma = 0;
 };
+
+static inline GroupPack* pack_ctx(void* vctx) {
+  return static_cast<GroupPack*>(vctx);
+}
 
 // One AD shard (GroupPack) exposed through the C API.
 using ad_vector = std::vector<adlaplace_adpack_handle*>;

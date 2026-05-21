@@ -34,10 +34,10 @@ if (requireNamespace("mgcv", quietly = TRUE)) {
   )
 
 
-  adFun <- adlaplace::getAdFun(model_stuff$data, config)
+  ad_fun <- adlaplace::getAdFun(model_stuff$data, config)
   res <- adlaplace::logLikLaplace(
     x = c(config$beta, config$theta),
-    adFun = adFun,
+    ad_fun = ad_fun,
     config = c(config, list(verbose = FALSE)),
     deriv = TRUE
   )
@@ -67,8 +67,8 @@ if (requireNamespace("mgcv", quietly = TRUE)) {
 
   x0 <- config$opt$init
 
-  adlaplace::outer_fn(x = x0, cache = cache, config = config, adFun = adFun)
-  adlaplace::outer_gr(x = x0, cache = cache, config = config, adFun = adFun)
+  adlaplace::outer_fn(x = x0, cache = cache, config = config, ad_fun = ad_fun)
+  adlaplace::outer_gr(x = x0, cache = cache, config = config, ad_fun = ad_fun)
 
   outer_fit <- stats::optim(
     par = config$opt$init,
@@ -83,7 +83,7 @@ if (requireNamespace("mgcv", quietly = TRUE)) {
     lower = config$opt$lower,
     upper = config$opt$upper,
     config = config,
-    adFun = adFun,
+    ad_fun = ad_fun,
     cache = cache
   )
 

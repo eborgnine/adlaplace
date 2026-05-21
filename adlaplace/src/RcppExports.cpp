@@ -33,38 +33,38 @@ BEGIN_RCPP
     return R_NilValue;
 END_RCPP
 }
-// adlaplace_n_groups
-int adlaplace_n_groups(SEXP handle);
-RcppExport SEXP _adlaplace_adlaplace_n_groups(SEXP handleSEXP) {
+// n_groups
+int n_groups(SEXP handle);
+RcppExport SEXP _adlaplace_n_groups(SEXP handleSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< SEXP >::type handle(handleSEXP);
-    rcpp_result_gen = Rcpp::wrap(adlaplace_n_groups(handle));
+    rcpp_result_gen = Rcpp::wrap(n_groups(handle));
     return rcpp_result_gen;
 END_RCPP
 }
-// adlaplace_get_sparse_sizes
-Rcpp::List adlaplace_get_sparse_sizes(SEXP handle, int group);
-RcppExport SEXP _adlaplace_adlaplace_get_sparse_sizes(SEXP handleSEXP, SEXP groupSEXP) {
+// get_sparse_sizes
+Rcpp::List get_sparse_sizes(SEXP handle, int group);
+RcppExport SEXP _adlaplace_get_sparse_sizes(SEXP handleSEXP, SEXP groupSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< SEXP >::type handle(handleSEXP);
     Rcpp::traits::input_parameter< int >::type group(groupSEXP);
-    rcpp_result_gen = Rcpp::wrap(adlaplace_get_sparse_sizes(handle, group));
+    rcpp_result_gen = Rcpp::wrap(get_sparse_sizes(handle, group));
     return rcpp_result_gen;
 END_RCPP
 }
-// adlaplace_get_sparse_pattern
-Rcpp::List adlaplace_get_sparse_pattern(SEXP handle, int group);
-RcppExport SEXP _adlaplace_adlaplace_get_sparse_pattern(SEXP handleSEXP, SEXP groupSEXP) {
+// get_sparse_pattern
+Rcpp::List get_sparse_pattern(SEXP handle, int group);
+RcppExport SEXP _adlaplace_get_sparse_pattern(SEXP handleSEXP, SEXP groupSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< SEXP >::type handle(handleSEXP);
     Rcpp::traits::input_parameter< int >::type group(groupSEXP);
-    rcpp_result_gen = Rcpp::wrap(adlaplace_get_sparse_pattern(handle, group));
+    rcpp_result_gen = Rcpp::wrap(get_sparse_pattern(handle, group));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -123,19 +123,19 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
-// inner_opt_cpp
-Rcpp::List inner_opt_cpp(const Rcpp::NumericVector parameters, const Rcpp::NumericVector gamma, const Rcpp::List& config, const Rcpp::List& control, const Rcpp::List& ad_fun, SEXP deriv);
-RcppExport SEXP _adlaplace_inner_opt_cpp(SEXP parametersSEXP, SEXP gammaSEXP, SEXP configSEXP, SEXP controlSEXP, SEXP ad_funSEXP, SEXP derivSEXP) {
+// inner_opt
+Rcpp::List inner_opt(const Rcpp::NumericVector parameters, const Rcpp::NumericVector gamma, const Rcpp::List& config, const Rcpp::List& ad_fun, SEXP control, SEXP deriv);
+RcppExport SEXP _adlaplace_inner_opt(SEXP parametersSEXP, SEXP gammaSEXP, SEXP configSEXP, SEXP ad_funSEXP, SEXP controlSEXP, SEXP derivSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< const Rcpp::NumericVector >::type parameters(parametersSEXP);
     Rcpp::traits::input_parameter< const Rcpp::NumericVector >::type gamma(gammaSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List& >::type config(configSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::List& >::type control(controlSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List& >::type ad_fun(ad_funSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type control(controlSEXP);
     Rcpp::traits::input_parameter< SEXP >::type deriv(derivSEXP);
-    rcpp_result_gen = Rcpp::wrap(inner_opt_cpp(parameters, gamma, config, control, ad_fun, deriv));
+    rcpp_result_gen = Rcpp::wrap(inner_opt(parameters, gamma, config, ad_fun, control, deriv));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -159,14 +159,14 @@ END_RCPP
 static const R_CallMethodDef CallEntries[] = {
     {"_adlaplace_build_adfun", (DL_FUNC) &_adlaplace_build_adfun, 2},
     {"_adlaplace_adlaplace_attach_hessian", (DL_FUNC) &_adlaplace_adlaplace_attach_hessian, 2},
-    {"_adlaplace_adlaplace_n_groups", (DL_FUNC) &_adlaplace_adlaplace_n_groups, 1},
-    {"_adlaplace_adlaplace_get_sparse_sizes", (DL_FUNC) &_adlaplace_adlaplace_get_sparse_sizes, 2},
-    {"_adlaplace_adlaplace_get_sparse_pattern", (DL_FUNC) &_adlaplace_adlaplace_get_sparse_pattern, 2},
+    {"_adlaplace_n_groups", (DL_FUNC) &_adlaplace_n_groups, 1},
+    {"_adlaplace_get_sparse_sizes", (DL_FUNC) &_adlaplace_get_sparse_sizes, 2},
+    {"_adlaplace_get_sparse_pattern", (DL_FUNC) &_adlaplace_get_sparse_pattern, 2},
     {"_adlaplace_jointLogDens", (DL_FUNC) &_adlaplace_jointLogDens, 3},
     {"_adlaplace_grad", (DL_FUNC) &_adlaplace_grad, 4},
     {"_adlaplace_hessian", (DL_FUNC) &_adlaplace_hessian, 5},
     {"_adlaplace_all_derivs", (DL_FUNC) &_adlaplace_all_derivs, 3},
-    {"_adlaplace_inner_opt_cpp", (DL_FUNC) &_adlaplace_inner_opt_cpp, 6},
+    {"_adlaplace_inner_opt", (DL_FUNC) &_adlaplace_inner_opt, 6},
     {"_adlaplace_traceHinvT", (DL_FUNC) &_adlaplace_traceHinvT, 6},
     {NULL, NULL, 0}
 };

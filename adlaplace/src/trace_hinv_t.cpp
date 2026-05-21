@@ -15,9 +15,9 @@ Rcpp::NumericVector traceHinvT(
   const Rcpp::S4& LinvPt,
   const Rcpp::S4& LinvPtColumns,
   const int num_threads,
-  SEXP Sgroups
+  SEXP Sgroups = R_NilValue
 ) {
-  ad_groups* groups = get_ad_groups(ad_fun);
+  ad_groups* groups = resolve_ad_groups(ad_fun);
   const size_t Ngroups = groups->fun.size();
   if (Ngroups == 0) Rcpp::stop("ad_groups.fun is empty");
   const size_t Nparams = pack_ctx(groups->fun[0]->ctx)->x.size();
@@ -42,7 +42,7 @@ Rcpp::NumericVector traceHinvT(
 
   std::vector<double> trace_accum(Nparams, 0.0);
   const Rcpp::IntegerVector Sgroups_vec = (Sgroups == R_NilValue)
-    ? Rcpp::IntegerVector()
+    ? Rcpp::seq(0, static_cast<int>(Ngroups) - 1)
     : Rcpp::as<Rcpp::IntegerVector>(Sgroups);
   const std::vector<size_t> group_idx = resolve_groups(Ngroups, Sgroups_vec);
 
@@ -104,7 +104,12 @@ Rcpp::NumericVector traceHinvT(
   }
 
   if (rc_error != 0) {
-    Rcpp::stop("backend api->trace_hinv_t failed for group %d with code %d", rc_group, rc_error);
+    Rcpp::stop(
+      "backend api->trace_hinv_t failed for group %d (code %d: %s)",
+      rc_group,
+      rc_error,
+      trace_hinv_t_strerror(rc_error)
+    );
   }
 
   Rcpp::NumericVector trace_out(Nparams);

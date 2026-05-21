@@ -112,7 +112,7 @@ Check the derivatives of the joint log density.
 
 
 ```{r derivJointDens, eval=TRUE}
-adFun <- adlaplace::build_adfun(data, modifyList(config, list(verbose = TRUE)))
+ad_fun <- adlaplace::build_adfun(data, modifyList(config, list(verbose = TRUE)))
 
 inner <- FALSE
 type <- c("outer", "inner")[1 + inner]
@@ -137,7 +137,7 @@ parDf[Dpar, ] <- Sx
 dens1 <- mapply(
   adlaplace::jointLogDens,
   x = as.list(parDf),
-  MoreArgs = list(ad_fun = adFun, Sgroups = Sgroups),
+  MoreArgs = list(ad_fun = ad_fun, Sgroups = Sgroups),
   SIMPLIFY = TRUE
 )
 
@@ -147,7 +147,7 @@ plot(Sx, dens1)
 grad1 <- mapply(
   adlaplace::grad,
   x = as.list(parDf),
-  MoreArgs = list(ad_fun = adFun, inner = inner, Sgroups = Sgroups),
+  MoreArgs = list(ad_fun = ad_fun, inner = inner, Sgroups = Sgroups),
   SIMPLIFY = TRUE
 )
 plot(Sx, grad1[Dpar, ])
@@ -157,7 +157,7 @@ lines(SxD, diff(dens1) / diff(Sx))
 hes1 <- mapply(
   adlaplace::hessian,
   x = as.list(parDf),
-  MoreArgs = list(ad_fun = adFun, inner = inner, Sgroups = Sgroups),
+  MoreArgs = list(ad_fun = ad_fun, inner = inner, Sgroups = Sgroups),
   SIMPLIFY = FALSE
 )
 
@@ -180,17 +180,16 @@ lines(SxD, gradD[, Dpar2])
 Make ad function with sparsity information, evaluate derivates to test the accumulation over shards is done correctly.  
 
 ```{r test_all_derivs}  
-adFun <- adlaplace::getAdFun(data, config)
+ad_fun <- adlaplace::getAdFun(data, config)
 x <- c(config$beta, config$gamma, config$theta)
-my_derivs <- adlaplace::all_derivs(x, adFun, config)
+my_derivs <- adlaplace::all_derivs(x, ad_fun, config)
 
-c(my_derivs$fval, -adlaplace::jointLogDens(adFun, x))
+c(my_derivs$fval, -adlaplace::jointLogDens(ad_fun, x))
 
-my_grad <- adlaplace::grad(adFun, x)
+my_grad <- adlaplace::grad(ad_fun, x)
 rbind(my_grad, my_derivs$gradient)[, 1:5]
 
-my_hessian <- adlaplace::hessian(adFun, x)
-max(abs(my_hessian@x + my_derivs$hessian@x))
+my_hessian <- adlaplace::hessian(ad_fun, x)
 abind::abind(as.matrix(my_hessian), as.matrix(my_derivs$hessian), along = 3)[1:5, 1:5, ]
 quantile(my_hessian@x + Matrix::forceSymmetric(my_derivs$hessian)@x)
 ```
@@ -200,28 +199,30 @@ inner_res <- adlaplace::inner_opt(
   parameters = c(config$beta, config$theta),
   gamma = config$gamma,
   config = config,
-  ad_fun = adFun,
+  ad_fun = ad_fun,
   control = list(
     maxit = 100,
     report.level = 0,
     report.freq = 0
   ),
-  deriv = TRUE
+  deriv = FALSE
 )
+chol_test <- Matrix::expand2(Matrix::Cholesky(inner_res$hessian, perm = TRUE, LDL = TRUE))
+inner_res$chol_inner$L1[1:5, 1:5]
+chol_test$L1[1:5, 1:5]
+quantile(inner_res$hessian_D - chol_test$D@x)
 ```
 
 ```{r testLogLik}
-adFun <- adlaplace::getAdFun(data, config)
-
 res <- adlaplace::logLikLaplace(
   x = c(config$beta, config$theta),
-  adFun = adFun,
+  ad_fun = ad_fun,
   config = modifyList(config, list(verbose = FALSE)),
   deriv = FALSE
 )
 res <- adlaplace::logLikLaplace(
   x = c(config$beta, config$theta),
-  adFun = adFun,
+  ad_fun = ad_fun,
   config = modifyList(config, list(verbose = TRUE)),
   deriv = TRUE
 )
@@ -233,15 +234,15 @@ res$grad
 
 
 ```{r trustOptimOuterWrappers}
-adFun <- adlaplace::getAdFun(data, config)
+ad_fun <- adlaplace::getAdFun(data, config)
 
 cache <- new.env(parent = emptyenv())
 cache$gamma <- config$gamma
 
 x0 <- c(config$beta, config$theta)
 
-adlaplace::outer_fn(x = x0, cache = cache, config = config, adFun = adFun)
-adlaplace::outer_gr(x = x0, cache = cache, config = config, adFun = adFun)
+adlaplace::outer_fn(x = x0, cache = cache, config = config, ad_fun = ad_fun)
+adlaplace::outer_gr(x = x0, cache = cache, config = config, ad_fun = ad_fun)
 
 outer_fit <- trustOptim::trust.optim(
   x = x0,
@@ -249,7 +250,7 @@ outer_fit <- trustOptim::trust.optim(
   gr = adlaplace::outer_gr,
   method = "SR1",
   config = config,
-  adFun = adFun,
+  ad_fun = ad_fun,
   cache = cache,
   control = list(
     maxit = 1000,
@@ -270,8 +271,8 @@ outer_fit$fval
 
 
 ```{r testLogLgrad}
-adFun <- adlaplace::getAdFun(data, config)
-x <- c(config$beta, config$theta)
+ad_fun <- adlaplace::getAdFun(data, config)
+x <- outer_fit$solution
 Npar <- 13
 Dpar <- length(x)
 
@@ -283,16 +284,12 @@ parDf[Dpar, ] <- Sx
 res <- mapply(
   adlaplace::logLikLaplace,
   x = as.list(parDf),
-  MoreArgs = list(adFun = adFun, config = config, deriv = TRUE),
+  MoreArgs = list(ad_fun = ad_fun, config = config, deriv = TRUE),
   SIMPLIFY = FALSE
 )
 Slik <- unlist(lapply(res, "[[", "logLik"))
-Sdet <- unlist(lapply(res, function(xx) {
-  Matrix::determinant(
-    xx$hessian$chol_inner,
-    sqrt = TRUE, logarithm = TRUE
-  )$modulus
-}))
+Sdet <- unlist(lapply(res, function(xx) xx$opt$half_log_det))
+
 dU <- do.call(
   abind::abind,
   c(lapply(res, function(xx) as.matrix(xx$extra$dU)), along = 3)
@@ -325,34 +322,34 @@ lines(SxD, diff(Sdet) / diff(Sx))
 
 
 ```{r testDeriv}
-adFun <- adlaplace::getAdFun(data, modifyList(config, list(verbose = TRUE)))
+ad_fun <- adlaplace::getAdFun(data, modifyList(config, list(verbose = TRUE)))
 
 x <- c(config$beta, rep(0.1, length(config$gamma)), config$theta)
-adlaplace::jointLogDens(x, adFun)
+adlaplace::jointLogDens(x, ad_fun)
 
 
-str(adlaplace::grad(adFun, x, inner = FALSE))
-str(adlaplace::grad(adFun, x, inner = TRUE))
+str(adlaplace::grad(ad_fun, x, inner = FALSE))
+str(adlaplace::grad(ad_fun, x, inner = TRUE))
 
 
 Dgroup <- ncol(config$groups) + 1
-str(h1 <- adlaplace::hess(x, adFun, FALSE, Sgroups = Dgroup))
-adFun$sparsity[1 + Dgroup]
+str(h1 <- adlaplace::hess(x, ad_fun, FALSE, Sgroups = Dgroup))
+ad_fun$sparsity[1 + Dgroup]
 (Shere <- 1 + seq(
-  adFun$hessians$map$outer$p[Dgroup + 1],
-  adFun$hessians$map$outer$p[Dgroup + 2] - 1
+  ad_fun$hessians$map$outer$p[Dgroup + 1],
+  ad_fun$hessians$map$outer$p[Dgroup + 2] - 1
 ))
-adFun$hessians$map$outer$local[Shere]
-adFun$hessians$map$outer$global[Shere]
+ad_fun$hessians$map$outer$local[Shere]
+ad_fun$hessians$map$outer$global[Shere]
 (hseq <- which(h1@x != 0))
 h1@x[hseq]
 
 
-str(h2 <- adlaplace::hess(x, adFun, TRUE))
+str(h2 <- adlaplace::hess(x, ad_fun, TRUE))
 ```
 
 ```{r trustOptimInterface, eval=FALSE}
-adFun <- adlaplace::getAdFun(data, config)
+ad_fun <- adlaplace::getAdFun(data, config)
 inner_res <- adlaplace::inner_opt(
   parameters = c(config$beta, config$theta),
   gamma = config$gamma,
@@ -362,7 +359,7 @@ inner_res <- adlaplace::inner_opt(
     report.freq = 0
   ),
   config = config,
-  ad_fun = adFun
+  ad_fun = ad_fun
 )
 
 str(inner_res)

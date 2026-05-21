@@ -154,10 +154,14 @@ hessian_map <- function(sparsity_list, Nbeta, Ngamma, Ntheta) {
     )
   }
 
+  L <- Matrix::expand2(chol_inner)$L1
+  Linv <- as(Matrix::solve(L), "nMatrix")
+
   list(
     outer = hessian_outer,
     inner = hessian_inner,
     chol_inner = chol_inner,
+    Linv = Linv,
     map_outer = result_map$outer,
     map_inner = result_map$inner,
     sizes = c(beta = Nbeta, gamma = Ngamma, theta = Ntheta)

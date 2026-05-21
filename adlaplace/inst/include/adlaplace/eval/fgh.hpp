@@ -11,10 +11,6 @@
 #include "adlaplace/runtime/backend.hpp"
 #include "adlaplace/runtime/sizes.hpp"
 
-static inline GroupPack* pack_ctx(void* vctx) {
-  return static_cast<GroupPack*>(vctx);
-}
-
 static int get_hessian(void* vctx,
 	const bool *inner,
 	const int** p, size_t* p_len,

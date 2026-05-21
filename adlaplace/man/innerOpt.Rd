@@ -8,7 +8,7 @@
 \usage{
 all_derivs(x, ad_fun, config)
 
-inner_opt(parameters, gamma, config, control, ad_fun)
+inner_opt(parameters, gamma, config, ad_fun, control = NULL, deriv = NULL)
 }
 \arguments{
 \item{x}{Numeric full parameter vector of length \code{Nparams} used by
@@ -28,18 +28,23 @@ sparsity information.}
 
 \item{control}{List of trust-region control parameters for
 \code{inner_opt()} (see \pkg{trustOptim}).}
+
+\item{deriv}{Logical: if \code{TRUE}, return full outer gradient and Hessian at the
+inner solution; if \code{FALSE}, return inner quantities only. When missing,
+uses \code{config$deriv} or legacy \code{config$inner_only}.}
 }
 \value{
 \item{\code{all_derivs()}}{List with \code{fval}, \code{gradient}, and
-  \code{hessian} of the \strong{negative log density} \eqn{-\ell(x)} at full
+  \code{hessian} of the **negative log density** \eqn{-\ell(x)} at full
   outer parameters \code{x} (minimization / \pkg{trustOptim} sign). Compare
   \code{\link{jointLogDens}}, \code{\link{grad}}, and \code{\link{hessian}}
   for \eqn{\ell(x)} and its derivatives at the same point.}
   \item{\code{inner_opt()}}{Returns \code{fval}, \code{solution},
-  \code{gradient} (inner gradient if \code{inner_only} is set, otherwise full gradient),
-  \code{hessian} (inner Hessian if \code{inner_only} is set, otherwise full Hessian),
-  \code{iterations}, \code{status}, \code{trust.radius}, and \code{method}.
-  Objective and derivatives use the same \strong{negative log-density} convention as
+  \code{gradient} (inner gradient if \code{deriv=FALSE}, otherwise full gradient),
+  \code{hessian} (inner Hessian if \code{deriv=FALSE}, otherwise full Hessian),
+  \code{iterations}, \code{status}, \code{trust.radius}, \code{method},
+  \code{chol_inner} (list \code{L1}, \code{D}, \code{perm}, as \code{Matrix::expand2}).
+  Objective and derivatives use the same **negative log-density** convention as
   \code{all_derivs()}.}
 }
 \description{
