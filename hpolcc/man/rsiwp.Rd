@@ -17,7 +17,8 @@ rsiwp(
   upper = .my_theta_upper,
   parscale = .my_theta_parscale,
   boundary_is_random = TRUE,
-  include_poly = TRUE
+  include_poly = TRUE,
+  include_linear = TRUE
 )
 }
 \arguments{

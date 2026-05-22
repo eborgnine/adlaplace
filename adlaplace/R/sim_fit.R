@@ -6,7 +6,7 @@
 #'
 #' @param x Data frame of prediction covariates (same variables as the fitted model).
 #' @param model Object returned by \code{\link{model_setup}}.
-#' @param fit Result from \code{\link{logLikLaplace}} at the fitted outer parameters.
+#' @param fit Result from \code{\link{log_lik_laplace}} at the fitted outer parameters.
 #' @param n Number of draws for random-effect simulation.
 #'
 #' @return A list with:

@@ -37,13 +37,15 @@ uses \code{config$deriv} or legacy \code{config$inner_only}.}
 \item{\code{all_derivs()}}{List with \code{fval}, \code{gradient}, and
   \code{hessian} of the **negative log density** \eqn{-\ell(x)} at full
   outer parameters \code{x} (minimization / \pkg{trustOptim} sign). Compare
-  \code{\link{jointLogDens}}, \code{\link{grad}}, and \code{\link{hessian}}
-  for \eqn{\ell(x)} and its derivatives at the same point.}
-  \item{\code{inner_opt()}}{Returns \code{fval}, \code{solution},
-  \code{gradient} (inner gradient if \code{deriv=FALSE}, otherwise full gradient),
-  \code{hessian} (inner Hessian if \code{deriv=FALSE}, otherwise full Hessian),
-  \code{iterations}, \code{status}, \code{trust.radius}, \code{method},
-  \code{chol_inner} (list \code{L1}, \code{D}, \code{perm}, as \code{Matrix::expand2}).
+  \code{\link{joint_log_dens}}, \code{\link{grad}}, and \code{\link{hessian}}
+  with \code{negative=FALSE} for \eqn{\ell(x)} at the same point.}
+  \item{\code{inner_opt()}}{Returns \code{log_lik}, \code{neg_log_lik}
+  (Laplace profile likelihood and its negation), \code{fval} (inner objective:
+  negative log joint density at \eqn{\hat\gamma}), \code{solution},
+  \code{gradient} (list \code{inner}, \code{outer}; \code{outer} empty when
+  \code{deriv=FALSE}), \code{hessian} (list \code{inner}, \code{outer},
+  \code{chol_inner}, \code{half_log_det}),
+  \code{iterations}, \code{status}, \code{trust.radius}, \code{method}.
   Objective and derivatives use the same **negative log-density** convention as
   \code{all_derivs()}.}
 }
@@ -56,5 +58,5 @@ evaluates the objective, gradient, and Hessian through the pre-built AD pack
 \details{
 This calls the sparse method from the \code{TrustOptim} package via the Cpp interface.
 \code{all_derivs()} and \code{inner_opt()} negate the tape log-density values in
-C++; \code{\link{jointLogDens}} / \code{\link{grad}} / \code{\link{hessian}} do not.
+C++; use \code{negative=FALSE} on those functions for \eqn{\ell(x)}.
 }

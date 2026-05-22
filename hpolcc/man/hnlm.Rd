@@ -55,8 +55,8 @@ matrices for random effects.
 }
 \details{
 The function handles fixed effects, random effects, and their associated
-precision matrices. It also optimizes the model using TMB with options for
-additional preprocessing and handling specific random effect structures.
+precision matrices. It optimizes via \pkg{adlaplace} automatic differentiation
+and Laplace approximation (inner optimization over random effects when present).
 }
 \examples{
 # Example usage

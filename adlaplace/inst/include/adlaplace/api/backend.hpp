@@ -9,12 +9,15 @@
 #include "adlaplace/api/adpack_handle.h"
 #include "adlaplace/creators/rviews.hpp"
 
-// Symbolic LDL pattern from hessian_map() chol_inner (dCHMsimpl): p, i, perm only.
+// Symbolic LDL from hessian_map() chol_inner_list (CSC patterns, 0-based perm / perm_inv).
 struct CholPattern {
 	int n = 0;
-	std::vector<int> p;
-	std::vector<int> i;
+	std::vector<int> L1_p;
+	std::vector<int> L1_i;
+	std::vector<int> Linv_p;
+	std::vector<int> Linv_i;
 	std::vector<int> perm;
+	std::vector<int> perm_inv;
 };
 
 struct GroupPack {
@@ -60,7 +63,5 @@ struct ad_groups {
   CholPattern chol_pattern;
   bool hessians_attached = false;
 };
-
-void ad_groups_attach_chol_pattern(ad_groups& groups, const Rcpp::List& ad_fun);
 
 #endif

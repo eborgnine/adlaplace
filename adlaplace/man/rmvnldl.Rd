@@ -26,9 +26,9 @@ diagonal \code{D}, and permutation \code{perm}).
 }
 \details{
 Uses \eqn{H^{-1/2} = P^\top L^{-1} D^{-1/2}} (same as \code{reformat_chol()}
-in \code{logLikDeriv}), and \code{rnorm} only:
+in \code{log_lik_deriv}), and \code{rnorm} only:
 \eqn{x = \mu + H^{-1/2} z}, \eqn{z \sim N(0, I)}.
 }
 \seealso{
-\code{\link[Matrix]{Cholesky}}, \code{\link{logLikLaplace}}
+\code{\link[Matrix]{Cholesky}}, \code{\link{log_lik_laplace}}
 }

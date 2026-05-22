@@ -16,8 +16,11 @@ hessian_map(sparsity_list, Nbeta, Ngamma, Ntheta)
 \item{Ntheta}{Number of variance parameters.}
 }
 \value{
-A list with \code{outer}, \code{inner}, optional \code{chol_inner},
-  \code{map_outer}, \code{map_inner}, and \code{sizes} (named
+A list with \code{outer}, \code{inner}, optional \code{chol_inner_list}
+  (symbolic LDL pattern for C++: \code{L1}, \code{Linv}, \code{perm},
+  \code{perm} (1-based, as \code{Matrix::Cholesky@perm}),
+  \code{perm_inv} (0-based)), optional \code{chol_inner} (\code{dCHMsimpl}
+  for R), \code{map_outer}, \code{map_inner}, and \code{sizes} (named
   \code{beta}/\code{gamma}/\code{theta}; suitable for
   \code{adlaplace_attach_hessian()}).
 }

@@ -4,18 +4,20 @@
 \alias{get_ad_fun}
 \title{Build backend AD function handle}
 \usage{
-get_ad_fun(data, config, package = c(config$package, "adlaplace")[1])
+get_ad_fun(data, config, ad_fun, package = c(config$package, "adlaplace")[1])
 }
 \arguments{
-\item{data}{Model data list passed to the backend builder. Must contain at
-minimum components required by the selected backend (e.g., \code{y}, \code{X},
-\code{Z} for linear mixed models). See backend package documentation.}
+\item{data}{Model data list (unused for handle-only attachment; retained for
+API compatibility and future \code{model_setup} integration).}
 
 \item{config}{Model configuration list passed to the backend builder.
 Must contain \code{beta}, \code{gamma}, and \code{theta} (vectors of starting
 values), and may include \code{verbose}, \code{num_threads}, and other backend-
 specific options. The \code{config$package} field is ignored here — use the
 \code{package} argument instead.}
+
+\item{ad_fun}{Combined raw handle from \code{\link{combine}}. Required when
+\code{package = "adlaplace"}.}
 
 \item{package}{Character scalar naming the backend package to use for
 \code{getAdFun_r()}. Defaults to \code{"adlaplace"}. Supported backends must
@@ -26,23 +28,15 @@ Backend object returned by \code{<package>::getAdFun_r()}. For the
   default \pkg{adlaplace} backend, this is a list containing \code{ad_fun}
   (external pointer handle), \code{sparsity}, and \code{hessians}. The object
   carries an \code{"adlaplace.backend"} attribute indicating which package built it,
-  enabling runtime validation in functions like \code{logLikLaplace()}.
+  enabling runtime validation in functions like \code{log_lik_laplace()}.
 }
 \description{
 Safe frontend for constructing AD handles. This is the only public
 \code{get_ad_fun()} entry point; backend packages should expose
 \code{getAdFun_r()}.
 }
-\examples{
-\dontrun{
-# Minimal example — requires valid data and config
-data <- list(y = rnorm(10), X = matrix(1, 10, 1), Z = matrix(1, 10, 1))
-config <- list(beta = 0, gamma = rep(0, 1), theta = 1, verbose = FALSE)
-ad_fun <- get_ad_fun(data, config, package = "adlaplace")
-}
-
-}
 \seealso{
-\code{\link{inner_opt}}, \code{\link{logLikLaplace}}, \code{\link{hessian_map}}.
+\code{\link{inner_opt}}, \code{\link{log_lik_laplace}}, \code{\link{hessian_map}},
+\code{\link{combine}}, \code{\link{get_ad_fun_raw}}.
 Backend packages should export \code{getAdFun_r()}.
 }

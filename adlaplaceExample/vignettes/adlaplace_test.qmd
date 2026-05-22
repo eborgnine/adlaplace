@@ -98,7 +98,7 @@ x <- c(beta_true, gamma_true, true_theta)
 Sgroups <- seq.int(0L, length.out = adlaplace::n_groups(ad_fun$ad_fun))
 # Sgroups = 0L
 
-adlaplace::jointLogDens(ad_fun, x, Sgroups)
+adlaplace::joint_log_dens(ad_fun, x, Sgroups, negative = FALSE)
 
 g <- adlaplace::grad(ad_fun, x, inner = FALSE)
 H <- adlaplace::hessian(ad_fun, x, inner = FALSE)
@@ -114,7 +114,7 @@ quantile(eigen(H)$values)
 ```{r trustOptimInterface}
 ad_fun <- adlaplace::get_ad_fun(data, config, package = "adlaplaceExample")
 
-res <- adlaplace::logLikLaplace(
+res <- adlaplace::log_lik_laplace(
   x = c(config$beta, config$theta),
   config = config,
   ad_fun = ad_fun,
@@ -170,7 +170,7 @@ SxD <- Sx[-1] - diff(Sx) / 2
 parDf[Dpar, ] <- Sx
 
 res <- mapply(
-  adlaplace::logLikLaplace,
+  adlaplace::log_lik_laplace,
   x = as.list(parDf),
   MoreArgs = list(ad_fun = ad_fun, config = config, deriv = TRUE),
   SIMPLIFY = FALSE
@@ -258,7 +258,7 @@ parDf[Dpar, ] <- Sx
 
 
 dens1 <- mapply(
-  adlaplace::jointLogDens,
+  adlaplace::joint_log_dens,
   x = as.list(parDf),
   MoreArgs = list(ad_fun = ad_fun, Sgroups = Sgroups),
   SIMPLIFY = TRUE

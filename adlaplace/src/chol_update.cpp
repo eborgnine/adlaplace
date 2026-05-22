@@ -45,9 +45,67 @@ std::vector<int> copy_int_slot(const Rcpp::S4& obj, const char* name) {
 	return Rcpp::as<std::vector<int>>(obj.slot(name));
 }
 
+void copy_csc_slots(const Rcpp::S4& mat, std::vector<int>& p, std::vector<int>& i) {
+	p = copy_int_slot(mat, "p");
+	i = copy_int_slot(mat, "i");
+}
+
+int dim_n(const Rcpp::S4& mat, const char* label) {
+	const Rcpp::IntegerVector dim = mat.slot("Dim");
+	if (dim.size() != 2) {
+		Rcpp::stop("%s Dim slot must have length 2", label);
+	}
+	const int n = dim[0];
+	const int ncol = dim[1];
+	if (n != ncol || n < 0) {
+		Rcpp::stop("%s must be square (Dim[0] == Dim[1] >= 0)", label);
+	}
+	return n;
+}
+
+void perm_to_zero_based(std::vector<int>& perm, int n) {
+	if (perm.empty()) {
+		return;
+	}
+	const int perm_min = *std::min_element(perm.begin(), perm.end());
+	const int perm_max = *std::max_element(perm.begin(), perm.end());
+	if (perm_min >= 1 && perm_max <= n) {
+		for (int& v : perm) {
+			v -= 1;
+		}
+	}
+}
+
+void validate_perm_vector(
+	const std::vector<int>& perm,
+	int n,
+	const char* name)
+{
+	if (perm.size() != static_cast<size_t>(n)) {
+		Rcpp::stop(
+			"%s length (%d) does not match dimension (%d)",
+			name,
+			static_cast<int>(perm.size()),
+			n
+		);
+	}
+	for (size_t j = 0; j < static_cast<size_t>(n); ++j) {
+		const int v = perm[j];
+		if (v < 0 || v >= n) {
+			Rcpp::stop(
+				"%s[%d] = %d out of range [0, %d]",
+				name,
+				static_cast<int>(j),
+				v,
+				n - 1
+			);
+		}
+	}
+}
+
 } // namespace
 
-// Numeric LDL of P H P' in permuted ordering; H is original (upper CSC), perm from chol_inner.
+// Numeric LDL of P H P' in permuted ordering; H is original (upper CSC), perm 0-based.
 // Fills unit-lower L (off-diagonal in x_out, pattern p_out/i_out) and diagonal D.
 // Returns log(det) = sum(log(D)); NA_REAL if factorization D is invalid.
 double chol_update(
@@ -141,8 +199,7 @@ CholPattern chol_pattern_from_sexp(SEXP chol_inner) {
 
 	CholPattern pattern;
 	const Rcpp::S4 obj(chol_inner);
-	pattern.p = copy_int_slot(obj, "p");
-	pattern.i = copy_int_slot(obj, "i");
+	copy_csc_slots(obj, pattern.L1_p, pattern.L1_i);
 	pattern.perm = copy_int_slot(obj, "perm");
 
 	const Rcpp::IntegerVector dim = obj.slot("Dim");
@@ -177,23 +234,68 @@ CholPattern chol_pattern_from_sexp(SEXP chol_inner) {
 	return pattern;
 }
 
+CholPattern chol_pattern_from_list(const Rcpp::List& chol_inner_list) {
+	if (!chol_inner_list.containsElementNamed("L1") || Rf_isNull(chol_inner_list["L1"])) {
+		Rcpp::stop("chol_inner_list must contain L1");
+	}
+	if (!chol_inner_list.containsElementNamed("perm") || Rf_isNull(chol_inner_list["perm"])) {
+		Rcpp::stop("chol_inner_list must contain perm");
+	}
+
+	if (!chol_inner_list.containsElementNamed("Linv") || Rf_isNull(chol_inner_list["Linv"])) {
+		Rcpp::stop("chol_inner_list must contain Linv");
+	}
+	if (!chol_inner_list.containsElementNamed("perm_inv") ||
+		Rf_isNull(chol_inner_list["perm_inv"])) {
+		Rcpp::stop("chol_inner_list must contain perm_inv");
+	}
+
+	const Rcpp::S4 L1(chol_inner_list["L1"]);
+	const Rcpp::S4 Linv(chol_inner_list["Linv"]);
+	CholPattern pattern;
+	copy_csc_slots(L1, pattern.L1_p, pattern.L1_i);
+	copy_csc_slots(Linv, pattern.Linv_p, pattern.Linv_i);
+
+	const int n = dim_n(L1, "chol_inner_list$L1");
+	if (dim_n(Linv, "chol_inner_list$Linv") != n) {
+		Rcpp::stop("chol_inner_list L1 and Linv dimensions must match");
+	}
+
+	pattern.perm = Rcpp::as<std::vector<int>>(chol_inner_list["perm"]);
+	pattern.perm_inv = Rcpp::as<std::vector<int>>(chol_inner_list["perm_inv"]);
+	perm_to_zero_based(pattern.perm, n);
+	validate_perm_vector(pattern.perm, n, "chol_inner_list perm");
+	validate_perm_vector(pattern.perm_inv, n, "chol_inner_list perm_inv");
+
+	pattern.n = n;
+	return pattern;
+}
+
 void ad_groups_attach_chol_pattern(ad_groups& groups, const Rcpp::List& ad_fun) {
 	if (groups.chol_pattern.n > 0) {
 		return;
 	}
 	if (!groups.hessians_attached) {
-		Rcpp::stop("attach Hessian templates before chol_inner");
-	}
-
-	if (!ad_fun.containsElementNamed("chol_inner") || Rf_isNull(ad_fun["chol_inner"])) {
-		Rcpp::stop("ad_fun must contain chol_inner from hessian_map()");
+		Rcpp::stop("attach Hessian templates before chol_inner_list");
 	}
 
 	const int inner_n = static_cast<int>(groups.hessian_inner.rows());
-	groups.chol_pattern = chol_pattern_from_sexp(ad_fun["chol_inner"]);
+	if (inner_n == 0) {
+		groups.chol_pattern = CholPattern();
+		return;
+	}
+
+	if (!ad_fun.containsElementNamed("chol_inner_list") ||
+		Rf_isNull(ad_fun["chol_inner_list"])) {
+		Rcpp::stop("ad_fun must contain chol_inner_list from hessian_map()");
+	}
+
+	groups.chol_pattern = chol_pattern_from_list(
+		Rcpp::as<Rcpp::List>(ad_fun["chol_inner_list"])
+	);
 	if (groups.chol_pattern.n != inner_n) {
 		Rcpp::stop(
-			"chol_inner dimension (%d) does not match inner Hessian template (%d)",
+			"chol_inner_list dimension (%d) does not match inner Hessian template (%d)",
 			groups.chol_pattern.n,
 			inner_n
 		);

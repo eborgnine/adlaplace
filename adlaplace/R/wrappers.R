@@ -1,8 +1,8 @@
 #' Outer objective and gradient wrappers
 #'
-#' Convenience wrappers around \code{\link{logLikLaplace}} for use with outer optimizers
+#' Convenience wrappers around \code{\link{log_lik_laplace}} for use with outer optimizers
 #' that expect \code{fn} / \code{gr} callbacks. Both functions solve (or warm-start)
-#' the inner problem over \code{gamma} via \code{\link{logLikLaplace}} and update a mutable
+#' the inner problem over \code{gamma} via \code{\link{log_lik_laplace}} and update a mutable
 #' \code{cache} environment with the latest inner solution.
 #'
 #' \describe{
@@ -11,24 +11,23 @@
 #' }
 #'
 #' @param x Numeric outer parameter vector \code{c(beta, theta)}.
-#' @param config Configuration list passed to \code{\link{logLikLaplace}}.
+#' @param config Configuration list passed to \code{\link{log_lik_laplace}}.
 #' @param ad_fun Backend handle from \code{\link{get_ad_fun}}.
-#' @param ... Additional arguments forwarded to \code{\link{logLikLaplace}}
+#' @param ... Additional arguments forwarded to \code{\link{log_lik_laplace}}
 #'   (for example \code{data} or \code{package}).
 #' @param control_inner A list of control options forwarded to the \code{control}
-#'   argument of \code{\link{logLikLaplace}} for the inner optimization.
+#'   argument of \code{\link{log_lik_laplace}} for the inner optimization.
 #' @param cache An \code{\link[base]{environment}} containing starting values for the inner
 #'   optimization. It should contain \code{gamma}. Both functions update
 #'   \code{cache$gamma} to the latest \code{gamma} solution.
 #'
 #' @return
 #' \itemize{
-#' \item \code{outer_fn}: a numeric scalar objective value \code{-logLik}.
-#' \item \code{outer_gr}: a numeric vector gradient for the same objective sign
-#'   convention as \code{outer_fn}.
+#' \item \code{outer_fn}: a numeric scalar \code{neg_log_lik}.
+#' \item \code{outer_gr}: gradient of \code{neg_log_lik} (same sign as \code{outer_fn}).
 #' }
 #'
-#' @seealso \code{\link{logLikLaplace}}
+#' @seealso \code{\link{log_lik_laplace}}
 #'
 #' @examples
 #' \dontrun{
@@ -61,8 +60,8 @@ outer_fn <- function(x, config, cache, ad_fun, control_inner = list(), ...) {
         deriv = FALSE
     )
 
-    assign("gamma", result$solution, cache)
-    -result$log_lik
+    assign("gamma", result$opt$solution, cache)
+    result$neg_log_lik
 }
 
 #' @rdname outer_optim_wrappers
@@ -76,13 +75,9 @@ outer_gr <- function(x, config, cache, ad_fun, control_inner = list(), ...) {
         cache$gamma <- config$gamma
     }
 
-    # Pass chol_inner from ad_fun to config if available
     config_inner <- config
-    if (!is.null(ad_fun) && !is.null(ad_fun$chol_inner)) {
-        config_inner$chol_inner <- ad_fun$chol_inner
-    }
 
-    result <- adlaplace::logLikLaplace(
+    result <- adlaplace::log_lik_laplace(
         x = x, config = config_inner,
         gamma = cache$gamma,
         control = control_inner,

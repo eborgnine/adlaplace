@@ -29,8 +29,8 @@
 #'
 #' @details
 #' The function handles fixed effects, random effects, and their associated
-#' precision matrices. It also optimizes the model using TMB with options for
-#' additional preprocessing and handling specific random effect structures.
+#' precision matrices. It optimizes via \pkg{adlaplace} automatic differentiation
+#' and Laplace approximation (inner optimization over random effects when present).
 #'
 #' @return
 #' A list containing the fitted model object and related information.
@@ -238,7 +238,7 @@ hnlm <- function(
     ATp = rbind(model_stuff$data$XTp, model_stuff$data$ATp),
     elgm_matrix = model_stuff$data$elgm_matrix,
     Ngroups = config$num_groups,
-    min_groups = config$num_threads * 4
+    min_groups = min(config$num_groups, config$num_threads * 4L)
   )
 
   if (verbose_orig) {
@@ -292,18 +292,14 @@ hnlm <- function(
 
     mle <- stats::optim(
       par = config$opt$init,
-      fn = adlaplace::jointLogDens,
-      gr = adlaplace::grad,
+      fn = function(x) adlaplace::joint_log_dens(ad_fun, x),
+      gr = function(x) adlaplace::grad(ad_fun, x),
       method = "L-BFGS-B",
       lower = config$opt$lower,
       upper = config$opt$upper,
-      backendContext = ad_fun,
       control = control
     )
-    mle$hessian <- adlaplace::hess(
-      mle$par,
-      backendContext = ad_fun
-    )
+    mle$hessian <- adlaplace::hessian(ad_fun, mle$par)
     return(mle)
   }
 
@@ -326,7 +322,7 @@ hnlm <- function(
     lower = config$opt$lower,
     upper = config$opt$upper,
     config = config,
-    adFun = ad_fun,
+    ad_fun = ad_fun,
     cache = cache,
     control_inner = control_inner
   ))
@@ -336,13 +332,11 @@ hnlm <- function(
   result <- list(
     opt = mle,
     objects = list(
-      #      tmb_data = model_stuff$data,
-      #      data = data_sub,
       config = config,
       formula = formula,
       terms = model_stuff$terms,
       parameters_info = model_stuff$info,
-      random_info = random_info,
+      random_info = model_stuff$info$gamma,
       control_inner = control$inner,
       control = control,
       cache = cache,
@@ -353,14 +347,14 @@ hnlm <- function(
     cat("one last evaulation of likelihhood\n")
   }
 
-  result$extra <- try(adlaplace::logLikLaplace(
+  result$extra <- try(adlaplace::log_lik_laplace(
     x = result$opt[[grep("solution|par", names(result$opt), value = TRUE)[1]]],
     gamma = result$objects$cache$gamma,
     data = model_stuff$data, # result$objects$tmb_data,
     config = result$objects$config,
     control = result$objects$control_inner,
-    adFun = ad_fun,
-    deriv = 1
+    ad_fun = ad_fun,
+    deriv = TRUE
   ))
   result$extra$parameters_orig <- result$parameters
   result$parameters <- try(format_parameters(result))
@@ -376,7 +370,7 @@ hnlm <- function(
       data = model_stuff$data, # result$objects$tmb_data,
       config = result$objects$config,
       control_inner = result$objects$control_inner,
-      adFun = ad_fun,
+      ad_fun = ad_fun,
       cache = result$objects$cache
     ), "U")
   )

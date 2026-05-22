@@ -13,7 +13,7 @@ outer_gr(x, config, cache, ad_fun, control_inner = list(), ...)
 \arguments{
 \item{x}{Numeric outer parameter vector \code{c(beta, theta)}.}
 
-\item{config}{Configuration list passed to \code{\link{logLikLaplace}}.}
+\item{config}{Configuration list passed to \code{\link{log_lik_laplace}}.}
 
 \item{cache}{An \code{\link[base]{environment}} containing starting values for the inner
 optimization. It should contain \code{gamma}. Both functions update
@@ -22,22 +22,21 @@ optimization. It should contain \code{gamma}. Both functions update
 \item{ad_fun}{Backend handle from \code{\link{get_ad_fun}}.}
 
 \item{control_inner}{A list of control options forwarded to the \code{control}
-argument of \code{\link{logLikLaplace}} for the inner optimization.}
+argument of \code{\link{log_lik_laplace}} for the inner optimization.}
 
-\item{...}{Additional arguments forwarded to \code{\link{logLikLaplace}}
+\item{...}{Additional arguments forwarded to \code{\link{log_lik_laplace}}
 (for example \code{data} or \code{package}).}
 }
 \value{
 \itemize{
-\item \code{outer_fn}: a numeric scalar objective value \code{-logLik}.
-\item \code{outer_gr}: a numeric vector gradient for the same objective sign
-  convention as \code{outer_fn}.
+\item \code{outer_fn}: a numeric scalar \code{neg_log_lik}.
+\item \code{outer_gr}: gradient of \code{neg_log_lik} (same sign as \code{outer_fn}).
 }
 }
 \description{
-Convenience wrappers around \code{\link{logLikLaplace}} for use with outer optimizers
+Convenience wrappers around \code{\link{log_lik_laplace}} for use with outer optimizers
 that expect \code{fn} / \code{gr} callbacks. Both functions solve (or warm-start)
-the inner problem over \code{gamma} via \code{\link{logLikLaplace}} and update a mutable
+the inner problem over \code{gamma} via \code{\link{log_lik_laplace}} and update a mutable
 \code{cache} environment with the latest inner solution.
 }
 \details{
@@ -58,5 +57,5 @@ gr <- outer_gr(x = x0, data = data, config = config, cache = cache, ad_fun = ad_
 
 }
 \seealso{
-\code{\link{logLikLaplace}}
+\code{\link{log_lik_laplace}}
 }

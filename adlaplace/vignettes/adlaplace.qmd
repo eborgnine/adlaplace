@@ -30,25 +30,26 @@ $$
 Generate some data.
 
 ```{r theData}
-Nobs <- 1000
+Nobs <- 2000
 Nrandom1 <- 10
 Nrandom2 <- 25
 
 set.seed(0)
 X <- Matrix::Matrix(cbind(1, rbinom(Nobs, 1, prob = 0.5)))
+X <- Matrix::Matrix(nrow = Nobs, ncol = 0)
 AmatList <- list(
-  Matrix::sparseMatrix(
+  r1 = Matrix::sparseMatrix(
     i = 1:Nobs,
     j = sample(Nrandom1, Nobs, replace = TRUE)
   ),
-  Matrix::sparseMatrix(
+  r2 = Matrix::sparseMatrix(
     i = 1:Nobs,
     j = sample(Nrandom2, Nobs, replace = TRUE)
   )
 )
 Amat <- do.call(cbind, AmatList)
 beta <- rep(1, ncol(X))
-thetaOrig <- c(0.1, 0.1, 0.1)
+thetaOrig <- rep(1, 3) # c(0.1, 0.1, 0.1)
 theta <- log(thetaOrig)
 gamma <- rnorm(ncol(Amat), sd = rep(thetaOrig[1:2], c(Nrandom1, Nrandom2)))
 eta <- as.vector(X %*% beta + Amat %*% gamma)
@@ -67,97 +68,338 @@ map <- Matrix::sparseMatrix(
   dims = c(ncol(Amat), length(thetaOrig))
 )
 
-data <- list(
+config <- list(
+  beta = beta,
+  theta = log(thetaOrig), # sd for each Amat, overdisp parameter
+  transform_theta = TRUE,
+  gamma = rep(0, ncol(Amat)),
+  groups = adlaplace::adFun_groups(Matrix::t(Amat), Ngroups = 1000),
+  num_threads = 1L,
+  verbose = TRUE,
+  package = "adlaplace"
+)
+
+data_r1 <- list(
+  Q = rep(1, ncol(AmatList$r1)),
+  theta_map = length(config$beta) + length(config$gamma),
+  gamma_map = seq.int(length(config$beta), length.out = ncol(AmatList$r1))
+)
+
+data_r2 <- list(
+  Q = rep(1, ncol(AmatList$r2)),
+  theta_map = data_r1$theta_map + 1,
+  gamma_map = seq.int(
+    max(data_r1$gamma_map) + 1L,
+    length.out = ncol(AmatList$r2)
+  )
+)
+
+data_obs <- list(
   y = y,
   ATp = as(Matrix::t(Amat), "dMatrix"),
   XTp = as(Matrix::t(X), "CsparseMatrix"),
-  map = map,
-  Qdiag = rep(1, ncol(Amat))
-)
-
-
-config <- list(
-  beta = rep(1, nrow(data$XTp)),
-  theta = c(rep(-1, length(NperEffect)), -1),
-  transform_theta = TRUE,
-  gamma = rep(0, nrow(data$ATp)),
-  groups = adlaplace::adFun_groups(data$ATp, Ngroups = 1000),
-  num_threads = 2L,
-  verbose = TRUE, package = "adlaplace"
+  theta_map = data_r1$theta_map + 2 # location of overdisp parameter
 )
 ```
 
+Model densities are defined in `src/neg_binom.cpp` (observation and extra terms)
+and `random.cpp` (random effects).
 
-model is defined in the file `src/objectiveFunction.cpp`
+```{r adShards}
+ad_fun_obs <- adlaplace::get_ad_fun_raw(
+  data_obs, config,
+  kind = "obs", name = "neg_binom_obs", package = "adlaplace"
+)
+ad_fun_extra <- adlaplace::get_ad_fun_raw(
+  data_obs, config,
+  kind = "single", name = "neg_binom_extra", package = "adlaplace"
+)
+ad_fun_r1 <- adlaplace::get_ad_fun_raw(
+  data_r1, config,
+  kind = "single", name = "random_diagonal", package = "adlaplace"
+)
+ad_fun_r2 <- adlaplace::get_ad_fun_raw(
+  data_r2, config,
+  kind = "single", name = "random_diagonal", package = "adlaplace"
+)
+ad_fun_plain <- adlaplace::combine(
+  list(ad_fun_obs, ad_fun_extra, ad_fun_r1, ad_fun_r2),
+  config
+)
+```
 
+```{r randomGaussianLogDens}
+# random_diagonal log-density: gamma ~ N(0, sd^2 * Q^{-1}), diagonal Q from data_r1$Q
+xx <- c(config$beta, seq(1, length(config$gamma)), seq(1, length(config$theta)))
+
+ad_fun_r1x <- adlaplace::get_ad_fun_raw(
+  data_r1, config,
+  kind = "single", name = "random_diagonal", package = "adlaplace"
+)
+adlaplace::joint_log_dens(ad_fun_r1x, xx, negative = FALSE)
+
+varMat <- solve(diag(data_r1$Q)) * exp(xx[1 + data_r1$theta_map])^2
+mvtnorm::dmvnorm(
+  xx[1 + data_r1$gamma_map],
+  rep(0, ncol(varMat)),
+  varMat,
+  log = TRUE
+)
+```
+
+```{r checkByShard}
+Sgroups <- seq.int(from = 0, length.out = adlaplace::n_groups(ad_fun_plain))
+
+by_shard <- mapply(
+  adlaplace::joint_log_dens,
+  Sgroups = Sgroups,
+  MoreArgs = list(x = xx, ad_fun = ad_fun_plain, negative = FALSE),
+  SIMPLIFY = TRUE
+)
+by_shard[seq(to = length(by_shard), length.out = 5)]
+```
 
 ```{r testLogDens}
-ad_fun_plain <- adlaplace::get_ad_fun_raw(data, config)
-
 x <- c(config$beta, rep(0.1, length(config$gamma)), config$theta)
 s_groups <- 0:3
-adlaplace::jointLogDens(ad_fun_plain, x, s_groups)
-my_grad <- adlaplace::grad(ad_fun_plain, x, Sgroups = s_groups)
+adlaplace::joint_log_dens(ad_fun_plain, x, s_groups, negative = FALSE)
+my_grad <- adlaplace::grad(ad_fun_plain, x, Sgroups = s_groups, negative = FALSE)
 my_grad[1:5]
-my_hess <- adlaplace::hessian(ad_fun_plain, x, Sgroups = s_groups)
+my_hess <- adlaplace::hessian(ad_fun_plain, x, Sgroups = s_groups, negative = FALSE)
 my_hess[1:5, 1:5]
-adlaplace::jointLogDens(ad_fun_plain, x)
-my_grad <- adlaplace::grad(ad_fun_plain, x)
+adlaplace::joint_log_dens(ad_fun_plain, x, negative = FALSE)
+my_grad <- adlaplace::grad(ad_fun_plain, x, negative = FALSE)
 my_grad[1:5]
-my_hess <- adlaplace::hessian(ad_fun_plain, x)
+my_hess <- adlaplace::hessian(ad_fun_plain, x, negative = FALSE)
 my_hess[1:5, 1:5]
 ```
 
 Check the derivatives of the joint log density.
 
 
-```{r derivJointDens, eval=TRUE}
-ad_fun_plain <- adlaplace::get_ad_fun_raw(data, modifyList(config, list(verbose = TRUE)))
 
-inner <- FALSE
-type <- c("outer", "inner")[1 + inner]
+Make ad function with sparsity information, evaluate derivates to test the accumulation over shards is done correctly.  
 
-Sgamma1 <- seq.int(length(config$beta) + 1, length.out = length(config$gamma))
 
+
+```{r testInnerOpt}
+config_v <- modifyList(config, list(verbose = TRUE))
+ad_fun <- adlaplace::get_ad_fun(data, config_v, ad_fun_plain)
+
+inner_res <- adlaplace::inner_opt(
+  parameters = c(config$beta, config$theta),
+  gamma = config$gamma,
+  config = config_v,
+  ad_fun = ad_fun,
+  control = list(
+    maxit = 100,
+    report.level = 0,
+    report.freq = 0
+  ),
+  deriv = FALSE
+)
+```
+
+
+
+
+```{r testLogLik}
+x_outer <- c(config$beta, config$theta)
+res1 <- adlaplace::log_lik_laplace(
+  x = x_outer,
+  ad_fun = ad_fun,
+  config = modifyList(config, list(verbose = FALSE)),
+  deriv = FALSE
+)
+res2 <- adlaplace::log_lik_laplace(
+  x = x_outer,
+  ad_fun = ad_fun,
+  config = modifyList(config, list(verbose = TRUE)),
+  deriv = TRUE
+)
+x_outer
+res1$full_parameters[1:5]
+res1$log_lik
+res2$log_lik
+res1$neg_log_lik
+res2$neg_log_lik
+res2$opt$fval
+res2$grad
+```
+
+
+
+```{r trustOptimOuterWrappers}
+# ad_fun from testInnerOpt
+
+cache <- new.env(parent = emptyenv())
+cache$gamma <- config$gamma
+
+x0 <- c(config$beta, config$theta)
+
+adlaplace::outer_fn(x = x0, cache = cache, config = config, ad_fun = ad_fun)
+adlaplace::outer_gr(x = x0, cache = cache, config = config, ad_fun = ad_fun)
+
+outer_fit <- stats::optim(
+  par = x0,
+  fn = adlaplace::outer_fn,
+  gr = adlaplace::outer_gr,
+  method = "L-BFGS-B",
+  lower = rep(-5, length(x0)),
+  upper = rep(5, length(x0)),
+  control = list(
+    maxit = 1000,
+    trace = 3,
+    REPORT = 1
+  ),
+  config = config,
+  ad_fun = ad_fun,
+  cache = cache,
+  control_inner = list(
+    maxit = 100,
+    report.level = 0,
+    report.freq = 0
+  )
+)
+
+outer_fit$par
+exp(outer_fit$par)
+outer_fit$value
+```
+
+
+```{r testLogLgrad}
+# ad_fun from testInnerOpt
+par(mfrow = c(3, 2), mar = c(2, 2, 0, 0), mgp = c(1, 0.5, 0))
+
+x1 <- outer_fit$par
 Npar <- 13
-Dpar <- 3
-if (inner) {
-  Dpar <- match(Dpar, Sgamma1)
-}
-Dpar0 <- Dpar - 1L
+Dpar <- 1 # length(x1)
 
-Sgroups <- seq.int(from = 0, length.out = ncol(config$groups))
-
-parDf <- data.frame(x)[, rep(1, Npar)]
-Sx <- seq(-0.1, 0.1, len = 13) + parDf[Dpar, 1]
+parDf <- data.frame(x1)[, rep(1, Npar)]
+Sx <- seq(-0.5, 0.5, len = 13) + parDf[Dpar, 1]
 SxD <- Sx[-1] - diff(Sx) / 2
 parDf[Dpar, ] <- Sx
 
 
-dens1 <- mapply(
-  adlaplace::jointLogDens,
+res <- mapply(
+  adlaplace::log_lik_laplace,
   x = as.list(parDf),
-  MoreArgs = list(ad_fun = ad_fun_plain, Sgroups = Sgroups),
+  MoreArgs = list(
+    ad_fun = ad_fun, config = config, deriv = TRUE,
+    gamma = cache$gamma
+  ),
+  SIMPLIFY = FALSE
+)
+Slik <- unlist(lapply(res, "[[", "log_lik"))
+SnegLik <- unlist(lapply(res, "[[", "neg_log_lik"))
+Sdet <- unlist(lapply(res, function(xx) xx$extra$hessian$half_log_det))
+
+dU <- do.call(
+  abind::abind,
+  c(lapply(res, function(xx) as.matrix(xx$extra$dU)), along = 3)
+)
+uHat <- do.call(rbind, lapply(res, function(xx) xx$opt$solution))
+extraDf <- do.call(abind::abind, c(lapply(res, "[[", "deriv"), along = 3))
+gradMat <- do.call(rbind, lapply(res, "[[", "grad"))
+
+
+
+plot(Sx, SnegLik)
+
+plot(Sx, gradMat[, Dpar], type = "l")
+points(SxD, diff(SnegLik) / diff(Sx))
+legend("topright",
+  legend = c("autodiff", "numeric"),
+  lty = c(1, NA), pch = c(NA, 1), bty = "n"
+)
+
+Du <- 2
+plot(Sx, uHat[, Du])
+
+
+res_here <- res[[8]]
+
+hessian_outer <- Matrix::forceSymmetric(res_here$extra$hessian$outer)
+hessian_outer2 <- adlaplace::hessian(
+  ad_fun_plain, res_here$full_parameters,
+  inner = FALSE, negative = TRUE
+)
+quantile((hessian_outer - hessian_outer2)@x, na.rm = FALSE)
+
+
+to_plot <- diff(uHat[, Du]) / diff(Sx)
+plot(Sx, dU[Du, Dpar, ], ylim = range(c(to_plot, dU[Du, Dpar, ]), na.rm = TRUE), type = "l")
+points(SxD, to_plot)
+
+plot(Sx, Sdet)
+
+to_plot <- diff(Sdet) / diff(Sx)
+plot(Sx, extraDf[Dpar, "d_det", ],
+  ylim = range(c(to_plot, extraDf[Dpar, "d_det", ]), na.rm = TRUE),
+  type = "l",
+)
+points(SxD, to_plot)
+```
+
+
+```{r derivJointDens, eval=TRUE}
+par(mfrow = c(3, 2), mar = c(2, 2, 0, 0), mgp = c(1, 0.5, 0))
+inner <- FALSE
+type <- c("outer", "inner")[1 + inner]
+ad_fun_here <- ad_fun_plain
+
+Sgamma1 <- seq.int(length(config$beta) + 1, length.out = length(config$gamma))
+
+
+x_here <- c(
+  x1[1:length(config$beta)],
+  res_here$opt$solution,
+  x1[seq(length(config$beta) + 1, length.out = length(config$theta))]
+)
+Npar <- 13
+Dpar_dens <- 4
+if (inner) {
+  Dpar_dens <- match(Dpar_dens, Sgamma1)
+}
+Dpar0_dens <- Dpar_dens - 1L
+
+Sgroups <- seq.int(from = 0, length.out = adlaplace::n_groups(ad_fun_here))
+
+parDf <- data.frame(x_here)[, rep(1, Npar)]
+Sx <- seq(-0.1, 0.1, len = 13) + parDf[Dpar_dens, 1]
+SxD <- Sx[-1] - diff(Sx) / 2
+parDf[Dpar_dens, ] <- Sx
+
+
+dens1 <- mapply(
+  adlaplace::joint_log_dens,
+  x = as.list(parDf),
+  MoreArgs = list(ad_fun = ad_fun_plain, Sgroups = Sgroups, negative = FALSE),
   SIMPLIFY = TRUE
 )
 
-plot(Sx, dens1)
+# plot(Sx, dens1)
 
 
 grad1 <- mapply(
   adlaplace::grad,
   x = as.list(parDf),
-  MoreArgs = list(ad_fun = ad_fun_plain, inner = inner, Sgroups = Sgroups),
+  MoreArgs = list(
+    ad_fun = ad_fun_plain, inner = inner, Sgroups = Sgroups, negative = FALSE
+  ),
   SIMPLIFY = TRUE
 )
-plot(Sx, grad1[Dpar, ])
+plot(Sx, grad1[Dpar_dens, ], ylab = paste(Dpar_dens, "grad"))
 lines(SxD, diff(dens1) / diff(Sx))
 
 
 hes1 <- mapply(
   adlaplace::hessian,
   x = as.list(parDf),
-  MoreArgs = list(ad_fun = ad_fun_plain, inner = inner, Sgroups = Sgroups),
+  MoreArgs = list(
+    ad_fun = ad_fun_plain, inner = inner, Sgroups = Sgroups, negative = FALSE
+  ),
   SIMPLIFY = FALSE
 )
 
@@ -168,144 +410,15 @@ hes2 <- do.call(abind::abind, c(
 
 gradD <- apply(grad1, 1, diff) / mean(diff(Sx))
 
-Dpar2 <- 14
-plot(Sx, hes2[Dpar, Dpar2, ],
-  ylab = paste(Dpar, Dpar2),
-  ylim = range(hes2[Dpar, Dpar2, ], na.rm = TRUE)
-)
-lines(SxD, gradD[, Dpar2])
-```
 
 
-Make ad function with sparsity information, evaluate derivates to test the accumulation over shards is done correctly.  
-
-
-
-```{r testInnerOpt}
-ad_fun <- adlaplace::get_ad_fun(data, modifyList(config, list(verbose = TRUE)))
-
-inner_res <- adlaplace::inner_opt(
-  parameters = c(config$beta, config$theta),
-  gamma = config$gamma,
-  config = config,
-  ad_fun = ad_fun,
-  control = list(
-    maxit = 100,
-    report.level = 0,
-    report.freq = 0
-  ),
-  deriv = FALSE
-)
-chol_test <- Matrix::expand2(Matrix::Cholesky(inner_res$hessian, perm = TRUE, LDL = TRUE))
-inner_res$chol_inner$L1[1:5, 1:5]
-chol_test$L1[1:5, 1:5]
-quantile(inner_res$chol_inner$D - chol_test$D@x)
-```
-
-```{r testLogLik}
-res <- adlaplace::logLikLaplace(
-  x = c(config$beta, config$theta),
-  ad_fun = ad_fun,
-  config = modifyList(config, list(verbose = FALSE)),
-  deriv = FALSE
-)
-res <- adlaplace::logLikLaplace(
-  x = c(config$beta, config$theta),
-  ad_fun = ad_fun,
-  config = modifyList(config, list(verbose = TRUE)),
-  deriv = TRUE
-)
-res$parameters
-res$logLik
-res$grad
-```
-
-
-
-```{r trustOptimOuterWrappers}
-ad_fun <- adlaplace::get_ad_fun(data, config)
-
-cache <- new.env(parent = emptyenv())
-cache$gamma <- config$gamma
-
-x0 <- c(config$beta, config$theta)
-
-adlaplace::outer_fn(x = x0, cache = cache, config = config, ad_fun = ad_fun)
-adlaplace::outer_gr(x = x0, cache = cache, config = config, ad_fun = ad_fun)
-
-outer_fit <- trustOptim::trust.optim(
-  x = x0,
-  fn = adlaplace::outer_fn,
-  gr = adlaplace::outer_gr,
-  method = "SR1",
-  config = config,
-  ad_fun = ad_fun,
-  cache = cache,
-  control = list(
-    maxit = 1000,
-    report.level = 4,
-    report.freq = 1
-  ),
-  control_inner = list(
-    maxit = 100,
-    report.level = 0,
-    report.freq = 0
+for (Dpar2 in c(Dpar_dens, 1, length(x_here) - 2, length(x_here) - 1)) {
+  plot(Sx, hes2[Dpar_dens, Dpar2, ],
+    ylab = paste(Dpar_dens, Dpar2),
+    ylim = range(hes2[Dpar_dens, Dpar2, ], na.rm = TRUE)
   )
-)
-
-
-outer_fit$solution
-outer_fit$fval
+  lines(SxD, gradD[, Dpar2])
+}
 ```
-
-
-```{r testLogLgrad}
-ad_fun <- adlaplace::get_ad_fun(data, config)
-x <- outer_fit$solution
-Npar <- 13
-Dpar <- length(x)
-
-parDf <- data.frame(x)[, rep(1, Npar)]
-Sx <- seq(-0.1, 0.1, len = 13) + parDf[Dpar, 1]
-SxD <- Sx[-1] - diff(Sx) / 2
-parDf[Dpar, ] <- Sx
-
-res <- mapply(
-  adlaplace::logLikLaplace,
-  x = as.list(parDf),
-  MoreArgs = list(ad_fun = ad_fun, config = config, deriv = TRUE),
-  SIMPLIFY = FALSE
-)
-Slik <- unlist(lapply(res, "[[", "logLik"))
-Sdet <- unlist(lapply(res, function(xx) xx$opt$half_log_det))
-
-dU <- do.call(
-  abind::abind,
-  c(lapply(res, function(xx) as.matrix(xx$extra$dU)), along = 3)
-)
-uHat <- do.call(rbind, lapply(res, function(xx) xx$opt$solution))
-extraDf <- do.call(abind::abind, c(lapply(res, "[[", "deriv"), along = 3))
-gradMat <- do.call(rbind, lapply(res, "[[", "grad"))
-gradVec <- unlist(lapply(res, function(xx) xx$deriv[Dpar, "dL"]))
-
-
-plot(Sx, Slik)
-
-plot(Sx, gradVec)
-lines(SxD, diff(Slik) / diff(Sx), lwd = 2)
-
-Du <- 1
-plot(Sx, uHat[, Du])
-
-plot(Sx, dU[Du, Dpar, ])
-lines(SxD, diff(uHat[, Du]) / diff(Sx))
-
-plot(Sx, Sdet)
-
-plot(Sx, extraDf[Dpar, "dDet", ])
-lines(SxD, diff(Sdet) / diff(Sx))
-```
-
-
 
 

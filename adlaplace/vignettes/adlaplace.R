@@ -59,14 +59,15 @@ config <- list(
 ## ----testLogLik-------------------------------------------------------------------------------------------------------------------------------------
 ad_fun <- adlaplace::get_ad_fun(data, config)
 
-res <- adlaplace::logLikLaplace(
+res <- adlaplace::log_lik_laplace(
   x = c(config$beta, config$theta),
   ad_fun = ad_fun,
   config = modifyList(config, list(verbose = FALSE)),
   deriv = TRUE
 )
-res$parameters
-res$fval
+res$full_parameters[1:5]
+res$neg_log_lik
+res$opt$fval
 res$grad
 
 
@@ -81,19 +82,21 @@ x0 <- c(config$beta, config$theta)
 adlaplace::outer_fn(x=x0, cache=cache, config=config, ad_fun = ad_fun)
 adlaplace::outer_gr(x=x0, cache=cache, config=config, ad_fun = ad_fun)
 
-outer_fit <- trustOptim::trust.optim(
-  x = x0,
+outer_fit <- stats::optim(
+  par = x0,
   fn = adlaplace::outer_fn,
   gr = adlaplace::outer_gr,
-  method = "SR1",
+  method = "L-BFGS-B",
+  lower = rep(-5, length(x0)),
+  upper = rep(5, length(x0)),
+  control = list(
+    maxit = 1000,
+    trace = 3,
+    REPORT = 1
+  ),
   config = config,
   ad_fun = ad_fun,
   cache = cache,
-  control = list(
-    maxit = 1000,
-    report.level = 4,
-    report.freq =1 
-  ),
   control_inner = list(
     maxit = 100,
     report.level = 0,
@@ -101,9 +104,8 @@ outer_fit <- trustOptim::trust.optim(
   )
 )
 
-
-outer_fit$solution
-outer_fit$fval
+outer_fit$par
+outer_fit$value
 
 
 ## ----testLogLgrad-----------------------------------------------------------------------------------------------------------------------------------
@@ -118,15 +120,14 @@ SxD <- Sx[-1] - diff(Sx) / 2
 parDf[Dpar, ] <- Sx
 
 res <- mapply(
-  adlaplace::logLikLaplace,
+  adlaplace::log_lik_laplace,
   x = as.list(parDf),
   MoreArgs = list(ad_fun = ad_fun, config = config, deriv = TRUE),
   SIMPLIFY = FALSE
 )
-Slik <- unlist(lapply(res, "[[", "logLik"))
-Sdet <- unlist(lapply(res, function(xx) Matrix::determinant(
-  res$hessian$chol_inner, sqrt=TRUE, logarithm=TRUE
-  )$modulus))
+Slik <- unlist(lapply(res, "[[", "log_lik"))
+SnegLik <- unlist(lapply(res, "[[", "neg_log_lik"))
+Sdet <- unlist(lapply(res, function(xx) xx$hessian$half_log_det))
 dU <- do.call(
   abind::abind,
   c(lapply(res, function(xx) as.matrix(xx$extra$dU)), along = 3)
@@ -134,13 +135,13 @@ dU <- do.call(
 uHat <- do.call(rbind, lapply(res, function(xx) xx$opt$solution))
 extraDf <- do.call(abind::abind, c(lapply(res, "[[", "deriv"), along = 3))
 gradMat <- do.call(rbind, lapply(res, "[[", "grad"))
-gradVec <- unlist(lapply(res, function(xx) xx$deriv[Dpar, "dL"]))
+gradVec <- unlist(lapply(res, function(xx) xx$deriv[Dpar, "d_log_lik"]))
 
 
-plot(Sx, Slik)
+plot(Sx, SnegLik)
 
-plot(Sx, gradVec)
-lines(SxD, diff(Slik) / diff(Sx), lwd = 2)
+plot(Sx, gradMat[, Dpar], type = "l")
+points(SxD, diff(SnegLik) / diff(Sx))
 
 Du <- 1
 plot(Sx, uHat[, Du])
@@ -150,7 +151,7 @@ lines(SxD, diff(uHat[, Du]) / diff(Sx))
 
 plot(Sx, Sdet)
 
-plot(Sx, extraDf[Dpar, "dDet", ])
+plot(Sx, extraDf[Dpar, "d_det", ])
 lines(SxD, diff(Sdet) / diff(Sx))
 
 
@@ -158,7 +159,7 @@ lines(SxD, diff(Sdet) / diff(Sx))
 ad_fun = adlaplace::get_ad_fun(data, modifyList(config, list(verbose=TRUE)))
 
 x = c(config$beta, rep(0.1, length(config$gamma)), config$theta)
-adlaplace::jointLogDens(x, ad_fun)
+adlaplace::joint_log_dens(ad_fun, x, negative = FALSE)
 
 
 str(adlaplace::grad(x, ad_fun, FALSE))
@@ -243,9 +244,9 @@ parDf[Dpar, ] <- Sx
 
 
 dens1 <- mapply(
-  adlaplace::jointLogDens,
+  adlaplace::joint_log_dens,
   x = as.list(parDf),
-  MoreArgs = list(backendContext = ad_fun, Sgroups = Sgroups),
+  MoreArgs = list(ad_fun = ad_fun, Sgroups = Sgroups, negative = FALSE),
   SIMPLIFY = TRUE
 )
 

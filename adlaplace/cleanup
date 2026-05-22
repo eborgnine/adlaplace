@@ -1,2 +1,14 @@
 #!/bin/sh
+# Remove generated files that should not ship in the source tarball.
+
 rm -f src/Makevars
+
+# Quarto / knitr HTML vignette outputs (recreated by quarto render)
+rm -rf vignettes/*_files
+rm -f vignettes/*.html
+rm -f vignettes/*.knit.md
+
+# testthat creates tests/testthat/_snaps/ even without snapshot tests
+if [ -d tests/testthat/_snaps ]; then
+  rmdir tests/testthat/_snaps 2>/dev/null || true
+fi

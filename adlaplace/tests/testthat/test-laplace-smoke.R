@@ -9,35 +9,41 @@ test_that("get_ad_fun and derivatives run on small GLMM data", {
     Matrix::sparseMatrix(i = seq_len(Nobs), j = sample(Nrandom2, Nobs, replace = TRUE), x = 1)
   )
   Amat <- do.call(cbind, AmatList)
-  map <- Matrix::sparseMatrix(
-    i = seq(0L, len = ncol(Amat)),
-    j = rep(seq(0L, len = length(AmatList)), vapply(AmatList, ncol, integer(1))),
-    x = 1L,
-    index1 = FALSE,
-    dims = c(ncol(Amat), length(AmatList))
-  )
-  data <- list(
-    y = rpois(Nobs, 2),
-    ATp = as(Matrix::t(Amat), "dMatrix"),
-    XTp = as(Matrix::t(X), "CsparseMatrix"),
-    map = map,
-    Qdiag = rep(1, ncol(Amat))
-  )
   config <- list(
-    beta = rep(0, nrow(data$XTp)),
+    beta = rep(0, ncol(X)),
     theta = c(-1, -1, -1),
     transform_theta = TRUE,
-    gamma = rep(0, nrow(data$ATp)),
-    groups = adlaplace::adFun_groups(data$ATp, Ngroups = 20L),
+    gamma = rep(0, ncol(Amat)),
+    groups = adlaplace::adFun_groups(as(Matrix::t(Amat), "dMatrix"), Ngroups = 20L),
     num_threads = 1L,
     verbose = FALSE,
     package = "adlaplace"
   )
-
-  ad_fun <- adlaplace::get_ad_fun(data, config)
+  n_beta <- length(config$beta)
+  n_gamma <- length(config$gamma)
+  data_obs <- list(
+    y = rpois(Nobs, 2),
+    ATp = as(Matrix::t(Amat), "dMatrix"),
+    XTp = as(Matrix::t(X), "CsparseMatrix"),
+    theta_map = n_beta + n_gamma + length(config$theta) - 1L
+  )
+  data_r <- list(
+    Q = rep(1, ncol(Amat)),
+    theta_map = n_beta + n_gamma,
+    gamma_map = seq.int(n_beta, length.out = ncol(Amat))
+  )
+  ad_ptr <- adlaplace::combine(
+    list(
+      adlaplace::get_ad_fun_raw(data_obs, config, kind = "obs", name = "neg_binom_obs"),
+      adlaplace::get_ad_fun_raw(data_r, config, kind = "single", name = "random_diagonal"),
+      adlaplace::get_ad_fun_raw(data_obs, config, kind = "single", name = "neg_binom_extra")
+    ),
+    config
+  )
+  ad_fun <- adlaplace::get_ad_fun(data_obs, config, ad_ptr)
   x <- c(config$beta, config$gamma, config$theta)
 
-  dens <- adlaplace::jointLogDens(ad_fun, x)
+  dens <- adlaplace::joint_log_dens(ad_fun, x)
   expect_true(is.finite(dens))
 
   g <- adlaplace::grad(ad_fun, x)
@@ -55,6 +61,7 @@ test_that("get_ad_fun and derivatives run on small GLMM data", {
     deriv = FALSE
   )
   expect_true(is.finite(inner_res$log_lik))
+  expect_equal(inner_res$neg_log_lik, -inner_res$log_lik)
 })
 
 test_that("model_setup builds data for iwp formula", {

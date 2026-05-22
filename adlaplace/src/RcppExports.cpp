@@ -10,15 +10,41 @@ Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
 Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
-// get_ad_fun_raw
-SEXP get_ad_fun_raw(Rcpp::List data, Rcpp::List config);
-RcppExport SEXP _adlaplace_get_ad_fun_raw(SEXP dataSEXP, SEXP configSEXP) {
+// get_ad_fun_raw_obs
+SEXP get_ad_fun_raw_obs(Rcpp::List data, Rcpp::List config, std::string name);
+RcppExport SEXP _adlaplace_get_ad_fun_raw_obs(SEXP dataSEXP, SEXP configSEXP, SEXP nameSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< Rcpp::List >::type data(dataSEXP);
     Rcpp::traits::input_parameter< Rcpp::List >::type config(configSEXP);
-    rcpp_result_gen = Rcpp::wrap(get_ad_fun_raw(data, config));
+    Rcpp::traits::input_parameter< std::string >::type name(nameSEXP);
+    rcpp_result_gen = Rcpp::wrap(get_ad_fun_raw_obs(data, config, name));
+    return rcpp_result_gen;
+END_RCPP
+}
+// get_ad_fun_raw_single
+SEXP get_ad_fun_raw_single(Rcpp::List data, Rcpp::List config, std::string name);
+RcppExport SEXP _adlaplace_get_ad_fun_raw_single(SEXP dataSEXP, SEXP configSEXP, SEXP nameSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::List >::type data(dataSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type config(configSEXP);
+    Rcpp::traits::input_parameter< std::string >::type name(nameSEXP);
+    rcpp_result_gen = Rcpp::wrap(get_ad_fun_raw_single(data, config, name));
+    return rcpp_result_gen;
+END_RCPP
+}
+// combine
+SEXP combine(Rcpp::List handles, Rcpp::List config);
+RcppExport SEXP _adlaplace_combine(SEXP handlesSEXP, SEXP configSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::List >::type handles(handlesSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type config(configSEXP);
+    rcpp_result_gen = Rcpp::wrap(combine(handles, config));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -68,22 +94,23 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
-// jointLogDens
-double jointLogDens(SEXP ad_fun, const Rcpp::NumericVector& x, SEXP Sgroups);
-RcppExport SEXP _adlaplace_jointLogDens(SEXP ad_funSEXP, SEXP xSEXP, SEXP SgroupsSEXP) {
+// joint_log_dens
+double joint_log_dens(SEXP ad_fun, const Rcpp::NumericVector& x, SEXP Sgroups, bool negative);
+RcppExport SEXP _adlaplace_joint_log_dens(SEXP ad_funSEXP, SEXP xSEXP, SEXP SgroupsSEXP, SEXP negativeSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< SEXP >::type ad_fun(ad_funSEXP);
     Rcpp::traits::input_parameter< const Rcpp::NumericVector& >::type x(xSEXP);
     Rcpp::traits::input_parameter< SEXP >::type Sgroups(SgroupsSEXP);
-    rcpp_result_gen = Rcpp::wrap(jointLogDens(ad_fun, x, Sgroups));
+    Rcpp::traits::input_parameter< bool >::type negative(negativeSEXP);
+    rcpp_result_gen = Rcpp::wrap(joint_log_dens(ad_fun, x, Sgroups, negative));
     return rcpp_result_gen;
 END_RCPP
 }
 // grad
-Rcpp::NumericVector grad(SEXP ad_fun, const Rcpp::NumericVector& x, SEXP Sgroups, bool inner);
-RcppExport SEXP _adlaplace_grad(SEXP ad_funSEXP, SEXP xSEXP, SEXP SgroupsSEXP, SEXP innerSEXP) {
+Rcpp::NumericVector grad(SEXP ad_fun, const Rcpp::NumericVector& x, SEXP Sgroups, bool inner, bool negative);
+RcppExport SEXP _adlaplace_grad(SEXP ad_funSEXP, SEXP xSEXP, SEXP SgroupsSEXP, SEXP innerSEXP, SEXP negativeSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -91,13 +118,14 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const Rcpp::NumericVector& >::type x(xSEXP);
     Rcpp::traits::input_parameter< SEXP >::type Sgroups(SgroupsSEXP);
     Rcpp::traits::input_parameter< bool >::type inner(innerSEXP);
-    rcpp_result_gen = Rcpp::wrap(grad(ad_fun, x, Sgroups, inner));
+    Rcpp::traits::input_parameter< bool >::type negative(negativeSEXP);
+    rcpp_result_gen = Rcpp::wrap(grad(ad_fun, x, Sgroups, inner, negative));
     return rcpp_result_gen;
 END_RCPP
 }
 // hessian
-Rcpp::S4 hessian(SEXP ad_fun, const Rcpp::NumericVector& x, SEXP Sgroups, bool inner, const bool verbose);
-RcppExport SEXP _adlaplace_hessian(SEXP ad_funSEXP, SEXP xSEXP, SEXP SgroupsSEXP, SEXP innerSEXP, SEXP verboseSEXP) {
+Rcpp::S4 hessian(SEXP ad_fun, const Rcpp::NumericVector& x, SEXP Sgroups, bool inner, const bool verbose, bool negative);
+RcppExport SEXP _adlaplace_hessian(SEXP ad_funSEXP, SEXP xSEXP, SEXP SgroupsSEXP, SEXP innerSEXP, SEXP verboseSEXP, SEXP negativeSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -106,7 +134,8 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< SEXP >::type Sgroups(SgroupsSEXP);
     Rcpp::traits::input_parameter< bool >::type inner(innerSEXP);
     Rcpp::traits::input_parameter< const bool >::type verbose(verboseSEXP);
-    rcpp_result_gen = Rcpp::wrap(hessian(ad_fun, x, Sgroups, inner, verbose));
+    Rcpp::traits::input_parameter< bool >::type negative(negativeSEXP);
+    rcpp_result_gen = Rcpp::wrap(hessian(ad_fun, x, Sgroups, inner, verbose, negative));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -157,14 +186,16 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_adlaplace_get_ad_fun_raw", (DL_FUNC) &_adlaplace_get_ad_fun_raw, 2},
+    {"_adlaplace_get_ad_fun_raw_obs", (DL_FUNC) &_adlaplace_get_ad_fun_raw_obs, 3},
+    {"_adlaplace_get_ad_fun_raw_single", (DL_FUNC) &_adlaplace_get_ad_fun_raw_single, 3},
+    {"_adlaplace_combine", (DL_FUNC) &_adlaplace_combine, 2},
     {"_adlaplace_adlaplace_attach_hessian", (DL_FUNC) &_adlaplace_adlaplace_attach_hessian, 2},
     {"_adlaplace_n_groups", (DL_FUNC) &_adlaplace_n_groups, 1},
     {"_adlaplace_get_sparse_sizes", (DL_FUNC) &_adlaplace_get_sparse_sizes, 2},
     {"_adlaplace_get_sparse_pattern", (DL_FUNC) &_adlaplace_get_sparse_pattern, 2},
-    {"_adlaplace_jointLogDens", (DL_FUNC) &_adlaplace_jointLogDens, 3},
-    {"_adlaplace_grad", (DL_FUNC) &_adlaplace_grad, 4},
-    {"_adlaplace_hessian", (DL_FUNC) &_adlaplace_hessian, 5},
+    {"_adlaplace_joint_log_dens", (DL_FUNC) &_adlaplace_joint_log_dens, 4},
+    {"_adlaplace_grad", (DL_FUNC) &_adlaplace_grad, 5},
+    {"_adlaplace_hessian", (DL_FUNC) &_adlaplace_hessian, 6},
     {"_adlaplace_all_derivs", (DL_FUNC) &_adlaplace_all_derivs, 3},
     {"_adlaplace_inner_opt", (DL_FUNC) &_adlaplace_inner_opt, 6},
     {"_adlaplace_traceHinvT", (DL_FUNC) &_adlaplace_traceHinvT, 6},

@@ -11,7 +11,7 @@ sim_fit(x, model, fit, n = 500L)
 
 \item{model}{Object returned by \code{\link{model_setup}}.}
 
-\item{fit}{Result from \code{\link{logLikLaplace}} at the fitted outer parameters.}
+\item{fit}{Result from \code{\link{log_lik_laplace}} at the fitted outer parameters.}
 
 \item{n}{Number of draws for random-effect simulation.}
 }

@@ -26,20 +26,22 @@
 //'   \item{\code{all_derivs()}}{List with \code{fval}, \code{gradient}, and
 //'   \code{hessian} of the **negative log density** \eqn{-\ell(x)} at full
 //'   outer parameters \code{x} (minimization / \pkg{trustOptim} sign). Compare
-//'   \code{\link{jointLogDens}}, \code{\link{grad}}, and \code{\link{hessian}}
-//'   for \eqn{\ell(x)} and its derivatives at the same point.}
-//'   \item{\code{inner_opt()}}{Returns \code{fval}, \code{solution},
-//'   \code{gradient} (inner gradient if \code{deriv=FALSE}, otherwise full gradient),
-//'   \code{hessian} (inner Hessian if \code{deriv=FALSE}, otherwise full Hessian),
-//'   \code{iterations}, \code{status}, \code{trust.radius}, \code{method},
-//'   \code{chol_inner} (list \code{L1}, \code{D}, \code{perm}, as \code{Matrix::expand2}).
+//'   \code{\link{joint_log_dens}}, \code{\link{grad}}, and \code{\link{hessian}}
+//'   with \code{negative=FALSE} for \eqn{\ell(x)} at the same point.}
+//'   \item{\code{inner_opt()}}{Returns \code{log_lik}, \code{neg_log_lik}
+//'   (Laplace profile likelihood and its negation), \code{fval} (inner objective:
+//'   negative log joint density at \eqn{\hat\gamma}), \code{solution},
+//'   \code{gradient} (list \code{inner}, \code{outer}; \code{outer} empty when
+//'   \code{deriv=FALSE}), \code{hessian} (list \code{inner}, \code{outer},
+//'   \code{chol_inner}, \code{half_log_det}),
+//'   \code{iterations}, \code{status}, \code{trust.radius}, \code{method}.
 //'   Objective and derivatives use the same **negative log-density** convention as
 //'   \code{all_derivs()}.}
 //'
 //' @details
 //' This calls the sparse method from the \code{TrustOptim} package via the Cpp interface.
 //' \code{all_derivs()} and \code{inner_opt()} negate the tape log-density values in
-//' C++; \code{\link{jointLogDens}} / \code{\link{grad}} / \code{\link{hessian}} do not.  
+//' C++; use \code{negative=FALSE} on those functions for \eqn{\ell(x)}.  
 //'
 //' @name innerOpt
 
@@ -70,6 +72,14 @@
 Rcpp::S4 eigen_to_dgCMatrix(const Eigen::SparseMatrix<double>& M) {
 	const Eigen::Index nrow = M.rows();
 	const Eigen::Index ncol = M.cols();
+	if (nrow == 0 || ncol == 0) {
+		Rcpp::S4 mat("dgCMatrix");
+		mat.slot("p") = Rcpp::IntegerVector::create(0);
+		mat.slot("i") = Rcpp::IntegerVector();
+		mat.slot("x") = Rcpp::NumericVector();
+		mat.slot("Dim") = Rcpp::IntegerVector::create(0, 0);
+		return mat;
+	}
 	const Eigen::Index nnz = M.nonZeros();
 
 	Rcpp::IntegerVector i(nnz);
@@ -113,26 +123,30 @@ Rcpp::S4 csc_to_dtCMatrix_lower(
 	return mat;
 }
 
-// L1 matches Matrix::expand2(); D is numeric diagonal (expand2 uses D@x on ddiMatrix).
-Rcpp::List chol_inner_list(
-	const CholPattern& chol_pat,
-	const std::vector<double>& x_out,
-	const std::vector<double>& d_out)
+// Numeric LDL from chol_update (x on L1 pattern, d on diagonal); pattern from groups.
+Rcpp::List chol_inner_numeric(
+	const ad_groups& groups,
+	const std::vector<double>& x,
+	const std::vector<double>& d)
 {
+	const CholPattern& pat = groups.chol_pattern;
 	return Rcpp::List::create(
-		Rcpp::Named("L1") = csc_to_dtCMatrix_lower(chol_pat.p, chol_pat.i, x_out, chol_pat.n),
-		Rcpp::Named("D") = Rcpp::NumericVector(d_out.begin(), d_out.end()),
-		Rcpp::Named("perm") = Rcpp::IntegerVector(chol_pat.perm.begin(), chol_pat.perm.end())
+		Rcpp::Named("L1") = csc_to_dtCMatrix_lower(pat.L1_p, pat.L1_i, x, pat.n),
+		Rcpp::Named("D") = Rcpp::NumericVector(d.begin(), d.end()),
+		Rcpp::Named("perm") = Rcpp::IntegerVector(pat.perm.begin(), pat.perm.end())
 	);
 }
 
 struct InnerOptResult {
 	double fval = NA_REAL;
 	double log_lik = NA_REAL;
+	double neg_log_lik = NA_REAL;
 	Eigen::VectorXd solution;
 	Eigen::VectorXd full_parameters;
-	Eigen::VectorXd gradient;
-	Eigen::SparseMatrix<double> hessian;
+	Eigen::VectorXd grad_inner;
+	Eigen::VectorXd grad_outer;
+	Eigen::SparseMatrix<double> hessian_inner;
+	Eigen::SparseMatrix<double> hessian_outer;
 	std::vector<double> x_out;
 	std::vector<double> d_out;
 	int iterations = NA_INTEGER;
@@ -172,8 +186,8 @@ InnerOptResult all_derivs(
 
 	InnerOptResult out;
 	out.fval = fval;
-	out.gradient = grad;
-	out.hessian = H;
+	out.grad_inner = grad;
+	out.hessian_inner = H;
 	return out;
 }
 
@@ -193,8 +207,8 @@ Rcpp::List all_derivs(
 
 	return Rcpp::List::create(
 		Rcpp::Named("fval") = Rcpp::wrap(result_c.fval),
-		Rcpp::Named("gradient") = Rcpp::wrap(result_c.gradient),
-		Rcpp::Named("hessian") = eigen_to_dgCMatrix(result_c.hessian)
+		Rcpp::Named("gradient") = Rcpp::wrap(result_c.grad_inner),
+		Rcpp::Named("hessian") = eigen_to_dgCMatrix(result_c.hessian_inner)
 	);
 }
 
@@ -263,7 +277,7 @@ InnerOptResult inner_opt(
 	MB_Status status = SUCCESS;
 
 	InnerOptResult out;
-	out.x_out.assign(groups.chol_pattern.i.size(), 0.0);
+	out.x_out.assign(groups.chol_pattern.L1_i.size(), 0.0);
 	out.d_out.assign(H.rows(), 0.0);
 
 
@@ -317,8 +331,8 @@ InnerOptResult inner_opt(
 	const double log_det = chol_update(
 		H,
 		groups.chol_pattern.perm,
-		groups.chol_pattern.p,
-		groups.chol_pattern.i,
+		groups.chol_pattern.L1_p,
+		groups.chol_pattern.L1_i,
 		out.x_out,
 		out.d_out
 	);
@@ -333,6 +347,7 @@ InnerOptResult inner_opt(
 	if (R_finite(log_det)) {
 		out.half_log_det = 0.5 * log_det;
 		out.log_lik = -out.fval + config.Ngamma * ONEHALFLOGTWOPI - out.half_log_det;
+		out.neg_log_lik = -out.log_lik;
 		out.chol_ok = true;
 	} else {
 		Rcpp::warning(
@@ -340,12 +355,14 @@ InnerOptResult inner_opt(
 		);
 	}
 
+	out.grad_inner = grad;
+	out.hessian_inner = H;
 	if (deriv) {
-		out.gradient = gradOuter;
-		out.hessian = Houter;
+		out.grad_outer = gradOuter;
+		out.hessian_outer = Houter;
 	} else {
-		out.gradient = grad;
-		out.hessian = H;
+		out.grad_outer.resize(0);
+		out.hessian_outer.resize(0, 0);
 	}
 
 	return out;
@@ -403,25 +420,35 @@ Rcpp::List inner_opt(
 			deriv_flag
 		);
 
-		const CholPattern& chol_pat = groups_ptr->chol_pattern;
+		const Rcpp::List chol_inner = chol_inner_numeric(
+			*groups_ptr,
+			result.x_out,
+			result.d_out
+		);
 
 		return Rcpp::List::create(
 			Rcpp::Named("log_lik") = Rcpp::wrap(result.log_lik),
-			Rcpp::Named("fval") = Rcpp::wrap(result.fval),
-			Rcpp::Named("solution") = Rcpp::wrap(result.solution),
+			Rcpp::Named("neg_log_lik") = Rcpp::wrap(result.neg_log_lik),
+			Rcpp::Named("parameters") = Rcpp::wrap(result.full_parameters),
 			Rcpp::Named("full_parameters") = Rcpp::wrap(result.full_parameters),
-			Rcpp::Named("gradient") = Rcpp::wrap(result.gradient),
-			Rcpp::Named("hessian") = eigen_to_dgCMatrix(result.hessian),
-			Rcpp::Named("chol_inner") = chol_inner_list(
-				chol_pat,
-				result.x_out,
-				result.d_out
+			Rcpp::Named("opt") = Rcpp::List::create(
+				Rcpp::Named("fval") = Rcpp::wrap(result.fval),
+				Rcpp::Named("solution") = Rcpp::wrap(result.solution),
+				Rcpp::Named("iterations") = Rcpp::wrap(result.iterations),
+				Rcpp::Named("status") = Rcpp::wrap(std::string(MB_strerror(result.status))),
+				Rcpp::Named("trust.radius") = Rcpp::wrap(result.trust_radius),
+				Rcpp::Named("method") = Rcpp::wrap("Sparse")
 			),
-			Rcpp::Named("half_log_det") = Rcpp::wrap(result.half_log_det),
-			Rcpp::Named("iterations") = Rcpp::wrap(result.iterations),
-			Rcpp::Named("status") = Rcpp::wrap(std::string(MB_strerror(result.status))),
-			Rcpp::Named("trust.radius") = Rcpp::wrap(result.trust_radius),
-			Rcpp::Named("method") = Rcpp::wrap("Sparse")
+			Rcpp::Named("gradient") = Rcpp::List::create(
+				Rcpp::Named("inner") = Rcpp::wrap(result.grad_inner),
+				Rcpp::Named("outer") = Rcpp::wrap(result.grad_outer)
+			),
+			Rcpp::Named("hessian") = Rcpp::List::create(
+				Rcpp::Named("inner") = eigen_to_dgCMatrix(result.hessian_inner),
+				Rcpp::Named("outer") = eigen_to_dgCMatrix(result.hessian_outer),
+				Rcpp::Named("chol_inner") = chol_inner,
+				Rcpp::Named("half_log_det") = Rcpp::wrap(result.half_log_det)
+			)
 		);
 	}
 	catch (const Rcpp::exception& e) {

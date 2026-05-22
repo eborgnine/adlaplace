@@ -45,7 +45,7 @@ config <- list(
 
 ```{r}
 ad_fun <- adlaplace::get_ad_fun(model_stuff$data, config, package = "adlaplaceExample")
-res <- adlaplace::logLikLaplace(
+res <- adlaplace::log_lik_laplace(
   x = c(config$beta, config$theta),
   ad_fun = ad_fun,
   config = modifyList(config, list(verbose = FALSE)),
@@ -86,7 +86,7 @@ outer_fit$value
 ```
 
 ```{r}
-res <- adlaplace::logLikLaplace(
+res <- adlaplace::log_lik_laplace(
   x = outer_fit$par,
   ad_fun = ad_fun,
   config = modifyList(config, list(verbose = FALSE)),
@@ -125,7 +125,7 @@ SxD <- Sx[-1] - diff(Sx) / 2
 parDf[Dpar, ] <- Sx
 
 res <- mapply(
-  adlaplace::logLikLaplace,
+  adlaplace::log_lik_laplace,
   x = as.list(parDf),
   MoreArgs = list(ad_fun = ad_fun, config = config, deriv = TRUE),
   SIMPLIFY = FALSE

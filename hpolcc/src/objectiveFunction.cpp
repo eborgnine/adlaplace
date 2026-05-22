@@ -7,27 +7,18 @@
 
 CppAD::AD<double> stable_logsumexp(const CppAD::vector<CppAD::AD<double>> &eta)
 {
-  // compute log(sum(exp(eta)))
-  // to do: create a custom atomic
-  // Find the maximum value (not part of the AD tape)
-  double max_value = CppAD::Value(eta[0]);
-//  size_t max_index = 0;
+  // log(sum(exp(eta))) with AD-safe max (no CppAD::Value during recording)
+  CppAD::AD<double> max_eta = eta[0];
   for (size_t Deta = 1; Deta < eta.size(); ++Deta) {
-    double current_value = CppAD::Value(eta[Deta]);
-    if (current_value > max_value) {
- //     max_index = Deta;
-      max_value = current_value;
-    }
+    max_eta = CppAD::CondExpGt(eta[Deta], max_eta, eta[Deta], max_eta);
   }
 
   CppAD::AD<double> sumexp = 0.0;
-  for (size_t Deta = 0; Deta < eta.size(); ++Deta)
-  { 
-    sumexp += CppAD::exp(eta[Deta] - max_value);
+  for (size_t Deta = 0; Deta < eta.size(); ++Deta) {
+    sumexp += CppAD::exp(eta[Deta] - max_eta);
   }
 
-  CppAD::AD<double> result =  CppAD::log(sumexp) + max_value;
-  return result;
+  return CppAD::log(sumexp) + max_eta;
 }
 
 // Compute eta for one stratum using the full parameter vector.

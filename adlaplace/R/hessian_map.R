@@ -8,8 +8,11 @@
 #' @param Ngamma Number of random-effect parameters.
 #' @param Ntheta Number of variance parameters.
 #'
-#' @return A list with \code{outer}, \code{inner}, optional \code{chol_inner},
-#'   \code{map_outer}, \code{map_inner}, and \code{sizes} (named
+#' @return A list with \code{outer}, \code{inner}, optional \code{chol_inner_list}
+#'   (symbolic LDL pattern for C++: \code{L1}, \code{Linv}, \code{perm},
+#'   \code{perm} (1-based, as \code{Matrix::Cholesky@perm}),
+#'   \code{perm_inv} (0-based)), optional \code{chol_inner} (\code{dCHMsimpl}
+#'   for R), \code{map_outer}, \code{map_inner}, and \code{sizes} (named
 #'   \code{beta}/\code{gamma}/\code{theta}; suitable for
 #'   \code{adlaplace_attach_hessian()}).
 #'
@@ -154,14 +157,23 @@ hessian_map <- function(sparsity_list, Nbeta, Ngamma, Ntheta) {
     )
   }
 
-  L <- Matrix::expand2(chol_inner)$L1
-  Linv <- methods::as(Matrix::solve(L), "nMatrix")
+  chol_inner_list <- NULL
+  if (!is.null(chol_inner)) {
+    L <- Matrix::expand2(chol_inner)$L1
+    perm0 <- as.integer(chol_inner@perm)
+    chol_inner_list <- list(
+      L1 = L,
+      Linv = methods::as(Matrix::solve(L), "nMatrix"),
+      perm = perm0,
+      perm_inv = as.integer(order(chol_inner@perm) - 1L)
+    )
+  }
 
   list(
     outer = hessian_outer,
     inner = hessian_inner,
     chol_inner = chol_inner,
-    Linv = Linv,
+    chol_inner_list = chol_inner_list,
     map_outer = result_map$outer,
     map_inner = result_map$inner,
     sizes = c(beta = Nbeta, gamma = Ngamma, theta = Ntheta)

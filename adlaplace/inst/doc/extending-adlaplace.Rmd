@@ -12,8 +12,9 @@ approximation, inner optimization, and Hessian tooling.
 
 | File | Role |
 |------|------|
-| `src/objectiveFunction.cpp` | Define `logDensObs`, `logDensRandom`, `logDensExtra`; include `adlaplace/creators/adfun.hpp` last |
-| `src/Rinterfaces.cpp` | Export `getAdFun_r()` via `get_ad_fun_raw_h()` from `adlaplace/api/register.hpp` |
+| `src/neg_binom.cpp` (or other density `.cpp`) | Define named densities (`neg_binom_obs`, `neg_binom_extra`); register in `R_init_*` |
+| `combine()` + `get_ad_fun()` | Build shards with `get_ad_fun_raw()`, merge with `combine()`, attach templates with `get_ad_fun(data, config, ad_fun)` |
+| `src/Rinterfaces.cpp` | Export `getAdFun_r()` using shard builders and `combine()` |
 
 ## Public headers (`LinkingTo: adlaplace`)
 
@@ -22,11 +23,11 @@ approximation, inner optimization, and Hessian tooling.
 | `adlaplace/creators/rviews.hpp` | `Data`, `Config`, R matrix views |
 | `adlaplace/api/backend.hpp` | `GroupPack`, `ad_groups` |
 | `adlaplace/creators/adfun.hpp` | Build CppAD tapes after density callbacks |
-| `adlaplace/creators/random.hpp` | Optional default `logDensRandom` |
+| `src/random.cpp` | `random_diagonal`; local `data_random_diag` from `Q`, `gamma_map`, `theta_map` |
+| `Data` (rviews.hpp) | Observation shards: `y`, `ATp`, `XTp`, `theta_map` |
 | `adlaplace/creators/extra_empty.hpp` | Optional zero `logDensExtra` shard |
 | `adlaplace/math/constants.hpp` | Shared constants |
 | `adlaplace/math/lgamma.hpp` | CppAD `lgamma_ad()` atomic for custom likelihoods |
-| `adlaplace/api/register.hpp` | `get_ad_fun_raw_h()` for R export |
 | `adlaplace/api/adpack_handle.h` | C ABI for advanced use |
 
 Deprecated shim (still installed):
@@ -45,7 +46,7 @@ Link the backend shared library to **adlaplace** (see `configure` in **adlaplace
 
 ```r
 ad_fun <- adlaplace::get_ad_fun(data, config, package = "myBackend")
-res <- adlaplace::logLikLaplace(
+res <- adlaplace::log_lik_laplace(
   x = c(config$beta, config$theta),
   config = config,
   ad_fun = ad_fun

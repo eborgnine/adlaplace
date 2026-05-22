@@ -20,4 +20,8 @@ double chol_update(
 
 CholPattern chol_pattern_from_sexp(SEXP chol_inner);
 
+CholPattern chol_pattern_from_list(const Rcpp::List& chol_inner_list);
+
+void ad_groups_attach_chol_pattern(ad_groups& groups, const Rcpp::List& ad_fun);
+
 #endif

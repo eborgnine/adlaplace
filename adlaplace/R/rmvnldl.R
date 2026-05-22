@@ -5,29 +5,39 @@ as_ldl_list <- function(chol_prec) {
     return(list(
       L1 = ex$L1,
       D = as.numeric(ex$D@x),
-      perm = as.integer(chol_prec@perm)
+      perm = as.integer(chol_prec@perm),
+      perm_inv = as.integer(order(chol_prec@perm) - 1L)
     ))
   }
   if (is.list(chol_prec) &&
-    all(c("L1", "D", "perm") %in% names(chol_prec))) {
-    return(list(
+    all(c("L1", "D", "perm", "perm_inv") %in% names(chol_prec))
+  ) {
+    out <- list(
       L1 = chol_prec$L1,
       D = as.numeric(chol_prec$D),
-      perm = as.integer(chol_prec$perm)
-    ))
+      perm = as.integer(chol_prec$perm),
+      perm_inv = as.integer(chol_prec$perm_inv)
+    )
+    return(out)
   }
   stop(
-    "chol_prec must be a CHMfactor, Cholesky (LDL), or a list with L1, D, and perm ",
-    "(as in logLikLaplace()$hessian$chol_inner)"
+    "chol_prec must be a CHMfactor, Cholesky (LDL), or a list with L1, D, perm and perm_inv ",
+    "(as in log_lik_laplace()$hessian$chol_inner)"
   )
 }
 
 #' @noRd
-halfH_from_ldl <- function(ldl) {
+half_H_inv_from_ldl <- function(ldl) {
   p <- length(ldl$D)
   Linv <- Matrix::solve(ldl$L1)
   halfDinv <- Matrix::Diagonal(p, ldl$D^(-0.5))
-  Matrix::crossprod(Linv, halfDinv)[1L + ldl$perm, , drop = FALSE]
+
+  half_H_inv_perm <- Matrix::crossprod(Linv, halfDinv)
+  half_H_inv <- half_H_inv_perm[ldl$perm_inv + 1L, ]
+
+  # H_inv = tcrossprod(half_H_inv)
+
+  half_H_inv
 }
 
 #' Simulate from a multivariate normal using LDL of the precision matrix
@@ -47,21 +57,21 @@ halfH_from_ldl <- function(ldl) {
 #'
 #' @details
 #' Uses \eqn{H^{-1/2} = P^\top L^{-1} D^{-1/2}} (same as \code{reformat_chol()}
-#' in \code{logLikDeriv}), and \code{rnorm} only:
+#' in \code{log_lik_deriv}), and \code{rnorm} only:
 #' \eqn{x = \mu + H^{-1/2} z}, \eqn{z \sim N(0, I)}.
 #'
-#' @seealso \code{\link[Matrix]{Cholesky}}, \code{\link{logLikLaplace}}
+#' @seealso \code{\link[Matrix]{Cholesky}}, \code{\link{log_lik_laplace}}
 #' @export
 rmvnldl <- function(n, mean = 0, chol_prec) {
   ldl <- as_ldl_list(chol_prec)
-  halfH <- halfH_from_ldl(ldl)
+  half_H_inv <- half_H_inv_from_ldl(ldl)
 
   p <- length(ldl$D)
   n <- as.integer(n)
   mu <- rep_len(as.numeric(mean), p)
 
   z <- matrix(stats::rnorm(p * n), nrow = p, ncol = n)
-  draws <- as.matrix(mu + halfH %*% z)
+  draws <- as.matrix(mu + half_H_inv %*% z)
 
   if (n == 1L) {
     as.vector(draws)

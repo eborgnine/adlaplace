@@ -4,3 +4,6 @@
 ^\.\.Rcheck$
 ^config\.
 ^config\.[0-9]+/
+^vignettes/.*_files/
+^vignettes/.*\.html$
+^vignettes/.*\.knit\.md$

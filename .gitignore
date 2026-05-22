@@ -76,3 +76,5 @@ sandbox/concise_beta_dirichlet.md
 *.bak
 *.tmp
 *.rmarkdown
+.Rlibrary
+**/.Rlibrary

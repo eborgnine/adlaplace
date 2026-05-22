@@ -147,16 +147,22 @@ struct Config {
 };
 
 
+// Observation / obs-style single-shard data (y, design matrices, theta_map).
 struct Data {
   DgCView A;
   DgCView X;
 
-  NumVecView Qdiag, y;
+  NumVecView y;
+  IntVecView theta_map;
 
-  DgCView map;
   DgCView elgm_matrix;
 
-  size_t Nmap, Nbeta, Ngamma, Ny;
+  // 0-based index into the full parameter vector x
+  size_t theta_index = 0;
+
+  size_t Nbeta = 0;
+  size_t Ngamma = 0;
+  size_t Ny = 0;
 
   explicit Data(const Rcpp::List& data);
 };
@@ -300,21 +306,33 @@ inline Config::Config(const Rcpp::List& cfg)
   }
 }
 
-inline Data::Data(const Rcpp::List& data)
-  : A(DgCView(Rcpp::S4(data["ATp"]))),
-    X(DgCView(Rcpp::S4(data["XTp"]))),
-    Qdiag(data["Qdiag"]),
-    y(data["y"]),
-    map(DgCView(Rcpp::S4(data["map"])))
-{
+inline Data::Data(const Rcpp::List& data) {
+  if (data.containsElementNamed("ATp")) {
+    A = DgCView(Rcpp::as<Rcpp::S4>(data["ATp"]));
+  }
+  if (data.containsElementNamed("XTp")) {
+    X = DgCView(Rcpp::as<Rcpp::S4>(data["XTp"]));
+  }
+  if (data.containsElementNamed("y")) {
+    y = NumVecView(data["y"]);
+    Ny = y.size();
+  }
+  if (data.containsElementNamed("theta_map")) {
+    theta_map = IntVecView(data["theta_map"]);
+    if (theta_map.size() > 0) {
+      theta_index = static_cast<size_t>(theta_map[0]);
+    }
+  }
   if (data.containsElementNamed("elgm_matrix")) {
-    elgm_matrix = DgCView(Rcpp::S4(data["elgm_matrix"]));
+    elgm_matrix = DgCView(Rcpp::as<Rcpp::S4>(data["elgm_matrix"]));
   }
 
-  Nmap = map.ncol();
-  Nbeta = static_cast<std::size_t>(X.nrow());
-  Ngamma = static_cast<std::size_t>(A.nrow());
-  Ny = static_cast<std::size_t>(y.size());
+  if (Ngamma == 0 && A.p.size() > 0) {
+    Ngamma = static_cast<size_t>(A.nrow());
+  }
+  if (Nbeta == 0 && X.p.size() > 0) {
+    Nbeta = static_cast<size_t>(X.nrow());
+  }
 }
 
 #endif

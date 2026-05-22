@@ -9,15 +9,11 @@
 //' @name adlaplace_cpp
 //' @description Low-level C++ entry points exposed to R via Rcpp.
 //'
-//' @section Sign convention:
-//' \code{jointLogDens()}, \code{grad()}, and \code{hessian()} evaluate the
-//' \strong{joint log density} \eqn{\ell(x)} and its derivatives (maximization sign).
-//' \code{all_derivs()} and the objective inside \code{inner_opt()} use the
-//' \strong{negative} log density \eqn{-\ell(x)} and its derivatives for
-//' \pkg{trustOptim} minimization. At the same \code{x} and \code{ad_fun},
-//' \code{all_derivs()$fval == -jointLogDens(ad_fun, x)},
-//' \code{all_derivs()$gradient == -grad(ad_fun, x)}, and
-//' \code{all_derivs()$hessian == -hessian(ad_fun, x)} (outer, full parameter vector).
+//' @param negative Logical (default \code{TRUE}). If \code{TRUE}, return the
+//'   **negative** log density \eqn{-\ell(x)} and its derivatives (minimization /
+//'   \pkg{trustOptim} sign, consistent with \code{inner_opt()} and
+//'   \code{all_derivs()}). If \code{FALSE}, return \eqn{\ell(x)}, \eqn{\nabla\ell},
+//'   and \eqn{\nabla^2\ell}.
 //' @param ad_fun External pointer or list from \code{get_ad_fun()}.
 //' @param x Numeric parameter vector of length \code{Nparams}.
 //' @param Sgroups Optional integer vector of 0-based group indices.
@@ -25,14 +21,21 @@
 //' @param verbose Logical passed to \code{hessian()}.
 //' @param LinvPt,LinvPtColumns,num_threads See \code{traceHinvT()}.
 //'
+//' @section Sign convention:
+//' With default \code{negative = TRUE}, \code{joint_log_dens()}, \code{grad()},
+//' and \code{hessian()} match \code{all_derivs()} and \code{inner_opt()} (negative
+//' log-density). Set \code{negative = FALSE} for the joint log density and its
+//' derivatives at the same \code{x}.
+//'
 //' @rdname adlaplace_cpp
-//' @return Scalar **joint log density** \eqn{\ell(x)} (sum over shards; not negative log density).
+//' @return Scalar log-density value (sign per \code{negative}).
 //' @export
 // [[Rcpp::export]]
-double jointLogDens(
+double joint_log_dens(
   SEXP ad_fun,
   const Rcpp::NumericVector& x,
-  SEXP Sgroups = R_NilValue) {
+  SEXP Sgroups = R_NilValue,
+  bool negative = true) {
 
   ad_groups* groups = resolve_ad_groups(ad_fun);
   const size_t Ngroups = groups->fun.size();
@@ -57,18 +60,19 @@ double jointLogDens(
     }
     total += fg;
   }
-  return total;
+  return negative ? -total : total;
 }
 
 //' @rdname adlaplace_cpp
-//' @return Gradient of **log density** \eqn{\nabla \ell(x)} (not negative log density).
+//' @return Gradient of log density (sign per \code{negative}).
 //' @export
 // [[Rcpp::export]]
 Rcpp::NumericVector grad(
   SEXP ad_fun,
   const Rcpp::NumericVector& x,
   SEXP Sgroups = R_NilValue,
-  bool inner = false) {
+  bool inner = false,
+  bool negative = true) {
 
   ad_groups* groups = resolve_ad_groups(ad_fun);
   const size_t Nparams = x.size();
@@ -86,11 +90,14 @@ Rcpp::NumericVector grad(
     if (h->api->f_grad(h->ctx, x.begin(), &inner, &f_dummy, grad_out.begin()) != 0)
       Rcpp::stop("backend api->f_grad failed for group %d", (int)g);
   }
+  if (negative) {
+    grad_out = -grad_out;
+  }
   return grad_out;
 }
 
 //' @rdname adlaplace_cpp
-//' @return Sparse Hessian of **log density** \eqn{\nabla^2 \ell(x)} (not negative log density).
+//' @return Sparse Hessian of log density (sign per \code{negative}).
 //' @export
 // [[Rcpp::export]]
 Rcpp::S4 hessian(
@@ -98,7 +105,8 @@ Rcpp::S4 hessian(
   const Rcpp::NumericVector& x,
   SEXP Sgroups = R_NilValue,
   bool inner = false,
-  const bool verbose = false) {
+  const bool verbose = false,
+  bool negative = true) {
   ad_groups* groups = resolve_ad_groups(ad_fun);
   if (groups->fun.empty() || !groups->fun[0]->api->f_grad_hess) {
     Rcpp::stop("ad_fun api->f_grad_hess is NULL");
@@ -162,7 +170,7 @@ Rcpp::S4 hessian(
   for (const auto& kv : acc_map) {
     agg_row.push_back(kv.first.first);
     agg_col.push_back(kv.first.second);
-    agg_value.push_back(kv.second);
+    agg_value.push_back(negative ? -kv.second : kv.second);
   }
 
   static Rcpp::Function sparseMatrix =

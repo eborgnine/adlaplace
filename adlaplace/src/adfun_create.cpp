@@ -3,22 +3,64 @@
 #include <Rinternals.h>
 #include "adlaplace/api/register.hpp"
 #include "adlaplace/runtime/interfaces_detail.hpp"
+#include "chol_update.hpp"
 
-//' Build raw AD pack external pointer handle
+//' Build raw AD handle for observation shards only
 //'
-//' Constructs grouped CppAD tapes and returns an opaque \code{ad_groups}
-//' handle (fun only; attach Hessian templates via \code{adlaplace_attach_hessian()}).
-//'
-//' @param data Model data list passed to the backend builder.
-//' @param config Model configuration list passed to the backend builder.
-//'
+//' @param data Model data list.
+//' @param config Model configuration list.
+//' @param name Registered observation density name (e.g. \code{"neg_binom_obs"}).
 //' @return External pointer of class \code{adlaplace_handle_ptr}.
+//' @keywords internal
+// [[Rcpp::export]]
+SEXP get_ad_fun_raw_obs(Rcpp::List data, Rcpp::List config, std::string name) {
+  ad_groups* groups = get_ad_fun_raw_obs_h(data, config, name);
+  return make_ad_groups_handle(groups);
+}
+
+//' Build raw AD handle for one single-density shard
 //'
-//' @seealso \code{\link{get_ad_fun}}
+//' @param data Model data list.
+//' @param config Model configuration list.
+//' @param name Registered single density name (e.g. \code{"random_diagonal"}).
+//' @return External pointer of class \code{adlaplace_handle_ptr}.
+//' @keywords internal
+// [[Rcpp::export]]
+SEXP get_ad_fun_raw_single(Rcpp::List data, Rcpp::List config, std::string name) {
+  ad_groups* groups = get_ad_fun_raw_single_h(data, config, name);
+  return make_ad_groups_handle(groups);
+}
+
+//' Merge partial AD handles into one raw handle
+//'
+//' Concatenates shards from \code{\link{get_ad_fun_raw}} (or other partial
+//' builders) in list order. Does not attach \code{hessian_map}; use
+//' \code{\link{get_ad_fun}} when templates are needed.
+//'
+//' @param handles List of external pointers (\code{adlaplace_handle_ptr}).
+//' @param config Model configuration list (sets \code{n_beta}/\code{n_gamma} on shards).
+//' @return Combined external pointer of class \code{adlaplace_handle_ptr}.
+//' @seealso \code{\link{get_ad_fun_raw}}, \code{\link{get_ad_fun}}
 //' @export
 // [[Rcpp::export]]
-SEXP get_ad_fun_raw(Rcpp::List data, Rcpp::List config) {
-  return get_ad_fun_raw_h(data, config);
+SEXP combine(Rcpp::List handles, Rcpp::List config) {
+  const Config configC(config);
+  std::vector<ad_groups*> parts;
+  parts.reserve(handles.size());
+  for (int i = 0; i < handles.size(); ++i) {
+    SEXP h = handles[i];
+    if (TYPEOF(h) != EXTPTRSXP) {
+      Rcpp::stop("handles[[%d]] must be an external pointer", i + 1);
+    }
+    ad_groups* g = static_cast<ad_groups*>(R_ExternalPtrAddr(h));
+    if (!g) {
+      Rcpp::stop("handles[[%d]] external pointer is NULL", i + 1);
+    }
+    parts.push_back(g);
+    R_ClearExternalPtr(h);
+  }
+  ad_groups* merged = combine_ad_groups(parts, configC);
+  return make_ad_groups_handle(merged);
 }
 
 //' Attach hessian_map() result to an ad_groups handle

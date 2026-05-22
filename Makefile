@@ -53,6 +53,8 @@ adlaplaceExample: adlaplace
 hpolcc: adlaplace
 	@echo "==> Running cleanup for hpolcc"
 	cd $(HPOLCC_DIR) && ./cleanup
+	@echo "==> Running compileAttributes for hpolcc from $(HPOLCC_DIR)"
+	Rscript -e "Rcpp::compileAttributes('$(HPOLCC_DIR)')"
 	@echo "==> Running roxygen2 for hpolcc from $(HPOLCC_DIR)"
 	Rscript -e "roxygen2::roxygenize('$(HPOLCC_DIR)')"
 	@echo "==> Building package hpolcc from $(HPOLCC_DIR)"
