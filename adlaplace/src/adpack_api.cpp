@@ -8,7 +8,7 @@ extern "C" const adlaplace_adpack_api adlaplace_AD_API = {
   &eval_f,
   &eval_grad,
   &eval_hess,
-  &get_sparse_sizes,
+  &get_sizes,
   &get_sparse_pattern,
   &get_hessian,
   &eval_trace_hinv_t,

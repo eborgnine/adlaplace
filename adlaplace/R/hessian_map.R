@@ -3,7 +3,7 @@
 #' Constructs Hessian sparsity templates (global/outer and inner-gamma)
 #' and per-group maps from shard sparsity patterns.
 #'
-#' @param sparsity_list List of per-group sparsity shards from \code{get_ad_fun()}.
+#' @param sparsity_list List of per-group sparsity shards from \code{ad_fun()}.
 #' @param Nbeta Number of fixed-effect parameters.
 #' @param Ngamma Number of random-effect parameters.
 #' @param Ntheta Number of variance parameters.
@@ -157,7 +157,7 @@ hessian_map <- function(sparsity_list, Nbeta, Ngamma, Ntheta) {
     )
   }
 
-  chol_inner_list <- NULL
+  chol_inner_list <- list()
   if (!is.null(chol_inner)) {
     L <- Matrix::expand2(chol_inner)$L1
     perm0 <- as.integer(chol_inner@perm)
@@ -169,9 +169,17 @@ hessian_map <- function(sparsity_list, Nbeta, Ngamma, Ntheta) {
     )
   }
 
+  if (is.null(chol_inner)) {
+    chol_inner <- Matrix::sparseMatrix(
+      i = integer(0),
+      j = integer(0),
+      dims = c(0L, 0L)
+    )
+  }
+
   list(
-    outer = hessian_outer,
-    inner = hessian_inner,
+    outer = methods::as(methods::as(hessian_outer, "generalMatrix"), "dgCMatrix"),
+    inner = methods::as(methods::as(hessian_inner, "generalMatrix"), "dgCMatrix"),
     chol_inner = chol_inner,
     chol_inner_list = chol_inner_list,
     map_outer = result_map$outer,

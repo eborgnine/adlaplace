@@ -11,6 +11,24 @@
 #include "adlaplace/creators/rviews.hpp"
 #include "adlaplace/api/adpack_handle.h"
 #include "adlaplace/api/backend.hpp"
+#include "adlaplace/creators/ad_model.hpp"
+
+inline CPPAD_TESTVECTOR(double) make_ad_params_seed(
+  const Config& cfg,
+  const ad_model& model) {
+
+  CPPAD_TESTVECTOR(double) ad_params_G(model.num_full);
+  for (std::size_t d = 0; d < model.num_beta; ++d) {
+    ad_params_G[d] = cfg.beta[d];
+  }
+  for (std::size_t d = 0; d < model.num_gamma; ++d) {
+    ad_params_G[model.num_beta + d] = cfg.gamma[d];
+  }
+  for (std::size_t d = 0; d < model.num_theta; ++d) {
+    ad_params_G[model.num_beta + model.num_gamma + d] = cfg.theta[d];
+  }
+  return ad_params_G;
+}
 
 static const std::string JAC_COLOR  = "cppad";
 static const std::string HESS_COLOR = "cppad.symmetric";

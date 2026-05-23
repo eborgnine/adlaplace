@@ -9,7 +9,7 @@
 #include "adlaplace/api/adpack_handle.h"
 #include "adlaplace/creators/rviews.hpp"
 
-// Symbolic LDL from hessian_map() chol_inner_list (CSC patterns, 0-based perm / perm_inv).
+// Symbolic LDL pattern derived from the inner Hessian template (not from R Matrix objects).
 struct CholPattern {
 	int n = 0;
 	std::vector<int> L1_p;
@@ -39,7 +39,7 @@ struct GroupPack {
   // Shard index and global parameter layout (for trace_hinv_t / LinvPtColumns).
   std::size_t shard_index = 0;
   std::size_t n_beta = 0;
-  std::size_t n_gamma = 0;
+  std::size_t n_theta = 0;
 };
 
 static inline GroupPack* pack_ctx(void* vctx) {
@@ -52,8 +52,8 @@ using ad_vector = std::vector<adlaplace_adpack_handle*>;
 using hessian_template = Eigen::SparseMatrix<int, Eigen::ColMajor, int>;
 
 
-// Shard handles + Hessian templates/maps (filled from get_ad_fun() list via get_ad_groups()).
-struct ad_groups {
+// C++ ad_fun: payload behind ad_fun_ptr (shard handles + Hessian templates/maps).
+struct ad_fun {
   ad_vector fun;
   hessian_template hessian_outer;
   hessian_template hessian_inner;

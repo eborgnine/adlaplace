@@ -1,4 +1,4 @@
-test_that("get_ad_fun and derivatives run on small GLMM data", {
+test_that("ad_fun and derivatives run on small GLMM data", {
   set.seed(0)
   Nobs <- 80L
   Nrandom1 <- 4L
@@ -14,33 +14,39 @@ test_that("get_ad_fun and derivatives run on small GLMM data", {
     theta = c(-1, -1, -1),
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    groups = adlaplace::adFun_groups(as(Matrix::t(Amat), "dMatrix"), Ngroups = 20L),
+    shards = adlaplace::adFun_groups(as(Matrix::t(Amat), "dMatrix"), Ngroups = 20L),
     num_threads = 1L,
     verbose = FALSE,
     package = "adlaplace"
   )
   n_beta <- length(config$beta)
   n_gamma <- length(config$gamma)
-  data_obs <- list(
+  model <- test_ad_model(
     y = rpois(Nobs, 2),
     ATp = as(Matrix::t(Amat), "dMatrix"),
     XTp = as(Matrix::t(X), "CsparseMatrix"),
-    theta_map = n_beta + n_gamma + length(config$theta) - 1L
+    config = config,
+    theta_local_row = length(config$theta) - 1L
   )
-  data_r <- list(
-    Q = rep(1, ncol(Amat)),
-    theta_map = n_beta + n_gamma,
-    gamma_map = seq.int(n_beta, length.out = ncol(Amat))
+  random_shard <- test_random_shard(
+    model = model,
+    config = config,
+    gamma_ids = seq.int(0L, length.out = ncol(Amat)),
+    theta_id = 0L,
+    Q = rep(1, ncol(Amat))
   )
-  ad_ptr <- adlaplace::combine(
-    list(
-      adlaplace::get_ad_fun_raw(data_obs, config, kind = "obs", name = "neg_binom_obs"),
-      adlaplace::get_ad_fun_raw(data_r, config, kind = "single", name = "random_diagonal"),
-      adlaplace::get_ad_fun_raw(data_obs, config, kind = "single", name = "neg_binom_extra")
+  ad_ptr <- do.call(c, list(
+    adlaplace::ad_fun_ptr(config, "observations", "neg_binom_obs", model),
+    adlaplace::ad_fun_ptr(
+      config, "random", "random_diagonal",
+      random_shard$model, precision = random_shard$precision
     ),
-    config
-  )
-  ad_fun <- adlaplace::get_ad_fun(data_obs, config, ad_ptr)
+    adlaplace::ad_fun_ptr(
+      config, "parameters", "neg_binom_extra",
+      adlaplace:::ad_model_parameters_view(model)
+    )
+  ))
+  ad_fun <- adlaplace::ad_fun(ad_ptr)
   x <- c(config$beta, config$gamma, config$theta)
 
   dens <- adlaplace::joint_log_dens(ad_fun, x)
@@ -78,7 +84,7 @@ test_that("model_setup builds data for iwp formula", {
     formula = y ~ intercept() + linear(x),
     verbose = FALSE
   )
-  expect_true(is.list(model_stuff$data))
-  expect_true(nrow(model_stuff$data$XTp) >= 1L)
-  expect_true(length(model_stuff$info$beta$init) >= 1L)
+  expect_true(is.data.frame(model_stuff@data))
+  expect_true(nrow(model_stuff@XTp) >= 1L)
+  expect_true(length(model_stuff@info$beta$init) >= 1L)
 })

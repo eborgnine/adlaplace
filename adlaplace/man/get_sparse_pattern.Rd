@@ -7,7 +7,7 @@
 get_sparse_pattern(handle, group)
 }
 \arguments{
-\item{handle}{External pointer from \code{get_ad_fun_raw()} or \code{get_ad_fun()}.}
+\item{handle}{External pointer of class \code{ad_fun_ptr}.}
 
 \item{group}{0-based group index.}
 }

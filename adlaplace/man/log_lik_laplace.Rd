@@ -32,7 +32,7 @@ parameter \code{gamma}. If missing, defaults to \code{config$gamma}.}
 optimizer (e.g., \code{report.level}, \code{report.freq}). See backend
 documentation (e.g., \pkg{trustOptim}) for supported options.}
 
-\item{ad_fun}{Optional AD object returned by the backend \code{get_ad_fun()}.
+\item{ad_fun}{Optional \code{ad_fun} object from \code{\link{ad_fun}}.
 This is a single backend handle (no separate inner/outer handles). If
 missing, it will be constructed automatically using \code{data}.}
 
@@ -40,8 +40,8 @@ missing, it will be constructed automatically using \code{data}.}
 is not supplied.}
 
 \item{package}{Character scalar naming the backend package to use for
-\code{get_ad_fun()} and \code{inner_opt()}. Defaults to \code{"adlaplace"}.
-Other backends must export \code{getAdFun_r()} and \code{inner_opt()}.}
+\code{ad_fun()} and \code{inner_opt()}. Defaults to \code{"adlaplace"}.
+Other backends must export a compatible \code{ad_fun()} builder and \code{inner_opt()}.}
 
 \item{deriv}{Logical scalar. If \code{TRUE}, include derivative quantities in
 the output (gradient, intermediate derivatives).}
@@ -81,5 +81,5 @@ The Laplace approximation assumes the inner Hessian is positive definite
   non-invertible Hessian, \code{log_lik_laplace()} issues a warning or error.
 }
 \seealso{
-\code{\link{get_ad_fun}}, \code{\link{inner_opt}}
+\code{\link{ad_fun}}, \code{\link{inner_opt}}
 }

@@ -7,21 +7,31 @@
 #include "adlaplace/eval/trace_hinv_t.hpp"
 #include "adlaplace/runtime/interfaces_detail.hpp"
 
+namespace {
+
+Rcpp::IntegerVector shards_vector(
+  const Rcpp::Nullable<Rcpp::IntegerVector>& shards) {
+  if (shards.isNull()) {
+    return Rcpp::IntegerVector();
+  }
+  return shards.get();
+}
+
+}  // namespace
+
 //' @rdname adlaplace_cpp
-//' @export
 // [[Rcpp::export]]
 Rcpp::NumericVector traceHinvT(
-  SEXP ad_fun,
+  SEXP ad_fun_ptr,
   const Rcpp::NumericVector& x,
   const Rcpp::S4& LinvPt,
   const Rcpp::S4& LinvPtColumns,
   const int num_threads,
-  SEXP Sgroups = R_NilValue
+  Rcpp::Nullable<Rcpp::IntegerVector> shards = R_NilValue
 ) {
-  ad_groups* groups = resolve_ad_groups(ad_fun);
-  const size_t Ngroups = groups->fun.size();
-  if (Ngroups == 0) Rcpp::stop("ad_groups.fun is empty");
-  const size_t Nparams = pack_ctx(groups->fun[0]->ctx)->x.size();
+  ad_fun* backend = resolve_ad_fun_eval(ad_fun_ptr);
+  const size_t n_shards = backend->fun.size();
+  const size_t Nparams = pack_ctx(backend->fun[0]->ctx)->x.size();
   if (static_cast<size_t>(x.size()) != Nparams) {
     Rcpp::stop("x has length %d but expected Nparams=%d", x.size(), (int)Nparams);
   }
@@ -42,16 +52,14 @@ Rcpp::NumericVector traceHinvT(
   const size_t LinvPtColumns_i_len = static_cast<size_t>(LinvPtColumns_i.size());
 
   std::vector<double> trace_accum(Nparams, 0.0);
-  const Rcpp::IntegerVector Sgroups_vec = (Sgroups == R_NilValue)
-    ? Rcpp::seq(0, static_cast<int>(Ngroups) - 1)
-    : Rcpp::as<Rcpp::IntegerVector>(Sgroups);
-  const std::vector<size_t> group_idx = resolve_groups(Ngroups, Sgroups_vec);
+  const std::vector<size_t> shard_idx =
+    resolve_shard_indices(n_shards, shards_vector(shards));
 
   int rc_error = 0;
   int rc_group = -1;
-  const int n_groups = static_cast<int>(group_idx.size());
+  const int n_shards_loop = static_cast<int>(shard_idx.size());
 
-  if (n_groups > 0) {
+  if (n_shards_loop > 0) {
     cppad_parallel_setup(static_cast<std::size_t>(num_threads));
 
 #pragma omp parallel num_threads(num_threads)
@@ -61,12 +69,12 @@ Rcpp::NumericVector traceHinvT(
       int rc_group_local = -1;
 
 #pragma omp for schedule(static,1)
-      for (int gidx = 0; gidx < n_groups; ++gidx) {
-        const size_t g = group_idx[static_cast<std::size_t>(gidx)];
-        adlaplace_adpack_handle* h = shard_handle(groups, g);
+      for (int sidx = 0; sidx < n_shards_loop; ++sidx) {
+        const size_t s = shard_idx[static_cast<std::size_t>(sidx)];
+        adlaplace_adpack_handle* h = shard_handle(backend, s);
         if (!h->api->trace_hinv_t) {
           rc_local = 1;
-          rc_group_local = static_cast<int>(g);
+          rc_group_local = static_cast<int>(s);
           continue;
         }
         const int rc = h->api->trace_hinv_t(
@@ -87,7 +95,7 @@ Rcpp::NumericVector traceHinvT(
         );
         if (rc != 0 && rc_local == 0) {
           rc_local = rc;
-          rc_group_local = static_cast<int>(g);
+          rc_group_local = static_cast<int>(s);
         }
       }
 
@@ -106,7 +114,7 @@ Rcpp::NumericVector traceHinvT(
 
   if (rc_error != 0) {
     Rcpp::stop(
-      "backend api->trace_hinv_t failed for group %d (code %d: %s)",
+      "backend api->trace_hinv_t failed for shard %d (code %d: %s)",
       rc_group,
       rc_error,
       trace_hinv_t_strerror(rc_error)

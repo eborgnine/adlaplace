@@ -1,9 +1,20 @@
 #include <Rcpp.h>
 
-#include <map>
 #include <vector>
 
 #include "adlaplace/runtime/interfaces_detail.hpp"
+
+namespace {
+
+Rcpp::IntegerVector shards_vector(
+  const Rcpp::Nullable<Rcpp::IntegerVector>& shards) {
+  if (shards.isNull()) {
+    return Rcpp::IntegerVector();
+  }
+  return shards.get();
+}
+
+}  // namespace
 
 //' @title C++ backend entry points
 //' @name adlaplace_cpp
@@ -14,9 +25,10 @@
 //'   \pkg{trustOptim} sign, consistent with \code{inner_opt()} and
 //'   \code{all_derivs()}). If \code{FALSE}, return \eqn{\ell(x)}, \eqn{\nabla\ell},
 //'   and \eqn{\nabla^2\ell}.
-//' @param ad_fun External pointer or list from \code{get_ad_fun()}.
+//' @param ad_fun_ptr External pointer of class \code{ad_fun_ptr}.
 //' @param x Numeric parameter vector of length \code{Nparams}.
-//' @param Sgroups Optional integer vector of 0-based group indices.
+//' @param shards Optional integer vector of 0-based shard indices; \code{NULL} or
+//'   \code{integer(0)} evaluates all shards.
 //' @param inner Logical scalar for inner-\eqn{\gamma} vs outer derivatives.
 //' @param verbose Logical passed to \code{hessian()}.
 //' @param LinvPt,LinvPtColumns,num_threads See \code{traceHinvT()}.
@@ -29,34 +41,30 @@
 //'
 //' @rdname adlaplace_cpp
 //' @return Scalar log-density value (sign per \code{negative}).
-//' @export
 // [[Rcpp::export]]
 double joint_log_dens(
-  SEXP ad_fun,
+  SEXP ad_fun_ptr,
   const Rcpp::NumericVector& x,
-  SEXP Sgroups = R_NilValue,
+  Rcpp::Nullable<Rcpp::IntegerVector> shards = R_NilValue,
   bool negative = true) {
 
-  ad_groups* groups = resolve_ad_groups(ad_fun);
-  const size_t Ngroups = groups->fun.size();
-  if (Ngroups == 0) Rcpp::stop("ad_groups.fun is empty");
-  const size_t Nparams = pack_ctx(groups->fun[0]->ctx)->x.size();
+  ad_fun* backend = resolve_ad_fun_eval(ad_fun_ptr);
+  const size_t n_shards = backend->fun.size();
+  const size_t Nparams = pack_ctx(backend->fun[0]->ctx)->x.size();
   if (static_cast<size_t>(x.size()) != Nparams) {
     Rcpp::stop("x has length %d but expected Nparams=%d", x.size(), (int)Nparams);
   }
 
-  const Rcpp::IntegerVector Sgroups_vec = (Sgroups == R_NilValue)
-    ? Rcpp::IntegerVector()
-    : Rcpp::as<Rcpp::IntegerVector>(Sgroups);
-  const std::vector<size_t> group_idx = resolve_groups(Ngroups, Sgroups_vec);
+  const std::vector<size_t> shard_idx =
+    resolve_shard_indices(n_shards, shards_vector(shards));
 
   double total = 0.0;
-  for (size_t g : group_idx) {
-    adlaplace_adpack_handle* h = shard_handle(groups, g);
+  for (size_t s : shard_idx) {
+    adlaplace_adpack_handle* h = shard_handle(backend, s);
     double fg = 0.0;
     const int rc = h->api->f(h->ctx, x.begin(), &fg);
     if (rc != 0) {
-      Rcpp::stop("backend api->f failed for group %d with code %d", (int)g, rc);
+      Rcpp::stop("backend api->f failed for shard %d with code %d", (int)s, rc);
     }
     total += fg;
   }
@@ -65,30 +73,27 @@ double joint_log_dens(
 
 //' @rdname adlaplace_cpp
 //' @return Gradient of log density (sign per \code{negative}).
-//' @export
 // [[Rcpp::export]]
 Rcpp::NumericVector grad(
-  SEXP ad_fun,
+  SEXP ad_fun_ptr,
   const Rcpp::NumericVector& x,
-  SEXP Sgroups = R_NilValue,
+  Rcpp::Nullable<Rcpp::IntegerVector> shards = R_NilValue,
   bool inner = false,
   bool negative = true) {
 
-  ad_groups* groups = resolve_ad_groups(ad_fun);
+  ad_fun* backend = resolve_ad_fun_eval(ad_fun_ptr);
   const size_t Nparams = x.size();
-  const size_t Ngroups = groups->fun.size();
-  const Rcpp::IntegerVector Sgroups_vec = (Sgroups == R_NilValue)
-    ? Rcpp::IntegerVector()
-    : Rcpp::as<Rcpp::IntegerVector>(Sgroups);
-  const std::vector<size_t> group_idx = resolve_groups(Ngroups, Sgroups_vec);
+  const size_t n_shards = backend->fun.size();
+  const std::vector<size_t> shard_idx =
+    resolve_shard_indices(n_shards, shards_vector(shards));
 
   Rcpp::NumericVector grad_out(Nparams, 0.0);
   double f_dummy = 0.0;
 
-  for (size_t g : group_idx) {
-    adlaplace_adpack_handle* h = shard_handle(groups, g);
+  for (size_t s : shard_idx) {
+    adlaplace_adpack_handle* h = shard_handle(backend, s);
     if (h->api->f_grad(h->ctx, x.begin(), &inner, &f_dummy, grad_out.begin()) != 0)
-      Rcpp::stop("backend api->f_grad failed for group %d", (int)g);
+      Rcpp::stop("backend api->f_grad failed for shard %d", (int)s);
   }
   if (negative) {
     grad_out = -grad_out;
@@ -98,36 +103,36 @@ Rcpp::NumericVector grad(
 
 //' @rdname adlaplace_cpp
 //' @return Sparse Hessian of log density (sign per \code{negative}).
-//' @export
 // [[Rcpp::export]]
 Rcpp::S4 hessian(
-  SEXP ad_fun,
+  SEXP ad_fun_ptr,
   const Rcpp::NumericVector& x,
-  SEXP Sgroups = R_NilValue,
+  Rcpp::Nullable<Rcpp::IntegerVector> shards = R_NilValue,
   bool inner = false,
   const bool verbose = false,
   bool negative = true) {
-  ad_groups* groups = resolve_ad_groups(ad_fun);
-  if (groups->fun.empty() || !groups->fun[0]->api->f_grad_hess) {
+  ad_fun* backend = resolve_ad_fun_eval(ad_fun_ptr);
+  if (!backend->fun[0]->api->f_grad_hess) {
     Rcpp::stop("ad_fun api->f_grad_hess is NULL");
   }
 
   const size_t Nparams = x.size();
-  const size_t Ngroups = groups->fun.size();
-  const Rcpp::IntegerVector Sgroups_vec = (Sgroups == R_NilValue)
-    ? Rcpp::IntegerVector()
-    : Rcpp::as<Rcpp::IntegerVector>(Sgroups);
-  const std::vector<size_t> group_idx = resolve_groups(Ngroups, Sgroups_vec);
+  const size_t n_shards = backend->fun.size();
+  const std::vector<size_t> shard_idx =
+    resolve_shard_indices(n_shards, shards_vector(shards));
 
-  std::map<std::pair<int, int>, double> acc_map;
+  std::vector<int> tri_i;
+  std::vector<int> tri_j;
+  std::vector<double> tri_x;
 
   if (verbose) Rcpp::Rcout << "Starting Hessian computation..." << std::endl;
 
-  for (size_t g : group_idx) {
-    adlaplace_adpack_handle* h = shard_handle(groups, g);
-    int n_inner, n_outer, nnz_grad_i, nnz_grad_o, nnz_hes_i, nnz_hes_o;
-    if (h->api->get_sparse_sizes(h->ctx, &n_inner, &n_outer, &nnz_grad_i, &nnz_grad_o, &nnz_hes_i, &nnz_hes_o) != 0)
-      Rcpp::stop("backend api->get_sparse_sizes failed for group %d", (int)g);
+  for (size_t s : shard_idx) {
+    adlaplace_adpack_handle* h = shard_handle(backend, s);
+    int n_inner, n_outer, n_beta, n_theta, nnz_grad_i, nnz_grad_o, nnz_hes_i, nnz_hes_o;
+    if (h->api->get_sizes(h->ctx, &n_inner, &n_outer, &n_beta, &n_theta,
+                          &nnz_grad_i, &nnz_grad_o, &nnz_hes_i, &nnz_hes_o) != 0)
+      Rcpp::stop("backend api->get_sizes failed for shard %d", (int)s);
 
     int nnz = inner ? nnz_hes_i : nnz_hes_o;
     if (nnz == 0) continue;
@@ -140,7 +145,7 @@ Rcpp::S4 hessian(
         p_gi.data(), p_go.data(),
         p_hir.data(), p_hic.data(),
         p_hor.data(), p_hoc.data()) != 0)
-      Rcpp::stop("backend api->get_sparse_pattern failed for group %d", (int)g);
+      Rcpp::stop("backend api->get_sparse_pattern failed for shard %d", (int)s);
 
     const int* rows = inner ? p_hir.data() : p_hor.data();
     const int* cols = inner ? p_hic.data() : p_hoc.data();
@@ -152,35 +157,34 @@ Rcpp::S4 hessian(
     std::vector<double> grad_scratch(Nparams, 0.0);
     double f_dummy = 0.0;
     if (h->api->f_grad_hess(h->ctx, x.begin(), &inner, &f_dummy, grad_scratch.data(), vals.data(), map.data()) != 0)
-      Rcpp::stop("backend api->f_grad_hess failed for group %d", (int)g);
+      Rcpp::stop("backend api->f_grad_hess failed for shard %d", (int)s);
 
-    for (int i = 0; i < nnz; ++i) {
-      acc_map[{rows[i], cols[i]}] += vals[i];
+    const double sign = negative ? -1.0 : 1.0;
+    for (int k = 0; k < nnz; ++k) {
+      tri_i.push_back(rows[k]);
+      tri_j.push_back(cols[k]);
+      tri_x.push_back(sign * vals[k]);
     }
   }
 
   if (verbose) Rcpp::Rcout << "Hessian computation completed successfully" << std::endl;
 
-  std::vector<int> agg_row, agg_col;
-  std::vector<double> agg_value;
-  agg_row.reserve(acc_map.size());
-  agg_col.reserve(acc_map.size());
-  agg_value.reserve(acc_map.size());
-
-  for (const auto& kv : acc_map) {
-    agg_row.push_back(kv.first.first);
-    agg_col.push_back(kv.first.second);
-    agg_value.push_back(negative ? -kv.second : kv.second);
-  }
-
+  static Rcpp::Environment adlaplace_ns = Rcpp::Environment::namespace_env("adlaplace");
+  static Rcpp::Function aggregate = adlaplace_ns["aggregate"];
   static Rcpp::Function sparseMatrix =
     Rcpp::Environment::namespace_env("Matrix")["sparseMatrix"];
   const int n = static_cast<int>(Nparams);
 
+  Rcpp::List agg = aggregate(
+    Rcpp::wrap(tri_i),
+    Rcpp::wrap(tri_j),
+    Rcpp::wrap(tri_x)
+  );
+
   return sparseMatrix(
-    Rcpp::Named("i") = Rcpp::wrap(agg_row),
-    Rcpp::Named("j") = Rcpp::wrap(agg_col),
-    Rcpp::Named("x") = Rcpp::wrap(agg_value),
+    Rcpp::Named("i") = agg["i"],
+    Rcpp::Named("j") = agg["j"],
+    Rcpp::Named("x") = agg["x"],
     Rcpp::Named("index1") = false,
     Rcpp::Named("symmetric") = true,
     Rcpp::Named("dims") = Rcpp::IntegerVector::create(n, n)

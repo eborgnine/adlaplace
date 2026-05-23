@@ -18,10 +18,8 @@ double chol_update(
 	std::vector<double>& d_out
 );
 
-CholPattern chol_pattern_from_sexp(SEXP chol_inner);
+CholPattern chol_pattern_from_inner_template(const hessian_template& inner);
 
-CholPattern chol_pattern_from_list(const Rcpp::List& chol_inner_list);
-
-void ad_groups_attach_chol_pattern(ad_groups& groups, const Rcpp::List& ad_fun);
+void ad_fun_attach_chol_pattern_from_template(ad_fun& shards);
 
 #endif

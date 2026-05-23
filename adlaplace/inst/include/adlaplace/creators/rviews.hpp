@@ -107,7 +107,7 @@ struct NumVecView {
   double operator[](std::size_t i) const;
 };
 
-// Thread-safe CSC pattern copied into std::vector (e.g. config$groups).
+// Thread-safe CSC pattern copied into std::vector (e.g. config$shards).
 struct CscPattern {
   std::vector<int> i;
   std::vector<int> p;
@@ -132,39 +132,9 @@ struct Config {
 
   std::vector<double> beta, gamma, theta;
 
-  std::size_t beta_begin, beta_end, Nbeta;
-  std::size_t gamma_begin, gamma_end, Ngamma;
-  std::size_t theta_begin, theta_end, Ntheta;
-  std::size_t Nparams, Ngroups;
-
-  std::vector<int> Sgroups;
-  std::vector<int> Sgamma;
-  std::vector<double> params;
-
-  CscPattern groups;
+  CscPattern shards;
 
   explicit Config(const Rcpp::List& cfg);
-};
-
-
-// Observation / obs-style single-shard data (y, design matrices, theta_map).
-struct Data {
-  DgCView A;
-  DgCView X;
-
-  NumVecView y;
-  IntVecView theta_map;
-
-  DgCView elgm_matrix;
-
-  // 0-based index into the full parameter vector x
-  size_t theta_index = 0;
-
-  size_t Nbeta = 0;
-  size_t Ngamma = 0;
-  size_t Ny = 0;
-
-  explicit Data(const Rcpp::List& data);
 };
 
 
@@ -264,74 +234,8 @@ inline Config::Config(const Rcpp::List& cfg)
   Rcpp::NumericVector theta_nv = cfg["theta"];
   this->theta.assign(theta_nv.begin(), theta_nv.end());
 
-  beta_begin = 0;
-  Nbeta = static_cast<std::size_t>(this->beta.size());
-  beta_end = Nbeta;
-
-  gamma_begin = beta_end;
-  Ngamma = static_cast<std::size_t>(this->gamma.size());
-  gamma_end = gamma_begin + Ngamma;
-
-  theta_begin = gamma_end;
-  Ntheta = static_cast<std::size_t>(this->theta.size());
-  theta_end = theta_begin + Ntheta;
-
-  Nparams = Nbeta + Ngamma + Ntheta;
-
-  Sgamma.resize(Ngamma);
-  params.resize(Nparams);
-
-  for (std::size_t d = 0; d < Nbeta; ++d) {
-    params[d] = this->beta[d];
-  }
-  for (std::size_t d = 0, idx = gamma_begin; d < Ngamma; ++d, ++idx) {
-    Sgamma[d] = static_cast<int>(idx);
-    params[idx] = this->gamma[d];
-  }
-  for (std::size_t d = 0, idx = theta_begin; d < Ntheta; ++d, ++idx) {
-    params[idx] = this->theta[d];
-  }
-
-  Ngroups = 1;
-  if (cfg.containsElementNamed("groups")) {
-    groups = CscPattern(Rcpp::as<Rcpp::S4>(cfg["groups"]));
-    Ngroups = groups.ncol();
-  }
-
-  if (cfg.containsElementNamed("Sgroups")) {
-    Sgroups = adlaplace_as_int_vec(Rcpp::as<Rcpp::IntegerVector>(cfg["Sgroups"]));
-  } else {
-    Sgroups.resize(Ngroups);
-    std::iota(Sgroups.begin(), Sgroups.end(), std::size_t(0));
-  }
-}
-
-inline Data::Data(const Rcpp::List& data) {
-  if (data.containsElementNamed("ATp")) {
-    A = DgCView(Rcpp::as<Rcpp::S4>(data["ATp"]));
-  }
-  if (data.containsElementNamed("XTp")) {
-    X = DgCView(Rcpp::as<Rcpp::S4>(data["XTp"]));
-  }
-  if (data.containsElementNamed("y")) {
-    y = NumVecView(data["y"]);
-    Ny = y.size();
-  }
-  if (data.containsElementNamed("theta_map")) {
-    theta_map = IntVecView(data["theta_map"]);
-    if (theta_map.size() > 0) {
-      theta_index = static_cast<size_t>(theta_map[0]);
-    }
-  }
-  if (data.containsElementNamed("elgm_matrix")) {
-    elgm_matrix = DgCView(Rcpp::as<Rcpp::S4>(data["elgm_matrix"]));
-  }
-
-  if (Ngamma == 0 && A.p.size() > 0) {
-    Ngamma = static_cast<size_t>(A.nrow());
-  }
-  if (Nbeta == 0 && X.p.size() > 0) {
-    Nbeta = static_cast<size_t>(X.nrow());
+  if (cfg.containsElementNamed("shards")) {
+    shards = CscPattern(Rcpp::as<Rcpp::S4>(cfg["shards"]));
   }
 }
 

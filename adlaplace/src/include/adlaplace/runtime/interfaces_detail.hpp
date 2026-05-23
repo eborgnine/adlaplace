@@ -1,27 +1,29 @@
 #ifndef ADLAPLACE_INTERFACES_DETAIL_HPP
 #define ADLAPLACE_INTERFACES_DETAIL_HPP
 
-// adlaplace internal: resolve handles, sparsity shards, group lists.
+// adlaplace internal: resolve handles, sparsity shards, shard index lists.
 
 #include <Rcpp.h>
 #include <vector>
 
 #include "adlaplace/api/backend.hpp"
-#include "adlaplace/runtime/ad_groups_pack.hpp"
+#include "adlaplace/runtime/ad_fun_pack.hpp"
 
-adlaplace_adpack_handle* shard_handle(ad_groups* groups, size_t g);
+adlaplace_adpack_handle* shard_handle(ad_fun* backend, size_t shard);
 
-SEXP ad_fun_handle_sexp(const Rcpp::List& ad_fun);
+SEXP ad_fun_handle_sexp(const Rcpp::List& ad_fun_list);
 
-ad_groups* get_ad_groups(const Rcpp::List& ad_fun);
+ad_fun* ad_fun_from_list(const Rcpp::List& ad_fun_list);
 
-ad_groups* ad_groups_from_handle(SEXP handle);
+ad_fun* ad_fun_from_handle(SEXP handle);
 
-ad_groups* resolve_ad_groups(SEXP ad_fun);
+ad_fun* resolve_ad_fun_eval(SEXP ad_fun_ptr);
 
-std::vector<size_t> resolve_groups(
-  size_t Ngroups,
-  const Rcpp::IntegerVector& Sgroups);
+ad_fun* resolve_ad_fun_laplace(const Rcpp::S4& ad_fun_s4);
+
+std::vector<size_t> resolve_shard_indices(
+  size_t n_shards,
+  const Rcpp::IntegerVector& shards);
 
 Rcpp::List sparsity_shard_from_handle(adlaplace_adpack_handle* h);
 

@@ -110,7 +110,7 @@ int eval_trace_hinv_t(
 
     for (int k = entry_start; k < entry_end; ++k) {
       const int row = LinvPt.i[k];
-      if (row < 0 || static_cast<std::size_t>(row) >= gp.n_gamma) return 14;
+      if (row < 0 || static_cast<std::size_t>(row) >= gp.pattern_grad_inner.nc()) return 14;
 
       const std::size_t idx = gp.n_beta + static_cast<std::size_t>(row);
       if (idx >= gp.direction.size()) return 15;

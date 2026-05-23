@@ -10,8 +10,8 @@ hessian_template hessian_template_from_dgc(
   const DgCView& tpl,
   const char* label);
 
-void ad_groups_attach_hessians_from_list(
-  ad_groups& groups,
+void ad_fun_attach_hessians_from_list(
+  ad_fun& shards,
   const Rcpp::List& ad_fun);
 
 #endif

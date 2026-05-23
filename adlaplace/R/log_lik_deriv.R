@@ -17,8 +17,13 @@ log_lik_deriv <- function(
   Sgamma1 <- seq.int(length(config$beta) + 1, length.out = length(config$gamma))
   Sgamma0 <- Sgamma1 - 1L
 
+  sparsity <- if (is(ad_fun, "ad_fun")) {
+    ad_fun@group_sparsity
+  } else {
+    ad_fun$group_sparsity
+  }
   whichColumnsByGroup1 <- lapply(
-    ad_fun$group_sparsity, function(xx, refmat) {
+    sparsity, function(xx, refmat) {
       grad_inner_gamma <- match(xx, Sgamma0)
       linvHere <- refmat[grad_inner_gamma, , drop = FALSE]
       which(diff(linvHere@p) > 0) - 1L

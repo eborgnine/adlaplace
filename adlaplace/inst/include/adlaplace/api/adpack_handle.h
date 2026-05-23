@@ -9,7 +9,7 @@ extern "C" {
 #endif
 
 // Versioning so you can evolve the API safely
-#define ADLAPLACE_ADPACK_API_VERSION 4
+#define ADLAPLACE_ADPACK_API_VERSION 5
 
 typedef struct adlaplace_adpack_api {
   int api_version;     // must be ADLAPLACE_ADPACK_API_VERSION
@@ -23,8 +23,9 @@ typedef struct adlaplace_adpack_api {
                  double* out_f,
                      double* out_grad, double* out_hes, int* map);
 
-int (*get_sparse_sizes)(void* ctx,
+int (*get_sizes)(void* ctx,
     int* n_inner, int* n_outer,
+    int* n_beta, int* n_theta,
     int* nnz_grad_inner, int* nnz_grad_outer,
     int* nnz_hes_inner, int* nnz_hes_outer);
 

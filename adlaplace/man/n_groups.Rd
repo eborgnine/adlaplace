@@ -2,16 +2,16 @@
 % Please edit documentation in R/RcppExports.R
 \name{n_groups}
 \alias{n_groups}
-\title{Number of AD shards in an \code{ad_groups} handle}
+\title{Number of AD shards in an \code{ad_fun_ptr} handle}
 \usage{
 n_groups(handle)
 }
 \arguments{
-\item{handle}{External pointer from \code{get_ad_fun_raw()} or \code{get_ad_fun()}.}
+\item{handle}{External pointer of class \code{ad_fun_ptr}.}
 }
 \value{
 Integer count of groups (shards).
 }
 \description{
-Number of AD shards in an \code{ad_groups} handle
+Number of AD shards in an \code{ad_fun_ptr} handle
 }

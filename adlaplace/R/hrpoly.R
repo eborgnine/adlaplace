@@ -40,7 +40,9 @@ setClass("hrpoly",
          prototype = list(
            by = methods::new("by_group"),
            knots = numeric(0),
-           type = factor("random", levels = .type_factor_levels)
+           type = factor("random", levels = .type_factor_levels),
+           ad_fun = "random_diagonal",
+           as_kind = "random"
          )
 )
 

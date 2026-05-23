@@ -28,7 +28,9 @@ setClass("intercept",
     ref_value = numeric(0),
     p.order = integer(0),
     knots = numeric(0),
-    type = factor("fixed", levels = .type_factor_levels)
+    type = factor("fixed", levels = .type_factor_levels),
+    ad_fun = NA_character_,
+    as_kind = NA_character_
   )
 )
 

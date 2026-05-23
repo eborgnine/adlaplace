@@ -13,14 +13,13 @@
 //'   \code{inner_opt()}.
 //' @param gamma Numeric vector of starting values for inner parameters
 //'   (\code{gamma}; length \code{Ngamma}) used by \code{inner_opt()}.
-//' @param ad_fun List returned by \code{get_ad_fun()} (must contain \code{ad_fun}).
+//' @param ad_fun \code{ad_fun} S4 object from \code{ad_fun(ad_fun_ptr)}.
 //' @param config Configuration list with model dimensions, groups, and
 //'   sparsity information.
 //' @param control List of trust-region control parameters for
 //'   \code{inner_opt()} (see \pkg{trustOptim}).
 //' @param deriv Logical: if \code{TRUE}, return full outer gradient and Hessian at the
-//'   inner solution; if \code{FALSE}, return inner quantities only. When missing,
-//'   uses \code{config$deriv} or legacy \code{config$inner_only}.
+//'   inner solution; if \code{FALSE}, return inner quantities only (default).
 //'
 //' @return
 //'   \item{\code{all_derivs()}}{List with \code{fval}, \code{gradient}, and
@@ -125,11 +124,11 @@ Rcpp::S4 csc_to_dtCMatrix_lower(
 
 // Numeric LDL from chol_update (x on L1 pattern, d on diagonal); pattern from groups.
 Rcpp::List chol_inner_numeric(
-	const ad_groups& groups,
+	const ad_fun& backend,
 	const std::vector<double>& x,
 	const std::vector<double>& d)
 {
-	const CholPattern& pat = groups.chol_pattern;
+	const CholPattern& pat = backend.chol_pattern;
 	return Rcpp::List::create(
 		Rcpp::Named("L1") = csc_to_dtCMatrix_lower(pat.L1_p, pat.L1_i, x, pat.n),
 		Rcpp::Named("D") = Rcpp::NumericVector(d.begin(), d.end()),
@@ -158,13 +157,13 @@ struct InnerOptResult {
 
 InnerOptResult all_derivs(
 	const std::vector<double>& x,
-	ad_groups& groups,
+	ad_fun& backend,
 	const Config& config)
 {
 	const int num_threads = config.num_threads > 0 ? config.num_threads : 1;
 
 	AD_Func_Opt funObj(
-		groups,
+		backend,
 		x,
 		false,           // inner=false
 		num_threads
@@ -196,14 +195,14 @@ InnerOptResult all_derivs(
 // [[Rcpp::export]]
 Rcpp::List all_derivs(
 	const Rcpp::NumericVector& x,
-	const Rcpp::List& ad_fun,
+	const Rcpp::S4& ad_fun,
 	const Rcpp::List& config)
 {
 	const Config config_c(config);
-	ad_groups* groups_ptr = get_ad_groups(ad_fun);
+	::ad_fun* backend = resolve_ad_fun_laplace(ad_fun);
 	std::vector<double> x_vec(x.begin(), x.end());
 
-	const InnerOptResult result_c = all_derivs(x_vec, *groups_ptr, config_c);
+	const InnerOptResult result_c = all_derivs(x_vec, *backend, config_c);
 
 	return Rcpp::List::create(
 		Rcpp::Named("fval") = Rcpp::wrap(result_c.fval),
@@ -215,7 +214,7 @@ Rcpp::List all_derivs(
 InnerOptResult inner_opt(
 	const std::vector<double>& parameters,
 	const std::vector<double>& gamma,
-	ad_groups& groups,
+	ad_fun& backend,
 	const Config& config,
 	const TrustControl& control,
 	bool deriv)
@@ -224,50 +223,57 @@ InnerOptResult inner_opt(
 	using THess = Eigen::SparseMatrix<double>;
 	using TPreLLt = Eigen::SimplicialLLT<THess>;
 
-	if (parameters.size() != config.Nbeta + config.Ntheta) {
+	const std::size_t n_beta = static_cast<std::size_t>(backend.sizes.named("beta"));
+	const std::size_t n_gamma = static_cast<std::size_t>(backend.sizes.named("gamma"));
+	const std::size_t n_theta = static_cast<std::size_t>(backend.sizes.named("theta"));
+	const std::size_t n_params = n_beta + n_gamma + n_theta;
+	const std::size_t gamma_begin = n_beta;
+	const std::size_t theta_begin = n_beta + n_gamma;
+
+	if (parameters.size() != n_beta + n_theta) {
 		Rcpp::stop(
 			"parameters has length %d but expected Nbeta+Ntheta=%d",
 			static_cast<int>(parameters.size()),
-			static_cast<int>(config.Nbeta + config.Ntheta)
+			static_cast<int>(n_beta + n_theta)
 		);
 	}
-	if (gamma.size() != config.Ngamma) {
+	if (gamma.size() != n_gamma) {
 		Rcpp::stop(
 			"gamma has length %d but expected Ngamma=%d",
 			static_cast<int>(gamma.size()),
-			static_cast<int>(config.Ngamma)
+			static_cast<int>(n_gamma)
 		);
 	}
-	if (config.Ngamma == 0) {
+	if (n_gamma == 0) {
 		Rcpp::stop("Ngamma must be > 0");
 	}
 
 	const int num_threads = config.num_threads > 0 ? config.num_threads : 1;
 
-	Tvec gamma_start(config.Ngamma);
-	Tvec solution(config.Ngamma);
-	Tvec fullParams(config.Nparams);
-	Tvec grad(config.Ngamma);
+	Tvec gamma_start(static_cast<Eigen::Index>(n_gamma));
+	Tvec solution(static_cast<Eigen::Index>(n_gamma));
+	Tvec fullParams(static_cast<Eigen::Index>(n_params));
+	Tvec grad(static_cast<Eigen::Index>(n_gamma));
 
 	std::copy(gamma.begin(), gamma.end(), gamma_start.data());
 
-	std::vector<double> params_init(config.Nparams);
-	for (size_t d = 0; d < config.Nbeta; ++d) {
-		params_init[config.beta_begin + d] = parameters[d];
-		fullParams[config.beta_begin + d] = parameters[d];
+	std::vector<double> params_init(n_params);
+	for (std::size_t d = 0; d < n_beta; ++d) {
+		params_init[d] = parameters[d];
+		fullParams[static_cast<Eigen::Index>(d)] = parameters[d];
 	}
-	for (size_t d = 0; d < config.Ngamma; ++d) {
-		params_init[config.gamma_begin + d] = gamma[d];
+	for (std::size_t d = 0; d < n_gamma; ++d) {
+		params_init[gamma_begin + d] = gamma[d];
 	}
-	for (size_t d = 0; d < config.Ntheta; ++d) {
-		params_init[config.theta_begin + d] = parameters[config.Nbeta + d];
-		fullParams[config.theta_begin + d] = parameters[config.Nbeta + d];
+	for (std::size_t d = 0; d < n_theta; ++d) {
+		params_init[theta_begin + d] = parameters[n_beta + d];
+		fullParams[static_cast<Eigen::Index>(theta_begin + d)] = parameters[n_beta + d];
 	}
 
-	AD_Func_Opt funObj(groups, params_init, true, num_threads);
+	AD_Func_Opt funObj(backend, params_init, true, num_threads);
 	Eigen::SparseMatrix<double> H = funObj.Htemplate.cast<double>();
 
-	AD_Func_Opt funObjOuter(groups, params_init, false, num_threads);
+	AD_Func_Opt funObjOuter(backend, params_init, false, num_threads);
 	Eigen::SparseMatrix<double> Houter;
 	Tvec gradOuter;
 
@@ -277,7 +283,7 @@ InnerOptResult inner_opt(
 	MB_Status status = SUCCESS;
 
 	InnerOptResult out;
-	out.x_out.assign(groups.chol_pattern.L1_i.size(), 0.0);
+	out.x_out.assign(backend.chol_pattern.L1_i.size(), 0.0);
 	out.d_out.assign(H.rows(), 0.0);
 
 
@@ -315,12 +321,12 @@ InnerOptResult inner_opt(
 			status = opt_retry.get_current_state(solution, fval, grad, H, iterations, radius);
 		}
 
-		for (size_t d = 0; d < config.Ngamma; ++d) {
-			fullParams[config.gamma_begin + d] = solution[d];
+		for (std::size_t d = 0; d < n_gamma; ++d) {
+			fullParams[static_cast<Eigen::Index>(gamma_begin + d)] = solution[static_cast<Eigen::Index>(d)];
 		}
 
 		if (deriv) {
-			gradOuter = Tvec(config.Nparams);
+			gradOuter = Tvec(static_cast<Eigen::Index>(n_params));
 			Houter = funObjOuter.Htemplate.cast<double>();
 			funObjOuter.get_fdfh(fullParams, fval, gradOuter, Houter);
 		}
@@ -330,9 +336,9 @@ InnerOptResult inner_opt(
 	H.makeCompressed();
 	const double log_det = chol_update(
 		H,
-		groups.chol_pattern.perm,
-		groups.chol_pattern.L1_p,
-		groups.chol_pattern.L1_i,
+		backend.chol_pattern.perm,
+		backend.chol_pattern.L1_p,
+		backend.chol_pattern.L1_i,
 		out.x_out,
 		out.d_out
 	);
@@ -346,7 +352,7 @@ InnerOptResult inner_opt(
 
 	if (R_finite(log_det)) {
 		out.half_log_det = 0.5 * log_det;
-		out.log_lik = -out.fval + config.Ngamma * ONEHALFLOGTWOPI - out.half_log_det;
+		out.log_lik = -out.fval + static_cast<double>(n_gamma) * ONEHALFLOGTWOPI - out.half_log_det;
 		out.neg_log_lik = -out.log_lik;
 		out.chol_ok = true;
 	} else {
@@ -369,44 +375,21 @@ InnerOptResult inner_opt(
 }
 
 
-static bool resolve_deriv(SEXP deriv_arg, const Rcpp::List& config)
-{
-	if (!Rf_isNull(deriv_arg)) {
-		return Rcpp::as<bool>(deriv_arg);
-	}
-	if (config.containsElementNamed("deriv") && !Rf_isNull(config["deriv"])) {
-		return Rcpp::as<bool>(config["deriv"]);
-	}
-	if (config.containsElementNamed("inner_only") && !Rf_isNull(config["inner_only"])) {
-		return !Rcpp::as<bool>(config["inner_only"]);
-	}
-	return true;
-}
-
 //' @rdname innerOpt
-//' @export
+//' @keywords internal
 // [[Rcpp::export]]
 Rcpp::List inner_opt(
 	const Rcpp::NumericVector parameters,
 	const Rcpp::NumericVector gamma,
 	const Rcpp::List& config,
-	const Rcpp::List& ad_fun,
-	SEXP control = R_NilValue,
-	SEXP deriv = R_NilValue)
+	const Rcpp::S4& ad_fun,
+	const Rcpp::List& control = Rcpp::List(),
+	bool deriv = false)
 {
 	try {
-		if (ad_fun.size() == 0) {
-			Rcpp::stop("inner_opt requires a non-empty ad_fun list");
-		}
-
 		const Config config_c(config);
-		const Rcpp::List control_list = (control == R_NilValue)
-			? Rcpp::List()
-			: Rcpp::as<Rcpp::List>(control);
-		const TrustControl control_c(control_list);
-		ad_groups* groups_ptr = get_ad_groups(ad_fun);
-
-		const bool deriv_flag = resolve_deriv(deriv, config);
+		const TrustControl control_c(control);
+		::ad_fun* backend = resolve_ad_fun_laplace(ad_fun);
 
 		std::vector<double> parameters_vec(parameters.begin(), parameters.end());
 		std::vector<double> gamma_vec(gamma.begin(), gamma.end());
@@ -414,14 +397,14 @@ Rcpp::List inner_opt(
 		const InnerOptResult result = inner_opt(
 			parameters_vec,
 			gamma_vec,
-			*groups_ptr,
+			*backend,
 			config_c,
 			control_c,
-			deriv_flag
+			deriv
 		);
 
 		const Rcpp::List chol_inner = chol_inner_numeric(
-			*groups_ptr,
+			*backend,
 			result.x_out,
 			result.d_out
 		);

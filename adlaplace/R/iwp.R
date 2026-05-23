@@ -7,7 +7,9 @@ setClass("iwp",
   contains = "model",
   prototype = prototype(
     # Default values for iwp-specific behavior
-    type = factor("random", levels = .type_factor_levels)
+    type = factor("random", levels = .type_factor_levels),
+    ad_fun = "random_diagonal",
+    as_kind = "random"
   )
 )
 

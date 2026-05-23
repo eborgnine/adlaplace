@@ -16,11 +16,7 @@ test_that("hnlm for_dev builds ad_fun via get_ad_fun", {
   expect_true(is.list(forres$ad_fun))
   expect_true("ad_fun" %in% names(forres$ad_fun))
 
-  ad_fun2 <- adlaplace::get_ad_fun(
-    forres$model$data,
-    forres$config,
-    package = "hpolcc"
-  )
+  ad_fun2 <- hpolcc::getAdFun_r(forres$model$data, forres$config)
   expect_true(is.list(ad_fun2))
   x <- c(forres$config$beta, forres$config$theta)
   ll <- adlaplace::log_lik_laplace(

@@ -129,18 +129,21 @@ int eval_hess(
   return 0;
 }
 
-int get_sparse_sizes(
+int get_sizes(
   void* vctx,
   int* n_inner,
   int* n_outer,
+  int* n_beta,
+  int* n_theta,
   int* nnz_grad_inner,
   int* nnz_grad_outer,
   int* nnz_hes_inner,
   int* nnz_hes_outer) {
 
   GroupPack& gp = *pack_ctx(vctx);
-  return get_sizes(
-    gp, n_inner, n_outer, nnz_grad_inner, nnz_grad_outer, nnz_hes_inner, nnz_hes_outer);
+  return pack_sparsity_sizes(
+    gp, n_inner, n_outer, n_beta, n_theta,
+    nnz_grad_inner, nnz_grad_outer, nnz_hes_inner, nnz_hes_outer);
 }
 
 int get_sparse_pattern(

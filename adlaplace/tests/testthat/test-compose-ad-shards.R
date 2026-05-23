@@ -1,4 +1,4 @@
-test_that("combine matches expected shard count for small GLMM", {
+test_that("c() combines shards for small GLMM", {
   set.seed(2)
   Nobs <- 40L
   Nrandom1 <- 3L
@@ -13,41 +13,45 @@ test_that("combine matches expected shard count for small GLMM", {
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    groups = adlaplace::adFun_groups(as(Matrix::t(Amat), "dMatrix"), Ngroups = 10L),
+    shards = adlaplace::adFun_groups(as(Matrix::t(Amat), "dMatrix"), Ngroups = 10L),
     num_threads = 1L,
     verbose = FALSE
   )
-  n_beta <- length(config$beta)
-  n_gamma <- length(config$gamma)
-  data_obs <- list(
+  model <- test_ad_model(
     y = rpois(Nobs, 2),
     ATp = as(Matrix::t(Amat), "dMatrix"),
     XTp = as(Matrix::t(X), "CsparseMatrix"),
-    theta_map = n_beta + n_gamma
+    config = config
   )
-  data_r <- list(
-    Q = rep(1, ncol(Amat)),
-    theta_map = n_beta + n_gamma,
-    gamma_map = seq.int(n_beta, length.out = ncol(Amat))
+  random_shard <- test_random_shard(
+    model = model,
+    config = config,
+    gamma_ids = seq.int(0L, length.out = ncol(Amat)),
+    theta_id = 0L,
+    Q = rep(1, ncol(Amat))
   )
 
-  ad_ptr <- adlaplace::combine(
-    list(
-      adlaplace::get_ad_fun_raw(data_obs, config, kind = "obs", name = "neg_binom_obs"),
-      adlaplace::get_ad_fun_raw(data_r, config, kind = "single", name = "random_diagonal"),
-      adlaplace::get_ad_fun_raw(data_obs, config, kind = "single", name = "neg_binom_extra")
+  ad_ptr <- do.call(c, list(
+    adlaplace::ad_fun_ptr(config, "observations", "neg_binom_obs", model),
+    adlaplace::ad_fun_ptr(
+      config, "random", "random_diagonal",
+      random_shard$model, precision = random_shard$precision
     ),
-    config
-  )
+    adlaplace::ad_fun_ptr(
+      config, "parameters", "neg_binom_extra",
+      adlaplace:::ad_model_parameters_view(model)
+    )
+  ))
+  expect_true(is(ad_ptr, "ad_fun_ptr"))
   expect_equal(
     adlaplace::n_groups(ad_ptr),
-    ncol(config$groups) + 2L
+    ncol(config$shards) + 2L
   )
   x <- c(config$beta, config$gamma, config$theta)
   expect_true(is.finite(adlaplace::joint_log_dens(ad_ptr, x)))
 })
 
-test_that("get_ad_fun_raw obs-only builds observation groups only", {
+test_that("ad_fun_ptr obs-only builds observation groups only", {
   set.seed(3)
   Nobs <- 20L
   X <- Matrix::Matrix(cbind(1, rbinom(Nobs, 1, prob = 0.5)))
@@ -61,21 +65,22 @@ test_that("get_ad_fun_raw obs-only builds observation groups only", {
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    groups = adlaplace::adFun_groups(as(Matrix::t(Amat), "dMatrix"), Ngroups = 5L),
+    shards = adlaplace::adFun_groups(as(Matrix::t(Amat), "dMatrix"), Ngroups = 5L),
     verbose = FALSE
   )
-  data_obs <- list(
+  model <- test_ad_model(
     y = rpois(Nobs, 2),
     ATp = as(Matrix::t(Amat), "dMatrix"),
     XTp = as(Matrix::t(X), "CsparseMatrix"),
-    theta_map = length(config$beta) + length(config$gamma)
+    config = config
   )
-  ad_obs <- adlaplace::get_ad_fun_raw(data_obs, config, kind = "obs", name = "neg_binom_obs")
+  ad_obs <- adlaplace::ad_fun_ptr(config, "observations", "neg_binom_obs", model)
 
   expect_error(
-    adlaplace::get_ad_fun_raw(data_obs, config, kind = "obs"),
+    adlaplace::ad_fun_ptr(config, "observations", name = "", model = model),
     "`name` is required",
     fixed = TRUE
   )
-  expect_equal(adlaplace::n_groups(ad_obs), ncol(config$groups))
+  expect_equal(adlaplace::n_groups(ad_obs), ncol(config$shards))
+  expect_true(is(ad_obs, "ad_fun_ptr"))
 })

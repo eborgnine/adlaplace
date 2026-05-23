@@ -1,71 +1,92 @@
-#' Build backend AD function handle
+#' Precision list for a random-effect AD shard
 #'
-#' Safe frontend for constructing AD handles. This is the only public
-#' \code{get_ad_fun()} entry point; backend packages should expose
-#' \code{getAdFun_r()}.
-#'
-#' @param data Model data list (unused for handle-only attachment; retained for
-#'   API compatibility and future \code{model_setup} integration).
-#' @param config Model configuration list passed to the backend builder.
-#'   Must contain \code{beta}, \code{gamma}, and \code{theta} (vectors of starting
-#'   values), and may include \code{verbose}, \code{num_threads}, and other backend-
-#'   specific options. The \code{config$package} field is ignored here — use the
-#'   \code{package} argument instead.
-#' @param ad_fun Combined raw handle from \code{\link{combine}}. Required when
-#'   \code{package = "adlaplace"}.
-#' @param package Character scalar naming the backend package to use for
-#'   \code{getAdFun_r()}. Defaults to \code{"adlaplace"}. Supported backends must
-#'   export a \code{getAdFun_r(data, config)} function.
-#'
-#' @return Backend object returned by \code{<package>::getAdFun_r()}. For the
-#'   default \pkg{adlaplace} backend, this is a list containing \code{ad_fun}
-#'   (external pointer handle), \code{sparsity}, and \code{hessians}. The object
-#'   carries an \code{"adlaplace.backend"} attribute indicating which package built it,
-#'   enabling runtime validation in functions like \code{log_lik_laplace()}.
-#'
-#' @seealso
-#' \code{\link{inner_opt}}, \code{\link{log_lik_laplace}}, \code{\link{hessian_map}},
-#' \code{\link{combine}}, \code{\link{get_ad_fun_raw}}.
-#' Backend packages should export \code{getAdFun_r()}.
-#'
-#' @export
-get_ad_fun <- function(data, config, ad_fun,
-                       package = c(config$package, "adlaplace")[1]) {
-  if (!is.character(package) || length(package) < 1 || is.na(package[[1]]) || !nzchar(package[[1]])) {
-    stop("`package` must be a non-empty character scalar")
+#' @param term Model term with \code{as_kind = "random"}.
+#' @param model An \code{ad_model} object from \code{model_setup()}.
+#' @keywords internal
+random_shard_precision <- function(term, model) {
+  prec <- precision(term, data = model@data)
+  if (is.null(prec) || length(prec) == 0) {
+    return(NULL)
   }
-  package <- package[[1]]
+  list(Q = as.numeric(Matrix::diag(prec)))
+}
 
-  if (identical(package, "adlaplace")) {
-    if (missing(ad_fun) || is.null(ad_fun)) {
-      stop("for package = 'adlaplace', supply `ad_fun` as a combined handle from combine()")
-    }
-    if (!is_adlaplace_handle(ad_fun)) {
-      stop("`ad_fun` must be an adlaplace_handle_ptr from combine()")
-    }
-    return(attach_ad_fun_artifacts(ad_fun, config))
+#' Maps-only \code{ad_model} for one random-effect term
+#'
+#' @param term Model term with \code{as_kind = "random"}.
+#' @param model An \code{ad_model} object from \code{model_setup()}.
+#' @keywords internal
+random_term_model <- function(term, model) {
+  gamma_setup <- model@info$gamma
+  theta_setup <- model@info$theta
+  parent_layout <- ad_model_layout(model)
+
+  prec <- precision(term, data = model@data)
+  if (is.null(prec) || length(prec) == 0) {
+    return(NULL)
   }
 
-  if (!missing(ad_fun)) {
-    warning("`ad_fun` is ignored when package is not 'adlaplace'")
+  gamma_cols <- colnames(prec)
+  if (is.null(gamma_cols) && !is.null(rownames(prec))) {
+    gamma_cols <- rownames(prec)
+  }
+  if (is.null(gamma_cols)) {
+    warning("precision for term ", term@term, " has no dimnames; skipping shard")
+    return(NULL)
   }
 
-  builder <- tryCatch(
-    getExportedValue(package, "getAdFun_r"),
-    error = function(e) NULL
-  )
-  if (is.null(builder)) {
-    stop(
-      "Backend package '", package,
-      "' does not export `getAdFun_r(data, config)`. ",
-      "Use adlaplace::get_ad_fun(..., package='adlaplace') or update backend package exports."
+  gamma_match <- match(gamma_cols, gamma_setup$gamma_label)
+  if (anyNA(gamma_match)) {
+    warning(
+      "gamma labels for term ", term@term,
+      " do not match gamma_setup; dropping unmatched columns"
     )
+    keep <- !is.na(gamma_match)
+    gamma_match <- gamma_match[keep]
+    if (length(gamma_match) == 0) {
+      return(NULL)
+    }
   }
 
-  out <- builder(data, config)
-  if (isTRUE(config$verbose)) {
-    cat("got AFun\n")
+  n_term <- length(gamma_match)
+  parent_gamma_id <- as.integer(gamma_setup$id[gamma_match])
+  gamma_map <- methods::as(
+    Matrix::sparseMatrix(
+      i = parent_gamma_id,
+      j = rep(0L, n_term),
+      x = rep(1, n_term),
+      dims = c(parent_layout$n_gamma, 1L),
+      index1 = FALSE,
+      giveCsparse = TRUE
+    ),
+    "ngCMatrix"
+  )
+
+  th <- theta_info(term)
+  if (!is.null(th) && nrow(th) > 0) {
+    theta_row <- match(th$label[1], theta_setup$label)
+    if (is.na(theta_row)) {
+      stop("theta label for term ", term@term, " not found in theta_setup")
+    }
+    theta_local <- as.integer(theta_setup$id[theta_row])
+  } else {
+    theta_ids <- unique(gamma_setup$theta_id[gamma_match])
+    theta_ids <- theta_ids[!is.na(theta_ids)]
+    if (length(theta_ids) == 0) {
+      stop("no theta index for random term ", term@term)
+    }
+    theta_local <- as.integer(theta_ids[1])
   }
-  attr(out, "adlaplace.backend") <- package
-  out
+
+  theta_map <- methods::as(
+    model@theta_map,
+    "ngCMatrix"
+  )
+
+  ad_model_random_maps(
+    gamma_map = gamma_map,
+    theta_map = theta_map,
+    n_beta = parent_layout$n_beta,
+    n_theta = parent_layout$n_theta
+  )
 }

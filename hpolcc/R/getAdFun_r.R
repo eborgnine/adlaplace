@@ -9,8 +9,8 @@
 #' @return List with \code{ad_fun}, \code{group_sparsity}, and components from
 #'   \code{\link[adlaplace]{hessian_map}}.
 #'
-#' @importFrom adlaplace n_groups get_sparse_sizes get_sparse_pattern hessian_map
-#' @seealso \code{\link[adlaplace]{get_ad_fun}}
+#' @importFrom adlaplace n_groups get_sizes get_sparse_pattern hessian_map
+#' @seealso \code{\link[adlaplace]{ad_fun}}
 #' @export
 getAdFun_r <- function(data, config) {
   ad_ptr <- get_ad_fun_raw_hpolcc(data, config)
@@ -18,7 +18,7 @@ getAdFun_r <- function(data, config) {
     seq_len(adlaplace::n_groups(ad_ptr)) - 1L,
     function(g) {
       c(
-        adlaplace::get_sparse_sizes(ad_ptr, g),
+        adlaplace::get_sizes(ad_ptr, g),
         adlaplace::get_sparse_pattern(ad_ptr, g)
       )
     }

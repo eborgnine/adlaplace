@@ -73,74 +73,138 @@ config <- list(
   theta = log(thetaOrig), # sd for each Amat, overdisp parameter
   transform_theta = TRUE,
   gamma = rep(0, ncol(Amat)),
-  groups = adlaplace::adFun_groups(Matrix::t(Amat), Ngroups = 1000),
+  shards = adlaplace::adFun_groups(Matrix::t(Amat), Ngroups = 1000),
   num_threads = 1L,
   verbose = TRUE,
   package = "adlaplace"
 )
 
-data_r1 <- list(
-  Q = rep(1, ncol(AmatList$r1)),
-  theta_map = length(config$beta) + length(config$gamma),
-  gamma_map = seq.int(length(config$beta), length.out = ncol(AmatList$r1))
+n_beta <- length(config$beta)
+n_gamma <- length(config$gamma)
+n_theta <- length(config$theta)
+
+gamma_map <- methods::as(map, "ngCMatrix")
+theta_map <- methods::as(
+  Matrix::sparseMatrix(
+    i = 2L,
+    j = 0L,
+    x = 1L,
+    dims = c(n_theta, 1L),
+    index1 = FALSE,
+    giveCsparse = TRUE
+  ),
+  "ngCMatrix"
 )
 
-data_r2 <- list(
-  Q = rep(1, ncol(AmatList$r2)),
-  theta_map = data_r1$theta_map + 1,
-  gamma_map = seq.int(
-    max(data_r1$gamma_map) + 1L,
-    length.out = ncol(AmatList$r2)
-  )
-)
-
-data_obs <- list(
+data_obs <- adlaplace::ad_model(
   y = y,
   ATp = as(Matrix::t(Amat), "dMatrix"),
   XTp = as(Matrix::t(X), "CsparseMatrix"),
-  theta_map = data_r1$theta_map + 2 # location of overdisp parameter
+  beta_map = if (n_beta > 0L) {
+    methods::as(
+      Matrix::sparseMatrix(
+        i = seq.int(0L, n_beta - 1L),
+        j = seq.int(0L, n_beta - 1L),
+        x = rep(1L, n_beta),
+        dims = c(n_beta, n_beta),
+        index1 = FALSE,
+        giveCsparse = TRUE
+      ),
+      "ngCMatrix"
+    )
+  } else {
+    adlaplace:::empty_ngC()
+  },
+  gamma_map = gamma_map,
+  theta_map = theta_map
+)
+
+precision_r1 <- list(Q = rep(1, ncol(AmatList$r1)))
+gamma_map_r1 <- methods::as(
+  Matrix::sparseMatrix(
+    i = seq.int(0L, length.out = ncol(AmatList$r1)),
+    j = rep(0L, ncol(AmatList$r1)),
+    x = rep(1L, ncol(AmatList$r1)),
+    index1 = FALSE,
+    dims = c(n_gamma, 1L),
+    giveCsparse = TRUE
+  ),
+  "ngCMatrix"
+)
+model_r1 <- adlaplace::ad_model_random_maps(
+  gamma_map = gamma_map_r1,
+  theta_map = theta_map,
+  n_beta = n_beta,
+  n_theta = n_theta
+)
+
+precision_r2 <- list(Q = rep(1, ncol(AmatList$r2)))
+gamma_map_r2 <- methods::as(
+  Matrix::sparseMatrix(
+    i = seq.int(ncol(AmatList$r1), length.out = ncol(AmatList$r1) + ncol(AmatList$r2) - 1L),
+    j = rep(0L, ncol(AmatList$r2)),
+    x = rep(1L, ncol(AmatList$r2)),
+    index1 = FALSE,
+    dims = c(n_gamma, 1L),
+    giveCsparse = TRUE
+  ),
+  "ngCMatrix"
+)
+model_r2 <- adlaplace::ad_model_random_maps(
+  gamma_map = gamma_map_r2,
+  theta_map = theta_map,
+  n_beta = n_beta,
+  n_theta = n_theta
 )
 ```
 
 Model densities are defined in `src/neg_binom.cpp` (observation and extra terms)
 and `random.cpp` (random effects).
 
+Each shard is built with `ad_fun_ptr()`. Shards are merged with `c()` before
+attaching Hessian templates via `ad_fun()`.
+
 ```{r adShards}
-ad_fun_obs <- adlaplace::get_ad_fun_raw(
-  data_obs, config,
-  kind = "obs", name = "neg_binom_obs", package = "adlaplace"
+ad_fun_obs <- adlaplace::ad_fun_ptr(
+  config, "observations", "neg_binom_obs", data_obs, package = "adlaplace"
 )
-ad_fun_extra <- adlaplace::get_ad_fun_raw(
-  data_obs, config,
-  kind = "single", name = "neg_binom_extra", package = "adlaplace"
+ad_fun_extra <- adlaplace::ad_fun_ptr(
+  config, "parameters", "neg_binom_extra",
+  adlaplace::ad_model_parameters_view(data_obs),
+  package = "adlaplace"
 )
-ad_fun_r1 <- adlaplace::get_ad_fun_raw(
-  data_r1, config,
-  kind = "single", name = "random_diagonal", package = "adlaplace"
+ad_fun_r1 <- adlaplace::ad_fun_ptr(
+  config, "random", "random_diagonal", model_r1,
+  precision = precision_r1, package = "adlaplace"
 )
-ad_fun_r2 <- adlaplace::get_ad_fun_raw(
-  data_r2, config,
-  kind = "single", name = "random_diagonal", package = "adlaplace"
+ad_fun_r2 <- adlaplace::ad_fun_ptr(
+  config, "random", "random_diagonal", model_r2,
+  precision = precision_r2, package = "adlaplace"
 )
-ad_fun_plain <- adlaplace::combine(
-  list(ad_fun_obs, ad_fun_extra, ad_fun_r1, ad_fun_r2),
-  config
+stopifnot(
+  is(ad_fun_obs, "ad_fun_ptr"),
+  is(ad_fun_extra, "ad_fun_ptr"),
+  is(ad_fun_r1, "ad_fun_ptr"),
+  is(ad_fun_r2, "ad_fun_ptr")
 )
+
+ad_fun_plain <- c(ad_fun_obs, ad_fun_extra, ad_fun_r1, ad_fun_r2)
 ```
 
 ```{r randomGaussianLogDens}
-# random_diagonal log-density: gamma ~ N(0, sd^2 * Q^{-1}), diagonal Q from data_r1$Q
+# random_diagonal log-density: gamma ~ N(0, sd^2 * Q^{-1}), diagonal Q from precision_r1$Q
 xx <- c(config$beta, seq(1, length(config$gamma)), seq(1, length(config$theta)))
 
-ad_fun_r1x <- adlaplace::get_ad_fun_raw(
-  data_r1, config,
-  kind = "single", name = "random_diagonal", package = "adlaplace"
+ad_fun_r1x <- adlaplace::ad_fun_ptr(
+  config, "random", "random_diagonal", model_r1,
+  precision = precision_r1, package = "adlaplace"
 )
 adlaplace::joint_log_dens(ad_fun_r1x, xx, negative = FALSE)
 
-varMat <- solve(diag(data_r1$Q)) * exp(xx[1 + data_r1$theta_map])^2
+gamma_ids <- seq.int(0L, length.out = ncol(AmatList$r1))
+varMat <- solve(diag(precision_r1$Q)) * exp(xx[1 + n_beta + n_gamma])^2
 mvtnorm::dmvnorm(
-  xx[1 + data_r1$gamma_map],
+  xx[1 + n_beta + gamma_ids],
   rep(0, ncol(varMat)),
   varMat,
   log = TRUE
@@ -148,11 +212,11 @@ mvtnorm::dmvnorm(
 ```
 
 ```{r checkByShard}
-Sgroups <- seq.int(from = 0, length.out = adlaplace::n_groups(ad_fun_plain))
+shards <- seq.int(from = 0, length.out = adlaplace::n_groups(ad_fun_plain))
 
 by_shard <- mapply(
   adlaplace::joint_log_dens,
-  Sgroups = Sgroups,
+  shards = shards,
   MoreArgs = list(x = xx, ad_fun = ad_fun_plain, negative = FALSE),
   SIMPLIFY = TRUE
 )
@@ -161,11 +225,11 @@ by_shard[seq(to = length(by_shard), length.out = 5)]
 
 ```{r testLogDens}
 x <- c(config$beta, rep(0.1, length(config$gamma)), config$theta)
-s_groups <- 0:3
-adlaplace::joint_log_dens(ad_fun_plain, x, s_groups, negative = FALSE)
-my_grad <- adlaplace::grad(ad_fun_plain, x, Sgroups = s_groups, negative = FALSE)
+shards <- 0:3
+adlaplace::joint_log_dens(ad_fun_plain, x, shards, negative = FALSE)
+my_grad <- adlaplace::grad(ad_fun_plain, x, shards = shards, negative = FALSE)
 my_grad[1:5]
-my_hess <- adlaplace::hessian(ad_fun_plain, x, Sgroups = s_groups, negative = FALSE)
+my_hess <- adlaplace::hessian(ad_fun_plain, x, shards = shards, negative = FALSE)
 my_hess[1:5, 1:5]
 adlaplace::joint_log_dens(ad_fun_plain, x, negative = FALSE)
 my_grad <- adlaplace::grad(ad_fun_plain, x, negative = FALSE)
@@ -184,7 +248,7 @@ Make ad function with sparsity information, evaluate derivates to test the accum
 
 ```{r testInnerOpt}
 config_v <- modifyList(config, list(verbose = TRUE))
-ad_fun <- adlaplace::get_ad_fun(data, config_v, ad_fun_plain)
+ad_fun <- adlaplace::ad_fun(ad_fun_plain)
 
 inner_res <- adlaplace::inner_opt(
   parameters = c(config$beta, config$theta),
@@ -352,11 +416,7 @@ ad_fun_here <- ad_fun_plain
 Sgamma1 <- seq.int(length(config$beta) + 1, length.out = length(config$gamma))
 
 
-x_here <- c(
-  x1[1:length(config$beta)],
-  res_here$opt$solution,
-  x1[seq(length(config$beta) + 1, length.out = length(config$theta))]
-)
+x_here <- res_here$full_parameters
 Npar <- 13
 Dpar_dens <- 4
 if (inner) {
@@ -364,18 +424,19 @@ if (inner) {
 }
 Dpar0_dens <- Dpar_dens - 1L
 
-Sgroups <- seq.int(from = 0, length.out = adlaplace::n_groups(ad_fun_here))
+shards <- seq.int(from = 0, length.out = adlaplace::n_groups(ad_fun_here))
 
-parDf <- data.frame(x_here)[, rep(1, Npar)]
-Sx <- seq(-0.1, 0.1, len = 13) + parDf[Dpar_dens, 1]
+parDf <- matrix(x_here, nrow = Npar, ncol = length(x_here), byrow = TRUE)
+Sx <- seq(-0.1, 0.1, len = Npar) + x_here[Dpar_dens]
 SxD <- Sx[-1] - diff(Sx) / 2
-parDf[Dpar_dens, ] <- Sx
+parDf[, Dpar_dens] <- Sx
 
+x_list <- lapply(seq_len(Npar), function(i) parDf[i, ])
 
 dens1 <- mapply(
   adlaplace::joint_log_dens,
-  x = as.list(parDf),
-  MoreArgs = list(ad_fun = ad_fun_plain, Sgroups = Sgroups, negative = FALSE),
+  x = x_list,
+  MoreArgs = list(ad_fun = ad_fun_plain, shards = shards, negative = FALSE),
   SIMPLIFY = TRUE
 )
 
@@ -384,9 +445,9 @@ dens1 <- mapply(
 
 grad1 <- mapply(
   adlaplace::grad,
-  x = as.list(parDf),
+  x = x_list,
   MoreArgs = list(
-    ad_fun = ad_fun_plain, inner = inner, Sgroups = Sgroups, negative = FALSE
+    ad_fun = ad_fun_plain, inner = inner, shards = shards, negative = FALSE
   ),
   SIMPLIFY = TRUE
 )
@@ -396,9 +457,9 @@ lines(SxD, diff(dens1) / diff(Sx))
 
 hes1 <- mapply(
   adlaplace::hessian,
-  x = as.list(parDf),
+  x = x_list,
   MoreArgs = list(
-    ad_fun = ad_fun_plain, inner = inner, Sgroups = Sgroups, negative = FALSE
+    ad_fun = ad_fun_plain, inner = inner, shards = shards, negative = FALSE
   ),
   SIMPLIFY = FALSE
 )

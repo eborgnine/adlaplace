@@ -50,14 +50,21 @@ config <- list(
   theta = c(rep(-1, length(NperEffect)), -1),
   transform_theta = TRUE,
   gamma = rep(0, nrow(data$ATp)),
-  groups = adlaplace::adFun_groups(data$ATp, Ngroups = 1000),
+  shards = adlaplace::adFun_groups(data$ATp, Ngroups = 1000),
   num_threads = 2L,
   verbose = TRUE, package = "adlaplace"
 )
 
 
 ## ----testLogLik-------------------------------------------------------------------------------------------------------------------------------------
-ad_fun <- adlaplace::get_ad_fun(data, config)
+model <- adlaplace:::ad_model_from_config_matrices(
+  y = data$y,
+  ATp = data$ATp,
+  XTp = data$XTp,
+  config = config,
+  theta_local_row = length(config$theta) - 1L
+)
+ad_fun <- adlaplace::ad_fun(model, config)
 
 res <- adlaplace::log_lik_laplace(
   x = c(config$beta, config$theta),
@@ -72,7 +79,14 @@ res$grad
 
 
 ## ----trustOptimOuterWrappers------------------------------------------------------------------------------------------------------------------------
-ad_fun <- adlaplace::get_ad_fun(data, config)
+model <- adlaplace:::ad_model_from_config_matrices(
+  y = data$y,
+  ATp = data$ATp,
+  XTp = data$XTp,
+  config = config,
+  theta_local_row = length(config$theta) - 1L
+)
+ad_fun <- adlaplace::ad_fun(model, config)
 
 cache <- new.env(parent = emptyenv())
 cache$gamma <- config$gamma
@@ -109,7 +123,14 @@ outer_fit$value
 
 
 ## ----testLogLgrad-----------------------------------------------------------------------------------------------------------------------------------
-ad_fun <- adlaplace::get_ad_fun(data, config)
+model <- adlaplace:::ad_model_from_config_matrices(
+  y = data$y,
+  ATp = data$ATp,
+  XTp = data$XTp,
+  config = config,
+  theta_local_row = length(config$theta) - 1L
+)
+ad_fun <- adlaplace::ad_fun(model, config)
 x <- c(config$beta, config$theta)
 Npar <- 13
 Dpar <- length(x)
@@ -156,33 +177,48 @@ lines(SxD, diff(Sdet) / diff(Sx))
 
 
 ## ----testDeriv--------------------------------------------------------------------------------------------------------------------------------------
-ad_fun = adlaplace::get_ad_fun(data, modifyList(config, list(verbose=TRUE)))
+model <- adlaplace:::ad_model_from_config_matrices(
+  y = data$y,
+  ATp = data$ATp,
+  XTp = data$XTp,
+  config = config,
+  theta_local_row = length(config$theta) - 1L
+)
+ad_fun <- adlaplace::ad_fun(model, modifyList(config, list(verbose = TRUE)))
 
 x = c(config$beta, rep(0.1, length(config$gamma)), config$theta)
 adlaplace::joint_log_dens(ad_fun, x, negative = FALSE)
 
 
-str(adlaplace::grad(x, ad_fun, FALSE))
-str(adlaplace::grad(x, ad_fun, TRUE))
+str(adlaplace::grad(ad_fun, x, inner = FALSE, negative = FALSE))
+str(adlaplace::grad(ad_fun, x, inner = TRUE, negative = FALSE))
 
 
-Dgroup = ncol(config$groups)+1
-str(h1 <- adlaplace::hess(x, ad_fun, FALSE, Sgroups = Dgroup))
-ad_fun$sparsity[1+Dgroup]
-(Shere = 1+seq(
-	ad_fun$hessians$map$outer$p[Dgroup+1],
-	ad_fun$hessians$map$outer$p[Dgroup+2]-1))
-ad_fun$hessians$map$outer$local[Shere]
-ad_fun$hessians$map$outer$global[Shere]
+Dgroup = ncol(config$shards)+1
+str(h1 <- adlaplace::hessian(ad_fun, x, inner = FALSE, shards = Dgroup, negative = FALSE))
+ad_fun@group_sparsity[[1L + Dgroup]]
+(Shere = 1 + seq(
+  ad_fun@map_outer[[Dgroup + 1L]]$p[Dgroup + 1L],
+  ad_fun@map_outer[[Dgroup + 1L]]$p[Dgroup + 2L] - 1L
+))
+ad_fun@map_outer[[Dgroup + 1L]]$local[Shere]
+ad_fun@map_outer[[Dgroup + 1L]]$global[Shere]
 (hseq = which(h1@x != 0))
 h1@x[hseq]
 
 
-str(h2 <- adlaplace::hess(x, ad_fun, TRUE))
+str(h2 <- adlaplace::hessian(ad_fun, x, inner = TRUE, negative = FALSE))
 
 
 ## ----trustOptimInterface, eval=FALSE----------------------------------------------------------------------------------------------------------------
-# ad_fun <- adlaplace::get_ad_fun(data, config)
+# model <- adlaplace:::ad_model_from_config_matrices(
+#   y = data$y,
+#   ATp = data$ATp,
+#   XTp = data$XTp,
+#   config = config,
+#   theta_local_row = length(config$theta) - 1L
+# )
+# ad_fun <- adlaplace::ad_fun(model, config)
 # inner_res <- adlaplace::inner_opt(
 #   parameters = c(config$beta, config$theta),
 #   gamma = config$gamma,
@@ -203,7 +239,14 @@ str(h2 <- adlaplace::hess(x, ad_fun, TRUE))
 ## ----derivJointDens, eval=TRUE----------------------------------------------------------------------------------------------------------------------
 config$gamma <- rep(1, length(config$gamma))
 x <- c(config$beta, config$gamma, config$theta)
-ad_fun <- adlaplace::get_ad_fun(data, modifyList(config, list(verbose = TRUE)))
+model <- adlaplace:::ad_model_from_config_matrices(
+  y = data$y,
+  ATp = data$ATp,
+  XTp = data$XTp,
+  config = config,
+  theta_local_row = length(config$theta) - 1L
+)
+ad_fun <- adlaplace::ad_fun(model, modifyList(config, list(verbose = TRUE)))
 
 inner <- FALSE
 type <- c("outer", "inner")[1 + inner]
@@ -217,25 +260,22 @@ if (inner) {
 }
 Dpar0 <- Dpar - 1L
 
-bob <- as(ad_fun$hessians$hessian[[type]], "TsparseMatrix")
+h_outer <- adlaplace::hessian(ad_fun, x, inner = FALSE, negative = FALSE)
+bob <- as(h_outer, "TsparseMatrix")
 (whichIndex <- which(bob@i == Dpar0 & bob@j == Dpar0) - 1L)
-(whichGlobal <- which(ad_fun$hessians$map[[type]]$global == whichIndex) - 1L)
+map_outer <- ad_fun@map_outer[[1L]]
+(whichGlobal <- which(map_outer$global == whichIndex) - 1L)
 
 (whichP <- mapply(
-  function(xx) min(which(ad_fun$hessians$map[[type]]$p >= xx)),
+  function(xx) min(which(map_outer$p >= xx)),
   xx = whichGlobal
 ) - 1L)
 
-do.call(rbind, ad_fun$sparsity[[
-  whichP[1]
-]][c("row_hess", "col_hess")])
-do.call(rbind, ad_fun$sparsity[[
-  whichP[1]
-]][c("row_hess_inner", "col_hess_inner")])
+do.call(rbind, ad_fun@group_sparsity[[whichP[1]]][c("row_hess", "col_hess")])
+do.call(rbind, ad_fun@group_sparsity[[whichP[1]]][c("row_hess_inner", "col_hess_inner")])
 
-
-(Sgroups <- whichP - 1L)
-Sgroups <- seq.int(from = 0, length.out = length(ad_fun$sparsity))
+(shards <- whichP - 1L)
+shards <- seq.int(from = 0, length.out = adlaplace::n_groups(ad_fun@ptr))
 
 parDf <- data.frame(x)[, rep(1, Npar)]
 Sx <- seq(-0.1, 0.1, len = 13) + parDf[Dpar, 1]
@@ -246,7 +286,7 @@ parDf[Dpar, ] <- Sx
 dens1 <- mapply(
   adlaplace::joint_log_dens,
   x = as.list(parDf),
-  MoreArgs = list(ad_fun = ad_fun, Sgroups = Sgroups, negative = FALSE),
+  MoreArgs = list(ad_fun = ad_fun, shards = shards, negative = FALSE),
   SIMPLIFY = TRUE
 )
 
@@ -256,7 +296,7 @@ plot(Sx, dens1)
 grad1 <- mapply(
   adlaplace::grad,
   x = as.list(parDf),
-  MoreArgs = list(backendContext = ad_fun, inner = inner, Sgroups = Sgroups),
+  MoreArgs = list(ad_fun = ad_fun, inner = inner, shards = shards),
   SIMPLIFY = TRUE
 )
 plot(Sx, grad1[Dpar, ])
@@ -264,9 +304,9 @@ lines(SxD, diff(dens1) / diff(Sx))
 
 
 hes1 <- mapply(
-  adlaplace::hess,
+  adlaplace::hessian,
   x = as.list(parDf),
-  MoreArgs = list(backendContext = ad_fun, inner = inner, Sgroups = Sgroups),
+  MoreArgs = list(ad_fun = ad_fun, inner = inner, shards = shards),
   SIMPLIFY = FALSE
 )
 

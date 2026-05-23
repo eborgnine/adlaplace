@@ -15,12 +15,12 @@
 #include "adlaplace/creators/rviews.hpp"
 
 struct AD_Func_Opt {
-  ad_groups* const groups;
+  ad_fun* const shards;
   const bool inner;
   const int num_threads;
 
   const size_t Nparams;
-  const size_t Ngroups_backend;
+  const size_t n_shards_backend;
   const size_t Nbeta_backend;
   const size_t Ngamma_backend;
   const size_t Ntheta_backend;
@@ -34,7 +34,7 @@ struct AD_Func_Opt {
   std::vector<double> hess_upper_accum;
 
   AD_Func_Opt(
-    ad_groups& ag,
+    ad_fun& ag,
     const std::vector<double>& params_init,
     bool innerIn = true,
     int num_threads_in = 1
@@ -56,12 +56,12 @@ struct AD_Func_Opt {
 #pragma omp parallel num_threads(num_threads)
     {
       double f_local = 0.0;
-      const int gend = static_cast<int>(Ngroups_backend);
+      const int gend = static_cast<int>(n_shards_backend);
       std::vector<double> params_local(parameters.begin(), parameters.end());
 
 #pragma omp for schedule(static,1) nowait
       for (int g = 0; g < gend; ++g) {
-        adlaplace_adpack_handle* h = groups->fun[static_cast<size_t>(g)];
+        adlaplace_adpack_handle* h = shards->fun[static_cast<size_t>(g)];
         (void)h->api->f(h->ctx, params_local.data(), &f_local);
       }
 
@@ -89,12 +89,12 @@ struct AD_Func_Opt {
     {
       double f_local = 0.0;
       std::vector<double> grad_local(Nparams, 0.0);
-      const int gend = static_cast<int>(Ngroups_backend);
+      const int gend = static_cast<int>(n_shards_backend);
       std::vector<double> params_local(parameters.begin(), parameters.end());
 
 #pragma omp for schedule(static,1) nowait
       for (int g = 0; g < gend; ++g) {
-        adlaplace_adpack_handle* h = groups->fun[static_cast<size_t>(g)];
+        adlaplace_adpack_handle* h = shards->fun[static_cast<size_t>(g)];
         (void)h->api->f_grad(
           h->ctx, params_local.data(), &inner_flag, &f_local, grad_local.data()
         );
@@ -138,7 +138,7 @@ struct AD_Func_Opt {
       double f_local = 0.0;
       std::vector<double> grad_local(Nparams, 0.0);
       std::vector<double> hess_local(hess_upper_accum.size(), 0.0);
-      const int gend = static_cast<int>(Ngroups_backend);
+      const int gend = static_cast<int>(n_shards_backend);
       std::vector<double> params_local(parameters.begin(), parameters.end());
 
 #if ADLAPLACE_HAVE_KMPC_DISPATCH_DEINIT
@@ -147,7 +147,7 @@ struct AD_Func_Opt {
 #pragma omp for schedule(static,1) nowait
 #endif
       for (int g = 0; g < gend; ++g) {
-        adlaplace_adpack_handle* h = groups->fun[static_cast<size_t>(g)];
+        adlaplace_adpack_handle* h = shards->fun[static_cast<size_t>(g)];
         int* map_ptr = const_cast<int*>(hess_maps[static_cast<size_t>(g)].data());
         std::fill(hess_local.begin(), hess_local.end(), 0.0);
         (void)h->api->f_grad_hess(
@@ -221,7 +221,7 @@ struct AD_Func_Opt {
 private:
   struct Layout {
     size_t Nparams;
-    size_t Ngroups_backend;
+    size_t n_shards_backend;
     size_t nvars_opt;
     size_t var_offset;
     hessian_template Htemplate;
@@ -229,62 +229,64 @@ private:
   };
 
   static std::vector<std::vector<int>> build_hess_maps(
-    ad_groups& ag,
+    ad_fun& ag,
     bool innerIn,
-    size_t Ngroups) {
+    size_t n_shards) {
 
     const hessian_map_view& hv = innerIn ? ag.map_inner : ag.map_outer;
     const R_xlen_t p_len = hv.p.size();
-    if (p_len != static_cast<R_xlen_t>(Ngroups + 1)) {
+    if (p_len != static_cast<R_xlen_t>(n_shards + 1)) {
       Rcpp::stop(
-        "hessian map p length %d but expected Ngroups+1=%d",
+        "hessian map p length %d but expected n_shards+1=%d",
         static_cast<int>(p_len),
-        static_cast<int>(Ngroups + 1)
+        static_cast<int>(n_shards + 1)
       );
     }
 
-    std::vector<std::vector<int>> maps(Ngroups);
-    for (size_t g = 0; g < Ngroups; ++g) {
-      adlaplace_adpack_handle* h = ag.fun[g];
-      if (!h || !h->api || !h->api->get_sparse_sizes) {
-        Rcpp::stop("ad_groups.fun[%d] missing get_sparse_sizes", static_cast<int>(g));
+    std::vector<std::vector<int>> maps(n_shards);
+    for (size_t s = 0; s < n_shards; ++s) {
+      adlaplace_adpack_handle* h = ag.fun[s];
+      if (!h || !h->api || !h->api->get_sizes) {
+        Rcpp::stop("ad_fun.fun[%d] missing get_sizes", static_cast<int>(s));
       }
 
       int n_inner = 0;
       int n_outer = 0;
+      int n_beta = 0;
+      int n_theta = 0;
       int nnz_grad_inner = 0;
       int nnz_grad_outer = 0;
       int nnz_hes_inner = 0;
       int nnz_hes_outer = 0;
-      if (h->api->get_sparse_sizes(
-            h->ctx, &n_inner, &n_outer,
+      if (h->api->get_sizes(
+            h->ctx, &n_inner, &n_outer, &n_beta, &n_theta,
             &nnz_grad_inner, &nnz_grad_outer,
             &nnz_hes_inner, &nnz_hes_outer) != 0) {
-        Rcpp::stop("get_sparse_sizes failed for group %d", static_cast<int>(g));
+        Rcpp::stop("get_sizes failed for shard %d", static_cast<int>(s));
       }
 
       const int nnz_hes = innerIn ? nnz_hes_inner : nnz_hes_outer;
-      maps[g].assign(static_cast<size_t>(nnz_hes), -1);
+      maps[s].assign(static_cast<size_t>(nnz_hes), -1);
 
-      const int col_start = hv.p[static_cast<R_xlen_t>(g)];
-      const int col_end = hv.p[static_cast<R_xlen_t>(g + 1)];
+      const int col_start = hv.p[static_cast<R_xlen_t>(s)];
+      const int col_end = hv.p[static_cast<R_xlen_t>(s + 1)];
       for (int k = col_start; k < col_end; ++k) {
         const int loc = hv.local[k];
         const int glob = hv.global[k];
         if (loc < 0 || loc >= nnz_hes) {
           Rcpp::stop(
-            "hessian map local index %d out of range [0, %d) for group %d",
-            loc, nnz_hes, static_cast<int>(g)
+            "hessian map local index %d out of range [0, %d) for shard %d",
+            loc, nnz_hes, static_cast<int>(s)
           );
         }
-        maps[g][static_cast<size_t>(loc)] = glob;
+        maps[s][static_cast<size_t>(loc)] = glob;
       }
 
       for (int loc = 0; loc < nnz_hes; ++loc) {
-        if (maps[g][static_cast<size_t>(loc)] < 0) {
+        if (maps[s][static_cast<size_t>(loc)] < 0) {
           Rcpp::stop(
-            "hessian map missing entry for group %d local index %d",
-            static_cast<int>(g),
+            "hessian map missing entry for shard %d local index %d",
+            static_cast<int>(s),
             loc
           );
         }
@@ -293,12 +295,12 @@ private:
     return maps;
   }
 
-  static Layout make_layout(ad_groups& ag, bool innerIn) {
-    if (ag.fun.empty()) Rcpp::stop("ad_groups.fun is empty");
+  static Layout make_layout(ad_fun& ag, bool innerIn) {
+    if (ag.fun.empty()) Rcpp::stop("ad_fun.fun is empty");
 
     const size_t Nbeta = static_cast<size_t>(ag.sizes.named("beta"));
     const size_t Ngamma = static_cast<size_t>(ag.sizes.named("gamma"));
-    const size_t Ngroups = ag.fun.size();
+    const size_t n_shards = ag.fun.size();
     adlaplace_adpack_handle* h0 = ag.fun[0];
     const size_t Nparams = pack_ctx(h0->ctx)->x.size();
 
@@ -308,7 +310,7 @@ private:
     const hessian_template& tpl = innerIn ? ag.hessian_inner : ag.hessian_outer;
     if (tpl.nonZeros() == 0) {
       Rcpp::stop(
-        "%s Hessian template missing on ad_groups; attach hessian_map result first",
+        "%s Hessian template missing on ad_fun; attach hessian_map result first",
         innerIn ? "inner" : "outer"
       );
     }
@@ -323,26 +325,26 @@ private:
 
     Layout out;
     out.Nparams = Nparams;
-    out.Ngroups_backend = Ngroups;
+    out.n_shards_backend = n_shards;
     out.nvars_opt = nvars_opt;
     out.var_offset = var_offset;
     out.Htemplate = tpl;
-    out.hess_maps = build_hess_maps(ag, innerIn, Ngroups);
+    out.hess_maps = build_hess_maps(ag, innerIn, n_shards);
     return out;
   }
 
   AD_Func_Opt(
-    ad_groups& ag,
+    ad_fun& ag,
     const std::vector<double>& params_init,
     Layout layout,
     bool innerIn,
     int num_threads_in
     )
-  : groups(&ag),
+  : shards(&ag),
     inner(innerIn),
     num_threads(num_threads_in > 0 ? num_threads_in : 1),
     Nparams(layout.Nparams),
-    Ngroups_backend(layout.Ngroups_backend),
+    n_shards_backend(layout.n_shards_backend),
     Nbeta_backend(static_cast<size_t>(ag.sizes.named("beta"))),
     Ngamma_backend(static_cast<size_t>(ag.sizes.named("gamma"))),
     Ntheta_backend(static_cast<size_t>(ag.sizes.named("theta"))),

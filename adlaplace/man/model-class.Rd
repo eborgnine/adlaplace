@@ -32,5 +32,11 @@ and \code{by_labels} slots.
 \item{\code{parscale}}{Numeric vector of parameter scales for optimization}
 
 \item{\code{type}}{Factor indicating term type ("fixed", "random", or "response")}
+
+\item{\code{ad_fun}}{Registered AD density name for \code{ad_fun_ptr()}, or \code{NA}
+when the term does not map to a density shard.}
+
+\item{\code{as_kind}}{Shard kind passed to \code{ad_fun_ptr()} (\code{"observations"},
+\code{"parameters"}, \code{"random"}, or \code{NA}).}
 }}
 

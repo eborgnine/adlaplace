@@ -11,40 +11,53 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
 // get_ad_fun_raw_obs
-SEXP get_ad_fun_raw_obs(Rcpp::List data, Rcpp::List config, std::string name);
-RcppExport SEXP _adlaplace_get_ad_fun_raw_obs(SEXP dataSEXP, SEXP configSEXP, SEXP nameSEXP) {
+SEXP get_ad_fun_raw_obs(SEXP model, Rcpp::List config, std::string name);
+RcppExport SEXP _adlaplace_get_ad_fun_raw_obs(SEXP modelSEXP, SEXP configSEXP, SEXP nameSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< Rcpp::List >::type data(dataSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type model(modelSEXP);
     Rcpp::traits::input_parameter< Rcpp::List >::type config(configSEXP);
     Rcpp::traits::input_parameter< std::string >::type name(nameSEXP);
-    rcpp_result_gen = Rcpp::wrap(get_ad_fun_raw_obs(data, config, name));
+    rcpp_result_gen = Rcpp::wrap(get_ad_fun_raw_obs(model, config, name));
     return rcpp_result_gen;
 END_RCPP
 }
-// get_ad_fun_raw_single
-SEXP get_ad_fun_raw_single(Rcpp::List data, Rcpp::List config, std::string name);
-RcppExport SEXP _adlaplace_get_ad_fun_raw_single(SEXP dataSEXP, SEXP configSEXP, SEXP nameSEXP) {
+// get_ad_fun_raw_random
+SEXP get_ad_fun_raw_random(SEXP model, Rcpp::List precision, Rcpp::List config, std::string name);
+RcppExport SEXP _adlaplace_get_ad_fun_raw_random(SEXP modelSEXP, SEXP precisionSEXP, SEXP configSEXP, SEXP nameSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< Rcpp::List >::type data(dataSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type model(modelSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type precision(precisionSEXP);
     Rcpp::traits::input_parameter< Rcpp::List >::type config(configSEXP);
     Rcpp::traits::input_parameter< std::string >::type name(nameSEXP);
-    rcpp_result_gen = Rcpp::wrap(get_ad_fun_raw_single(data, config, name));
+    rcpp_result_gen = Rcpp::wrap(get_ad_fun_raw_random(model, precision, config, name));
     return rcpp_result_gen;
 END_RCPP
 }
-// combine
-SEXP combine(Rcpp::List handles, Rcpp::List config);
-RcppExport SEXP _adlaplace_combine(SEXP handlesSEXP, SEXP configSEXP) {
+// get_ad_fun_raw_parameters
+SEXP get_ad_fun_raw_parameters(SEXP model, Rcpp::List config, std::string name);
+RcppExport SEXP _adlaplace_get_ad_fun_raw_parameters(SEXP modelSEXP, SEXP configSEXP, SEXP nameSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< SEXP >::type model(modelSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type config(configSEXP);
+    Rcpp::traits::input_parameter< std::string >::type name(nameSEXP);
+    rcpp_result_gen = Rcpp::wrap(get_ad_fun_raw_parameters(model, config, name));
+    return rcpp_result_gen;
+END_RCPP
+}
+// c_ad_fun_ptr
+SEXP c_ad_fun_ptr(Rcpp::List handles);
+RcppExport SEXP _adlaplace_c_ad_fun_ptr(SEXP handlesSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< Rcpp::List >::type handles(handlesSEXP);
-    Rcpp::traits::input_parameter< Rcpp::List >::type config(configSEXP);
-    rcpp_result_gen = Rcpp::wrap(combine(handles, config));
+    rcpp_result_gen = Rcpp::wrap(c_ad_fun_ptr(handles));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -70,15 +83,15 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
-// get_sparse_sizes
-Rcpp::List get_sparse_sizes(SEXP handle, int group);
-RcppExport SEXP _adlaplace_get_sparse_sizes(SEXP handleSEXP, SEXP groupSEXP) {
+// get_sizes
+Rcpp::List get_sizes(SEXP handle, int group);
+RcppExport SEXP _adlaplace_get_sizes(SEXP handleSEXP, SEXP groupSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< SEXP >::type handle(handleSEXP);
     Rcpp::traits::input_parameter< int >::type group(groupSEXP);
-    rcpp_result_gen = Rcpp::wrap(get_sparse_sizes(handle, group));
+    rcpp_result_gen = Rcpp::wrap(get_sizes(handle, group));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -95,65 +108,65 @@ BEGIN_RCPP
 END_RCPP
 }
 // joint_log_dens
-double joint_log_dens(SEXP ad_fun, const Rcpp::NumericVector& x, SEXP Sgroups, bool negative);
-RcppExport SEXP _adlaplace_joint_log_dens(SEXP ad_funSEXP, SEXP xSEXP, SEXP SgroupsSEXP, SEXP negativeSEXP) {
+double joint_log_dens(SEXP ad_fun_ptr, const Rcpp::NumericVector& x, Rcpp::Nullable<Rcpp::IntegerVector> shards, bool negative);
+RcppExport SEXP _adlaplace_joint_log_dens(SEXP ad_fun_ptrSEXP, SEXP xSEXP, SEXP shardsSEXP, SEXP negativeSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< SEXP >::type ad_fun(ad_funSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type ad_fun_ptr(ad_fun_ptrSEXP);
     Rcpp::traits::input_parameter< const Rcpp::NumericVector& >::type x(xSEXP);
-    Rcpp::traits::input_parameter< SEXP >::type Sgroups(SgroupsSEXP);
+    Rcpp::traits::input_parameter< Rcpp::Nullable<Rcpp::IntegerVector> >::type shards(shardsSEXP);
     Rcpp::traits::input_parameter< bool >::type negative(negativeSEXP);
-    rcpp_result_gen = Rcpp::wrap(joint_log_dens(ad_fun, x, Sgroups, negative));
+    rcpp_result_gen = Rcpp::wrap(joint_log_dens(ad_fun_ptr, x, shards, negative));
     return rcpp_result_gen;
 END_RCPP
 }
 // grad
-Rcpp::NumericVector grad(SEXP ad_fun, const Rcpp::NumericVector& x, SEXP Sgroups, bool inner, bool negative);
-RcppExport SEXP _adlaplace_grad(SEXP ad_funSEXP, SEXP xSEXP, SEXP SgroupsSEXP, SEXP innerSEXP, SEXP negativeSEXP) {
+Rcpp::NumericVector grad(SEXP ad_fun_ptr, const Rcpp::NumericVector& x, Rcpp::Nullable<Rcpp::IntegerVector> shards, bool inner, bool negative);
+RcppExport SEXP _adlaplace_grad(SEXP ad_fun_ptrSEXP, SEXP xSEXP, SEXP shardsSEXP, SEXP innerSEXP, SEXP negativeSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< SEXP >::type ad_fun(ad_funSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type ad_fun_ptr(ad_fun_ptrSEXP);
     Rcpp::traits::input_parameter< const Rcpp::NumericVector& >::type x(xSEXP);
-    Rcpp::traits::input_parameter< SEXP >::type Sgroups(SgroupsSEXP);
+    Rcpp::traits::input_parameter< Rcpp::Nullable<Rcpp::IntegerVector> >::type shards(shardsSEXP);
     Rcpp::traits::input_parameter< bool >::type inner(innerSEXP);
     Rcpp::traits::input_parameter< bool >::type negative(negativeSEXP);
-    rcpp_result_gen = Rcpp::wrap(grad(ad_fun, x, Sgroups, inner, negative));
+    rcpp_result_gen = Rcpp::wrap(grad(ad_fun_ptr, x, shards, inner, negative));
     return rcpp_result_gen;
 END_RCPP
 }
 // hessian
-Rcpp::S4 hessian(SEXP ad_fun, const Rcpp::NumericVector& x, SEXP Sgroups, bool inner, const bool verbose, bool negative);
-RcppExport SEXP _adlaplace_hessian(SEXP ad_funSEXP, SEXP xSEXP, SEXP SgroupsSEXP, SEXP innerSEXP, SEXP verboseSEXP, SEXP negativeSEXP) {
+Rcpp::S4 hessian(SEXP ad_fun_ptr, const Rcpp::NumericVector& x, Rcpp::Nullable<Rcpp::IntegerVector> shards, bool inner, const bool verbose, bool negative);
+RcppExport SEXP _adlaplace_hessian(SEXP ad_fun_ptrSEXP, SEXP xSEXP, SEXP shardsSEXP, SEXP innerSEXP, SEXP verboseSEXP, SEXP negativeSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< SEXP >::type ad_fun(ad_funSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type ad_fun_ptr(ad_fun_ptrSEXP);
     Rcpp::traits::input_parameter< const Rcpp::NumericVector& >::type x(xSEXP);
-    Rcpp::traits::input_parameter< SEXP >::type Sgroups(SgroupsSEXP);
+    Rcpp::traits::input_parameter< Rcpp::Nullable<Rcpp::IntegerVector> >::type shards(shardsSEXP);
     Rcpp::traits::input_parameter< bool >::type inner(innerSEXP);
     Rcpp::traits::input_parameter< const bool >::type verbose(verboseSEXP);
     Rcpp::traits::input_parameter< bool >::type negative(negativeSEXP);
-    rcpp_result_gen = Rcpp::wrap(hessian(ad_fun, x, Sgroups, inner, verbose, negative));
+    rcpp_result_gen = Rcpp::wrap(hessian(ad_fun_ptr, x, shards, inner, verbose, negative));
     return rcpp_result_gen;
 END_RCPP
 }
 // all_derivs
-Rcpp::List all_derivs(const Rcpp::NumericVector& x, const Rcpp::List& ad_fun, const Rcpp::List& config);
+Rcpp::List all_derivs(const Rcpp::NumericVector& x, const Rcpp::S4& ad_fun, const Rcpp::List& config);
 RcppExport SEXP _adlaplace_all_derivs(SEXP xSEXP, SEXP ad_funSEXP, SEXP configSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< const Rcpp::NumericVector& >::type x(xSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::List& >::type ad_fun(ad_funSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::S4& >::type ad_fun(ad_funSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List& >::type config(configSEXP);
     rcpp_result_gen = Rcpp::wrap(all_derivs(x, ad_fun, config));
     return rcpp_result_gen;
 END_RCPP
 }
 // inner_opt
-Rcpp::List inner_opt(const Rcpp::NumericVector parameters, const Rcpp::NumericVector gamma, const Rcpp::List& config, const Rcpp::List& ad_fun, SEXP control, SEXP deriv);
+Rcpp::List inner_opt(const Rcpp::NumericVector parameters, const Rcpp::NumericVector gamma, const Rcpp::List& config, const Rcpp::S4& ad_fun, const Rcpp::List& control, bool deriv);
 RcppExport SEXP _adlaplace_inner_opt(SEXP parametersSEXP, SEXP gammaSEXP, SEXP configSEXP, SEXP ad_funSEXP, SEXP controlSEXP, SEXP derivSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
@@ -161,37 +174,38 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const Rcpp::NumericVector >::type parameters(parametersSEXP);
     Rcpp::traits::input_parameter< const Rcpp::NumericVector >::type gamma(gammaSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List& >::type config(configSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::List& >::type ad_fun(ad_funSEXP);
-    Rcpp::traits::input_parameter< SEXP >::type control(controlSEXP);
-    Rcpp::traits::input_parameter< SEXP >::type deriv(derivSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::S4& >::type ad_fun(ad_funSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type control(controlSEXP);
+    Rcpp::traits::input_parameter< bool >::type deriv(derivSEXP);
     rcpp_result_gen = Rcpp::wrap(inner_opt(parameters, gamma, config, ad_fun, control, deriv));
     return rcpp_result_gen;
 END_RCPP
 }
 // traceHinvT
-Rcpp::NumericVector traceHinvT(SEXP ad_fun, const Rcpp::NumericVector& x, const Rcpp::S4& LinvPt, const Rcpp::S4& LinvPtColumns, const int num_threads, SEXP Sgroups);
-RcppExport SEXP _adlaplace_traceHinvT(SEXP ad_funSEXP, SEXP xSEXP, SEXP LinvPtSEXP, SEXP LinvPtColumnsSEXP, SEXP num_threadsSEXP, SEXP SgroupsSEXP) {
+Rcpp::NumericVector traceHinvT(SEXP ad_fun_ptr, const Rcpp::NumericVector& x, const Rcpp::S4& LinvPt, const Rcpp::S4& LinvPtColumns, const int num_threads, Rcpp::Nullable<Rcpp::IntegerVector> shards);
+RcppExport SEXP _adlaplace_traceHinvT(SEXP ad_fun_ptrSEXP, SEXP xSEXP, SEXP LinvPtSEXP, SEXP LinvPtColumnsSEXP, SEXP num_threadsSEXP, SEXP shardsSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< SEXP >::type ad_fun(ad_funSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type ad_fun_ptr(ad_fun_ptrSEXP);
     Rcpp::traits::input_parameter< const Rcpp::NumericVector& >::type x(xSEXP);
     Rcpp::traits::input_parameter< const Rcpp::S4& >::type LinvPt(LinvPtSEXP);
     Rcpp::traits::input_parameter< const Rcpp::S4& >::type LinvPtColumns(LinvPtColumnsSEXP);
     Rcpp::traits::input_parameter< const int >::type num_threads(num_threadsSEXP);
-    Rcpp::traits::input_parameter< SEXP >::type Sgroups(SgroupsSEXP);
-    rcpp_result_gen = Rcpp::wrap(traceHinvT(ad_fun, x, LinvPt, LinvPtColumns, num_threads, Sgroups));
+    Rcpp::traits::input_parameter< Rcpp::Nullable<Rcpp::IntegerVector> >::type shards(shardsSEXP);
+    rcpp_result_gen = Rcpp::wrap(traceHinvT(ad_fun_ptr, x, LinvPt, LinvPtColumns, num_threads, shards));
     return rcpp_result_gen;
 END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
     {"_adlaplace_get_ad_fun_raw_obs", (DL_FUNC) &_adlaplace_get_ad_fun_raw_obs, 3},
-    {"_adlaplace_get_ad_fun_raw_single", (DL_FUNC) &_adlaplace_get_ad_fun_raw_single, 3},
-    {"_adlaplace_combine", (DL_FUNC) &_adlaplace_combine, 2},
+    {"_adlaplace_get_ad_fun_raw_random", (DL_FUNC) &_adlaplace_get_ad_fun_raw_random, 4},
+    {"_adlaplace_get_ad_fun_raw_parameters", (DL_FUNC) &_adlaplace_get_ad_fun_raw_parameters, 3},
+    {"_adlaplace_c_ad_fun_ptr", (DL_FUNC) &_adlaplace_c_ad_fun_ptr, 1},
     {"_adlaplace_adlaplace_attach_hessian", (DL_FUNC) &_adlaplace_adlaplace_attach_hessian, 2},
     {"_adlaplace_n_groups", (DL_FUNC) &_adlaplace_n_groups, 1},
-    {"_adlaplace_get_sparse_sizes", (DL_FUNC) &_adlaplace_get_sparse_sizes, 2},
+    {"_adlaplace_get_sizes", (DL_FUNC) &_adlaplace_get_sizes, 2},
     {"_adlaplace_get_sparse_pattern", (DL_FUNC) &_adlaplace_get_sparse_pattern, 2},
     {"_adlaplace_joint_log_dens", (DL_FUNC) &_adlaplace_joint_log_dens, 4},
     {"_adlaplace_grad", (DL_FUNC) &_adlaplace_grad, 5},

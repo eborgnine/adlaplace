@@ -7,11 +7,7 @@
 #' @param data Data frame containing the variables
 #' @param verbose Logical indicating whether to print verbose output (default: FALSE)
 #'
-#' @return A list containing:
-#' \describe{
-#'   \item{data}{List of adlaplace data components including y, ATp, XTp, map, Qdiag, QoffDiag}
-#'   \item{info}{List containing beta, gamma, and theta setup information}
-#' }
+#' @return An object of class \code{ad_model} (S4) from \code{\link{ad_model}}.
 #'
 #' @examples
 #' \dontrun{
@@ -70,20 +66,46 @@ model_setup <- function(formula, data, verbose = FALSE) {
   }
 
   # Get parameter information
-  theta_info_list <- lapply(the_terms, theta_info)
-  theta_setup <- do.call(rbind, theta_info_list)
-  theta_setup = theta_setup[order(theta_setup$type, theta_setup$label), ]
+  theta_info_list <- Filter(Negate(is.null), lapply(the_terms, theta_info))
+  if (length(theta_info_list) == 0L) {
+    theta_setup <- data.frame(
+      term = character(),
+      model = character(),
+      label = character(),
+      init = numeric(),
+      lower = numeric(),
+      upper = numeric(),
+      parscale = numeric(),
+      type = factor(levels = .type_factor_levels),
+      stringsAsFactors = FALSE
+    )
+  } else {
+    theta_setup <- do.call(rbind, theta_info_list)
+    theta_setup <- theta_setup[order(theta_setup$type, theta_setup$label), ]
+  }
 
   theta_setup$id <- seq.int(0, length.out = nrow(theta_setup))
 
   beta_setup <- do.call(rbind, lapply(the_terms, beta_info, data = data))
 
-  random_info_list <- lapply(the_terms, random_info, data = data)
-  gamma_setup <- do.call(rbind, random_info_list)
+  random_info_list <- Filter(Negate(is.null), lapply(the_terms, random_info, data = data))
+  if (length(random_info_list) == 0L) {
+    gamma_setup <- data.frame(
+      term = character(),
+      model = character(),
+      label = character(),
+      gamma_label = character(),
+      stringsAsFactors = FALSE
+    )
+  } else {
+    gamma_setup <- do.call(rbind, random_info_list)
+  }
   gamma_setup$id <- seq.int(0, length.out = nrow(gamma_setup))
-  gamma_setup$theta_id <- theta_setup[match(
-    gamma_setup$label, theta_setup$label
-  ), "id"]
+  if (nrow(gamma_setup) > 0L && nrow(theta_setup) > 0L) {
+    gamma_setup$theta_id <- theta_setup[match(
+      gamma_setup$label, theta_setup$label
+    ), "id"]
+  }
 
   # Reorder beta and gamma setups to match matrix column names
   if (ncol(x_matrix) > 0 && nrow(beta_setup) > 0) {
@@ -134,27 +156,7 @@ model_setup <- function(formula, data, verbose = FALSE) {
     )
   }
 
-  # Create precision matrix
-  valid_precision <- lapply(
-    the_terms[terms_with_gamma],
-    adlaplace::precision,
-    data = data
-  )
-  if (length(valid_precision) > 0) {
-    precision_matrix <- do.call(Matrix::bdiag, valid_precision)
-    dimnames(precision_matrix) <- list(
-      unlist(lapply(valid_precision, colnames))
-    )[c(1, 1)]
-    if (ncol(precision_matrix) > 0 && ncol(a_matrix) > 0) {
-      if (!all(colnames(precision_matrix) == colnames(a_matrix))) {
-        warning("precision matrix column names don't match A matrix")
-        print(setdiff(colnames(precision_matrix), colnames(a_matrix)))
-        print(setdiff(colnames(a_matrix), colnames(precision_matrix)))
-      }
-    }
-  } else {
-    precision_matrix <- Matrix::Diagonal(n = 0)
-  }
+  gamma_map <- as_ngC(gamma_theta_map)
 
   # Validate column names
   if (ncol(a_matrix) > 0 && nrow(gamma_setup) > 0) {
@@ -176,7 +178,6 @@ model_setup <- function(formula, data, verbose = FALSE) {
   }
 
 
-  # Prepare adlaplace data list
   # Convert to appropriate sparse matrix types
   if (ncol(a_matrix) > 0) {
     ATp <- Matrix::t(a_matrix)
@@ -184,9 +185,13 @@ model_setup <- function(formula, data, verbose = FALSE) {
       ATp <- methods::as(ATp, "CsparseMatrix")
     }
   } else {
-    ATp <- methods::as(Matrix::sparseMatrix(
-      dims = c(0, nrow(data))
-    ), "dMatrix")
+    ATp <- methods::as(
+      Matrix::sparseMatrix(
+        i = c(), j = c(),
+        dims = c(0, nrow(data))
+      ),
+      "dMatrix"
+    )
   }
 
   if (ncol(x_matrix) > 0) {
@@ -203,35 +208,38 @@ model_setup <- function(formula, data, verbose = FALSE) {
     )
   }
 
-  for_q_offdiag <- methods::as(precision_matrix, "TsparseMatrix")
-  which_offdiag <- which(for_q_offdiag@i != for_q_offdiag@j)
-  q_offdiag <- Matrix::sparseMatrix(
-    i = for_q_offdiag@i[which_offdiag],
-    j = for_q_offdiag@j[which_offdiag],
-    x = for_q_offdiag@x[which_offdiag],
-    dims = dim(precision_matrix),
-    dimnames = dimnames(precision_matrix),
-    symmetric = TRUE,
-    index1 = FALSE
+  elgmMatrix <- as_ngC(
+    Matrix::sparseMatrix(
+      i = integer(0),
+      j = integer(0),
+      dims = c(nrow(data), 0L),
+      giveCsparse = TRUE
+    )
   )
 
-  adlaplace_data <- list(
-    ATp = ATp,
-    XTp = XTp,
-    map = gamma_theta_map,
-    Qdiag = Matrix::diag(precision_matrix),
-    QsansDiag = q_offdiag
-  )
+  n_beta <- nrow(XTp)
+  n_theta <- nrow(theta_setup)
+  if (n_beta > 0L) {
+    beta_map <- as_ngC(Matrix::Diagonal(n_beta))
+  } else {
+    beta_map <- empty_ngC()
+  }
+  if (n_theta > 0L) {
+    theta_map <- as_ngC(Matrix::Diagonal(n_theta))
+  } else {
+    theta_map <- empty_ngC()
+  }
 
   the_response <- which(
     unlist(lapply(the_terms, function(xx) any(class(xx) == "response")))
   )
+  y <- numeric(0)
   if (length(the_response) == 1) {
-    adlaplace_data$y <- data[[
+    y <- as.numeric(data[[
       the_terms[[
         the_response[1]
       ]]@term
-    ]]
+    ]])
   } else {
     warning("no response variable")
   }
@@ -244,18 +252,23 @@ model_setup <- function(formula, data, verbose = FALSE) {
 
   beta_theta_names <- setdiff(beta_theta_names, "order")
 
-
-  # Return both data structures and info
-  list(
-    data = adlaplace_data,
+  ad_model(
+    y = y,
+    ATp = ATp,
+    XTp = XTp,
+    beta_map = beta_map,
+    gamma_map = gamma_map,
+    theta_map = theta_map,
+    elgmMatrix = elgmMatrix,
+    data = data,
     terms = the_terms,
     info = list(
       beta = beta_setup,
       gamma = gamma_setup,
       theta = theta_setup,
       parameters = rbind(
-        beta_setup[, beta_theta_names],
-        theta_setup[, beta_theta_names]
+        beta_setup[, beta_theta_names, drop = FALSE],
+        theta_setup[, beta_theta_names, drop = FALSE]
       )
     )
   )

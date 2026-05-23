@@ -3,55 +3,66 @@
 
 #' Build raw AD handle for observation shards only
 #'
-#' @param data Model data list.
+#' @param model An \code{ad_model} S4 object.
 #' @param config Model configuration list.
 #' @param name Registered observation density name (e.g. \code{"neg_binom_obs"}).
-#' @return External pointer of class \code{adlaplace_handle_ptr}.
+#' @return External pointer of class \code{ad_fun_ptr}.
 #' @keywords internal
-get_ad_fun_raw_obs <- function(data, config, name) {
-    .Call(`_adlaplace_get_ad_fun_raw_obs`, data, config, name)
+get_ad_fun_raw_obs <- function(model, config, name) {
+    .Call(`_adlaplace_get_ad_fun_raw_obs`, model, config, name)
 }
 
-#' Build raw AD handle for one single-density shard
+#' Build raw AD handle for a random-effect shard
 #'
-#' @param data Model data list.
+#' @param model An \code{ad_model} S4 object (maps for the term).
+#' @param precision Precision list (\code{Q} vector for \code{random_diagonal}).
 #' @param config Model configuration list.
-#' @param name Registered single density name (e.g. \code{"random_diagonal"}).
-#' @return External pointer of class \code{adlaplace_handle_ptr}.
+#' @param name Registered random density name (e.g. \code{"random_diagonal"}).
+#' @return External pointer of class \code{ad_fun_ptr}.
 #' @keywords internal
-get_ad_fun_raw_single <- function(data, config, name) {
-    .Call(`_adlaplace_get_ad_fun_raw_single`, data, config, name)
+get_ad_fun_raw_random <- function(model, precision, config, name) {
+    .Call(`_adlaplace_get_ad_fun_raw_random`, model, precision, config, name)
+}
+
+#' Build raw AD handle for a parameters shard
+#'
+#' @param model An \code{ad_model} S4 object.
+#' @param config Model configuration list.
+#' @param name Registered parameters density name (e.g. \code{"neg_binom_extra"}).
+#' @return External pointer of class \code{ad_fun_ptr}.
+#' @keywords internal
+get_ad_fun_raw_parameters <- function(model, config, name) {
+    .Call(`_adlaplace_get_ad_fun_raw_parameters`, model, config, name)
 }
 
 #' Merge partial AD handles into one raw handle
 #'
-#' Concatenates shards from \code{\link{get_ad_fun_raw}} (or other partial
+#' Concatenates shards from \code{\link{ad_fun_ptr}} (or other partial
 #' builders) in list order. Does not attach \code{hessian_map}; use
-#' \code{\link{get_ad_fun}} when templates are needed.
+#' \code{\link{ad_fun}} when templates are needed.
 #'
-#' @param handles List of external pointers (\code{adlaplace_handle_ptr}).
-#' @param config Model configuration list (sets \code{n_beta}/\code{n_gamma} on shards).
-#' @return Combined external pointer of class \code{adlaplace_handle_ptr}.
-#' @seealso \code{\link{get_ad_fun_raw}}, \code{\link{get_ad_fun}}
-#' @export
-combine <- function(handles, config) {
-    .Call(`_adlaplace_combine`, handles, config)
+#' @param handles List of external pointers (\code{ad_fun_ptr}).
+#' @return Combined external pointer of class \code{ad_fun_ptr}.
+#' @seealso \code{\link{ad_fun_ptr}}, \code{\link{ad_fun}}
+#' @keywords internal
+c_ad_fun_ptr <- function(handles) {
+    .Call(`_adlaplace_c_ad_fun_ptr`, handles)
 }
 
-#' Attach hessian_map() result to an ad_groups handle
+#' Attach hessian_map() result to an ad_fun handle
 #'
-#' Copies outer/inner templates and maps into \code{ad_groups}.
+#' Copies outer/inner templates and maps into the C++ \code{ad_fun} handle.
 #'
-#' @param handle External pointer from \code{get_ad_fun_raw()} or \code{get_ad_fun()}.
+#' @param handle External pointer of class \code{ad_fun_ptr}.
 #' @param hessian_pack List returned by \code{hessian_map()}.
 #' @export
 adlaplace_attach_hessian <- function(handle, hessian_pack) {
     invisible(.Call(`_adlaplace_adlaplace_attach_hessian`, handle, hessian_pack))
 }
 
-#' Number of AD shards in an \code{ad_groups} handle
+#' Number of AD shards in an \code{ad_fun_ptr} handle
 #'
-#' @param handle External pointer from \code{get_ad_fun_raw()} or \code{get_ad_fun()}.
+#' @param handle External pointer of class \code{ad_fun_ptr}.
 #' @return Integer count of groups (shards).
 #' @export
 n_groups <- function(handle) {
@@ -60,17 +71,20 @@ n_groups <- function(handle) {
 
 #' Sparse structure sizes for one AD shard
 #'
-#' @param handle External pointer from \code{get_ad_fun_raw()} or \code{get_ad_fun()}.
+#' Layout and sparsity sizes for one AD shard
+#'
+#' @param handle External pointer of class \code{ad_fun_ptr}.
 #' @param group 0-based group index.
-#' @return List with \code{n_inner}, \code{n_outer}, \code{nnz_grad_*}, \code{nnz_hes_*}.
+#' @return List with \code{n_inner}, \code{n_outer}, \code{n_beta}, \code{n_theta},
+#'   and \code{nnz_grad_*}, \code{nnz_hes_*}.
 #' @export
-get_sparse_sizes <- function(handle, group) {
-    .Call(`_adlaplace_get_sparse_sizes`, handle, group)
+get_sizes <- function(handle, group) {
+    .Call(`_adlaplace_get_sizes`, handle, group)
 }
 
 #' Sparse index patterns for one AD shard
 #'
-#' @param handle External pointer from \code{get_ad_fun_raw()} or \code{get_ad_fun()}.
+#' @param handle External pointer of class \code{ad_fun_ptr}.
 #' @param group 0-based group index.
 #' @return List with \code{grad}, \code{grad_inner}, \code{row_hess}, \code{col_hess}, etc.
 #' @export
@@ -87,9 +101,10 @@ get_sparse_pattern <- function(handle, group) {
 #'   \pkg{trustOptim} sign, consistent with \code{inner_opt()} and
 #'   \code{all_derivs()}). If \code{FALSE}, return \eqn{\ell(x)}, \eqn{\nabla\ell},
 #'   and \eqn{\nabla^2\ell}.
-#' @param ad_fun External pointer or list from \code{get_ad_fun()}.
+#' @param ad_fun_ptr External pointer of class \code{ad_fun_ptr}.
 #' @param x Numeric parameter vector of length \code{Nparams}.
-#' @param Sgroups Optional integer vector of 0-based group indices.
+#' @param shards Optional integer vector of 0-based shard indices; \code{NULL} or
+#'   \code{integer(0)} evaluates all shards.
 #' @param inner Logical scalar for inner-\eqn{\gamma} vs outer derivatives.
 #' @param verbose Logical passed to \code{hessian()}.
 #' @param LinvPt,LinvPtColumns,num_threads See \code{traceHinvT()}.
@@ -102,23 +117,20 @@ get_sparse_pattern <- function(handle, group) {
 #'
 #' @rdname adlaplace_cpp
 #' @return Scalar log-density value (sign per \code{negative}).
-#' @export
-joint_log_dens <- function(ad_fun, x, Sgroups = NULL, negative = TRUE) {
-    .Call(`_adlaplace_joint_log_dens`, ad_fun, x, Sgroups, negative)
+joint_log_dens <- function(ad_fun_ptr, x, shards = NULL, negative = TRUE) {
+    .Call(`_adlaplace_joint_log_dens`, ad_fun_ptr, x, shards, negative)
 }
 
 #' @rdname adlaplace_cpp
 #' @return Gradient of log density (sign per \code{negative}).
-#' @export
-grad <- function(ad_fun, x, Sgroups = NULL, inner = FALSE, negative = TRUE) {
-    .Call(`_adlaplace_grad`, ad_fun, x, Sgroups, inner, negative)
+grad <- function(ad_fun_ptr, x, shards = NULL, inner = FALSE, negative = TRUE) {
+    .Call(`_adlaplace_grad`, ad_fun_ptr, x, shards, inner, negative)
 }
 
 #' @rdname adlaplace_cpp
 #' @return Sparse Hessian of log density (sign per \code{negative}).
-#' @export
-hessian <- function(ad_fun, x, Sgroups = NULL, inner = FALSE, verbose = FALSE, negative = TRUE) {
-    .Call(`_adlaplace_hessian`, ad_fun, x, Sgroups, inner, verbose, negative)
+hessian <- function(ad_fun_ptr, x, shards = NULL, inner = FALSE, verbose = FALSE, negative = TRUE) {
+    .Call(`_adlaplace_hessian`, ad_fun_ptr, x, shards, inner, verbose, negative)
 }
 
 #' Inner optimization over gamma using trust-region CG (sparse)
@@ -135,14 +147,13 @@ hessian <- function(ad_fun, x, Sgroups = NULL, inner = FALSE, verbose = FALSE, n
 #'   \code{inner_opt()}.
 #' @param gamma Numeric vector of starting values for inner parameters
 #'   (\code{gamma}; length \code{Ngamma}) used by \code{inner_opt()}.
-#' @param ad_fun List returned by \code{get_ad_fun()} (must contain \code{ad_fun}).
+#' @param ad_fun \code{ad_fun} S4 object from \code{ad_fun(ad_fun_ptr)}.
 #' @param config Configuration list with model dimensions, groups, and
 #'   sparsity information.
 #' @param control List of trust-region control parameters for
 #'   \code{inner_opt()} (see \pkg{trustOptim}).
 #' @param deriv Logical: if \code{TRUE}, return full outer gradient and Hessian at the
-#'   inner solution; if \code{FALSE}, return inner quantities only. When missing,
-#'   uses \code{config$deriv} or legacy \code{config$inner_only}.
+#'   inner solution; if \code{FALSE}, return inner quantities only (default).
 #'
 #' @return
 #'   \item{\code{all_derivs()}}{List with \code{fval}, \code{gradient}, and
@@ -175,14 +186,13 @@ all_derivs <- function(x, ad_fun, config) {
 }
 
 #' @rdname innerOpt
-#' @export
-inner_opt <- function(parameters, gamma, config, ad_fun, control = NULL, deriv = NULL) {
+#' @keywords internal
+inner_opt <- function(parameters, gamma, config, ad_fun, control, deriv = FALSE) {
     .Call(`_adlaplace_inner_opt`, parameters, gamma, config, ad_fun, control, deriv)
 }
 
 #' @rdname adlaplace_cpp
-#' @export
-traceHinvT <- function(ad_fun, x, LinvPt, LinvPtColumns, num_threads, Sgroups = NULL) {
-    .Call(`_adlaplace_traceHinvT`, ad_fun, x, LinvPt, LinvPtColumns, num_threads, Sgroups)
+traceHinvT <- function(ad_fun_ptr, x, LinvPt, LinvPtColumns, num_threads, shards = NULL) {
+    .Call(`_adlaplace_traceHinvT`, ad_fun_ptr, x, LinvPt, LinvPtColumns, num_threads, shards)
 }
 

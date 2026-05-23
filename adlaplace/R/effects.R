@@ -25,7 +25,9 @@ f <- function(x, model = "iid", ...) {
 #' @description
 #' Parses a formula and creates model terms using constructors from specified packages.
 #'
-#' @param formula Model formula containing f() calls
+#' @param formula Model formula containing f() calls (e.g. \code{f(x, model = "iwp")},
+#'   \code{linear(x)}). Symbols such as \code{x} refer to column names in
+#'   \code{data} passed to \code{model_setup()}, not objects in the calling environment.
 #' @param package Character vector of package names to search for model constructors
 #' @param verbose print extra information
 #' @return List of model term objects
@@ -33,6 +35,45 @@ f <- function(x, model = "iid", ...) {
 #' @examples
 #' terms <- collect_terms(y ~ f(x, model = "iwp"))
 #'
+#' @keywords internal
+coerce_term_call_symbols <- function(expr) {
+  if (is.symbol(expr) || is.name(expr)) {
+    return(call("linear", as.character(expr)))
+  }
+  if (!is.call(expr)) {
+    return(expr)
+  }
+  args <- as.list(expr)
+  for (i in seq_along(args)) {
+    if (i == 1L) {
+      next
+    }
+    a <- args[[i]]
+    if (is.symbol(a) || is.name(a)) {
+      args[[i]] <- as.character(a)
+    } else if (is.call(a)) {
+      args[[i]] <- coerce_term_call_symbols(a)
+    }
+  }
+  as.call(args)
+}
+
+#' @keywords internal
+eval_term_label <- function(lab, pkg_envs) {
+  expr <- parse(text = lab, keep.source = FALSE)[[1]]
+  expr <- coerce_term_call_symbols(expr)
+  for (pkg in names(pkg_envs)) {
+    try_result <- try(
+      eval(expr, envir = pkg_envs[[pkg]]),
+      silent = TRUE
+    )
+    if (!inherits(try_result, "try-error")) {
+      return(try_result)
+    }
+  }
+  NULL
+}
+
 #' @export
 collect_terms <- function(
   formula, package = character(0), verbose = FALSE
@@ -54,36 +95,21 @@ collect_terms <- function(
 
 
   terms_1 <- lapply(term_labels, function(lab) {
-    term_obj <- NULL
-
-    # Try each package's namespace until we find one that works
-
-    for (pkg in names(pkg_env)) {
-      try_result <- try(
-        {
-          eval(parse(text = lab), envir = pkg_env[[pkg]])
-        },
-        silent = TRUE
+    term_obj <- eval_term_label(lab, pkg_env)
+    if (!is.null(term_obj) && verbose) {
+      message(
+        "Model term ", substr(lab, 1, 20),
+        "... parsed from formula"
       )
-
-      if (!inherits(try_result, "try-error")) {
-        term_obj <- try_result
-        if (verbose) {
-          message(
-            paste(
-              "Model term", substr(lab, 1, 20),
-              "... found in package", pkg
-            )
-          )
-        }
-        break
-      }
     }
 
     if (is.null(term_obj)) {
-      # term is probably a variable name, but if it has () in it, it's probably a model that wasn't found
       if (grepl("[(]", lab)) {
-        warning(paste("Failed to parse term", lab, "in any of the specified packages"))
+        stop(
+          "Failed to parse term '", lab,
+          "' in any of the specified packages",
+          call. = FALSE
+        )
       }
       term_obj <- linear(lab)
     }

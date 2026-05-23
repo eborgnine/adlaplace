@@ -6,6 +6,7 @@
 
 #include <Rcpp.h>
 #include <Rinternals.h>
+#include <Eigen/SparseCholesky>
 
 #include "adlaplace/api/backend.hpp"
 
@@ -41,66 +42,78 @@ double sym_entry_perm(
 	);
 }
 
-std::vector<int> copy_int_slot(const Rcpp::S4& obj, const char* name) {
-	return Rcpp::as<std::vector<int>>(obj.slot(name));
-}
-
-void copy_csc_slots(const Rcpp::S4& mat, std::vector<int>& p, std::vector<int>& i) {
-	p = copy_int_slot(mat, "p");
-	i = copy_int_slot(mat, "i");
-}
-
-int dim_n(const Rcpp::S4& mat, const char* label) {
-	const Rcpp::IntegerVector dim = mat.slot("Dim");
-	if (dim.size() != 2) {
-		Rcpp::stop("%s Dim slot must have length 2", label);
-	}
-	const int n = dim[0];
-	const int ncol = dim[1];
-	if (n != ncol || n < 0) {
-		Rcpp::stop("%s must be square (Dim[0] == Dim[1] >= 0)", label);
-	}
-	return n;
-}
-
-void perm_to_zero_based(std::vector<int>& perm, int n) {
-	if (perm.empty()) {
-		return;
-	}
-	const int perm_min = *std::min_element(perm.begin(), perm.end());
-	const int perm_max = *std::max_element(perm.begin(), perm.end());
-	if (perm_min >= 1 && perm_max <= n) {
-		for (int& v : perm) {
-			v -= 1;
+Eigen::SparseMatrix<double> dummy_spd_from_template(const hessian_template& inner) {
+	const int n = static_cast<int>(inner.rows());
+	Eigen::SparseMatrix<double> H(n, n);
+	std::vector<Eigen::Triplet<double>> triplets;
+	triplets.reserve(static_cast<size_t>(inner.nonZeros()) * 2);
+	for (int col = 0; col < inner.outerSize(); ++col) {
+		for (hessian_template::InnerIterator it(inner, col); it; ++it) {
+			const int row = static_cast<int>(it.row());
+			if (row > col) {
+				continue;
+			}
+			const double v = (row == col) ? 10.0 : 1.0;
+			triplets.emplace_back(row, col, v);
+			if (row != col) {
+				triplets.emplace_back(col, row, v);
+			}
 		}
 	}
+	H.setFromTriplets(triplets.begin(), triplets.end());
+	return H;
 }
 
-void validate_perm_vector(
-	const std::vector<int>& perm,
-	int n,
-	const char* name)
+void copy_lower_csc_pattern(
+	const Eigen::SparseMatrix<double, Eigen::ColMajor>& L,
+	std::vector<int>& p_out,
+	std::vector<int>& i_out)
 {
-	if (perm.size() != static_cast<size_t>(n)) {
-		Rcpp::stop(
-			"%s length (%d) does not match dimension (%d)",
-			name,
-			static_cast<int>(perm.size()),
-			n
-		);
-	}
-	for (size_t j = 0; j < static_cast<size_t>(n); ++j) {
-		const int v = perm[j];
-		if (v < 0 || v >= n) {
-			Rcpp::stop(
-				"%s[%d] = %d out of range [0, %d]",
-				name,
-				static_cast<int>(j),
-				v,
-				n - 1
-			);
+	Eigen::SparseMatrix<double, Eigen::ColMajor> Lc = L;
+	Lc.makeCompressed();
+	const int n = static_cast<int>(Lc.cols());
+	p_out.assign(static_cast<size_t>(n + 1), 0);
+	i_out.clear();
+	i_out.reserve(static_cast<size_t>(Lc.nonZeros()));
+	for (int col = 0; col < n; ++col) {
+		p_out[static_cast<size_t>(col)] = static_cast<int>(i_out.size());
+		for (Eigen::SparseMatrix<double, Eigen::ColMajor>::InnerIterator it(Lc, col); it; ++it) {
+			const int row = static_cast<int>(it.row());
+			if (row >= col) {
+				i_out.push_back(row);
+			}
 		}
 	}
+	p_out[static_cast<size_t>(n)] = static_cast<int>(i_out.size());
+}
+
+CholPattern chol_pattern_identity_lower_from_template(const hessian_template& inner) {
+	CholPattern pattern;
+	const int n = static_cast<int>(inner.rows());
+	pattern.n = n;
+	if (n == 0) {
+		return pattern;
+	}
+	pattern.perm.assign(static_cast<size_t>(n), 0);
+	pattern.perm_inv.assign(static_cast<size_t>(n), 0);
+	for (int j = 0; j < n; ++j) {
+		pattern.perm[static_cast<size_t>(j)] = j;
+		pattern.perm_inv[static_cast<size_t>(j)] = j;
+	}
+	pattern.L1_p.assign(static_cast<size_t>(n + 1), 0);
+	for (int col = 0; col < n; ++col) {
+		for (hessian_template::InnerIterator it(inner, col); it; ++it) {
+			const int row = static_cast<int>(it.row());
+			if (row >= col) {
+				pattern.L1_i.push_back(row);
+			}
+		}
+		pattern.L1_p[static_cast<size_t>(col + 1)] =
+			static_cast<int>(pattern.L1_i.size());
+	}
+	pattern.Linv_p = pattern.L1_p;
+	pattern.Linv_i = pattern.L1_i;
+	return pattern;
 }
 
 } // namespace
@@ -189,114 +202,54 @@ double chol_update(
 	return log_det;
 }
 
-CholPattern chol_pattern_from_sexp(SEXP chol_inner) {
-	if (Rf_isNull(chol_inner)) {
-		Rcpp::stop("chol_inner must not be NULL");
+CholPattern chol_pattern_from_inner_template(const hessian_template& inner) {
+	const int n = static_cast<int>(inner.rows());
+	if (n == 0) {
+		return CholPattern();
 	}
-	if (!Rf_inherits(chol_inner, "dCHMsimpl")) {
-		Rcpp::stop("chol_inner must be a dCHMsimpl object");
+
+	const Eigen::SparseMatrix<double> H = dummy_spd_from_template(inner);
+	Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> ldlt(H);
+	if (ldlt.info() != Eigen::Success) {
+		return chol_pattern_identity_lower_from_template(inner);
 	}
 
 	CholPattern pattern;
-	const Rcpp::S4 obj(chol_inner);
-	copy_csc_slots(obj, pattern.L1_p, pattern.L1_i);
-	pattern.perm = copy_int_slot(obj, "perm");
-
-	const Rcpp::IntegerVector dim = obj.slot("Dim");
-	if (dim.size() != 2) {
-		Rcpp::stop("chol_inner Dim slot must have length 2");
-	}
-	const int n = dim[0];
-	const int ncol = dim[1];
-	if (n != ncol || n < 0) {
-		Rcpp::stop("chol_inner must be a square matrix (Dim[0] == Dim[1] >= 0)");
-	}
-	if (pattern.perm.size() != static_cast<size_t>(n)) {
-		Rcpp::stop(
-			"chol_inner perm length (%d) does not match dimension (%d)",
-			static_cast<int>(pattern.perm.size()),
-			n
-		);
-	}
-	for (size_t j = 0; j < static_cast<size_t>(n); ++j) {
-		const int orig = pattern.perm[j];
-		if (orig < 0 || orig >= n) {
-			Rcpp::stop(
-				"chol_inner perm[%d] = %d out of range [0, %d]",
-				static_cast<int>(j),
-				orig,
-				n - 1
-			);
-		}
-	}
-
 	pattern.n = n;
+
+	const Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic> P = ldlt.permutationP();
+	pattern.perm.resize(static_cast<size_t>(n));
+	pattern.perm_inv.assign(static_cast<size_t>(n), 0);
+	for (int j = 0; j < n; ++j) {
+		const int orig = static_cast<int>(P.indices()[j]);
+		pattern.perm[static_cast<size_t>(j)] = orig;
+		pattern.perm_inv[static_cast<size_t>(orig)] = j;
+	}
+
+	const Eigen::SparseMatrix<double, Eigen::ColMajor> L = ldlt.matrixL();
+	copy_lower_csc_pattern(L, pattern.L1_p, pattern.L1_i);
+	pattern.Linv_p = pattern.L1_p;
+	pattern.Linv_i = pattern.L1_i;
 	return pattern;
 }
 
-CholPattern chol_pattern_from_list(const Rcpp::List& chol_inner_list) {
-	if (!chol_inner_list.containsElementNamed("L1") || Rf_isNull(chol_inner_list["L1"])) {
-		Rcpp::stop("chol_inner_list must contain L1");
-	}
-	if (!chol_inner_list.containsElementNamed("perm") || Rf_isNull(chol_inner_list["perm"])) {
-		Rcpp::stop("chol_inner_list must contain perm");
-	}
-
-	if (!chol_inner_list.containsElementNamed("Linv") || Rf_isNull(chol_inner_list["Linv"])) {
-		Rcpp::stop("chol_inner_list must contain Linv");
-	}
-	if (!chol_inner_list.containsElementNamed("perm_inv") ||
-		Rf_isNull(chol_inner_list["perm_inv"])) {
-		Rcpp::stop("chol_inner_list must contain perm_inv");
-	}
-
-	const Rcpp::S4 L1(chol_inner_list["L1"]);
-	const Rcpp::S4 Linv(chol_inner_list["Linv"]);
-	CholPattern pattern;
-	copy_csc_slots(L1, pattern.L1_p, pattern.L1_i);
-	copy_csc_slots(Linv, pattern.Linv_p, pattern.Linv_i);
-
-	const int n = dim_n(L1, "chol_inner_list$L1");
-	if (dim_n(Linv, "chol_inner_list$Linv") != n) {
-		Rcpp::stop("chol_inner_list L1 and Linv dimensions must match");
-	}
-
-	pattern.perm = Rcpp::as<std::vector<int>>(chol_inner_list["perm"]);
-	pattern.perm_inv = Rcpp::as<std::vector<int>>(chol_inner_list["perm_inv"]);
-	perm_to_zero_based(pattern.perm, n);
-	validate_perm_vector(pattern.perm, n, "chol_inner_list perm");
-	validate_perm_vector(pattern.perm_inv, n, "chol_inner_list perm_inv");
-
-	pattern.n = n;
-	return pattern;
-}
-
-void ad_groups_attach_chol_pattern(ad_groups& groups, const Rcpp::List& ad_fun) {
-	if (groups.chol_pattern.n > 0) {
+void ad_fun_attach_chol_pattern_from_template(ad_fun& shards) {
+	if (shards.chol_pattern.n > 0) {
 		return;
 	}
-	if (!groups.hessians_attached) {
-		Rcpp::stop("attach Hessian templates before chol_inner_list");
+	if (!shards.hessians_attached) {
+		Rcpp::stop("attach Hessian templates before chol pattern");
 	}
-
-	const int inner_n = static_cast<int>(groups.hessian_inner.rows());
+	const int inner_n = static_cast<int>(shards.hessian_inner.rows());
 	if (inner_n == 0) {
-		groups.chol_pattern = CholPattern();
+		shards.chol_pattern = CholPattern();
 		return;
 	}
-
-	if (!ad_fun.containsElementNamed("chol_inner_list") ||
-		Rf_isNull(ad_fun["chol_inner_list"])) {
-		Rcpp::stop("ad_fun must contain chol_inner_list from hessian_map()");
-	}
-
-	groups.chol_pattern = chol_pattern_from_list(
-		Rcpp::as<Rcpp::List>(ad_fun["chol_inner_list"])
-	);
-	if (groups.chol_pattern.n != inner_n) {
+	shards.chol_pattern = chol_pattern_from_inner_template(shards.hessian_inner);
+	if (shards.chol_pattern.n != inner_n) {
 		Rcpp::stop(
-			"chol_inner_list dimension (%d) does not match inner Hessian template (%d)",
-			groups.chol_pattern.n,
+			"inner chol pattern dimension (%d) does not match inner Hessian template (%d)",
+			shards.chol_pattern.n,
 			inner_n
 		);
 	}

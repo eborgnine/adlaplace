@@ -1,7 +1,7 @@
 #ifndef ADLAPLACE_REGISTER_HPP
 #define ADLAPLACE_REGISTER_HPP
 
-// adlaplace internal: build and merge ad_groups handles for R export.
+// adlaplace internal: build and merge ad_fun handles for R export.
 
 #include <Rcpp.h>
 #include <memory>
@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "adlaplace/creators/rviews.hpp"
+#include "adlaplace/creators/ad_model.hpp"
 #include "adlaplace/api/adpack_handle.h"
 #include "adlaplace/api/backend.hpp"
 
@@ -17,25 +18,30 @@ extern "C" const adlaplace_adpack_api adlaplace_AD_API;
 void register_adlaplace_default_densities();
 
 void backend_destroy(void* vctx);
-void ad_groups_destroy(ad_groups* groups);
-void adgroups_finalizer(SEXP ext);
-SEXP make_ad_groups_handle(ad_groups* groups);
+void ad_fun_destroy(ad_fun* groups);
+void adfun_finalizer(SEXP ext);
+SEXP make_ad_fun_ptr(ad_fun* groups);
 
-ad_groups* packs_to_ad_groups(
+ad_fun* packs_to_ad_fun(
   std::vector<GroupPack>&& packs,
-  const Config& config);
+  std::size_t n_beta,
+  std::size_t n_theta);
 
-ad_groups* combine_ad_groups(
-  const std::vector<ad_groups*>& parts,
-  const Config& config);
+ad_fun* combine_ad_fun(const std::vector<ad_fun*>& parts);
 
-ad_groups* get_ad_fun_raw_obs_h(
-  const Rcpp::List& data,
+ad_fun* get_ad_fun_raw_obs_h(
+  SEXP model,
   const Rcpp::List& config,
   const std::string& obs_name);
 
-ad_groups* get_ad_fun_raw_single_h(
-  const Rcpp::List& data,
+ad_fun* get_ad_fun_raw_random_h(
+  SEXP model,
+  const Rcpp::List& precision,
+  const Rcpp::List& config,
+  const std::string& single_name);
+
+ad_fun* get_ad_fun_raw_parameters_h(
+  SEXP model,
   const Rcpp::List& config,
   const std::string& single_name);
 

@@ -27,7 +27,9 @@ setClass("rpoly",
          prototype = prototype(
            knots = numeric(0),
            sd = numeric(0),
-           type = factor("random", levels = .type_factor_levels)
+           type = factor("random", levels = .type_factor_levels),
+           ad_fun = "random_diagonal",
+           as_kind = "random"
          )
 )
 

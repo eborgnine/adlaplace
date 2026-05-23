@@ -26,10 +26,12 @@ int get_hessian(
   int** map,
   size_t* map_len);
 
-int get_sparse_sizes(
+int get_sizes(
   void* vctx,
   int* n_inner,
   int* n_outer,
+  int* n_beta,
+  int* n_theta,
   int* nnz_grad_inner,
   int* nnz_grad_outer,
   int* nnz_hes_inner,

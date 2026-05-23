@@ -2,15 +2,15 @@
 % Please edit documentation in R/RcppExports.R
 \name{adlaplace_attach_hessian}
 \alias{adlaplace_attach_hessian}
-\title{Attach hessian_map() result to an ad_groups handle}
+\title{Attach hessian_map() result to an ad_fun handle}
 \usage{
 adlaplace_attach_hessian(handle, hessian_pack)
 }
 \arguments{
-\item{handle}{External pointer from \code{get_ad_fun_raw()} or \code{get_ad_fun()}.}
+\item{handle}{External pointer of class \code{ad_fun_ptr}.}
 
 \item{hessian_pack}{List returned by \code{hessian_map()}.}
 }
 \description{
-Copies outer/inner templates and maps into \code{ad_groups}.
+Copies outer/inner templates and maps into the C++ \code{ad_fun} handle.
 }

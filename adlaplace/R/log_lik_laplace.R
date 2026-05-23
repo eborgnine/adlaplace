@@ -18,14 +18,14 @@
 #' @param control List of control parameters passed *as-is* to the backend inner
 #'   optimizer (e.g., \code{report.level}, \code{report.freq}). See backend
 #'   documentation (e.g., \pkg{trustOptim}) for supported options.
-#' @param ad_fun Optional AD object returned by the backend \code{get_ad_fun()}.
+#' @param ad_fun Optional \code{ad_fun} object from \code{\link{ad_fun}}.
 #'   This is a single backend handle (no separate inner/outer handles). If
 #'   missing, it will be constructed automatically using \code{data}.
 #' @param data Optional data list used to build \code{ad_fun} when \code{ad_fun}
 #'   is not supplied.
 #' @param package Character scalar naming the backend package to use for
-#'   \code{get_ad_fun()} and \code{inner_opt()}. Defaults to \code{"adlaplace"}.
-#'   Other backends must export \code{getAdFun_r()} and \code{inner_opt()}.
+#'   \code{ad_fun()} and \code{inner_opt()}. Defaults to \code{"adlaplace"}.
+#'   Other backends must export a compatible \code{ad_fun()} builder and \code{inner_opt()}.
 #' @param deriv Logical scalar. If \code{TRUE}, include derivative quantities in
 #'   the output (gradient, intermediate derivatives).
 #'
@@ -55,7 +55,7 @@
 #'   non-invertible Hessian, \code{log_lik_laplace()} issues a warning or error.
 #'
 #' @seealso
-#' \code{\link{get_ad_fun}}, \code{\link{inner_opt}}
+#' \code{\link{ad_fun}}, \code{\link{inner_opt}}
 #'
 #' @export
 log_lik_laplace <- function(
@@ -72,7 +72,6 @@ log_lik_laplace <- function(
   config_inner <- config
   config_inner$beta <- x[seq.int(1, length.out = Nbeta)]
   config_inner$theta <- x[seq.int(Nbeta + 1, length.out = Ntheta)]
-  config_inner$deriv <- deriv
 
   if (!missing(gamma)) {
     config_inner$gamma <- gamma
@@ -86,7 +85,15 @@ log_lik_laplace <- function(
     if (missing(data)) {
       stop("at least one of data and ad_fun must be supplied")
     }
-    ad_fun <- adlaplace::get_ad_fun(data, config, package = package)
+    if (is(data, "ad_model")) {
+      ad_fun <- adlaplace::ad_fun(data, config)
+    } else {
+      stop(
+        "supply ad_fun from ad_fun(ad_fun_ptr) or ad_fun(ad_model, config); ",
+        "a plain data list is not sufficient",
+        call. = FALSE
+      )
+    }
   }
 
   result_inner <- inner_opt(
@@ -100,8 +107,8 @@ log_lik_laplace <- function(
   result <- result_inner[setdiff(names(result_inner), c("gradient", "hessian"))]
   result$extra <- result_inner[c("gradient", "hessian")]
 
-  if (is.list(ad_fun) && !is.null(ad_fun$chol_inner_list)) {
-    cil <- ad_fun$chol_inner_list
+  if (is(ad_fun, "ad_fun") && length(ad_fun@chol_inner_list) > 0L) {
+    cil <- ad_fun@chol_inner_list
     result$extra$hessian$perm <- cil$perm
     result$extra$hessian$perm_inv <- cil$perm_inv
     if (is.list(result$extra$hessian$chol_inner)) {

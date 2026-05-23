@@ -4,61 +4,50 @@
 
 namespace {
 
-struct data_random_diag {
-  NumVecView Q;
-  IntVecView gamma_map;
-  size_t theta_index;
-  size_t Ngamma;
-
-  explicit data_random_diag(const Rcpp::List& data)
-    : Q(data["Q"]),
-      gamma_map(data["gamma_map"]) {
-    Ngamma = gamma_map.size();
-    IntVecView theta_map(data["theta_map"]);
-    if (theta_map.size() > 0) {
-      theta_index = static_cast<size_t>(theta_map[0]);
-    }
-    if (gamma_map.size() != Q.size()) {
-      Rcpp::warning("gamma_map and Q have different lengths in data_random_diag");
-    }
-  }
-};
-
 CppAD::vector<CppAD::AD<double>> random_diagonal(
   const CppAD::vector<CppAD::AD<double>>& x,
-  const data_random_diag& data,
+  const ad_model& model,
+  const NumVecView& Q,
+  const std::vector<std::size_t>& gamma_indices,
   const Config& config) {
 
+  const std::size_t Ngamma = gamma_indices.size();
+  if (Q.size() != Ngamma) {
+    Rcpp::warning("precision$Q length (%d) differs from gamma_map rows (%d)",
+                  static_cast<int>(Q.size()), static_cast<int>(Ngamma));
+  }
+
+  const std::size_t theta_index = model.theta_index(0);
   CppAD::AD<double> logSd;
 
-  // theta is SD
   if (config.transform_theta) {
-    logSd = x[data.theta_index];
+    logSd = x[theta_index];
   } else {
-    logSd = CppAD::log(x[data.theta_index]);
+    logSd = CppAD::log(x[theta_index]);
   }
 
   CppAD::AD<double> precision = CppAD::exp(-2 * logSd);
   CppAD::AD<double> qpart = 0.0;
   double logQsum = 0.0;
 
-  for (size_t k = 0; k < data.Ngamma; ++k) {
-    const size_t gidx = static_cast<size_t>(data.gamma_map[k]);
-    const double qk = data.Q[k];
+  const std::size_t nq = std::min(Ngamma, Q.size());
+  for (std::size_t k = 0; k < nq; ++k) {
+    const std::size_t gidx = gamma_indices[k];
+    const double qk = Q[k];
     qpart += x[gidx] * x[gidx] * qk;
     logQsum += std::log(qk);
   }
   qpart *= CppAD::AD<double>(0.5) * precision;
 
-  CppAD::AD<double> qDet = logSd * CppAD::AD<double>(data.Ngamma) +
-    CppAD::AD<double>(data.Ngamma * ONEHALFLOGTWOPI);
+  CppAD::AD<double> qDet = logSd * CppAD::AD<double>(Ngamma) +
+    CppAD::AD<double>(Ngamma * ONEHALFLOGTWOPI);
 
-    if(config.verbose) {
-      Rcpp::Rcout << "theta index " << data.theta_index << 
+  if (config.verbose) {
+    Rcpp::Rcout << "theta index " << theta_index <<
       " logVariance " << logSd << " precision " << precision << "\n";
-      Rcpp::Rcout << "random_diagonal n_gamma " << data.Ngamma << 
-                " qDet " << qDet << 
-                " qpart " << qpart << "\n";
+    Rcpp::Rcout << "random_diagonal n_gamma " << Ngamma <<
+      " qDet " << qDet <<
+      " qpart " << qpart << "\n";
   }
 
   CppAD::vector<CppAD::AD<double>> result(1);
@@ -70,7 +59,14 @@ CppAD::vector<CppAD::AD<double>> random_diagonal(
 
 CppAD::vector<CppAD::AD<double>> random_diagonal(
   const CppAD::vector<CppAD::AD<double>>& x,
-  const Rcpp::List& data,
+  const ad_model& model,
+  const Rcpp::List& precision,
   const Rcpp::List& config) {
-  return random_diagonal(x, data_random_diag(data), Config(config));
+
+  if (!precision.containsElementNamed("Q")) {
+    Rcpp::stop("precision must contain element Q for random_diagonal");
+  }
+  const NumVecView Q(precision["Q"]);
+  const std::vector<std::size_t> gamma_indices = model.gamma_global_indices(0);
+  return random_diagonal(x, model, Q, gamma_indices, Config(config));
 }

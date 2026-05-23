@@ -27,14 +27,14 @@ if (requireNamespace("mgcv", quietly = TRUE)) {
     gamma = rep(0, nrow(model_stuff$info$gamma)),
     theta = log(model_stuff$info$theta$init),
     transform_theta = TRUE,
-    groups = adlaplace::adFun_groups(model_stuff$data$ATp, Ngroups = 100),
+    shards = adlaplace::adFun_groups(model_stuff$data$ATp, Ngroups = 100),
     num_threads = 2L,
     verbose = TRUE,
     package = "adlaplace"
   )
 
 
-  ad_fun <- adlaplace::get_ad_fun(model_stuff$data, config)
+  ad_fun <- adlaplace::ad_fun(model_stuff, config)
   res <- adlaplace::log_lik_laplace(
     x = c(config$beta, config$theta),
     ad_fun = ad_fun,

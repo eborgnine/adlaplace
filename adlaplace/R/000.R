@@ -68,6 +68,10 @@ setClass("by_group",
 #' @slot upper Numeric vector of upper bounds
 #' @slot parscale Numeric vector of parameter scales for optimization
 #' @slot type Factor indicating term type ("fixed", "random", or "response")
+#' @slot ad_fun Registered AD density name for \code{ad_fun_ptr()}, or \code{NA}
+#'   when the term does not map to a density shard.
+#' @slot as_kind Shard kind passed to \code{ad_fun_ptr()} (\code{"observations"},
+#'   \code{"parameters"}, \code{"random"}, or \code{NA}).
 #' @exportClass model
 #' @exportClass by_group
 setClass("model",
@@ -81,7 +85,9 @@ setClass("model",
     lower = "numeric",
     upper = "numeric",
     parscale = "numeric",
-    type = "factor"
+    type = "factor",
+    ad_fun = "character",
+    as_kind = "character"
   ),
   prototype = prototype(
     term = character(0),
@@ -93,7 +99,9 @@ setClass("model",
     lower = numeric(0),
     upper = numeric(0),
     parscale = numeric(0),
-    type = factor("fixed", levels = .type_factor_levels)
+    type = factor("fixed", levels = .type_factor_levels),
+    ad_fun = NA_character_,
+    as_kind = NA_character_
   )
 )
 

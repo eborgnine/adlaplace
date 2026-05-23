@@ -1,4 +1,5 @@
-#include "adlaplace/runtime/ad_groups_pack.hpp"
+#include "adlaplace/runtime/ad_fun_pack.hpp"
+#include "../chol_update.hpp"
 
 hessian_template hessian_template_from_dgc(
   const DgCView& tpl,
@@ -40,8 +41,8 @@ hessian_template hessian_template_from_dgc(
   return out;
 }
 
-void ad_groups_attach_hessians_from_list(
-  ad_groups& groups,
+void ad_fun_attach_hessians_from_list(
+  ad_fun& shards,
   const Rcpp::List& ad_fun) {
 
   if (!ad_fun.containsElementNamed("outer") || !ad_fun.containsElementNamed("inner")) {
@@ -54,25 +55,26 @@ void ad_groups_attach_hessians_from_list(
     Rcpp::stop("ad_fun list must contain 'sizes'");
   }
 
-  groups.sizes = IntVecView(static_cast<SEXP>(ad_fun["sizes"]));
-  if (!groups.sizes.has_name("beta") ||
-      !groups.sizes.has_name("gamma") ||
-      !groups.sizes.has_name("theta")) {
+  shards.sizes = IntVecView(static_cast<SEXP>(ad_fun["sizes"]));
+  if (!shards.sizes.has_name("beta") ||
+      !shards.sizes.has_name("gamma") ||
+      !shards.sizes.has_name("theta")) {
     Rcpp::stop("sizes must be a named vector: beta, gamma, theta");
   }
 
-  if (groups.hessians_attached) {
+  if (shards.hessians_attached) {
     return;
   }
 
-  groups.hessian_outer = hessian_template_from_dgc(
+  shards.hessian_outer = hessian_template_from_dgc(
     DgCView(Rcpp::as<Rcpp::S4>(ad_fun["outer"])), "outer");
 
-  groups.hessian_inner = hessian_template_from_dgc(
+  shards.hessian_inner = hessian_template_from_dgc(
     DgCView(Rcpp::as<Rcpp::S4>(ad_fun["inner"])), "inner");
 
-  groups.map_outer = hessian_map_view(Rcpp::as<Rcpp::List>(ad_fun["map_outer"]));
-  groups.map_inner = hessian_map_view(Rcpp::as<Rcpp::List>(ad_fun["map_inner"]));
+  shards.map_outer = hessian_map_view(Rcpp::as<Rcpp::List>(ad_fun["map_outer"]));
+  shards.map_inner = hessian_map_view(Rcpp::as<Rcpp::List>(ad_fun["map_inner"]));
 
-  groups.hessians_attached = true;
+  shards.hessians_attached = true;
+  ad_fun_attach_chol_pattern_from_template(shards);
 }

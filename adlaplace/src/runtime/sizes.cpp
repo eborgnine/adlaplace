@@ -1,9 +1,11 @@
 #include "adlaplace/runtime/sizes.hpp"
 
-int get_sizes(
+int pack_sparsity_sizes(
   GroupPack& ad_pack,
   int* n_inner,
   int* n_outer,
+  int* n_beta,
+  int* n_theta,
   int* nnz_grad_inner,
   int* nnz_grad_outer,
   int* nnz_hes_inner,
@@ -11,6 +13,8 @@ int get_sizes(
 
   *n_inner = static_cast<int>(ad_pack.pattern_grad_inner.nc());
   *n_outer = static_cast<int>(ad_pack.pattern_grad.nc());
+  *n_beta = static_cast<int>(ad_pack.n_beta);
+  *n_theta = static_cast<int>(ad_pack.n_theta);
 
   *nnz_grad_outer = static_cast<int>(ad_pack.pattern_grad.nnz());
   *nnz_grad_inner = static_cast<int>(ad_pack.pattern_grad_inner.nnz());

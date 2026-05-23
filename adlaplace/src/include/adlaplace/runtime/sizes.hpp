@@ -3,10 +3,12 @@
 
 #include "adlaplace/api/backend.hpp"
 
-int get_sizes(
+int pack_sparsity_sizes(
   GroupPack& ad_pack,
   int* n_inner,
   int* n_outer,
+  int* n_beta,
+  int* n_theta,
   int* nnz_grad_inner,
   int* nnz_grad_outer,
   int* nnz_hes_inner,
