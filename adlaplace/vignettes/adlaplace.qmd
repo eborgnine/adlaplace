@@ -49,7 +49,7 @@ AmatList <- list(
 )
 Amat <- do.call(cbind, AmatList)
 beta <- rep(1, ncol(X))
-thetaOrig <- rep(1, 3) # c(0.1, 0.1, 0.1)
+thetaOrig <- c(0.1, 0.1, 0.1)
 theta <- log(thetaOrig)
 gamma <- rnorm(ncol(Amat), sd = rep(thetaOrig[1:2], c(Nrandom1, Nrandom2)))
 eta <- as.vector(X %*% beta + Amat %*% gamma)
@@ -58,22 +58,12 @@ Z <- rgamma(length(etaT), 0.1^(-2), 0.1^(-2))
 c(mean(Z), sd(Z))
 y <- rpois(length(etaT), etaT * Z)
 
-NperEffect <- unlist(lapply(AmatList, ncol))
-# map = rep(seq(0, len=length(NperEffect)), NperEffect)
-map <- Matrix::sparseMatrix(
-  i = seq(0L, len = ncol(Amat)),
-  j = rep(seq(0L, len = length(NperEffect)), NperEffect),
-  x = 1L,
-  index1 = FALSE,
-  dims = c(ncol(Amat), length(thetaOrig))
-)
-
 config <- list(
   beta = beta,
   theta = log(thetaOrig), # sd for each Amat, overdisp parameter
   transform_theta = TRUE,
   gamma = rep(0, ncol(Amat)),
-  shards = adlaplace::adFun_groups(Matrix::t(Amat), Ngroups = 1000),
+  shards = adlaplace::ad_shards(Amat, num_shards = 1000),
   num_threads = 1L,
   verbose = TRUE,
   package = "adlaplace"
@@ -82,80 +72,6 @@ config <- list(
 n_beta <- length(config$beta)
 n_gamma <- length(config$gamma)
 n_theta <- length(config$theta)
-
-gamma_map <- methods::as(map, "ngCMatrix")
-theta_map <- methods::as(
-  Matrix::sparseMatrix(
-    i = 2L,
-    j = 0L,
-    x = 1L,
-    dims = c(n_theta, 1L),
-    index1 = FALSE,
-    giveCsparse = TRUE
-  ),
-  "ngCMatrix"
-)
-
-data_obs <- adlaplace::ad_model(
-  y = y,
-  ATp = as(Matrix::t(Amat), "dMatrix"),
-  XTp = as(Matrix::t(X), "CsparseMatrix"),
-  beta_map = if (n_beta > 0L) {
-    methods::as(
-      Matrix::sparseMatrix(
-        i = seq.int(0L, n_beta - 1L),
-        j = seq.int(0L, n_beta - 1L),
-        x = rep(1L, n_beta),
-        dims = c(n_beta, n_beta),
-        index1 = FALSE,
-        giveCsparse = TRUE
-      ),
-      "ngCMatrix"
-    )
-  } else {
-    adlaplace:::empty_ngC()
-  },
-  gamma_map = gamma_map,
-  theta_map = theta_map
-)
-
-precision_r1 <- list(Q = rep(1, ncol(AmatList$r1)))
-gamma_map_r1 <- methods::as(
-  Matrix::sparseMatrix(
-    i = seq.int(0L, length.out = ncol(AmatList$r1)),
-    j = rep(0L, ncol(AmatList$r1)),
-    x = rep(1L, ncol(AmatList$r1)),
-    index1 = FALSE,
-    dims = c(n_gamma, 1L),
-    giveCsparse = TRUE
-  ),
-  "ngCMatrix"
-)
-model_r1 <- adlaplace::ad_model_random_maps(
-  gamma_map = gamma_map_r1,
-  theta_map = theta_map,
-  n_beta = n_beta,
-  n_theta = n_theta
-)
-
-precision_r2 <- list(Q = rep(1, ncol(AmatList$r2)))
-gamma_map_r2 <- methods::as(
-  Matrix::sparseMatrix(
-    i = seq.int(ncol(AmatList$r1), length.out = ncol(AmatList$r1) + ncol(AmatList$r2) - 1L),
-    j = rep(0L, ncol(AmatList$r2)),
-    x = rep(1L, ncol(AmatList$r2)),
-    index1 = FALSE,
-    dims = c(n_gamma, 1L),
-    giveCsparse = TRUE
-  ),
-  "ngCMatrix"
-)
-model_r2 <- adlaplace::ad_model_random_maps(
-  gamma_map = gamma_map_r2,
-  theta_map = theta_map,
-  n_beta = n_beta,
-  n_theta = n_theta
-)
 ```
 
 Model densities are defined in `src/neg_binom.cpp` (observation and extra terms)
@@ -164,40 +80,84 @@ and `random.cpp` (random effects).
 Each shard is built with `ad_fun_ptr()`. Shards are merged with `c()` before
 attaching Hessian templates via `ad_fun()`.
 
-```{r adShards}
-ad_fun_obs <- adlaplace::ad_fun_ptr(
-  config, "observations", "neg_binom_obs", data_obs, package = "adlaplace"
-)
-ad_fun_extra <- adlaplace::ad_fun_ptr(
-  config, "parameters", "neg_binom_extra",
-  adlaplace::ad_model_parameters_view(data_obs),
-  package = "adlaplace"
-)
-ad_fun_r1 <- adlaplace::ad_fun_ptr(
-  config, "random", "random_diagonal", model_r1,
-  precision = precision_r1, package = "adlaplace"
-)
-ad_fun_r2 <- adlaplace::ad_fun_ptr(
-  config, "random", "random_diagonal", model_r2,
-  precision = precision_r2, package = "adlaplace"
-)
-stopifnot(
-  is(ad_fun_obs, "ad_fun_ptr"),
-  is(ad_fun_extra, "ad_fun_ptr"),
-  is(ad_fun_r1, "ad_fun_ptr"),
-  is(ad_fun_r2, "ad_fun_ptr")
+```{r adShards_obs}
+data_obs <- adlaplace::ad_model(
+  y = y,
+  A = Amat,
+  X = X,
+  theta_map =
+    Matrix::sparseMatrix(
+      i = n_theta, # observations uses last theta
+      j = 1,
+      dims = c(n_theta, 1L)
+    )
 )
 
+ad_fun_obs <- adlaplace::ad_fun_ptr(
+  model = data_obs,
+  config = config,
+  kind = "observations",
+  name = "neg_binom_obs"
+)
+
+ad_fun_extra <- adlaplace::ad_fun_ptr(
+  model = data_obs,
+  config = config,
+  kind = "parameters",
+  name = "neg_binom_extra"
+)
+```
+
+```{r adShards_random_1}
+nr1 <- Nrandom1
+
+model_r1 <- adlaplace::ad_model(
+  beta_map = n_beta,
+  gamma_map = Matrix::sparseMatrix(
+    i = 1:nr1,
+    j = 1:nr1,
+    dims = c(n_gamma, nr1)
+  ),
+  theta_map = c(1, n_theta) # sd is first theta
+)
+
+ad_fun_r1 <- adlaplace::ad_fun_ptr(
+  model = model_r1,
+  config = config, kind = "random", name = "random_diagonal"
+)
+```
+
+```{r adShards_random_2}
+nr2 <- ncol(AmatList$r2)
+
+model_r2 <- adlaplace::ad_model(
+  beta_map = n_beta,
+  gamma_map = Matrix::sparseMatrix(
+    i = seq.int(nr1 + 1, length.out = nr2),
+    j = 1:nr2,
+    dims = c(n_gamma, nr2)
+  ),
+  theta_map = c(2, n_theta) # sd is 2nd theta
+)
+ad_fun_r2 <- adlaplace::ad_fun_ptr(
+  model = model_r2,
+  config = config, kind = "random", name = "random_diagonal"
+)
+```
+
+the original ad_fun are destroyed, R objects exist but point to nothing.
+```{r adShards_combined}
 ad_fun_plain <- c(ad_fun_obs, ad_fun_extra, ad_fun_r1, ad_fun_r2)
 ```
 
 ```{r randomGaussianLogDens}
-# random_diagonal log-density: gamma ~ N(0, sd^2 * Q^{-1}), diagonal Q from precision_r1$Q
+# random_diagonal log-density: gamma ~ N(0, sd^2 * Q^{-1}), diagonal Q (default ones)
+precision_r1 <- list(Q = rep(1, nr1))
 xx <- c(config$beta, seq(1, length(config$gamma)), seq(1, length(config$theta)))
 
 ad_fun_r1x <- adlaplace::ad_fun_ptr(
   config, "random", "random_diagonal", model_r1,
-  precision = precision_r1, package = "adlaplace"
+  package = "adlaplace"
 )
 adlaplace::joint_log_dens(ad_fun_r1x, xx, negative = FALSE)
 
@@ -338,7 +298,7 @@ par(mfrow = c(3, 2), mar = c(2, 2, 0, 0), mgp = c(1, 0.5, 0))
 
 x1 <- outer_fit$par
 Npar <- 13
-Dpar <- 1 # length(x1)
+Dpar <- length(x1)
 
 parDf <- data.frame(x1)[, rep(1, Npar)]
 Sx <- seq(-0.5, 0.5, len = 13) + parDf[Dpar, 1]
@@ -418,7 +378,7 @@ Sgamma1 <- seq.int(length(config$beta) + 1, length.out = length(config$gamma))
 
 x_here <- res_here$full_parameters
 Npar <- 13
-Dpar_dens <- 4
+Dpar_dens <- length(x_here) - 2
 if (inner) {
   Dpar_dens <- match(Dpar_dens, Sgamma1)
 }

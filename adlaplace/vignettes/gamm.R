@@ -27,7 +27,9 @@ if (requireNamespace("mgcv", quietly = TRUE)) {
     gamma = rep(0, nrow(model_stuff$info$gamma)),
     theta = log(model_stuff$info$theta$init),
     transform_theta = TRUE,
-    shards = adlaplace::adFun_groups(model_stuff$data$ATp, Ngroups = 100),
+    shards = adlaplace::ad_shards(
+      Matrix::t(model_stuff@ATp), num_shards = 100
+    ),
     num_threads = 2L,
     verbose = TRUE,
     package = "adlaplace"

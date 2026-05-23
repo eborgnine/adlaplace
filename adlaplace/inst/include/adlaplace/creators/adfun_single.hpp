@@ -15,7 +15,7 @@ inline GroupPack build_ad_fun_random(
   validate_config_matches_model(cfg, model, false);
   if (precision.containsElementNamed("Q")) {
     const NumVecView Q(precision["Q"]);
-    const std::vector<std::size_t> gidx = model.gamma_global_indices(0);
+    const std::vector<std::size_t> gidx = model.all_gamma_global_indices();
     if (Q.size() != static_cast<R_xlen_t>(gidx.size())) {
       Rcpp::stop(
         "length(precision$Q) (%d) must match active gamma_map entries (%d)",

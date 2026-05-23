@@ -18,8 +18,7 @@ random_shard_precision <- function(term, model) {
 #' @keywords internal
 random_term_model <- function(term, model) {
   gamma_setup <- model@info$gamma
-  theta_setup <- model@info$theta
-  parent_layout <- ad_model_layout(model)
+  parent_layout <- sizes(model)
 
   prec <- precision(term, data = model@data)
   if (is.null(prec) || length(prec) == 0) {
@@ -50,43 +49,17 @@ random_term_model <- function(term, model) {
 
   n_term <- length(gamma_match)
   parent_gamma_id <- as.integer(gamma_setup$id[gamma_match])
-  gamma_map <- methods::as(
-    Matrix::sparseMatrix(
-      i = parent_gamma_id,
-      j = rep(0L, n_term),
-      x = rep(1, n_term),
-      dims = c(parent_layout$n_gamma, 1L),
-      index1 = FALSE,
-      giveCsparse = TRUE
-    ),
-    "ngCMatrix"
+  gamma_map <- Matrix::sparseMatrix(
+    i = parent_gamma_id,
+    j = seq.int(0L, length.out = n_term),
+    dims = c(parent_layout$n_gamma, n_term),
+    index1 = FALSE,
+    giveCsparse = TRUE
   )
 
-  th <- theta_info(term)
-  if (!is.null(th) && nrow(th) > 0) {
-    theta_row <- match(th$label[1], theta_setup$label)
-    if (is.na(theta_row)) {
-      stop("theta label for term ", term@term, " not found in theta_setup")
-    }
-    theta_local <- as.integer(theta_setup$id[theta_row])
-  } else {
-    theta_ids <- unique(gamma_setup$theta_id[gamma_match])
-    theta_ids <- theta_ids[!is.na(theta_ids)]
-    if (length(theta_ids) == 0) {
-      stop("no theta index for random term ", term@term)
-    }
-    theta_local <- as.integer(theta_ids[1])
-  }
-
-  theta_map <- methods::as(
-    model@theta_map,
-    "ngCMatrix"
-  )
-
-  ad_model_random_maps(
+  ad_model(
+    beta_map = Matrix::Matrix(nrow = parent_layout$n_beta, ncol = 0L),
     gamma_map = gamma_map,
-    theta_map = theta_map,
-    n_beta = parent_layout$n_beta,
-    n_theta = parent_layout$n_theta
+    theta_map = model@theta_map
   )
 }

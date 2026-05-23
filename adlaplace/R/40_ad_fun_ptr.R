@@ -1,10 +1,3 @@
-#' @exportClass ad_fun_ptr
-setClass("ad_fun_ptr", contains = "externalptr")
-
-#' @keywords internal
-setOldClass("ad_fun_ptr")
-
-
 #' Build raw AD handle for one density shard
 #'
 #' Constructs CppAD tapes for a single shard. Merge shards with \code{c()} before
@@ -14,8 +7,9 @@ setOldClass("ad_fun_ptr")
 #' @param kind \code{"observations"}, \code{"parameters"}, or \code{"random"}.
 #' @param name Registered density name.
 #' @param model An \code{ad_model} object.
-#' @param precision For \code{kind = "random"}, list with \code{Q} (e.g. from
-#'   \code{random_shard_precision()}).
+#' @param precision For \code{kind = "random"}, list with \code{Q}. For
+#'   \code{random_diagonal}, \code{Q} defaults to \code{rep(1, ncol(gamma_map))}
+#'   when omitted.
 #' @param package Backend package (currently only \code{"adlaplace"}).
 #' @return External pointer of class \code{ad_fun_ptr}.
 #' @export
@@ -47,13 +41,16 @@ ad_fun_ptr <- function(config,
     validate_config_layout(model, config, kind)
     get_ad_fun_raw_parameters(model, config, name)
   } else if (identical(kind, "random")) {
-    if (is.null(precision) || is(precision, "ad_model")) {
+    if (is(precision, "ad_model")) {
       stop("`precision` for kind = 'random' must be a list (e.g. list(Q = ...))")
+    }
+    if (is.null(precision)) {
+      precision <- list()
     }
     validate_config_layout(model, config, kind)
     if (identical(name, "random_diagonal")) {
       if (is.null(precision$Q)) {
-        stop("precision$Q is required for random_diagonal")
+        precision$Q <- rep(1, ncol(model@gamma_map))
       }
       n_active <- Matrix::nnzero(model@gamma_map)
       if (length(precision$Q) != n_active) {

@@ -140,24 +140,6 @@ model_setup <- function(formula, data, verbose = FALSE) {
     }
   }
 
-  # Create gamma-theta mapping matrix
-  gamma_setup_sub <- gamma_setup[!is.na(gamma_setup$theta_id), ]
-  if (nrow(gamma_setup_sub) > 0) {
-    gamma_theta_map <- Matrix::sparseMatrix(
-      i = gamma_setup_sub$id, j = gamma_setup_sub$theta_id,
-      x = 1.0,
-      dims = c(nrow(gamma_setup), nrow(theta_setup)),
-      index1 = FALSE
-    )
-  } else {
-    gamma_theta_map <- Matrix::sparseMatrix(
-      i = integer(0), j = integer(0), x = numeric(0),
-      dims = c(0, nrow(theta_setup))
-    )
-  }
-
-  gamma_map <- as_ngC(gamma_theta_map)
-
   # Validate column names
   if (ncol(a_matrix) > 0 && nrow(gamma_setup) > 0) {
     if (!(all(colnames(a_matrix) == gamma_setup$gamma_label))) {
@@ -177,58 +159,6 @@ model_setup <- function(formula, data, verbose = FALSE) {
     }
   }
 
-
-  # Convert to appropriate sparse matrix types
-  if (ncol(a_matrix) > 0) {
-    ATp <- Matrix::t(a_matrix)
-    if (!inherits(ATp, "CsparseMatrix")) {
-      ATp <- methods::as(ATp, "CsparseMatrix")
-    }
-  } else {
-    ATp <- methods::as(
-      Matrix::sparseMatrix(
-        i = c(), j = c(),
-        dims = c(0, nrow(data))
-      ),
-      "dMatrix"
-    )
-  }
-
-  if (ncol(x_matrix) > 0) {
-    XTp <- Matrix::t(x_matrix)
-    if (!inherits(XTp, "CsparseMatrix")) {
-      XTp <- methods::as(XTp, "CsparseMatrix")
-    }
-  } else {
-    XTp <- methods::as(
-      Matrix::sparseMatrix(
-        i = c(), j = c(),
-        dims = c(0, nrow(data))
-      ), "dMatrix"
-    )
-  }
-
-  elgmMatrix <- as_ngC(
-    Matrix::sparseMatrix(
-      i = integer(0),
-      j = integer(0),
-      dims = c(nrow(data), 0L),
-      giveCsparse = TRUE
-    )
-  )
-
-  n_beta <- nrow(XTp)
-  n_theta <- nrow(theta_setup)
-  if (n_beta > 0L) {
-    beta_map <- as_ngC(Matrix::Diagonal(n_beta))
-  } else {
-    beta_map <- empty_ngC()
-  }
-  if (n_theta > 0L) {
-    theta_map <- as_ngC(Matrix::Diagonal(n_theta))
-  } else {
-    theta_map <- empty_ngC()
-  }
 
   the_response <- which(
     unlist(lapply(the_terms, function(xx) any(class(xx) == "response")))
@@ -254,12 +184,8 @@ model_setup <- function(formula, data, verbose = FALSE) {
 
   ad_model(
     y = y,
-    ATp = ATp,
-    XTp = XTp,
-    beta_map = beta_map,
-    gamma_map = gamma_map,
-    theta_map = theta_map,
-    elgmMatrix = elgmMatrix,
+    A = a_matrix,
+    X = x_matrix,
     data = data,
     terms = the_terms,
     info = list(

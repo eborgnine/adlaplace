@@ -14,7 +14,7 @@ test_that("ad_fun and derivatives run on small GLMM data", {
     theta = c(-1, -1, -1),
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    shards = adlaplace::adFun_groups(as(Matrix::t(Amat), "dMatrix"), Ngroups = 20L),
+    shards = adlaplace::ad_shards(Amat, num_shards = 20L),
     num_threads = 1L,
     verbose = FALSE,
     package = "adlaplace"
@@ -23,8 +23,8 @@ test_that("ad_fun and derivatives run on small GLMM data", {
   n_gamma <- length(config$gamma)
   model <- test_ad_model(
     y = rpois(Nobs, 2),
-    ATp = as(Matrix::t(Amat), "dMatrix"),
-    XTp = as(Matrix::t(X), "CsparseMatrix"),
+    A = Amat,
+    X = X,
     config = config,
     theta_local_row = length(config$theta) - 1L
   )
@@ -42,8 +42,7 @@ test_that("ad_fun and derivatives run on small GLMM data", {
       random_shard$model, precision = random_shard$precision
     ),
     adlaplace::ad_fun_ptr(
-      config, "parameters", "neg_binom_extra",
-      adlaplace:::ad_model_parameters_view(model)
+      config, "parameters", "neg_binom_extra", model
     )
   ))
   ad_fun <- adlaplace::ad_fun(ad_ptr)

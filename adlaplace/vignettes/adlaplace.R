@@ -38,19 +38,19 @@ map <- Matrix::sparseMatrix(
 
 data <- list(
   y = y,
-  ATp = as(Matrix::t(Amat), "dMatrix"),
-  XTp = as(Matrix::t(X), "CsparseMatrix"),
+  A = Amat,
+  X = X,
   map = map,
   Qdiag = rep(1, ncol(Amat))
 )
 
 
 config <- list(
-  beta = rep(1, nrow(data$XTp)),
+  beta = rep(1, ncol(X)),
   theta = c(rep(-1, length(NperEffect)), -1),
   transform_theta = TRUE,
-  gamma = rep(0, nrow(data$ATp)),
-  shards = adlaplace::adFun_groups(data$ATp, Ngroups = 1000),
+  gamma = rep(0, ncol(Amat)),
+  shards = adlaplace::ad_shards(Amat, num_shards = 1000),
   num_threads = 2L,
   verbose = TRUE, package = "adlaplace"
 )
@@ -59,8 +59,8 @@ config <- list(
 ## ----testLogLik-------------------------------------------------------------------------------------------------------------------------------------
 model <- adlaplace:::ad_model_from_config_matrices(
   y = data$y,
-  ATp = data$ATp,
-  XTp = data$XTp,
+  A = data$A,
+  X = data$X,
   config = config,
   theta_local_row = length(config$theta) - 1L
 )
@@ -81,8 +81,8 @@ res$grad
 ## ----trustOptimOuterWrappers------------------------------------------------------------------------------------------------------------------------
 model <- adlaplace:::ad_model_from_config_matrices(
   y = data$y,
-  ATp = data$ATp,
-  XTp = data$XTp,
+  A = data$A,
+  X = data$X,
   config = config,
   theta_local_row = length(config$theta) - 1L
 )
@@ -125,8 +125,8 @@ outer_fit$value
 ## ----testLogLgrad-----------------------------------------------------------------------------------------------------------------------------------
 model <- adlaplace:::ad_model_from_config_matrices(
   y = data$y,
-  ATp = data$ATp,
-  XTp = data$XTp,
+  A = data$A,
+  X = data$X,
   config = config,
   theta_local_row = length(config$theta) - 1L
 )
@@ -179,8 +179,8 @@ lines(SxD, diff(Sdet) / diff(Sx))
 ## ----testDeriv--------------------------------------------------------------------------------------------------------------------------------------
 model <- adlaplace:::ad_model_from_config_matrices(
   y = data$y,
-  ATp = data$ATp,
-  XTp = data$XTp,
+  A = data$A,
+  X = data$X,
   config = config,
   theta_local_row = length(config$theta) - 1L
 )
@@ -241,8 +241,8 @@ config$gamma <- rep(1, length(config$gamma))
 x <- c(config$beta, config$gamma, config$theta)
 model <- adlaplace:::ad_model_from_config_matrices(
   y = data$y,
-  ATp = data$ATp,
-  XTp = data$XTp,
+  A = data$A,
+  X = data$X,
   config = config,
   theta_local_row = length(config$theta) - 1L
 )

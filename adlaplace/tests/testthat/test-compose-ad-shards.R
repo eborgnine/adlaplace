@@ -13,14 +13,14 @@ test_that("c() combines shards for small GLMM", {
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    shards = adlaplace::adFun_groups(as(Matrix::t(Amat), "dMatrix"), Ngroups = 10L),
+    shards = adlaplace::ad_shards(Amat, num_shards = 10L),
     num_threads = 1L,
     verbose = FALSE
   )
   model <- test_ad_model(
     y = rpois(Nobs, 2),
-    ATp = as(Matrix::t(Amat), "dMatrix"),
-    XTp = as(Matrix::t(X), "CsparseMatrix"),
+    A = Amat,
+    X = X,
     config = config
   )
   random_shard <- test_random_shard(
@@ -38,8 +38,7 @@ test_that("c() combines shards for small GLMM", {
       random_shard$model, precision = random_shard$precision
     ),
     adlaplace::ad_fun_ptr(
-      config, "parameters", "neg_binom_extra",
-      adlaplace:::ad_model_parameters_view(model)
+      config, "parameters", "neg_binom_extra", model
     )
   ))
   expect_true(is(ad_ptr, "ad_fun_ptr"))
@@ -65,13 +64,13 @@ test_that("ad_fun_ptr obs-only builds observation groups only", {
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    shards = adlaplace::adFun_groups(as(Matrix::t(Amat), "dMatrix"), Ngroups = 5L),
+    shards = adlaplace::ad_shards(Amat, num_shards = 5L),
     verbose = FALSE
   )
   model <- test_ad_model(
     y = rpois(Nobs, 2),
-    ATp = as(Matrix::t(Amat), "dMatrix"),
-    XTp = as(Matrix::t(X), "CsparseMatrix"),
+    A = Amat,
+    X = X,
     config = config
   )
   ad_obs <- adlaplace::ad_fun_ptr(config, "observations", "neg_binom_obs", model)

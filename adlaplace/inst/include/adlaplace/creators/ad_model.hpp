@@ -30,6 +30,7 @@ struct ad_model {
 
   std::size_t theta_index(int col = 0) const;
   std::vector<std::size_t> gamma_global_indices(int col = 0) const;
+  std::vector<std::size_t> all_gamma_global_indices() const;
 };
 
 inline SEXP ad_model_slot(SEXP obj, const char* name) {
@@ -86,11 +87,15 @@ inline std::vector<std::size_t> ad_model::gamma_global_indices(int col) const {
   for (int k = start; k < end; ++k) {
     out.push_back(num_beta + static_cast<std::size_t>(gamma_map.i[k]));
   }
-  if (out.empty() && num_gamma > 0 && col == 0) {
-    out.reserve(num_gamma);
-    for (std::size_t r = 0; r < num_gamma; ++r) {
-      out.push_back(num_beta + r);
-    }
+  return out;
+}
+
+inline std::vector<std::size_t> ad_model::all_gamma_global_indices() const {
+  std::vector<std::size_t> out;
+  out.reserve(static_cast<std::size_t>(gamma_map.ncol()));
+  for (int col = 0; col < gamma_map.ncol(); ++col) {
+    const std::vector<std::size_t> idx = gamma_global_indices(col);
+    out.insert(out.end(), idx.begin(), idx.end());
   }
   return out;
 }

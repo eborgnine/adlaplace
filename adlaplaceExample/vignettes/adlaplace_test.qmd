@@ -81,7 +81,7 @@ config <- list(
   gamma = rep(0, nrow(data$ATp)),
   theta = c(log(0.2), log(0.2), log(0.5), 2),
   transform_theta = TRUE,
-  groups = adlaplace::adFun_groups(data$ATp),
+  groups = adlaplace::ad_shards(Matrix::t(data$ATp)),
   num_threads = 8L,
   package = "adlaplaceExample",
   verbose = TRUE

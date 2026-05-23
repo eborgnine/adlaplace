@@ -67,6 +67,6 @@ CppAD::vector<CppAD::AD<double>> random_diagonal(
     Rcpp::stop("precision must contain element Q for random_diagonal");
   }
   const NumVecView Q(precision["Q"]);
-  const std::vector<std::size_t> gamma_indices = model.gamma_global_indices(0);
+  const std::vector<std::size_t> gamma_indices = model.all_gamma_global_indices();
   return random_diagonal(x, model, Q, gamma_indices, Config(config));
 }

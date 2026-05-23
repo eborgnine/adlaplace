@@ -169,22 +169,39 @@ Rcpp::S4 hessian(
 
   if (verbose) Rcpp::Rcout << "Hessian computation completed successfully" << std::endl;
 
-  static Rcpp::Environment adlaplace_ns = Rcpp::Environment::namespace_env("adlaplace");
-  static Rcpp::Function aggregate = adlaplace_ns["aggregate"];
+  static Rcpp::Function stats_aggregate =
+    Rcpp::Environment::namespace_env("stats")["aggregate"];
   static Rcpp::Function sparseMatrix =
     Rcpp::Environment::namespace_env("Matrix")["sparseMatrix"];
   const int n = static_cast<int>(Nparams);
 
-  Rcpp::List agg = aggregate(
-    Rcpp::wrap(tri_i),
-    Rcpp::wrap(tri_j),
-    Rcpp::wrap(tri_x)
-  );
+  Rcpp::IntegerVector agg_i;
+  Rcpp::IntegerVector agg_j;
+  Rcpp::NumericVector agg_x;
+  if (tri_x.empty()) {
+    agg_i = Rcpp::IntegerVector(0);
+    agg_j = Rcpp::IntegerVector(0);
+    agg_x = Rcpp::NumericVector(0);
+  } else {
+    Rcpp::DataFrame df = Rcpp::DataFrame::create(
+      Rcpp::Named("i") = Rcpp::wrap(tri_i),
+      Rcpp::Named("j") = Rcpp::wrap(tri_j),
+      Rcpp::Named("x") = Rcpp::wrap(tri_x)
+    );
+    Rcpp::DataFrame out = stats_aggregate(
+      Rcpp::Formula("x ~ i + j"),
+      Rcpp::Named("data") = df,
+      Rcpp::Named("FUN") = Rcpp::Function("sum")
+    );
+    agg_i = out["i"];
+    agg_j = out["j"];
+    agg_x = out["x"];
+  }
 
   return sparseMatrix(
-    Rcpp::Named("i") = agg["i"],
-    Rcpp::Named("j") = agg["j"],
-    Rcpp::Named("x") = agg["x"],
+    Rcpp::Named("i") = agg_i,
+    Rcpp::Named("j") = agg_j,
+    Rcpp::Named("x") = agg_x,
     Rcpp::Named("index1") = false,
     Rcpp::Named("symmetric") = true,
     Rcpp::Named("dims") = Rcpp::IntegerVector::create(n, n)

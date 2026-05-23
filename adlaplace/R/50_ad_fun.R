@@ -1,30 +1,3 @@
-#' AD function with Hessian templates attached
-#'
-#' @slot ptr Raw combined handle (\code{ad_fun_ptr}).
-#' @slot group_sparsity Per-group inner gradient sparsity patterns.
-#' @slot outer Outer Hessian template (\code{dgCMatrix}).
-#' @slot inner Inner-gamma Hessian template (\code{dgCMatrix}).
-#' @slot map_outer Outer Hessian shard map.
-#' @slot map_inner Inner Hessian shard map.
-#' @slot chol_inner Symbolic LDL factor or empty sparse matrix.
-#' @slot chol_inner_list Numeric LDL list for C++ (\code{L1}, \code{Linv}, \code{perm}, \code{perm_inv}).
-#' @slot sizes Named numeric vector \code{beta}/\code{gamma}/\code{theta}.
-#' @exportClass ad_fun
-setClass(
-  "ad_fun",
-  slots = c(
-    ptr = "ad_fun_ptr",
-    group_sparsity = "list",
-    outer = "dgCMatrix",
-    inner = "dgCMatrix",
-    map_outer = "list",
-    map_inner = "list",
-    chol_inner = "ANY",
-    chol_inner_list = "list",
-    sizes = "numeric"
-  )
-)
-
 #' @keywords internal
 new_ad_fun_from_ptr <- function(ptr) {
   if (!is(ptr, "ad_fun_ptr")) {
@@ -87,7 +60,7 @@ build_ad_fun_ptr <- function(model, config) {
     ptr <- if (identical(kind, "observations")) {
       ad_fun_ptr(config, kind, ad_name, model)
     } else if (identical(kind, "parameters")) {
-      ad_fun_ptr(config, kind, ad_name, ad_model_parameters_view(model))
+      ad_fun_ptr(config, kind, ad_name, model)
     } else if (identical(kind, "random")) {
       term_model <- random_term_model(term, model)
       precision <- random_shard_precision(term, model)
@@ -147,39 +120,3 @@ setMethod(
     ad_fun(build_ad_fun_ptr(x, config))
   }
 )
-
-#' @describeIn adlaplace_cpp Accept \code{ad_fun} S4 (uses \code{@ptr}).
-#' @export
-joint_log_dens <- function(ad_fun_ptr, x, shards = NULL, negative = TRUE) {
-  if (inherits(ad_fun_ptr, "ad_fun")) {
-    ad_fun_ptr <- ad_fun_ptr@ptr
-  }
-  .Call(`_adlaplace_joint_log_dens`, ad_fun_ptr, x, shards, negative)
-}
-
-#' @describeIn adlaplace_cpp Accept \code{ad_fun} S4 (uses \code{@ptr}).
-#' @export
-grad <- function(ad_fun_ptr, x, shards = NULL, inner = FALSE, negative = TRUE) {
-  if (inherits(ad_fun_ptr, "ad_fun")) {
-    ad_fun_ptr <- ad_fun_ptr@ptr
-  }
-  .Call(`_adlaplace_grad`, ad_fun_ptr, x, shards, inner, negative)
-}
-
-#' @describeIn adlaplace_cpp Accept \code{ad_fun} S4 (uses \code{@ptr}).
-#' @export
-hessian <- function(ad_fun_ptr, x, shards = NULL, inner = FALSE, verbose = FALSE, negative = TRUE) {
-  if (inherits(ad_fun_ptr, "ad_fun")) {
-    ad_fun_ptr <- ad_fun_ptr@ptr
-  }
-  .Call(`_adlaplace_hessian`, ad_fun_ptr, x, shards, inner, verbose, negative)
-}
-
-#' @describeIn adlaplace_cpp Accept \code{ad_fun} S4 (uses \code{@ptr}).
-#' @export
-traceHinvT <- function(ad_fun_ptr, x, LinvPt, LinvPtColumns, num_threads, shards = NULL) {
-  if (inherits(ad_fun_ptr, "ad_fun")) {
-    ad_fun_ptr <- ad_fun_ptr@ptr
-  }
-  .Call(`_adlaplace_traceHinvT`, ad_fun_ptr, x, LinvPt, LinvPtColumns, num_threads, shards)
-}

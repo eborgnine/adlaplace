@@ -36,7 +36,7 @@ config <- list(
   gamma = rep(0, nrow(model_stuff$info$gamma)),
   theta = c(log(model_stuff$info$theta$init), 1, 1), # two skew-normal parameters
   transform_theta = TRUE,
-  groups = adlaplace::adFun_groups(model_stuff$data$ATp, Ngroups = 100),
+  groups = adlaplace::ad_shards(Matrix::t(model_stuff$data$ATp), num_shards = 100),
   num_threads = 2L,
   verbose = TRUE,
   package = "adlaplaceExample"
