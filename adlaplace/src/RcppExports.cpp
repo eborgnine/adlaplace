@@ -107,6 +107,17 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// clone_ad_fun_ptr_impl
+SEXP clone_ad_fun_ptr_impl(SEXP handle);
+RcppExport SEXP _adlaplace_clone_ad_fun_ptr_impl(SEXP handleSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< SEXP >::type handle(handleSEXP);
+    rcpp_result_gen = Rcpp::wrap(clone_ad_fun_ptr_impl(handle));
+    return rcpp_result_gen;
+END_RCPP
+}
 // joint_log_dens
 double joint_log_dens(SEXP ad_fun_ptr, const Rcpp::NumericVector& x, Rcpp::Nullable<Rcpp::IntegerVector> shards, bool negative);
 RcppExport SEXP _adlaplace_joint_log_dens(SEXP ad_fun_ptrSEXP, SEXP xSEXP, SEXP shardsSEXP, SEXP negativeSEXP) {
@@ -207,6 +218,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_adlaplace_n_groups", (DL_FUNC) &_adlaplace_n_groups, 1},
     {"_adlaplace_get_sizes", (DL_FUNC) &_adlaplace_get_sizes, 2},
     {"_adlaplace_get_sparse_pattern", (DL_FUNC) &_adlaplace_get_sparse_pattern, 2},
+    {"_adlaplace_clone_ad_fun_ptr_impl", (DL_FUNC) &_adlaplace_clone_ad_fun_ptr_impl, 1},
     {"_adlaplace_joint_log_dens", (DL_FUNC) &_adlaplace_joint_log_dens, 4},
     {"_adlaplace_grad", (DL_FUNC) &_adlaplace_grad, 5},
     {"_adlaplace_hessian", (DL_FUNC) &_adlaplace_hessian, 6},

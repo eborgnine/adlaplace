@@ -85,3 +85,35 @@ c.ad_fun_ptr <- function(x, ...) {
   }
   c_ad_fun_ptr(shards)
 }
+
+#' Deep copy of an \code{ad_fun_ptr} handle
+#'
+#' Returns a new \code{ad_fun_ptr} with independent C++ state (CppAD tapes and
+#' sparsity patterns). Hessian templates are not copied; call \code{\link{ad_fun}}
+#' on the clone to attach maps. The source handle is left unchanged, unlike
+#' \code{\link{c.ad_fun_ptr}} which moves shards and clears the inputs.
+#'
+#' @param x An \code{ad_fun_ptr} object.
+#' @return A new \code{ad_fun_ptr}.
+#' @export
+clone_ad_fun_ptr <- function(x) {
+  if (!inherits(x, "ad_fun_ptr")) {
+    stop("`x` must be an ad_fun_ptr object")
+  }
+  clone_ad_fun_ptr_(x)
+}
+
+#' Deep copy (S3 generic)
+#'
+#' @param x Object to copy.
+#' @param ... Passed to methods.
+#' @export
+deepcopy <- function(x, ...) {
+  UseMethod("deepcopy")
+}
+
+#' @export
+#' @method deepcopy ad_fun_ptr
+deepcopy.ad_fun_ptr <- function(x, ...) {
+  clone_ad_fun_ptr(x)
+}

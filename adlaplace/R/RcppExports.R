@@ -92,6 +92,19 @@ get_sparse_pattern <- function(handle, group) {
     .Call(`_adlaplace_get_sparse_pattern`, handle, group)
 }
 
+#' Deep copy of an \code{ad_fun_ptr} handle
+#'
+#' Clones CppAD tapes and sparsity patterns into a new external pointer.
+#' The source handle is unchanged (unlike \code{c()} on \code{ad_fun_ptr}, which moves
+#' shards and clears sources).
+#'
+#' @param handle External pointer of class \code{ad_fun_ptr}.
+#' @return New \code{ad_fun_ptr} with independent C++ state.
+#' @keywords internal
+clone_ad_fun_ptr_ <- function(handle) {
+    .Call(`_adlaplace_clone_ad_fun_ptr_impl`, handle)
+}
+
 #' @title C++ backend entry points
 #' @name adlaplace_cpp
 #' @description Low-level C++ entry points exposed to R via Rcpp.

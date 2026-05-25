@@ -15,14 +15,29 @@ vignette: >
 This vignette is a low-level test and demonstration of the adlaplace package.
 
 
-Neg Binoma, $E(y) = \mu$, $\theta$ is size, $1/\sqrt(\theta)$ is sd of Gamma random effect
+Negative binomial with $E(y) = \mu$. We use two equivalent parameterizations: NB **size** $r$, and Gamma-mixing **standard deviation** $\theta$ (with $E[Z]=1$, $\mathrm{sd}(Z)=\theta$ in the Poisson–Gamma construction). They are linked by $r = 1/\theta^2$.
+
+**Size $r$.**
 
 $$
 \begin{aligned}
-f(y;\mu,\theta) =  & \log\Gamma(y + r) - \log\Gamma(r) - \log\Gamma(y + 1) 
-	+ r \log(\frac{r}{r + \mu})
-	+ y \log(\frac{\mu}{r + \mu}) \\
-	= &  \log\Gamma(y + r) - \log\Gamma(r) - \log\Gamma(y + 1)  + r \log r - r \log(r + \mu) + y \log(\mu) - y\log(r + \mu)
+f(y;\mu,r) =  & \log\Gamma(y + r) - \log\Gamma(r) - \log\Gamma(y + 1) 
+	+ r \log\left(\frac{r}{r + \mu}\right)
+	+ y \log\left(\frac{\mu}{r + \mu}\right) \\
+	= &  \log\Gamma(y + r) - \log\Gamma(r) - \log\Gamma(y + 1)
+	+ r \log r - r \log(r + \mu) + y \log(\mu) - y \log(r + \mu)
+\end{aligned}
+$$
+
+**SD $\theta$** ($r = 1/\theta^2$).
+
+$$
+\begin{aligned}
+f(y;\mu,\theta) =  & \log\Gamma\left(y + \theta^{-2}\right) - \log\Gamma\left(\theta^{-2}\right) - \log\Gamma(y + 1) 
+	+ \theta^{-2} \log\left(\frac{\theta^{-2}}{\theta^{-2} + \mu}\right)
+	+ y \log\left(\frac{\mu}{\theta^{-2} + \mu}\right) \\
+	= &  \log\Gamma\left(y + \theta^{-2}\right) - \log\Gamma\left(\theta^{-2}\right) - \log\Gamma(y + 1)
+	- 2 \theta^{-2} \log \theta - \theta^{-2} \log\left(\theta^{-2} + \mu\right) + y \log(\mu) - y \log\left(\theta^{-2} + \mu\right)
 \end{aligned}
 $$
 
@@ -30,13 +45,12 @@ $$
 Generate some data.
 
 ```{r theData}
-Nobs <- 2000
+Nobs <- 5000
 Nrandom1 <- 10
 Nrandom2 <- 25
 
 set.seed(0)
 X <- Matrix::Matrix(cbind(1, rbinom(Nobs, 1, prob = 0.5)))
-X <- Matrix::Matrix(nrow = Nobs, ncol = 0)
 AmatList <- list(
   r1 = Matrix::sparseMatrix(
     i = 1:Nobs,
@@ -48,15 +62,18 @@ AmatList <- list(
   )
 )
 Amat <- do.call(cbind, AmatList)
+
 beta <- rep(1, ncol(X))
-thetaOrig <- c(0.1, 0.1, 0.1)
-theta <- log(thetaOrig)
 gamma <- rnorm(ncol(Amat), sd = rep(thetaOrig[1:2], c(Nrandom1, Nrandom2)))
-eta <- as.vector(X %*% beta + Amat %*% gamma)
-etaT <- exp(eta)
-Z <- rgamma(length(etaT), 0.1^(-2), 0.1^(-2))
+
+thetaOrig <- c(0.1, 0.1, 0.2)
+theta <- log(thetaOrig)
+eta_true <- as.vector(X %*% beta + Amat %*% gamma)
+etaT <- exp(eta_true)
+Z <- rgamma(length(etaT), thetaOrig[3]^(-2), thetaOrig[3]^(-2))
 c(mean(Z), sd(Z))
 y <- rpois(length(etaT), etaT * Z)
+
 
 config <- list(
   beta = beta,
@@ -73,6 +90,7 @@ n_beta <- length(config$beta)
 n_gamma <- length(config$gamma)
 n_theta <- length(config$theta)
 ```
+
 
 Model densities are defined in `src/neg_binom.cpp` (observation and extra terms)
 and `random.cpp` (random effects).
@@ -127,6 +145,8 @@ ad_fun_r1 <- adlaplace::ad_fun_ptr(
 )
 ```
 
+
+
 ```{r adShards_random_2}
 nr2 <- ncol(AmatList$r2)
 
@@ -145,21 +165,13 @@ ad_fun_r2 <- adlaplace::ad_fun_ptr(
 )
 ```
 
-the original ad_fun are destroyed, R objects exist but point to nothing.
-```{r adShards_combined}
-ad_fun_plain <- c(ad_fun_obs, ad_fun_extra, ad_fun_r1, ad_fun_r2)
-```
 
 ```{r randomGaussianLogDens}
 # random_diagonal log-density: gamma ~ N(0, sd^2 * Q^{-1}), diagonal Q (default ones)
 precision_r1 <- list(Q = rep(1, nr1))
 xx <- c(config$beta, seq(1, length(config$gamma)), seq(1, length(config$theta)))
 
-ad_fun_r1x <- adlaplace::ad_fun_ptr(
-  config, "random", "random_diagonal", model_r1,
-  package = "adlaplace"
-)
-adlaplace::joint_log_dens(ad_fun_r1x, xx, negative = FALSE)
+adlaplace::joint_log_dens(ad_fun_r1, xx, negative = FALSE)
 
 gamma_ids <- seq.int(0L, length.out = ncol(AmatList$r1))
 varMat <- solve(diag(precision_r1$Q)) * exp(xx[1 + n_beta + n_gamma])^2
@@ -170,6 +182,45 @@ mvtnorm::dmvnorm(
   log = TRUE
 )
 ```
+
+```{r obsLogDens}
+# neg_binom_obs + neg_binom_extra (see src/neg_binom.cpp): scan overdispersion
+# theta (3rd component, log-SD scale) with beta, gamma, and other thetas fixed
+# at values used to generate the data.
+
+nb_log_dens_package <- function(log_theta) {
+  # Same parameterization as the vignette (r = 1/theta^2, mu = exp(eta)); see ?dnbinom
+  r <- exp(-2 * log_theta)
+  sum(stats::dnbinom(y, mu = exp(eta_true), size = r, log = TRUE))
+}
+
+xx <- c(beta, gamma, config$theta)
+log_theta_true <- config$theta[n_theta]
+
+ad_nb_log_dens <- function(log_theta) {
+  xx_scan <- xx
+  xx_scan[length(xx)] <- log_theta
+  adlaplace::joint_log_dens(ad_fun_obs, xx_scan, negative = FALSE) +
+    adlaplace::joint_log_dens(ad_fun_extra, xx_scan, negative = FALSE)
+}
+
+
+seq_log_theta <- log_theta_true + seq(-0.5, 0.5, len = 7)
+
+log_r_seq <- vapply(seq_log_theta, nb_log_dens, numeric(1))
+log_pkg_seq <- vapply(seq_log_theta, nb_log_dens_package, numeric(1))
+log_ad_seq <- vapply(seq_log_theta, ad_nb_log_dens, numeric(1))
+
+
+cbind(theta = exp(seq_log_theta), stats = log_pkg_seq, ad = log_ad_seq)
+```
+
+the original ad_fun are destroyed, R objects exist but point to nothing.
+```{r adShards_combined}
+ad_fun_plain <- c(ad_fun_obs, ad_fun_extra, ad_fun_r1, ad_fun_r2)
+```
+
+
 
 ```{r checkByShard}
 shards <- seq.int(from = 0, length.out = adlaplace::n_groups(ad_fun_plain))
@@ -222,6 +273,8 @@ inner_res <- adlaplace::inner_opt(
   ),
   deriv = FALSE
 )
+plot(inner_res$opt$solution, gamma)
+abline(c(0, 1), col = "red")
 ```
 
 
@@ -249,6 +302,8 @@ res1$neg_log_lik
 res2$neg_log_lik
 res2$opt$fval
 res2$grad
+plot(res2$opt$solution, gamma)
+abline(c(0, 1), col = "red")
 ```
 
 
@@ -264,6 +319,26 @@ x0 <- c(config$beta, config$theta)
 adlaplace::outer_fn(x = x0, cache = cache, config = config, ad_fun = ad_fun)
 adlaplace::outer_gr(x = x0, cache = cache, config = config, ad_fun = ad_fun)
 
+outer_fit_no_g <- stats::optim(
+  par = x0,
+  fn = adlaplace::outer_fn,
+  method = "L-BFGS-B",
+  lower = rep(-5, length(x0)),
+  upper = rep(5, length(x0)),
+  control = list(
+    maxit = 1000,
+    trace = 3,
+    REPORT = 1
+  ),
+  config = config,
+  ad_fun = ad_fun,
+  cache = cache,
+  control_inner = list(
+    maxit = 100,
+    report.level = 0,
+    report.freq = 0
+  )
+)
 outer_fit <- stats::optim(
   par = x0,
   fn = adlaplace::outer_fn,
@@ -286,7 +361,12 @@ outer_fit <- stats::optim(
   )
 )
 
-outer_fit$par
+rbind(
+  opt = outer_fit$par,
+  opt_no_g = outer_fit_no_g$par,
+  true = c(beta, log(thetaOrig))
+)
+
 exp(outer_fit$par)
 outer_fit$value
 ```
@@ -378,7 +458,7 @@ Sgamma1 <- seq.int(length(config$beta) + 1, length.out = length(config$gamma))
 
 x_here <- res_here$full_parameters
 Npar <- 13
-Dpar_dens <- length(x_here) - 2
+Dpar_dens <- length(x_here)
 if (inner) {
   Dpar_dens <- match(Dpar_dens, Sgamma1)
 }
@@ -411,8 +491,12 @@ grad1 <- mapply(
   ),
   SIMPLIFY = TRUE
 )
-plot(Sx, grad1[Dpar_dens, ], ylab = paste(Dpar_dens, "grad"))
-lines(SxD, diff(dens1) / diff(Sx))
+plot(Sx, grad1[Dpar_dens, ], ylab = paste(Dpar_dens, "grad"), type = "l")
+points(SxD, diff(dens1) / diff(Sx))
+legend("topright",
+  legend = c("autodiff", "numeric"),
+  lty = c(1, NA), pch = c(NA, 1), bty = "n"
+)
 
 
 hes1 <- mapply(
@@ -434,11 +518,13 @@ gradD <- apply(grad1, 1, diff) / mean(diff(Sx))
 
 
 for (Dpar2 in c(Dpar_dens, 1, length(x_here) - 2, length(x_here) - 1)) {
+  to_plot <- gradD[, Dpar2]
   plot(Sx, hes2[Dpar_dens, Dpar2, ],
     ylab = paste(Dpar_dens, Dpar2),
-    ylim = range(hes2[Dpar_dens, Dpar2, ], na.rm = TRUE)
+    ylim = range(c(hes2[Dpar_dens, Dpar2, ], to_plot), na.rm = TRUE),
+    type = "l"
   )
-  lines(SxD, gradD[, Dpar2])
+  points(SxD, to_plot)
 }
 ```
 

@@ -2,6 +2,7 @@
 
 #include <Rinternals.h>
 #include "adlaplace/api/register.hpp"
+#include "adlaplace/runtime/ad_fun_clone.hpp"
 #include "adlaplace/runtime/interfaces_detail.hpp"
 
 //' Build raw AD handle for observation shards only
@@ -152,4 +153,20 @@ Rcpp::List get_sizes(SEXP handle, int group) {
 Rcpp::List get_sparse_pattern(SEXP handle, int group) {
   ad_fun* groups = ad_fun_from_handle(handle);
   return sparsity_shard_from_handle(shard_handle(groups, static_cast<size_t>(group)));
+}
+
+//' Deep copy of an \code{ad_fun_ptr} handle
+//'
+//' Clones CppAD tapes and sparsity patterns into a new external pointer.
+//' The source handle is unchanged (unlike \code{c()} on \code{ad_fun_ptr}, which moves
+//' shards and clears sources).
+//'
+//' @param handle External pointer of class \code{ad_fun_ptr}.
+//' @return New \code{ad_fun_ptr} with independent C++ state.
+//' @keywords internal
+// [[Rcpp::export(name = "clone_ad_fun_ptr_")]]
+SEXP clone_ad_fun_ptr_impl(SEXP handle) {
+  ad_fun* src = ad_fun_from_handle(handle);
+  ad_fun* copy = clone_ad_fun(src);
+  return make_ad_fun_ptr(copy);
 }
