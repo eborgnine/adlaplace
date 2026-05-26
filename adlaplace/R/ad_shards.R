@@ -68,6 +68,8 @@ ad_shards <- function(A, elgm_matrix, num_shards, min_groups = 0) {
   if (inherits(ATp, "ngCMatrix")) {
     ATp <- methods::as(ATp, "dMatrix")
   }
+  # RSpectra::svds expects numeric Matrix input in a compressed sparse form.
+  ATp <- methods::as(methods::as(ATp, "dMatrix"), "CsparseMatrix")
   if (requireNamespace("RSpectra", quietly = TRUE) && (
     max(dim(ATp)) > 100
   )) {

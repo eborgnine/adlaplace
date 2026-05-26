@@ -19,23 +19,22 @@
 NULL
 
 setClass("linear",
-         representation = representation(
-         ),
-         contains = "model",
-         prototype = list(
-                    ref_value = numeric(0),
-          p.order = integer(0),
-          knots = numeric(0),
+  representation = representation(),
+  contains = "model",
+  prototype = list(
+    ref_value = numeric(0),
+    p.order = integer(0),
+    knots = numeric(0),
     type = factor("fixed", levels = .type_factor_levels),
     ad_fun = NA_character_,
-    as_kind = NA_character_
-         )
+    ad_kind = NA_character_
+  )
 )
 
 #' @export
 #' @rdname linear-class
 #' @param x Variable name (character) or symbol in a formula (e.g. \code{linear(x)} in
-#'   \code{model_setup()}).
+#'   \code{model_data()}).
 #' @param init Initial value for beta parameter (default: 0)
 #' @param lower Lower bound for beta parameter (default: -Inf)
 #' @param upper Upper bound for beta parameter (default: Inf)
@@ -46,10 +45,10 @@ setClass("linear",
 #' linear_term <- linear(x = "temperature")
 #' @export
 linear <- function(x,
-                  init = .my_beta_init,
-                  lower = .my_beta_lower,
-                  upper = .my_beta_upper,
-                  parscale = .my_beta_parscale) {
+                   init = .my_beta_init,
+                   lower = .my_beta_lower,
+                   upper = .my_beta_upper,
+                   parscale = .my_beta_parscale) {
   if (is.symbol(x) || is.name(x)) {
     x <- as.character(x)
   } else if (!is.character(x)) {
@@ -60,6 +59,7 @@ linear <- function(x,
   }
   methods::new("linear",
     term = x,
+    label = paste(x, "linear", sep = "_"),
     formula = stats::as.formula(paste0("~ 0 + ", x)),
     init = init,
     lower = lower,
@@ -72,13 +72,13 @@ linear <- function(x,
 #' @param term A linear term object
 #' @param data A data frame containing the term variable
 #' @export
-setMethod("design", "linear", function(term, data){
-    res <- Matrix::sparse.model.matrix(term@formula, data, drop.unused.levels = FALSE)
-    if (is.factor(data[[term@term]])) {
-      res <- res[, -1, drop = FALSE]
-    }
-    colnames(res) = paste0(term@term, "_linear_", colnames(res))
-    res
+setMethod("design", "linear", function(term, data) {
+  res <- Matrix::sparse.model.matrix(term@formula, data, drop.unused.levels = FALSE)
+  if (is.factor(data[[term@term]])) {
+    res <- res[, -1, drop = FALSE]
+  }
+  colnames(res) <- paste0(term@term, "_linear_", colnames(res))
+  res
 })
 
 #' @describeIn linear-class Creates precision matrix for linear term
@@ -103,8 +103,8 @@ setMethod("theta_info", "linear", function(term) {
 #' @param data A data frame containing the term variable
 #' @export
 setMethod("beta_info", "linear", function(term, data) {
-  the_colnames = colnames(design(term, data))
-  the_label = paste(term@term, "linear", sep="_")
+  the_colnames <- colnames(design(term, data))
+  the_label <- term@label
 
   result <- data.frame(
     term = term@term,

@@ -21,7 +21,7 @@ test_that("ad_fun and derivatives run on small GLMM data", {
   )
   n_beta <- length(config$beta)
   n_gamma <- length(config$gamma)
-  model <- test_ad_model(
+  model <- test_ad_data(
     y = rpois(Nobs, 2),
     A = Amat,
     X = X,
@@ -29,21 +29,16 @@ test_that("ad_fun and derivatives run on small GLMM data", {
     theta_local_row = length(config$theta) - 1L
   )
   random_shard <- test_random_shard(
-    model = model,
+    data = model,
     config = config,
     gamma_ids = seq.int(0L, length.out = ncol(Amat)),
     theta_id = 0L,
     Q = rep(1, ncol(Amat))
   )
   ad_ptr <- do.call(c, list(
-    adlaplace::ad_fun_ptr(config, "observations", "neg_binom_obs", model),
-    adlaplace::ad_fun_ptr(
-      config, "random", "random_diagonal",
-      random_shard$model, precision = random_shard$precision
-    ),
-    adlaplace::ad_fun_ptr(
-      config, "parameters", "neg_binom_extra", model
-    )
+    adlaplace::ad_fun_ptr(as_shard(model, "observations", "nbinom_obs"), config),
+    adlaplace::ad_fun_ptr(random_shard, config),
+    adlaplace::ad_fun_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
   ))
   ad_fun <- adlaplace::ad_fun(ad_ptr)
   x <- c(config$beta, config$gamma, config$theta)
@@ -69,7 +64,7 @@ test_that("ad_fun and derivatives run on small GLMM data", {
   expect_equal(inner_res$neg_log_lik, -inner_res$log_lik)
 })
 
-test_that("model_setup builds data for iwp formula", {
+test_that("model_data builds data for iwp formula", {
   skip_if_not_installed("mgcv")
   set.seed(1)
   n <- 30L
@@ -78,12 +73,13 @@ test_that("model_setup builds data for iwp formula", {
     x = runif(n),
     id = rep(1:10, each = 3L)
   )
-  model_stuff <- adlaplace::model_setup(
+  md <- adlaplace::model_data(
     data = df,
     formula = y ~ intercept() + linear(x),
     verbose = FALSE
   )
-  expect_true(is.data.frame(model_stuff@data))
-  expect_true(nrow(model_stuff@XTp) >= 1L)
-  expect_true(length(model_stuff@info$beta$init) >= 1L)
+  expect_true(is.list(md$data))
+  expect_true(length(md$observations) >= 1L)
+  expect_true(nrow(md$observations[[1]]@XTp) >= 1L)
+  expect_true(length(md$data$info$beta$init) >= 1L)
 })

@@ -18,3 +18,4 @@ List with \code{n_inner}, \code{n_outer}, \code{n_beta}, \code{n_theta},
 \description{
 Layout and sparsity sizes for one AD shard
 }
+\keyword{internal}

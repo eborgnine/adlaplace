@@ -6,8 +6,7 @@
 //' evaluates the objective, gradient, and Hessian through the pre-built AD pack
 //' (external pointer) and returns the solution along with curvature information.
 //'
-//' @param x Numeric full parameter vector of length \code{Nparams} used by
-//'   \code{all_derivs()}.
+//' @param x Numeric full parameter vector of length \code{Nparams}.
 //' @param parameters Numeric vector of fixed outer parameters
 //'   (\code{beta}, \code{theta}; length \code{Nbeta+Ntheta}) used by
 //'   \code{inner_opt()}.
@@ -22,11 +21,6 @@
 //'   inner solution; if \code{FALSE}, return inner quantities only (default).
 //'
 //' @return
-//'   \item{\code{all_derivs()}}{List with \code{fval}, \code{gradient}, and
-//'   \code{hessian} of the **negative log density** \eqn{-\ell(x)} at full
-//'   outer parameters \code{x} (minimization / \pkg{trustOptim} sign). Compare
-//'   \code{\link{joint_log_dens}}, \code{\link{grad}}, and \code{\link{hessian}}
-//'   with \code{negative=FALSE} for \eqn{\ell(x)} at the same point.}
 //'   \item{\code{inner_opt()}}{Returns \code{log_lik}, \code{neg_log_lik}
 //'   (Laplace profile likelihood and its negation), \code{fval} (inner objective:
 //'   negative log joint density at \eqn{\hat\gamma}), \code{solution},
@@ -34,13 +28,11 @@
 //'   \code{deriv=FALSE}), \code{hessian} (list \code{inner}, \code{outer},
 //'   \code{chol_inner}, \code{half_log_det}),
 //'   \code{iterations}, \code{status}, \code{trust.radius}, \code{method}.
-//'   Objective and derivatives use the same **negative log-density** convention as
-//'   \code{all_derivs()}.}
+//'   Objective and derivatives use the **negative log-density** convention.}
 //'
 //' @details
 //' This calls the sparse method from the \code{TrustOptim} package via the Cpp interface.
-//' \code{all_derivs()} and \code{inner_opt()} negate the tape log-density values in
-//' C++; use \code{negative=FALSE} on those functions for \eqn{\ell(x)}.  
+//' \code{inner_opt()} negates tape log-density values in C++ for minimization.
 //'
 //' @name innerOpt
 
@@ -154,62 +146,6 @@ struct InnerOptResult {
 	bool chol_ok = false;
 	double half_log_det = NA_REAL;
 };
-
-InnerOptResult all_derivs(
-	const std::vector<double>& x,
-	ad_fun& backend,
-	const Config& config)
-{
-	const int num_threads = config.num_threads > 0 ? config.num_threads : 1;
-
-	AD_Func_Opt funObj(
-		backend,
-		x,
-		false,           // inner=false
-		num_threads
-	);
-
-	const Eigen::Index nvars = static_cast<Eigen::Index>(funObj.get_nvars());
-	Eigen::VectorXd x_eval(nvars);
-	for (Eigen::Index d = 0; d < nvars; ++d) {
-		x_eval[d] = x[d];
-	}
-
-	double fval = NA_REAL;
-	Eigen::VectorXd grad(nvars);
-	Eigen::SparseMatrix<double> H = funObj.Htemplate.cast<double>();
-	{
-		cppad_parallel_setup(static_cast<std::size_t>(num_threads));
-		funObj.get_fdfh(x_eval, fval, grad, H);
-	}
-
-	InnerOptResult out;
-	out.fval = fval;
-	out.grad_inner = grad;
-	out.hessian_inner = H;
-	return out;
-}
-
-//' @rdname innerOpt
-//' @export
-// [[Rcpp::export]]
-Rcpp::List all_derivs(
-	const Rcpp::NumericVector& x,
-	const Rcpp::S4& ad_fun,
-	const Rcpp::List& config)
-{
-	const Config config_c(config);
-	::ad_fun* backend = resolve_ad_fun_laplace(ad_fun);
-	std::vector<double> x_vec(x.begin(), x.end());
-
-	const InnerOptResult result_c = all_derivs(x_vec, *backend, config_c);
-
-	return Rcpp::List::create(
-		Rcpp::Named("fval") = Rcpp::wrap(result_c.fval),
-		Rcpp::Named("gradient") = Rcpp::wrap(result_c.grad_inner),
-		Rcpp::Named("hessian") = eigen_to_dgCMatrix(result_c.hessian_inner)
-	);
-}
 
 InnerOptResult inner_opt(
 	const std::vector<double>& parameters,

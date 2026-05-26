@@ -3,9 +3,9 @@
 
 #include "adlaplace/api/density_registry.hpp"
 #include "adlaplace/creators/adfun_common.hpp"
-#include "adlaplace/creators/ad_model.hpp"
+#include "adlaplace/creators/ad_data.hpp"
 
-inline size_t count_obs_shards(const ad_model& model, const Rcpp::List& config) {
+inline size_t count_obs_shards(const ad_data& model, const Rcpp::List& config) {
   const Config cfg(config);
   size_t ng = cfg.shards.ncol();
   if (ng == 0) {
@@ -19,7 +19,7 @@ inline size_t count_obs_shards(const ad_model& model, const Rcpp::List& config) 
 }
 
 inline std::vector<GroupPack> build_ad_fun_obs(
-  const ad_model& model,
+  const ad_data& model,
   const Rcpp::List& config,
   const std::string& obs_name) {
 

@@ -7,11 +7,11 @@
 get_ad_fun_raw_obs(model, config, name)
 }
 \arguments{
-\item{model}{An \code{ad_model} S4 object.}
+\item{model}{An \code{ad_data} S4 object.}
 
 \item{config}{Model configuration list.}
 
-\item{name}{Registered observation density name (e.g. \code{"neg_binom_obs"}).}
+\item{name}{Registered observation density name (e.g. \code{"nbinom_obs"}).}
 }
 \value{
 External pointer of class \code{ad_fun_ptr}.

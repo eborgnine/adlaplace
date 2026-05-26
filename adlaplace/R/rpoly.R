@@ -20,17 +20,17 @@
 NULL
 
 setClass("rpoly",
-         slots = list(
-           sd = "numeric"
-         ),
-         contains = "model",
-         prototype = prototype(
-           knots = numeric(0),
-           sd = numeric(0),
-           type = factor("random", levels = .type_factor_levels),
-           ad_fun = "random_diagonal",
-           as_kind = "random"
-         )
+  slots = list(
+    sd = "numeric"
+  ),
+  contains = "model",
+  prototype = prototype(
+    knots = numeric(0),
+    sd = numeric(0),
+    type = factor("random", levels = .type_factor_levels),
+    ad_fun = "random_diagonal",
+    ad_kind = "random"
+  )
 )
 
 #' @rdname rpoly-class
@@ -55,7 +55,8 @@ rpoly <- function(x, p = 2, ref_value = 0, sd = Inf) {
 
   methods::new("rpoly",
     term = x,
-    formula = stats::as.formula(paste0("~ 0 + ", x), env=new.env()),
+    label = paste(x, "rpoly", sep = "_"),
+    formula = stats::as.formula(paste0("~ 0 + ", x), env = new.env()),
     p.order = as.integer(p),
     ref_value = ref_value,
     sd = rep_len(sd, p)
@@ -87,7 +88,7 @@ setMethod("design", "rpoly", function(term, data) {
     raw = TRUE
   )
   D <- D[, 1:ncol(D), drop = FALSE]
-  
+
   colnames(D) <- paste0(term@term, "_rpoly_", seq.int(1, length.out = term@p.order))
   D
 })
@@ -101,16 +102,19 @@ setMethod("precision", "rpoly", function(term, data) {
   if (term@p.order == 0) {
     return(NULL)
   }
-  
+  if (any(term@sd == Inf)) {
+    return(NULL)
+  }
+
   # Create precision matrix based on standard deviation
   p <- term@p.order
   sd_values <- rep_len(term@sd, p)
-  
+
   # For random effects, we typically use identity matrix scaled by 1/sd^2
-  precision_mat <- Matrix::Diagonal(n = p, x = 1 / (sd_values^2) )
-  dimnames(precision_mat) = list(
-     paste0(term@term, "_rpoly_", seq.int(1, length.out = term@p.order))
-  )[c(1,1)]
+  precision_mat <- Matrix::Diagonal(n = p, x = 1 / (sd_values^2))
+  dimnames(precision_mat) <- list(
+    paste0(term@term, "_rpoly_", seq.int(1, length.out = term@p.order))
+  )[c(1, 1)]
   return(precision_mat)
 })
 
@@ -123,20 +127,20 @@ setMethod("random_info", "rpoly", function(term, data) {
   if (term@p.order == 0) {
     return(NULL)
   }
-  
-  the_label <- paste(term@term, "rpoly", sep = "_")
+
+  the_label <- term@label
   the_colnames <- paste0(the_label, "_", seq.int(1, length.out = term@p.order))
-  
+
   result <- data.frame(
     term = term@term,
     model = "rpoly",
     label = the_label,
-    by = NA, by_labels = NA, 
-    basis = NA, 
+    by = NA, by_labels = NA,
+    basis = NA,
     order = seq.int(1, term@p.order),
     gamma_label = the_colnames
   )
-  
+
   return(result)
 })
 
@@ -149,4 +153,3 @@ setMethod("beta_info", "rpoly", function(term, data) {
   # Random polynomial terms don't have beta info
   return(NULL)
 })
-

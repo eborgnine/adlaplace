@@ -48,8 +48,7 @@ traceHinvT(ad_fun_ptr, x, LinvPt, LinvPtColumns, num_threads, shards = NULL)
 
 \item{negative}{Logical (default \code{TRUE}). If \code{TRUE}, return the
 **negative** log density \eqn{-\ell(x)} and its derivatives (minimization /
-\pkg{trustOptim} sign, consistent with \code{inner_opt()} and
-\code{all_derivs()}). If \code{FALSE}, return \eqn{\ell(x)}, \eqn{\nabla\ell},
+\pkg{trustOptim} sign, consistent with \code{inner_opt()}). If \code{FALSE}, return \eqn{\ell(x)}, \eqn{\nabla\ell},
 and \eqn{\nabla^2\ell}.}
 
 \item{inner}{Logical scalar for inner-\eqn{\gamma} vs outer derivatives.}
@@ -82,7 +81,7 @@ Low-level C++ entry points exposed to R via Rcpp.
 \section{Sign convention}{
 
 With default \code{negative = TRUE}, \code{joint_log_dens()}, \code{grad()},
-and \code{hessian()} match \code{all_derivs()} and \code{inner_opt()} (negative
+and \code{hessian()} match \code{inner_opt()} (negative
 log-density). Set \code{negative = FALSE} for the joint log density and its
 derivatives at the same \code{x}.
 }

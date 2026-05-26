@@ -24,13 +24,14 @@ setClass("intercept",
   contains = "model",
   prototype = list(
     term = "intercept",
+    label = "intercept",
     formula = . ~ 1,
     ref_value = numeric(0),
     p.order = integer(0),
     knots = numeric(0),
     type = factor("fixed", levels = .type_factor_levels),
     ad_fun = NA_character_,
-    as_kind = NA_character_
+    ad_kind = NA_character_
   )
 )
 
@@ -50,6 +51,7 @@ intercept <- function(init = .my_beta_init,
                       upper = .my_beta_upper,
                       parscale = .my_beta_parscale) {
   methods::new("intercept",
+    label = "intercept",
     init = init,
     lower = lower,
     upper = upper,
@@ -93,7 +95,7 @@ setMethod("beta_info", "intercept", function(term, data) {
   data.frame(
     term = "intercept",
     model = "intercept",
-    label = "intercept",
+    label = term@label,
     order = NA,
     beta_label = "intercept",
     init = term@init,

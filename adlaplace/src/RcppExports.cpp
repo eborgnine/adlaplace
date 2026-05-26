@@ -24,13 +24,13 @@ BEGIN_RCPP
 END_RCPP
 }
 // get_ad_fun_raw_random
-SEXP get_ad_fun_raw_random(SEXP model, Rcpp::List precision, Rcpp::List config, std::string name);
+SEXP get_ad_fun_raw_random(SEXP model, SEXP precision, Rcpp::List config, std::string name);
 RcppExport SEXP _adlaplace_get_ad_fun_raw_random(SEXP modelSEXP, SEXP precisionSEXP, SEXP configSEXP, SEXP nameSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< SEXP >::type model(modelSEXP);
-    Rcpp::traits::input_parameter< Rcpp::List >::type precision(precisionSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type precision(precisionSEXP);
     Rcpp::traits::input_parameter< Rcpp::List >::type config(configSEXP);
     Rcpp::traits::input_parameter< std::string >::type name(nameSEXP);
     rcpp_result_gen = Rcpp::wrap(get_ad_fun_raw_random(model, precision, config, name));
@@ -163,19 +163,6 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
-// all_derivs
-Rcpp::List all_derivs(const Rcpp::NumericVector& x, const Rcpp::S4& ad_fun, const Rcpp::List& config);
-RcppExport SEXP _adlaplace_all_derivs(SEXP xSEXP, SEXP ad_funSEXP, SEXP configSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const Rcpp::NumericVector& >::type x(xSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::S4& >::type ad_fun(ad_funSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::List& >::type config(configSEXP);
-    rcpp_result_gen = Rcpp::wrap(all_derivs(x, ad_fun, config));
-    return rcpp_result_gen;
-END_RCPP
-}
 // inner_opt
 Rcpp::List inner_opt(const Rcpp::NumericVector parameters, const Rcpp::NumericVector gamma, const Rcpp::List& config, const Rcpp::S4& ad_fun, const Rcpp::List& control, bool deriv);
 RcppExport SEXP _adlaplace_inner_opt(SEXP parametersSEXP, SEXP gammaSEXP, SEXP configSEXP, SEXP ad_funSEXP, SEXP controlSEXP, SEXP derivSEXP) {
@@ -222,7 +209,6 @@ static const R_CallMethodDef CallEntries[] = {
     {"_adlaplace_joint_log_dens", (DL_FUNC) &_adlaplace_joint_log_dens, 4},
     {"_adlaplace_grad", (DL_FUNC) &_adlaplace_grad, 5},
     {"_adlaplace_hessian", (DL_FUNC) &_adlaplace_hessian, 6},
-    {"_adlaplace_all_derivs", (DL_FUNC) &_adlaplace_all_derivs, 3},
     {"_adlaplace_inner_opt", (DL_FUNC) &_adlaplace_inner_opt, 6},
     {"_adlaplace_traceHinvT", (DL_FUNC) &_adlaplace_traceHinvT, 6},
     {NULL, NULL, 0}

@@ -7,10 +7,12 @@
 ad_fun(x, config = NULL, ...)
 }
 \arguments{
-\item{x}{An \code{ad_fun_ptr} or \code{ad_model}.}
+\item{x}{One of: an \code{ad_fun_ptr}, an \code{ad_data} shard with
+\code{ad_kind}/\code{ad_fun} set, or a \code{model_data()} bundle (list
+with \code{observations}, \code{random}, \code{parameters}).}
 
-\item{config}{Model configuration list. Required for \code{ad_model}; unused
-for \code{ad_fun_ptr} (layout sizes come from the handle).}
+\item{config}{Model configuration list. Required for \code{ad_data} and
+\code{model_data}; unused for \code{ad_fun_ptr}.}
 
 \item{...}{Unused.}
 }

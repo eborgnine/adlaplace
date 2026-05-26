@@ -16,19 +16,19 @@ if (requireNamespace("mgcv", quietly = TRUE)) {
 
 ## ---------------------------------------------------------------------------------------------------------------------------------------------------
 if (requireNamespace("mgcv", quietly = TRUE)) {
-  model_stuff <- adlaplace::model_setup(
+  md <- adlaplace::model_data(
     data = dat,
     formula = y ~ x1 + f(x2, model = "iwp", p = 2, knots = seq(0, 1, len = 11)) +
       f(fac, model = "iid") + f(model = "overdispersion", lower = 1e-9)
   )
 
   config <- list(
-    beta = model_stuff$info$beta$init,
-    gamma = rep(0, nrow(model_stuff$info$gamma)),
-    theta = log(model_stuff$info$theta$init),
+    beta = md$info$beta$init,
+    gamma = rep(0, nrow(md$info$gamma)),
+    theta = log(md$info$theta$init),
     transform_theta = TRUE,
     shards = adlaplace::ad_shards(
-      Matrix::t(model_stuff@ATp), num_shards = 100
+      Matrix::t(md$shards$parent@ATp), num_shards = 100
     ),
     num_threads = 2L,
     verbose = TRUE,
@@ -36,7 +36,7 @@ if (requireNamespace("mgcv", quietly = TRUE)) {
   )
 
 
-  ad_fun <- adlaplace::ad_fun(model_stuff, config)
+  ad_fun <- adlaplace::ad_fun(md$shards$parent, config)
   res <- adlaplace::log_lik_laplace(
     x = c(config$beta, config$theta),
     ad_fun = ad_fun,
@@ -51,7 +51,7 @@ if (requireNamespace("mgcv", quietly = TRUE)) {
 
 ## ----trustOptimOuterWrappers------------------------------------------------------------------------------------------------------------------------
 if (requireNamespace("mgcv", quietly = TRUE)) {
-  theta_for_opt <- model_stuff$info$theta
+  theta_for_opt <- md$info$theta
   to_transform <- c("init", "lower", "upper")
   theta_for_opt[, to_transform] <- log(theta_for_opt[, to_transform])
 
@@ -59,13 +59,13 @@ if (requireNamespace("mgcv", quietly = TRUE)) {
 
   config$opt <- as.list(
     rbind(
-      model_stuff$info$beta[, to_keep],
+      md$info$beta[, to_keep],
       theta_for_opt[, to_keep]
     )
   )
 
   cache <- new.env(parent = emptyenv())
-  cache$gamma <- rep(0, nrow(model_stuff$info$gamma))
+  cache$gamma <- rep(0, nrow(md$info$gamma))
 
   x0 <- config$opt$init
 

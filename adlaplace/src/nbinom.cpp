@@ -1,10 +1,10 @@
 #include "adlaplace/adlaplace.hpp"
 #include "adlaplace/math/lgamma.hpp"
-#include "adlaplace/densities/neg_binom.hpp"
+#include "adlaplace/densities/nbinom.hpp"
 
-CppAD::vector<CppAD::AD<double>> neg_binom_obs(
+CppAD::vector<CppAD::AD<double>> nbinom_obs(
   const CppAD::vector<CppAD::AD<double>>& x,
-  const ad_model& model,
+  const ad_data& model,
   const Rcpp::List& config_list,
   const size_t Dgroup) {
 
@@ -57,9 +57,9 @@ CppAD::vector<CppAD::AD<double>> neg_binom_obs(
   return result;
 }
 
-CppAD::vector<CppAD::AD<double>> neg_binom_extra(
+CppAD::vector<CppAD::AD<double>> nbinom_extra(
   const CppAD::vector<CppAD::AD<double>>& x,
-  const ad_model& model,
+  const ad_data& model,
   const Rcpp::List& config_list) {
 
   const Config config(config_list);

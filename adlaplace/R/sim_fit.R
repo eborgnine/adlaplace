@@ -5,7 +5,7 @@
 #' (\eqn{\gamma}) contributions from each model term.
 #'
 #' @param x Data frame of prediction covariates (same variables as the fitted model).
-#' @param model Object returned by \code{\link{model_setup}}.
+#' @param data Object returned by \code{\link{model_data}}.
 #' @param fit Result from \code{\link{log_lik_laplace}} at the fitted outer parameters.
 #' @param n Number of draws for random-effect simulation.
 #'
@@ -20,7 +20,7 @@
 #' }
 #'
 #' @export
-sim_fit <- function(x, model, fit, n = 500L) {
+sim_fit <- function(x, data, fit, n = 500L) {
   gamma_sims <- rmvnldl(
     n,
     mean = fit$opt$solution,
@@ -29,8 +29,18 @@ sim_fit <- function(x, model, fit, n = 500L) {
   n_draws <- nrow(gamma_sims)
   n_grid <- nrow(x)
 
+  if (is_model_data_bundle(data)) {
+    info <- data$data$info
+    term_list <- data$data$terms
+  } else if (is(data, "ad_data") && is.list(data@precision) && !is.null(data@precision$info)) {
+    info <- data@precision$info
+    term_list <- list()
+  } else {
+    stop("`data` must be output from model_data()", call. = FALSE)
+  }
+
   design_list <- lapply(
-    model$terms,
+    term_list,
     function(term) {
       if (!any(term@term %in% names(x))) {
         return(NULL)
@@ -39,7 +49,7 @@ sim_fit <- function(x, model, fit, n = 500L) {
       if (!is.null(beta_here)) {
         if (any(beta_here$term %in% names(x))) {
           design_here <- design(term, data = x)
-          par_id <- which(model$info$parameters$label == beta_here$label)
+          par_id <- which(info$parameters$label == beta_here$label)
           return(
             as.matrix(
               design_here[, beta_here$beta_label, drop = FALSE] %*%
@@ -54,7 +64,7 @@ sim_fit <- function(x, model, fit, n = 500L) {
         if (any(gamma_here$term %in% names(x))) {
           gamma_here_id <- match(
             gamma_here$gamma_label,
-            model$info$gamma$gamma_label
+            info$gamma$gamma_label
           )
           if (any(is.na(gamma_here_id))) {
             warning("no match for labels: ", gamma_here$label[1])

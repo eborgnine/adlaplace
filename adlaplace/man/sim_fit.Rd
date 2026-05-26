@@ -4,12 +4,12 @@
 \alias{sim_fit}
 \title{Simulate linear predictors on a new covariate grid}
 \usage{
-sim_fit(x, model, fit, n = 500L)
+sim_fit(x, data, fit, n = 500L)
 }
 \arguments{
 \item{x}{Data frame of prediction covariates (same variables as the fitted model).}
 
-\item{model}{Object returned by \code{\link{model_setup}}.}
+\item{data}{Object returned by \code{\link{model_data}}.}
 
 \item{fit}{Result from \code{\link{log_lik_laplace}} at the fitted outer parameters.}
 

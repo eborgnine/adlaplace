@@ -1,22 +1,21 @@
-#' Create Model Terms
+#' Create a model term via a constructor
 #'
-#' @description
-#' Creates model terms for use in hierarchical models.
-#'
-#' @param x Variable name (or expression)
-#' @param model Model type (e.g., "iid", "iwp", "fpoly", etc.)
-#' @param ... Additional arguments passed to the model constructor
-#'
-#' @return A model term object
-#'
-#' @examples
-#' # Create an IWP term
-#' term <- f(x = 0:10, model = "iwp", ref_value = 5, knots = seq(0, 10, 2))
-#'
+#' @param x Variable name (or expression).
+#' @param model Model type (e.g., \code{"iid"}, \code{"iwp"}, \code{"nbinom"}).
+#' @param ... Passed to the model constructor.
+#' @return A model term object.
 #' @export
+#' @examples
+#' term <- f(x = 0:10, model = "iwp", ref_value = 5, knots = seq(0, 10, 2))
 f <- function(x, model = "iid", ...) {
-  x_str <- deparse(substitute(x))
-  model_fun <- get(model, envir = parent.frame(), mode = "function")
+  x_str <- strip_term_name(as.character(substitute(x)))
+  model_fun <- if (exists(model, envir = parent.frame(), mode = "function", inherits = TRUE)) {
+    get(model, envir = parent.frame(), mode = "function", inherits = TRUE)
+  } else if (exists(model, envir = asNamespace("adlaplace"), mode = "function")) {
+    get(model, envir = asNamespace("adlaplace"), mode = "function")
+  } else {
+    stop("model constructor '", model, "' not found", call. = FALSE)
+  }
   model_fun(x_str, ...)
 }
 
@@ -27,7 +26,7 @@ f <- function(x, model = "iid", ...) {
 #'
 #' @param formula Model formula containing f() calls (e.g. \code{f(x, model = "iwp")},
 #'   \code{linear(x)}). Symbols such as \code{x} refer to column names in
-#'   \code{data} passed to \code{model_setup()}, not objects in the calling environment.
+#'   \code{data} passed to \code{model_data()}, not objects in the calling environment.
 #' @param package Character vector of package names to search for model constructors
 #' @param verbose print extra information
 #' @return List of model term objects
@@ -36,13 +35,29 @@ f <- function(x, model = "iid", ...) {
 #' terms <- collect_terms(y ~ f(x, model = "iwp"))
 #'
 #' @keywords internal
-coerce_term_call_symbols <- function(expr) {
+strip_term_name <- function(x) {
+  x <- as.character(x)
+  gsub("^\"|\"$", "", x)
+}
+
+
+#' @keywords internal
+coerce_term_call_symbols <- function(expr, inside_f = FALSE) {
   if (is.symbol(expr) || is.name(expr)) {
+    if (inside_f) {
+      return(as.character(expr))
+    }
     return(call("linear", as.character(expr)))
   }
   if (!is.call(expr)) {
     return(expr)
   }
+  fn <- expr[[1L]]
+  is_f <- identical(fn, as.name("f")) ||
+    (is.call(fn) &&
+      identical(fn[[1L]], quote(`::`)) &&
+      length(fn) == 3L &&
+      identical(fn[[3L]], as.name("f")))
   args <- as.list(expr)
   for (i in seq_along(args)) {
     if (i == 1L) {
@@ -50,9 +65,11 @@ coerce_term_call_symbols <- function(expr) {
     }
     a <- args[[i]]
     if (is.symbol(a) || is.name(a)) {
-      args[[i]] <- as.character(a)
+      if (is_f || i == 2L) {
+        args[[i]] <- as.character(a)
+      }
     } else if (is.call(a)) {
-      args[[i]] <- coerce_term_call_symbols(a)
+      args[[i]] <- coerce_term_call_symbols(a, inside_f = is_f)
     }
   }
   as.call(args)
@@ -82,7 +99,7 @@ collect_terms <- function(
     warning("formula must be of class formula")
   }
   model_package <- unique(c(package, "adlaplace"))
-  term_labels <- attr(stats::terms(formula), "term.labels")
+  source_formula <- formula
 
   # Ensure packages are loaded
   pkg_env <- list()
@@ -93,6 +110,7 @@ collect_terms <- function(
     pkg_env[[pkg]] <- asNamespace(pkg)
   }
 
+  term_labels <- rownames(attr(stats::terms(formula), "factors")) # attr(stats::terms(formula), "term.labels")
 
   terms_1 <- lapply(term_labels, function(lab) {
     term_obj <- eval_term_label(lab, pkg_env)
@@ -131,9 +149,5 @@ collect_terms <- function(
     terms_1$intercept <- intercept()
   }
 
-  outcome_var <- all.vars(formula)[1]
-  terms_1$response <- response(outcome_var)
-
   terms_1
 }
-

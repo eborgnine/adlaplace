@@ -4,27 +4,28 @@
 \alias{ad_fun_ptr}
 \title{Build raw AD handle for one density shard}
 \usage{
-ad_fun_ptr(config, kind, name, model, precision = NULL, package = "adlaplace")
+ad_fun_ptr(data, config)
 }
 \arguments{
-\item{config}{Model configuration list (\code{beta}, \code{gamma}, \code{theta}, etc.).}
+\item{data}{An \code{ad_data} object with \code{ad_kind} and \code{ad_fun}
+slots set.}
 
-\item{kind}{\code{"observations"}, \code{"parameters"}, or \code{"random"}.}
-
-\item{name}{Registered density name.}
-
-\item{model}{An \code{ad_model} object.}
-
-\item{precision}{For \code{kind = "random"}, list with \code{Q}. For
-\code{random_diagonal}, \code{Q} defaults to \code{rep(1, ncol(gamma_map))}
-when omitted.}
-
-\item{package}{Backend package (currently only \code{"adlaplace"}).}
+\item{config}{Model configuration list (\code{beta}, \code{gamma},
+\code{theta}, etc.).}
 }
 \value{
 External pointer of class \code{ad_fun_ptr}.
 }
 \description{
-Constructs CppAD tapes for a single shard. Merge shards with \code{c()} before
-calling \code{\link{ad_fun}}.
+Constructs CppAD tapes for a single shard. The density kind and name come
+from \code{data@ad_kind} and \code{data@ad_fun}. For \code{ad_kind = "random"},
+\code{data@precision} is passed straight to the backend. For
+\code{random_diagonal} it must be a numeric vector of diagonal precision
+weights with \code{length == ncol(gamma_map)}. Missing precision means the
+shard is not built (e.g. diffuse \code{rpoly} with \code{sd = Inf} via
+\code{model_data()}); calling \code{ad_fun_ptr()} without it is an error.
+}
+\details{
+Merge handles for multiple shards with \code{c()} before calling
+\code{\link{ad_fun}}.
 }

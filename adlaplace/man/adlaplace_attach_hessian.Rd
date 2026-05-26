@@ -14,3 +14,4 @@ adlaplace_attach_hessian(handle, hessian_pack)
 \description{
 Copies outer/inner templates and maps into the C++ \code{ad_fun} handle.
 }
+\keyword{internal}

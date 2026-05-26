@@ -2,25 +2,23 @@
 % Please edit documentation in R/effects.R
 \name{f}
 \alias{f}
-\title{Create Model Terms}
+\title{Create a model term via a constructor}
 \usage{
 f(x, model = "iid", ...)
 }
 \arguments{
-\item{x}{Variable name (or expression)}
+\item{x}{Variable name (or expression).}
 
-\item{model}{Model type (e.g., "iid", "iwp", "fpoly", etc.)}
+\item{model}{Model type (e.g., \code{"iid"}, \code{"iwp"}, \code{"nbinom"}).}
 
-\item{...}{Additional arguments passed to the model constructor}
+\item{...}{Passed to the model constructor.}
 }
 \value{
-A model term object
+A model term object.
 }
 \description{
-Creates model terms for use in hierarchical models.
+Create a model term via a constructor
 }
 \examples{
-# Create an IWP term
 term <- f(x = 0:10, model = "iwp", ref_value = 5, knots = seq(0, 10, 2))
-
 }

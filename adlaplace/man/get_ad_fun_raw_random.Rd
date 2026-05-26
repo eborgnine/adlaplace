@@ -7,9 +7,9 @@
 get_ad_fun_raw_random(model, precision, config, name)
 }
 \arguments{
-\item{model}{An \code{ad_model} S4 object (maps for the term).}
+\item{model}{An \code{ad_data} S4 object (maps for the term).}
 
-\item{precision}{Precision list (\code{Q} vector for \code{random_diagonal}).}
+\item{precision}{Numeric vector of diagonal precision weights (required).}
 
 \item{config}{Model configuration list.}
 

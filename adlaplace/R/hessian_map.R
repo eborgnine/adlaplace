@@ -13,8 +13,8 @@
 #'   \code{perm} (1-based, as \code{Matrix::Cholesky@perm}),
 #'   \code{perm_inv} (0-based)), optional \code{chol_inner} (\code{dCHMsimpl}
 #'   for R), \code{map_outer}, \code{map_inner}, and \code{sizes} (named
-#'   \code{beta}/\code{gamma}/\code{theta}; suitable for
-#'   \code{adlaplace_attach_hessian()}).
+#'   \code{beta}/\code{gamma}/\code{theta}; consumed internally by
+#'   \code{ad_fun()}).
 #'
 #' @export
 hessian_map <- function(sparsity_list, Nbeta, Ngamma, Ntheta) {
@@ -178,8 +178,8 @@ hessian_map <- function(sparsity_list, Nbeta, Ngamma, Ntheta) {
   }
 
   list(
-    outer = methods::as(methods::as(hessian_outer, "generalMatrix"), "dgCMatrix"),
-    inner = methods::as(methods::as(hessian_inner, "generalMatrix"), "dgCMatrix"),
+    outer = as_dgC(hessian_outer),
+    inner = as_dgC(hessian_inner),
     chol_inner = chol_inner,
     chol_inner_list = chol_inner_list,
     map_outer = result_map$outer,

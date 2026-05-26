@@ -15,6 +15,8 @@ and \code{by_labels} slots.
 \describe{
 \item{\code{term}}{Character vector of length 1, the term name}
 
+\item{\code{label}}{Character scalar term label reused across metadata builders.}
+
 \item{\code{formula}}{Formula object for the term}
 
 \item{\code{knots}}{Numeric vector of knot locations (for spline terms)}
@@ -36,7 +38,7 @@ and \code{by_labels} slots.
 \item{\code{ad_fun}}{Registered AD density name for \code{ad_fun_ptr()}, or \code{NA}
 when the term does not map to a density shard.}
 
-\item{\code{as_kind}}{Shard kind passed to \code{ad_fun_ptr()} (\code{"observations"},
+\item{\code{ad_kind}}{Shard kind passed to \code{ad_fun_ptr()} (\code{"observations"},
 \code{"parameters"}, \code{"random"}, or \code{NA}).}
 }}
 

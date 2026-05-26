@@ -33,7 +33,7 @@ setClass("fpoly",
            parscale = numeric(0),
            type = factor("fixed", levels = .type_factor_levels),
            ad_fun = NA_character_,
-           as_kind = NA_character_
+           ad_kind = NA_character_
          )
 )
 
@@ -60,6 +60,7 @@ fpoly <- function(x, p = 2, ref_value = 0,
                   parscale = .my_beta_parscale) {
   methods::new("fpoly",
     term = x,
+    label = paste(x, "fpoly", sep = "_"),
     formula = stats::as.formula(paste0("~ 0 + ", x), env = new.env()),
     p.order = as.integer(p),
     ref_value = ref_value,
@@ -117,7 +118,7 @@ setMethod("theta_info", "fpoly", function(term) {
 #' @return A data frame containing beta parameter information for the fixed polynomial term.
 setMethod("beta_info", "fpoly", function(term, data) {
   the_colnames <- colnames(design(term, data))
-  the_label <- paste(term@term, "fpoly", sep = "_")
+  the_label <- term@label
 
   result <- data.frame(
     term = term@term,

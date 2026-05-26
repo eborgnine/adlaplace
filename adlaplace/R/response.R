@@ -45,9 +45,11 @@ setClass("response",
 #' print(response_term)
 #' @export
 response <- function(x) {
+  x_chr <- as.character(x)
   methods::new("response",
-    term = as.character(x),
-    formula = stats::as.formula(paste(x, "~."), env=new.env())
+    term = x_chr,
+    label = x_chr,
+    formula = stats::as.formula(paste(x_chr, "~."), env=new.env())
   )
 }
 

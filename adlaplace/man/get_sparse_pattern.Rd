@@ -17,3 +17,4 @@ List with \code{grad}, \code{grad_inner}, \code{row_hess}, \code{col_hess}, etc.
 \description{
 Sparse index patterns for one AD shard
 }
+\keyword{internal}

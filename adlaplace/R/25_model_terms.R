@@ -27,6 +27,7 @@ setClass(
 #' (either \code{character} or \code{by_group} type) and optionally \code{by_levels}
 #' and \code{by_labels} slots.
 #' @slot term Character vector of length 1, the term name
+#' @slot label Character scalar term label reused across metadata builders.
 #' @slot formula Formula object for the term
 #' @slot knots Numeric vector of knot locations (for spline terms)
 #' @slot ref_value Numeric reference value for centering
@@ -38,13 +39,14 @@ setClass(
 #' @slot type Factor indicating term type ("fixed", "random", or "response")
 #' @slot ad_fun Registered AD density name for \code{ad_fun_ptr()}, or \code{NA}
 #'   when the term does not map to a density shard.
-#' @slot as_kind Shard kind passed to \code{ad_fun_ptr()} (\code{"observations"},
+#' @slot ad_kind Shard kind passed to \code{ad_fun_ptr()} (\code{"observations"},
 #'   \code{"parameters"}, \code{"random"}, or \code{NA}).
 #' @exportClass model
 setClass(
   "model",
   slots = list(
     term = "character",
+    label = "character",
     formula = "formula",
     knots = "numeric",
     ref_value = "numeric",
@@ -55,10 +57,11 @@ setClass(
     parscale = "numeric",
     type = "factor",
     ad_fun = "character",
-    as_kind = "character"
+    ad_kind = "character"
   ),
   prototype = prototype(
     term = character(0),
+    label = character(0),
     formula = formula(),
     knots = numeric(0),
     ref_value = numeric(0),
@@ -69,7 +72,7 @@ setClass(
     parscale = numeric(0),
     type = factor("fixed", levels = .type_factor_levels),
     ad_fun = NA_character_,
-    as_kind = NA_character_
+    ad_kind = NA_character_
   )
 )
 

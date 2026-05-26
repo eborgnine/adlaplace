@@ -5,23 +5,23 @@
 #include <cppad/cppad.hpp>
 #include <string>
 
-#include "adlaplace/creators/ad_model.hpp"
+#include "adlaplace/creators/ad_data.hpp"
 
 using LogDensObsFn = CppAD::vector<CppAD::AD<double>> (*)(
   const CppAD::vector<CppAD::AD<double>>& x,
-  const ad_model& model,
+  const ad_data& model,
   const Rcpp::List& config,
   size_t Dgroup);
 
 using LogDensSingleDataFn = CppAD::vector<CppAD::AD<double>> (*)(
   const CppAD::vector<CppAD::AD<double>>& x,
-  const ad_model& model,
+  const ad_data& model,
   const Rcpp::List& config);
 
 using LogDensSingleRandomDiagFn = CppAD::vector<CppAD::AD<double>> (*)(
   const CppAD::vector<CppAD::AD<double>>& x,
-  const ad_model& model,
-  const Rcpp::List& precision,
+  const ad_data& model,
+  SEXP precision,
   const Rcpp::List& config);
 
 void register_log_dens_obs(const std::string& name, LogDensObsFn fn);

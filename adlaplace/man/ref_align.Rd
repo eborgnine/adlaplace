@@ -22,6 +22,7 @@ are aligned with the actual knot positions.
 \examples{
 # Align reference value to nearest knot
 knots <- c(10, 20, 30, 40, 50)
-ref_align(23, knots)  # Returns 20
+ref_align(23, knots) # Returns 20
 
 }
+\keyword{internal}

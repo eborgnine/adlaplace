@@ -42,7 +42,7 @@ setClass("hrpoly",
            knots = numeric(0),
            type = factor("random", levels = .type_factor_levels),
            ad_fun = "random_diagonal",
-           as_kind = "random"
+           ad_kind = "random"
          )
 )
 
@@ -92,6 +92,7 @@ hrpoly <- function(
 
   methods::new("hrpoly",
     term = x,
+    label = paste(c(x, "hrpoly", p), collapse = "_"),
     formula = stats::as.formula(paste0("~ 0 + ", x), env = new.env()),
     p.order = as.integer(p),
     ref_value = ref_value,
@@ -115,6 +116,7 @@ setMethod("design", "hrpoly", function(term, data) {
   # Create an rpoly version of the term (without by slot)
   rpoly_term <- methods::new("rpoly",
     term = term@term,
+    label = paste(term@term, "rpoly", sep = "_"),
     formula = term@formula,
     p.order = term@p.order,
     ref_value = term@ref_value,
@@ -176,7 +178,7 @@ setMethod("precision", "hrpoly", function(term, data) {
 setMethod("theta_info", "hrpoly", function(term) {
   result <- data.frame(
     term = term@term, model = "hrpoly", 
-    label = paste(c(term@term, "hrpoly", term@p.order), collapse = "_"),
+    label = term@label,
     init = term@init,
     lower = term@lower,
     upper = term@upper,
@@ -207,7 +209,7 @@ setMethod("random_info", "hrpoly", function(term, data) {
   result <- expand.grid(
     term = term@term,
     model = "hrpoly",
-    label = paste(c(term@term, "hrpoly", term@p.order), collapse = "_"),
+    label = term@label,
     by = term@by@levels,
     basis = basis,
     order = term@p.order,

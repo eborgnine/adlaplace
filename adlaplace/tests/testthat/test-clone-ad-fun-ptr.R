@@ -15,13 +15,13 @@ test_that("clone_ad_fun_ptr matches joint_log_dens on source", {
     shards = adlaplace::ad_shards(Amat, num_shards = 4L),
     verbose = FALSE
   )
-  model <- test_ad_model(
+  model <- test_ad_data(
     y = rpois(Nobs, 2),
     A = Amat,
     X = X,
     config = config
   )
-  ptr <- adlaplace::ad_fun_ptr(config, "observations", "neg_binom_obs", model)
+  ptr <- adlaplace::ad_fun_ptr(as_shard(model, "observations", "nbinom_obs"), config)
   copy <- adlaplace::clone_ad_fun_ptr(ptr)
   x <- c(config$beta, config$gamma, config$theta)
   expect_true(is(copy, "ad_fun_ptr"))
@@ -49,16 +49,14 @@ test_that("clone survives after c() invalidates source shard handle", {
     shards = adlaplace::ad_shards(Amat, num_shards = 3L),
     verbose = FALSE
   )
-  model <- test_ad_model(
+  model <- test_ad_data(
     y = rpois(Nobs, 2),
     A = Amat,
     X = X,
     config = config
   )
-  obs <- adlaplace::ad_fun_ptr(config, "observations", "neg_binom_obs", model)
-  extra <- adlaplace::ad_fun_ptr(
-    config, "parameters", "neg_binom_extra", model
-  )
+  obs <- adlaplace::ad_fun_ptr(as_shard(model, "observations", "nbinom_obs"), config)
+  extra <- adlaplace::ad_fun_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
   obs_copy <- adlaplace::clone_ad_fun_ptr(obs)
   x <- c(config$beta, config$gamma, config$theta)
   combined <- c(obs, extra)
@@ -89,20 +87,18 @@ test_that("clone after ad_fun() preserves laplace eval", {
     shards = adlaplace::ad_shards(Amat, num_shards = 6L),
     verbose = FALSE
   )
-  model <- test_ad_model(
+  model <- test_ad_data(
     y = rpois(Nobs, 2),
     A = Amat,
     X = X,
     config = config
   )
   ad_ptr <- do.call(c, list(
-    adlaplace::ad_fun_ptr(config, "observations", "neg_binom_obs", model),
-    adlaplace::ad_fun_ptr(
-      config, "parameters", "neg_binom_extra", model
-    )
+    adlaplace::ad_fun_ptr(as_shard(model, "observations", "nbinom_obs"), config),
+    adlaplace::ad_fun_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
   ))
   af <- adlaplace::ad_fun(ad_ptr)
-  copy <- adlaplace::deepcopy(ad_ptr)
+  copy <- adlaplace::clone_ad_fun_ptr(ad_ptr)
   x <- c(config$beta, config$gamma, config$theta)
   expect_equal(
     adlaplace::joint_log_dens(ad_ptr, x, negative = FALSE),

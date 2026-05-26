@@ -16,29 +16,23 @@ test_that("ad_fun attaches hessian_map to combined handle", {
     num_threads = 1L,
     verbose = FALSE
   )
-  n_beta <- length(config$beta)
-  model <- test_ad_model(
+  model <- test_ad_data(
     y = rpois(Nobs, 2),
     A = Amat,
     X = X,
     config = config
   )
   random_shard <- test_random_shard(
-    model = model,
+    data = model,
     config = config,
     gamma_ids = seq.int(0L, length.out = ncol(Amat)),
     theta_id = 0L,
     Q = rep(1, ncol(Amat))
   )
   ad_ptr <- do.call(c, list(
-    adlaplace::ad_fun_ptr(config, "observations", "neg_binom_obs", model),
-    adlaplace::ad_fun_ptr(
-      config, "random", "random_diagonal",
-      random_shard$model, precision = random_shard$precision
-    ),
-    adlaplace::ad_fun_ptr(
-      config, "parameters", "neg_binom_extra", model
-    )
+    adlaplace::ad_fun_ptr(as_shard(model, "observations", "nbinom_obs"), config),
+    adlaplace::ad_fun_ptr(random_shard, config),
+    adlaplace::ad_fun_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
   ))
   af <- adlaplace::ad_fun(ad_ptr)
   x <- c(config$beta, config$gamma, config$theta)
@@ -84,15 +78,18 @@ test_that("ad_fun works without config when layout is on ptr", {
     shards = adlaplace::ad_shards(Amat, num_shards = 6L),
     verbose = FALSE
   )
-  model <- test_ad_model(
+  model <- test_ad_data(
     y = rpois(Nobs, 2),
     A = Amat,
     X = X,
     config = config
   )
-  ad_ptr <- adlaplace::ad_fun_ptr(config, "observations", "neg_binom_obs", model)
+  ad_ptr <- adlaplace::ad_fun_ptr(
+    as_shard(model, "observations", "nbinom_obs"),
+    config
+  )
   af <- adlaplace::ad_fun(ad_ptr)
-  sz <- adlaplace::get_sizes(ad_ptr, 0L)
+  sz <- adlaplace:::get_sizes(ad_ptr, 0L)
   expect_true(methods::is(af, "ad_fun"))
   expect_equal(af@sizes[["beta"]], sz$n_beta)
   expect_equal(af@sizes[["gamma"]], sz$n_outer - sz$n_beta - sz$n_theta)

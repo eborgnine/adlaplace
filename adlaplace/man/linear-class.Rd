@@ -31,7 +31,7 @@ linear(
 }
 \arguments{
 \item{x}{Variable name (character) or symbol in a formula (e.g. \code{linear(x)} in
-\code{model_setup()}).}
+\code{model_data()}).}
 
 \item{init}{Initial value for beta parameter (default: 0)}
 

@@ -9,7 +9,7 @@
 #include <vector>
 
 #include "adlaplace/creators/rviews.hpp"
-#include "adlaplace/creators/ad_model.hpp"
+#include "adlaplace/creators/ad_data.hpp"
 #include "adlaplace/api/adpack_handle.h"
 #include "adlaplace/api/backend.hpp"
 
@@ -36,7 +36,7 @@ ad_fun* get_ad_fun_raw_obs_h(
 
 ad_fun* get_ad_fun_raw_random_h(
   SEXP model,
-  const Rcpp::List& precision,
+  SEXP precision,
   const Rcpp::List& config,
   const std::string& single_name);
 

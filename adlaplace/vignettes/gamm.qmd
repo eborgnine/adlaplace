@@ -27,50 +27,89 @@ if (requireNamespace("mgcv", quietly = TRUE)) {
     family = poisson,
     data = dat, random = list(fac = ~1)
   )
-  plot(b2$gam, pages = 1)
+} else {
+  data("gamm", package = "adlaplace")
 }
+plot(b2$gam, pages = 1)
 ```
 
 
-```{r}
-if (requireNamespace("mgcv", quietly = TRUE)) {
-  model_stuff <- adlaplace::model_setup(
-    data = dat,
-    formula = y ~ x1 + f(x2, model = "iwp", p = 2, knots = seq(0, 1, len = 11), ref_value = 0.5) +
-      f(fac, model = "iid") + f(model = "overdispersion", lower = 1e-9)
+```{r collect_terms}
+my_formula <-
+  f(y, model = "nbinom", lower = 1e-9) ~
+  x1 +
+  f(x2,
+    model = "iwp", p = 2,
+    knots = seq(0, 1, len = 11), ref_value = 0.5
+  ) +
+  f(
+    fac,
+    model = "iid"
   )
 
-  config <- list(
-    beta = model_stuff$info$beta$init,
-    gamma = rep(0, nrow(model_stuff$info$gamma)),
-    theta = log(model_stuff$info$theta$init),
-    transform_theta = TRUE,
-    shards = adlaplace::ad_shards(
-      Matrix::t(model_stuff@ATp), num_shards = 100
-    ),
-    num_threads = 2L,
-    verbose = TRUE,
-    package = "adlaplace"
-  )
+my_formula_2 <-
+  nbinom(y, lower = 1e-9) ~
+  x1 +
+  iwp(
+    x2,
+    p = 2, knots = seq(0, 1, len = 11), ref_value = 0.5
+  ) +
+  iid(fac)
+
+my_terms <- collect_terms(
+  my_formula,
+  verbose = TRUE
+)
+my_terms_2 <- collect_terms(
+  my_formula_2,
+  verbose = TRUE
+)
+```
+
+```{r model_data}
+md <- model_data(
+  data = dat,
+  formula = my_formula
+)
+
+config <- list(
+  beta = md$data$info$beta$init,
+  gamma = rep(0, nrow(md$data$info$gamma)),
+  theta = md$data$info$theta$init,
+  transform_theta = TRUE,
+  shards = adlaplace::ad_shards(
+    md$data$A,
+    num_shards = 100
+  ),
+  num_threads = 2L,
+  verbose = TRUE,
+  package = "adlaplace"
+)
+```
 
 
-  ad_fun <- adlaplace::ad_fun(model_stuff, config)
-  res <- adlaplace::log_lik_laplace(
-    x = c(config$beta, config$theta),
-    ad_fun = ad_fun,
-    config = c(config, list(verbose = FALSE)),
-    deriv = TRUE
-  )
-  res$parameters
-  res$fval
-  res$grad
-}
+```{r ad_fun_create}
+ad_fun <- adlaplace::ad_fun(md, config)
+```
+
+
+
+```{r log_lik}
+res <- adlaplace::log_lik_laplace(
+  x = c(config$beta, config$theta),
+  ad_fun = ad_fun,
+  config = c(config, list(verbose = FALSE)),
+  deriv = TRUE
+)
+res$parameters
+res$fval
+res$grad
 ```
 
 
 ```{r trustOptimOuterWrappers}
 if (requireNamespace("mgcv", quietly = TRUE)) {
-  theta_for_opt <- model_stuff$info$theta
+  theta_for_opt <- md$info$theta
   to_transform <- c("init", "lower", "upper")
   theta_for_opt[, to_transform] <- log(theta_for_opt[, to_transform])
 
@@ -78,13 +117,13 @@ if (requireNamespace("mgcv", quietly = TRUE)) {
 
   config$opt <- as.list(
     rbind(
-      model_stuff$info$beta[, to_keep],
+      md$info$beta[, to_keep],
       theta_for_opt[, to_keep]
     )
   )
 
   cache <- new.env(parent = emptyenv())
-  cache$gamma <- rep(0, nrow(model_stuff$info$gamma))
+  cache$gamma <- rep(0, nrow(md$info$gamma))
 
   x0 <- config$opt$init
 
@@ -128,7 +167,7 @@ if (requireNamespace("mgcv", quietly = TRUE)) {
 
   sim <- adlaplace::sim_fit(
     x = newx,
-    model = model_stuff,
+    data = md,
     fit = res,
     n = 500L
   )

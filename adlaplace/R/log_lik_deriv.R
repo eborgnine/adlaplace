@@ -1,10 +1,3 @@
-reformat_chol <- function(x) {
-  ldl <- as_ldl_list(x)
-  half_H_inv <- half_H_inv_from_ldl(ldl)
-  H_inv <- Matrix::tcrossprod(half_H_inv)
-  list(half_H_inv = half_H_inv, H_inv = H_inv)
-}
-
 log_lik_deriv <- function(
   full_parameters,
   hessian_pack,
@@ -12,7 +5,12 @@ log_lik_deriv <- function(
   config,
   ad_fun
 ) {
-  Hstuff <- reformat_chol(hessian_pack$chol_inner)
+  ldl <- as_ldl_list(hessian_pack$chol_inner)
+  half_H_inv <- half_H_inv_from_ldl(ldl)
+  Hstuff <- list(
+    half_H_inv = half_H_inv,
+    H_inv = Matrix::tcrossprod(half_H_inv)
+  )
 
   Sgamma1 <- seq.int(length(config$beta) + 1, length.out = length(config$gamma))
   Sgamma0 <- Sgamma1 - 1L

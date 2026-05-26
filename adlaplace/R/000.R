@@ -6,7 +6,6 @@ NULL
 
 loadNamespace("Matrix")
 
-#' @export
 .type_factor_levels <- c("fixed", "random", "response")
 
 #' @exportClass ad_fun_ptr
@@ -24,3 +23,12 @@ setOldClass("ad_fun_ptr")
 .my_theta_lower <- 1e-9
 .my_theta_upper <- Inf
 .my_theta_parscale <- 1
+
+#' @keywords internal
+is_model_data_bundle <- function(x) {
+  is.list(x) &&
+    all(c("data", "observations", "random", "parameters") %in% names(x)) &&
+    is.list(x$observations) &&
+    is.list(x$random) &&
+    is.list(x$parameters)
+}

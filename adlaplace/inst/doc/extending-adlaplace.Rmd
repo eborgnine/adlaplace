@@ -12,8 +12,8 @@ approximation, inner optimization, and Hessian tooling.
 
 | File | Role |
 |------|------|
-| `src/neg_binom.cpp` (or other density `.cpp`) | Define named densities (`neg_binom_obs`, `neg_binom_extra`); register in `R_init_*` |
-| `c_ad_fun_ptr()` + `ad_fun()` | Build shards with `ad_fun_ptr()`, merge with `c()` or `c_ad_fun_ptr()`, attach templates with `ad_fun()` |
+| `src/nbinom.cpp` (or other density `.cpp`) | Define named densities (`nbinom_obs`, `nbinom_extra`); register in `R_init_*` |
+| `c_ad_fun_ptr()` + `ad_fun()` | Build shards with `ad_fun_ptr(data, config)` (reads `ad_kind`/`ad_fun`/`precision` from `ad_data`), merge with `c()` or `c_ad_fun_ptr()`, attach templates with `ad_fun()` |
 | `src/Rinterfaces.cpp` | Export `getAdFun_r()` using shard builders (single combined handle) |
 
 ## Public headers (`LinkingTo: adlaplace`)
@@ -21,10 +21,10 @@ approximation, inner optimization, and Hessian tooling.
 | Header | Use |
 |--------|-----|
 | `adlaplace/creators/rviews.hpp` | `Config`, R matrix views |
-| `adlaplace/creators/ad_model.hpp` | `ad_model` from S4; layout from maps |
+| `adlaplace/creators/ad_data.hpp` | `ad_data` from S4; layout from maps |
 | `adlaplace/api/backend.hpp` | `GroupPack`, `ad_groups` |
 | `adlaplace/creators/adfun_obs.hpp` / `adfun_single.hpp` | Build CppAD tapes per shard kind |
-| `src/random.cpp` | `random_diagonal`; maps on `ad_model`, `Q` in precision list |
+| `src/random.cpp` | `random_diagonal`; diagonal precision as numeric vector in `ad_data@precision` (required) |
 | `adlaplace/creators/extra_empty.hpp` | Optional zero `logDensExtra` shard |
 | `adlaplace/math/constants.hpp` | Shared constants |
 | `adlaplace/math/lgamma.hpp` | CppAD `lgamma_ad()` atomic for custom likelihoods |
@@ -36,7 +36,7 @@ Deprecated shim (still installed):
 
 ## R wrapper contract
 
-`getAdFun_r(data, config)` should return the same structure as `adlaplace::ad_fun(ad_model, config)`:
+`getAdFun_r(data, config)` should return the same structure as `adlaplace::ad_fun(ad_data, config)`:
 an `ad_fun` S4 object (with `ad_fun_ptr` handle, `group_sparsity`, and Hessian templates from `hessian_map()`).
 See **adlaplaceExample** `R/getAdFun_r.R`.
 

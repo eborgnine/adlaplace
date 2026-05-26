@@ -2,25 +2,14 @@
 % Please edit documentation in R/RcppExports.R, R/inner_opt.R
 \name{innerOpt}
 \alias{innerOpt}
-\alias{all_derivs}
 \alias{inner_opt}
 \title{Inner optimization over gamma using trust-region CG (sparse)}
 \usage{
-all_derivs(x, ad_fun, config)
-
 inner_opt(parameters, gamma, config, ad_fun, control = list(), deriv = FALSE)
 
 inner_opt(parameters, gamma, config, ad_fun, control = list(), deriv = FALSE)
 }
 \arguments{
-\item{x}{Numeric full parameter vector of length \code{Nparams} used by
-\code{all_derivs()}.}
-
-\item{ad_fun}{\code{ad_fun} S4 object from \code{ad_fun(ad_fun_ptr)}.}
-
-\item{config}{Configuration list with model dimensions, groups, and
-sparsity information.}
-
 \item{parameters}{Numeric vector of fixed outer parameters
 (\code{beta}, \code{theta}; length \code{Nbeta+Ntheta}) used by
 \code{inner_opt()}.}
@@ -28,27 +17,28 @@ sparsity information.}
 \item{gamma}{Numeric vector of starting values for inner parameters
 (\code{gamma}; length \code{Ngamma}) used by \code{inner_opt()}.}
 
+\item{config}{Configuration list with model dimensions, groups, and
+sparsity information.}
+
+\item{ad_fun}{\code{ad_fun} S4 object from \code{ad_fun(ad_fun_ptr)}.}
+
 \item{control}{List of trust-region control parameters for
 \code{inner_opt()} (see \pkg{trustOptim}).}
 
 \item{deriv}{Logical: if \code{TRUE}, return full outer gradient and Hessian at the
 inner solution; if \code{FALSE}, return inner quantities only (default).}
+
+\item{x}{Numeric full parameter vector of length \code{Nparams}.}
 }
 \value{
-\item{\code{all_derivs()}}{List with \code{fval}, \code{gradient}, and
-  \code{hessian} of the **negative log density** \eqn{-\ell(x)} at full
-  outer parameters \code{x} (minimization / \pkg{trustOptim} sign). Compare
-  \code{\link{joint_log_dens}}, \code{\link{grad}}, and \code{\link{hessian}}
-  with \code{negative=FALSE} for \eqn{\ell(x)} at the same point.}
-  \item{\code{inner_opt()}}{Returns \code{log_lik}, \code{neg_log_lik}
+\item{\code{inner_opt()}}{Returns \code{log_lik}, \code{neg_log_lik}
   (Laplace profile likelihood and its negation), \code{fval} (inner objective:
   negative log joint density at \eqn{\hat\gamma}), \code{solution},
   \code{gradient} (list \code{inner}, \code{outer}; \code{outer} empty when
   \code{deriv=FALSE}), \code{hessian} (list \code{inner}, \code{outer},
   \code{chol_inner}, \code{half_log_det}),
   \code{iterations}, \code{status}, \code{trust.radius}, \code{method}.
-  Objective and derivatives use the same **negative log-density** convention as
-  \code{all_derivs()}.}
+  Objective and derivatives use the **negative log-density** convention.}
 }
 \description{
 Runs the inner optimization problem (typically over \eqn{\gamma}) using the
@@ -58,7 +48,6 @@ evaluates the objective, gradient, and Hessian through the pre-built AD pack
 }
 \details{
 This calls the sparse method from the \code{TrustOptim} package via the Cpp interface.
-\code{all_derivs()} and \code{inner_opt()} negate the tape log-density values in
-C++; use \code{negative=FALSE} on those functions for \eqn{\ell(x)}.
+\code{inner_opt()} negates tape log-density values in C++ for minimization.
 }
 \keyword{internal}

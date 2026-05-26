@@ -1,72 +1,49 @@
 #' Build raw AD handle for one density shard
 #'
-#' Constructs CppAD tapes for a single shard. Merge shards with \code{c()} before
-#' calling \code{\link{ad_fun}}.
+#' Constructs CppAD tapes for a single shard. The density kind and name come
+#' from \code{data@ad_kind} and \code{data@ad_fun}. For \code{ad_kind = "random"},
+#' \code{data@precision} is passed straight to the backend. For
+#' \code{random_diagonal} it must be a numeric vector of diagonal precision
+#' weights with \code{length == ncol(gamma_map)}. Missing precision means the
+#' shard is not built (e.g. diffuse \code{rpoly} with \code{sd = Inf} via
+#' \code{model_data()}); calling \code{ad_fun_ptr()} without it is an error.
 #'
-#' @param config Model configuration list (\code{beta}, \code{gamma}, \code{theta}, etc.).
-#' @param kind \code{"observations"}, \code{"parameters"}, or \code{"random"}.
-#' @param name Registered density name.
-#' @param model An \code{ad_model} object.
-#' @param precision For \code{kind = "random"}, list with \code{Q}. For
-#'   \code{random_diagonal}, \code{Q} defaults to \code{rep(1, ncol(gamma_map))}
-#'   when omitted.
-#' @param package Backend package (currently only \code{"adlaplace"}).
+#' Merge handles for multiple shards with \code{c()} before calling
+#' \code{\link{ad_fun}}.
+#'
+#' @param data An \code{ad_data} object with \code{ad_kind} and \code{ad_fun}
+#'   slots set.
+#' @param config Model configuration list (\code{beta}, \code{gamma},
+#'   \code{theta}, etc.).
 #' @return External pointer of class \code{ad_fun_ptr}.
 #' @export
-ad_fun_ptr <- function(config,
-                       kind,
-                       name,
-                       model,
-                       precision = NULL,
-                       package = "adlaplace") {
-  if (missing(name) || is.null(name) || !nzchar(name)) {
-    stop("`name` is required")
+ad_fun_ptr <- function(data, config) {
+  if (missing(data) || !is(data, "ad_data")) {
+    stop("`data` must be an ad_data object", call. = FALSE)
   }
-  if (missing(model) || is.null(model)) {
-    stop("`model` is required")
+  kind <- data@ad_kind
+  name <- data@ad_fun
+  if (length(name) != 1L || is.na(name) || !nzchar(name)) {
+    stop("data@ad_fun is required (density name)", call. = FALSE)
   }
-  if (!is(model, "ad_model")) {
-    stop("`model` must be an ad_model object")
-  }
-  if (!identical(package, "adlaplace")) {
-    stop("ad_fun_ptr currently supports package = 'adlaplace' only")
+  if (length(kind) != 1L || is.na(kind) || !nzchar(kind)) {
+    stop("data@ad_kind is required (observations/parameters/random)", call. = FALSE)
   }
 
-  validate_ad_model_maps(model, kind)
+  validate_ad_data_maps(data, kind)
+  validate_config_layout(data, config, kind)
 
-  if (identical(kind, "observations")) {
-    validate_config_layout(model, config, kind)
-    get_ad_fun_raw_obs(model, config, name)
-  } else if (identical(kind, "parameters")) {
-    validate_config_layout(model, config, kind)
-    get_ad_fun_raw_parameters(model, config, name)
-  } else if (identical(kind, "random")) {
-    if (is(precision, "ad_model")) {
-      stop("`precision` for kind = 'random' must be a list (e.g. list(Q = ...))")
-    }
-    if (is.null(precision)) {
-      precision <- list()
-    }
-    validate_config_layout(model, config, kind)
-    if (identical(name, "random_diagonal")) {
-      if (is.null(precision$Q)) {
-        precision$Q <- rep(1, ncol(model@gamma_map))
-      }
-      n_active <- Matrix::nnzero(model@gamma_map)
-      if (length(precision$Q) != n_active) {
-        stop(
-          "length(precision$Q) (", length(precision$Q),
-          ") must match active gamma_map entries (", n_active, ")"
-        )
-      }
-    }
-    get_ad_fun_raw_random(model, precision, config, name)
-  } else {
+  switch(
+    kind,
+    observations = get_ad_fun_raw_obs(data, config, name),
+    parameters = get_ad_fun_raw_parameters(data, config, name),
+    random = get_ad_fun_raw_random(data, data@precision, config, name),
     stop(
-      "unknown `kind`: ", kind,
-      " (expected 'observations', 'parameters', or 'random')"
+      "unknown ad_kind `", kind,
+      "`; expected observations, parameters, or random",
+      call. = FALSE
     )
-  }
+  )
 }
 
 #' @export
@@ -101,19 +78,4 @@ clone_ad_fun_ptr <- function(x) {
     stop("`x` must be an ad_fun_ptr object")
   }
   clone_ad_fun_ptr_(x)
-}
-
-#' Deep copy (S3 generic)
-#'
-#' @param x Object to copy.
-#' @param ... Passed to methods.
-#' @export
-deepcopy <- function(x, ...) {
-  UseMethod("deepcopy")
-}
-
-#' @export
-#' @method deepcopy ad_fun_ptr
-deepcopy.ad_fun_ptr <- function(x, ...) {
-  clone_ad_fun_ptr(x)
 }

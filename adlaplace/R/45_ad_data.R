@@ -1,13 +1,13 @@
-#' Parameter-block row counts for an \code{ad_model}
+#' Parameter-block row counts for an \code{ad_data}
 #'
-#' @param x An \code{ad_model} object.
+#' @param x An \code{ad_data} object.
 #' @return Named list with \code{n_beta}, \code{n_gamma}, and \code{n_theta}.
 #' @export
 setGeneric("sizes", function(x, ...) standardGeneric("sizes"))
 
 #' @rdname sizes
 #' @export
-setMethod("sizes", "ad_model", function(x) {
+setMethod("sizes", "ad_data", function(x) {
   list(
     n_beta = nrow(x@beta_map),
     n_gamma = nrow(x@gamma_map),
@@ -16,7 +16,7 @@ setMethod("sizes", "ad_model", function(x) {
 })
 
 #' @keywords internal
-validate_ad_model_dims <- function(y, A, X) {
+validate_ad_data_dims <- function(y, A, X) {
   n_obs <- length(y)
   if (n_obs == 0L) {
     if (!is.null(A) && (nrow(A) != 0L || ncol(A) != 0L)) {
@@ -37,75 +37,25 @@ validate_ad_model_dims <- function(y, A, X) {
 }
 
 #' @keywords internal
-validate_ad_model_maps <- function(model, kind) {
-  layout <- sizes(model)
+validate_ad_data_maps <- function(data, kind) {
+  layout <- sizes(data)
   if (identical(kind, "parameters")) {
-    if (layout$n_theta == 0L || ncol(model@theta_map) == 0L) {
+    if (layout$n_theta == 0L || ncol(data@theta_map) == 0L) {
       stop("parameters shards require a non-empty theta_map")
     }
   } else if (identical(kind, "random")) {
-    if (ncol(model@beta_map) != 0L) {
+    if (ncol(data@beta_map) != 0L) {
       stop("random shards require beta_map with zero columns")
     }
     if (layout$n_gamma == 0L) {
       stop("random shards require a non-empty gamma_map")
     }
   } else if (identical(kind, "observations")) {
-    if (length(model@y) == 0L) {
-      stop("observation shards require non-empty y on ad_model")
+    if (length(data@y) == 0L) {
+      stop("observation shards require non-empty y on ad_data")
     }
   }
   invisible(layout)
-}
-
-#' @keywords internal
-infer_n_total <- function(info = list(), config = NULL) {
-  if (!is.null(info$parameters) && !is.null(info$gamma)) {
-    return(as.integer(nrow(info$parameters) + nrow(info$gamma)))
-  }
-  if (!is.null(config)) {
-    n_beta <- if (!is.null(config$beta)) length(config$beta) else NA_integer_
-    n_gamma <- if (!is.null(config$gamma)) length(config$gamma) else NA_integer_
-    n_theta <- if (!is.null(config$theta)) length(config$theta) else NA_integer_
-    if (!any(is.na(c(n_beta, n_gamma, n_theta))) &&
-        n_beta + n_gamma + n_theta > 0L) {
-      return(as.integer(n_beta + n_gamma + n_theta))
-    }
-  }
-  NA_integer_
-}
-
-#' @keywords internal
-infer_n_theta <- function(n_beta,
-                          n_gamma,
-                          theta_map = NULL,
-                          info = list(),
-                          config = NULL) {
-  if (!is.null(theta_map)) {
-    return(as.integer(nrow(theta_map)))
-  }
-  if (!is.null(info$theta)) {
-    return(as.integer(nrow(info$theta)))
-  }
-  n_total <- infer_n_total(info = info, config = config)
-  if (!is.na(n_total) && !is.na(n_gamma) && !is.na(n_beta)) {
-    n_theta <- as.integer(n_total - n_beta - n_gamma)
-    if (n_theta < 0L) {
-      stop(
-        "cannot infer n_theta: n_total (", n_total,
-        ") < n_beta (", n_beta, ") + n_gamma (", n_gamma, ")",
-        call. = FALSE
-      )
-    }
-    return(n_theta)
-  }
-  stop(
-    "cannot infer n_theta: provide theta_map, info$theta, or enough ",
-    "information to form n_total (info$parameters + info$gamma, or ",
-    "config$beta + config$gamma + config$theta) together with n_beta ",
-    "and n_gamma",
-    call. = FALSE
-  )
 }
 
 #' @keywords internal
@@ -127,12 +77,7 @@ validate_config_layout <- function(model, config, kind = NULL) {
   }
   n_theta_config <- if (!is.null(config$theta)) length(config$theta) else NA_integer_
   if (is.na(n_theta_config) || n_theta_config == 0L) {
-    n_theta_config <- infer_n_theta(
-      n_beta = layout$n_beta,
-      n_gamma = layout$n_gamma,
-      info = model@info,
-      config = config
-    )
+    n_theta_config <- layout$n_theta
   }
   if (n_theta_config != layout$n_theta) {
     stop(
@@ -146,7 +91,18 @@ validate_config_layout <- function(model, config, kind = NULL) {
 #' Coerce a sparse matrix to \code{dgCMatrix}.
 #' @keywords internal
 as_dgC <- function(m) {
-  methods::as(methods::as(m, "CsparseMatrix"), "dgCMatrix")
+  m <- methods::as(m, "CsparseMatrix")
+  m <- methods::as(m, "dMatrix")
+  m <- methods::as(m, "generalMatrix")
+  if (!inherits(m, "dgCMatrix")) {
+    warning(
+      "as_dgC expected class 'dgCMatrix' but got class: ",
+      paste(class(m), collapse = ", "),
+      call. = FALSE
+    )
+    m <- methods::as(m, "dgCMatrix")
+  }
+  m
 }
 
 #' Coerce a sparse matrix to \code{ngCMatrix} (Matrix >= 1.6).
@@ -155,15 +111,59 @@ as_ngC <- function(m) {
   if (inherits(m, "ngCMatrix")) {
     return(m)
   }
-  methods::as(methods::as(as_dgC(m), "nMatrix"), "ngCMatrix")
+  m <- methods::as(m, "CsparseMatrix")
+  m <- methods::as(m, "nMatrix")
+  m <- methods::as(m, "generalMatrix")
+  if (!inherits(m, "ngCMatrix")) {
+    warning(
+      "as_ngC expected class 'ngCMatrix' but got class: ",
+      paste(class(m), collapse = ", "),
+      call. = FALSE
+    )
+    m <- methods::as(m, "ngCMatrix")
+  }
+  m
 }
 
-#' Coerce map shorthand: length-1 \code{nrow} (zero columns) or length-2
-#' \code{c(row, nrow)} (one column, structural 1 at row).
+#' Coerce map shorthand: length-1 \code{nrow}, length-2 \code{c(row, nrow)},
+#' or \code{list(indices, nrow)}.
 #' @keywords internal
 coerce_map_shorthand <- function(x, what) {
   if (is.null(x)) {
     return(NULL)
+  }
+  if (is.list(x)) {
+    if (length(x) != 2L) {
+      return(x)
+    }
+    idx_raw <- x[[1]]
+    n_raw <- x[[2]]
+    idx <- as.integer(idx_raw)
+    n <- as.integer(n_raw)
+    if (length(n_raw) != 1L || is.na(n) || !isTRUE(all.equal(as.numeric(n_raw), as.numeric(n)))) {
+      stop(what, ": list shorthand second element must be scalar nrow", call. = FALSE)
+    }
+    if (length(idx_raw) != length(idx) ||
+      any(is.na(idx)) ||
+      !isTRUE(all.equal(as.numeric(idx_raw), as.numeric(idx)))) {
+      stop(what, ": list shorthand indices must be finite integers", call. = FALSE)
+    }
+    if (n < 0L) {
+      stop(what, ": nrow must be non-negative", call. = FALSE)
+    }
+    if (length(idx) > 0L && (any(idx < 1L) || any(idx > n))) {
+      stop(
+        what, ": list shorthand indices must be between 1 and nrow (", n, ")",
+        call. = FALSE
+      )
+    }
+    return(Matrix::sparseMatrix(
+      i = idx,
+      j = seq.int(1L, length.out = length(idx)),
+      x = 1,
+      dims = c(n, length(idx)),
+      giveCsparse = TRUE
+    ))
   }
   if (!is.atomic(x)) {
     return(x)
@@ -248,12 +248,12 @@ design_Tp <- function(M, n_obs, what = "M") {
   as_dgC(Matrix::t(M))
 }
 
-#' Build \code{ad_model} from designs and \code{config} layout sizes.
+#' Build \code{ad_data} from designs and \code{config} layout sizes.
 #'
 #' Used by examples with a plain data list (\code{y}, \code{A}, \code{X}).
 #'
 #' @keywords internal
-ad_model_from_config_matrices <- function(y, A, X, config, theta_local_row = 0L) {
+ad_data_from_config_matrices <- function(y, A, X, config, theta_local_row = 0L) {
   n_gamma <- length(config$gamma)
   n_theta <- length(config$theta)
   gamma_map <- if (n_gamma > 0L) {
@@ -273,7 +273,7 @@ ad_model_from_config_matrices <- function(y, A, X, config, theta_local_row = 0L)
   } else {
     NULL
   }
-  ad_model(
+  ad_data(
     y = y,
     A = A,
     X = X,
@@ -282,7 +282,7 @@ ad_model_from_config_matrices <- function(y, A, X, config, theta_local_row = 0L)
   )
 }
 
-#' @describeIn model_setup Construct an ad_model object
+#' @describeIn data_setup Construct an ad_data object
 #'
 #' @param y Response vector (default empty).
 #' @param A Random-effects design matrix (\code{nrow(A) = length(y)}; any
@@ -292,41 +292,48 @@ ad_model_from_config_matrices <- function(y, A, X, config, theta_local_row = 0L)
 #' @param beta_map Beta parameter map (any \code{Matrix}; coerced to
 #'   \code{ngCMatrix}), or a shorthand: length-1 integer \code{n} gives
 #'   \code{Matrix::Matrix(nrow = n, ncol = 0)}; length-2 \code{c(row, n)} gives
-#'   one column with a structural \code{1} at row \code{row} (1-based). If
+#'   one column with a structural \code{1} at row \code{row} (1-based);
+#'   and \code{list(indices, n)} gives one column per entry in \code{indices}
+#'   with structural \code{1}s at those rows. If
 #'   \code{NULL}, defaults to \code{Matrix::Diagonal(ncol(X))} when
 #'   \code{ncol(X) > 0}, otherwise an empty matrix.
 #' @param gamma_map Gamma parameter map (any \code{Matrix}; coerced to
 #'   \code{ngCMatrix}; at most one nonzero per row and column), or the same
-#'   length-1 / length-2 shorthands as \code{beta_map}. If \code{NULL}, defaults
-#'   to \code{Matrix::Matrix(nrow = ncol(A), ncol = 0)} when \code{ncol(A) > 0},
+#'   shorthand forms as \code{beta_map}. If \code{NULL}, defaults to
+#'   \code{Matrix::Diagonal(ncol(A))} when \code{ncol(A) > 0},
 #'   otherwise an empty matrix.
 #' @param theta_map Theta parameter map (any \code{Matrix}; coerced to
-#'   \code{ngCMatrix}), or the same length-1 / length-2 shorthands as
-#'   \code{beta_map}. If \code{NULL}, \code{n_theta} is inferred via
-#'   \code{infer_n_theta()} from \code{info} and map dimensions, then defaults
-#'   to \code{Matrix::Diagonal(n_theta)}.
-#' @param elgmMatrix Optional ELGM map (any \code{Matrix}; coerced to
+#'   \code{ngCMatrix}), or the same shorthand forms as
+#'   \code{beta_map}. If \code{NULL}, defaults to an empty matrix.
+#' @param elgm_matrix Optional ELGM map (any \code{Matrix}; coerced to
 #'   \code{ngCMatrix}). If \code{NULL}, defaults to \code{Matrix::Matrix(nrow = length(y), ncol = 0)}.
-#' @param data Original data frame (default empty).
-#' @param terms Model terms (default empty list).
-#' @param info Parameter info (default empty list).
+#' @param ad_fun Registered AD density name for this shard (optional).
+#' @param ad_kind Shard kind (\code{"observations"}, \code{"parameters"}, \code{"random"}; optional).
+#' @param precision Optional precision payload (any R object).
 #' @export
-ad_model <- function(y = numeric(0),
-                     A = NULL,
-                     X = NULL,
-                     beta_map = NULL,
-                     gamma_map = NULL,
-                     theta_map = NULL,
-                     elgmMatrix = NULL,
-                     data = NULL,
-                     terms = list(),
-                     info = list()) {
+ad_data <- function(y = numeric(0),
+                    A = NULL,
+                    X = NULL,
+                    beta_map = NULL,
+                    gamma_map = NULL,
+                    theta_map = NULL,
+                    elgm_matrix = NULL,
+                    ad_fun = NA_character_,
+                    ad_kind = NA_character_,
+                    precision = NULL) {
   n_obs <- length(y)
-  validate_ad_model_dims(y, A, X)
+  validate_ad_data_dims(y, A, X)
   ATp <- design_Tp(A, n_obs, "A")
   XTp <- design_Tp(X, n_obs, "X")
-  if (is.null(data)) {
-    data <- data.frame()
+  if (length(ad_fun) != 1L || is.na(ad_fun) || !nzchar(ad_fun)) {
+    ad_fun <- NA_character_
+  } else {
+    ad_fun <- as.character(ad_fun)
+  }
+  if (length(ad_kind) != 1L || is.na(ad_kind) || !nzchar(ad_kind)) {
+    ad_kind <- NA_character_
+  } else {
+    ad_kind <- as.character(ad_kind)
   }
   beta_map <- coerce_map_shorthand(beta_map, "beta_map")
   gamma_map <- coerce_map_shorthand(gamma_map, "gamma_map")
@@ -342,43 +349,34 @@ ad_model <- function(y = numeric(0),
   if (is.null(gamma_map)) {
     n_gamma <- if (!is.null(A) && ncol(A) > 0L) ncol(A) else 0L
     gamma_map <- if (n_gamma > 0L) {
-      Matrix::Matrix(nrow = n_gamma, ncol = 0L)
+      Matrix::Diagonal(n_gamma)
     } else {
       Matrix::Matrix(nrow = 0L, ncol = 0L)
     }
   }
   if (is.null(theta_map)) {
-    n_theta <- infer_n_theta(
-      n_beta = nrow(beta_map),
-      n_gamma = nrow(gamma_map),
-      info = info
-    )
-    theta_map <- if (n_theta > 0L) {
-      Matrix::Diagonal(n_theta)
-    } else {
-      Matrix::Matrix(nrow = 0L, ncol = 0L)
-    }
+    theta_map <- Matrix::Matrix(nrow = 0L, ncol = 0L)
   }
-  if (is.null(elgmMatrix)) {
-    elgmMatrix <- Matrix::Matrix(nrow = n_obs, ncol = 0L)
+  if (is.null(elgm_matrix)) {
+    elgm_matrix <- Matrix::Matrix(nrow = n_obs, ncol = 0L)
   }
   beta_map <- as_ngC(beta_map)
   gamma_map <- as_ngC(gamma_map)
   theta_map <- as_ngC(theta_map)
-  elgmMatrix <- as_ngC(elgmMatrix)
+  elgm_matrix <- as_ngC(elgm_matrix)
   validate_map_at_most_one_per_row_col(beta_map, "beta_map")
   validate_map_at_most_one_per_row_col(gamma_map, "gamma_map")
   methods::new(
-    "ad_model",
-    data = data,
+    "ad_data",
     y = as.numeric(y),
     ATp = ATp,
     XTp = XTp,
     beta_map = beta_map,
     gamma_map = gamma_map,
     theta_map = theta_map,
-    elgmMatrix = elgmMatrix,
-    terms = terms,
-    info = info
+    elgm_matrix = elgm_matrix,
+    ad_fun = ad_fun,
+    ad_kind = ad_kind,
+    precision = precision
   )
 }

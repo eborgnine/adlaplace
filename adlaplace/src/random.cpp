@@ -6,14 +6,14 @@ namespace {
 
 CppAD::vector<CppAD::AD<double>> random_diagonal(
   const CppAD::vector<CppAD::AD<double>>& x,
-  const ad_model& model,
+  const ad_data& model,
   const NumVecView& Q,
   const std::vector<std::size_t>& gamma_indices,
   const Config& config) {
 
   const std::size_t Ngamma = gamma_indices.size();
   if (Q.size() != Ngamma) {
-    Rcpp::warning("precision$Q length (%d) differs from gamma_map rows (%d)",
+    Rcpp::warning("precision length (%d) differs from gamma_map rows (%d)",
                   static_cast<int>(Q.size()), static_cast<int>(Ngamma));
   }
 
@@ -59,14 +59,14 @@ CppAD::vector<CppAD::AD<double>> random_diagonal(
 
 CppAD::vector<CppAD::AD<double>> random_diagonal(
   const CppAD::vector<CppAD::AD<double>>& x,
-  const ad_model& model,
-  const Rcpp::List& precision,
+  const ad_data& model,
+  SEXP precision,
   const Rcpp::List& config) {
 
-  if (!precision.containsElementNamed("Q")) {
-    Rcpp::stop("precision must contain element Q for random_diagonal");
+  if (Rf_isNull(precision)) {
+    Rcpp::stop("precision is required for random_diagonal");
   }
-  const NumVecView Q(precision["Q"]);
+  const NumVecView Q(precision);
   const std::vector<std::size_t> gamma_indices = model.all_gamma_global_indices();
   return random_diagonal(x, model, Q, gamma_indices, Config(config));
 }

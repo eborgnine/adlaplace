@@ -3,26 +3,27 @@
 
 #include "adlaplace/api/density_registry.hpp"
 #include "adlaplace/creators/adfun_common.hpp"
-#include "adlaplace/creators/ad_model.hpp"
+#include "adlaplace/creators/ad_data.hpp"
 
 inline GroupPack build_ad_fun_random(
-  const ad_model& model,
-  const Rcpp::List& precision,
+  const ad_data& model,
+  SEXP precision,
   const Rcpp::List& config,
   const std::string& single_name) {
 
   const Config cfg(config);
   validate_config_matches_model(cfg, model, false);
-  if (precision.containsElementNamed("Q")) {
-    const NumVecView Q(precision["Q"]);
-    const std::vector<std::size_t> gidx = model.all_gamma_global_indices();
-    if (Q.size() != static_cast<R_xlen_t>(gidx.size())) {
-      Rcpp::stop(
-        "length(precision$Q) (%d) must match active gamma_map entries (%d)",
-        static_cast<int>(Q.size()),
-        static_cast<int>(gidx.size())
-      );
-    }
+  if (Rf_isNull(precision)) {
+    Rcpp::stop("precision is required for random_diagonal");
+  }
+  const NumVecView Q(precision);
+  const int n_gamma_cols = model.gamma_map.ncol();
+  if (Q.size() != static_cast<R_xlen_t>(n_gamma_cols)) {
+    Rcpp::stop(
+      "length(precision) (%d) must match ncol(gamma_map) (%d)",
+      static_cast<int>(Q.size()),
+      n_gamma_cols
+    );
   }
 
   if (cfg.verbose) {
@@ -50,7 +51,7 @@ inline GroupPack build_ad_fun_random(
 }
 
 inline GroupPack build_ad_fun_parameters(
-  const ad_model& model,
+  const ad_data& model,
   const Rcpp::List& config,
   const std::string& single_name) {
 
@@ -82,7 +83,7 @@ inline GroupPack build_ad_fun_parameters(
 }
 
 inline GroupPack build_ad_fun_single(
-  const ad_model& model,
+  const ad_data& model,
   const Rcpp::List& config,
   const std::string& single_name) {
 

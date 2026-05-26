@@ -17,14 +17,14 @@ test_that("c() combines shards for small GLMM", {
     num_threads = 1L,
     verbose = FALSE
   )
-  model <- test_ad_model(
+  model <- test_ad_data(
     y = rpois(Nobs, 2),
     A = Amat,
     X = X,
     config = config
   )
   random_shard <- test_random_shard(
-    model = model,
+    data = model,
     config = config,
     gamma_ids = seq.int(0L, length.out = ncol(Amat)),
     theta_id = 0L,
@@ -32,14 +32,9 @@ test_that("c() combines shards for small GLMM", {
   )
 
   ad_ptr <- do.call(c, list(
-    adlaplace::ad_fun_ptr(config, "observations", "neg_binom_obs", model),
-    adlaplace::ad_fun_ptr(
-      config, "random", "random_diagonal",
-      random_shard$model, precision = random_shard$precision
-    ),
-    adlaplace::ad_fun_ptr(
-      config, "parameters", "neg_binom_extra", model
-    )
+    adlaplace::ad_fun_ptr(as_shard(model, "observations", "nbinom_obs"), config),
+    adlaplace::ad_fun_ptr(random_shard, config),
+    adlaplace::ad_fun_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
   ))
   expect_true(is(ad_ptr, "ad_fun_ptr"))
   expect_equal(
@@ -67,17 +62,20 @@ test_that("ad_fun_ptr obs-only builds observation groups only", {
     shards = adlaplace::ad_shards(Amat, num_shards = 5L),
     verbose = FALSE
   )
-  model <- test_ad_model(
+  model <- test_ad_data(
     y = rpois(Nobs, 2),
     A = Amat,
     X = X,
     config = config
   )
-  ad_obs <- adlaplace::ad_fun_ptr(config, "observations", "neg_binom_obs", model)
+  ad_obs <- adlaplace::ad_fun_ptr(
+    as_shard(model, "observations", "nbinom_obs"),
+    config
+  )
 
   expect_error(
-    adlaplace::ad_fun_ptr(config, "observations", name = "", model = model),
-    "`name` is required",
+    adlaplace::ad_fun_ptr(as_shard(model, "observations", ""), config),
+    "data@ad_fun is required",
     fixed = TRUE
   )
   expect_equal(adlaplace::n_groups(ad_obs), ncol(config$shards))

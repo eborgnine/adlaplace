@@ -4,21 +4,27 @@
 \name{ad_fun-class}
 \alias{ad_fun-class}
 \alias{ad_fun,ad_fun_ptr-method}
-\alias{ad_fun,ad_model-method}
+\alias{ad_fun,ad_data-method}
+\alias{ad_fun,list-method}
 \title{AD function with Hessian templates attached}
 \usage{
 \S4method{ad_fun}{ad_fun_ptr}(x, config = NULL, ...)
 
-\S4method{ad_fun}{ad_model}(x, config = NULL, ...)
+\S4method{ad_fun}{ad_data}(x, config = NULL, ...)
+
+\S4method{ad_fun}{list}(x, config = NULL, ...)
 }
 \description{
 AD function with Hessian templates attached
 }
 \section{Methods (by generic)}{
 \itemize{
-\item \code{ad_fun(ad_fun_ptr)}: Attach templates to a combined raw handle
+\item \code{ad_fun(ad_fun_ptr)}: Attach Hessian templates to a raw \code{ad_fun_ptr}.
 
-\item \code{ad_fun(ad_model)}: Build shards from ad_model, merge, attach templates
+\item \code{ad_fun(ad_data)}: Build pointer from one \code{ad_data} shard, then attach templates.
+
+\item \code{ad_fun(list)}: Build pointers from a \code{model_data()} bundle, merge,
+and attach templates.
 
 }}
 \section{Slots}{

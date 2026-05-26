@@ -85,15 +85,7 @@ log_lik_laplace <- function(
     if (missing(data)) {
       stop("at least one of data and ad_fun must be supplied")
     }
-    if (is(data, "ad_model")) {
-      ad_fun <- adlaplace::ad_fun(data, config)
-    } else {
-      stop(
-        "supply ad_fun from ad_fun(ad_fun_ptr) or ad_fun(ad_model, config); ",
-        "a plain data list is not sufficient",
-        call. = FALSE
-      )
-    }
+    ad_fun <- adlaplace::ad_fun(data, config)
   }
 
   result_inner <- inner_opt(

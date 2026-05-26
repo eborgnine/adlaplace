@@ -107,19 +107,19 @@ ad_fun* get_ad_fun_raw_obs_h(
   const std::string& obs_name) {
 
   register_adlaplace_default_densities();
-  const ad_model model(model_sexp);
+  const ad_data model(model_sexp);
   std::vector<GroupPack> packs = build_ad_fun_obs(model, config, obs_name);
   return packs_to_ad_fun(std::move(packs), model.num_beta, model.num_theta);
 }
 
 ad_fun* get_ad_fun_raw_random_h(
   SEXP model_sexp,
-  const Rcpp::List& precision,
+  SEXP precision,
   const Rcpp::List& config,
   const std::string& single_name) {
 
   register_adlaplace_default_densities();
-  const ad_model model(model_sexp);
+  const ad_data model(model_sexp);
   GroupPack pack = build_ad_fun_random(model, precision, config, single_name);
   std::vector<GroupPack> packs;
   packs.push_back(std::move(pack));
@@ -132,7 +132,7 @@ ad_fun* get_ad_fun_raw_parameters_h(
   const std::string& single_name) {
 
   register_adlaplace_default_densities();
-  const ad_model model(model_sexp);
+  const ad_data model(model_sexp);
   GroupPack pack = build_ad_fun_parameters(model, config, single_name);
   std::vector<GroupPack> packs;
   packs.push_back(std::move(pack));

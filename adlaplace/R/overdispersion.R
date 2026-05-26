@@ -26,6 +26,7 @@ setClass("overdispersion",
   contains = "model",           # Inherits from base model class
   prototype = prototype(
            term = character(0),
+           label = "overdispersion",
            formula = formula(),
            knots = numeric(0),
            ref_value = numeric(0),
@@ -57,6 +58,7 @@ overdispersion <- function(
 ) {
   methods::new("overdispersion",
     term = character(0),
+    label = "overdispersion",
     init = init,
     lower = lower,
     upper = upper,
@@ -87,7 +89,7 @@ setMethod("theta_info", "overdispersion", function(term) {
   data.frame(
     term = NA,
     model = "overdispersion",
-    label = "overdispersion",
+    label = term@label,
     init = term@init,
     lower = term@lower,
     upper = term@upper,

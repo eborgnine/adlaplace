@@ -57,7 +57,7 @@ config <- list(
 
 
 ## ----testLogLik-------------------------------------------------------------------------------------------------------------------------------------
-model <- adlaplace:::ad_model_from_config_matrices(
+model <- adlaplace:::ad_data_from_config_matrices(
   y = data$y,
   A = data$A,
   X = data$X,
@@ -79,7 +79,7 @@ res$grad
 
 
 ## ----trustOptimOuterWrappers------------------------------------------------------------------------------------------------------------------------
-model <- adlaplace:::ad_model_from_config_matrices(
+model <- adlaplace:::ad_data_from_config_matrices(
   y = data$y,
   A = data$A,
   X = data$X,
@@ -123,7 +123,7 @@ outer_fit$value
 
 
 ## ----testLogLgrad-----------------------------------------------------------------------------------------------------------------------------------
-model <- adlaplace:::ad_model_from_config_matrices(
+model <- adlaplace:::ad_data_from_config_matrices(
   y = data$y,
   A = data$A,
   X = data$X,
@@ -177,7 +177,7 @@ lines(SxD, diff(Sdet) / diff(Sx))
 
 
 ## ----testDeriv--------------------------------------------------------------------------------------------------------------------------------------
-model <- adlaplace:::ad_model_from_config_matrices(
+model <- adlaplace:::ad_data_from_config_matrices(
   y = data$y,
   A = data$A,
   X = data$X,
@@ -211,7 +211,7 @@ str(h2 <- adlaplace::hessian(ad_fun, x, inner = TRUE, negative = FALSE))
 
 
 ## ----trustOptimInterface, eval=FALSE----------------------------------------------------------------------------------------------------------------
-# model <- adlaplace:::ad_model_from_config_matrices(
+# model <- adlaplace:::ad_data_from_config_matrices(
 #   y = data$y,
 #   ATp = data$ATp,
 #   XTp = data$XTp,
@@ -239,7 +239,7 @@ str(h2 <- adlaplace::hessian(ad_fun, x, inner = TRUE, negative = FALSE))
 ## ----derivJointDens, eval=TRUE----------------------------------------------------------------------------------------------------------------------
 config$gamma <- rep(1, length(config$gamma))
 x <- c(config$beta, config$gamma, config$theta)
-model <- adlaplace:::ad_model_from_config_matrices(
+model <- adlaplace:::ad_data_from_config_matrices(
   y = data$y,
   A = data$A,
   X = data$X,

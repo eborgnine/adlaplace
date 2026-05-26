@@ -22,8 +22,7 @@ Rcpp::IntegerVector shards_vector(
 //'
 //' @param negative Logical (default \code{TRUE}). If \code{TRUE}, return the
 //'   **negative** log density \eqn{-\ell(x)} and its derivatives (minimization /
-//'   \pkg{trustOptim} sign, consistent with \code{inner_opt()} and
-//'   \code{all_derivs()}). If \code{FALSE}, return \eqn{\ell(x)}, \eqn{\nabla\ell},
+//'   \pkg{trustOptim} sign, consistent with \code{inner_opt()}). If \code{FALSE}, return \eqn{\ell(x)}, \eqn{\nabla\ell},
 //'   and \eqn{\nabla^2\ell}.
 //' @param ad_fun_ptr External pointer of class \code{ad_fun_ptr}.
 //' @param x Numeric parameter vector of length \code{Nparams}.
@@ -35,7 +34,7 @@ Rcpp::IntegerVector shards_vector(
 //'
 //' @section Sign convention:
 //' With default \code{negative = TRUE}, \code{joint_log_dens()}, \code{grad()},
-//' and \code{hessian()} match \code{all_derivs()} and \code{inner_opt()} (negative
+//' and \code{hessian()} match \code{inner_opt()} (negative
 //' log-density). Set \code{negative = FALSE} for the joint log density and its
 //' derivatives at the same \code{x}.
 //'

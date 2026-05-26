@@ -64,10 +64,11 @@ AmatList <- list(
 Amat <- do.call(cbind, AmatList)
 
 beta <- rep(1, ncol(X))
-gamma <- rnorm(ncol(Amat), sd = rep(thetaOrig[1:2], c(Nrandom1, Nrandom2)))
 
 thetaOrig <- c(0.1, 0.1, 0.2)
 theta <- log(thetaOrig)
+
+gamma <- rnorm(ncol(Amat), sd = rep(thetaOrig[1:2], c(Nrandom1, Nrandom2)))
 eta_true <- as.vector(X %*% beta + Amat %*% gamma)
 etaT <- exp(eta_true)
 Z <- rgamma(length(etaT), thetaOrig[3]^(-2), thetaOrig[3]^(-2))
@@ -81,7 +82,7 @@ config <- list(
   transform_theta = TRUE,
   gamma = rep(0, ncol(Amat)),
   shards = adlaplace::ad_shards(Amat, num_shards = 1000),
-  num_threads = 1L,
+  num_threads = 2L,
   verbose = TRUE,
   package = "adlaplace"
 )
@@ -92,14 +93,14 @@ n_theta <- length(config$theta)
 ```
 
 
-Model densities are defined in `src/neg_binom.cpp` (observation and extra terms)
+Model densities are defined in `src/nbinom.cpp` (observation and extra terms)
 and `random.cpp` (random effects).
 
 Each shard is built with `ad_fun_ptr()`. Shards are merged with `c()` before
 attaching Hessian templates via `ad_fun()`.
 
 ```{r adShards_obs}
-data_obs <- adlaplace::ad_model(
+data_obs <- adlaplace:::ad_data(
   y = y,
   A = Amat,
   X = X,
@@ -108,41 +109,36 @@ data_obs <- adlaplace::ad_model(
       i = n_theta, # observations uses last theta
       j = 1,
       dims = c(n_theta, 1L)
-    )
+    ),
+  ad_kind = "observations",
+  ad_fun = "nbinom_obs"
 )
 
-ad_fun_obs <- adlaplace::ad_fun_ptr(
-  model = data_obs,
-  config = config,
-  kind = "observations",
-  name = "neg_binom_obs"
-)
+data_extra <- data_obs
+data_extra@ad_kind <- "parameters"
+data_extra@ad_fun <- "nbinom_extra"
 
-ad_fun_extra <- adlaplace::ad_fun_ptr(
-  model = data_obs,
-  config = config,
-  kind = "parameters",
-  name = "neg_binom_extra"
-)
+ad_fun_obs <- adlaplace::ad_fun_ptr(data = data_obs, config = config)
+ad_fun_extra <- adlaplace::ad_fun_ptr(data = data_extra, config = config)
 ```
 
 ```{r adShards_random_1}
 nr1 <- Nrandom1
 
-model_r1 <- adlaplace::ad_model(
+model_r1 <- adlaplace:::ad_data(
   beta_map = n_beta,
   gamma_map = Matrix::sparseMatrix(
     i = 1:nr1,
     j = 1:nr1,
     dims = c(n_gamma, nr1)
   ),
-  theta_map = c(1, n_theta) # sd is first theta
+  theta_map = c(1, n_theta), # sd is first theta
+  ad_kind = "random",
+  ad_fun = "random_diagonal",
+  precision = rep(1, nr1)
 )
 
-ad_fun_r1 <- adlaplace::ad_fun_ptr(
-  model = model_r1,
-  config = config, kind = "random", name = "random_diagonal"
-)
+ad_fun_r1 <- adlaplace::ad_fun_ptr(data = model_r1, config = config)
 ```
 
 
@@ -150,31 +146,31 @@ ad_fun_r1 <- adlaplace::ad_fun_ptr(
 ```{r adShards_random_2}
 nr2 <- ncol(AmatList$r2)
 
-model_r2 <- adlaplace::ad_model(
+model_r2 <- adlaplace:::ad_data(
   beta_map = n_beta,
   gamma_map = Matrix::sparseMatrix(
     i = seq.int(nr1 + 1, length.out = nr2),
     j = 1:nr2,
     dims = c(n_gamma, nr2)
   ),
-  theta_map = c(2, n_theta) # sd is 2nd theta
+  theta_map = c(2, n_theta), # sd is 2nd theta
+  ad_kind = "random",
+  ad_fun = "random_diagonal",
+  precision = rep(1, nr2)
 )
-ad_fun_r2 <- adlaplace::ad_fun_ptr(
-  model = model_r2,
-  config = config, kind = "random", name = "random_diagonal"
-)
+ad_fun_r2 <- adlaplace::ad_fun_ptr(data = model_r2, config = config)
 ```
 
 
 ```{r randomGaussianLogDens}
-# random_diagonal log-density: gamma ~ N(0, sd^2 * Q^{-1}), diagonal Q (default ones)
-precision_r1 <- list(Q = rep(1, nr1))
+# random_diagonal log-density: gamma ~ N(0, sd^2 * Q^{-1}), diagonal Q on the shard
+precision_r1 <- rep(1, nr1)
 xx <- c(config$beta, seq(1, length(config$gamma)), seq(1, length(config$theta)))
 
 adlaplace::joint_log_dens(ad_fun_r1, xx, negative = FALSE)
 
 gamma_ids <- seq.int(0L, length.out = ncol(AmatList$r1))
-varMat <- solve(diag(precision_r1$Q)) * exp(xx[1 + n_beta + n_gamma])^2
+varMat <- solve(diag(precision_r1)) * exp(xx[1 + n_beta + n_gamma])^2
 mvtnorm::dmvnorm(
   xx[1 + n_beta + gamma_ids],
   rep(0, ncol(varMat)),
@@ -184,7 +180,7 @@ mvtnorm::dmvnorm(
 ```
 
 ```{r obsLogDens}
-# neg_binom_obs + neg_binom_extra (see src/neg_binom.cpp): scan overdispersion
+# nbinom_obs + nbinom_extra (see src/nbinom.cpp): scan overdispersion
 # theta (3rd component, log-SD scale) with beta, gamma, and other thetas fixed
 # at values used to generate the data.
 
@@ -207,7 +203,6 @@ ad_nb_log_dens <- function(log_theta) {
 
 seq_log_theta <- log_theta_true + seq(-0.5, 0.5, len = 7)
 
-log_r_seq <- vapply(seq_log_theta, nb_log_dens, numeric(1))
 log_pkg_seq <- vapply(seq_log_theta, nb_log_dens_package, numeric(1))
 log_ad_seq <- vapply(seq_log_theta, ad_nb_log_dens, numeric(1))
 
@@ -377,11 +372,11 @@ outer_fit$value
 par(mfrow = c(3, 2), mar = c(2, 2, 0, 0), mgp = c(1, 0.5, 0))
 
 x1 <- outer_fit$par
-Npar <- 13
+Npar <- 7
 Dpar <- length(x1)
 
 parDf <- data.frame(x1)[, rep(1, Npar)]
-Sx <- seq(-0.5, 0.5, len = 13) + parDf[Dpar, 1]
+Sx <- seq(-0.5, 0.5, len = Npar) + parDf[Dpar, 1]
 SxD <- Sx[-1] - diff(Sx) / 2
 parDf[Dpar, ] <- Sx
 

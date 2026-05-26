@@ -9,7 +9,7 @@ setClass("iwp",
     # Default values for iwp-specific behavior
     type = factor("random", levels = .type_factor_levels),
     ad_fun = "random_diagonal",
-    as_kind = "random"
+    ad_kind = "random"
   )
 )
 
@@ -77,14 +77,16 @@ iwp <- function(
   if (length(boundary_is_random) != 1) stop("boundary_is_random must be a single value")
   if (length(include_poly) != 1) stop("include_poly must be a single value")
 
+  x <- strip_term_name(as.character(x))
   the_f <- stats::as.formula(paste0("~ 0 + ", x), env = new.env())
   result <- list()
   iwp_name <- paste("iwp", x, sep = "_")
 
-  ref_value = ref_align(ref_value, knots)
+  ref_value <- ref_align(ref_value, knots)
 
   result[[iwp_name]] <- methods::new("iwp",
     term = x,
+    label = paste(c(x, "iwp"), collapse = "_"),
     formula = the_f,
     p.order = as.integer(p),
     ref_value = ref_value,
@@ -95,8 +97,8 @@ iwp <- function(
     parscale = parscale[1]
     # type is already set in prototype, no need to repeat
   )
-  if(p==1) {
-    include_poly = FALSE
+  if (p == 1) {
+    include_poly <- FALSE
   }
   if (include_poly) {
     poly_name <- paste(c(x, "poly"), collapse = "_")
@@ -116,7 +118,6 @@ iwp <- function(
   }
   result
 }
-
 
 
 local_poly <- function(knots, refined_x, p) {
@@ -254,9 +255,9 @@ compute_weights_precision <- function(knots) {
 #' @examples
 #' # Align reference value to nearest knot
 #' knots <- c(10, 20, 30, 40, 50)
-#' ref_align(23, knots)  # Returns 20
+#' ref_align(23, knots) # Returns 20
 #'
-#' @export
+#' @keywords internal
 ref_align <- function(ref_value, knots) {
   knots[which.min(abs(knots - ref_value))]
 }
@@ -267,16 +268,17 @@ ref_align <- function(ref_value, knots) {
 #' @param data A data frame containing the term variable
 #' @export
 setMethod("design", "iwp", function(term, data) {
-  if(any(data[[term@term]] < min(term@knots)) || any(data[[term@term]] > max(term@knots))) {
+  if (any(data[[term@term]] < min(term@knots)) || any(data[[term@term]] > max(term@knots))) {
     warning("knots don't span the range of x ", term@term)
     print(range(term@knots))
     print(range(data[[term@term]]))
   }
 
   result <- local_poly(
-    term@knots - term@ref_value, 
-    data[[term@term]] - term@ref_value, 
-    term@p.order)
+    term@knots - term@ref_value,
+    data[[term@term]] - term@ref_value,
+    term@p.order
+  )
 
   knots_string <- formatC(seq.int(ncol(result)),
     width = ceiling(log10(ncol(result))), flag = "0"
@@ -309,7 +311,7 @@ setMethod("precision", "iwp", function(term, data) {
 setMethod("theta_info", "iwp", function(term) {
   result <- data.frame(
     term = term@term, model = "iwp",
-    label = paste(c(term@term, "iwp"), collapse = "_"),
+    label = term@label,
     init = term@init,
     lower = term@lower, upper = term@upper,
     parscale = term@parscale,
@@ -337,7 +339,7 @@ setMethod("random_info", "iwp", function(term, data) {
   result <- expand.grid(
     term = term@term,
     model = "iwp",
-    label = paste(c(term@term, "iwp"), collapse = "_"),
+    label = term@label,
     by = NA, # iwp doesn't have hierarchical structure
     by_labels = NA,
     basis = basis,

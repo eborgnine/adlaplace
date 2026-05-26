@@ -7,9 +7,9 @@
 
 //' Build raw AD handle for observation shards only
 //'
-//' @param model An \code{ad_model} S4 object.
+//' @param model An \code{ad_data} S4 object.
 //' @param config Model configuration list.
-//' @param name Registered observation density name (e.g. \code{"neg_binom_obs"}).
+//' @param name Registered observation density name (e.g. \code{"nbinom_obs"}).
 //' @return External pointer of class \code{ad_fun_ptr}.
 //' @keywords internal
 // [[Rcpp::export]]
@@ -20,23 +20,23 @@ SEXP get_ad_fun_raw_obs(SEXP model, Rcpp::List config, std::string name) {
 
 //' Build raw AD handle for a random-effect shard
 //'
-//' @param model An \code{ad_model} S4 object (maps for the term).
-//' @param precision Precision list (\code{Q} vector for \code{random_diagonal}).
+//' @param model An \code{ad_data} S4 object (maps for the term).
+//' @param precision Numeric vector of diagonal precision weights (required).
 //' @param config Model configuration list.
 //' @param name Registered random density name (e.g. \code{"random_diagonal"}).
 //' @return External pointer of class \code{ad_fun_ptr}.
 //' @keywords internal
 // [[Rcpp::export]]
-SEXP get_ad_fun_raw_random(SEXP model, Rcpp::List precision, Rcpp::List config, std::string name) {
+SEXP get_ad_fun_raw_random(SEXP model, SEXP precision, Rcpp::List config, std::string name) {
   ad_fun* groups = get_ad_fun_raw_random_h(model, precision, config, name);
   return make_ad_fun_ptr(groups);
 }
 
 //' Build raw AD handle for a parameters shard
 //'
-//' @param model An \code{ad_model} S4 object.
+//' @param model An \code{ad_data} S4 object.
 //' @param config Model configuration list.
-//' @param name Registered parameters density name (e.g. \code{"neg_binom_extra"}).
+//' @param name Registered parameters density name (e.g. \code{"nbinom_extra"}).
 //' @return External pointer of class \code{ad_fun_ptr}.
 //' @keywords internal
 // [[Rcpp::export]]
@@ -81,7 +81,7 @@ SEXP c_ad_fun_ptr(Rcpp::List handles) {
 //'
 //' @param handle External pointer of class \code{ad_fun_ptr}.
 //' @param hessian_pack List returned by \code{hessian_map()}.
-//' @export
+//' @keywords internal
 // [[Rcpp::export]]
 void adlaplace_attach_hessian(SEXP handle, Rcpp::List hessian_pack) {
   ad_fun* groups = ad_fun_from_handle(handle);
@@ -107,7 +107,7 @@ int n_groups(SEXP handle) {
 //' @param group 0-based group index.
 //' @return List with \code{n_inner}, \code{n_outer}, \code{n_beta}, \code{n_theta},
 //'   and \code{nnz_grad_*}, \code{nnz_hes_*}.
-//' @export
+//' @keywords internal
 // [[Rcpp::export]]
 Rcpp::List get_sizes(SEXP handle, int group) {
   ad_fun* groups = ad_fun_from_handle(handle);
@@ -148,7 +148,7 @@ Rcpp::List get_sizes(SEXP handle, int group) {
 //' @param handle External pointer of class \code{ad_fun_ptr}.
 //' @param group 0-based group index.
 //' @return List with \code{grad}, \code{grad_inner}, \code{row_hess}, \code{col_hess}, etc.
-//' @export
+//' @keywords internal
 // [[Rcpp::export]]
 Rcpp::List get_sparse_pattern(SEXP handle, int group) {
   ad_fun* groups = ad_fun_from_handle(handle);
