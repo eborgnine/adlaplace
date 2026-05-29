@@ -30,5 +30,5 @@ void cppad_parallel_setup(std::size_t num_threads) {
     &thread_num_wrapper
   );
   CppAD::parallel_ad<double>();
-  CppAD::thread_alloc::hold_memory(false);
+  CppAD::thread_alloc::hold_memory(true);
 }

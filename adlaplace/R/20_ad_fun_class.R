@@ -6,10 +6,12 @@
 #' @slot inner Inner-gamma Hessian template (\code{dgCMatrix}).
 #' @slot map_outer Outer Hessian shard map.
 #' @slot map_inner Inner Hessian shard map.
+#' @slot parallel_map Thread-affinity map (\code{ngCMatrix}); rows are shards,
+#'   columns are threads, with one nonzero per shard row.
 #' @slot chol_inner Symbolic LDL factor or empty sparse matrix.
 #' @slot chol_inner_list Numeric LDL list for C++ (\code{L1}, \code{Linv}, \code{perm}, \code{perm_inv}).
 #' @slot sizes Named numeric vector \code{beta}/\code{gamma}/\code{theta}.
-#' @importClassesFrom Matrix dgCMatrix
+#' @importClassesFrom Matrix dgCMatrix ngCMatrix
 #' @exportClass ad_fun
 setClass(
   "ad_fun",
@@ -20,6 +22,7 @@ setClass(
     inner = "dgCMatrix",
     map_outer = "list",
     map_inner = "list",
+    parallel_map = "ngCMatrix",
     chol_inner = "ANY",
     chol_inner_list = "list",
     sizes = "numeric"

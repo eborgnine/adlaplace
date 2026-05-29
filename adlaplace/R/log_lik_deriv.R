@@ -39,12 +39,11 @@ log_lik_deriv <- function(
     dims = c(length(config$gamma), length(whichColumnsByGroup1))
   )
 
-  theTrace <- adlaplace::traceHinvT(
-    x = full_parameters,
-    Hstuff$half_H_inv,
-    whichColumnsByGroup,
+  theTrace <- adlaplace::trace_hinv_t(
     ad_fun = ad_fun,
-    c(config$num_threads, 1L)[1]
+    x = full_parameters,
+    LinvPt = Hstuff$half_H_inv,
+    LinvPtColumns = whichColumnsByGroup
   )
 
   dU <- -Hstuff$H_inv %*% hessian_pack$outer[Sgamma1, -Sgamma1]

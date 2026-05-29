@@ -16,6 +16,7 @@
 
 struct AD_Func_Opt {
   ad_fun* const shards;
+  const std::vector<std::vector<size_t>>* const thread_groups;
   const bool inner;
   const int num_threads;
 
@@ -29,6 +30,7 @@ struct AD_Func_Opt {
 
   const Eigen::SparseMatrix<int, Eigen::ColMajor, int> Htemplate;
   const std::vector<std::vector<int>> hess_maps;
+  const std::vector<size_t> all_shards;
 
   std::vector<double> parameters;
   std::vector<double> hess_upper_accum;
@@ -37,9 +39,11 @@ struct AD_Func_Opt {
     ad_fun& ag,
     const std::vector<double>& params_init,
     bool innerIn = true,
-    int num_threads_in = 1
+    int num_threads_in = 1,
+    const std::vector<std::vector<size_t>>* thread_groups_in = nullptr
     )
-  : AD_Func_Opt(ag, params_init, make_layout(ag, innerIn), innerIn, num_threads_in)
+  : AD_Func_Opt(
+      ag, params_init, make_layout(ag, innerIn), innerIn, num_threads_in, thread_groups_in)
   {}
 
   int get_nvars() const { return static_cast<int>(nvars_opt); }
@@ -56,12 +60,11 @@ struct AD_Func_Opt {
 #pragma omp parallel num_threads(num_threads)
     {
       double f_local = 0.0;
-      const int gend = static_cast<int>(n_shards_backend);
       std::vector<double> params_local(parameters.begin(), parameters.end());
+      const std::vector<size_t>& shard_group = shard_group_for_thread();
 
-#pragma omp for schedule(static,1) nowait
-      for (int g = 0; g < gend; ++g) {
-        adlaplace_adpack_handle* h = shards->fun[static_cast<size_t>(g)];
+      for (size_t s : shard_group) {
+        adlaplace_adpack_handle* h = shards->fun[s];
         (void)h->api->f(h->ctx, params_local.data(), &f_local);
       }
 
@@ -89,12 +92,11 @@ struct AD_Func_Opt {
     {
       double f_local = 0.0;
       std::vector<double> grad_local(Nparams, 0.0);
-      const int gend = static_cast<int>(n_shards_backend);
       std::vector<double> params_local(parameters.begin(), parameters.end());
+      const std::vector<size_t>& shard_group = shard_group_for_thread();
 
-#pragma omp for schedule(static,1) nowait
-      for (int g = 0; g < gend; ++g) {
-        adlaplace_adpack_handle* h = shards->fun[static_cast<size_t>(g)];
+      for (size_t s : shard_group) {
+        adlaplace_adpack_handle* h = shards->fun[s];
         (void)h->api->f_grad(
           h->ctx, params_local.data(), &inner_flag, &f_local, grad_local.data()
         );
@@ -138,17 +140,12 @@ struct AD_Func_Opt {
       double f_local = 0.0;
       std::vector<double> grad_local(Nparams, 0.0);
       std::vector<double> hess_local(hess_upper_accum.size(), 0.0);
-      const int gend = static_cast<int>(n_shards_backend);
       std::vector<double> params_local(parameters.begin(), parameters.end());
+      const std::vector<size_t>& shard_group = shard_group_for_thread();
 
-#if ADLAPLACE_HAVE_KMPC_DISPATCH_DEINIT
-#pragma omp for schedule(dynamic) nowait
-#else
-#pragma omp for schedule(static,1) nowait
-#endif
-      for (int g = 0; g < gend; ++g) {
-        adlaplace_adpack_handle* h = shards->fun[static_cast<size_t>(g)];
-        int* map_ptr = const_cast<int*>(hess_maps[static_cast<size_t>(g)].data());
+      for (size_t s : shard_group) {
+        adlaplace_adpack_handle* h = shards->fun[s];
+        int* map_ptr = const_cast<int*>(hess_maps[s].data());
         std::fill(hess_local.begin(), hess_local.end(), 0.0);
         (void)h->api->f_grad_hess(
           h->ctx, params_local.data(), &inner_flag,
@@ -333,14 +330,24 @@ private:
     return out;
   }
 
+  static std::vector<size_t> make_all_shards(size_t n_shards) {
+    std::vector<size_t> out(n_shards);
+    for (size_t s = 0; s < n_shards; ++s) {
+      out[s] = s;
+    }
+    return out;
+  }
+
   AD_Func_Opt(
     ad_fun& ag,
     const std::vector<double>& params_init,
     Layout layout,
     bool innerIn,
-    int num_threads_in
+    int num_threads_in,
+    const std::vector<std::vector<size_t>>* thread_groups_in
     )
   : shards(&ag),
+    thread_groups(thread_groups_in),
     inner(innerIn),
     num_threads(num_threads_in > 0 ? num_threads_in : 1),
     Nparams(layout.Nparams),
@@ -352,13 +359,36 @@ private:
     var_offset(layout.var_offset),
     Htemplate(layout.Htemplate),
     hess_maps(std::move(layout.hess_maps)),
+    all_shards(make_all_shards(layout.n_shards_backend)),
     parameters(),
     hess_upper_accum(static_cast<size_t>(Htemplate.nonZeros()), 0.0)
   {
+    if (thread_groups && static_cast<int>(thread_groups->size()) != num_threads) {
+      Rcpp::stop(
+        "thread affinity group count %d does not match num_threads %d",
+        static_cast<int>(thread_groups->size()),
+        num_threads
+      );
+    }
     parameters.resize(Nparams, 0.0);
     for (size_t j = 0; j < params_init.size() && j < Nparams; ++j) {
       parameters[j] = params_init[j];
     }
+  }
+
+  inline const std::vector<size_t>& shard_group_for_thread() const {
+    if (!thread_groups) {
+      return all_shards;
+    }
+    const int tid = omp_get_thread_num();
+    if (tid < 0 || tid >= static_cast<int>(thread_groups->size())) {
+      Rcpp::stop(
+        "OpenMP thread %d out of range for thread affinity groups (%d)",
+        tid,
+        static_cast<int>(thread_groups->size())
+      );
+    }
+    return (*thread_groups)[static_cast<size_t>(tid)];
   }
 
   template <class DerivedX>

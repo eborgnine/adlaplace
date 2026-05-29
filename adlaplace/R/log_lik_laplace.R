@@ -12,7 +12,7 @@
 #'   (remaining elements) before passing to the inner optimizer.
 #' @param config A list containing model dimensions/starting values and backend
 #'   options. Must include \code{beta}, \code{gamma}, and \code{theta}; may also
-#'   include \code{package}, \code{verbose}, and \code{num_threads}.
+#'   include \code{package} and \code{verbose}.
 #' @param gamma Optional numeric vector of starting values for the inner
 #'   parameter \code{gamma}. If missing, defaults to \code{config$gamma}.
 #' @param control List of control parameters passed *as-is* to the backend inner
@@ -91,10 +91,10 @@ log_lik_laplace <- function(
   result_inner <- inner_opt(
     parameters = x,
     gamma = config_inner$gamma,
-    config = config_inner,
     control = control,
     ad_fun = ad_fun,
-    deriv = deriv
+    deriv = deriv,
+    verbose = isTRUE(config_inner$verbose)
   )
   result <- result_inner[setdiff(names(result_inner), c("gradient", "hessian"))]
   result$extra <- result_inner[c("gradient", "hessian")]

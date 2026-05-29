@@ -55,7 +55,6 @@ test_that("ad_fun and derivatives run on small GLMM data", {
   inner_res <- adlaplace::inner_opt(
     parameters = c(config$beta, config$theta),
     gamma = config$gamma,
-    config = config,
     ad_fun = ad_fun,
     control = list(maxit = 5L, report.level = 0, report.freq = 0),
     deriv = FALSE

@@ -106,14 +106,14 @@ test_that("clone after ad_fun() preserves laplace eval", {
   )
   inner_src <- adlaplace::inner_opt(
     c(config$beta, config$theta), config$gamma,
-    config = config, ad_fun = af,
+    ad_fun = af,
     control = list(maxit = 2L, report.level = 0, report.freq = 0),
     deriv = FALSE
   )
   af_copy <- adlaplace::ad_fun(copy)
   inner_copy <- adlaplace::inner_opt(
     c(config$beta, config$theta), config$gamma,
-    config = config, ad_fun = af_copy,
+    ad_fun = af_copy,
     control = list(maxit = 2L, report.level = 0, report.freq = 0),
     deriv = FALSE
   )

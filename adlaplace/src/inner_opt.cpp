@@ -13,8 +13,7 @@
 //' @param gamma Numeric vector of starting values for inner parameters
 //'   (\code{gamma}; length \code{Ngamma}) used by \code{inner_opt()}.
 //' @param ad_fun \code{ad_fun} S4 object from \code{ad_fun(ad_fun_ptr)}.
-//' @param config Configuration list with model dimensions, groups, and
-//'   sparsity information.
+//' @param verbose Logical; if \code{TRUE}, print threads, shards, and parameter sizes.
 //' @param control List of trust-region control parameters for
 //'   \code{inner_opt()} (see \pkg{trustOptim}).
 //' @param deriv Logical: if \code{TRUE}, return full outer gradient and Hessian at the
@@ -128,6 +127,22 @@ Rcpp::List chol_inner_numeric(
 	);
 }
 
+std::vector<std::vector<size_t>> thread_groups_from_backend(ad_fun& backend) {
+	const std::size_t n = backend.fun.size();
+	std::vector<std::size_t> owners(n);
+	std::size_t max_t = 0;
+	for (std::size_t s = 0; s < n; ++s) {
+		const std::size_t t = pack_ctx(backend.fun[s]->ctx)->owner_thread;
+		owners[s] = t;
+		if (t > max_t) max_t = t;
+	}
+	std::vector<std::vector<size_t>> groups(max_t + 1);
+	for (std::size_t s = 0; s < n; ++s) {
+		groups[owners[s]].push_back(s);
+	}
+	return groups;
+}
+
 struct InnerOptResult {
 	double fval = NA_REAL;
 	double log_lik = NA_REAL;
@@ -151,10 +166,12 @@ InnerOptResult inner_opt(
 	const std::vector<double>& parameters,
 	const std::vector<double>& gamma,
 	ad_fun& backend,
-	const Config& config,
 	const TrustControl& control,
-	bool deriv)
+	bool deriv,
+	bool verbose)
 {
+	const std::vector<std::vector<size_t>> thread_groups = thread_groups_from_backend(backend);
+	const int num_threads = static_cast<int>(thread_groups.size());
 	using Tvec = Eigen::VectorXd;
 	using THess = Eigen::SparseMatrix<double>;
 	using TPreLLt = Eigen::SimplicialLLT<THess>;
@@ -184,7 +201,14 @@ InnerOptResult inner_opt(
 		Rcpp::stop("Ngamma must be > 0");
 	}
 
-	const int num_threads = config.num_threads > 0 ? config.num_threads : 1;
+	if (verbose) {
+		Rcpp::Rcout << "inner_opt: threads = " << num_threads
+		            << ", shards = " << backend.fun.size()
+		            << ", params = " << n_params
+		            << " (beta = " << n_beta
+		            << ", gamma = " << n_gamma
+		            << ", theta = " << n_theta << ")\n";
+	}
 
 	Tvec gamma_start(static_cast<Eigen::Index>(n_gamma));
 	Tvec solution(static_cast<Eigen::Index>(n_gamma));
@@ -206,10 +230,10 @@ InnerOptResult inner_opt(
 		fullParams[static_cast<Eigen::Index>(theta_begin + d)] = parameters[n_beta + d];
 	}
 
-	AD_Func_Opt funObj(backend, params_init, true, num_threads);
+	AD_Func_Opt funObj(backend, params_init, true, num_threads, &thread_groups);
 	Eigen::SparseMatrix<double> H = funObj.Htemplate.cast<double>();
 
-	AD_Func_Opt funObjOuter(backend, params_init, false, num_threads);
+	AD_Func_Opt funObjOuter(backend, params_init, false, num_threads, &thread_groups);
 	Eigen::SparseMatrix<double> Houter;
 	Tvec gradOuter;
 
@@ -241,7 +265,7 @@ InnerOptResult inner_opt(
 		status = opt.get_current_state(solution, fval, grad, H, iterations, radius);
 
 		const double grad_l2_sq = grad.squaredNorm();
-		if (status != SUCCESS || grad_l2_sq > 10.0) {
+		if (grad_l2_sq > 10.0) {
 			gamma_start = gamma_start.cwiseMax(-0.1).cwiseMin(0.1);
 			Trust_CG_Sparse<Tvec, AD_Func_Opt, THess, TPreLLt> opt_retry(
 				funObj, gamma_start,
@@ -317,13 +341,12 @@ InnerOptResult inner_opt(
 Rcpp::List inner_opt(
 	const Rcpp::NumericVector parameters,
 	const Rcpp::NumericVector gamma,
-	const Rcpp::List& config,
 	const Rcpp::S4& ad_fun,
 	const Rcpp::List& control = Rcpp::List(),
-	bool deriv = false)
+	bool deriv = false,
+	bool verbose = false)
 {
 	try {
-		const Config config_c(config);
 		const TrustControl control_c(control);
 		::ad_fun* backend = resolve_ad_fun_laplace(ad_fun);
 
@@ -334,9 +357,9 @@ Rcpp::List inner_opt(
 			parameters_vec,
 			gamma_vec,
 			*backend,
-			config_c,
 			control_c,
-			deriv
+			deriv,
+			verbose
 		);
 
 		const Rcpp::List chol_inner = chol_inner_numeric(

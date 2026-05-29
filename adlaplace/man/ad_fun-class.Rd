@@ -8,11 +8,11 @@
 \alias{ad_fun,list-method}
 \title{AD function with Hessian templates attached}
 \usage{
-\S4method{ad_fun}{ad_fun_ptr}(x, config = NULL, ...)
+\S4method{ad_fun}{ad_fun_ptr}(x, config = NULL, num_threads = 1L, ...)
 
-\S4method{ad_fun}{ad_data}(x, config = NULL, ...)
+\S4method{ad_fun}{ad_data}(x, config = NULL, num_threads = 1L, ...)
 
-\S4method{ad_fun}{list}(x, config = NULL, ...)
+\S4method{ad_fun}{list}(x, config = NULL, num_threads = 1L, ...)
 }
 \description{
 AD function with Hessian templates attached
@@ -41,6 +41,9 @@ and attach templates.
 \item{\code{map_outer}}{Outer Hessian shard map.}
 
 \item{\code{map_inner}}{Inner Hessian shard map.}
+
+\item{\code{parallel_map}}{Thread-affinity map (\code{ngCMatrix}); rows are shards,
+columns are threads, with one nonzero per shard row.}
 
 \item{\code{chol_inner}}{Symbolic LDL factor or empty sparse matrix.}
 

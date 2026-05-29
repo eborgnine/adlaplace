@@ -21,7 +21,7 @@ hessian <- function(ad_fun_ptr, x, shards = NULL, inner = FALSE, verbose = FALSE
 
 #' @describeIn adlaplace_cpp Accept \code{ad_fun} S4 (uses \code{@ptr}).
 #' @export
-traceHinvT <- function(ad_fun_ptr, x, LinvPt, LinvPtColumns, num_threads, shards = NULL) {
+trace_hinv_t <- function(ad_fun_ptr, x, LinvPt, LinvPtColumns) {
   ptr <- if (isS4(ad_fun_ptr) && methods::.hasSlot(ad_fun_ptr, "ptr")) ad_fun_ptr@ptr else ad_fun_ptr
-  .Call(`_adlaplace_traceHinvT`, ptr, x, LinvPt, LinvPtColumns, num_threads, shards)
+  .Call("_adlaplace_trace_hinv_t", ptr, x, LinvPt, LinvPtColumns)
 }

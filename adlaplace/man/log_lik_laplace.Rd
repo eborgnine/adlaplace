@@ -23,7 +23,7 @@ into \code{beta} (first \code{length(config$beta)} elements) and \code{theta}
 
 \item{config}{A list containing model dimensions/starting values and backend
 options. Must include \code{beta}, \code{gamma}, and \code{theta}; may also
-include \code{package}, \code{verbose}, and \code{num_threads}.}
+include \code{package} and \code{verbose}.}
 
 \item{gamma}{Optional numeric vector of starting values for the inner
 parameter \code{gamma}. If missing, defaults to \code{config$gamma}.}

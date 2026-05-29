@@ -155,6 +155,20 @@ Rcpp::List get_sparse_pattern(SEXP handle, int group) {
   return sparsity_shard_from_handle(shard_handle(groups, static_cast<size_t>(group)));
 }
 
+//' Build-time owner thread for one AD shard
+//'
+//' @param handle External pointer of class \code{ad_fun_ptr}.
+//' @param group 0-based group index.
+//' @return Integer owner thread id recorded when the shard was prewarmed.
+//' @keywords internal
+// [[Rcpp::export]]
+int get_thread_owner(SEXP handle, int group) {
+  ad_fun* groups = ad_fun_from_handle(handle);
+  adlaplace_adpack_handle* h = shard_handle(groups, static_cast<size_t>(group));
+  GroupPack* pack = pack_ctx(h->ctx);
+  return static_cast<int>(pack->owner_thread);
+}
+
 //' Deep copy of an \code{ad_fun_ptr} handle
 //'
 //' Clones CppAD tapes and sparsity patterns into a new external pointer.

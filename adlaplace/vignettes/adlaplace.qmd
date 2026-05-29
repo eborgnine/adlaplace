@@ -82,7 +82,7 @@ config <- list(
   transform_theta = TRUE,
   gamma = rep(0, ncol(Amat)),
   shards = adlaplace::ad_shards(Amat, num_shards = 1000),
-  num_threads = 2L,
+  num_threads = 10L,
   verbose = TRUE,
   package = "adlaplace"
 )
@@ -162,22 +162,7 @@ ad_fun_r2 <- adlaplace::ad_fun_ptr(data = model_r2, config = config)
 ```
 
 
-```{r randomGaussianLogDens}
-# random_diagonal log-density: gamma ~ N(0, sd^2 * Q^{-1}), diagonal Q on the shard
-precision_r1 <- rep(1, nr1)
-xx <- c(config$beta, seq(1, length(config$gamma)), seq(1, length(config$theta)))
 
-adlaplace::joint_log_dens(ad_fun_r1, xx, negative = FALSE)
-
-gamma_ids <- seq.int(0L, length.out = ncol(AmatList$r1))
-varMat <- solve(diag(precision_r1)) * exp(xx[1 + n_beta + n_gamma])^2
-mvtnorm::dmvnorm(
-  xx[1 + n_beta + gamma_ids],
-  rep(0, ncol(varMat)),
-  varMat,
-  log = TRUE
-)
-```
 
 ```{r obsLogDens}
 # nbinom_obs + nbinom_extra (see src/nbinom.cpp): scan overdispersion
@@ -210,7 +195,8 @@ log_ad_seq <- vapply(seq_log_theta, ad_nb_log_dens, numeric(1))
 cbind(theta = exp(seq_log_theta), stats = log_pkg_seq, ad = log_ad_seq)
 ```
 
-the original ad_fun are destroyed, R objects exist but point to nothing.
+Combining shards inside `ad_fun(...)` uses the same move semantics as `c(ad_fun_ptr, ...)`:
+the original shard handles are cleared, and those R objects then point to nothing.
 ```{r adShards_combined}
 ad_fun_plain <- c(ad_fun_obs, ad_fun_extra, ad_fun_r1, ad_fun_r2)
 ```
@@ -226,7 +212,7 @@ by_shard <- mapply(
   MoreArgs = list(x = xx, ad_fun = ad_fun_plain, negative = FALSE),
   SIMPLIFY = TRUE
 )
-by_shard[seq(to = length(by_shard), length.out = 5)]
+matrix(by_shard[seq(to = length(by_shard), length.out = 12)], ncol = 4)
 ```
 
 ```{r testLogDens}
@@ -254,22 +240,25 @@ Make ad function with sparsity information, evaluate derivates to test the accum
 
 ```{r testInnerOpt}
 config_v <- modifyList(config, list(verbose = TRUE))
-ad_fun <- adlaplace::ad_fun(ad_fun_plain)
+ad_pack <- adlaplace::ad_fun(
+  ad_fun_plain,
+  num_threads = config$num_threads
+)
 
 inner_res <- adlaplace::inner_opt(
   parameters = c(config$beta, config$theta),
   gamma = config$gamma,
-  config = config_v,
-  ad_fun = ad_fun,
+  ad_fun = ad_pack,
   control = list(
     maxit = 100,
     report.level = 0,
     report.freq = 0
   ),
-  deriv = FALSE
+  deriv = TRUE,
+  verbose = TRUE
 )
-plot(inner_res$opt$solution, gamma)
-abline(c(0, 1), col = "red")
+# plot(inner_res$opt$solution, gamma)
+# abline(c(0, 1), col = "red")
 ```
 
 
@@ -279,13 +268,13 @@ abline(c(0, 1), col = "red")
 x_outer <- c(config$beta, config$theta)
 res1 <- adlaplace::log_lik_laplace(
   x = x_outer,
-  ad_fun = ad_fun,
-  config = modifyList(config, list(verbose = FALSE)),
+  ad_fun = ad_pack,
+  config = modifyList(config, list(verbose = TRUE)),
   deriv = FALSE
 )
 res2 <- adlaplace::log_lik_laplace(
   x = x_outer,
-  ad_fun = ad_fun,
+  ad_fun = ad_pack,
   config = modifyList(config, list(verbose = TRUE)),
   deriv = TRUE
 )
@@ -311,8 +300,8 @@ cache$gamma <- config$gamma
 
 x0 <- c(config$beta, config$theta)
 
-adlaplace::outer_fn(x = x0, cache = cache, config = config, ad_fun = ad_fun)
-adlaplace::outer_gr(x = x0, cache = cache, config = config, ad_fun = ad_fun)
+adlaplace::outer_fn(x = x0, cache = cache, config = config, ad_fun = ad_pack)
+adlaplace::outer_gr(x = x0, cache = cache, config = config, ad_fun = ad_pack)
 
 outer_fit_no_g <- stats::optim(
   par = x0,
@@ -326,7 +315,7 @@ outer_fit_no_g <- stats::optim(
     REPORT = 1
   ),
   config = config,
-  ad_fun = ad_fun,
+  ad_fun = ad_pack,
   cache = cache,
   control_inner = list(
     maxit = 100,
@@ -347,7 +336,7 @@ outer_fit <- stats::optim(
     REPORT = 1
   ),
   config = config,
-  ad_fun = ad_fun,
+  ad_fun = ad_pack,
   cache = cache,
   control_inner = list(
     maxit = 100,

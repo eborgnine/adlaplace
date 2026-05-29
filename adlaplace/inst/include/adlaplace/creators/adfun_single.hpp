@@ -46,6 +46,7 @@ inline GroupPack build_ad_fun_random(
 
   GroupPack pack;
   pack.fun = std::move(fun);
+  pack.owner_thread = 0;
   adpack_sparsity(ad_params_G, model.seq_gamma, pack, cfg.verbose);
   return pack;
 }
@@ -78,6 +79,7 @@ inline GroupPack build_ad_fun_parameters(
 
   GroupPack pack;
   pack.fun = std::move(fun);
+  pack.owner_thread = 0;
   adpack_sparsity(ad_params_G, model.seq_gamma, pack, cfg.verbose);
   return pack;
 }

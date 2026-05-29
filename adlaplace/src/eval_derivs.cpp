@@ -30,7 +30,7 @@ Rcpp::IntegerVector shards_vector(
 //'   \code{integer(0)} evaluates all shards.
 //' @param inner Logical scalar for inner-\eqn{\gamma} vs outer derivatives.
 //' @param verbose Logical passed to \code{hessian()}.
-//' @param LinvPt,LinvPtColumns,num_threads See \code{traceHinvT()}.
+//' @param LinvPt,LinvPtColumns See \code{trace_hinv_t()}.
 //'
 //' @section Sign convention:
 //' With default \code{negative = TRUE}, \code{joint_log_dens()}, \code{grad()},

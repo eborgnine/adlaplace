@@ -81,7 +81,6 @@ config <- list(
     md$data$A,
     num_shards = 100
   ),
-  num_threads = 2L,
   verbose = TRUE,
   package = "adlaplace"
 )
@@ -89,9 +88,22 @@ config <- list(
 
 
 ```{r ad_fun_create}
-ad_fun <- adlaplace::ad_fun(md, config)
+ad_fun <- adlaplace::ad_fun(md, config, num_threads = 2L)
 ```
 
+```{r checkByShard}
+shards <- seq.int(from = 0, length.out = adlaplace::n_groups(ad_fun@ptr))
+xx <- c(config$beta, config$gamma, config$theta)
+
+
+by_shard <- mapply(
+  adlaplace::joint_log_dens,
+  shards = shards,
+  MoreArgs = list(x = xx, ad_fun = ad_fun@ptr, negative = FALSE),
+  SIMPLIFY = TRUE
+)
+by_shard[seq(to = length(by_shard), length.out = 5)]
+```
 
 
 ```{r log_lik}

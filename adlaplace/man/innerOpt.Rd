@@ -5,9 +5,23 @@
 \alias{inner_opt}
 \title{Inner optimization over gamma using trust-region CG (sparse)}
 \usage{
-inner_opt(parameters, gamma, config, ad_fun, control = list(), deriv = FALSE)
+inner_opt(
+  parameters,
+  gamma,
+  ad_fun,
+  control = list(),
+  deriv = FALSE,
+  verbose = FALSE
+)
 
-inner_opt(parameters, gamma, config, ad_fun, control = list(), deriv = FALSE)
+inner_opt(
+  parameters,
+  gamma,
+  ad_fun,
+  control = list(),
+  deriv = FALSE,
+  verbose = FALSE
+)
 }
 \arguments{
 \item{parameters}{Numeric vector of fixed outer parameters
@@ -17,9 +31,6 @@ inner_opt(parameters, gamma, config, ad_fun, control = list(), deriv = FALSE)
 \item{gamma}{Numeric vector of starting values for inner parameters
 (\code{gamma}; length \code{Ngamma}) used by \code{inner_opt()}.}
 
-\item{config}{Configuration list with model dimensions, groups, and
-sparsity information.}
-
 \item{ad_fun}{\code{ad_fun} S4 object from \code{ad_fun(ad_fun_ptr)}.}
 
 \item{control}{List of trust-region control parameters for
@@ -27,6 +38,8 @@ sparsity information.}
 
 \item{deriv}{Logical: if \code{TRUE}, return full outer gradient and Hessian at the
 inner solution; if \code{FALSE}, return inner quantities only (default).}
+
+\item{verbose}{Logical; if \code{TRUE}, print threads, shards, and parameter sizes.}
 
 \item{x}{Numeric full parameter vector of length \code{Nparams}.}
 }

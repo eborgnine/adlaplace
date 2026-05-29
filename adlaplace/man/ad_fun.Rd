@@ -4,7 +4,7 @@
 \alias{ad_fun}
 \title{Build AD function with Hessian templates}
 \usage{
-ad_fun(x, config = NULL, ...)
+ad_fun(x, config = NULL, num_threads = 1L, ...)
 }
 \arguments{
 \item{x}{One of: an \code{ad_fun_ptr}, an \code{ad_data} shard with
@@ -14,7 +14,11 @@ with \code{observations}, \code{random}, \code{parameters}).}
 \item{config}{Model configuration list. Required for \code{ad_data} and
 \code{model_data}; unused for \code{ad_fun_ptr}.}
 
-\item{...}{Unused.}
+\item{num_threads}{Positive integer; number of thread columns in
+\code{parallel_map} used for shard thread affinity.}
+
+\item{...}{For \code{ad_fun_ptr} input, optional additional
+\code{ad_fun_ptr} shards to combine before attaching templates.}
 }
 \value{
 Object of class \code{ad_fun}.

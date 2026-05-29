@@ -92,6 +92,16 @@ get_sparse_pattern <- function(handle, group) {
     .Call(`_adlaplace_get_sparse_pattern`, handle, group)
 }
 
+#' Build-time owner thread for one AD shard
+#'
+#' @param handle External pointer of class \code{ad_fun_ptr}.
+#' @param group 0-based group index.
+#' @return Integer owner thread id recorded when the shard was prewarmed.
+#' @keywords internal
+get_thread_owner <- function(handle, group) {
+    .Call(`_adlaplace_get_thread_owner`, handle, group)
+}
+
 #' Deep copy of an \code{ad_fun_ptr} handle
 #'
 #' Clones CppAD tapes and sparsity patterns into a new external pointer.
@@ -119,7 +129,7 @@ clone_ad_fun_ptr_ <- function(handle) {
 #'   \code{integer(0)} evaluates all shards.
 #' @param inner Logical scalar for inner-\eqn{\gamma} vs outer derivatives.
 #' @param verbose Logical passed to \code{hessian()}.
-#' @param LinvPt,LinvPtColumns,num_threads See \code{traceHinvT()}.
+#' @param LinvPt,LinvPtColumns See \code{trace_hinv_t()}.
 #'
 #' @section Sign convention:
 #' With default \code{negative = TRUE}, \code{joint_log_dens()}, \code{grad()},
@@ -159,8 +169,7 @@ hessian <- function(ad_fun_ptr, x, shards = NULL, inner = FALSE, verbose = FALSE
 #' @param gamma Numeric vector of starting values for inner parameters
 #'   (\code{gamma}; length \code{Ngamma}) used by \code{inner_opt()}.
 #' @param ad_fun \code{ad_fun} S4 object from \code{ad_fun(ad_fun_ptr)}.
-#' @param config Configuration list with model dimensions, groups, and
-#'   sparsity information.
+#' @param verbose Logical; if \code{TRUE}, print threads, shards, and parameter sizes.
 #' @param control List of trust-region control parameters for
 #'   \code{inner_opt()} (see \pkg{trustOptim}).
 #' @param deriv Logical: if \code{TRUE}, return full outer gradient and Hessian at the
@@ -185,12 +194,12 @@ NULL
 
 #' @rdname innerOpt
 #' @keywords internal
-inner_opt <- function(parameters, gamma, config, ad_fun, control, deriv = FALSE) {
-    .Call(`_adlaplace_inner_opt`, parameters, gamma, config, ad_fun, control, deriv)
+inner_opt <- function(parameters, gamma, ad_fun, control, deriv = FALSE, verbose = FALSE) {
+    .Call(`_adlaplace_inner_opt`, parameters, gamma, ad_fun, control, deriv, verbose)
 }
 
 #' @rdname adlaplace_cpp
-traceHinvT <- function(ad_fun_ptr, x, LinvPt, LinvPtColumns, num_threads, shards = NULL) {
-    .Call(`_adlaplace_traceHinvT`, ad_fun_ptr, x, LinvPt, LinvPtColumns, num_threads, shards)
+trace_hinv_t <- function(ad_fun_ptr, x, LinvPt, LinvPtColumns) {
+    .Call(`_adlaplace_trace_hinv_t`, ad_fun_ptr, x, LinvPt, LinvPtColumns)
 }
 

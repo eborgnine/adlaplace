@@ -38,6 +38,7 @@ struct GroupPack {
 
   // Shard index and global parameter layout (for trace_hinv_t / LinvPtColumns).
   std::size_t shard_index = 0;
+  std::size_t owner_thread = 0;
   std::size_t n_beta = 0;
   std::size_t n_theta = 0;
 };

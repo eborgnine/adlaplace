@@ -54,10 +54,10 @@ outer_fn <- function(x, config, cache, ad_fun, control_inner = list(), ...) {
     result <- adlaplace::inner_opt(
         parameters = x,
         gamma = cache$gamma,
-        config = config,
         ad_fun = ad_fun,
         control = control_inner,
-        deriv = FALSE
+        deriv = FALSE,
+        verbose = isTRUE(config$verbose)
     )
 
     assign("gamma", result$opt$solution, cache)

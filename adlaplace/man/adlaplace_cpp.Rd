@@ -5,7 +5,7 @@
 \alias{joint_log_dens}
 \alias{grad}
 \alias{hessian}
-\alias{traceHinvT}
+\alias{trace_hinv_t}
 \title{C++ backend entry points}
 \usage{
 joint_log_dens(ad_fun_ptr, x, shards = NULL, negative = TRUE)
@@ -21,7 +21,7 @@ hessian(
   negative = TRUE
 )
 
-traceHinvT(ad_fun_ptr, x, LinvPt, LinvPtColumns, num_threads, shards = NULL)
+trace_hinv_t(ad_fun_ptr, x, LinvPt, LinvPtColumns)
 
 joint_log_dens(ad_fun_ptr, x, shards = NULL, negative = TRUE)
 
@@ -36,7 +36,7 @@ hessian(
   negative = TRUE
 )
 
-traceHinvT(ad_fun_ptr, x, LinvPt, LinvPtColumns, num_threads, shards = NULL)
+trace_hinv_t(ad_fun_ptr, x, LinvPt, LinvPtColumns)
 }
 \arguments{
 \item{ad_fun_ptr}{External pointer of class \code{ad_fun_ptr}.}
@@ -55,7 +55,7 @@ and \eqn{\nabla^2\ell}.}
 
 \item{verbose}{Logical passed to \code{hessian()}.}
 
-\item{LinvPt, LinvPtColumns, num_threads}{See \code{traceHinvT()}.}
+\item{LinvPt, LinvPtColumns}{See \code{trace_hinv_t()}.}
 }
 \value{
 Scalar log-density value (sign per \code{negative}).
@@ -75,7 +75,7 @@ Low-level C++ entry points exposed to R via Rcpp.
 
 \item \code{hessian()}: Accept \code{ad_fun} S4 (uses \code{@ptr}).
 
-\item \code{traceHinvT()}: Accept \code{ad_fun} S4 (uses \code{@ptr}).
+\item \code{trace_hinv_t()}: Accept \code{ad_fun} S4 (uses \code{@ptr}).
 
 }}
 \section{Sign convention}{

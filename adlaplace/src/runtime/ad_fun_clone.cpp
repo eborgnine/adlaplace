@@ -20,6 +20,7 @@ GroupPack clone_group_pack(const GroupPack& src) {
   dst.direction = src.direction;
   dst.unused_pattern = src.unused_pattern;
   dst.shard_index = src.shard_index;
+  dst.owner_thread = src.owner_thread;
   dst.n_beta = src.n_beta;
   dst.n_theta = src.n_theta;
   return dst;
