@@ -120,14 +120,12 @@ int eval_trace_hinv_t(
     gp.fun.Forward(0, gp.x);
 gp.fun.Forward(1, gp.direction);
 gp.fun.Forward(2, gp.direction_zeros);
-#ifdef UNDEF
     const CppAD::vector<double> dw = gp.fun.Reverse(3, gp.wthree);
     if (dw.size() < 3 * n_params) return 16;
 
     for (std::size_t d = 0; d < n_params; ++d) {
       out_trace[d] += dw[3 * d];
     }
-#endif    
   }
 
   return 0;

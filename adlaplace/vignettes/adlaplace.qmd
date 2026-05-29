@@ -83,7 +83,7 @@ config <- list(
   gamma = rep(0, ncol(Amat)),
   shards = adlaplace::ad_shards(Amat, num_shards = 1000),
   num_threads = 10L,
-  verbose = TRUE,
+  verbose = FALSE,
   package = "adlaplace"
 )
 
@@ -234,7 +234,7 @@ Check the derivatives of the joint log density.
 
 
 
-Make ad function with sparsity information, evaluate derivates to test the accumulation over shards is done correctly.  
+Make ad function with sparsity information, evaluate derivatives to test the accumulation over shards is done correctly.  
 
 
 
@@ -278,6 +278,8 @@ res2 <- adlaplace::log_lik_laplace(
   config = modifyList(config, list(verbose = TRUE)),
   deriv = TRUE
 )
+quantile(res2$extra$trace3)
+
 x_outer
 res1$full_parameters[1:5]
 res1$log_lik
@@ -374,7 +376,7 @@ res <- mapply(
   adlaplace::log_lik_laplace,
   x = as.list(parDf),
   MoreArgs = list(
-    ad_fun = ad_fun, config = config, deriv = TRUE,
+    ad_fun = ad_pack, config = config, deriv = TRUE,
     gamma = cache$gamma
   ),
   SIMPLIFY = FALSE
@@ -391,7 +393,7 @@ uHat <- do.call(rbind, lapply(res, function(xx) xx$opt$solution))
 extraDf <- do.call(abind::abind, c(lapply(res, "[[", "deriv"), along = 3))
 gradMat <- do.call(rbind, lapply(res, "[[", "grad"))
 
-
+round(extraDf[Dpar, , ], 5)
 
 plot(Sx, SnegLik)
 
@@ -406,7 +408,7 @@ Du <- 2
 plot(Sx, uHat[, Du])
 
 
-res_here <- res[[8]]
+res_here <- res[[round(length(res) / 2)]]
 
 hessian_outer <- Matrix::forceSymmetric(res_here$extra$hessian$outer)
 hessian_outer2 <- adlaplace::hessian(
