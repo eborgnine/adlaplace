@@ -65,7 +65,7 @@ int main() {
 }
 EOF
   if eval "$CXX_CMD $CPPFLAGS_CMD $CXXFLAGS_CMD -I$BREW_PREFIX/opt/libomp/include -Xpreprocessor -fopenmp \
-      $tmpdir/conftest.cpp $R_HOME_DIR/lib/libomp.dylib -o $tmpdir/conftest" \
+      $tmpdir/conftest.cpp $BREW_PREFIX/opt/libomp/lib/libomp.a -o $tmpdir/conftest" \
       >/dev/null 2>&1; then
     rm -rf "$tmpdir"
     return 0
@@ -74,15 +74,36 @@ EOF
   return 1
 }
 
-detect_openmp_runtime_lib () {
-  if [ "$UNAME_S" = "Darwin" ] \
-     && [ -n "$R_HOME_DIR" ] \
-     && [ -f "$R_HOME_DIR/lib/libomp.dylib" ]; then
-    printf '%s' "$R_HOME_DIR/lib/libomp.dylib"
+check_openmp_linux_static () {
+  tmpdir="config.$$"
+  mkdir "$tmpdir"
+  cat > "$tmpdir/conftest.cpp" <<'EOF'
+#include <omp.h>
+int main() {
+  omp_set_num_threads(1);
+  return omp_get_max_threads() >= 1 ? 0 : 1;
+}
+EOF
+  if eval "$CXX_CMD $CPPFLAGS_CMD $CXXFLAGS_CMD -fopenmp -static-libgomp \
+      $tmpdir/conftest.cpp -o $tmpdir/conftest" \
+      >/dev/null 2>&1; then
+    rm -rf "$tmpdir"
     return 0
   fi
+  rm -rf "$tmpdir"
+  return 1
+}
 
-  for cand in libgomp.so libomp.so; do
+detect_openmp_probe_lib () {
+  if [ "$UNAME_S" = "Darwin" ]; then
+    if [ -n "$BREW_PREFIX" ] && [ -f "$BREW_PREFIX/opt/libomp/lib/libomp.a" ]; then
+      printf '%s' "$BREW_PREFIX/opt/libomp/lib/libomp.a"
+      return 0
+    fi
+    return 1
+  fi
+
+  for cand in libgomp.a libgomp.so; do
     path="$(eval "$CXX_CMD -print-file-name=$cand" 2>/dev/null || true)"
     if [ -n "$path" ] && [ "$path" != "$cand" ] && [ -f "$path" ]; then
       printf '%s' "$path"
@@ -179,22 +200,6 @@ datatable_uses_kmpc_dispatch () {
   return $?
 }
 
-detect_linked_openmp_lib () {
-  so_path="$1"
-  [ -f "$so_path" ] || return 1
-
-  if [ "$UNAME_S" = "Darwin" ]; then
-    otool -L "$so_path" 2>/dev/null | awk '/libomp|libgomp/ {print $1; exit}'
-    return 0
-  fi
-
-  if command -v ldd >/dev/null 2>&1; then
-    ldd "$so_path" 2>/dev/null | awk '/libomp|libgomp/ {print $3; exit}'
-    return 0
-  fi
-  return 1
-}
-
 has_kmpc_dispatch_deinit () {
   libpath="$1"
   [ -f "$libpath" ] || return 1
@@ -233,28 +238,29 @@ else
   msg "configure: no standalone CppAD library detected; relying on header-only CppAD"
 fi
 
-# ---- Optional OpenMP ----
+# ---- Optional OpenMP (always static: libomp.a on macOS, -static-libgomp on Linux) ----
 if [ "$UNAME_S" = "Darwin" ]; then
   if [ -n "$BREW_PREFIX" ] \
      && [ -f "$BREW_PREFIX/opt/libomp/include/omp.h" ] \
-     && [ -n "$R_HOME_DIR" ] \
-     && [ -f "$R_HOME_DIR/lib/libomp.dylib" ]; then
+     && [ -f "$BREW_PREFIX/opt/libomp/lib/libomp.a" ]; then
     if check_openmp_darwin; then
       OPENMP_CPPFLAGS="-I$BREW_PREFIX/opt/libomp/include"
       OPENMP_CXXFLAGS="-Xpreprocessor -fopenmp"
-      OPENMP_LIBS="$R_HOME_DIR/lib/libomp.dylib -Wl,-rpath,$R_HOME_DIR/lib"
-      msg "configure: OpenMP enabled on macOS using R libomp"
+      OPENMP_LIBS="$BREW_PREFIX/opt/libomp/lib/libomp.a"
+      msg "configure: OpenMP enabled on macOS using static Homebrew libomp"
     else
       msg "configure: OpenMP not enabled (compiler does not accept -Xpreprocessor -fopenmp)"
     fi
   else
-    msg "configure: OpenMP not enabled on macOS (Homebrew omp.h or R libomp not found)"
+    msg "configure: OpenMP not enabled on macOS (Homebrew libomp not found)"
   fi
 else
-  if check_cxxflag "-fopenmp"; then
+  if check_cxxflag "-fopenmp" && check_openmp_linux_static; then
     OPENMP_CXXFLAGS="-fopenmp"
-    OPENMP_LIBS="-fopenmp"
-    msg "configure: OpenMP enabled using -fopenmp"
+    OPENMP_LIBS="-fopenmp -static-libgomp"
+    msg "configure: OpenMP enabled using -fopenmp -static-libgomp"
+  elif check_cxxflag "-fopenmp"; then
+    msg "configure: OpenMP not enabled (static libgomp link failed)"
   else
     msg "configure: OpenMP not enabled (compiler does not accept -fopenmp)"
   fi
@@ -264,7 +270,6 @@ if [ -n "$OPENMP_CXXFLAGS" ]; then
   DATATABLE_SO="$(detect_datatable_so || true)"
 
   DT_HAS_DISPATCH=0
-  DT_OMP_LIB=""
   if [ -n "$DATATABLE_SO" ] && datatable_uses_kmpc_dispatch "$DATATABLE_SO"; then
     # Set DT_HAS_DISPATCH based on OS
     if [ "$UNAME_S" = "Linux" ]; then
@@ -274,20 +279,11 @@ if [ -n "$OPENMP_CXXFLAGS" ]; then
       DT_HAS_DISPATCH=0
       msg "configure: data.table uses kmpc_dispatch symbols: YES (macOS - disabling dispatch)"
     fi
-    DT_OMP_LIB="$(detect_linked_openmp_lib "$DATATABLE_SO" || true)"
   else
     msg "configure: data.table uses kmpc_dispatch symbols: NO/UNKNOWN"
   fi
 
-  OMP_RUNTIME_LIB="$(detect_openmp_runtime_lib || true)"
-  if [ -n "$DT_OMP_LIB" ] && [ -f "$DT_OMP_LIB" ]; then
-    OMP_RUNTIME_LIB="$DT_OMP_LIB"
-    if [ "$UNAME_S" = "Darwin" ]; then
-      OMP_RUNTIME_DIR="$(dirname "$OMP_RUNTIME_LIB")"
-      OPENMP_LIBS="$OMP_RUNTIME_LIB -Wl,-rpath,$OMP_RUNTIME_DIR"
-    fi
-    msg "configure: using data.table OpenMP runtime: $OMP_RUNTIME_LIB"
-  fi
+  OMP_RUNTIME_LIB="$(detect_openmp_probe_lib || true)"
 
   if [ "$DT_HAS_DISPATCH" = "1" ] \
      && [ -n "$OMP_RUNTIME_LIB" ] \

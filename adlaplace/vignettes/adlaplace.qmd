@@ -314,8 +314,7 @@ inner_res <- adlaplace::inner_opt(
 
 plot(
   inner_res$opt$solution, gamma,
-  xlab = "estimated", ylab = "true",
-  main = "Inner mode vs simulated gamma"
+  xlab = "estimated", ylab = "true"
 )
 abline(0, 1, col = "red", lty = 2)
 ```
