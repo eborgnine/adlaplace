@@ -90,7 +90,7 @@ config <- list(
   theta = c(log(thetaOrig[c("sd1", "sd2", "omega")]), thetaOrig["alpha"]),
   transform_theta = TRUE,
   gamma = rep(0, ncol(Amat)),
-  shards = adlaplace::ad_shards(Amat, num_shards = 1),
+  shards = adlaplace::ad_shards(Amat, num_shards = 100),
   num_threads = 10L,
   verbose = FALSE,
   package = "adlaplaceExample"
@@ -243,13 +243,13 @@ vector.
 
 ```{r checkByShard}
 x_full <- c(config$beta, config$gamma, config$theta)
-shards <- seq.int(from = 0L, length.out = adlaplace::n_groups(ad_fun_plain))
+shards <- seq.int(from = 0L, length.out = adlaplace::n_groups(ad_pack@ptr))
 
 by_shard <- vapply(
   shards,
   function(s) {
     adlaplace::joint_log_dens(
-      ad_fun_plain, x_full,
+      ad_pack, x_full,
       shards = s, negative = FALSE
     )
   },

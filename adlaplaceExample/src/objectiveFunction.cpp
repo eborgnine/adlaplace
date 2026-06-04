@@ -169,9 +169,8 @@ CppAD::vector<CppAD::AD<double>> logDensObs(
   }
 
   CppAD::vector<CppAD::AD<double>> out(1);
-//  out[0] = result;
-out[0] = omega_in;
-return out;
+  out[0] = result;
+  return out;
 }
 
 CppAD::vector<CppAD::AD<double>> logDensExtra(
@@ -187,9 +186,9 @@ CppAD::vector<CppAD::AD<double>> logDensExtra(
 
   double ny = static_cast<double>(model.y.size());
   CppAD::AD<double> ny_ad = CppAD::AD<double>(ny), onehundred = 100;
-  CppAD::AD<double> log_omega_ny = log_omega * onehundred;//ny_ad;
+  CppAD::AD<double> log_omega_ny = log_omega * ny_ad;
 
-  CppAD::AD<double> out = log_omega_ny;// - ny * ONEHALFLOGTWOPI;
+  CppAD::AD<double> out = - log_omega_ny - ny_ad * ONEHALFLOGTWOPI;
 
   CppAD::vector<CppAD::AD<double>> out_v(1);
   out_v[0] = out;
