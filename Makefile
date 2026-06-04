@@ -15,7 +15,13 @@ all:
 
 
 clean:
-	@echo "==> Cleaning .o and .so files under src folders"
+	@echo "==> Cleaning package build artifacts (cleanup scripts + src objects)"
+	@for pkg in $(PKGS); do \
+		if [ -f "$$pkg/cleanup" ]; then \
+			echo "==> $$pkg/cleanup"; \
+			(cd "$$pkg" && sh ./cleanup); \
+		fi; \
+	done
 	@find . -type f \( -name '*.o' -o -name '*.so' \) -path '*/src/*' -delete
 
 

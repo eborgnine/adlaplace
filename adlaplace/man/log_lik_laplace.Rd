@@ -6,27 +6,26 @@
 \usage{
 log_lik_laplace(
   x,
-  config,
+  config = list(),
   gamma,
   control = list(report.level = 4, report.freq = 1),
   ad_fun,
   data,
-  package = c(config$package, "adlaplace")[1],
+  package = c(config[["package"]], "adlaplace")[1L],
   deriv = FALSE
 )
 }
 \arguments{
-\item{x}{Numeric vector of outer parameters, expected to have length
-\code{length(config$beta) + length(config$theta)}. Elements are split
-into \code{beta} (first \code{length(config$beta)} elements) and \code{theta}
-(remaining elements) before passing to the inner optimizer.}
+\item{x}{Numeric vector of outer parameters (\code{beta}, then \code{theta}).
+Length must equal \code{num_beta + num_theta} from \code{ad_fun@sizes}.}
 
-\item{config}{A list containing model dimensions/starting values and backend
-options. Must include \code{beta}, \code{gamma}, and \code{theta}; may also
-include \code{package} and \code{verbose}.}
+\item{config}{A list of backend options (\code{verbose}, \code{package}, etc.).
+When \code{ad_fun} is missing, must also include \code{beta}, \code{gamma},
+and \code{theta} so \code{ad_fun()} can be built from \code{data}.}
 
 \item{gamma}{Optional numeric vector of starting values for the inner
-parameter \code{gamma}. If missing, defaults to \code{config$gamma}.}
+parameter \code{gamma}. If missing, uses \code{config$gamma} when present,
+otherwise a zero vector of length \code{ad_fun@sizes["gamma"]}.}
 
 \item{control}{List of control parameters passed *as-is* to the backend inner
 optimizer (e.g., \code{report.level}, \code{report.freq}). See backend
@@ -63,12 +62,11 @@ The function delegates the inner optimization to \code{inner_opt()} from the
 selected backend package (by default \pkg{adlaplace}).
 }
 \details{
-The parameter vector \code{x} is split into \code{beta} and \code{theta} and
-inserted into \code{config} (as \code{config_inner$beta} and
-\code{config_inner$theta}) before calling the backend inner optimizer.
-
 The default \pkg{adlaplace} backend uses a single AD handle. This function
-passes that handle to \code{inner_opt(..., ad_fun = ad_fun)}.
+passes that handle to \code{inner_opt(..., ad_fun = ad_fun)}. Parameter block
+sizes are read from \code{ad_fun@sizes}; \code{config} is not required to
+contain \code{beta}, \code{gamma}, or \code{theta} when \code{ad_fun} is
+supplied.
 
 When \code{deriv=FALSE}, the return value is the \code{inner_opt()} list
 (profile likelihood, nested \code{gradient} and \code{hessian}, and \code{opt}).

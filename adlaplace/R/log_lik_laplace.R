@@ -6,15 +6,14 @@
 #' The function delegates the inner optimization to \code{inner_opt()} from the
 #' selected backend package (by default \pkg{adlaplace}).
 #'
-#' @param x Numeric vector of outer parameters, expected to have length
-#'   \code{length(config$beta) + length(config$theta)}. Elements are split
-#'   into \code{beta} (first \code{length(config$beta)} elements) and \code{theta}
-#'   (remaining elements) before passing to the inner optimizer.
-#' @param config A list containing model dimensions/starting values and backend
-#'   options. Must include \code{beta}, \code{gamma}, and \code{theta}; may also
-#'   include \code{package} and \code{verbose}.
+#' @param x Numeric vector of outer parameters (\code{beta}, then \code{theta}).
+#'   Length must equal \code{num_beta + num_theta} from \code{ad_fun@sizes}.
+#' @param config A list of backend options (\code{verbose}, \code{package}, etc.).
+#'   When \code{ad_fun} is missing, must also include \code{beta}, \code{gamma},
+#'   and \code{theta} so \code{ad_fun()} can be built from \code{data}.
 #' @param gamma Optional numeric vector of starting values for the inner
-#'   parameter \code{gamma}. If missing, defaults to \code{config$gamma}.
+#'   parameter \code{gamma}. If missing, uses \code{config$gamma} when present,
+#'   otherwise a zero vector of length \code{ad_fun@sizes["gamma"]}.
 #' @param control List of control parameters passed *as-is* to the backend inner
 #'   optimizer (e.g., \code{report.level}, \code{report.freq}). See backend
 #'   documentation (e.g., \pkg{trustOptim}) for supported options.
@@ -30,12 +29,11 @@
 #'   the output (gradient, intermediate derivatives).
 #'
 #' @details
-#' The parameter vector \code{x} is split into \code{beta} and \code{theta} and
-#' inserted into \code{config} (as \code{config_inner$beta} and
-#' \code{config_inner$theta}) before calling the backend inner optimizer.
-#'
 #' The default \pkg{adlaplace} backend uses a single AD handle. This function
-#' passes that handle to \code{inner_opt(..., ad_fun = ad_fun)}.
+#' passes that handle to \code{inner_opt(..., ad_fun = ad_fun)}. Parameter block
+#' sizes are read from \code{ad_fun@sizes}; \code{config} is not required to
+#' contain \code{beta}, \code{gamma}, or \code{theta} when \code{ad_fun} is
+#' supplied.
 #'
 #' When \code{deriv=FALSE}, the return value is the \code{inner_opt()} list
 #' (profile likelihood, nested \code{gradient} and \code{hessian}, and \code{opt}).
@@ -59,47 +57,73 @@
 #'
 #' @export
 log_lik_laplace <- function(
-  x, config,
+  x,
+  config = list(),
   gamma,
   control = list(report.level = 4, report.freq = 1),
-  ad_fun, data,
-  package = c(config$package, "adlaplace")[1],
+  ad_fun,
+  data,
+  package = c(config[["package"]], "adlaplace")[1L],
   deriv = FALSE
 ) {
-  Nbeta <- length(config$beta)
-  Ntheta <- length(config$theta)
-
-  config_inner <- config
-  config_inner$beta <- x[seq.int(1, length.out = Nbeta)]
-  config_inner$theta <- x[seq.int(Nbeta + 1, length.out = Ntheta)]
-
-  if (!missing(gamma)) {
-    config_inner$gamma <- gamma
-    if (length(config$gamma) != length(config_inner$gamma)) {
-      warning("gamma is the wrong length; resetting to config$gamma")
-      config_inner$gamma <- config$gamma
-    }
-  }
-
   if (missing(ad_fun)) {
     if (missing(data)) {
-      stop("at least one of data and ad_fun must be supplied")
+      stop("at least one of data and ad_fun must be supplied", call. = FALSE)
     }
     ad_fun <- adlaplace::ad_fun(data, config)
   }
 
+  if (!is(ad_fun, "ad_fun")) {
+    stop("ad_fun must be an ad_fun object", call. = FALSE)
+  }
+  sz <- ad_fun@sizes
+  if (length(sz) < 3L || any(is.na(sz[c("beta", "gamma", "theta")]))) {
+    stop(
+      "ad_fun@sizes must contain finite beta, gamma, and theta",
+      call. = FALSE
+    )
+  }
+  num_beta <- as.integer(sz["beta"])
+  num_theta <- as.integer(sz["theta"])
+  num_gamma <- as.integer(sz["gamma"])
+
+  n_outer <- length(x)
+  n_outer_expected <- num_beta + num_theta
+  if (n_outer != n_outer_expected) {
+    stop(
+      "length(x) (", n_outer, ") must equal num_beta + num_theta (",
+      n_outer_expected, ")",
+      call. = FALSE
+    )
+  }
+
+  gamma_use <- if (!missing(gamma)) {
+    gamma
+  } else if (!is.null(config[["gamma"]]) && length(config[["gamma"]]) > 0L) {
+    config[["gamma"]]
+  } else {
+    rep(0, num_gamma)
+  }
+  if (length(gamma_use) != num_gamma) {
+    stop(
+      "length(gamma) (", length(gamma_use), ") must equal num_gamma (",
+      num_gamma, ")",
+      call. = FALSE
+    )
+  }
+
   result_inner <- inner_opt(
     parameters = x,
-    gamma = config_inner$gamma,
+    gamma = gamma_use,
     control = control,
     ad_fun = ad_fun,
     deriv = deriv,
-    verbose = isTRUE(config_inner$verbose)
+    verbose = isTRUE(config[["verbose"]])
   )
   result <- result_inner[setdiff(names(result_inner), c("gradient", "hessian"))]
   result$extra <- result_inner[c("gradient", "hessian")]
 
-  if (is(ad_fun, "ad_fun") && length(ad_fun@chol_inner_list) > 0L) {
+  if (length(ad_fun@chol_inner_list) > 0L) {
     cil <- ad_fun@chol_inner_list
     result$extra$hessian$perm <- cil$perm
     result$extra$hessian$perm_inv <- cil$perm_inv
@@ -117,7 +141,7 @@ log_lik_laplace <- function(
     full_parameters = result$full_parameters,
     hessian_pack = result$extra$hessian,
     grad = result$extra$gradient$outer,
-    config, ad_fun
+    ad_fun = ad_fun
   )
   result <- c(result, the_deriv[setdiff(names(the_deriv), "extra")])
   result$extra <- c(result$extra, the_deriv$extra)

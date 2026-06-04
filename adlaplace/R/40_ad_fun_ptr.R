@@ -13,8 +13,9 @@
 #'
 #' @param data An \code{ad_data} object with \code{ad_kind} and \code{ad_fun}
 #'   slots set.
-#' @param config Model configuration list (\code{beta}, \code{gamma},
-#'   \code{theta}, etc.).
+#' @param config Model configuration list (\code{beta}, \code{theta}, etc.).
+#'   \code{gamma} is optional; when missing, zeros of length
+#'   \code{nrow(gamma_map)} are used as AD tape seeds.
 #' @return External pointer of class \code{ad_fun_ptr}.
 #' @export
 ad_fun_ptr <- function(data, config) {
@@ -31,6 +32,7 @@ ad_fun_ptr <- function(data, config) {
   }
 
   validate_ad_data_maps(data, kind)
+  config <- normalize_config_for_ptr(config, data, kind)
   validate_config_layout(data, config, kind)
 
   switch(

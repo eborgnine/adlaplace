@@ -11,21 +11,18 @@ Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
 Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
-// get_ad_fun_raw_example
-SEXP get_ad_fun_raw_example(Rcpp::List data, Rcpp::List config);
-RcppExport SEXP _adlaplaceExample_get_ad_fun_raw_example(SEXP dataSEXP, SEXP configSEXP) {
+// register_example_densities
+void register_example_densities();
+RcppExport SEXP _adlaplaceExample_register_example_densities() {
 BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< Rcpp::List >::type data(dataSEXP);
-    Rcpp::traits::input_parameter< Rcpp::List >::type config(configSEXP);
-    rcpp_result_gen = Rcpp::wrap(get_ad_fun_raw_example(data, config));
-    return rcpp_result_gen;
+    register_example_densities();
+    return R_NilValue;
 END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_adlaplaceExample_get_ad_fun_raw_example", (DL_FUNC) &_adlaplaceExample_get_ad_fun_raw_example, 2},
+    {"_adlaplaceExample_register_example_densities", (DL_FUNC) &_adlaplaceExample_register_example_densities, 0},
     {NULL, NULL, 0}
 };
 

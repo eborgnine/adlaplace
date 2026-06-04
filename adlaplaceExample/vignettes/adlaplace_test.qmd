@@ -12,11 +12,15 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-This vignette mirrors the workflow in `adlaplace`, but uses the
-`adlaplaceExample` skew-normal objective defined in
-`src/objectiveFunction.cpp`.
+This vignette walks through a hierarchical skew-normal model using the
+`adlaplaceExample` backend: simulate data, build an automatic-differentiation (AD)
+representation as **shards**, validate derivatives, solve the inner Laplace
+problem for random effects, and fit outer parameters with a profile likelihood.
 
-Skew-normal contribution for one observation:
+## Model
+
+Observations follow a skew-normal with location $\xi = \eta$, scale $\omega$, and
+shape $\alpha$. The log density for one observation is
 
 $$
 \ell(y;\xi,\omega,\alpha)
@@ -25,284 +29,576 @@ $$
   + \log\left[\operatorname{erfc}\left(-\frac{\alpha(y-\xi)}{\sqrt{2}\,\omega}\right)\right].
 $$
 
-## Simulate data
+The linear predictor is $\eta = X\beta + A\gamma$, with two independent random-effect
+groups in $A$, log-standard-deviation parameters for each group, plus skew-normal
+scale $\omega$ (log scale when `transform_theta = TRUE`) and shape $\alpha$.
+Densities are implemented in `src/objectiveFunction.cpp` (observations and
+hyperparameters) and `adlaplace` `src/random.cpp` (random effects).
+
+## Simulated data
+
+We generate 5000 observations, fixed effects, two random-effect groups, and
+skew-normal scale and shape. Group SDs and $\omega$ are stored on the log scale
+(`transform_theta = TRUE`); $\alpha$ is untransformed.
 
 ```{r theData}
-set.seed(1)
+library(Matrix)
+library(adlaplace)
+library(adlaplaceExample)
 
-Nobs <- 20000
-Nrandom1 <- 15
+Nobs <- 1000
+Nrandom1 <- 10
 Nrandom2 <- 25
 
+set.seed(0)
+
 X <- Matrix::Matrix(cbind(1, rbinom(Nobs, 1, prob = 0.5)))
-beta_true <- c(0.4, -0.3)
 
-A1 <- Matrix::sparseMatrix(i = 1:Nobs, j = sample(Nrandom1, Nobs, replace = TRUE), x = 1)
-A2 <- Matrix::sparseMatrix(i = 1:Nobs, j = sample(Nrandom2, Nobs, replace = TRUE), x = 1)
-A <- cbind(A1, A2)
-
-NperEffect <- c(Nrandom1, Nrandom2)
-map <- Matrix::sparseMatrix(
-  i = 0:(ncol(A) - 1L),
-  j = rep(0:(length(NperEffect) - 1L), NperEffect),
-  x = 1L,
-  dims = c(ncol(A), length(NperEffect)),
-  index1 = FALSE
+Adf <- data.frame(
+  r1 = sample(Nrandom1, Nobs, replace = TRUE),
+  r2 = sample(Nrandom2, Nobs, replace = TRUE)
 )
+AmatList <- list(
+  r1 = Matrix::sparseMatrix(
+    i = seq_len(Nobs),
+    j = Adf$r1
+  ),
+  r2 = Matrix::sparseMatrix(
+    i = seq_len(Nobs),
+    j = Adf$r2
+  )
+)
+Amat <- do.call(cbind, AmatList)
 
-sd_random <- c(0.25, 0.15)
-gamma_true <- rnorm(ncol(A), sd = rep(sd_random, NperEffect))
+beta <- rep(1, ncol(X))
+thetaOrig <- c(sd1 = 0.1, sd2 = 0.1, omega = 0.7, alpha = 0.8)
 
-omega_true <- 0.7
-alpha_true <- 0.8
+gamma <- rnorm(
+  ncol(Amat),
+  sd = rep(thetaOrig[1:2], c(Nrandom1, Nrandom2))
+)
+eta_true <- as.vector(X %*% beta + Amat %*% gamma)
 
-
-eta <- as.vector(X %*% beta_true + A %*% gamma_true)
 if (requireNamespace("sn", quietly = TRUE)) {
-  y <- sn::rsn(Nobs, xi = eta, omega = omega_true, alpha = alpha_true)
+  y <- sn::rsn(Nobs, xi = eta_true, omega = thetaOrig["omega"], alpha = thetaOrig["alpha"])
 } else {
-  y <- stats::rnorm(Nobs, mean = eta, sd = omega_true)
+  y <- stats::rnorm(Nobs, mean = eta_true, sd = thetaOrig["omega"])
 }
-data <- list(
-  y = y,
-  ATp = as(Matrix::t(A), "dMatrix"),
-  XTp = as(Matrix::t(X), "CsparseMatrix"),
-  map = map,
-  Qdiag = rep(1, ncol(A))
-)
-```
 
-
-## Configure model and build AD object
-
-```{r config}
 config <- list(
-  beta = rep(0, nrow(data$XTp)),
-  gamma = rep(0, nrow(data$ATp)),
-  theta = c(log(0.2), log(0.2), log(0.5), 2),
+  beta = beta,
+  theta = c(log(thetaOrig[c("sd1", "sd2", "omega")]), thetaOrig["alpha"]),
   transform_theta = TRUE,
-  groups = adlaplace::ad_shards(Matrix::t(data$ATp)),
-  num_threads = 8L,
-  package = "adlaplaceExample",
-  verbose = TRUE
+  gamma = rep(0, ncol(Amat)),
+  shards = adlaplace::ad_shards(Amat, num_shards = 1),
+  num_threads = 10L,
+  verbose = FALSE,
+  package = "adlaplaceExample"
+)
+
+n_beta <- length(config$beta)
+n_gamma <- length(config$gamma)
+n_theta <- length(config$theta)
+obs_theta_idx <- (n_theta - 1L):n_theta
+```
+
+## Building AD shards
+
+Each model piece is compiled separately with `ad_fun_ptr()`. The full model has
+four shards: observation likelihood, hyperparameter (extra) terms, and one shard
+per random-effect group. Shards are merged later with `ad_fun()`.
+
+### Observations and hyperparameters
+
+The observation shard uses $\omega$ and $\alpha$ (last two $\theta$ components).
+The extra shard contributes the $-\sum_i \log\omega$ normalization terms.
+
+```{r adShards_obs}
+data_obs <- adlaplace::ad_data(
+  y = y,
+  A = Amat,
+  X = X,
+  beta_map = Matrix::Diagonal(n_beta),
+  gamma_map = Matrix::Diagonal(n_gamma),
+  theta_map = list(c(
+    which(names(thetaOrig) == "omega"),
+    which(names(thetaOrig) == "alpha")
+  ), n_theta),
+  ad_kind = "observations",
+  ad_fun = "skewnormal_obs"
+)
+
+data_extra <- adlaplace::ad_data(
+  y = data_obs@y,
+  beta_map = data_obs@beta_map,
+  gamma_map = data_obs@gamma_map,
+  theta_map = data_obs@theta_map,
+  ad_kind = "parameters",
+  ad_fun = "skewnormal_extra"
+)
+
+ad_fun_obs <- adlaplace::ad_fun_ptr(data = data_obs, config = config)
+ad_fun_extra <- adlaplace::ad_fun_ptr(data = data_extra, config = config)
+```
+
+### Random effects
+
+Each group gets a diagonal normal prior with its own $\theta$ index.
+
+```{r adShards_random}
+nr1 <- Nrandom1
+nr2 <- Nrandom2
+
+model_r1 <- adlaplace::ad_data(
+  beta_map = n_beta,
+  gamma_map = Matrix::sparseMatrix(
+    i = seq_len(nr1),
+    j = seq_len(nr1),
+    dims = c(n_gamma, nr1)
+  ),
+  theta_map = c(1L, n_theta),
+  ad_kind = "random",
+  ad_fun = "random_diagonal",
+  precision = rep(1, nr1)
+)
+ad_fun_r1 <- adlaplace::ad_fun_ptr(data = model_r1, config = config)
+
+model_r2 <- adlaplace::ad_data(
+  beta_map = n_beta,
+  gamma_map = Matrix::sparseMatrix(
+    i = seq.int(nr1 + 1L, length.out = nr2),
+    j = seq_len(nr2),
+    dims = c(n_gamma, nr2)
+  ),
+  theta_map = c(2L, n_theta),
+  ad_kind = "random",
+  ad_fun = "random_diagonal",
+  precision = rep(1, nr2)
+)
+ad_fun_r2 <- adlaplace::ad_fun_ptr(data = model_r2, config = config)
+```
+
+## Observation likelihood check
+
+Scan $\log(\omega)$ while holding $(\beta, \gamma, \theta_{1:2}, \alpha)$ fixed at
+the data-generating values. The AD joint log density (observation + extra shards)
+should match `sn::dsn` on the full sample when the **sn** package is available.
+
+```{r obsLogDens}
+if (!requireNamespace("sn", quietly = TRUE)) {
+  stop("Install package 'sn' to run the observation likelihood check.")
+}
+
+xx <- c(beta, gamma, config$theta)
+log_omega_true <- config$theta[which(names(thetaOrig) == "omega")]
+
+sn_log_dens <- function(log_omega) {
+  omega <- exp(log_omega)
+  sum(sn::dsn(y, xi = eta_true, omega = omega, alpha = thetaOrig["alpha"], log = TRUE))
+}
+
+ad_sn_log_dens <- function(log_omega) {
+  xx_scan <- xx
+  omega_idx <- n_beta + n_gamma + which(names(thetaOrig) == "omega")
+  xx_scan[omega_idx] <- log_omega
+  adlaplace::joint_log_dens(ad_fun_obs, xx_scan, negative = FALSE)
+}
+ad_sn_log_dens_extra <- function(log_omega) {
+  xx_scan <- xx
+  omega_idx <- n_beta + n_gamma + which(names(thetaOrig) == "omega")
+  xx_scan[omega_idx] <- log_omega
+  adlaplace::joint_log_dens(ad_fun_extra, xx_scan, negative = FALSE)
+}
+
+
+seq_log_omega <- log_omega_true + seq(-0.5, 0.5, length.out = 7)
+cmp <- data.frame(
+  log_omega = seq_log_omega,
+  omega = exp(seq_log_omega),
+  sn = vapply(seq_log_omega, sn_log_dens, numeric(1)),
+  ad_obs = vapply(seq_log_omega, ad_sn_log_dens, numeric(1)),
+  ad_extra = vapply(seq_log_omega, ad_sn_log_dens_extra, numeric(1))
+)
+cmp$ad <- cmp$ad_obs + cmp$ad_extra
+cmp$diff <- cmp$ad - cmp$sn
+cmp
+```
+
+## Combining shards
+
+Shard handles are combined with `c()`. This uses move semantics: after
+`ad_fun()` is called, the individual `ad_fun_ptr` objects are cleared and must
+not be reused.
+
+```{r adShards_combined}
+ad_fun_plain <- c(ad_fun_obs, ad_fun_extra, ad_fun_r1, ad_fun_r2)
+ad_pack <- adlaplace::ad_fun(
+  ad_fun_plain,
+  num_threads = config$num_threads
 )
 ```
 
-## Evaluate objective, gradient, and Hessian
+The per-shard log densities sum to the joint log density at a fixed parameter
+vector.
 
-```{r derivs}
-ad_fun <- adlaplace::get_ad_fun(data, config, package = "adlaplaceExample")
-true_theta <- c(log(c(sd_random, omega_true)), alpha_true)
-x <- c(beta_true, gamma_true, true_theta)
+```{r checkByShard}
+x_full <- c(config$beta, config$gamma, config$theta)
+shards <- seq.int(from = 0L, length.out = adlaplace::n_groups(ad_fun_plain))
 
-Sgroups <- seq.int(0L, length.out = adlaplace::n_groups(ad_fun$ad_fun))
-# Sgroups = 0L
-
-adlaplace::joint_log_dens(ad_fun, x, Sgroups, negative = FALSE)
-
-g <- adlaplace::grad(ad_fun, x, inner = FALSE)
-H <- adlaplace::hessian(ad_fun, x, inner = FALSE)
-
-str(g)
-str(H)
-quantile(eigen(H)$values)
+by_shard <- vapply(
+  shards,
+  function(s) {
+    adlaplace::joint_log_dens(
+      ad_fun_plain, x_full,
+      shards = s, negative = FALSE
+    )
+  },
+  numeric(1)
+)
+names(by_shard) <- c("obs", "extra", "r1", "r2")
+by_shard
+sum(by_shard)
+adlaplace::joint_log_dens(ad_fun_plain, x_full, negative = FALSE)
 ```
 
+## Joint log density derivatives
 
-## Trust-optimization and Laplace log-likelihood interface
+Gradients and Hessians can be evaluated on all shards or on a subset. Results
+should agree when the subset is the full model.
 
-```{r trustOptimInterface}
-ad_fun <- adlaplace::get_ad_fun(data, config, package = "adlaplaceExample")
+```{r testLogDens}
+x_test <- c(config$beta, rep(0.1, n_gamma), config$theta)
 
-res <- adlaplace::log_lik_laplace(
-  x = c(config$beta, config$theta),
+log_all <- adlaplace::joint_log_dens(ad_fun_plain, x_test, negative = FALSE)
+log_sub <- adlaplace::joint_log_dens(
+  ad_fun_plain, x_test,
+  shards = 0:3, negative = FALSE
+)
+
+grad_all <- adlaplace::grad(ad_fun_plain, x_test, negative = FALSE)
+grad_sub <- adlaplace::grad(
+  ad_fun_plain, x_test,
+  shards = 0:3, negative = FALSE
+)
+
+hess_all <- adlaplace::hessian(ad_fun_plain, x_test, negative = FALSE)
+hess_sub <- adlaplace::hessian(
+  ad_fun_plain, x_test,
+  shards = 0:3, negative = FALSE
+)
+
+c(
+  log_diff = log_all - log_sub,
+  max_abs_grad_diff = max(abs(grad_all - grad_sub)),
+  max_abs_hess_diff = max(abs(hess_all - hess_sub))
+)
+```
+
+## Inner optimization
+
+Given outer parameters $(\beta, \theta)$, `inner_opt()` maximizes over
+$\gamma$ (equivalently minimizes $-\log p(y, \gamma \mid \beta, \theta)$).
+The returned solution should track the simulated random effects.
+
+```{r testInnerOpt}
+x_outer <- c(config$beta, config$theta)
+
+inner_res <- adlaplace::inner_opt(
+  parameters = x_outer,
+  gamma = config$gamma,
+  ad_fun = ad_pack,
+  control = list(
+    maxit = 100,
+    report.level = 0,
+    report.freq = 0
+  ),
+  deriv = TRUE,
+  verbose = FALSE
+)
+
+plot(
+  inner_res$opt$solution, gamma,
+  xlab = "estimated", ylab = "true",
+  main = "Inner mode vs simulated gamma"
+)
+abline(0, 1, col = "red", lty = 2)
+```
+
+## Profile likelihood
+
+`log_lik_laplace()` runs the inner optimizer and returns the Laplace
+approximation to the marginal log likelihood. With `deriv = TRUE`, it also
+returns the profile gradient and third-order trace terms used in the
+determinant correction.
+
+```{r testLogLik}
+res_noderiv <- adlaplace::log_lik_laplace(
+  x = x_outer,
+  ad_fun = ad_pack,
   config = config,
-  ad_fun = ad_fun,
+  deriv = FALSE
+)
+
+res_deriv <- adlaplace::log_lik_laplace(
+  x = x_outer,
+  ad_fun = ad_pack,
+  config = config,
   deriv = TRUE
 )
--res$logLik
-res$grad
+
+data.frame(
+  log_lik = c(res_noderiv$log_lik, res_deriv$log_lik),
+  neg_log_lik = c(res_noderiv$neg_log_lik, res_deriv$neg_log_lik),
+  inner_fval = c(res_deriv$opt$fval, res_deriv$opt$fval),
+  row.names = c("deriv = FALSE", "deriv = TRUE")
+)
+
+summary(res_deriv$extra$trace3)
+res_deriv$grad
 ```
 
+## Outer optimization
+
+`outer_fn()` and `outer_gr()` wrap `log_lik_laplace()` for use with
+`stats::optim()`. A small cache environment stores the current inner
+$\gamma$ start.
 
 ```{r trustOptimOuterWrappers}
 cache <- new.env(parent = emptyenv())
 cache$gamma <- config$gamma
 
-x0 <- c(config$beta, config$theta)
+control_inner <- list(
+  maxit = 100,
+  report.level = 0,
+  report.freq = 0
+)
 
-adlaplace::outer_fn(x = x0, cache = cache, config = config, ad_fun = ad_fun)
-adlaplace::outer_gr(x = x0, cache = cache, config = config, ad_fun = ad_fun)
+optim_control <- list(maxit = 200, trace = 0)
+bounds <- list(lower = rep(-5, length(x_outer)), upper = rep(5, length(x_outer)))
 
-outer_fit <- trustOptim::trust.optim(
-  x = x0,
-  fn = adlaplace::outer_fn,
-  gr = adlaplace::outer_gr,
-  method = "SR1",
-  config = modifyList(config, list(verbose = FALSE)),
-  ad_fun = ad_fun,
-  cache = cache,
-  control = list(
-    maxit = 1000,
-    report.level = 4,
-    report.freq = 1
+common_optim_args <- c(
+  list(
+    par = x_outer,
+    fn = adlaplace::outer_fn,
+    method = "L-BFGS-B",
+    control = optim_control,
+    config = config,
+    ad_fun = ad_pack,
+    cache = cache,
+    control_inner = control_inner
   ),
-  control_inner = list(
-    maxit = 100,
-    report.level = 0,
-    report.freq = 0
+  bounds
+)
+
+outer_fit_no_g <- do.call(stats::optim, common_optim_args)
+outer_fit <- do.call(stats::optim, c(common_optim_args, list(gr = adlaplace::outer_gr)))
+
+true_outer <- c(beta, log(thetaOrig[1:3]), thetaOrig[4])
+fit_cmp <- rbind(
+  optim = outer_fit$par,
+  optim_no_grad = outer_fit_no_g$par,
+  true = true_outer
+)
+colnames(fit_cmp) <- c(
+  paste0("beta[", seq_len(n_beta), "]"),
+  paste0("theta[", seq_len(n_theta), "]")
+)
+fit_cmp
+c(
+  sd = exp(outer_fit$par[seq_len(n_theta - 1L) + n_beta]),
+  alpha = outer_fit$par[n_beta + n_theta]
+)
+outer_fit$value
+```
+
+## Profile derivative checks
+
+Finite-difference checks along one outer coordinate validate the profile gradient,
+the determinant derivative, and the chain rule through the inner mode
+$u(\beta, \theta)$.
+
+```{r testLogLgrad, fig.height=7}
+if (!requireNamespace("abind", quietly = TRUE)) {
+  stop("Install suggested package 'abind' to run derivative checks.")
+}
+
+par(mfrow = c(3, 2), mar = c(2, 2, 2, 0), mgp = c(1, 0.5, 0))
+
+x1 <- outer_fit$par
+Dpar <- length(x1)
+Ngrid <- 7L
+
+par_grid <- matrix(x1, nrow = Ngrid, ncol = Dpar, byrow = TRUE)
+Sx <- x1[Dpar] + seq(-0.5, 0.5, length.out = Ngrid)
+SxD <- Sx[-1] - diff(Sx) / 2
+par_grid[, Dpar] <- Sx
+
+res_scan <- lapply(
+  split(par_grid, row(par_grid)),
+  adlaplace::log_lik_laplace,
+  ad_fun = ad_pack,
+  config = config,
+  deriv = TRUE,
+  gamma = cache$gamma
+)
+
+SnegLik <- vapply(res_scan, `[[`, numeric(1), "neg_log_lik")
+Sdet <- vapply(res_scan, function(r) r$extra$hessian$half_log_det, numeric(1))
+grad_mat <- do.call(rbind, lapply(res_scan, `[[`, "grad"))
+extra_df <- do.call(abind::abind, c(lapply(res_scan, `[[`, "deriv"), along = 3))
+dU <- do.call(
+  abind::abind,
+  c(lapply(res_scan, function(r) as.matrix(r$extra$dU)), along = 3)
+)
+u_hat <- do.call(rbind, lapply(res_scan, function(r) r$opt$solution))
+
+res_mid <- res_scan[[(Ngrid + 1L) %/% 2L]]
+
+plot(Sx, SnegLik, type = "l", xlab = expression(alpha), ylab = "-log lik")
+plot(Sx, grad_mat[, Dpar], type = "l", xlab = expression(alpha), ylab = "grad")
+points(SxD, diff(SnegLik) / diff(Sx), pch = 16)
+legend("topright", legend = c("AD", "finite diff"), lty = c(1, NA), pch = c(NA, 1), bty = "n")
+
+Du <- 2L
+plot(Sx, u_hat[, Du], type = "l", xlab = expression(alpha), ylab = expression(u[Du]))
+plot(
+  Sx, dU[Du, Dpar, ],
+  type = "l",
+  xlab = expression(alpha),
+  ylab = expression(d * u[Du] / d * alpha)
+)
+points(SxD, diff(u_hat[, Du]) / diff(Sx), pch = 16)
+
+plot(Sx, Sdet, type = "l", xlab = expression(alpha), ylab = "half log det")
+plot(
+  Sx, extra_df[Dpar, "d_det", ],
+  type = "l",
+  xlab = expression(alpha),
+  ylab = expression(d / d * alpha ~ log ~ det)
+)
+points(SxD, diff(Sdet) / diff(Sx), pch = 16)
+
+hessian_outer <- Matrix::forceSymmetric(res_mid$extra$hessian$outer)
+hessian_plain <- adlaplace::hessian(
+  ad_fun_plain,
+  res_mid$full_parameters,
+  inner = FALSE,
+  negative = TRUE
+)
+max_abs_hess_diff <- max(abs((hessian_outer - hessian_plain)@x), na.rm = TRUE)
+max_abs_hess_diff
+```
+
+## Joint density derivative checks
+
+The same finite-difference idea applies to the full joint log density
+$-\log p(\beta, \gamma, \theta \mid y)$ and its AD gradient and Hessian.
+
+```{r derivJointDens, fig.height=5}
+par(mfrow = c(2, 2), mar = c(2, 2, 2, 0), mgp = c(1, 0.5, 0))
+
+x_here <- res_mid$full_parameters
+Dpar_dens <- length(x_here)
+Ngrid <- 11L
+shards <- seq.int(from = 0L, length.out = adlaplace::n_groups(ad_fun_plain))
+
+par_grid <- matrix(x_here, nrow = Ngrid, ncol = length(x_here), byrow = TRUE)
+Sx <- x_here[Dpar_dens] + seq(-0.1, 0.1, length.out = Ngrid)
+SxD <- Sx[-1] - diff(Sx) / 2
+par_grid[, Dpar_dens] <- Sx
+x_list <- split(par_grid, row(par_grid))
+
+dens <- vapply(
+  x_list,
+  adlaplace::joint_log_dens,
+  numeric(1),
+  ad_fun = ad_fun_plain,
+  shards = shards,
+  negative = FALSE
+)
+
+grad <- do.call(
+  cbind,
+  lapply(
+    x_list,
+    adlaplace::grad,
+    ad_fun = ad_fun_plain,
+    inner = FALSE,
+    shards = shards,
+    negative = FALSE
   )
 )
 
-outer_fit$solution
-outer_fit$fval
-```
+plot(Sx, grad[Dpar_dens, ], type = "l", ylab = "AD gradient")
+points(SxD, diff(dens) / diff(Sx), pch = 16)
+legend("topright", legend = c("AD", "finite diff"), lty = c(1, NA), pch = c(NA, 1), bty = "n")
 
-
-```{r testLogLgrad}
-x <- c(config$beta, config$theta)
-Npar <- 13
-Dpar <- length(x)
-
-parDf <- data.frame(x)[, rep(1, Npar)]
-Sx <- seq(-0.1, 0.1, len = 13) + parDf[Dpar, 1]
-SxD <- Sx[-1] - diff(Sx) / 2
-parDf[Dpar, ] <- Sx
-
-res <- mapply(
-  adlaplace::log_lik_laplace,
-  x = as.list(parDf),
-  MoreArgs = list(ad_fun = ad_fun, config = config, deriv = TRUE),
-  SIMPLIFY = FALSE
+hes <- array(
+  dim = c(length(x_here), length(x_here), Ngrid),
+  dimnames = list(NULL, NULL, NULL)
 )
-
-Slik <- unlist(lapply(res, "[[", "logLik"))
-Sdet <- unlist(lapply(res, function(xx) xx$opt$half_log_det))
-dU <- do.call(
-  abind::abind, c(lapply(res, function(xx) as.matrix(xx$extra$dU)), along = 3)
-)
-uHat <- do.call(rbind, lapply(res, function(xx) xx$opt$solution))
-extraDf <- do.call(abind::abind, c(lapply(res, "[[", "deriv"), along = 3))
-gradMat <- do.call(rbind, lapply(res, "[[", "grad"))
-gradVec <- unlist(lapply(res, function(xx) xx$deriv[Dpar, "dL"]))
-
-
-plot(Sx, gradVec)
-lines(SxD, diff(Slik) / diff(Sx), lwd = 2, type = "o", pch = ".")
-```
-
-```{r more_plots, eval=FALSE}
-Du <- 1
-plot(Sx, uHat[, Du])
-
-plot(Sx, dU[Du, Dpar, ])
-lines(SxD, diff(uHat[, Du]) / diff(Sx))
-
-plot(Sx, Sdet)
-
-plot(Sx, extraDf[Dpar, "dDet", ])
-lines(SxD, diff(Sdet) / diff(Sx))
-```
-
-
-```{r derivJointDens, eval=FALSE}
-config$gamma <- rep(1, length(config$gamma))
-x <- c(config$beta, config$gamma, config$theta)
-ad_fun <- adlaplace::get_ad_fun(data, modifyList(config, list(verbose = TRUE)))
-
-inner <- FALSE
-type <- c("outer", "inner")[1 + inner]
-
-Sgamma1 <- seq.int(length(config$beta) + 1, length.out = length(config$gamma))
-
-Npar <- 13
-Dpar <- length(x) - 1
-if (inner) {
-  Dpar <- match(Dpar, Sgamma1)
+for (i in seq_len(Ngrid)) {
+  hes[, , i] <- as.matrix(adlaplace::hessian(
+    ad_fun_plain,
+    x_list[[i]],
+    inner = FALSE,
+    shards = shards,
+    negative = FALSE
+  ))
 }
-Dpar0 <- Dpar - 1L
 
-bob <- as(ad_fun[[type]], "TsparseMatrix")
-(whichIndex <- which(bob@i == Dpar0 & bob@j == Dpar0) - 1L)
-map_type <- if (inner) ad_fun$map_inner else ad_fun$map_outer
-(whichGlobal <- which(map_type$global == whichIndex) - 1L)
-(whichP <- mapply(
-  function(xx) min(which(map_type$p >= xx)),
-  xx = whichGlobal
-) - 1L)
-
-sparsity_shard <- lapply(
-  seq_len(adlaplace::n_groups(ad_fun$ad_fun)) - 1L,
-  function(g) {
-    c(
-      adlaplace::get_sparse_sizes(ad_fun$ad_fun, g),
-      adlaplace::get_sparse_pattern(ad_fun$ad_fun, g)
-    )
-  }
-)
-
-do.call(rbind, sparsity_shard[[whichP[1] + 1L]][c("row_hess", "col_hess")])
-do.call(rbind, sparsity_shard[[whichP[1] + 1L]][c("row_hess_inner", "col_hess_inner")])
-
-
-# Sgroups = length(sparsity_shard)-12L
-# Sgroups = seq.int(from=0, length.out = length(sparsity_shard))
-
-Sgroups <- 376
-
-
-parDf <- data.frame(x)[, rep(1, Npar)]
-Sx <- seq(-0.1, 0.1, len = Npar) + parDf[Dpar, 1]
-SxD <- Sx[-1] - diff(Sx) / 2
-parDf[Dpar, ] <- Sx
-
-
-dens1 <- mapply(
-  adlaplace::joint_log_dens,
-  x = as.list(parDf),
-  MoreArgs = list(ad_fun = ad_fun, Sgroups = Sgroups),
-  SIMPLIFY = TRUE
-)
-
-plot(Sx, dens1)
-
-
-grad1 <- mapply(
-  adlaplace::grad,
-  x = as.list(parDf),
-  MoreArgs = list(ad_fun = ad_fun, inner = inner, Sgroups = Sgroups),
-  SIMPLIFY = TRUE
-)
-plot(Sx, grad1[Dpar, ])
-lines(SxD, diff(dens1) / diff(Sx))
-
-
-hes1 <- mapply(
-  adlaplace::hessian,
-  x = as.list(parDf),
-  MoreArgs = list(ad_fun = ad_fun, inner = inner, Sgroups = Sgroups),
-  SIMPLIFY = FALSE
-)
-
-hes2 <- do.call(abind::abind, c(
-  lapply(hes1, as.matrix),
-  along = 3
-))
-
-gradD <- apply(grad1, 1, diff) / mean(diff(Sx))
-
-Dpar2 <- Dpar
-plot(Sx, hes2[Dpar, Dpar2, ],
-  ylab = paste(Dpar, Dpar2),
-  ylim = range(hes2[Dpar, Dpar2, ], na.rm = TRUE)
-)
-lines(SxD, gradD[, Dpar2])
+grad_slope <- apply(grad, 1, diff) / mean(diff(Sx))
+for (Dpar2 in c(Dpar_dens, 1L, length(x_here) - 2L, length(x_here) - 1L)) {
+  plot(
+    Sx, hes[Dpar_dens, Dpar2, ],
+    type = "l",
+    ylab = paste0("H[", Dpar_dens, ",", Dpar2, "]"),
+    ylim = range(c(hes[Dpar_dens, Dpar2, ], grad_slope[, Dpar2]), na.rm = TRUE)
+  )
+  points(SxD, grad_slope[, Dpar2], pch = 16)
+}
 ```
 
+## Nicer interface
 
-## Notes
+Code verifying the omnibus interface gives the same results as the barebones
+implementation.
 
-- `adlaplaceExample` provides model-specific C++ objective code.
-- `adlaplace` provides shared optimization and Laplace tooling.
-- For production use, optimize outer parameters with `adlaplace` wrappers and
-  call `adlaplaceExample` for objective-specific derivatives.
+```{r checkNicerInterface}
+dat <- cbind(
+  data.frame(y = y),
+  Adf,
+  x = X[, 2]
+)
+md <- adlaplace::model_data(
+  data = dat,
+  formula = adlaplace::collect_terms(
+    skewnormal(y, init = c(0.15, 0.8), lower = c(1e-9, -Inf)) ~
+      x + adlaplace::iid(r1, init = 0.1) + adlaplace::iid(r2, init = 0.1),
+    package = "adlaplaceExample"
+  )
+)
+config2 <- list(
+  transform_theta = TRUE,
+  shards = adlaplace::ad_shards(
+    md$data$A,
+    num_shards = 100
+  ),
+  package = "adlaplaceExample"
+)
+ad_fun2 <- adlaplace::ad_fun(
+  md,
+  config2,
+  num_threads = 4L
+)
+
+param_remap <- c(2, 1, 3, 4, 5, 6)
+log_lik2 <- adlaplace::log_lik_laplace(
+  x = res_deriv$parameters[param_remap],
+  config = config2,
+  ad_fun = ad_fun2,
+  deriv = TRUE
+)
+c(log_lik2$log_lik, res_deriv$log_lik)
+rbind(log_lik2$grad, res_deriv$grad[param_remap])
+```

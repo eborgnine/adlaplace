@@ -1,3 +1,20 @@
+#' @noRd
+chol_inner_from_fit <- function(fit) {
+  chol_inner <- fit$extra$hessian$chol_inner
+  if (is.null(chol_inner) && !is.null(fit$hessian)) {
+    chol_inner <- fit$hessian$chol_inner
+  }
+  if (is.null(chol_inner)) {
+    stop(
+      "fit must contain inner Cholesky factor in ",
+      "$extra$hessian$chol_inner (from log_lik_laplace()) ",
+      "or $hessian$chol_inner (from inner_opt())",
+      call. = FALSE
+    )
+  }
+  chol_inner
+}
+
 #' Simulate linear predictors on a new covariate grid
 #'
 #' Draws random effects from the Laplace approximation and evaluates the
@@ -24,7 +41,7 @@ sim_fit <- function(x, data, fit, n = 500L) {
   gamma_sims <- rmvnldl(
     n,
     mean = fit$opt$solution,
-    chol_prec = fit$hessian$chol_inner
+    chol_prec = chol_inner_from_fit(fit)
   )
   n_draws <- nrow(gamma_sims)
   n_grid <- nrow(x)

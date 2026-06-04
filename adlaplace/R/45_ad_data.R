@@ -58,6 +58,53 @@ validate_ad_data_maps <- function(data, kind) {
   invisible(layout)
 }
 
+#' Resolve inner \code{gamma} starting values for optimization.
+#' @keywords internal
+resolve_gamma_start <- function(config, cache = NULL, num_gamma, gamma = missing()) {
+  num_gamma <- as.integer(num_gamma)[1L]
+  if (!missing(gamma)) {
+    if (length(gamma) != num_gamma) {
+      stop(
+        "length(gamma) (", length(gamma), ") must equal num_gamma (", num_gamma, ")",
+        call. = FALSE
+      )
+    }
+    return(gamma)
+  }
+  if (!is.null(cache[["gamma"]]) && length(cache[["gamma"]]) == num_gamma) {
+    return(cache[["gamma"]])
+  }
+  if (!is.null(config[["gamma"]]) && length(config[["gamma"]]) == num_gamma) {
+    return(config[["gamma"]])
+  }
+  rep(0, num_gamma)
+}
+
+#' Fill missing \code{config$gamma} before \code{ad_fun_ptr()} tape build.
+#' @keywords internal
+normalize_config_for_ptr <- function(config, data, kind = NULL) {
+  layout <- sizes(data)
+  if (identical(kind, "random")) {
+    return(config)
+  }
+  if (identical(kind, "observations") && is.null(config[["shards"]])) {
+    n_obs <- length(data@y)
+    if (n_obs > 0L) {
+      config$shards <- default_obs_shards(n_obs)
+    }
+  }
+  n_gamma <- layout$n_gamma
+  gamma_len <- if (is.null(config[["gamma"]])) {
+    0L
+  } else {
+    length(config[["gamma"]])
+  }
+  if (n_gamma > 0L && gamma_len != n_gamma) {
+    config$gamma <- rep(0, n_gamma)
+  }
+  config
+}
+
 #' @keywords internal
 validate_config_layout <- function(model, config, kind = NULL) {
   layout <- sizes(model)
@@ -68,9 +115,14 @@ validate_config_layout <- function(model, config, kind = NULL) {
     )
   }
   if (is.null(kind) || !identical(kind, "random")) {
-    if (length(config$gamma) != layout$n_gamma) {
+    gamma_len <- if (is.null(config[["gamma"]])) {
+      layout$n_gamma
+    } else {
+      length(config[["gamma"]])
+    }
+    if (gamma_len != layout$n_gamma) {
       stop(
-        "length(config$gamma) (", length(config$gamma),
+        "length(config$gamma) (", gamma_len,
         ") must match nrow(gamma_map) (", layout$n_gamma, ")"
       )
     }
@@ -254,7 +306,13 @@ design_Tp <- function(M, n_obs, what = "M") {
 #'
 #' @keywords internal
 ad_data_from_config_matrices <- function(y, A, X, config, theta_local_row = 0L) {
-  n_gamma <- length(config$gamma)
+  n_gamma <- if (!is.null(config[["gamma"]])) {
+    length(config[["gamma"]])
+  } else if (!is.null(A) && ncol(A) > 0L) {
+    ncol(A)
+  } else {
+    0L
+  }
   n_theta <- length(config$theta)
   gamma_map <- if (n_gamma > 0L) {
     Matrix::Matrix(nrow = n_gamma, ncol = 0L)

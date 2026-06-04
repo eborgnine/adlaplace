@@ -7,18 +7,18 @@
 getAdFun_r(data, config)
 }
 \arguments{
-\item{data}{Model data list.}
+\item{data}{Model data list with \code{y}, \code{ATp}, \code{XTp}, and \code{Qdiag}.}
 
-\item{config}{Model configuration list.}
+\item{config}{Model configuration list (\code{beta}, \code{gamma}, \code{theta},
+optional \code{shards}, \code{transform_theta}, etc.).}
 }
 \value{
-List with \code{ad_fun}, \code{group_sparsity}, and components from
-\code{\link[adlaplace]{hessian_map}}.
+An \code{ad_fun} S4 object from \pkg{adlaplace}.
 }
 \description{
-Constructs grouped CppAD tapes and attaches Hessian sparsity templates
-expected by \pkg{adlaplace}.
+Constructs skew-normal observation, random, and extra shards and returns an
+\code{ad_fun} object with Hessian templates attached.
 }
 \seealso{
-\code{\link[adlaplace]{get_ad_fun}}
+\code{\link[adlaplace]{ad_fun}}
 }

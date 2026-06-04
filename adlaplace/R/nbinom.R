@@ -53,7 +53,7 @@ nbinom <- function(x,
   methods::new(
     "nbinom",
     term = x,
-    label = "overdispersion",
+    label = paste(x, "overdispersion", sep = "_"),
     formula = stats::as.formula(paste(x, "~."), env = new.env()),
     init = init,
     lower = lower,
@@ -80,7 +80,7 @@ setMethod("theta_info", "nbinom", function(term) {
   data.frame(
     term = term@term,
     model = "nbinom",
-    label = term@label,
+    label = paste0(term@label, "_overdispersion"),
     init = term@init,
     lower = term@lower,
     upper = term@upper,
@@ -99,78 +99,5 @@ setMethod("beta_info", "nbinom", function(term, data) {
 #' @describeIn nbinom-class Random info method (not used).
 #' @export
 setMethod("random_info", "nbinom", function(term, data) {
-  NULL
-})
-
-#' Negative binomial extra (single-shard) model term
-#'
-#' @description Model term for the single-density negative binomial piece registered
-#' as \code{nbinom_extra}.
-#' @name nbinom_extra-class
-#' @aliases nbinom_extra
-#' @docType class
-#' @title Negative binomial extra term
-#' @exportClass nbinom_extra
-#'
-#' @section Slots (inherited from \code{model}):
-#' \describe{
-#'   \item{\code{ad_fun}}{Character scalar \code{"nbinom_extra"}.}
-#'   \item{\code{ad_kind}}{Character scalar \code{"parameters"}.}
-#' }
-NULL
-
-setClass(
-  "nbinom_extra",
-  contains = "model",
-  prototype = prototype(
-    term = character(0),
-    label = "nbinom_extra",
-    formula = formula(),
-    knots = numeric(0),
-    ref_value = numeric(0),
-    p.order = integer(0),
-    type = factor("response", levels = .type_factor_levels),
-    ad_fun = "nbinom_extra",
-    ad_kind = "parameters"
-  )
-)
-
-#' Negative binomial extra term constructor
-#'
-#' @description Creates a term wired to the \code{nbinom_extra} AD shard.
-#' @rdname nbinom_extra-class
-#' @return A \code{nbinom_extra} object.
-#' @export
-nbinom_extra <- function() {
-  methods::new("nbinom_extra", label = "nbinom_extra")
-}
-
-#' @describeIn nbinom_extra-class Design method (not used).
-#' @export
-setMethod("design", "nbinom_extra", function(term, data) {
-  NULL
-})
-
-#' @describeIn nbinom_extra-class Precision method (not used).
-#' @export
-setMethod("precision", "nbinom_extra", function(term, data) {
-  NULL
-})
-
-#' @describeIn nbinom_extra-class Theta info method (not used).
-#' @export
-setMethod("theta_info", "nbinom_extra", function(term) {
-  NULL
-})
-
-#' @describeIn nbinom_extra-class Beta info method (not used).
-#' @export
-setMethod("beta_info", "nbinom_extra", function(term, data) {
-  NULL
-})
-
-#' @describeIn nbinom_extra-class Random info method (not used).
-#' @export
-setMethod("random_info", "nbinom_extra", function(term, data) {
   NULL
 })

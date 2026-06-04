@@ -10,8 +10,9 @@ ad_fun_ptr(data, config)
 \item{data}{An \code{ad_data} object with \code{ad_kind} and \code{ad_fun}
 slots set.}
 
-\item{config}{Model configuration list (\code{beta}, \code{gamma},
-\code{theta}, etc.).}
+\item{config}{Model configuration list (\code{beta}, \code{theta}, etc.).
+\code{gamma} is optional; when missing, zeros of length
+\code{nrow(gamma_map)} are used as AD tape seeds.}
 }
 \value{
 External pointer of class \code{ad_fun_ptr}.

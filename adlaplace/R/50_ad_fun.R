@@ -84,7 +84,9 @@ new_ad_fun_from_ptr <- function(ptr, num_threads = 1L) {
 #'   \code{ad_kind}/\code{ad_fun} set, or a \code{model_data()} bundle (list
 #'   with \code{observations}, \code{random}, \code{parameters}).
 #' @param config Model configuration list. Required for \code{ad_data} and
-#'   \code{model_data}; unused for \code{ad_fun_ptr}.
+#'   \code{model_data}; unused for \code{ad_fun_ptr}. For \code{model_data},
+#'   \code{beta}, \code{gamma}, and \code{theta} are filled from \code{x$data$info}
+#'   when omitted (only \code{shards}, \code{transform_theta}, etc. are needed).
 #' @param num_threads Positive integer; number of thread columns in
 #'   \code{parallel_map} used for shard thread affinity.
 #' @param ... For \code{ad_fun_ptr} input, optional additional
@@ -114,13 +116,16 @@ setMethod("ad_fun", signature = c(x = "ad_fun_ptr"), function(x, config = NULL, 
 
 #' @describeIn ad_fun Build pointer from one \code{ad_data} shard, then attach templates.
 #' @export
-setMethod("ad_fun", signature = c(x = "ad_data"), function(x, config, num_threads = 1L, ...) {
-  if (missing(config) || is.null(config)) {
-    stop("config is required for ad_fun(ad_data, config)", call. = FALSE)
+setMethod("ad_fun",
+  signature = c(x = "ad_data"),
+  function(x, config, num_threads = 1L, ...) {
+    if (missing(config) || is.null(config)) {
+      stop("config is required for ad_fun(ad_data, config)", call. = FALSE)
+    }
+    config_build <- modifyList(config, list(num_threads = as.integer(num_threads)[1]))
+    ad_fun(ad_fun_ptr(x, config_build), num_threads = num_threads)
   }
-  config_build <- modifyList(config, list(num_threads = as.integer(num_threads)[1]))
-  ad_fun(ad_fun_ptr(x, config_build), num_threads = num_threads)
-})
+)
 
 #' @describeIn ad_fun Build pointers from a \code{model_data()} bundle, merge,
 #'   and attach templates.
@@ -137,7 +142,18 @@ setMethod("ad_fun", signature = c(x = "list"), function(x, config, num_threads =
     stop("config is required for ad_fun(model_data, config)", call. = FALSE)
   }
   shards <- unname(c(x$observations, x$random, x$parameters))
-  config_build <- modifyList(config, list(num_threads = as.integer(num_threads)[1]))
+  config_build <- modifyList(
+    config,
+    list(
+      num_threads = as.integer(num_threads)[1],
+      beta = x$data$info$beta$init,
+      theta = x$data$info$theta$init,
+      gamma = rep(0, nrow(x$data$info$gamma))
+    )
+  )
+  if (identical(config_build$transform_theta, TRUE)) {
+    config_build$theta <- log(config_build$theta)
+  }
   ptrs <- lapply(shards, ad_fun_ptr, config = config_build)
   ad_fun(do.call(c, ptrs), num_threads = num_threads)
 })

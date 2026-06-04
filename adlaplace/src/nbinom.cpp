@@ -20,8 +20,15 @@ CppAD::vector<CppAD::AD<double>> nbinom_obs(
   CppAD::AD<double> nbSize = CppAD::exp(logNbSize);
 
   const bool have_shards = config.shards.ncol() > 0;
-  const size_t startP = have_shards ? config.shards.p[Dgroup] : Dgroup;
-  const size_t endP = have_shards ? config.shards.p[Dgroup + 1] : Dgroup + 1;
+  const size_t ny = model.y.size();
+  size_t startP = 0;
+  size_t endP = 0;
+  if (have_shards) {
+    startP = config.shards.p[Dgroup];
+    endP = config.shards.p[Dgroup + 1];
+  } else if (Dgroup == 0) {
+    endP = ny;
+  }
 
   for (size_t DI = startP; DI < endP; DI++) {
     const size_t Dobs = have_shards ? config.shards.i[DI] : DI;

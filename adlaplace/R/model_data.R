@@ -36,10 +36,10 @@ model_data <- function(formula, data, verbose = FALSE) {
 
   observations <- list()
   random <- list()
-  parameters <- list()
 
   for (term_here in the_terms) {
     if (!methods::is(term_here, "model")) {
+      warning("term doesnt appear to be a model")
       next
     }
     ad_name <- term_here@ad_fun
@@ -53,27 +53,12 @@ model_data <- function(formula, data, verbose = FALSE) {
         beta_map = Matrix::Diagonal(n_beta),
         gamma_map = Matrix::Diagonal(n_gamma),
         theta_map = list(
-          which(all_data$info$theta$label == term_here@label),
+          grep(term_here@label, all_data$info$theta$label),
           as.integer(n_theta)
         ),
         ad_fun = ad_name,
         ad_kind = "observations"
       )
-      next
-    }
-
-    if (identical(kind, "parameters")) {
-      parameters[[term_here@term]] <- ad_data(
-        beta_map = Matrix::Diagonal(n_beta),
-        gamma_map = Matrix::Diagonal(n_gamma),
-        theta_map = list(
-          which(all_data$info$theta$label == term_here@label),
-          as.integer(n_theta)
-        ),
-        ad_fun = ad_name,
-        ad_kind = "parameters"
-      )
-      next
     }
 
     if (identical(kind, "random")) {
@@ -97,6 +82,21 @@ model_data <- function(formula, data, verbose = FALSE) {
       }
     }
   }
+
+  parameters <- lapply(
+    observations, function(xx) {
+      ad_data(
+        y = xx@y,
+        theta_map = xx@theta_map,
+        beta_map = nrow(xx@beta_map),
+        gamma_map = nrow(xx@gamma_map),
+        ad_fun = gsub("_obs$", "_extra", xx@ad_fun),
+        ad_kind = "parameters"
+      )
+    }
+  )
+  names(parameters) <- paste0(names(parameters), "_extra")
+
 
   list(
     data = all_data,

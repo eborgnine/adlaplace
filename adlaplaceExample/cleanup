@@ -1,16 +1,12 @@
 #!/bin/sh
-# Cleanup script for hpolcc package
-# This script removes files that are generated during package installation
-# but should not be included in the source package
+# Remove generated files that should not ship in the source tarball.
 
-# Remove src/Makevars if it exists
-if [ -f "src/Makevars" ]; then
-    rm -f src/Makevars
-    echo "Removed src/Makevars"
-fi
+rm -f src/Makevars
 
-# Remove any compiled object files
+# Quarto / knitr HTML vignette outputs (recreated by quarto render)
+rm -rf vignettes/*_files
+rm -f vignettes/*.html
+rm -f vignettes/*.knit.md
+
+# Compiled objects anywhere under the package tree
 find . -type f \( -name '*.o' -o -name '*.so' \) -delete
-
-
-echo "Cleanup complete"

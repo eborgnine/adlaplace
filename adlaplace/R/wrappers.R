@@ -17,9 +17,11 @@
 #'   (for example \code{data} or \code{package}).
 #' @param control_inner A list of control options forwarded to the \code{control}
 #'   argument of \code{\link{log_lik_laplace}} for the inner optimization.
-#' @param cache An \code{\link[base]{environment}} containing starting values for the inner
-#'   optimization. It should contain \code{gamma}. Both functions update
-#'   \code{cache$gamma} to the latest \code{gamma} solution.
+#' @param cache An \code{\link[base]{environment}} used to warm-start and store the inner
+#'   \code{gamma} solution. If \code{cache$gamma} is missing or the wrong length,
+#'   it is initialized from \code{config$gamma} (if present) or zeros of length
+#'   \code{ad_fun@sizes["gamma"]}. Both functions update \code{cache$gamma} after
+#'   each evaluation.
 #'
 #' @return
 #' \itemize{
@@ -42,14 +44,12 @@
 #' @name outer_optim_wrappers
 #' @rdname outer_optim_wrappers
 #' @export
-outer_fn <- function(x, config, cache, ad_fun, control_inner = list(), ...) {
+outer_fn <- function(
+  x, config, cache, ad_fun, control_inner = list(), ...
+) {
     assign("last_par_fn", x, cache)
-    if (is.null(config$gamma)) {
-        stop("outer_fn requires config$gamma")
-    }
-    if (is.null(cache$gamma) || length(cache$gamma) != length(config$gamma)) {
-        cache$gamma <- config$gamma
-    }
+    num_gamma <- as.integer(ad_fun@sizes["gamma"])
+    cache$gamma <- resolve_gamma_start(config, cache, num_gamma)
 
     result <- adlaplace::inner_opt(
         parameters = x,
@@ -66,19 +66,15 @@ outer_fn <- function(x, config, cache, ad_fun, control_inner = list(), ...) {
 
 #' @rdname outer_optim_wrappers
 #' @export
-outer_gr <- function(x, config, cache, ad_fun, control_inner = list(), ...) {
+outer_gr <- function(
+  x, config, cache, ad_fun, control_inner = list(), ...
+) {
     assign("last_par_gr", x, cache)
-    if (is.null(config$gamma)) {
-        stop("outer_gr requires config$gamma")
-    }
-    if (is.null(cache$gamma) || length(cache$gamma) != length(config$gamma)) {
-        cache$gamma <- config$gamma
-    }
-
-    config_inner <- config
+    num_gamma <- as.integer(ad_fun@sizes["gamma"])
+    cache$gamma <- resolve_gamma_start(config, cache, num_gamma)
 
     result <- adlaplace::log_lik_laplace(
-        x = x, config = config_inner,
+        x = x, config = config,
         gamma = cache$gamma,
         control = control_inner,
         ad_fun = ad_fun,

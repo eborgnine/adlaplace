@@ -11,7 +11,7 @@ inline size_t count_obs_shards(const ad_data& model, const Rcpp::List& config) {
   size_t ng = cfg.shards.ncol();
   if (ng == 0) {
     if (model.y.size() > 0) {
-      ng = model.y.size();
+      ng = 1;
     } else if (model.elgm_matrix.p.size() > 0) {
       ng = static_cast<size_t>(model.elgm_matrix.ncol());
     }
@@ -45,7 +45,6 @@ inline std::vector<GroupPack> build_ad_fun_obs(
     auto result_here = log_dens(ad_params, model, config, d);
     CppAD::ADFun<double> fun(ad_params, result_here);
     result[d].fun = std::move(fun);
-    result[d].fun.capacity_order(0);
   }
 
   const int num_threads = cfg.num_threads > 0 ? cfg.num_threads : 1;

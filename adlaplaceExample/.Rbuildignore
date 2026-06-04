@@ -1,0 +1,3 @@
+^vignettes/.*_files$
+^vignettes/.*\.html$
+^vignettes/.*\.knit\.md$

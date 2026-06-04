@@ -12,7 +12,9 @@ ad_fun(x, config = NULL, num_threads = 1L, ...)
 with \code{observations}, \code{random}, \code{parameters}).}
 
 \item{config}{Model configuration list. Required for \code{ad_data} and
-\code{model_data}; unused for \code{ad_fun_ptr}.}
+\code{model_data}; unused for \code{ad_fun_ptr}. For \code{model_data},
+\code{beta}, \code{gamma}, and \code{theta} are filled from \code{x$data$info}
+when omitted (only \code{shards}, \code{transform_theta}, etc. are needed).}
 
 \item{num_threads}{Positive integer; number of thread columns in
 \code{parallel_map} used for shard thread affinity.}

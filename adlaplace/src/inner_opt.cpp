@@ -21,7 +21,9 @@
 //'
 //' @return
 //'   \item{\code{inner_opt()}}{Returns \code{log_lik}, \code{neg_log_lik}
-//'   (Laplace profile likelihood and its negation), \code{fval} (inner objective:
+//'   (Laplace profile likelihood and its negation), \code{parameters} (outer
+//'   \code{beta} and \code{theta} passed in), \code{full_parameters} (outer plus
+//'   inner \code{gamma} at the mode), \code{fval} (inner objective:
 //'   negative log joint density at \eqn{\hat\gamma}), \code{solution},
 //'   \code{gradient} (list \code{inner}, \code{outer}; \code{outer} empty when
 //'   \code{deriv=FALSE}), \code{hessian} (list \code{inner}, \code{outer},
@@ -148,6 +150,7 @@ struct InnerOptResult {
 	double log_lik = NA_REAL;
 	double neg_log_lik = NA_REAL;
 	Eigen::VectorXd solution;
+	Eigen::VectorXd parameters;
 	Eigen::VectorXd full_parameters;
 	Eigen::VectorXd grad_inner;
 	Eigen::VectorXd grad_outer;
@@ -305,6 +308,13 @@ InnerOptResult inner_opt(
 
 	out.fval = fval;
 	out.solution = solution;
+	out.parameters = Eigen::VectorXd(static_cast<Eigen::Index>(n_beta + n_theta));
+	for (std::size_t d = 0; d < n_beta; ++d) {
+		out.parameters[static_cast<Eigen::Index>(d)] = parameters[d];
+	}
+	for (std::size_t d = 0; d < n_theta; ++d) {
+		out.parameters[static_cast<Eigen::Index>(n_beta + d)] = parameters[n_beta + d];
+	}
 	out.full_parameters = fullParams;
 	out.iterations = iterations;
 	out.status = status;
@@ -371,7 +381,7 @@ Rcpp::List inner_opt(
 		return Rcpp::List::create(
 			Rcpp::Named("log_lik") = Rcpp::wrap(result.log_lik),
 			Rcpp::Named("neg_log_lik") = Rcpp::wrap(result.neg_log_lik),
-			Rcpp::Named("parameters") = Rcpp::wrap(result.full_parameters),
+			Rcpp::Named("parameters") = Rcpp::wrap(result.parameters),
 			Rcpp::Named("full_parameters") = Rcpp::wrap(result.full_parameters),
 			Rcpp::Named("opt") = Rcpp::List::create(
 				Rcpp::Named("fval") = Rcpp::wrap(result.fval),

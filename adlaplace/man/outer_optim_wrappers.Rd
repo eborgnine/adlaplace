@@ -15,9 +15,11 @@ outer_gr(x, config, cache, ad_fun, control_inner = list(), ...)
 
 \item{config}{Configuration list passed to \code{\link{log_lik_laplace}}.}
 
-\item{cache}{An \code{\link[base]{environment}} containing starting values for the inner
-optimization. It should contain \code{gamma}. Both functions update
-\code{cache$gamma} to the latest \code{gamma} solution.}
+\item{cache}{An \code{\link[base]{environment}} used to warm-start and store the inner
+\code{gamma} solution. If \code{cache$gamma} is missing or the wrong length,
+it is initialized from \code{config$gamma} (if present) or zeros of length
+\code{ad_fun@sizes["gamma"]}. Both functions update \code{cache$gamma} after
+each evaluation.}
 
 \item{ad_fun}{\code{ad_fun} object from \code{\link{ad_fun}}.}
 

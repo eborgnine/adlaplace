@@ -1,39 +1,65 @@
 #' Build backend AD function handle
 #'
-#' Constructs grouped CppAD tapes and attaches Hessian sparsity templates
-#' expected by \pkg{adlaplace}.
+#' Constructs skew-normal observation, random, and extra shards and returns an
+#' \code{ad_fun} object with Hessian templates attached.
 #'
-#' @param data Model data list.
-#' @param config Model configuration list.
+#' @param data Model data list with \code{y}, \code{ATp}, \code{XTp}, and
+#'   \code{Qdiag} (diagonal precision weights for random effects).
+#' @param config Model configuration list (\code{beta}, \code{gamma}, \code{theta},
+#'   optional \code{shards}, \code{transform_theta}, etc.).
 #'
-#' @return List with \code{ad_fun}, \code{group_sparsity}, and components from
-#'   \code{\link[adlaplace]{hessian_map}}.
+#' @return An \code{ad_fun} S4 object from \pkg{adlaplace}.
 #'
-#' @importFrom adlaplace n_groups get_sizes get_sparse_pattern hessian_map
+#' @importFrom adlaplace ad_data ad_fun ad_fun_ptr
 #' @seealso \code{\link[adlaplace]{ad_fun}}
 #' @export
 getAdFun_r <- function(data, config) {
-  ad_ptr <- get_ad_fun_raw_example(data, config)
-  sparsity <- lapply(
-    seq_len(adlaplace::n_groups(ad_ptr)) - 1L,
-    function(g) {
-      c(
-        adlaplace::get_sizes(ad_ptr, g),
-        adlaplace::get_sparse_pattern(ad_ptr, g)
-      )
-    }
+  n_beta <- nrow(data$XTp)
+  n_gamma <- nrow(data$ATp)
+  n_theta <- length(config$theta)
+  obs_theta_idx <- (n_theta - 1L):n_theta
+  rand_theta_idx <- seq_len(n_theta - 2L)
+
+  obs_shard <- adlaplace::ad_data(
+    y = data$y,
+    A = Matrix::t(data$ATp),
+    X = Matrix::t(data$XTp),
+    beta_map = Matrix::Diagonal(n_beta),
+    gamma_map = Matrix::Diagonal(n_gamma),
+    theta_map = list(obs_theta_idx, n_theta),
+    ad_kind = "observations",
+    ad_fun = "skewnormal_obs"
   )
-  hessian_pack <- adlaplace::hessian_map(
-    sparsity_list = sparsity,
-    Nbeta = length(config$beta),
-    Ngamma = length(config$gamma),
-    Ntheta = length(config$theta)
+
+  random_shard <- adlaplace::ad_data(
+    beta_map = n_beta,
+    gamma_map = Matrix::Diagonal(n_gamma),
+    theta_map = list(rand_theta_idx, n_theta),
+    ad_kind = "random",
+    ad_fun = "random_diagonal",
+    precision = data$Qdiag
   )
-  c(
-    list(
-      ad_fun = ad_ptr,
-      group_sparsity = lapply(sparsity, function(xx) xx$grad_inner)
-    ),
-    hessian_pack
+
+  extra_shard <- adlaplace::ad_data(
+    y = data$y,
+    beta_map = n_beta,
+    gamma_map = n_gamma,
+    theta_map = list(obs_theta_idx, n_theta),
+    ad_kind = "parameters",
+    ad_fun = "skewnormal_extra"
   )
+
+  ptrs <- list(
+    adlaplace::ad_fun_ptr(obs_shard, config),
+    adlaplace::ad_fun_ptr(random_shard, config),
+    adlaplace::ad_fun_ptr(extra_shard, config)
+  )
+
+  ad_ptr <- do.call(c, ptrs)
+  num_threads <- if (!is.null(config$num_threads)) {
+    as.integer(config$num_threads)[1L]
+  } else {
+    1L
+  }
+  adlaplace::ad_fun(ad_ptr, num_threads = num_threads)
 }

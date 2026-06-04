@@ -61,6 +61,36 @@ test_that("ad_fun and derivatives run on small GLMM data", {
   )
   expect_true(is.finite(inner_res$log_lik))
   expect_equal(inner_res$neg_log_lik, -inner_res$log_lik)
+  expect_equal(
+    inner_res$parameters,
+    c(config$beta, config$theta)
+  )
+  expect_equal(
+    length(inner_res$parameters) + length(config$gamma),
+    length(inner_res$full_parameters)
+  )
+
+  config_min <- list(verbose = FALSE)
+  ll_res <- adlaplace::log_lik_laplace(
+    x = c(config$beta, config$theta),
+    config = config_min,
+    gamma = config$gamma,
+    ad_fun = ad_fun,
+    control = list(maxit = 5L, report.level = 0, report.freq = 0),
+    deriv = FALSE
+  )
+  expect_true(is.finite(ll_res$log_lik))
+
+  ll_deriv <- adlaplace::log_lik_laplace(
+    x = c(config$beta, config$theta),
+    config = config_min,
+    gamma = config$gamma,
+    ad_fun = ad_fun,
+    control = list(maxit = 5L, report.level = 0, report.freq = 0),
+    deriv = TRUE
+  )
+  expect_true(is.finite(ll_deriv$log_lik))
+  expect_equal(length(ll_deriv$grad), length(config$beta) + length(config$theta))
 })
 
 test_that("model_data builds data for iwp formula", {

@@ -35,6 +35,31 @@
 #' G <- ad_shards(A, num_shards = 3)
 #' G
 #'
+#' Default observation shard map (one column, all observations)
+#'
+#' @param n_obs Number of observations (\code{length(y)}).
+#' @return A \code{dgCMatrix} with one shard column and structural ones mapping
+#'   each observation row to that shard (0-based row indices).
+#' @keywords internal
+default_obs_shards <- function(n_obs) {
+  n_obs <- as.integer(n_obs)[1L]
+  if (is.na(n_obs) || n_obs < 1L) {
+    return(Matrix::sparseMatrix(
+      i = integer(0),
+      j = integer(0),
+      dims = c(0L, 1L),
+      index1 = FALSE
+    ))
+  }
+  Matrix::sparseMatrix(
+    i = seq.int(0L, n_obs - 1L),
+    j = rep(0L, n_obs),
+    x = rep(1, n_obs),
+    dims = c(n_obs, 1L),
+    index1 = FALSE
+  )
+}
+
 #' @export
 ad_shards <- function(A, elgm_matrix, num_shards, min_groups = 0) {
   ATp <- Matrix::t(A)

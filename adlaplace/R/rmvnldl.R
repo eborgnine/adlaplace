@@ -22,7 +22,7 @@ as_ldl_list <- function(chol_prec) {
   }
   stop(
     "chol_prec must be a CHMfactor, Cholesky (LDL), or a list with L1, D, perm and perm_inv ",
-    "(as in log_lik_laplace()$hessian$chol_inner)"
+    "(as in log_lik_laplace()$extra$hessian$chol_inner or inner_opt()$hessian$chol_inner)"
   )
 }
 

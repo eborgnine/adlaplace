@@ -45,7 +45,9 @@ inner solution; if \code{FALSE}, return inner quantities only (default).}
 }
 \value{
 \item{\code{inner_opt()}}{Returns \code{log_lik}, \code{neg_log_lik}
-  (Laplace profile likelihood and its negation), \code{fval} (inner objective:
+  (Laplace profile likelihood and its negation), \code{parameters} (outer
+  \code{beta} and \code{theta} passed in), \code{full_parameters} (outer plus
+  inner \code{gamma} at the mode), \code{fval} (inner objective:
   negative log joint density at \eqn{\hat\gamma}), \code{solution},
   \code{gradient} (list \code{inner}, \code{outer}; \code{outer} empty when
   \code{deriv=FALSE}), \code{hessian} (list \code{inner}, \code{outer},

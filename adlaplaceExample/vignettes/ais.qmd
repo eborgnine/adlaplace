@@ -25,30 +25,38 @@ if(requireNamespace("sn", quietly=TRUE)){
 ```
 
 ```{r}
-model_stuff <- adlaplace::model_setup(
+model_stuff <- adlaplace::model_data(
+  adlaplace::collect_terms(
+    skewnormal(BMI) ~ intercept() + sex + f(sport, model = "iid"),
+    package = "adlaplaceExample"
+  ),
   data = ais,
-  formula = BMI ~ intercept(init = mean(ais$BMI)) + sex + f(sport, model = "iid"),
   verbose = TRUE
 )
 
 config <- list(
-  beta = model_stuff$info$beta$init,
-  gamma = rep(0, nrow(model_stuff$info$gamma)),
-  theta = c(log(model_stuff$info$theta$init), 1, 1), # two skew-normal parameters
   transform_theta = TRUE,
-  groups = adlaplace::ad_shards(Matrix::t(model_stuff$data$ATp), num_shards = 100),
+  shards = adlaplace::ad_shards(model_stuff$data$A, num_shards = 100),
   num_threads = 2L,
-  verbose = TRUE,
-  package = "adlaplaceExample"
+  verbose = TRUE
 )
 ```
 
 ```{r}
-ad_fun <- adlaplace::get_ad_fun(model_stuff$data, config, package = "adlaplaceExample")
+ad_fun <- adlaplace::ad_fun(model_stuff, config, num_threads = 2L)
+config <- modifyList(
+  config,
+  list(
+    beta = model_stuff$data$info$beta$init,
+    gamma = rep(0, nrow(model_stuff$data$info$gamma)),
+    theta = log(pmax(model_stuff$data$info$theta$init, 1e-12)),
+    verbose = FALSE
+  )
+)
 res <- adlaplace::log_lik_laplace(
   x = c(config$beta, config$theta),
   ad_fun = ad_fun,
-  config = modifyList(config, list(verbose = FALSE)),
+  config = config,
   deriv = TRUE
 )
 res$parameters
@@ -92,10 +100,10 @@ res <- adlaplace::log_lik_laplace(
   config = modifyList(config, list(verbose = FALSE)),
   deriv = TRUE
 )
-model_stuff$info$gamma$mode <- res$opt$solution
-model_stuff$info$beta$mle <- res$parameters[seq(1, nrow(model_stuff$info$beta))]
+model_stuff$data$info$gamma$mode <- res$opt$solution
+model_stuff$data$info$beta$mle <- res$parameters[seq(1, nrow(model_stuff$data$info$beta))]
 
-model_stuff$info$beta
+model_stuff$data$info$beta
 ```
 
 ```{r}
@@ -104,7 +112,7 @@ x_seq <- seq(par("usr")[1], par("usr")[2], len = 1001)
 if (requireNamespace("sn", quietly = TRUE)) {
   lines(x_seq,
     sn::dsn(x_seq,
-      xi = model_stuff$info$beta$mle[1],
+      xi = model_stuff$data$info$beta$mle[1],
       omega = exp(res$parameters[length(res$parameters) - 1]),
       alpha = res$parameters[length(res$parameters)],
     ),
