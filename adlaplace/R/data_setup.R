@@ -55,7 +55,10 @@ ensure_theta_transform <- function(theta_setup) {
 #'   The \code{info$theta} data frame includes a logical \code{transform} column:
 #'   \code{TRUE} means the parameter is stored on the log scale when
 #'   \code{config$transform_theta} is \code{TRUE} (default for all rows unless a
-#'   model term sets otherwise).
+#'   model term sets otherwise). \code{info$parameters} stacks \code{beta} and
+#'   \code{theta} rows with the same \code{transform} column (\code{FALSE} for
+#'   fixed effects); \code{init}, \code{lower}, and \code{upper} are already on
+#'   the optimization (log) scale where \code{transform} is \code{TRUE}.
 #' @export
 data_setup <- function(formula, data, verbose = FALSE) {
   formula_in <- formula
@@ -216,6 +219,49 @@ data_setup <- function(formula, data, verbose = FALSE) {
 
   beta_theta_names <- setdiff(beta_theta_names, "order")
 
+  build_parameters_info <- function(beta_df, theta_df, names_common) {
+    beta_rows <- if (!is.null(beta_df) && nrow(beta_df) > 0L) {
+      out <- beta_df[, names_common, drop = FALSE]
+      out$transform <- FALSE
+      out
+    } else {
+      NULL
+    }
+    theta_rows <- if (nrow(theta_df) > 0L) {
+      cols <- intersect(c(names_common, "transform"), names(theta_df))
+      theta_df[, cols, drop = FALSE]
+    } else {
+      NULL
+    }
+    out <- do.call(rbind, Filter(Negate(is.null), list(beta_rows, theta_rows)))
+    if (is.null(out) || nrow(out) == 0L) {
+      return(data.frame(
+        term = character(),
+        model = character(),
+        label = character(),
+        init = numeric(),
+        lower = numeric(),
+        upper = numeric(),
+        parscale = numeric(),
+        type = factor(levels = .type_factor_levels),
+        transform = logical(0),
+        stringsAsFactors = FALSE
+      ))
+    }
+    rownames(out) <- NULL
+    transform <- out$transform
+    transform[is.na(transform)] <- FALSE
+    idx <- which(transform)
+    if (length(idx) > 0L) {
+      for (col in c("init", "lower", "upper")) {
+        if (col %in% names(out)) {
+          out[idx, col] <- log(out[idx, col])
+        }
+      }
+    }
+    out
+  }
+
   list(
     y = y,
     A = a_matrix,
@@ -225,9 +271,10 @@ data_setup <- function(formula, data, verbose = FALSE) {
       beta = beta_setup,
       gamma = gamma_setup,
       theta = theta_setup,
-      parameters = rbind(
-        beta_setup[, beta_theta_names, drop = FALSE],
-        theta_setup[, beta_theta_names, drop = FALSE]
+      parameters = build_parameters_info(
+        beta_setup,
+        theta_setup,
+        beta_theta_names
       )
     ),
     terms = terms

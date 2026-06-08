@@ -26,7 +26,7 @@ if (requireNamespace("sn", quietly = TRUE)) {
 
 ```{r}
 model_stuff <- adlaplace::model_data(
-  adlaplaceExample::skewnormal(BMI) ~ sex + adlaplace::iid(sport),
+  adlaplaceExample::skewnormal(BMI) ~ adlaplace::intercept(init = 10, parscale = 10) + sex + adlaplace::iid(sport),
   data = ais,
   verbose = TRUE
 )
@@ -62,7 +62,7 @@ res$grad
 cache <- new.env(parent = emptyenv())
 cache$gamma <- res$opt$solution
 
-x0 <- res$parameters
+x0 <- model_stuff$data$info$parameters$init
 
 adlaplace::outer_fn(x = x0, cache = cache, config = config, ad_fun = ad_fun)
 adlaplace::outer_gr(x = x0, cache = cache, config = config, ad_fun = ad_fun)
@@ -71,9 +71,12 @@ outer_fit <- stats::optim(
   par = x0,
   fn = adlaplace::outer_fn,
   gr = adlaplace::outer_gr,
+  lower = model_stuff$data$info$parameters$lower,
+  upper = model_stuff$data$info$parameters$upper,
   method = "L-BFGS-B",
   control = list(
-    maxit = 20,
+    maxit = 10,
+    parscale = model_stuff$data$info$parameters$parscale,
     trace = 3,
     REPORT = 1
   ),
@@ -97,7 +100,11 @@ res$grad
 model_stuff$data$info$gamma$mode <- res$opt$solution
 model_stuff$data$info$beta$mle <- res$parameters[seq(1, nrow(model_stuff$data$info$beta))]
 
-model_stuff$data$info$beta
+model_stuff$data$info$theta$mle <- res$parameters[-(1:nrow(model_stuff$data$info$beta))]
+model_stuff$data$info$theta[
+  model_stuff$data$info$theta$transform, "mle"
+] <-
+  exp(model_stuff$data$info$theta[model_stuff$data$info$theta$transform, "mle"])
 ```
 
 ```{r}
@@ -107,8 +114,8 @@ if (requireNamespace("sn", quietly = TRUE)) {
   lines(x_seq,
     sn::dsn(x_seq,
       xi = model_stuff$data$info$beta$mle[1],
-      omega = exp(res$parameters[length(res$parameters) - 1]),
-      alpha = res$parameters[length(res$parameters)],
+      omega = model_stuff$data$info$theta$mle[1],
+      alpha = model_stuff$data$info$theta$mle[2]
     ),
     col = "red"
   )
@@ -122,11 +129,11 @@ if (!requireNamespace("abind", quietly = TRUE)) {
 }
 
 x <- cache$last_par_fn # outer_fit$par
-Dpar <- length(x)
+Dpar <- 4
 Ngrid <- 13L
 
-par_grid <- matrix(x, nrow = Ngrid, ncol = Dpar, byrow = TRUE)
-Sx <- seq(-0.1, 0.1, len = Ngrid) + x[Dpar]
+par_grid <- matrix(x, nrow = Ngrid, ncol = length(x), byrow = TRUE)
+Sx <- 5 * seq(-1, 1, len = Ngrid) + x[Dpar]
 SxD <- Sx[-1] - diff(Sx) / 2
 par_grid[, Dpar] <- Sx
 

@@ -106,10 +106,7 @@ by_shard[seq(to = length(by_shard), length.out = 5)]
 
 ```{r log_lik}
 res <- adlaplace::log_lik_laplace(
-  x = c(
-    md$data$info$beta$init,
-    adlaplace::apply_theta_log(md$data$info$theta, cols = "init")$init
-  ),
+  x = md$data$info$parameters$init,
   ad_fun = ad_fun,
   config = c(config, list(verbose = FALSE)),
   deriv = TRUE
@@ -121,32 +118,19 @@ res$grad
 
 
 ```{r trustOptimOuterWrappers}
-theta_for_opt <- adlaplace::apply_theta_log(
-  md$data$info$theta,
-  cols = c("init", "lower", "upper")
-)
-
-to_keep <- c("init", "lower", "upper", "parscale")
-
-config$opt <- as.list(
-  rbind(
-    md$data$info$beta[, to_keep],
-    theta_for_opt[, to_keep]
-  )
-)
-config$opt$lower[is.infinite(config$opt$lower)] <- -5
-config$opt$upper[is.infinite(config$opt$upper)] <- 5
+md$data$info$parameters$lower[is.infinite(md$data$info$parameters$lower)] <- -5
+md$data$info$parameters$upper[is.infinite(md$data$info$parameters$upper)] <- 5
 
 cache <- new.env(parent = emptyenv())
 cache$gamma <- rep(0, nrow(md$data$info$gamma)) # config$gamma not required; warm-start via cache
 
-x0 <- config$opt$init
+x0 <- md$data$info$parameters$init
 
 adlaplace::outer_fn(x = x0, cache = cache, config = config, ad_fun = ad_fun)
 adlaplace::outer_gr(x = x0, cache = cache, config = config, ad_fun = ad_fun)
 
 outer_fit <- stats::optim(
-  par = config$opt$init,
+  par = md$data$info$parameters$init,
   fn = adlaplace::outer_fn,
   gr = adlaplace::outer_gr,
   method = "L-BFGS-B",
@@ -154,10 +138,11 @@ outer_fit <- stats::optim(
     maxit = 200,
     trace = 1,
     factr = 1e3,
-    pgtol = 1e-12
+    pgtol = 1e-12,
+    parscale = md$data$info$parameters$parscale
   ),
-  lower = config$opt$lower,
-  upper = config$opt$upper,
+  lower = md$data$info$parameters$lower,
+  upper = md$data$info$parameters$upper,
   config = config,
   ad_fun = ad_fun,
   cache = cache

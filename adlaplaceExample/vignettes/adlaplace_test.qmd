@@ -415,10 +415,10 @@ if (!requireNamespace("abind", quietly = TRUE)) {
 par(mfrow = c(3, 2), mar = c(2, 2, 2, 0), mgp = c(1, 0.5, 0))
 
 x1 <- outer_fit$par
-Dpar <- 5 # length(x1) - 1
+Dpar <- 3 # length(x1) - 1
 Ngrid <- 7L
 
-par_grid <- matrix(x1, nrow = Ngrid, ncol = Dpar, byrow = TRUE)
+par_grid <- matrix(x1, nrow = Ngrid, ncol = length(x1), byrow = TRUE)
 Sx <- x1[Dpar] + seq(-0.5, 0.5, length.out = Ngrid)
 SxD <- Sx[-1] - diff(Sx) / 2
 par_grid[, Dpar] <- Sx
@@ -542,7 +542,7 @@ for (i in seq_len(Ngrid)) {
 }
 
 grad_slope <- apply(grad, 1, diff) / mean(diff(Sx))
-for (Dpar2 in c(Dpar_dens, 1L, 5, 6)) {
+for (Dpar2 in c(Dpar_dens, 1L, 5, 6, length(x_here))) {
   plot(
     Sx, hes[Dpar_dens, Dpar2, ],
     type = "l",

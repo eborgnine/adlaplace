@@ -23,4 +23,4 @@ Collate: '000.R' '15_ad_data_class.R' '20_ad_fun_class.R' '25_model_terms.R' '40
                'iid.R' 'inner_opt.R' 'intercept.R' 'iwp.R' 'linear.R' 'log_lik_deriv.R' 'log_lik_laplace.R' 'model_data.R' 'nbinom.R'
                'overdispersion.R' 'response.R' 'rmvnldl.R' 'sim_fit.R' 'wrappers.R' 'z_ad_fun_s4_wrappers.R'
 Author: Patrick Brown [aut, cre, cph]
-Built: R 4.6.0; aarch64-apple-darwin23; 2026-06-08 16:17:31 UTC; unix
+Built: R 4.6.0; aarch64-apple-darwin23; 2026-06-08 17:51:09 UTC; unix
