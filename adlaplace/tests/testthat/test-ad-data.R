@@ -1,3 +1,26 @@
+test_that("ad_data recasts shard from existing ad_data", {
+  obs <- adlaplace:::ad_data(
+    y = 1:3,
+    beta_map = 2L,
+    gamma_map = 3L,
+    theta_map = c(3L, 3L),
+    ad_kind = "observations",
+    ad_fun = "nbinom_obs"
+  )
+  extra <- adlaplace::ad_data(
+    obs,
+    ad_kind = "parameters",
+    ad_fun = "nbinom_extra"
+  )
+  expect_identical(extra@y, obs@y)
+  expect_identical(extra@beta_map, obs@beta_map)
+  expect_identical(extra@gamma_map, obs@gamma_map)
+  expect_identical(extra@theta_map, obs@theta_map)
+  expect_equal(extra@ad_kind, "parameters")
+  expect_equal(extra@ad_fun, "nbinom_extra")
+  expect_false(identical(extra, obs))
+})
+
 test_that("length-1 integer map args become zero-column matrices", {
   model <- adlaplace:::ad_data(
     beta_map = 2L,

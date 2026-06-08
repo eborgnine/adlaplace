@@ -102,6 +102,38 @@ get_thread_owner <- function(handle, group) {
     .Call(`_adlaplace_get_thread_owner`, handle, group)
 }
 
+#' Configured \code{num_threads} from \code{ad_fun()} thread assignment
+#'
+#' @param handle External pointer of class \code{ad_fun_ptr}.
+#' @return Integer \code{num_threads} if \code{ad_fun()} assigned threads; otherwise \code{NA}.
+#' @keywords internal
+get_configured_num_threads <- function(handle) {
+    .Call(`_adlaplace_get_configured_num_threads`, handle)
+}
+
+#' Whether a shard has an assigned OpenMP owner thread
+#'
+#' @param handle External pointer of class \code{ad_fun_ptr}.
+#' @param group 0-based group index.
+#' @return Logical scalar.
+#' @keywords internal
+get_owner_thread_assigned <- function(handle, group) {
+    .Call(`_adlaplace_get_owner_thread_assigned`, handle, group)
+}
+
+#' Assign OpenMP owner threads to all shards
+#'
+#' Sets \code{owner_thread = shard_index \% num_threads} on every shard.
+#' Called from \code{ad_fun()} after \code{c()}. Required before parallel
+#' \code{inner_opt} / \code{trace_hinv_t}.
+#'
+#' @param handle External pointer of class \code{ad_fun_ptr}.
+#' @param num_threads Positive integer thread count.
+#' @keywords internal
+assign_owner_threads <- function(handle, num_threads) {
+    invisible(.Call(`_adlaplace_assign_owner_threads`, handle, num_threads))
+}
+
 #' Deep copy of an \code{ad_fun_ptr} handle
 #'
 #' Clones CppAD tapes and sparsity patterns into a new external pointer.
@@ -201,7 +233,8 @@ inner_opt <- function(parameters, gamma, ad_fun, control, deriv = FALSE, verbose
 }
 
 #' @rdname adlaplace_cpp
-trace_hinv_t <- function(ad_fun_ptr, x, LinvPt, LinvPtColumns) {
-    .Call(`_adlaplace_trace_hinv_t`, ad_fun_ptr, x, LinvPt, LinvPtColumns)
+#' @param verbose Logical; if \code{TRUE}, print threads, shards, and parameter sizes.
+trace_hinv_t <- function(ad_fun_ptr, x, LinvPt, LinvPtColumns, verbose = FALSE) {
+    .Call(`_adlaplace_trace_hinv_t`, ad_fun_ptr, x, LinvPt, LinvPtColumns, verbose)
 }
 

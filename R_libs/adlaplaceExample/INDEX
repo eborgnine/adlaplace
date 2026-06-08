@@ -1,0 +1,4 @@
+get_ad_fun_raw_obs                           Build observation-shard 'ad_fun_ptr' in this package's shared library.
+get_ad_fun_raw_parameters                    Build parameters-shard 'ad_fun_ptr' in this package's shared library.
+skewnormal                                   Skew-normal observation term constructor
+skewnormal-class                             Skew-normal observation term

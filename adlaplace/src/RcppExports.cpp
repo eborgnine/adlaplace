@@ -119,6 +119,40 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// get_configured_num_threads
+Rcpp::IntegerVector get_configured_num_threads(SEXP handle);
+RcppExport SEXP _adlaplace_get_configured_num_threads(SEXP handleSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< SEXP >::type handle(handleSEXP);
+    rcpp_result_gen = Rcpp::wrap(get_configured_num_threads(handle));
+    return rcpp_result_gen;
+END_RCPP
+}
+// get_owner_thread_assigned
+bool get_owner_thread_assigned(SEXP handle, int group);
+RcppExport SEXP _adlaplace_get_owner_thread_assigned(SEXP handleSEXP, SEXP groupSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< SEXP >::type handle(handleSEXP);
+    Rcpp::traits::input_parameter< int >::type group(groupSEXP);
+    rcpp_result_gen = Rcpp::wrap(get_owner_thread_assigned(handle, group));
+    return rcpp_result_gen;
+END_RCPP
+}
+// assign_owner_threads
+void assign_owner_threads(SEXP handle, int num_threads);
+RcppExport SEXP _adlaplace_assign_owner_threads(SEXP handleSEXP, SEXP num_threadsSEXP) {
+BEGIN_RCPP
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< SEXP >::type handle(handleSEXP);
+    Rcpp::traits::input_parameter< int >::type num_threads(num_threadsSEXP);
+    assign_owner_threads(handle, num_threads);
+    return R_NilValue;
+END_RCPP
+}
 // clone_ad_fun_ptr_impl
 SEXP clone_ad_fun_ptr_impl(SEXP handle);
 RcppExport SEXP _adlaplace_clone_ad_fun_ptr_impl(SEXP handleSEXP) {
@@ -192,8 +226,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // trace_hinv_t
-Rcpp::NumericVector trace_hinv_t(SEXP ad_fun_ptr, const Rcpp::NumericVector& x, const Rcpp::S4& LinvPt, const Rcpp::S4& LinvPtColumns);
-RcppExport SEXP _adlaplace_trace_hinv_t(SEXP ad_fun_ptrSEXP, SEXP xSEXP, SEXP LinvPtSEXP, SEXP LinvPtColumnsSEXP) {
+Rcpp::NumericVector trace_hinv_t(SEXP ad_fun_ptr, const Rcpp::NumericVector& x, const Rcpp::S4& LinvPt, const Rcpp::S4& LinvPtColumns, bool verbose);
+RcppExport SEXP _adlaplace_trace_hinv_t(SEXP ad_fun_ptrSEXP, SEXP xSEXP, SEXP LinvPtSEXP, SEXP LinvPtColumnsSEXP, SEXP verboseSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -201,7 +235,8 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const Rcpp::NumericVector& >::type x(xSEXP);
     Rcpp::traits::input_parameter< const Rcpp::S4& >::type LinvPt(LinvPtSEXP);
     Rcpp::traits::input_parameter< const Rcpp::S4& >::type LinvPtColumns(LinvPtColumnsSEXP);
-    rcpp_result_gen = Rcpp::wrap(trace_hinv_t(ad_fun_ptr, x, LinvPt, LinvPtColumns));
+    Rcpp::traits::input_parameter< bool >::type verbose(verboseSEXP);
+    rcpp_result_gen = Rcpp::wrap(trace_hinv_t(ad_fun_ptr, x, LinvPt, LinvPtColumns, verbose));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -216,12 +251,15 @@ static const R_CallMethodDef CallEntries[] = {
     {"_adlaplace_get_sizes", (DL_FUNC) &_adlaplace_get_sizes, 2},
     {"_adlaplace_get_sparse_pattern", (DL_FUNC) &_adlaplace_get_sparse_pattern, 2},
     {"_adlaplace_get_thread_owner", (DL_FUNC) &_adlaplace_get_thread_owner, 2},
+    {"_adlaplace_get_configured_num_threads", (DL_FUNC) &_adlaplace_get_configured_num_threads, 1},
+    {"_adlaplace_get_owner_thread_assigned", (DL_FUNC) &_adlaplace_get_owner_thread_assigned, 2},
+    {"_adlaplace_assign_owner_threads", (DL_FUNC) &_adlaplace_assign_owner_threads, 2},
     {"_adlaplace_clone_ad_fun_ptr_impl", (DL_FUNC) &_adlaplace_clone_ad_fun_ptr_impl, 1},
     {"_adlaplace_joint_log_dens", (DL_FUNC) &_adlaplace_joint_log_dens, 4},
     {"_adlaplace_grad", (DL_FUNC) &_adlaplace_grad, 5},
     {"_adlaplace_hessian", (DL_FUNC) &_adlaplace_hessian, 6},
     {"_adlaplace_inner_opt", (DL_FUNC) &_adlaplace_inner_opt, 6},
-    {"_adlaplace_trace_hinv_t", (DL_FUNC) &_adlaplace_trace_hinv_t, 4},
+    {"_adlaplace_trace_hinv_t", (DL_FUNC) &_adlaplace_trace_hinv_t, 5},
     {NULL, NULL, 0}
 };
 

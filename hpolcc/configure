@@ -23,7 +23,6 @@ OPENMP_CXXFLAGS=""
 OPENMP_LIBS=""
 BREW_CPPFLAGS=""
 BREW_PREFIX=""
-KMPC_DISPATCH_CPPFLAGS="-DADLAPLACE_HAVE_KMPC_DISPATCH_DEINIT=0"
 
 UNAME_S="$(uname -s 2>/dev/null || echo unknown)"
 R_HOME_DIR="$(R RHOME 2>/dev/null || true)"
@@ -166,19 +165,6 @@ detect_cppad_lib () {
   return 1
 }
 
-datatable_uses_kmpc_dispatch () {
-  so_path="$1"
-  [ -f "$so_path" ] || return 1
-
-  if [ "$UNAME_S" = "Darwin" ]; then
-    nm -u "$so_path" 2>/dev/null | grep -q "___kmpc_dispatch_"
-    return $?
-  fi
-
-  nm -D "$so_path" 2>/dev/null | grep -q "__kmpc_dispatch_"
-  return $?
-}
-
 detect_linked_openmp_lib () {
   so_path="$1"
   [ -f "$so_path" ] || return 1
@@ -193,20 +179,6 @@ detect_linked_openmp_lib () {
     return 0
   fi
   return 1
-}
-
-has_kmpc_dispatch_deinit () {
-  libpath="$1"
-  [ -f "$libpath" ] || return 1
-
-  if [ "$UNAME_S" = "Darwin" ]; then
-    nm -gU "$libpath" 2>/dev/null | grep -q "___kmpc_dispatch_deinit"
-    return $?
-  fi
-
-  nm -D --defined-only "$libpath" 2>/dev/null \
-    | grep -Eq "__kmpc_dispatch_deinit|___kmpc_dispatch_deinit"
-  return $?
 }
 
 # ---- Brew discovery (macOS only) ----
@@ -262,40 +234,17 @@ fi
 
 if [ -n "$OPENMP_CXXFLAGS" ]; then
   DATATABLE_SO="$(detect_datatable_so || true)"
-
-  DT_HAS_DISPATCH=0
   DT_OMP_LIB=""
-  if [ -n "$DATATABLE_SO" ] && datatable_uses_kmpc_dispatch "$DATATABLE_SO"; then
-    # Set DT_HAS_DISPATCH based on OS
-    if [ "$UNAME_S" = "Linux" ]; then
-      DT_HAS_DISPATCH=1
-      msg "configure: data.table uses kmpc_dispatch symbols: YES (Linux - enabling dispatch)"
-    else
-      DT_HAS_DISPATCH=0
-      msg "configure: data.table uses kmpc_dispatch symbols: YES (macOS - disabling dispatch)"
-    fi
+  if [ -n "$DATATABLE_SO" ]; then
     DT_OMP_LIB="$(detect_linked_openmp_lib "$DATATABLE_SO" || true)"
-  else
-    msg "configure: data.table uses kmpc_dispatch symbols: NO/UNKNOWN"
   fi
 
-  OMP_RUNTIME_LIB="$(detect_openmp_runtime_lib || true)"
   if [ -n "$DT_OMP_LIB" ] && [ -f "$DT_OMP_LIB" ]; then
-    OMP_RUNTIME_LIB="$DT_OMP_LIB"
     if [ "$UNAME_S" = "Darwin" ]; then
-      OMP_RUNTIME_DIR="$(dirname "$OMP_RUNTIME_LIB")"
-      OPENMP_LIBS="$OMP_RUNTIME_LIB -Wl,-rpath,$OMP_RUNTIME_DIR"
+      OMP_RUNTIME_DIR="$(dirname "$DT_OMP_LIB")"
+      OPENMP_LIBS="$DT_OMP_LIB -Wl,-rpath,$OMP_RUNTIME_DIR"
     fi
-    msg "configure: using data.table OpenMP runtime: $OMP_RUNTIME_LIB"
-  fi
-
-  if [ "$DT_HAS_DISPATCH" = "1" ] \
-     && [ -n "$OMP_RUNTIME_LIB" ] \
-     && has_kmpc_dispatch_deinit "$OMP_RUNTIME_LIB"; then
-    KMPC_DISPATCH_CPPFLAGS="-DADLAPLACE_HAVE_KMPC_DISPATCH_DEINIT=1"
-    msg "configure: enabling ADLAPLACE_HAVE_KMPC_DISPATCH_DEINIT=1 ($OMP_RUNTIME_LIB)"
-  else
-    msg "configure: ADLAPLACE_HAVE_KMPC_DISPATCH_DEINIT=0"
+    msg "configure: using data.table OpenMP runtime: $DT_OMP_LIB"
   fi
 fi
 
@@ -328,7 +277,6 @@ sed \
   -e "s/@CPPAD_CPPFLAGS@/$(esc_sed "$CPPAD_CPPFLAGS")/g" \
   -e "s/@CPPAD_INCLUDE_CPPFLAGS@/$(esc_sed "$CPPAD_INCLUDE_CPPFLAGS")/g" \
   -e "s/@CPPAD_LIBS@/$(esc_sed "$CPPAD_LIBS")/g" \
-  -e "s/@KMPC_DISPATCH_CPPFLAGS@/$(esc_sed "$KMPC_DISPATCH_CPPFLAGS")/g" \
   -e "s/@EIGEN_SYSTEM_CPPFLAGS@/$(esc_sed "$EIGEN_SYSTEM_CPPFLAGS")/g" \
   -e "s/@ADLAPLACE_LIBS@/$(esc_sed "$ADLAPLACE_LIBS")/g" \
 "$infile" > "$outfile"

@@ -340,45 +340,18 @@ ad_data_from_config_matrices <- function(y, A, X, config, theta_local_row = 0L) 
   )
 }
 
-#' @describeIn data_setup Construct an ad_data object
-#'
-#' @param y Response vector (default empty).
-#' @param A Random-effects design matrix (\code{nrow(A) = length(y)}; any
-#'   \code{Matrix} class).
-#' @param X Fixed-effects design matrix (\code{nrow(X) = length(y)}; any
-#'   \code{Matrix} class).
-#' @param beta_map Beta parameter map (any \code{Matrix}; coerced to
-#'   \code{ngCMatrix}), or a shorthand: length-1 integer \code{n} gives
-#'   \code{Matrix::Matrix(nrow = n, ncol = 0)}; length-2 \code{c(row, n)} gives
-#'   one column with a structural \code{1} at row \code{row} (1-based);
-#'   and \code{list(indices, n)} gives one column per entry in \code{indices}
-#'   with structural \code{1}s at those rows. If
-#'   \code{NULL}, defaults to \code{Matrix::Diagonal(ncol(X))} when
-#'   \code{ncol(X) > 0}, otherwise an empty matrix.
-#' @param gamma_map Gamma parameter map (any \code{Matrix}; coerced to
-#'   \code{ngCMatrix}; at most one nonzero per row and column), or the same
-#'   shorthand forms as \code{beta_map}. If \code{NULL}, defaults to
-#'   \code{Matrix::Diagonal(ncol(A))} when \code{ncol(A) > 0},
-#'   otherwise an empty matrix.
-#' @param theta_map Theta parameter map (any \code{Matrix}; coerced to
-#'   \code{ngCMatrix}), or the same shorthand forms as
-#'   \code{beta_map}. If \code{NULL}, defaults to an empty matrix.
-#' @param elgm_matrix Optional ELGM map (any \code{Matrix}; coerced to
-#'   \code{ngCMatrix}). If \code{NULL}, defaults to \code{Matrix::Matrix(nrow = length(y), ncol = 0)}.
-#' @param ad_fun Registered AD density name for this shard (optional).
-#' @param ad_kind Shard kind (\code{"observations"}, \code{"parameters"}, \code{"random"}; optional).
-#' @param precision Optional precision payload (any R object).
-#' @export
-ad_data <- function(y = numeric(0),
-                    A = NULL,
-                    X = NULL,
-                    beta_map = NULL,
-                    gamma_map = NULL,
-                    theta_map = NULL,
-                    elgm_matrix = NULL,
-                    ad_fun = NA_character_,
-                    ad_kind = NA_character_,
-                    precision = NULL) {
+#' @keywords internal
+ad_data_from_mats <- function(y = numeric(0),
+                              A = NULL,
+                              X = NULL,
+                              beta_map = NULL,
+                              gamma_map = NULL,
+                              theta_map = NULL,
+                              elgm_matrix = NULL,
+                              ad_fun = NA_character_,
+                              ad_kind = NA_character_,
+                              package = NA_character_,
+                              precision = NULL) {
   n_obs <- length(y)
   validate_ad_data_dims(y, A, X)
   ATp <- design_Tp(A, n_obs, "A")
@@ -392,6 +365,11 @@ ad_data <- function(y = numeric(0),
     ad_kind <- NA_character_
   } else {
     ad_kind <- as.character(ad_kind)
+  }
+  if (length(package) != 1L || is.na(package) || !nzchar(package)) {
+    package <- NA_character_
+  } else {
+    package <- as.character(package)
   }
   beta_map <- coerce_map_shorthand(beta_map, "beta_map")
   gamma_map <- coerce_map_shorthand(gamma_map, "gamma_map")
@@ -435,6 +413,159 @@ ad_data <- function(y = numeric(0),
     elgm_matrix = elgm_matrix,
     ad_fun = ad_fun,
     ad_kind = ad_kind,
+    package = package,
     precision = precision
   )
 }
+
+#' @export
+setGeneric("ad_data", function(y, ...) standardGeneric("ad_data"))
+
+#' @describeIn data_setup Construct an ad_data object
+#'
+#' @param y Response vector (default empty), or an existing \code{ad_data} object
+#'   to recast as another shard (see \code{\link{ad_data,ad_data-method}}).
+#' @param A Random-effects design matrix (\code{nrow(A) = length(y)}; any
+#'   \code{Matrix} class).
+#' @param X Fixed-effects design matrix (\code{nrow(X) = length(y)}; any
+#'   \code{Matrix} class).
+#' @param beta_map Beta parameter map (any \code{Matrix}; coerced to
+#'   \code{ngCMatrix}), or a shorthand: length-1 integer \code{n} gives
+#'   \code{Matrix::Matrix(nrow = n, ncol = 0)}; length-2 \code{c(row, n)} gives
+#'   one column with a structural \code{1} at row \code{row} (1-based);
+#'   and \code{list(indices, n)} gives one column per entry in \code{indices}
+#'   with structural \code{1}s at those rows. If
+#'   \code{NULL}, defaults to \code{Matrix::Diagonal(ncol(X))} when
+#'   \code{ncol(X) > 0}, otherwise an empty matrix.
+#' @param gamma_map Gamma parameter map (any \code{Matrix}; coerced to
+#'   \code{ngCMatrix}; at most one nonzero per row and column), or the same
+#'   shorthand forms as \code{beta_map}. If \code{NULL}, defaults to
+#'   \code{Matrix::Diagonal(ncol(A))} when \code{ncol(A) > 0},
+#'   otherwise an empty matrix.
+#' @param theta_map Theta parameter map (any \code{Matrix}; coerced to
+#'   \code{ngCMatrix}), or the same shorthand forms as
+#'   \code{beta_map}. If \code{NULL}, defaults to an empty matrix.
+#' @param elgm_matrix Optional ELGM map (any \code{Matrix}; coerced to
+#'   \code{ngCMatrix}). If \code{NULL}, defaults to \code{Matrix::Matrix(nrow = length(y), ncol = 0)}.
+#' @param ad_fun Registered AD density name for this shard (optional).
+#' @param ad_kind Shard kind (\code{"observations"}, \code{"parameters"}, \code{"random"}; optional).
+#' @param package Package recording AD tapes for this shard (optional).
+#' @param precision Optional precision payload (any R object).
+#' @export
+setMethod("ad_data", signature(y = "missing"), function(y,
+                    A = NULL,
+                    X = NULL,
+                    beta_map = NULL,
+                    gamma_map = NULL,
+                    theta_map = NULL,
+                    elgm_matrix = NULL,
+                    ad_fun = NA_character_,
+                    ad_kind = NA_character_,
+                    package = NA_character_,
+                    precision = NULL) {
+  ad_data_from_mats(
+    y = numeric(0),
+    A = A,
+    X = X,
+    beta_map = beta_map,
+    gamma_map = gamma_map,
+    theta_map = theta_map,
+    elgm_matrix = elgm_matrix,
+    ad_fun = ad_fun,
+    ad_kind = ad_kind,
+    package = package,
+    precision = precision
+  )
+})
+
+#' @export
+setMethod("ad_data", signature(y = "numeric"), function(y,
+                    A = NULL,
+                    X = NULL,
+                    beta_map = NULL,
+                    gamma_map = NULL,
+                    theta_map = NULL,
+                    elgm_matrix = NULL,
+                    ad_fun = NA_character_,
+                    ad_kind = NA_character_,
+                    package = NA_character_,
+                    precision = NULL) {
+  ad_data_from_mats(
+    y = y,
+    A = A,
+    X = X,
+    beta_map = beta_map,
+    gamma_map = gamma_map,
+    theta_map = theta_map,
+    elgm_matrix = elgm_matrix,
+    ad_fun = ad_fun,
+    ad_kind = ad_kind,
+    package = package,
+    precision = precision
+  )
+})
+
+#' Recast an \code{ad_data} shard (same layout, new density kind)
+#'
+#' Copies designs and parameter maps from \code{y} and sets \code{ad_kind} and
+#' \code{ad_fun} for another shard (e.g. observation likelihood to hyperparameter
+#' prior) without rebuilding matrices.
+#'
+#' @param y Existing \code{ad_data} object.
+#' @param ad_kind Shard kind (\code{"observations"}, \code{"parameters"},
+#'   \code{"random"}).
+#' @param ad_fun Registered AD density name for the new shard.
+#' @param precision Optional precision payload; defaults to \code{y@precision}.
+#' @return A new \code{ad_data} object.
+#' @export
+#' @describeIn ad_data Recast a shard from an existing \code{ad_data}
+setMethod("ad_data", signature(y = "ad_data"), function(y,
+                    ad_kind = missing(),
+                    ad_fun = missing(),
+                    package = missing(),
+                    precision = missing()) {
+  if (missing(ad_kind) && missing(ad_fun) && missing(package)) {
+    stop(
+      "recasting ad_data requires ad_kind, ad_fun, and/or package",
+      call. = FALSE
+    )
+  }
+  kind <- if (missing(ad_kind)) {
+    y@ad_kind
+  } else {
+    as.character(ad_kind)
+  }
+  fun <- if (missing(ad_fun)) {
+    y@ad_fun
+  } else {
+    as.character(ad_fun)
+  }
+  if (length(kind) != 1L || is.na(kind) || !nzchar(kind)) {
+    stop("ad_kind must be a non-empty string", call. = FALSE)
+  }
+  if (length(fun) != 1L || is.na(fun) || !nzchar(fun)) {
+    stop("ad_fun must be a non-empty string", call. = FALSE)
+  }
+  pkg <- if (missing(package)) {
+    y@package
+  } else {
+    as.character(package)
+  }
+  prec <- if (missing(precision)) y@precision else precision
+  out <- methods::new(
+    "ad_data",
+    y = y@y,
+    ATp = y@ATp,
+    XTp = y@XTp,
+    beta_map = y@beta_map,
+    gamma_map = y@gamma_map,
+    theta_map = y@theta_map,
+    elgm_matrix = y@elgm_matrix,
+    ad_fun = fun,
+    ad_kind = kind,
+    package = pkg,
+    precision = prec
+  )
+  validate_ad_data_maps(out, kind)
+  out
+})

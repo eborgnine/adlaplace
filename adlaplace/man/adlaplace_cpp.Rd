@@ -21,7 +21,7 @@ hessian(
   negative = TRUE
 )
 
-trace_hinv_t(ad_fun_ptr, x, LinvPt, LinvPtColumns)
+trace_hinv_t(ad_fun_ptr, x, LinvPt, LinvPtColumns, verbose = FALSE)
 
 joint_log_dens(ad_fun_ptr, x, shards = NULL, negative = TRUE)
 
@@ -36,7 +36,7 @@ hessian(
   negative = TRUE
 )
 
-trace_hinv_t(ad_fun_ptr, x, LinvPt, LinvPtColumns)
+trace_hinv_t(ad_fun_ptr, x, LinvPt, LinvPtColumns, verbose = FALSE)
 }
 \arguments{
 \item{ad_fun_ptr}{External pointer of class \code{ad_fun_ptr}.}
@@ -53,7 +53,7 @@ and \eqn{\nabla^2\ell}.}
 
 \item{inner}{Logical scalar for inner-\eqn{\gamma} vs outer derivatives.}
 
-\item{verbose}{Logical passed to \code{hessian()}.}
+\item{verbose}{Logical; if \code{TRUE}, print threads, shards, and CppAD session phases.}
 
 \item{LinvPt, LinvPtColumns}{See \code{trace_hinv_t()}.}
 }

@@ -1,7 +1,25 @@
 #include "adlaplace/api/register.hpp"
+#include "adlaplace/extension/adfun_pack.hpp"
 
 #include "adlaplace/creators/adfun_obs.hpp"
 #include "adlaplace/creators/adfun_single.hpp"
+#include "adlaplace/densities/nbinom.hpp"
+#include "adlaplace/densities/random.hpp"
+
+static LogDensObsFn resolve_obs_density(const std::string& name) {
+  if (name == "nbinom_obs") return nbinom_obs;
+  Rcpp::stop("unknown observation density: %s", name.c_str());
+}
+
+static LogDensSingleDataFn resolve_extra_density(const std::string& name) {
+  if (name == "nbinom_extra") return nbinom_extra;
+  Rcpp::stop("unknown parameters density: %s", name.c_str());
+}
+
+static LogDensSingleRandomDiagFn resolve_random_density(const std::string& name) {
+  if (name == "random_diagonal" || name == "random") return random_diagonal;
+  Rcpp::stop("unknown random density: %s", name.c_str());
+}
 
 void backend_destroy(void* vctx) {
   delete static_cast<GroupPack*>(vctx);
@@ -35,7 +53,12 @@ SEXP make_ad_fun_ptr(ad_fun* groups) {
 static ad_fun* packs_to_ad_fun_layout(
   std::vector<GroupPack>&& packs,
   std::size_t n_beta,
-  std::size_t n_theta) {
+  std::size_t n_theta,
+  const adlaplace_adpack_api* api) {
+
+  if (!api) {
+    Rcpp::stop("adlaplace_packs_to_ad_fun: api is NULL");
+  }
 
   auto* groups = new ad_fun();
   groups->fun.reserve(packs.size());
@@ -45,7 +68,7 @@ static ad_fun* packs_to_ad_fun_layout(
     pack->n_beta = n_beta;
     pack->n_theta = n_theta;
     auto* h = new adlaplace_adpack_handle();
-    h->api = &adlaplace_AD_API;
+    h->api = api;
     h->ctx = static_cast<void*>(pack);
     groups->fun.push_back(h);
   }
@@ -56,7 +79,34 @@ ad_fun* packs_to_ad_fun(
   std::vector<GroupPack>&& packs,
   std::size_t n_beta,
   std::size_t n_theta) {
-  return packs_to_ad_fun_layout(std::move(packs), n_beta, n_theta);
+  return packs_to_ad_fun_layout(std::move(packs), n_beta, n_theta, &adlaplace_AD_API);
+}
+
+ad_fun* packs_to_ad_fun_api(
+  std::vector<GroupPack>&& packs,
+  std::size_t n_beta,
+  std::size_t n_theta,
+  const adlaplace_adpack_api* api) {
+  return packs_to_ad_fun_layout(std::move(packs), n_beta, n_theta, api);
+}
+
+SEXP adlaplace_make_ad_fun_ptr(ad_fun* groups) {
+  return make_ad_fun_ptr(groups);
+}
+
+ad_fun* adlaplace_packs_to_ad_fun(
+  std::vector<GroupPack>&& packs,
+  std::size_t n_beta,
+  std::size_t n_theta) {
+  return packs_to_ad_fun(std::move(packs), n_beta, n_theta);
+}
+
+ad_fun* adlaplace_packs_to_ad_fun_api(
+  std::vector<GroupPack>&& packs,
+  std::size_t n_beta,
+  std::size_t n_theta,
+  const adlaplace_adpack_api* api) {
+  return packs_to_ad_fun_api(std::move(packs), n_beta, n_theta, api);
 }
 
 static GroupPack* first_group_pack(ad_fun* groups) {
@@ -80,6 +130,7 @@ ad_fun* combine_ad_fun(const std::vector<ad_fun*>& parts) {
   const std::size_t n_theta = layout->n_theta;
 
   std::vector<GroupPack> merged;
+  std::vector<const adlaplace_adpack_api*> merged_apis;
   size_t shard_index = 0;
 
   for (ad_fun* part : parts) {
@@ -90,6 +141,7 @@ ad_fun* combine_ad_fun(const std::vector<ad_fun*>& parts) {
       pack->shard_index = shard_index++;
       pack->n_beta = n_beta;
       pack->n_theta = n_theta;
+      merged_apis.push_back(h->api ? h->api : &adlaplace_AD_API);
       merged.push_back(std::move(*pack));
       delete pack;
       h->ctx = nullptr;
@@ -98,7 +150,16 @@ ad_fun* combine_ad_fun(const std::vector<ad_fun*>& parts) {
     ad_fun_destroy(part);
   }
 
-  return packs_to_ad_fun_layout(std::move(merged), n_beta, n_theta);
+  auto* groups = new ad_fun();
+  groups->fun.reserve(merged.size());
+  for (size_t g = 0; g < merged.size(); ++g) {
+    auto* pack = new GroupPack(std::move(merged[g]));
+    auto* h = new adlaplace_adpack_handle();
+    h->api = merged_apis[g];
+    h->ctx = static_cast<void*>(pack);
+    groups->fun.push_back(h);
+  }
+  return groups;
 }
 
 ad_fun* get_ad_fun_raw_obs_h(
@@ -106,9 +167,8 @@ ad_fun* get_ad_fun_raw_obs_h(
   const Rcpp::List& config,
   const std::string& obs_name) {
 
-  register_adlaplace_default_densities();
   const ad_data model(model_sexp);
-  std::vector<GroupPack> packs = build_ad_fun_obs(model, config, obs_name);
+  std::vector<GroupPack> packs = build_ad_fun_obs(model, config, resolve_obs_density(obs_name));
   return packs_to_ad_fun(std::move(packs), model.num_beta, model.num_theta);
 }
 
@@ -118,9 +178,8 @@ ad_fun* get_ad_fun_raw_random_h(
   const Rcpp::List& config,
   const std::string& single_name) {
 
-  register_adlaplace_default_densities();
   const ad_data model(model_sexp);
-  GroupPack pack = build_ad_fun_random(model, precision, config, single_name);
+  GroupPack pack = build_ad_fun_random(model, precision, config, resolve_random_density(single_name));
   std::vector<GroupPack> packs;
   packs.push_back(std::move(pack));
   return packs_to_ad_fun(std::move(packs), model.num_beta, model.num_theta);
@@ -131,9 +190,8 @@ ad_fun* get_ad_fun_raw_parameters_h(
   const Rcpp::List& config,
   const std::string& single_name) {
 
-  register_adlaplace_default_densities();
   const ad_data model(model_sexp);
-  GroupPack pack = build_ad_fun_parameters(model, config, single_name);
+  GroupPack pack = build_ad_fun_parameters(model, config, resolve_extra_density(single_name));
   std::vector<GroupPack> packs;
   packs.push_back(std::move(pack));
   return packs_to_ad_fun(std::move(packs), model.num_beta, model.num_theta);

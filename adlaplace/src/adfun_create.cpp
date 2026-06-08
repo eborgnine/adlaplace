@@ -169,6 +169,62 @@ int get_thread_owner(SEXP handle, int group) {
   return static_cast<int>(pack->owner_thread);
 }
 
+//' Configured \code{num_threads} from \code{ad_fun()} thread assignment
+//'
+//' @param handle External pointer of class \code{ad_fun_ptr}.
+//' @return Integer \code{num_threads} if \code{ad_fun()} assigned threads; otherwise \code{NA}.
+//' @keywords internal
+// [[Rcpp::export]]
+Rcpp::IntegerVector get_configured_num_threads(SEXP handle) {
+  ad_fun* groups = ad_fun_from_handle(handle);
+  if (!groups->num_threads_configured) {
+    return Rcpp::IntegerVector(NA_INTEGER);
+  }
+  return Rcpp::IntegerVector::create(
+    static_cast<int>(groups->configured_num_threads)
+  );
+}
+
+//' Whether a shard has an assigned OpenMP owner thread
+//'
+//' @param handle External pointer of class \code{ad_fun_ptr}.
+//' @param group 0-based group index.
+//' @return Logical scalar.
+//' @keywords internal
+// [[Rcpp::export]]
+bool get_owner_thread_assigned(SEXP handle, int group) {
+  ad_fun* groups = ad_fun_from_handle(handle);
+  adlaplace_adpack_handle* h = shard_handle(groups, static_cast<size_t>(group));
+  GroupPack* pack = pack_ctx(h->ctx);
+  return pack->owner_thread_assigned;
+}
+
+//' Assign OpenMP owner threads to all shards
+//'
+//' Sets \code{owner_thread = shard_index \% num_threads} on every shard.
+//' Called from \code{ad_fun()} after \code{c()}. Required before parallel
+//' \code{inner_opt} / \code{trace_hinv_t}.
+//'
+//' @param handle External pointer of class \code{ad_fun_ptr}.
+//' @param num_threads Positive integer thread count.
+//' @keywords internal
+// [[Rcpp::export]]
+void assign_owner_threads(SEXP handle, int num_threads) {
+  if (num_threads < 1) {
+    Rcpp::stop("num_threads must be a positive integer");
+  }
+  ad_fun* groups = ad_fun_from_handle(handle);
+  const std::size_t n_threads = static_cast<std::size_t>(num_threads);
+  for (std::size_t s = 0; s < groups->fun.size(); ++s) {
+    adlaplace_adpack_handle* h = shard_handle(groups, s);
+    GroupPack* pack = pack_ctx(h->ctx);
+    pack->owner_thread = pack->shard_index % n_threads;
+    pack->owner_thread_assigned = true;
+  }
+  groups->configured_num_threads = n_threads;
+  groups->num_threads_configured = true;
+}
+
 //' Deep copy of an \code{ad_fun_ptr} handle
 //'
 //' Clones CppAD tapes and sparsity patterns into a new external pointer.

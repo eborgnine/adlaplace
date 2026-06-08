@@ -41,6 +41,8 @@ setClass(
 #'   when the term does not map to a density shard.
 #' @slot ad_kind Shard kind passed to \code{ad_fun_ptr()} (\code{"observations"},
 #'   \code{"parameters"}, \code{"random"}, or \code{NA}).
+#' @slot package Package whose \code{.so} records AD tapes for this term
+#'   (default \code{"adlaplace"} for built-in densities).
 #' @exportClass model
 setClass(
   "model",
@@ -57,7 +59,8 @@ setClass(
     parscale = "numeric",
     type = "factor",
     ad_fun = "character",
-    ad_kind = "character"
+    ad_kind = "character",
+    package = "character"
   ),
   prototype = prototype(
     term = character(0),
@@ -72,7 +75,8 @@ setClass(
     parscale = numeric(0),
     type = factor("fixed", levels = .type_factor_levels),
     ad_fun = NA_character_,
-    ad_kind = NA_character_
+    ad_kind = NA_character_,
+    package = "adlaplace"
   )
 )
 

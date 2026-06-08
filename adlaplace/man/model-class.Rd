@@ -40,5 +40,8 @@ when the term does not map to a density shard.}
 
 \item{\code{ad_kind}}{Shard kind passed to \code{ad_fun_ptr()} (\code{"observations"},
 \code{"parameters"}, \code{"random"}, or \code{NA}).}
+
+\item{\code{package}}{Package whose \code{.so} records AD tapes for this term
+(default \code{"adlaplace"} for built-in densities).}
 }}
 

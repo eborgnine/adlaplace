@@ -1,9 +1,61 @@
+#' Apply log transform to selected theta columns
+#'
+#' When \code{active} is \code{TRUE}, logs values in \code{cols} for rows where
+#' \code{theta_info$transform} is \code{TRUE}. Missing or \code{NA} \code{transform}
+#' entries default to \code{TRUE}.
+#'
+#' @param theta_info Data frame from \code{info$theta} (see \code{\link{data_setup}}).
+#' @param cols Character vector of column names to transform (e.g. \code{"init"}).
+#' @param active Logical; when \code{FALSE}, returns \code{theta_info} unchanged.
+#' @return A copy of \code{theta_info} with selected entries logged.
+#' @export
+apply_theta_log <- function(theta_info, cols = "init", active = TRUE) {
+  if (!active || nrow(theta_info) == 0L) {
+    return(theta_info)
+  }
+  out <- theta_info
+  transform <- if ("transform" %in% names(out)) {
+    out$transform
+  } else {
+    rep(TRUE, nrow(out))
+  }
+  transform[is.na(transform)] <- TRUE
+  idx <- which(transform)
+  if (length(idx) == 0L) {
+    return(out)
+  }
+  for (col in cols) {
+    if (col %in% names(out)) {
+      out[idx, col] <- log(out[idx, col])
+    }
+  }
+  out
+}
+
+#' @keywords internal
+ensure_theta_transform <- function(theta_setup) {
+  if (nrow(theta_setup) == 0L) {
+    theta_setup$transform <- logical(0)
+    return(theta_setup)
+  }
+  if (!"transform" %in% names(theta_setup)) {
+    theta_setup$transform <- TRUE
+  } else {
+    theta_setup$transform[is.na(theta_setup$transform)] <- TRUE
+  }
+  theta_setup
+}
+
 #' Build design matrices and parameter metadata from a formula
 #'
 #' @param formula Model formula or named list of term objects.
 #' @param data Data frame.
 #' @param verbose Print parsing messages.
 #' @return List with \code{terms}, \code{y}, \code{A}, \code{X}, \code{data}, \code{info}.
+#'   The \code{info$theta} data frame includes a logical \code{transform} column:
+#'   \code{TRUE} means the parameter is stored on the log scale when
+#'   \code{config$transform_theta} is \code{TRUE} (default for all rows unless a
+#'   model term sets otherwise).
 #' @export
 data_setup <- function(formula, data, verbose = FALSE) {
   formula_in <- formula
@@ -42,6 +94,14 @@ data_setup <- function(formula, data, verbose = FALSE) {
   }
 
   theta_info_list <- Filter(Negate(is.null), lapply(terms, theta_info))
+  theta_info_list <- lapply(theta_info_list, function(df) {
+    if (!"transform" %in% names(df)) {
+      df$transform <- TRUE
+    } else {
+      df$transform[is.na(df$transform)] <- TRUE
+    }
+    df
+  })
   if (length(theta_info_list) == 0L) {
     theta_setup <- data.frame(
       term = character(),
@@ -52,12 +112,13 @@ data_setup <- function(formula, data, verbose = FALSE) {
       upper = numeric(),
       parscale = numeric(),
       type = factor(levels = .type_factor_levels),
+      transform = logical(0),
       stringsAsFactors = FALSE
     )
   } else {
     theta_setup <- do.call(rbind, theta_info_list)
-    theta_setup <- theta_setup[order(theta_setup$type, theta_setup$label), ]
   }
+  theta_setup <- ensure_theta_transform(theta_setup)
 
   theta_setup$id <- seq.int(0, length.out = nrow(theta_setup))
 

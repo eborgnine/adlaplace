@@ -4,17 +4,48 @@
 \name{skewnormal-class}
 \alias{skewnormal-class}
 \alias{skewnormal}
+\alias{design,skewnormal-method}
+\alias{precision,skewnormal-method}
+\alias{theta_info,skewnormal-method}
+\alias{beta_info,skewnormal-method}
+\alias{random_info,skewnormal-method}
 \title{Skew-normal observation term}
-\description{
-Model term for the observation-level skew-normal log density registered as
-\code{skewnormal_obs}.
+\usage{
+\S4method{design}{skewnormal}(term, data)
+
+\S4method{precision}{skewnormal}(term, data)
+
+\S4method{theta_info}{skewnormal}(term)
+
+\S4method{beta_info}{skewnormal}(term, data)
+
+\S4method{random_info}{skewnormal}(term, data)
 }
+\description{
+Model term for the observation-level skew-normal log density
+registered as \code{skewnormal_obs}.
+}
+\section{Functions}{
+\itemize{
+\item \code{design(skewnormal)}: Design method (not used for observation density).
+
+\item \code{precision(skewnormal)}: Precision method (not used).
+
+\item \code{theta_info(skewnormal)}: Theta info for skew-normal parameters.
+
+Scale \code{omega} uses \code{transform = TRUE} (log scale when
+\code{config$transform_theta} is \code{TRUE}); shape \code{alpha} is untransformed.
+
+\item \code{beta_info(skewnormal)}: Beta info method (not used).
+
+\item \code{random_info(skewnormal)}: Random info method (not used).
+
+}}
 \section{Slots (inherited from \code{model})}{
+
 \describe{
 \item{\code{ad_fun}}{Character scalar \code{"skewnormal_obs"}.}
 \item{\code{ad_kind}}{Character scalar \code{"observations"}.}
 }
 }
-\seealso{
-\code{\link{skewnormal}}
-}
+

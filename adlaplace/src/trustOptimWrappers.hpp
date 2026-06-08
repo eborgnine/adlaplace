@@ -11,7 +11,9 @@
 #include <omp.h>
 
 #include "adlaplace/api/adpack_handle.h"
+#include "adlaplace/api/backend.hpp"
 #include "adlaplace/runtime/interfaces_detail.hpp"
+#include "adlaplace/runtime/thread_affinity_debug.hpp"
 #include "adlaplace/creators/rviews.hpp"
 
 struct AD_Func_Opt {
@@ -65,6 +67,16 @@ struct AD_Func_Opt {
 
       for (size_t s : shard_group) {
         adlaplace_adpack_handle* h = shards->fun[s];
+        GroupPack& pack = *pack_ctx(h->ctx);
+        if (!adlaplace_shard_thread_ok(pack)) {
+          adlaplace_debug_record_mismatch(
+            s,
+            pack.owner_thread,
+            static_cast<std::size_t>(omp_get_thread_num()),
+            inner ? "inner_opt get_f" : "inner_opt get_f"
+          );
+          continue;
+        }
         (void)h->api->f(h->ctx, params_local.data(), &f_local);
       }
 
@@ -74,6 +86,7 @@ struct AD_Func_Opt {
       }
     }
 
+    adlaplace_debug_raise_if_any(inner ? "inner_opt get_f" : "inner_opt get_f");
     f = f_sum;
   }
 
@@ -97,6 +110,17 @@ struct AD_Func_Opt {
 
       for (size_t s : shard_group) {
         adlaplace_adpack_handle* h = shards->fun[s];
+        GroupPack& pack = *pack_ctx(h->ctx);
+        if (!adlaplace_shard_thread_ok(pack)) {
+          adlaplace_debug_record_mismatch(
+            s,
+            pack.owner_thread,
+            static_cast<std::size_t>(omp_get_thread_num()),
+            inner ? "inner_opt get_fdf" : "inner_opt get_fdf"
+          );
+          adlaplace_debug_note_grad_mismatch(grad_local.data(), Nparams);
+          continue;
+        }
         (void)h->api->f_grad(
           h->ctx, params_local.data(), &inner_flag, &f_local, grad_local.data()
         );
@@ -111,6 +135,7 @@ struct AD_Func_Opt {
       }
     }
 
+    adlaplace_debug_raise_if_any(inner ? "inner_opt get_fdf" : "inner_opt get_fdf");
     const size_t gsize = static_cast<size_t>(gout.size());
     const size_t ncopy = gsize < nvars_opt ? gsize : nvars_opt;
     for (size_t k = 0; k < ncopy; ++k) {
@@ -145,6 +170,17 @@ struct AD_Func_Opt {
 
       for (size_t s : shard_group) {
         adlaplace_adpack_handle* h = shards->fun[s];
+        GroupPack& pack = *pack_ctx(h->ctx);
+        if (!adlaplace_shard_thread_ok(pack)) {
+          adlaplace_debug_record_mismatch(
+            s,
+            pack.owner_thread,
+            static_cast<std::size_t>(omp_get_thread_num()),
+            inner ? "inner_opt get_fdfh" : "outer get_fdfh"
+          );
+          adlaplace_debug_note_grad_mismatch(grad_local.data(), Nparams);
+          continue;
+        }
         int* map_ptr = const_cast<int*>(hess_maps[s].data());
         std::fill(hess_local.begin(), hess_local.end(), 0.0);
         (void)h->api->f_grad_hess(
@@ -169,6 +205,7 @@ struct AD_Func_Opt {
       }
     }
 
+    adlaplace_debug_raise_if_any(inner ? "inner_opt get_fdfh" : "outer get_fdfh");
     if (gout.size() > 0) {
       const size_t gsize = static_cast<size_t>(gout.size());
       const size_t ncopy = gsize < nvars_opt ? gsize : nvars_opt;

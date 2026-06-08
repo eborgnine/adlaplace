@@ -1,3 +1,4 @@
+#include "adlaplace/eval/assign_memory.hpp"
 #include "adlaplace/eval/fgh.hpp"
 #include "adlaplace/eval/trace_hinv_t.hpp"
 #include "adlaplace/api/register.hpp"
@@ -11,6 +12,7 @@ extern "C" const adlaplace_adpack_api adlaplace_AD_API = {
   &get_sizes,
   &get_sparse_pattern,
   &get_hessian,
+  &eval_assign_memory,
   &eval_trace_hinv_t,
   &backend_destroy,
   NULL

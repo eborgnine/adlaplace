@@ -13,6 +13,7 @@
 #' \describe{
 #'   \item{\code{ad_fun}}{Character scalar \code{"skewnormal_obs"}.}
 #'   \item{\code{ad_kind}}{Character scalar \code{"observations"}.}
+#'   \item{\code{package}}{Character scalar \code{"adlaplaceExample"}.}
 #' }
 NULL
 
@@ -29,7 +30,8 @@ setClass(
     parscale = numeric(0),
     type = factor("response", levels = adlaplace:::.type_factor_levels),
     ad_fun = "skewnormal_obs",
-    ad_kind = "observations"
+    ad_kind = "observations",
+    package = "adlaplaceExample"
   )
 )
 
@@ -74,6 +76,9 @@ setMethod("precision", "skewnormal", function(term, data) {
 })
 
 #' @describeIn skewnormal-class Theta info for skew-normal parameters.
+#'
+#' Scale \code{omega} uses \code{transform = TRUE} (log scale when
+#' \code{config$transform_theta} is \code{TRUE}); shape \code{alpha} is untransformed.
 #' @export
 setMethod("theta_info", "skewnormal", function(term) {
   data.frame(
@@ -85,6 +90,7 @@ setMethod("theta_info", "skewnormal", function(term) {
     upper = term@upper,
     parscale = term@parscale,
     type = term@type,
+    transform = c(TRUE, FALSE),
     stringsAsFactors = FALSE
   )
 })

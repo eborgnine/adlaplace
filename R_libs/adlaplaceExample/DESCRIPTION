@@ -1,0 +1,26 @@
+Package: adlaplaceExample
+Type: Package
+Title: Example Backend for 'adlaplace'
+Version: 0.2.0
+Authors@R: person(given = "Patrick", family = "Brown",
+    email = "patrick.borgnine@gmail.com",
+    role = c("aut", "cre", "cph"))
+Description: Provides a minimal example backend package for 'adlaplace'.
+    It demonstrates how to implement and expose model-specific AD tape
+    construction while delegating optimization and Laplace approximation
+    workflows to 'adlaplace'.
+SystemRequirements: CppAD, OpenMP
+License: GPL-3
+Depends: R (>= 4.1.0)
+LinkingTo: Rcpp, adlaplace, RcppEigen, trustOptim
+Imports: Rcpp, adlaplace, Matrix
+Suggests: trustOptim, abind, quarto, testthat, sn
+Enhances: sn
+VignetteBuilder: quarto
+Encoding: UTF-8
+RoxygenNote: 7.3.3
+Roxygen: list(markdown = TRUE)
+Collate: '000.R' 'RcppExports.R' 'skewnormal.R'
+Author: Patrick Brown [aut, cre, cph]
+Maintainer: Patrick Brown <patrick.borgnine@gmail.com>
+Built: R 4.6.0; aarch64-apple-darwin23; 2026-06-08 16:18:05 UTC; unix

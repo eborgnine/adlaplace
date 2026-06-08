@@ -10,6 +10,8 @@
 #' @slot elgm_matrix Optional exposure-lag map (\code{ngCMatrix}; empty by default).
 #' @slot ad_fun Registered AD density name for this shard.
 #' @slot ad_kind Shard kind (\code{"observations"}, \code{"parameters"}, \code{"random"}).
+#' @slot package Package name whose shared library records tapes for this shard
+#'   (defaults to \code{"adlaplace"} when missing).
 #' @slot precision Optional precision payload (any R object).
 #' @importClassesFrom Matrix Matrix ngCMatrix
 #' @exportClass ad_data
@@ -25,6 +27,7 @@ setClass(
     elgm_matrix = "ngCMatrix",
     ad_fun = "character",
     ad_kind = "character",
+    package = "character",
     precision = "ANY"
   )
 )

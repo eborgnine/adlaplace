@@ -25,7 +25,7 @@ if (requireNamespace("mgcv", quietly = TRUE)) {
   config <- list(
     beta = md$info$beta$init,
     gamma = rep(0, nrow(md$info$gamma)),
-    theta = log(md$info$theta$init),
+    theta = adlaplace::apply_theta_log(md$info$theta, cols = "init")$init,
     transform_theta = TRUE,
     shards = adlaplace::ad_shards(
       Matrix::t(md$shards$parent@ATp), num_shards = 100
@@ -51,9 +51,10 @@ if (requireNamespace("mgcv", quietly = TRUE)) {
 
 ## ----trustOptimOuterWrappers------------------------------------------------------------------------------------------------------------------------
 if (requireNamespace("mgcv", quietly = TRUE)) {
-  theta_for_opt <- md$info$theta
-  to_transform <- c("init", "lower", "upper")
-  theta_for_opt[, to_transform] <- log(theta_for_opt[, to_transform])
+  theta_for_opt <- adlaplace::apply_theta_log(
+    md$info$theta,
+    cols = c("init", "lower", "upper")
+  )
 
   to_keep <- c("init", "lower", "upper", "parscale")
 

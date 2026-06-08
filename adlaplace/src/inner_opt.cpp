@@ -56,6 +56,8 @@
 #include "adlaplace/math/constants.hpp"
 #include "adlaplace/creators/rviews.hpp"
 #include "adlaplace/ompad.hpp"
+#include "adlaplace/runtime/thread_groups.hpp"
+#include "adlaplace/runtime/thread_affinity_debug.hpp"
 #include "chol_update.hpp"
 #include "trustOptimWrappers.hpp"
 #include "trustOptimControl.hpp"
@@ -129,22 +131,6 @@ Rcpp::List chol_inner_numeric(
 	);
 }
 
-std::vector<std::vector<size_t>> thread_groups_from_backend(ad_fun& backend) {
-	const std::size_t n = backend.fun.size();
-	std::vector<std::size_t> owners(n);
-	std::size_t max_t = 0;
-	for (std::size_t s = 0; s < n; ++s) {
-		const std::size_t t = pack_ctx(backend.fun[s]->ctx)->owner_thread;
-		owners[s] = t;
-		if (t > max_t) max_t = t;
-	}
-	std::vector<std::vector<size_t>> groups(max_t + 1);
-	for (std::size_t s = 0; s < n; ++s) {
-		groups[owners[s]].push_back(s);
-	}
-	return groups;
-}
-
 struct InnerOptResult {
 	double fval = NA_REAL;
 	double log_lik = NA_REAL;
@@ -173,6 +159,7 @@ InnerOptResult inner_opt(
 	bool deriv,
 	bool verbose)
 {
+	adlaplace_require_owner_threads_assigned(backend);
 	const std::vector<std::vector<size_t>> thread_groups = thread_groups_from_backend(backend);
 	const int num_threads = static_cast<int>(thread_groups.size());
 	using Tvec = Eigen::VectorXd;
@@ -212,6 +199,9 @@ InnerOptResult inner_opt(
 		            << ", gamma = " << n_gamma
 		            << ", theta = " << n_theta << ")\n";
 	}
+	if (verbose && adlaplace_debug_enabled()) {
+		Rcpp::Rcout << "inner_opt: DEBUG build (thread-affinity checks active)\n";
+	}
 
 	Tvec gamma_start(static_cast<Eigen::Index>(n_gamma));
 	Tvec solution(static_cast<Eigen::Index>(n_gamma));
@@ -236,7 +226,6 @@ InnerOptResult inner_opt(
 	AD_Func_Opt funObj(backend, params_init, true, num_threads, &thread_groups);
 	Eigen::SparseMatrix<double> H = funObj.Htemplate.cast<double>();
 
-	AD_Func_Opt funObjOuter(backend, params_init, false, num_threads, &thread_groups);
 	Eigen::SparseMatrix<double> Houter;
 	Tvec gradOuter;
 
@@ -251,8 +240,8 @@ InnerOptResult inner_opt(
 
 
 	{
-		cppad_parallel_setup(static_cast<std::size_t>(num_threads));
-		
+		CppadParallelScope parallel_scope(static_cast<std::size_t>(num_threads));
+
 		Trust_CG_Sparse<Tvec, AD_Func_Opt, THess, TPreLLt> opt(
 			funObj, gamma_start,
 			control.rad, control.min_rad, control.tol, control.prec,
@@ -289,12 +278,27 @@ InnerOptResult inner_opt(
 		}
 
 		if (deriv) {
+			// Outer grad/Hessian in the same CppAD parallel session as inner TR.
+			if (verbose && adlaplace_debug_enabled()) {
+				Rcpp::Rcout << "inner_opt: trust region done; outer get_fdfh next ("
+				            << num_threads << " threads)\n";
+			}
+			AD_Func_Opt funObjOuter(
+				backend, params_init, false, num_threads, &thread_groups);
 			gradOuter = Tvec(static_cast<Eigen::Index>(n_params));
 			Houter = funObjOuter.Htemplate.cast<double>();
 			funObjOuter.get_fdfh(fullParams, fval, gradOuter, Houter);
+			if (verbose && adlaplace_debug_enabled()) {
+				Rcpp::Rcout << "inner_opt: outer get_fdfh done\n";
+			}
+			adlaplace_debug_raise_if_any("inner_opt outer get_fdfh");
 		}
 	}
 
+	if (verbose && adlaplace_debug_enabled()) {
+		Rcpp::Rcout << "inner_opt: parallel block ended\n";
+	}
+	adlaplace_debug_raise_if_any("inner_opt after parallel block");
 
 	H.makeCompressed();
 	const double log_det = chol_update(
@@ -339,6 +343,10 @@ InnerOptResult inner_opt(
 	} else {
 		out.grad_outer.resize(0);
 		out.hessian_outer.resize(0, 0);
+	}
+
+	if (verbose) {
+		Rcpp::Rcout << "inner_opt: finished\n";
 	}
 
 	return out;

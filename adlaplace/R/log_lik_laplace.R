@@ -141,7 +141,8 @@ log_lik_laplace <- function(
     full_parameters = result$full_parameters,
     hessian_pack = result$extra$hessian,
     grad = result$extra$gradient$outer,
-    ad_fun = ad_fun
+    ad_fun = ad_fun,
+    verbose = isTRUE(config[["verbose"]])
   )
   result <- c(result, the_deriv[setdiff(names(the_deriv), "extra")])
   result$extra <- c(result$extra, the_deriv$extra)

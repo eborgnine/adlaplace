@@ -16,6 +16,8 @@
 #' @param config Model configuration list (\code{beta}, \code{theta}, etc.).
 #'   \code{gamma} is optional; when missing, zeros of length
 #'   \code{nrow(gamma_map)} are used as AD tape seeds.
+#'   \code{config$num_threads} does not assign OpenMP threads; use
+#'   \code{num_threads} on \code{\link{ad_fun}} after merging shards.
 #' @return External pointer of class \code{ad_fun_ptr}.
 #' @export
 ad_fun_ptr <- function(data, config) {
@@ -35,17 +37,26 @@ ad_fun_ptr <- function(data, config) {
   config <- normalize_config_for_ptr(config, data, kind)
   validate_config_layout(data, config, kind)
 
-  switch(
+  pkg <- data@package
+  if (length(pkg) != 1L || is.na(pkg) || !nzchar(pkg)) {
+    pkg <- "adlaplace"
+  }
+  builder <- switch(
     kind,
-    observations = get_ad_fun_raw_obs(data, config, name),
-    parameters = get_ad_fun_raw_parameters(data, config, name),
-    random = get_ad_fun_raw_random(data, data@precision, config, name),
+    observations = "get_ad_fun_raw_obs",
+    parameters = "get_ad_fun_raw_parameters",
+    random = "get_ad_fun_raw_random",
     stop(
       "unknown ad_kind `", kind,
       "`; expected observations, parameters, or random",
       call. = FALSE
     )
   )
+  fn <- getFromNamespace(builder, pkg)
+  if (identical(kind, "random")) {
+    return(fn(data, data@precision, config, name))
+  }
+  fn(data, config, name)
 }
 
 #' @export

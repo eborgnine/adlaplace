@@ -2,7 +2,8 @@ log_lik_deriv <- function(
   full_parameters,
   hessian_pack,
   grad,
-  ad_fun
+  ad_fun,
+  verbose = FALSE
 ) {
   if (!is(ad_fun, "ad_fun")) {
     stop("ad_fun must be an ad_fun object", call. = FALSE)
@@ -57,11 +58,15 @@ log_lik_deriv <- function(
     dims = c(num_gamma, length(which_columns_by_group1))
   )
 
+  if (verbose) {
+    message("log_lik_deriv: calling trace_hinv_t ...")
+  }
   the_trace <- adlaplace::trace_hinv_t(
     ad_fun = ad_fun,
     x = full_parameters,
     LinvPt = Hstuff$half_H_inv,
-    LinvPtColumns = which_columns_by_group
+    LinvPtColumns = which_columns_by_group,
+    verbose = verbose
   )
 
   dU <- -Hstuff$H_inv %*% hessian_pack$outer[seq_gamma1, -seq_gamma1]

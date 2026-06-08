@@ -5,116 +5,6 @@
 #include "adlaplace/creators/ad_data.hpp"
 #include "adlaplace/creators/rviews.hpp"
 #include "adlaplace/math/constants.hpp"
-#include "adlaplace/api/density_registry.hpp"
-
-namespace {
-
-constexpr double INV_SQRT_PI = 0.564189583547756286948079451560772585844050629328998810574693962167784;
-
-class atomic_log_erfc_ad : public CppAD::atomic_four<double> {
-public:
-  explicit atomic_log_erfc_ad(const char* name)
-    : CppAD::atomic_four<double>(name) {}
-
-  bool for_type(
-    size_t call_id,
-    const CppAD::vector<CppAD::ad_type_enum>& type_x,
-    CppAD::vector<CppAD::ad_type_enum>& type_y) override {
-    (void)call_id;
-    type_y.resize(1);
-    type_y[0] = type_x[0];
-    return true;
-  }
-
-  bool rev_depend(
-    size_t call_id,
-    const CppAD::vector<bool>& ident_zero_x,
-    CppAD::vector<bool>& depend_x,
-    const CppAD::vector<bool>& depend_y) override {
-    (void)call_id;
-    (void)ident_zero_x;
-    depend_x.resize(1);
-    depend_x[0] = depend_y[0];
-    return true;
-  }
-
-  bool jac_sparsity(
-    size_t call_id,
-    bool dependency,
-    const CppAD::vector<bool>& ident_zero_x,
-    const CppAD::vector<bool>& select_x,
-    const CppAD::vector<bool>& select_y,
-    CppAD::sparse_rc<CppAD::vector<size_t>>& pattern_out) override {
-    (void)call_id;
-    (void)dependency;
-    (void)ident_zero_x;
-    if (select_x.size() != 1 || select_y.size() != 1) {
-      return false;
-    }
-    if (!select_x[0] || !select_y[0]) {
-      pattern_out.resize(1, 1, 0);
-      return true;
-    }
-    pattern_out.resize(1, 1, 1);
-    pattern_out.set(0, 0, 0);
-    return true;
-  }
-
-  bool forward(
-    size_t call_id,
-    const CppAD::vector<bool>& select_y,
-    size_t order_low,
-    size_t order_up,
-    const CppAD::vector<double>& tx,
-    CppAD::vector<double>& ty) override {
-    (void)call_id;
-    (void)select_y;
-    ty.resize(order_up + 1);
-    const double x0 = tx[0];
-    const double erfc_x = std::erfc(x0);
-    if (order_low <= 0) {
-      ty[0] = std::log(erfc_x);
-    }
-    if (order_up >= 1 && order_low <= 1) {
-      const double x1 = tx[1];
-      ty[1] = x1 * (-2.0 * INV_SQRT_PI * std::exp(-x0 * x0) / erfc_x);
-    }
-    return true;
-  }
-
-  bool reverse(
-    size_t call_id,
-    const CppAD::vector<bool>& select_x,
-    size_t order_up,
-    const CppAD::vector<double>& tx,
-    const CppAD::vector<double>& ty,
-    CppAD::vector<double>& px,
-    const CppAD::vector<double>& py) override {
-    (void)call_id;
-    (void)select_x;
-    (void)ty;
-    px.resize(order_up + 1);
-    for (size_t k = 0; k < px.size(); ++k) {
-      px[k] = 0.0;
-    }
-    const double x0 = tx[0];
-    const double erfc_x = std::erfc(x0);
-    const double deriv0 = -2.0 * INV_SQRT_PI * std::exp(-x0 * x0) / erfc_x;
-    px[0] += py[0] * deriv0;
-    return true;
-  }
-};
-
-inline CppAD::AD<double> log_erfc_ad(const CppAD::AD<double>& x) {
-  thread_local static atomic_log_erfc_ad op("log_erfc_ad");
-  CppAD::vector<CppAD::AD<double>> ax(1);
-  CppAD::vector<CppAD::AD<double>> ay(1);
-  ax[0] = x;
-  op(ax, ay);
-  return ay[0];
-}
-
-}  // namespace
 
 CppAD::vector<CppAD::AD<double>> logDensObs(
   const CppAD::vector<CppAD::AD<double>>& x,
@@ -130,7 +20,7 @@ CppAD::vector<CppAD::AD<double>> logDensObs(
   const std::size_t alpha_index = model.theta_index(1);
   CppAD::AD<double> omega_in = x[omega_index];
   CppAD::AD<double> omega = config.transform_theta ? CppAD::exp(omega_in) : omega_in;
-  CppAD::AD<double> omega_sqrt2 = omega * CppAD::AD<double>(SQRTTWO);
+  CppAD::AD<double> omega_sqrt2 = omega * SQRTTWO;
   CppAD::AD<double> alpha = x[alpha_index];
 
   const bool have_shards = config.shards.ncol() > 0;
@@ -142,6 +32,15 @@ CppAD::vector<CppAD::AD<double>> logDensObs(
     endP = config.shards.p[Dgroup + 1];
   } else if (Dgroup == 0) {
     endP = ny;
+  }
+
+  if (config.verbose && Dgroup < 1) {
+    Rcpp::Rcout << "logDensObs skewnormal_obs group " << Dgroup
+      << " startP " << startP << " endP " << endP << " ny " << ny
+      << " have_shards " << have_shards
+      << " omega index " << omega_index << " alpha index " << alpha_index
+      << " omega " << omega << " alpha " << alpha
+      << " transform_theta " << config.transform_theta << "\n";
   }
 
   for (size_t DI = startP; DI < endP; ++DI) {
@@ -161,11 +60,11 @@ CppAD::vector<CppAD::AD<double>> logDensObs(
       eta_random += model.ATp.x[D] * x[model.num_beta + model.ATp.i[D]];
     }
 
-    const CppAD::AD<double> eta = eta_fixed + eta_random;
-    const CppAD::AD<double> z = (CppAD::AD<double>(model.y[Dobs]) - eta) / omega_sqrt2;
-    const CppAD::AD<double> t = alpha * z;
+    CppAD::AD<double> eta = eta_fixed + eta_random;
+    CppAD::AD<double> z = (CppAD::AD<double>(model.y[Dobs]) - eta) / omega_sqrt2;
+    CppAD::AD<double> t = -alpha * z;
 
-    result += -z * z + log_erfc_ad(-t);
+    result += -z * z + CppAD::log(CppAD::erfc(t)); 
   }
 
   CppAD::vector<CppAD::AD<double>> out(1);
@@ -184,19 +83,11 @@ CppAD::vector<CppAD::AD<double>> logDensExtra(
   CppAD::AD<double> omega_in = x[omega_index];
   CppAD::AD<double> log_omega = config.transform_theta ? omega_in : CppAD::log(omega_in);
 
-  double ny = static_cast<double>(model.y.size());
-  CppAD::AD<double> ny_ad = CppAD::AD<double>(ny), onehundred = 100;
-  CppAD::AD<double> log_omega_ny = log_omega * ny_ad;
-
-  CppAD::AD<double> out = - log_omega_ny - ny_ad * ONEHALFLOGTWOPI;
+  const double ny = static_cast<double>(model.y.size());
+  CppAD::AD<double> logDens = static_cast<double>(ny) * (CppAD::AD<double>(0.0) - log_omega)
+    + static_cast<double>(ny) * (CppAD::AD<double>(0.0) - ONEHALFLOGTWOPI);
 
   CppAD::vector<CppAD::AD<double>> out_v(1);
-  out_v[0] = out;
+  out_v[0] = logDens;
   return out_v;
-}
-
-// [[Rcpp::export]]
-void register_example_densities() {
-  register_log_dens_obs("skewnormal_obs", &logDensObs);
-  register_log_dens_single_data("skewnormal_extra", &logDensExtra);
 }

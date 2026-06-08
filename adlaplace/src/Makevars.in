@@ -1,6 +1,5 @@
-# ADLAPLACE_HAVE_KMPC_DISPATCH_DEINIT is set by configure.
-PKG_CPPFLAGS = -I../inst/include -I../src/include @CPPAD_CPPFLAGS@ @CPPAD_INCLUDE_CPPFLAGS@ @OPENMP_CPPFLAGS@ @BREW_CPPFLAGS@ @EIGEN_SYSTEM_CPPFLAGS@ @KMPC_DISPATCH_CPPFLAGS@ -DEIGEN_DONT_PARALLELIZE
-PKG_CXXFLAGS = @OPENMP_CXXFLAGS@
+PKG_CPPFLAGS = -I../inst/include -I../src/include @CPPAD_CPPFLAGS@ @CPPAD_INCLUDE_CPPFLAGS@ @OPENMP_CPPFLAGS@ @BREW_CPPFLAGS@ @EIGEN_SYSTEM_CPPFLAGS@ -DEIGEN_DONT_PARALLELIZE
+PKG_CXXFLAGS = @OPENMP_CXXFLAGS@ @DEBUG_CXXFLAGS@
 PKG_LIBS     = @CPPAD_LIBS@ @OPENMP_LIBS@
-# R only compiles *.cpp in src/ by default; include runtime/ and eval/.
-OBJECTS = $(patsubst %.cpp,%.o,$(wildcard *.cpp runtime/*.cpp eval/*.cpp))
+# R compiles *.cpp in src/ root.
+OBJECTS = $(patsubst %.cpp,%.o,$(wildcard *.cpp))

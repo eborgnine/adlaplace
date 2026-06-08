@@ -1,10 +1,8 @@
 #!/bin/sh
 # configure: generate src/Makevars from src/Makevars.in with optional OpenMP
-# Portable POSIX sh (CRAN-friendly)
 
 set -eu
 
-# Quiet by default (set ADLAPLACE_CONFIGURE_VERBOSE=1 to show messages)
 VERBOSE="${ADLAPLACE_CONFIGURE_VERBOSE:-0}"
 msg() {
   if [ "$VERBOSE" = "1" ]; then
@@ -13,292 +11,19 @@ msg() {
   return 0
 }
 
-# Force: do not use ColPack paths
-CPPAD_CPPFLAGS="-DCPPAD_HAS_COLPACK=0"
-CPPAD_INCLUDE_CPPFLAGS=""
-CPPAD_LIBS=""
+SCRIPT_DIR="$(cd "$(dirname "$0")/inst/scripts" && pwd)"
+. "$SCRIPT_DIR/backend-configure.sh"
 
-OPENMP_CPPFLAGS=""
-OPENMP_CXXFLAGS=""
-OPENMP_LIBS=""
-BREW_CPPFLAGS=""
-BREW_PREFIX=""
-KMPC_DISPATCH_CPPFLAGS="-DADLAPLACE_HAVE_KMPC_DISPATCH_DEINIT=0"
-
-UNAME_S="$(uname -s 2>/dev/null || echo unknown)"
-R_HOME_DIR="$(R RHOME 2>/dev/null || true)"
-
-CXX_CMD="$(R CMD config CXX 2>/dev/null || echo c++)"
-CXXFLAGS_CMD="$(R CMD config CXXFLAGS 2>/dev/null || true)"
-CPPFLAGS_CMD="$(R CMD config CPPFLAGS 2>/dev/null || true)"
-
-EIGEN_SYSTEM_CPPFLAGS=""
-RCPP_EIGEN_INCLUDE_DIR="$(Rscript -e 'cat(system.file("include", package="RcppEigen"))' 2>/dev/null || true)"
-if [ -n "$RCPP_EIGEN_INCLUDE_DIR" ]; then
-  EIGEN_SYSTEM_CPPFLAGS="-isystem $RCPP_EIGEN_INCLUDE_DIR"
+DEBUG_CXXFLAGS=""
+for flags in "${PKG_CXXFLAGS:-}" "${CXXFLAGS:-}" "${CPPFLAGS:-}"; do
+  case " $flags " in
+    *" -DDEBUG "*|*" -DDEBUG=1 "*) DEBUG_CXXFLAGS="-DDEBUG"; break ;;
+  esac
+done
+if [ -n "$DEBUG_CXXFLAGS" ]; then
+  echo "configure: adlaplace DEBUG build enabled (-DDEBUG; thread-affinity checks active)" >&2
 fi
 
-check_cxxflag () {
-  flag="$1"
-  tmpdir="config.$$"
-  mkdir "$tmpdir"
-  cat > "$tmpdir/conftest.cpp" <<'EOF'
-int main() { return 0; }
-EOF
-  if eval "$CXX_CMD $CPPFLAGS_CMD $CXXFLAGS_CMD $flag -c $tmpdir/conftest.cpp -o $tmpdir/conftest.o" \
-       >/dev/null 2>&1; then
-    rm -rf "$tmpdir"
-    return 0
-  fi
-  rm -rf "$tmpdir"
-  return 1
-}
-
-check_openmp_darwin () {
-  tmpdir="config.$$"
-  mkdir "$tmpdir"
-  cat > "$tmpdir/conftest.cpp" <<'EOF'
-#include <omp.h>
-int main() {
-  omp_set_num_threads(1);
-  return omp_get_max_threads() >= 1 ? 0 : 1;
-}
-EOF
-  if eval "$CXX_CMD $CPPFLAGS_CMD $CXXFLAGS_CMD -I$BREW_PREFIX/opt/libomp/include -Xpreprocessor -fopenmp \
-      $tmpdir/conftest.cpp $BREW_PREFIX/opt/libomp/lib/libomp.a -o $tmpdir/conftest" \
-      >/dev/null 2>&1; then
-    rm -rf "$tmpdir"
-    return 0
-  fi
-  rm -rf "$tmpdir"
-  return 1
-}
-
-check_openmp_linux_static () {
-  tmpdir="config.$$"
-  mkdir "$tmpdir"
-  cat > "$tmpdir/conftest.cpp" <<'EOF'
-#include <omp.h>
-int main() {
-  omp_set_num_threads(1);
-  return omp_get_max_threads() >= 1 ? 0 : 1;
-}
-EOF
-  if eval "$CXX_CMD $CPPFLAGS_CMD $CXXFLAGS_CMD -fopenmp -static-libgomp \
-      $tmpdir/conftest.cpp -o $tmpdir/conftest" \
-      >/dev/null 2>&1; then
-    rm -rf "$tmpdir"
-    return 0
-  fi
-  rm -rf "$tmpdir"
-  return 1
-}
-
-detect_openmp_probe_lib () {
-  if [ "$UNAME_S" = "Darwin" ]; then
-    if [ -n "$BREW_PREFIX" ] && [ -f "$BREW_PREFIX/opt/libomp/lib/libomp.a" ]; then
-      printf '%s' "$BREW_PREFIX/opt/libomp/lib/libomp.a"
-      return 0
-    fi
-    return 1
-  fi
-
-  for cand in libgomp.a libgomp.so; do
-    path="$(eval "$CXX_CMD -print-file-name=$cand" 2>/dev/null || true)"
-    if [ -n "$path" ] && [ "$path" != "$cand" ] && [ -f "$path" ]; then
-      printf '%s' "$path"
-      return 0
-    fi
-  done
-  return 1
-}
-
-detect_datatable_so () {
-  dt_lib="$(Rscript -e 'p <- system.file("libs", .Platform$r_arch, package="data.table"); if (nzchar(p)) cat(p)' 2>/dev/null || true)"
-  if [ -z "$dt_lib" ]; then
-    dt_lib="$(Rscript -e 'p <- system.file("libs", package="data.table"); if (nzchar(p)) cat(p)' 2>/dev/null || true)"
-  fi
-  if [ -n "$dt_lib" ] && [ -f "$dt_lib/data_table.so" ]; then
-    printf '%s' "$dt_lib/data_table.so"
-    return 0
-  fi
-  return 1
-}
-
-detect_cppad_include_dir () {
-  echo "configure: checking CppAD header locations..." >&2
-  
-  if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists cppad 2>/dev/null; then
-    result=$(pkg-config --cflags-only-I cppad 2>/dev/null \
-      | sed -n 's/.*-I\([^[:space:]]*\).*/\1/p' \
-      | head -n 1)
-    echo "configure: pkg-config CppAD include path: ${result:-none}" >&2
-    if [ -n "$result" ] && [ -f "$result/cppad/cppad.hpp" ]; then
-      echo "configure: found CppAD headers via pkg-config at $result" >&2
-      printf '%s' "$result"
-      return 0
-    fi
-  fi
-
-  for base in \
-    "$BREW_PREFIX/opt/cppad/include" \
-    /opt/homebrew/include \
-    /usr/include \
-    /usr/local/include \
-    /opt/include
-  do
-    echo "configure: checking $base/cppad/cppad.hpp" >&2
-    if [ -f "$base/cppad/cppad.hpp" ]; then
-      echo "configure: found CppAD headers at $base" >&2
-      printf '%s' "$base"
-      return 0
-    fi
-  done
-
-  echo "configure: ERROR: CppAD headers NOT found in any checked location" >&2
-  return 1
-}
-
-detect_cppad_lib () {
-  if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists cppad 2>/dev/null; then
-    pkg-config --libs cppad 2>/dev/null
-    return 0
-  fi
-
-  for lib in \
-    "$BREW_PREFIX/opt/cppad/lib/libcppad_lib.dylib" \
-    /opt/homebrew/lib/libcppad_lib.dylib \
-    /usr/local/lib/libcppad_lib.dylib \
-    /opt/lib/libcppad_lib.so \
-    /opt/homebrew/lib/libcppad_lib.so \
-    /usr/local/lib/libcppad_lib.so
-  do
-    if [ -f "$lib" ]; then
-      libdir="$(dirname "$lib")"
-      if [ "$UNAME_S" = "Darwin" ]; then
-        printf '%s' "$lib -Wl,-rpath,$libdir"
-      else
-        printf '%s' "-L$libdir -lcppad_lib"
-      fi
-      return 0
-    fi
-  done
-
-  return 1
-}
-
-datatable_uses_kmpc_dispatch () {
-  so_path="$1"
-  [ -f "$so_path" ] || return 1
-
-  if [ "$UNAME_S" = "Darwin" ]; then
-    nm -u "$so_path" 2>/dev/null | grep -q "___kmpc_dispatch_"
-    return $?
-  fi
-
-  nm -D "$so_path" 2>/dev/null | grep -q "__kmpc_dispatch_"
-  return $?
-}
-
-has_kmpc_dispatch_deinit () {
-  libpath="$1"
-  [ -f "$libpath" ] || return 1
-
-  if [ "$UNAME_S" = "Darwin" ]; then
-    nm -gU "$libpath" 2>/dev/null | grep -q "___kmpc_dispatch_deinit"
-    return $?
-  fi
-
-  nm -D --defined-only "$libpath" 2>/dev/null \
-    | grep -Eq "__kmpc_dispatch_deinit|___kmpc_dispatch_deinit"
-  return $?
-}
-
-# ---- Brew discovery (macOS only) ----
-if [ "$UNAME_S" = "Darwin" ] && command -v brew >/dev/null 2>&1; then
-  BREW_PREFIX="$(brew --prefix 2>/dev/null || true)"
-  if [ -n "$BREW_PREFIX" ] && [ -d "$BREW_PREFIX/include" ]; then
-    BREW_CPPFLAGS="-I$BREW_PREFIX/include"
-  fi
-fi
-
-CPPAD_INCLUDE_DIR="$(detect_cppad_include_dir || true)"
-if [ -n "$CPPAD_INCLUDE_DIR" ]; then
-  CPPAD_INCLUDE_CPPFLAGS="-I$CPPAD_INCLUDE_DIR"
-  msg "configure: using CppAD headers from $CPPAD_INCLUDE_DIR"
-else
-  echo "configure: ERROR: could not locate CppAD headers (cppad/cppad.hpp)" >&2
-  exit 1
-fi
-
-CPPAD_LIBS="$(detect_cppad_lib || true)"
-if [ -n "$CPPAD_LIBS" ]; then
-  msg "configure: using CppAD library flags: $CPPAD_LIBS"
-else
-  msg "configure: no standalone CppAD library detected; relying on header-only CppAD"
-fi
-
-# ---- Optional OpenMP (always static: libomp.a on macOS, -static-libgomp on Linux) ----
-if [ "$UNAME_S" = "Darwin" ]; then
-  if [ -n "$BREW_PREFIX" ] \
-     && [ -f "$BREW_PREFIX/opt/libomp/include/omp.h" ] \
-     && [ -f "$BREW_PREFIX/opt/libomp/lib/libomp.a" ]; then
-    if check_openmp_darwin; then
-      OPENMP_CPPFLAGS="-I$BREW_PREFIX/opt/libomp/include"
-      OPENMP_CXXFLAGS="-Xpreprocessor -fopenmp"
-      OPENMP_LIBS="$BREW_PREFIX/opt/libomp/lib/libomp.a"
-      msg "configure: OpenMP enabled on macOS using static Homebrew libomp"
-    else
-      msg "configure: OpenMP not enabled (compiler does not accept -Xpreprocessor -fopenmp)"
-    fi
-  else
-    msg "configure: OpenMP not enabled on macOS (Homebrew libomp not found)"
-  fi
-else
-  if check_cxxflag "-fopenmp" && check_openmp_linux_static; then
-    OPENMP_CXXFLAGS="-fopenmp"
-    OPENMP_LIBS="-fopenmp -static-libgomp"
-    msg "configure: OpenMP enabled using -fopenmp -static-libgomp"
-  elif check_cxxflag "-fopenmp"; then
-    msg "configure: OpenMP not enabled (static libgomp link failed)"
-  else
-    msg "configure: OpenMP not enabled (compiler does not accept -fopenmp)"
-  fi
-fi
-
-if [ -n "$OPENMP_CXXFLAGS" ]; then
-  DATATABLE_SO="$(detect_datatable_so || true)"
-
-  DT_HAS_DISPATCH=0
-  if [ -n "$DATATABLE_SO" ] && datatable_uses_kmpc_dispatch "$DATATABLE_SO"; then
-    # Set DT_HAS_DISPATCH based on OS
-    if [ "$UNAME_S" = "Linux" ]; then
-      DT_HAS_DISPATCH=1
-      msg "configure: data.table uses kmpc_dispatch symbols: YES (Linux - enabling dispatch)"
-    else
-      DT_HAS_DISPATCH=0
-      msg "configure: data.table uses kmpc_dispatch symbols: YES (macOS - disabling dispatch)"
-    fi
-  else
-    msg "configure: data.table uses kmpc_dispatch symbols: NO/UNKNOWN"
-  fi
-
-  OMP_RUNTIME_LIB="$(detect_openmp_probe_lib || true)"
-
-  if [ "$DT_HAS_DISPATCH" = "1" ] \
-     && [ -n "$OMP_RUNTIME_LIB" ] \
-     && has_kmpc_dispatch_deinit "$OMP_RUNTIME_LIB"; then
-    KMPC_DISPATCH_CPPFLAGS="-DADLAPLACE_HAVE_KMPC_DISPATCH_DEINIT=1"
-    msg "configure: enabling ADLAPLACE_HAVE_KMPC_DISPATCH_DEINIT=1 ($OMP_RUNTIME_LIB)"
-  else
-    msg "configure: ADLAPLACE_HAVE_KMPC_DISPATCH_DEINIT=0"
-  fi
-fi
-
-# Always true because we force it
-msg "configure: CppAD ColPack: DISABLED (forced via CPPAD_HAS_COLPACK=0)"
-
-# ---- Substitute into src/Makevars from src/Makevars.in ----
 infile="src/Makevars.in"
 outfile="src/Makevars"
 
@@ -317,8 +42,8 @@ sed \
   -e "s/@CPPAD_CPPFLAGS@/$(esc_sed "$CPPAD_CPPFLAGS")/g" \
   -e "s/@CPPAD_INCLUDE_CPPFLAGS@/$(esc_sed "$CPPAD_INCLUDE_CPPFLAGS")/g" \
   -e "s/@CPPAD_LIBS@/$(esc_sed "$CPPAD_LIBS")/g" \
-  -e "s/@KMPC_DISPATCH_CPPFLAGS@/$(esc_sed "$KMPC_DISPATCH_CPPFLAGS")/g" \
   -e "s/@EIGEN_SYSTEM_CPPFLAGS@/$(esc_sed "$EIGEN_SYSTEM_CPPFLAGS")/g" \
+  -e "s/@DEBUG_CXXFLAGS@/$(esc_sed "$DEBUG_CXXFLAGS")/g" \
 "$infile" > "$outfile"
 
 chmod 644 "$outfile"

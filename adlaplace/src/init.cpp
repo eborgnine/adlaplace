@@ -1,16 +1,18 @@
 #include <Rcpp.h>
 
-#include "adlaplace/api/density_registry.hpp"
-#include "adlaplace/densities/nbinom.hpp"
-#include "adlaplace/densities/random.hpp"
+#include "adlaplace/runtime/thread_affinity_debug.hpp"
+#define ADLAPLACE_MATH_LGAMMA_DEFINE
+#include "adlaplace/math/lgamma.hpp"
+#define ADLAPLACE_MATH_LOG_ERFC_DEFINE
+#include "adlaplace/math/log_erfc.hpp"
 
-void register_adlaplace_default_densities() {
-  static bool registered = false;
-  if (registered) return;
-  registered = true;
+void adlaplace_init_atomics() {
+  static bool initialized = false;
+  if (initialized) return;
+  initialized = true;
 
-  register_log_dens_obs("nbinom_obs", &nbinom_obs);
-  register_log_dens_single_data("nbinom_extra", &nbinom_extra);
-  register_log_dens_single_random_diag("random_diagonal", &random_diagonal);
-  register_log_dens_single_random_diag("random", &random_diagonal);
+  adlaplace_debug_print_load_banner();
+
+  adlaplace_init_lgamma_atomic();
+  adlaplace_init_log_erfc_atomic();
 }

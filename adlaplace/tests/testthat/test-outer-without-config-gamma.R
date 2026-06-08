@@ -82,13 +82,12 @@ test_that("model_data ad_fun and outer wrappers work without config$gamma", {
     shards = adlaplace::ad_shards(md$data$A, num_shards = 10L),
     verbose = FALSE
   )
-  ad_fun <- adlaplace::ad_fun(md, config, num_threads = 1L)
+  ad_fun <- adlaplace::ad_fun(md, config)
   n_gamma <- as.integer(ad_fun@sizes["gamma"])
   skip_if(n_gamma < 1L)
 
   to_keep <- c("init", "lower", "upper", "parscale")
-  theta_for_opt <- md$data$info$theta
-  theta_for_opt[, to_keep] <- log(theta_for_opt[, to_keep])
+  theta_for_opt <- adlaplace::apply_theta_log(md$data$info$theta, cols = to_keep)
   config$opt <- as.list(rbind(md$data$info$beta[, to_keep], theta_for_opt[, to_keep]))
   x0 <- config$opt$init
 

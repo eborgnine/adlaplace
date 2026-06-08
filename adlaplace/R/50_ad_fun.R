@@ -40,7 +40,12 @@ new_ad_fun_from_ptr <- function(ptr, num_threads = 1L) {
   if (!is(ptr, "ad_fun_ptr")) {
     stop("ptr must be an ad_fun_ptr external pointer")
   }
+  num_threads <- as.integer(num_threads)[1]
+  if (is.na(num_threads) || num_threads < 1L) {
+    stop("num_threads must be a positive integer", call. = FALSE)
+  }
   n_shards <- n_groups(ptr)
+  assign_owner_threads(ptr, num_threads)
   owner_threads <- vapply(
     seq_len(n_shards) - 1L,
     function(g) get_thread_owner(ptr, g),
@@ -87,8 +92,12 @@ new_ad_fun_from_ptr <- function(ptr, num_threads = 1L) {
 #'   \code{model_data}; unused for \code{ad_fun_ptr}. For \code{model_data},
 #'   \code{beta}, \code{gamma}, and \code{theta} are filled from \code{x$data$info}
 #'   when omitted (only \code{shards}, \code{transform_theta}, etc. are needed).
-#' @param num_threads Positive integer; number of thread columns in
-#'   \code{parallel_map} used for shard thread affinity.
+#'   When \code{config$num_threads} is set, it overrides the \code{num_threads}
+#'   argument for \code{ad_data} and \code{model_data} methods.
+#' @param num_threads Positive integer; OpenMP thread count for \code{inner_opt}
+#'   and parallel \code{trace_hinv_t}. Shards are assigned
+#'   \code{owner_thread = shard_index \% num_threads} at attach time.
+#'   Default \code{1L} (serial).
 #' @param ... For \code{ad_fun_ptr} input, optional additional
 #'   \code{ad_fun_ptr} shards to combine before attaching templates.
 #' @return Object of class \code{ad_fun}.
@@ -122,8 +131,10 @@ setMethod("ad_fun",
     if (missing(config) || is.null(config)) {
       stop("config is required for ad_fun(ad_data, config)", call. = FALSE)
     }
-    config_build <- modifyList(config, list(num_threads = as.integer(num_threads)[1]))
-    ad_fun(ad_fun_ptr(x, config_build), num_threads = num_threads)
+    if (!is.null(config$num_threads)) {
+      num_threads <- config$num_threads
+    }
+    ad_fun(ad_fun_ptr(x, config), num_threads = num_threads)
   }
 )
 
@@ -141,18 +152,22 @@ setMethod("ad_fun", signature = c(x = "list"), function(x, config, num_threads =
   if (missing(config) || is.null(config)) {
     stop("config is required for ad_fun(model_data, config)", call. = FALSE)
   }
+  if (!is.null(config$num_threads)) {
+    num_threads <- config$num_threads
+  }
   shards <- unname(c(x$observations, x$random, x$parameters))
-  config_build <- modifyList(
-    config,
-    list(
-      num_threads = as.integer(num_threads)[1],
-      beta = x$data$info$beta$init,
-      theta = x$data$info$theta$init,
-      gamma = rep(0, nrow(x$data$info$gamma))
-    )
+  defaults <- list(
+    beta = x$data$info$beta$init,
+    theta = x$data$info$theta$init,
+    gamma = rep(0, nrow(x$data$info$gamma))
   )
-  if (identical(config_build$transform_theta, TRUE)) {
-    config_build$theta <- log(config_build$theta)
+  config_build <- modifyList(defaults, config)
+  if (identical(config_build$transform_theta, TRUE) && is.null(config$theta)) {
+    config_build$theta <- apply_theta_log(
+      x$data$info$theta,
+      cols = "init",
+      active = TRUE
+    )$init
   }
   ptrs <- lapply(shards, ad_fun_ptr, config = config_build)
   ad_fun(do.call(c, ptrs), num_threads = num_threads)

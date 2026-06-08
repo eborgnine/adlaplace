@@ -12,13 +12,13 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 ```{r}
-if(requireNamespace("sn", quietly=TRUE)){
+if (requireNamespace("sn", quietly = TRUE)) {
   data("ais", package = "sn")
   hist(ais$BMI)
 } else {
-  ais = data.frame(
-    sex = rep(c("male","female"), 5),
-    sport = rep(1:5, each=2),
+  ais <- data.frame(
+    sex = rep(c("male", "female"), 5),
+    sport = rep(1:5, each = 2),
     BMI = rnorm(10)
   )
 }
@@ -26,10 +26,7 @@ if(requireNamespace("sn", quietly=TRUE)){
 
 ```{r}
 model_stuff <- adlaplace::model_data(
-  adlaplace::collect_terms(
-    skewnormal(BMI) ~ intercept() + sex + f(sport, model = "iid"),
-    package = "adlaplaceExample"
-  ),
+  adlaplaceExample::skewnormal(BMI) ~ sex + adlaplace::iid(sport),
   data = ais,
   verbose = TRUE
 )
@@ -38,29 +35,24 @@ config <- list(
   transform_theta = TRUE,
   shards = adlaplace::ad_shards(model_stuff$data$A, num_shards = 100),
   num_threads = 2L,
-  verbose = TRUE
+  verbose = FALSE
 )
 ```
 
 ```{r}
-ad_fun <- adlaplace::ad_fun(model_stuff, config, num_threads = 2L)
-config <- modifyList(
-  config,
-  list(
-    beta = model_stuff$data$info$beta$init,
-    gamma = rep(0, nrow(model_stuff$data$info$gamma)),
-    theta = log(pmax(model_stuff$data$info$theta$init, 1e-12)),
-    verbose = FALSE
-  )
+ad_fun <- adlaplace::ad_fun(
+  model_stuff,
+  config = config,
+  num_threads = config$num_threads
 )
 res <- adlaplace::log_lik_laplace(
-  x = c(config$beta, config$theta),
+  x = model_stuff$data$info$parameters$init,
   ad_fun = ad_fun,
   config = config,
   deriv = TRUE
 )
 res$parameters
--res$logLik
+res$neg_log_lik
 res$grad
 ```
 
@@ -68,9 +60,9 @@ res$grad
 
 ```{r trustOptimOuterWrappers}
 cache <- new.env(parent = emptyenv())
-cache$gamma <- config$gamma
+cache$gamma <- res$opt$solution
 
-x0 <- c(config$beta, config$theta)
+x0 <- res$parameters
 
 adlaplace::outer_fn(x = x0, cache = cache, config = config, ad_fun = ad_fun)
 adlaplace::outer_gr(x = x0, cache = cache, config = config, ad_fun = ad_fun)
@@ -81,7 +73,7 @@ outer_fit <- stats::optim(
   gr = adlaplace::outer_gr,
   method = "L-BFGS-B",
   control = list(
-    maxit = 400,
+    maxit = 20,
     trace = 3,
     REPORT = 1
   ),
@@ -89,6 +81,7 @@ outer_fit <- stats::optim(
   ad_fun = ad_fun,
   cache = cache
 )
+model_stuff$data$info$parameters[, c("label")]
 outer_fit$par
 outer_fit$value
 ```
@@ -100,6 +93,7 @@ res <- adlaplace::log_lik_laplace(
   config = modifyList(config, list(verbose = FALSE)),
   deriv = TRUE
 )
+res$grad
 model_stuff$data$info$gamma$mode <- res$opt$solution
 model_stuff$data$info$beta$mle <- res$parameters[seq(1, nrow(model_stuff$data$info$beta))]
 
@@ -123,47 +117,53 @@ if (requireNamespace("sn", quietly = TRUE)) {
 
 
 ```{r testLogLgrad}
-x <- outer_fit$par
-Npar <- 13
+if (!requireNamespace("abind", quietly = TRUE)) {
+  stop("Install suggested package 'abind' to run derivative checks.")
+}
+
+x <- cache$last_par_fn # outer_fit$par
 Dpar <- length(x)
+Ngrid <- 13L
 
-parDf <- data.frame(x)[, rep(1, Npar)]
-Sx <- seq(-0.1, 0.1, len = 13) + parDf[Dpar, 1]
+par_grid <- matrix(x, nrow = Ngrid, ncol = Dpar, byrow = TRUE)
+Sx <- seq(-0.1, 0.1, len = Ngrid) + x[Dpar]
 SxD <- Sx[-1] - diff(Sx) / 2
-parDf[Dpar, ] <- Sx
+par_grid[, Dpar] <- Sx
 
-res <- mapply(
+res <- lapply(
+  split(par_grid, row(par_grid)),
   adlaplace::log_lik_laplace,
-  x = as.list(parDf),
-  MoreArgs = list(ad_fun = ad_fun, config = config, deriv = TRUE),
-  SIMPLIFY = FALSE
+  ad_fun = ad_fun,
+  config = config,
+  deriv = TRUE,
+  gamma = cache$gamma
 )
-Slik <- unlist(lapply(res, "[[", "logLik"))
-Sdet <- unlist(lapply(res, function(xx) xx$opt$half_log_det))
+
+SnegLik <- vapply(res, `[[`, numeric(1), "neg_log_lik")
+Sdet <- vapply(res, function(r) r$extra$hessian$half_log_det, numeric(1))
+grad_mat <- do.call(rbind, lapply(res, `[[`, "grad"))
+extra_df <- do.call(abind::abind, c(lapply(res, `[[`, "deriv"), along = 3))
 dU <- do.call(
   abind::abind,
-  c(lapply(res, function(xx) as.matrix(xx$extra$dU)), along = 3)
+  c(lapply(res, function(r) as.matrix(r$extra$dU)), along = 3)
 )
-uHat <- do.call(rbind, lapply(res, function(xx) xx$opt$solution))
-extraDf <- do.call(abind::abind, c(lapply(res, "[[", "deriv"), along = 3))
-gradMat <- do.call(rbind, lapply(res, "[[", "grad"))
-gradVec <- unlist(lapply(res, function(xx) xx$deriv[Dpar, "dL"]))
+u_hat <- do.call(rbind, lapply(res, function(r) r$opt$solution))
 
+par(mfrow = c(3, 2), mar = c(2, 2, 2, 0), mgp = c(1, 0.5, 0))
+plot(Sx, SnegLik)
 
-plot(Sx, Slik)
+plot(Sx, grad_mat[, Dpar], type = "l")
+points(SxD, diff(SnegLik) / diff(Sx))
 
-plot(Sx, gradVec)
-lines(SxD, diff(Slik) / diff(Sx), lwd = 2)
-
-Du <- 1
-plot(Sx, uHat[, Du])
+Du <- 1L
+plot(Sx, u_hat[, Du])
 
 plot(Sx, dU[Du, Dpar, ])
-lines(SxD, diff(uHat[, Du]) / diff(Sx))
+lines(SxD, diff(u_hat[, Du]) / diff(Sx))
 
 plot(Sx, Sdet)
 
-plot(Sx, extraDf[Dpar, "dDet", ])
+plot(Sx, extra_df[Dpar, "d_det", ])
 lines(SxD, diff(Sdet) / diff(Sx))
 ```
 

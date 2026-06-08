@@ -12,10 +12,11 @@
 #include "adlaplace/creators/ad_data.hpp"
 #include "adlaplace/api/adpack_handle.h"
 #include "adlaplace/api/backend.hpp"
+#include "adlaplace/extension/adfun_pack.hpp"
 
 extern "C" const adlaplace_adpack_api adlaplace_AD_API;
 
-void register_adlaplace_default_densities();
+void adlaplace_init_atomics();
 
 void backend_destroy(void* vctx);
 void ad_fun_destroy(ad_fun* groups);

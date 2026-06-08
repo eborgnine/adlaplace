@@ -34,7 +34,7 @@ test_that("ad_fun attaches hessian_map to combined handle", {
     adlaplace::ad_fun_ptr(random_shard, config),
     adlaplace::ad_fun_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
   ))
-  af <- adlaplace::ad_fun(ad_ptr)
+  af <- adlaplace::ad_fun(ad_ptr, num_threads = 1L)
   x <- c(config$beta, config$gamma, config$theta)
   expect_equal(
     adlaplace::joint_log_dens(af, x, negative = FALSE),
@@ -88,7 +88,7 @@ test_that("ad_fun works without config when layout is on ptr", {
     as_shard(model, "observations", "nbinom_obs"),
     config
   )
-  af <- adlaplace::ad_fun(ad_ptr)
+  af <- adlaplace::ad_fun(ad_ptr, num_threads = 1L)
   sz <- adlaplace:::get_sizes(ad_ptr, 0L)
   expect_true(methods::is(af, "ad_fun"))
   expect_equal(af@sizes[["beta"]], sz$n_beta)
@@ -111,7 +111,7 @@ test_that("ad_fun variadic ad_fun_ptr matches explicit c() composition", {
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
     shards = adlaplace::ad_shards(Amat, num_shards = 8L),
-    num_threads = 1L,
+    num_threads = 2L,
     verbose = FALSE
   )
   model <- test_ad_data(
@@ -169,7 +169,7 @@ test_that("ad_fun variadic composition clears source pointers like c()", {
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
     shards = adlaplace::ad_shards(Amat, num_shards = 5L),
-    num_threads = 1L,
+    num_threads = 2L,
     verbose = FALSE
   )
   model <- test_ad_data(

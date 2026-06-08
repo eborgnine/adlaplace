@@ -57,7 +57,8 @@ model_data <- function(formula, data, verbose = FALSE) {
           as.integer(n_theta)
         ),
         ad_fun = ad_name,
-        ad_kind = "observations"
+        ad_kind = "observations",
+        package = term_here@package
       )
     }
 
@@ -77,6 +78,7 @@ model_data <- function(formula, data, verbose = FALSE) {
           ),
           ad_fun = ad_name,
           ad_kind = "random",
+          package = term_here@package,
           precision = as.numeric(Matrix::diag(prec_mat))
         )
       }
@@ -91,11 +93,18 @@ model_data <- function(formula, data, verbose = FALSE) {
         beta_map = nrow(xx@beta_map),
         gamma_map = nrow(xx@gamma_map),
         ad_fun = gsub("_obs$", "_extra", xx@ad_fun),
-        ad_kind = "parameters"
+        ad_kind = "parameters",
+        package = xx@package
       )
     }
   )
-  names(parameters) <- paste0(names(parameters), "_extra")
+  if (length(parameters) > 0L) {
+    nm <- names(parameters)
+    if (is.null(nm)) {
+      nm <- rep("", length(parameters))
+    }
+    names(parameters) <- paste0(nm, "_extra")
+  }
 
 
   list(

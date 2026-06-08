@@ -1,0 +1,10 @@
+.DS_Store
+**/.DS_Store
+
+# Quarto vignette render outputs
+vignettes/*_files/
+vignettes/*.html
+vignettes/*.knit.md
+
+# testthat snapshot dir (only commit when expect_snapshot tests exist)
+tests/testthat/_snaps/

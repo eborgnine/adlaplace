@@ -12,7 +12,9 @@ slots set.}
 
 \item{config}{Model configuration list (\code{beta}, \code{theta}, etc.).
 \code{gamma} is optional; when missing, zeros of length
-\code{nrow(gamma_map)} are used as AD tape seeds.}
+\code{nrow(gamma_map)} are used as AD tape seeds.
+\code{config$num_threads} does not assign OpenMP threads; use
+\code{num_threads} on \code{\link{ad_fun}} after merging shards.}
 }
 \value{
 External pointer of class \code{ad_fun_ptr}.

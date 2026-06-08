@@ -14,10 +14,14 @@ with \code{observations}, \code{random}, \code{parameters}).}
 \item{config}{Model configuration list. Required for \code{ad_data} and
 \code{model_data}; unused for \code{ad_fun_ptr}. For \code{model_data},
 \code{beta}, \code{gamma}, and \code{theta} are filled from \code{x$data$info}
-when omitted (only \code{shards}, \code{transform_theta}, etc. are needed).}
+when omitted (only \code{shards}, \code{transform_theta}, etc. are needed).
+When \code{config$num_threads} is set, it overrides the \code{num_threads}
+argument for \code{ad_data} and \code{model_data} methods.}
 
-\item{num_threads}{Positive integer; number of thread columns in
-\code{parallel_map} used for shard thread affinity.}
+\item{num_threads}{Positive integer; OpenMP thread count for \code{inner_opt}
+and parallel \code{trace_hinv_t}. Shards are assigned
+\code{owner_thread = shard_index \% num_threads} at attach time.
+Default \code{1L} (serial).}
 
 \item{...}{For \code{ad_fun_ptr} input, optional additional
 \code{ad_fun_ptr} shards to combine before attaching templates.}
