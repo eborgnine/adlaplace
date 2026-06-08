@@ -7,16 +7,18 @@
 #' @param formula Model formula with \code{f()} or constructor terms.
 #' @param data Data frame containing variables referenced in \code{formula}.
 #' @param verbose Print extra information while parsing terms.
+#' @param na_omit When \code{TRUE} (default), drop rows with \code{NA} in
+#'   covariates, outcome, stratification (\code{by}), or random-slope
+#'   \code{mult} variables; impute remaining outcome \code{NA}s as zero; and
+#'   sort by observation-term \code{by} columns when present.
 #' @return A list with:
 #' \describe{
 #'   \item{\code{terms}}{Named list of term objects from \code{\link{collect_terms}}.}
-#'   \item{\code{shards}}{Named list of \code{ad_data} objects, including
-#'     \code{parent} (full layout) and one entry per AD shard
-#'     (observations, parameters, random effects).}
-#'   \item{\code{info}}{List with \code{beta}, \code{gamma}, \code{theta},
-#'     \code{parameters} data frames for optimization metadata.}
-#'   \item{\code{precisions}}{Named list of precision lists for random shards
-#'     (parallel names to random entries in \code{shards}).}
+#'   \item{\code{data}}{Output of \code{\link{data_setup}}, including \code{elgm_matrix}
+#'     when an observation term defines an \code{elgm_matrix} method.}
+#'   \item{\code{observations}}{Named list of observation \code{ad_data} shards.}
+#'   \item{\code{parameters}}{Named list of parameter \code{ad_data} shards.}
+#'   \item{\code{random}}{Named list of random-effect \code{ad_data} shards.}
 #' }
 #' @export
 #' @examples
@@ -26,9 +28,39 @@
 #'   data = dat
 #' )
 #' }
-model_data <- function(formula, data, verbose = FALSE) {
-  all_data <- data_setup(formula, data, verbose = verbose)
-  the_terms <- all_data$terms
+model_data <- function(formula, data, verbose = FALSE, na_omit = TRUE) {
+  formula_in <- formula
+  the_terms <- parse_model_terms(formula, verbose = verbose)
+
+  if (na_omit) {
+    data <- prepare_model_rows(data, the_terms, verbose = verbose)
+  }
+
+  elgm_mats <- list()
+  obs_terms <- Filter(function(t) {
+    methods::is(t, "model") && identical(t@ad_kind, "observations")
+  }, the_terms)
+
+  for (term in obs_terms) {
+    term_class <- class(term)[1L]
+    if (methods::hasMethod("elgm_matrix", term_class)) {
+      elgm_mats[[term@term]] <- elgm_matrix(term, data)
+    }
+  }
+
+  if (length(elgm_mats) > 1L) {
+    warning(
+      "multiple observation terms with elgm_matrix methods; ",
+      "using the first for data$elgm_matrix",
+      call. = FALSE
+    )
+  }
+
+  all_data <- data_setup(formula = formula_in, data = data, verbose = verbose)
+
+  if (length(elgm_mats) == 1L) {
+    all_data$elgm_matrix <- elgm_mats[[1L]]
+  }
 
   n_beta <- nrow(all_data$info$beta)
   n_gamma <- nrow(all_data$info$gamma)
@@ -44,6 +76,7 @@ model_data <- function(formula, data, verbose = FALSE) {
     }
     ad_name <- term_here@ad_fun
     kind <- term_here@ad_kind
+    elgm_here <- elgm_mats[[term_here@term]]
 
     if (identical(kind, "observations")) {
       observations[[term_here@term]] <- ad_data(
@@ -56,6 +89,7 @@ model_data <- function(formula, data, verbose = FALSE) {
           grep(term_here@label, all_data$info$theta$label),
           as.integer(n_theta)
         ),
+        elgm_matrix = elgm_here,
         ad_fun = ad_name,
         ad_kind = "observations",
         package = term_here@package
@@ -64,7 +98,6 @@ model_data <- function(formula, data, verbose = FALSE) {
 
     if (identical(kind, "random")) {
       prec_mat <- precision(term_here, all_data$data)
-      # will be NULL if sd = Inf, diffuse prior.
       if (!is.null(prec_mat)) {
         random[[term_here@term]] <- ad_data(
           beta_map = n_beta,
@@ -86,13 +119,15 @@ model_data <- function(formula, data, verbose = FALSE) {
   }
 
   parameters <- lapply(
-    observations, function(xx) {
+    observations,
+    function(xx) {
       ad_data(
         y = xx@y,
         theta_map = xx@theta_map,
         beta_map = nrow(xx@beta_map),
         gamma_map = nrow(xx@gamma_map),
-        ad_fun = gsub("_obs$", "_extra", xx@ad_fun),
+        elgm_matrix = xx@elgm_matrix,
+        ad_fun = parameter_ad_fun(xx@ad_fun),
         ad_kind = "parameters",
         package = xx@package
       )
@@ -105,7 +140,6 @@ model_data <- function(formula, data, verbose = FALSE) {
     }
     names(parameters) <- paste0(nm, "_extra")
   }
-
 
   list(
     data = all_data,

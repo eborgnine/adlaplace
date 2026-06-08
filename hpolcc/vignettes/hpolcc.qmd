@@ -1,0 +1,155 @@
+---
+title: "Case-crossover models with hpolcc"
+format:
+  html:
+    toc: true
+---
+
+## Introduction
+
+This vignette fits a time-stratified case-crossover model to daily mortality and
+PM10 in London (2002–2006), using the example dataset from
+[Tobias et al. (2024)](https://github.com/aureliotobias/casecrossover).
+
+Strata are defined by day-of-week within month and year via
+`dirichlet_multinom(..., by = "year_month_dow")`. PM10 enters through an
+integrated Wiener process smooth (`iwp(pm10, ...)`), with relative humidity as
+a linear fixed effect.
+
+```{r setup}
+# adlaplace must load before hpolcc/data.table so CppAD OpenMP setup runs first
+library(adlaplace)
+library(hpolcc)
+library(data.table)
+```
+
+## Data
+
+```{r data}
+london <- fread(system.file("extdata", "london.csv", package = "hpolcc"))
+london$date <- as.Date(ISOdate(london$year, london$month, london$day))
+london$year_month_dow <- format(london$date, "%Y-%m-%a")
+head(london)
+quantile(london$pm10, na.rm = TRUE)
+```
+
+## Model specification
+
+```{r model-spec}
+cc_formula <- dirichlet_multinom(
+    all,
+    by = "year_month_dow",
+    init = 0.2,
+    parscale = 5
+) ~ rh + iwp(
+    pm10,
+    p = 2,
+    knots = seq(0, 100, by = 10),
+    ref_value = 40
+)
+
+config_dev <- list(
+    transform_theta = TRUE,
+    num_threads = 8L,
+    num_shards = 100L,
+    verbose = FALSE
+)
+```
+
+## AD development check
+
+`for_dev = TRUE` builds `model_data`, the combined `ad_fun`, and `config` without
+running outer optimization.
+
+```{r for_dev}
+forres <- hnlm(
+    cc_formula,
+    data = london,
+    config = config_dev,
+    for_dev = TRUE
+)
+slotNames(forres$ad_fun)
+dim(forres$config$shards)
+forres$model_data$data$info$parameters
+```
+
+## Joint log density
+
+At starting values, evaluate the full log-density and its gradient over all
+parameters (`beta`, inner `gamma`, and `theta`).
+
+```{r joint-log-dens}
+sz <- forres$ad_fun@sizes
+x_full <- c(
+    forres$config$opt$init[seq_len(sz["beta"])],
+    rep(0, sz["gamma"]),
+    forres$config$opt$init[seq(sz["beta"] + 1L, length.out = sz["theta"])]
+)
+
+forres$model_data$data$info$parameters[, c("label", "init")]
+c(beta = sz["beta"], gamma = sz["gamma"], theta = sz["theta"])
+
+joint_log_dens(forres$ad_fun, x_full)
+grad(forres$ad_fun, x_full)
+```
+
+## Likelihood
+
+With outer parameters fixed at their starting values, `log_lik_laplace()`
+optimizes random effects and returns the  log-likelihood.
+
+```{r likelihood}
+x_outer <- forres$model_data$data$info$parameters$init
+
+lik = log_lik_laplace(
+    x = x_outer,
+    ad_fun = forres$ad_fun,
+    config = modifyList(forres$config, list(verbose=TRUE)),
+    gamma = forres$cache$gamma,
+    control = list(report.level = 2),
+    deriv = TRUE
+)
+
+lik$neg_log_lik
+lik$grad
+head(lik$opt$solution)
+```
+
+`neg_log_lik` is the negative profile log-likelihood after inner optimization
+over random effects.
+
+
+
+```{r, optim}
+mle <- stats::optim(
+    par = forres$model_data$data$info$parameters$init,
+    fn = adlaplace::outer_fn,
+    gr = adlaplace::outer_gr,
+    method = "L-BFGS-B",
+    control = list(maxit = 50, trace = 3, REPORT = 1),
+    lower = forres$model_data$data$info$parameters$lower,
+    upper = forres$model_data$data$info$parameters$upper,
+    config = forres$config,
+    ad_fun = forres$ad_fun,
+    cache = forres$cache,
+    control_inner = list(report.level = 0)
+  )
+
+```
+
+## Full fit
+
+this currently takes too long to run.  
+```{r fit, eval=FALSE}
+fit <- hnlm(
+    cc_formula,
+    data = london,
+    config = modifyList(config_dev, list(
+        num_threads = 8L,
+        num_shards = 100L,
+        verbose = TRUE
+    )),
+    control = list(maxit = 100, trace = 3, REPORT = 1)
+)
+```
+

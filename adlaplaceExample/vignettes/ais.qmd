@@ -26,7 +26,9 @@ if (requireNamespace("sn", quietly = TRUE)) {
 
 ```{r}
 model_stuff <- adlaplace::model_data(
-  adlaplaceExample::skewnormal(BMI) ~ adlaplace::intercept(init = 10, parscale = 10) + sex + adlaplace::iid(sport),
+  adlaplaceExample::skewnormal(BMI) ~
+    adlaplace::intercept(init = 10, parscale = 10) +
+    sex + adlaplace::iid(sport),
   data = ais,
   verbose = TRUE
 )

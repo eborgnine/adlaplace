@@ -1,7 +1,7 @@
 Package: adlaplace
 Type: Package
 Title: Laplace Approximations Using Automatic Differentiation
-Version: 0.2
+Version: 0.3.0
 Authors@R: person(given="Patrick", family="Brown", email="patrick.brown@gmail.com", role=c("aut","cre","cph"))
 Maintainer: Patrick Brown <patrick.brown@gmail.com>
 Description: Computes Laplace approximations for hierarchical models using
@@ -45,6 +45,7 @@ Collate:
     'model_data.R'
     'nbinom.R'
     'overdispersion.R'
+    'prepare_model_rows.R'
     'response.R'
     'rmvnldl.R'
     'sim_fit.R'

@@ -1,59 +1,24 @@
 #' Fit Hierarchical Non-Linear Models
 #'
 #' @description
-#' This function fits a hierarchical model using the specified formula and data,
-#' incorporating case-crossover designs, fixed and random effects, and precision
-#' matrices for random effects.
+#' Fits a hierarchical case-crossover model with a \code{dirichlet_multinom} response
+#' term, using \pkg{adlaplace} automatic differentiation and Laplace approximation.
 #'
-#' @param formula A formula object specifying the model to be fitted.
-#' @param data A data frame containing the variables specified in the formula.
-#' @param cc_design An object specifying the case-crossover design.
-#' @param config A list of configuration options including:
-#'        \itemize{
-#'          \item dirichlet: Logical; whether to use Dirichlet distribution (default: TRUE)
-#'          \item boundary_is_random: Logical; whether boundary should be treated as random (default: FALSE)
-#'          \item transform_theta: Logical; whether to transform theta parameters (default: TRUE)
-#'        }
-#' @param control A list of control options for optimization including:
-#'        \itemize{
-#'          \item maxit: Maximum number of iterations (default: 1000)
-#'          \item trace: Level of tracing output (default: 3)
-#'          \item REPORT: Reporting frequency (default: 1)
-#'        }
-#' @param control_inner A list of control options for inner optimization including:
-#'        \itemize{
-#'          \item report.level: Reporting level for inner optimization (default: 0)
-#'        }
-#' @param for_dev Logical; if TRUE, returns intermediate objects for development (default: FALSE).
-#' @param ... Additional arguments passed to methods.
+#' @param formula Model formula with a \code{dirichlet_multinom(...)} response on the LHS.
+#' @param data Data frame containing variables referenced in \code{formula}.
+#' @param config Configuration list. Common entries: \code{transform_theta},
+#'   \code{num_threads}, \code{num_shards}, \code{verbose}.
+#' @param control Control list passed to outer \code{optim}.
+#' @param control_inner Control list passed to inner optimization.
+#' @param for_dev If \code{TRUE}, return intermediate objects for development.
+#' @param ... Unused.
 #'
-#' @details
-#' The function handles fixed effects, random effects, and their associated
-#' precision matrices. It optimizes via \pkg{adlaplace} automatic differentiation
-#' and Laplace approximation (inner optimization over random effects when present).
-#'
-#' @return
-#' A list containing the fitted model object and related information.
-#'
-#' @seealso
-#' \code{\link{f}} for specifying model terms
-#'
-#' @examples
-#' # Example usage
-#' # data <- data.frame(y = rnorm(100), x1 = rnorm(100), x2 = rnorm(100))
-#' # result <- hnlm(y ~ x1 + x2, data = data)
-#'
-#' @import data.table
+#' @return Fitted model list, or development objects when \code{for_dev = TRUE}.
 #' @export
 hnlm <- function(
   formula,
   data,
-  cc_design = c(),
-  config = list(
-    dirichlet = TRUE,
-    boundary_is_random = FALSE,
-    transform_theta = TRUE
-  ),
+  config = list(transform_theta = TRUE),
   control = list(
     maxit = 1000,
     trace = 3,
@@ -63,215 +28,97 @@ hnlm <- function(
   for_dev = FALSE,
   ...
 ) {
-  # Check inputs
-
   config_defaults <- list(
     verbose = FALSE,
     transform_theta = TRUE,
-    num_threads = 1,
-    num_groups = 1000L,
-    dirichlet_init = 1e-3,
-    dirichlet_lower = 0,
-    dirichlet_upper = Inf,
-    package = "hpolcc"
+    num_threads = 1L,
+    num_shards = 1000L
   )
-
   config_defaults <- config_defaults[
     setdiff(names(config_defaults), names(config))
   ]
   config <- c(config, config_defaults)
 
-  # Order the rows of data appropriately.
-  if (is.character(cc_design)) {
-    cc_design <- ccDesign(strat_vars = cc_design)
-  }
-  if (is.null(cc_design$strat_vars) &&
-    is.null(cc_design$time_var)) {
-    stop("Provide a valid stratification (or time) variable.")
-  }
-
   if (methods::is(formula, "formula")) {
     model_terms <- adlaplace::collect_terms(
-      formula = stats::update.formula(formula, . ~ . - 1), # no intercept
-      package = "hpolcc", verbose = config$verbose
+      formula = stats::update.formula(formula, . ~ . - 1),
+      package = c("hpolcc", "adlaplaceHgp"),
+      verbose = config$verbose
     )
   } else {
     model_terms <- formula
   }
 
-  if (!any(sapply(model_terms, class) == "overdispersion")) {
-    model_terms <- c(
-      model_terms,
-      adlaplace::overdispersion()
-    )
+  resp_idx <- which(vapply(
+    model_terms,
+    function(xx) methods::is(xx, "dirichlet_multinom"),
+    logical(1)
+  ))
+  if (length(resp_idx) != 1L) {
+    stop("formula must include exactly one dirichlet_multinom(...) response term",
+      call. = FALSE)
+  }
+  resp <- model_terms[[resp_idx]]
+  if (!length(resp@by)) {
+    stop("dirichlet_multinom(..., by = ...) is required", call. = FALSE)
   }
 
-  covariates <- unique(
-    unlist(
-      lapply(model_terms, methods::slot, "term")
-    ),
-    value = TRUE, invert = TRUE
+  model_data <- adlaplace::model_data(
+    formula = model_terms,
+    data = data,
+    verbose = config$verbose,
+    na_omit = TRUE
   )
-  covariates <- unique(unlist(strsplit(covariates, ":")))
-  random_slope_terms <- unique(unlist(sapply(model_terms[
-    grep("^rs", sapply(model_terms, class))
-  ], methods::slot, "mult")))
-
-  strat_time_vars <- unique(c(cc_design$strat_vars, cc_design$time_var))
-
-  data.table::setDT(data)
-
-  strat_time_vars <- strat_time_vars[
-    order(sapply(
-      data[, strat_time_vars, with = FALSE],
-      function(xx) length(unique(xx))
-    ), decreasing = FALSE)
-  ]
-
-
-  required_vars <- unique(c(covariates, strat_time_vars, random_slope_terms))
-  if (config$verbose) {
-    cat("variables:\n")
-    print(required_vars)
-    cat("excluding data colnames:\n")
-    print(setdiff(required_vars, colnames(data)))
-  }
-  # Remove rows with NA values in required variables
-
-  data <- data[stats::complete.cases(data[, required_vars, with = FALSE])]
-
+  cc_matrix <- model_data$data$elgm_matrix
 
   if (config$verbose) {
-    cat("data has ", nrow(data), " rows\n")
-  }
-
-  the_response <- which(
-    unlist(lapply(model_terms, function(xx) any(class(xx) == "response")))
-  )
-  if (length(the_response) != 1) {
-    warning("cant find response variable")
-  }
-  outcome_var <- model_terms[[the_response[1]]]@term
-
-  if (anyNA(data[[outcome_var]])) {
-    warning("missing values in outcome, treating as zeros")
-    data[is.na(get(outcome_var)), (outcome_var) := 0]
-  }
-  data.table::setorderv(data, strat_time_vars)
-
-  n_per_strata <- data[
-    , list(
-      outcome_sum = sum(get(outcome_var)),
-      n_rows = .N
-    ),
-    by = strat_time_vars
-  ]
-  n_per_strata <- n_per_strata[n_per_strata$outcome_sum > 0, ]
-
-  data_sub <- n_per_strata[data, on = strat_time_vars, nomatch = 0]
-
-  if (!nrow(data_sub)) {
-    warning("no data left after removing missings")
-  }
-
-  # setup the data for case-crossover
-  if (config$verbose) {
-    cat("setting strata\n")
-  }
-
-  cc_matrix <- setStrata(
-    cc_design = cc_design,
-    data = data_sub,
-    outcome = outcome_var
-  )
-
-  if (config$verbose) {
-    cat("numer per strata\n")
+    cat("number per strata\n")
     print(table(diff(cc_matrix@p)))
     cat("\ncollecting terms\n")
   }
 
-  # Use adlaplace::model_setup for standardized model preparation
-  model_stuff <- adlaplace::model_setup(
-    formula = model_terms,
-    data = data_sub,
-    verbose = config$verbose
-  )
-
-  # log transform
-  if (config$transform_theta) {
-    transform_rows <- model_stuff$info$theta$type == "random"
-    transform_cols <- c("init", "lower", "upper")
-    model_stuff$info$theta[transform_rows, transform_cols] <- log(
-      model_stuff$info$theta[transform_rows, transform_cols]
-    )
-    all_par_cols <- colnames(model_stuff$info$parameters)
-    model_stuff$info$parameters <- rbind(
-      model_stuff$info$beta[, all_par_cols],
-      model_stuff$info$theta[, all_par_cols]
-    )
-  }
-
-  # Add case-crossover specific components
-  model_stuff$data$elgm_matrix <- cc_matrix
-  model_stuff$data$y <- data_sub[[outcome_var]]
-
-
   verbose_orig <- config$verbose
-  config$verbose <- config$verbose > 1
-
-  config$beta <- model_stuff$info$beta$init
-  config$theta <- model_stuff$info$theta$init
-  config$gamma <- rep(0, nrow(model_stuff$info$gamma))
-
-  for (D in c("beta", "theta", "gamma")) {
-    if (is.null(config[[D]])) {
-      config[[D]] <- numeric(0)
-    }
-  }
-
-  if (verbose_orig) {
-    cat("getting groups...")
-  }
-
-  config$groups <- adlaplace::adFun_groups(
-    ATp = rbind(model_stuff$data$XTp, model_stuff$data$ATp),
-    elgm_matrix = model_stuff$data$elgm_matrix,
-    Ngroups = config$num_groups,
-    min_groups = min(config$num_groups, config$num_threads * 4L)
-  )
-
-  if (verbose_orig) {
-    cat("done.")
-  }
-
+  config$verbose <- config$verbose > 1L
 
   config$opt <- as.list(
-    model_stuff$info$parameters[c("init", "lower", "upper", "parscale")]
+    model_data$data$info$parameters[c("init", "lower", "upper", "parscale")]
   )
   control$parscale <- config$opt$parscale
 
   cache <- new.env(parent = emptyenv())
-  cache$gamma <- config$gamma
+  cache$gamma <- rep(0, nrow(model_data$data$info$gamma))
 
   if (verbose_orig) {
+    cat("getting shards...")
+  }
+
+  config$shards <- adlaplace::ad_shards(
+    A = model_data$data$A,
+    elgm_matrix = cc_matrix,
+    num_shards = config$num_shards,
+    min_groups = min(config$num_shards, config$num_threads * 4L)
+  )
+
+  if (verbose_orig) {
+    cat("done.\n")
     cat(
-      paste(
-        "getting AD fun, ",
-        paste(dim(config$groups), collapse = ","), "groups\n"
-      )
+      "getting AD fun, ",
+      paste(dim(config$shards), collapse = ","), "shards\n"
     )
   }
 
-  ad_fun <- getAdFun_r(model_stuff$data, config)
-
+  ad_fun <- adlaplace::ad_fun(
+    model_data,
+    config,
+    num_threads = config$num_threads
+  )
 
   if (for_dev) {
     return(list(
-      model = model_stuff,
+      model_data = model_data,
       config = config,
       formula = formula,
-      data = data_sub,
+      data = model_data$data$data,
       control = control,
       control_inner = control_inner,
       cache = cache,
@@ -279,12 +126,10 @@ hnlm <- function(
     ))
   }
 
-
   if (!length(cache$gamma)) {
     if (verbose_orig) {
-      cat("no gammas, only one layer of optimizatino")
+      cat("no gammas, only one layer of optimization\n")
     }
-    # no gammas, no inner opt
 
     mle <- stats::optim(
       par = config$opt$init,
@@ -299,12 +144,10 @@ hnlm <- function(
     return(mle)
   }
 
-
   if (verbose_orig) {
-    cat("optimizing")
-    cat(" initial, lower , upper\n")
+    cat("optimizing initial, lower, upper\n")
     to_print <- do.call(cbind, config$opt)
-    rownames(to_print) <- model_stuff$info$parameters$label
+    rownames(to_print) <- model_data$data$info$parameters$label
     print(to_print)
     cat("threads: ", config$num_threads, "\n")
   }
@@ -330,23 +173,24 @@ hnlm <- function(
     objects = list(
       config = config,
       formula = formula,
-      terms = model_stuff$terms,
-      parameters_info = model_stuff$info,
-      random_info = model_stuff$info$gamma,
-      control_inner = control$inner,
+      terms = model_data$terms,
+      parameters_info = model_data$data$info,
+      random_info = model_data$data$info$gamma,
+      control_inner = control_inner,
       control = control,
       cache = cache,
-      ad_fun = ad_fun
+      ad_fun = ad_fun,
+      model_data = model_data
     )
   )
   if (verbose_orig) {
-    cat("one last evaulation of likelihhood\n")
+    cat("one last evaluation of likelihood\n")
   }
 
+  par_name <- grep("solution|par", names(result$opt), value = TRUE)[1]
   result$extra <- try(adlaplace::log_lik_laplace(
-    x = result$opt[[grep("solution|par", names(result$opt), value = TRUE)[1]]],
+    x = result$opt[[par_name]],
     gamma = result$objects$cache$gamma,
-    data = model_stuff$data, # result$objects$tmb_data,
     config = result$objects$config,
     control = result$objects$control_inner,
     ad_fun = ad_fun,
@@ -361,9 +205,7 @@ hnlm <- function(
   result$hessian_parameters <- try(
     Matrix::forceSymmetric(numDeriv::jacobian(
       func = adlaplace::outer_gr,
-      x = result$opt[[grep("solution|par", names(result$opt), value = TRUE)[1]]],
-      package = "hpolcc",
-      data = model_stuff$data, # result$objects$tmb_data,
+      x = result$opt[[par_name]],
       config = result$objects$config,
       control_inner = result$objects$control_inner,
       ad_fun = ad_fun,
@@ -373,7 +215,7 @@ hnlm <- function(
   if (verbose_orig) {
     cat("conditional samples\n")
   }
-  result$sample <- try(cond_sim_iwp(
+  result$sample <- try(adlaplaceHgp::cond_sim_iwp(
     fit = result,
     n = c(result$objects$config$num_sim, 500)[1]
   ))
@@ -387,7 +229,7 @@ hnlm <- function(
     result$extra$hessian$H[seq_inner, seq_inner]
 
   which_is_iid <- grepl("iid", result$parameters$gamma$model)
-  if (any(which_is_iid) & requireNamespace("WoodburyMatrix", quietly = TRUE)) {
+  if (any(which_is_iid) && requireNamespace("WoodburyMatrix", quietly = TRUE)) {
     Dinv <- H_inner[which_is_iid, which_is_iid]
 
     for_var_years <- WoodburyMatrix::WoodburyMatrix(

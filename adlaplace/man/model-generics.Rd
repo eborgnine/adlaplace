@@ -7,6 +7,7 @@
 \alias{theta_info}
 \alias{beta_info}
 \alias{random_info}
+\alias{elgm_matrix}
 \title{Model Term Generics}
 \usage{
 design(term, data)
@@ -18,6 +19,8 @@ theta_info(term)
 beta_info(term, data)
 
 random_info(term, data)
+
+elgm_matrix(term, data)
 }
 \arguments{
 \item{term}{A model term object.}

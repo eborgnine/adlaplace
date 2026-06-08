@@ -33,7 +33,7 @@ test_that("model_data captures y from explicit observations term", {
 test_that("data_setup warns when no response/observations term is present", {
   dat <- data.frame(y = 1:5, x1 = 1:5)
   expect_warning(
-    adlaplace:::data_setup(list(linear("x1")), data = dat),
+    adlaplace:::data_setup(list(adlaplace::linear("x1")), data = dat),
     "no response variable"
   )
 })
@@ -46,4 +46,22 @@ test_that("model_data omits random shard when rpoly precision is NULL (sd = Inf)
     verbose = FALSE
   )
   expect_length(md$random, 0L)
+})
+
+test_that("model_data na_omit drops rows with NA covariates", {
+  dat <- data.frame(y = c(1, 2, 3), x1 = c(1, NA, 3))
+  md <- adlaplace::model_data(
+    y ~ adlaplace::linear(x1),
+    data = dat,
+    na_omit = TRUE
+  )
+  expect_equal(nrow(md$data$data), 2L)
+})
+
+test_that("model_data na_omit=FALSE keeps all rows", {
+  dat <- data.frame(y = 1:3, x1 = 1:3, unused = c(1, NA, 3))
+  md <- adlaplace::model_data(y ~ adlaplace::linear(x1), data = dat, na_omit = FALSE)
+  expect_equal(nrow(md$data$data), 3L)
+  md2 <- adlaplace::model_data(y ~ adlaplace::linear(x1), data = dat, na_omit = TRUE)
+  expect_equal(nrow(md2$data$data), 3L)
 })

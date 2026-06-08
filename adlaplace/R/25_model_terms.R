@@ -104,3 +104,6 @@ setGeneric("beta_info", function(term, data) standardGeneric("beta_info"))
 #' @rdname model-generics
 #' @export
 setGeneric("random_info", function(term, data) standardGeneric("random_info"))
+#' @rdname model-generics
+#' @export
+setGeneric("elgm_matrix", function(term, data) standardGeneric("elgm_matrix"))

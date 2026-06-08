@@ -51,7 +51,7 @@ rsiid(
 \item{data}{A data frame containing the term variables}
 }
 \value{
-A `rsiid` term object.
+A \code{rsiid} term object.
 
 A design matrix for the random slope polynomial term, or NULL if p.order is 0
 
@@ -81,13 +81,13 @@ Creates an iid random slope model term
 }}
 \section{Methods}{
 
-The following methods are available for `rsiid` objects:
+The following methods are available for \code{rsiid} objects:
 \describe{
-  \item{\code{design(term, data)}}{Creates design matrix for rsiid term}
-  \item{\code{precision(term, data)}}{Creates precision matrix for rsiid term}
-  \item{\code{theta_info(term)}}{Extracts theta parameter information}
-  \item{\code{beta_info(term, data)}}{Extracts beta parameter information}
-  \item{\code{random_info(term, data)}}{Extracts random effects information}
+\item{\code{design(term, data)}}{Creates design matrix for rsiid term}
+\item{\code{precision(term, data)}}{Creates precision matrix for rsiid term}
+\item{\code{theta_info(term)}}{Extracts theta parameter information}
+\item{\code{beta_info(term, data)}}{Extracts beta parameter information}
+\item{\code{random_info(term, data)}}{Extracts random effects information}
 }
 }
 

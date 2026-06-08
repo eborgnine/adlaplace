@@ -1,0 +1,30 @@
+Package: adlaplaceHgp
+Type: Package
+Title: Hierarchical Gaussian Processes for adlaplace
+Version: 0.3.0
+Authors@R: person(given = "Patrick", family = "Brown",
+    email = "patrick.borgnine@gmail.com",
+    role = c("aut", "cre", "cph"))
+Description: Hierarchical and random-slope integrated Wiener process model terms
+    for use with the adlaplace Laplace approximation framework. Provides
+    hiwp, rsiwp, rsiid, rsfpoly, and rsrpoly constructors plus conditional
+    simulation utilities for IWP-style smooths.
+License: GPL-3
+Depends:
+    R (>= 4.1.0),
+    adlaplace (>= 0.3.0)
+Imports: methods, stats, Matrix
+Suggests: GET, testthat (>= 3.0.0)
+Config/testthat/edition: 3
+Encoding: UTF-8
+RoxygenNote: 7.3.3
+Roxygen: list(markdown = TRUE)
+Collate:
+    '000.R'
+    'hiwp.R'
+    'rsfpoly.R'
+    'rsrpoly.R'
+    'rsiid.R'
+    'rsiwp.R'
+    'cond_simu.R'
+NeedsCompilation: no

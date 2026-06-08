@@ -1,31 +1,26 @@
-test_that("hnlm for_dev builds ad_fun via get_ad_fun", {
+test_that("hnlm for_dev builds ad_fun via ad_fun", {
   skip_if_not_installed("adlaplace")
   td <- make_hpolcc_test_data()
   forres <- hpolcc::hnlm(
     formula = td$formula,
     data = td$data,
-    cc_design = td$cc_design,
     config = list(
       verbose = FALSE,
-      num_groups = 2L,
+      num_shards = 2L,
       num_threads = 1L
     ),
     for_dev = TRUE
   )
-  expect_true(is.data.frame(forres$data))
-  expect_true(is.list(forres$ad_fun))
-  expect_true("ad_fun" %in% names(forres$ad_fun))
+  expect_true(methods::is(forres$ad_fun, "ad_fun"))
+  expect_true(is.list(forres$model_data))
+  expect_true("observations" %in% names(forres$model_data))
 
-  ad_fun2 <- hpolcc::getAdFun_r(forres$model$data, forres$config)
-  expect_true(is.list(ad_fun2))
-  x <- c(forres$config$beta, forres$config$theta)
-  ll <- adlaplace::log_lik_laplace(
-    x = x,
-    config = forres$config,
-    ad_fun = ad_fun2,
-    deriv = FALSE,
-    control = list(maxit = 20, report.level = 0)
+  sz <- forres$ad_fun@sizes
+  x <- c(
+    forres$config$opt$init[seq_len(sz["beta"])],
+    rep(0, sz["gamma"]),
+    forres$config$opt$init[seq_len(sz["theta"]) + sz["beta"]]
   )
-  expect_true(is.finite(ll$log_lik))
-  expect_equal(ll$neg_log_lik, -ll$log_lik)
+  dens <- adlaplace::joint_log_dens(forres$ad_fun, x)
+  expect_true(is.finite(dens))
 })

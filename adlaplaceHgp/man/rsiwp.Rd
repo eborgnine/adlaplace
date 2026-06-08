@@ -49,7 +49,7 @@ rsiwp(
 \item{include_poly}{Whether to include polynomial terms.}
 }
 \value{
-A list containing the `rsiwp` term object and optionally polynomial terms.
+A list containing the \code{rsiwp} term object and optionally polynomial terms.
 }
 \description{
 Creates a random slope integrated Wiener process (RSIWP) model term.

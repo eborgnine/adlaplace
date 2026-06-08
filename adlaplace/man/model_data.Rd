@@ -4,7 +4,7 @@
 \alias{model_data}
 \title{Assemble model terms and per-shard \code{ad_data} objects}
 \usage{
-model_data(formula, data, verbose = FALSE)
+model_data(formula, data, verbose = FALSE, na_omit = TRUE)
 }
 \arguments{
 \item{formula}{Model formula with \code{f()} or constructor terms.}
@@ -12,18 +12,21 @@ model_data(formula, data, verbose = FALSE)
 \item{data}{Data frame containing variables referenced in \code{formula}.}
 
 \item{verbose}{Print extra information while parsing terms.}
+
+\item{na_omit}{When \code{TRUE} (default), drop rows with \code{NA} in
+covariates, outcome, stratification (\code{by}), or random-slope
+\code{mult} variables; impute remaining outcome \code{NA}s as zero; and
+sort by observation-term \code{by} columns when present.}
 }
 \value{
 A list with:
 \describe{
   \item{\code{terms}}{Named list of term objects from \code{\link{collect_terms}}.}
-  \item{\code{shards}}{Named list of \code{ad_data} objects, including
-    \code{parent} (full layout) and one entry per AD shard
-    (observations, parameters, random effects).}
-  \item{\code{info}}{List with \code{beta}, \code{gamma}, \code{theta},
-    \code{parameters} data frames for optimization metadata.}
-  \item{\code{precisions}}{Named list of precision lists for random shards
-    (parallel names to random entries in \code{shards}).}
+  \item{\code{data}}{Output of \code{\link{data_setup}}, including \code{elgm_matrix}
+    when an observation term defines an \code{elgm_matrix} method.}
+  \item{\code{observations}}{Named list of observation \code{ad_data} shards.}
+  \item{\code{parameters}}{Named list of parameter \code{ad_data} shards.}
+  \item{\code{random}}{Named list of random-effect \code{ad_data} shards.}
 }
 }
 \description{

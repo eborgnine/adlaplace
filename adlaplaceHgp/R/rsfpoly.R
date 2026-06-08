@@ -24,7 +24,7 @@ setClass("rsfpoly",
   contains = "model",
   prototype = list(
     knots = numeric(0),
-    type = factor("fixed", levels = adlaplace::.type_factor_levels)
+    type = factor("fixed", levels = adlaplace:::.type_factor_levels)
   )
 )
 

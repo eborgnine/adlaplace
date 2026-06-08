@@ -23,7 +23,7 @@ setClass("rsiid",
   ),
   contains = "model",
   prototype = prototype(
-    type = factor("random", levels = adlaplace::.type_factor_levels)
+    type = factor("random", levels = adlaplace:::.type_factor_levels)
   )
 )
 

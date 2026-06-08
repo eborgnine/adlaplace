@@ -4,9 +4,9 @@
 #' @name hiwp-class
 #' @aliases hiwp
 #' @docType class
+#' @exportClass hiwp
 #' @title Hierarchical Integrated Wiener Process Model Term
 #' @importFrom adlaplace iwp
-#' @importFrom adlaplace .type_factor_levels
 #' @importFrom adlaplace rpoly
 #' @importFrom adlaplace fpoly
 #' @importFrom adlaplace hrpoly
@@ -31,7 +31,7 @@ setClass("hiwp",
   prototype = prototype(
     by = adlaplace::by_group(),
     init = numeric(0),
-    type = factor("random", levels = adlaplace::.type_factor_levels)
+    type = factor("random", levels = adlaplace:::.type_factor_levels)
   )
 )
 
@@ -71,7 +71,7 @@ hiwp <- function(
   upper <- rep_len(upper, 2 * p + 4)
   parscale <- rep_len(parscale, 2 * p + 4)
 
-  ref_value <- adlaplace::ref_align(ref_value, knots)
+  ref_value <- adlaplace:::ref_align(ref_value, knots)
 
   the_f <- stats::as.formula(paste0("~ 0 + ", x), env=new.env())
   result <- list()
@@ -106,7 +106,7 @@ hiwp <- function(
   if (include_poly) {
     for (D_poly in seq(1, len = p - 1)) {
       hrpoly_name <- paste(c(x, "hrpoly", D_poly), collapse = "_")
-      result[[hrpoly_name]] <- hrpoly(
+      result[[hrpoly_name]] <- adlaplace::hrpoly(
         x = x, p = D_poly, ref_value = ref_value,
         by = result[[1]]@by,
         init = init[2 + D_poly],

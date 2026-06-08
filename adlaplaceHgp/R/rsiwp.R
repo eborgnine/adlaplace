@@ -23,7 +23,7 @@ setClass("rsiwp",
   ),
   contains = "model",
   prototype = prototype(
-    type = factor("random", levels = adlaplace::.type_factor_levels)
+    type = factor("random", levels = adlaplace:::.type_factor_levels)
   )
 )
 
@@ -99,7 +99,7 @@ rsiwp <- function(
   result <- list()
   iwp_name <- paste("rsiwp", x, sep = "_")
 
-  ref_value <- adlaplace::ref_align(ref_value, knots)
+  ref_value <- adlaplace:::ref_align(ref_value, knots)
 
 
   result[[iwp_name]] <- methods::new("rsiwp",

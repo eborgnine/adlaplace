@@ -64,7 +64,7 @@ hiwp(
 
 \item{include_global}{Whether to include global component}
 
-\item{term}{An `hiwp` term object.}
+\item{term}{An \code{hiwp} term object.}
 
 \item{data}{A data frame containing the variables used in the term.}
 }
@@ -89,13 +89,13 @@ Hierarchical Integrated Wiener Process Model Term
 }
 \section{Methods}{
 
-The following methods are available for `hiwp` objects:
+The following methods are available for \code{hiwp} objects:
 \describe{
-  \item{\code{design(term, data)}}{Creates design matrix for HIWP term}
-  \item{\code{precision(term, data)}}{Creates precision matrix for HIWP term}
-  \item{\code{theta_info(term)}}{Extracts theta parameter information}
-  \item{\code{beta_info(term, data)}}{Extracts beta parameter information}
-  \item{\code{random_info(term, data)}}{Extracts random effects information}
+\item{\code{design(term, data)}}{Creates design matrix for HIWP term}
+\item{\code{precision(term, data)}}{Creates precision matrix for HIWP term}
+\item{\code{theta_info(term)}}{Extracts theta parameter information}
+\item{\code{beta_info(term, data)}}{Extracts beta parameter information}
+\item{\code{random_info(term, data)}}{Extracts random effects information}
 }
 }
 

@@ -43,13 +43,13 @@ Creates and manages random slope integrated Wiener process (RSIWP) model terms.
 }}
 \section{Methods}{
 
-The following methods are available for `rsiwp` objects:
+The following methods are available for \code{rsiwp} objects:
 \describe{
-  \item{\code{design(term, data)}}{Creates design matrix for RSIWP term}
-  \item{\code{precision(term, data)}}{Creates precision matrix for RSIWP term}
-  \item{\code{theta_info(term)}}{Extracts theta parameter information}
-  \item{\code{beta_info(term, data)}}{Extracts beta parameter information}
-  \item{\code{random_info(term, data)}}{Extracts random effects information}
+\item{\code{design(term, data)}}{Creates design matrix for RSIWP term}
+\item{\code{precision(term, data)}}{Creates precision matrix for RSIWP term}
+\item{\code{theta_info(term)}}{Extracts theta parameter information}
+\item{\code{beta_info(term, data)}}{Extracts beta parameter information}
+\item{\code{random_info(term, data)}}{Extracts random effects information}
 }
 }
 

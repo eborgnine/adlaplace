@@ -1,6 +1,6 @@
 get_terms_pred <- function(terms, length.out = 100) {
   smodel <- unlist(lapply(terms, class))
-  is_iwp <- which(smodel %in% c("iwp", "rsiwp"))
+  is_iwp <- which(smodel %in% c("iwp", "hiwp", "rsiwp"))
   is_rsiwp <- which(smodel[is_iwp] %in% c("rsiwp"))
 
   svar <- unlist(lapply(terms[is_iwp], methods::slot, "term"))
@@ -167,7 +167,14 @@ get_group_quantiles <- function(
 }
 
 cond_sim_gamma <- function(fit, n) {
-  half_h <- fit$extra$extra$halfHinv
+  half_h <- fit$extra$half_H_inv
+  if (is.null(half_h) && !is.null(fit$extra$hessian$chol_inner)) {
+    ldl <- adlaplace:::as_ldl_list(fit$extra$hessian$chol_inner)
+    half_h <- adlaplace:::half_H_inv_from_ldl(ldl)
+  }
+  if (is.null(half_h)) {
+    stop("fit$extra must contain half_H_inv or hessian$chol_inner", call. = FALSE)
+  }
   # note tcrossprod(half_h) = Hinv
   ngamma <- nrow(half_h)
 
@@ -212,7 +219,10 @@ cond_sim <- function(fit, term, newx, n = 500) {
 #' then summarize the
 #' resulting linear predictors and group-level effect curves.
 #'
-#' @param fit A fitted `hnlm()` result object.
+#' @param fit A fitted model list with components `objects$terms`,
+#'   `objects$parameters_info$gamma`, `parameters$gamma`, `parameters$beta`,
+#'   and Laplace output in `extra` (including `half_H_inv` when
+#'   `log_lik_laplace(..., deriv = TRUE)` was used).
 #' @param newx Optional list of prediction data frames, one per variable.
 #'   When omitted, a default prediction grid is built from the term ranges.
 #' @param n Number of conditional draws to simulate.
@@ -251,7 +261,7 @@ cond_sim_iwp <- function(
   terms_type <- unlist(lapply(terms_have_vars, methods::slot, "type"))
 
 terms_has_by <- vapply(terms_have_vars, function(x) {
-  if (methods::hasSlot(x, "by")) {
+  if (methods::.hasSlot(x, "by")) {
     length(methods::slot(x, "by")) > 0
   } else {
     FALSE
@@ -259,7 +269,7 @@ terms_has_by <- vapply(terms_have_vars, function(x) {
 }, logical(1))
 
   terms_classes <- unlist(lapply(terms_have_vars, class))
-  is_iwp <- which(terms_classes %in% c("rsiwp", "iwp"))
+  is_iwp <- which(terms_classes %in% c("iwp", "hiwp", "rsiwp"))
 
   vars_to_sim <- unique(unlist(terms_vars[is_iwp]))
 

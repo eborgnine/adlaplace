@@ -26,7 +26,7 @@ setClass("rsrpoly",
   prototype = prototype(
     knots = numeric(0),
     sd = numeric(0),
-    type = factor("random", levels = adlaplace::.type_factor_levels)
+    type = factor("random", levels = adlaplace:::.type_factor_levels)
   )
 )
 

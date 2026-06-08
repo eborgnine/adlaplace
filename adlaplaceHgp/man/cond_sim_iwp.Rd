@@ -14,7 +14,10 @@ cond_sim_iwp(
 )
 }
 \arguments{
-\item{fit}{A fitted `hnlm()` result object.}
+\item{fit}{A fitted model list with components \code{objects$terms},
+\code{objects$parameters_info$gamma}, \code{parameters$gamma}, \code{parameters$beta},
+and Laplace output in \code{extra} (including \code{half_H_inv} when
+\code{log_lik_laplace(..., deriv = TRUE)} was used).}
 
 \item{newx}{Optional list of prediction data frames, one per variable.
 When omitted, a default prediction grid is built from the term ranges.}
@@ -23,7 +26,7 @@ When omitted, a default prediction grid is built from the term ranges.}
 
 \item{weights}{Optional weights used to average group-level effects.
 Supply either a named numeric vector keyed by group or a named list of
-such vectors keyed by variable. If `NULL`, equal weights are used.}
+such vectors keyed by variable. If \code{NULL}, equal weights are used.}
 
 \item{probs}{Numeric vector of probabilities used when computing
 quantiles.}
@@ -34,12 +37,12 @@ prediction intervals/envelopes.}
 \value{
 A list with components:
 \describe{
-  \item{`sim`}{Simulated linear predictors for each variable.}
-  \item{`quantiles`}{Pointwise quantiles of `sim` using `probs`.}
-  \item{`group_quantiles`}{Pointwise quantiles of transformed
-  group-level effects for each variable and group.}
-  \item{`weighted_quantiles`}{Pointwise quantiles of the weighted
-  average group-level effects (on the exponential scale) for each variable.}
+\item{\code{sim}}{Simulated linear predictors for each variable.}
+\item{\code{quantiles}}{Pointwise quantiles of \code{sim} using \code{probs}.}
+\item{\code{group_quantiles}}{Pointwise quantiles of transformed
+group-level effects for each variable and group.}
+\item{\code{weighted_quantiles}}{Pointwise quantiles of the weighted
+average group-level effects (on the exponential scale) for each variable.}
 }
 }
 \description{

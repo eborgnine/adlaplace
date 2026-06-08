@@ -57,7 +57,7 @@ rsfpoly(
 \item{data}{A data frame containing the term variables}
 }
 \value{
-A `rsfpoly` term object.
+A \code{rsfpoly} term object.
 
 A design matrix for the random slope fixed polynomial term, or NULL if p.order is 0
 
@@ -87,13 +87,13 @@ Creates a fixed polynomial model term for random slope models.
 }}
 \section{Methods}{
 
-The following methods are available for `rsfpoly` objects:
+The following methods are available for \code{rsfpoly} objects:
 \describe{
-  \item{\code{design(term, data)}}{Creates design matrix for rsfpoly term}
-  \item{\code{precision(term, data)}}{Creates precision matrix for rsfpoly term}
-  \item{\code{theta_info(term)}}{Extracts theta parameter information}
-  \item{\code{beta_info(term, data)}}{Extracts beta parameter information}
-  \item{\code{random_info(term, data)}}{Extracts random effects information}
+\item{\code{design(term, data)}}{Creates design matrix for rsfpoly term}
+\item{\code{precision(term, data)}}{Creates precision matrix for rsfpoly term}
+\item{\code{theta_info(term)}}{Extracts theta parameter information}
+\item{\code{beta_info(term, data)}}{Extracts beta parameter information}
+\item{\code{random_info(term, data)}}{Extracts random effects information}
 }
 }
 

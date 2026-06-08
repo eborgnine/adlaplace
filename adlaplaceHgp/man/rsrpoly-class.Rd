@@ -41,7 +41,7 @@ rsrpoly(x, mult, p = 2, ref_value = 0, ref_mult = 0, sd = Inf)
 \item{data}{A data frame containing the term variables}
 }
 \value{
-A `rsrpoly` term object.
+A \code{rsrpoly} term object.
 
 A design matrix for the random slope polynomial term, or NULL if p.order is 0
 
@@ -71,13 +71,13 @@ Creates a random polynomial model term for use in a random slope model.
 }}
 \section{Methods}{
 
-The following methods are available for `rsrpoly` objects:
+The following methods are available for \code{rsrpoly} objects:
 \describe{
-  \item{\code{design(term, data)}}{Creates design matrix for rsrpoly term}
-  \item{\code{precision(term, data)}}{Creates precision matrix for rsrpoly term}
-  \item{\code{theta_info(term)}}{Extracts theta parameter information}
-  \item{\code{beta_info(term, data)}}{Extracts beta parameter information}
-  \item{\code{random_info(term, data)}}{Extracts random effects information}
+\item{\code{design(term, data)}}{Creates design matrix for rsrpoly term}
+\item{\code{precision(term, data)}}{Creates precision matrix for rsrpoly term}
+\item{\code{theta_info(term)}}{Extracts theta parameter information}
+\item{\code{beta_info(term, data)}}{Extracts beta parameter information}
+\item{\code{random_info(term, data)}}{Extracts random effects information}
 }
 }
 
