@@ -5,9 +5,9 @@ get_terms_pred <- function(terms, length.out = 100) {
 
   svar <- unlist(lapply(terms[is_iwp], methods::slot, "term"))
   sknots <- lapply(terms[is_iwp], methods::slot, "knots")
-  sref <- unlist(lapply(terms[is_iwp], methods::slot, "ref_value"))
-  smin <- unlist(lapply(sknots, min)) + sref
-  smax <- unlist(lapply(sknots, max)) + sref
+
+  smin <- unlist(lapply(sknots, min)) 
+    smax <- unlist(lapply(sknots, max)) 
 
   pred_seq <- mapply(
     function(var, from, to, length.out) {
@@ -46,13 +46,13 @@ get_group_effect <- function(
   gamma_here$name_for_a <- gsub("_g[[:digit:]]+$", "", gamma_here$gamma_label)
   gamma_here$name_for_a <- gsub("_hiwp_", "_iwp_", gamma_here$name_for_a)
   gamma_here$name_for_a <- gsub("_hrpoly_", "_rpoly_", gamma_here$name_for_a)
-  # to do:  won't be rpoly if boundary is fixed.
 
   sim_h_here <- a_here[, gamma_here$name_for_a] %*% sim_gamma[gamma_here$gamma_label, ]
   sim_here <- sim_h_here + sim_global_here
 
   as.matrix(exp(sim_here))
 }
+
 get_one_envelope <- function(x, probs) {
   if (requireNamespace("GET", quietly = TRUE) & !is.null(x)) {
     result <- GET::central_region(
@@ -83,7 +83,6 @@ get_group_quantiles <- function(
   group_envelope <- weighted_envelope <-
     group_quantiles <-
     weighted_average <- weighted_quantiles
-
 
   for (d_var in names(sim_f)) {
     a_here <- new_xa[[d_var]]$random
@@ -166,120 +165,192 @@ get_group_quantiles <- function(
   )
 }
 
-cond_sim_gamma <- function(fit, n) {
-  half_h <- fit$extra$half_H_inv
-  if (is.null(half_h) && !is.null(fit$extra$hessian$chol_inner)) {
-    ldl <- adlaplace:::as_ldl_list(fit$extra$hessian$chol_inner)
-    half_h <- adlaplace:::half_H_inv_from_ldl(ldl)
+#' @keywords internal
+.as_named_param_vector <- function(x, label_col, value_col) {
+  if (is.data.frame(x)) {
+    if (!all(c(label_col, value_col) %in% names(x))) {
+      stop(
+        "expected columns ", label_col, " and ", value_col,
+        call. = FALSE
+      )
+    }
+    stats::setNames(x[[value_col]], x[[label_col]])
+  } else {
+    out <- as.numeric(x)
+    if (!is.null(names(x))) {
+      names(out) <- names(x)
+    }
+    out
   }
-  if (is.null(half_h)) {
-    stop("fit$extra must contain half_H_inv or hessian$chol_inner", call. = FALSE)
-  }
-  # note tcrossprod(half_h) = Hinv
-  ngamma <- nrow(half_h)
+}
 
-  gamma_hat <- fit$parameters$gamma$mode
+#' @keywords internal
+.validate_random_info <- function(random_info) {
+  if (!is.data.frame(random_info)) {
+    stop("random_info must be a data.frame", call. = FALSE)
+  }
+  required <- c("gamma_label", "term", "model", "by")
+  missing <- setdiff(required, names(random_info))
+  if (length(missing) > 0L) {
+    stop(
+      "random_info must contain columns: ",
+      paste(required, collapse = ", "),
+      call. = FALSE
+    )
+  }
+  invisible(random_info)
+}
+
+cond_sim_gamma <- function(half_H_inv, gamma_mode, gamma_label, n) {
+  if (is.null(half_H_inv)) {
+    stop("half_H_inv is required", call. = FALSE)
+  }
+  ngamma <- nrow(half_H_inv)
+  gamma_hat <- .as_named_param_vector(
+    gamma_mode,
+    label_col = "gamma_label",
+    value_col = "mode"
+  )
+  if (length(gamma_hat) != ngamma) {
+    stop(
+      "length(gamma_mode) (", length(gamma_hat),
+      ") must equal nrow(half_H_inv) (", ngamma, ")",
+      call. = FALSE
+    )
+  }
+  if (missing(gamma_label)) {
+    gamma_label <- names(gamma_hat)
+  }
+  if (length(gamma_label) != ngamma) {
+    stop("length(gamma_label) must equal nrow(half_H_inv)", call. = FALSE)
+  }
+
   sim_ind <- matrix(stats::rnorm(n * ngamma), ngamma, n)
-  sim_gamma_1 <- as.matrix(half_h %*% sim_ind)
-
+  sim_gamma_1 <- as.matrix(half_H_inv %*% sim_ind)
   sim_gamma <- sim_gamma_1 + matrix(
     gamma_hat,
     length(gamma_hat),
     ncol(sim_gamma_1)
   )
-  rownames(sim_gamma) <- fit$parameters$gamma$gamma_label
-
+  rownames(sim_gamma) <- gamma_label
   sim_gamma
 }
 
-get_gamma_sim <- function(fit, term, n) {
-  gamma_sim <- cond_sim_gamma(fit, n)
-  gamma_here <- grep(term, fit$random_info$term)
-  gamma_sim[gamma_here, , drop = FALSE]
+#' Build inputs for conditional IWP simulation
+#'
+#' Extracts flat arguments for \code{\link{cond_sim_iwp_at}} from the output of
+#' \code{\link[adlaplace]{log_lik_laplace}} and \code{\link[adlaplace]{model_data}}.
+#'
+#' @param laplace Output of \code{log_lik_laplace(..., deriv = TRUE)}.
+#' @param model_data Output of \code{model_data()}.
+#'
+#' @return A list with \code{terms}, \code{random_info}, \code{beta},
+#'   \code{gamma_mode}, and \code{half_H_inv}.
+#' @export
+cond_sim_iwp_inputs <- function(laplace, model_data) {
+  if (!is.list(laplace) || is.null(laplace$full_parameters)) {
+    stop("laplace must be output of log_lik_laplace(...)", call. = FALSE)
+  }
+  if (!is.list(model_data) || is.null(model_data$data$info)) {
+    stop("model_data must be output of model_data()", call. = FALSE)
+  }
+
+  info <- model_data$data$info
+  n_beta <- nrow(info$beta)
+  n_gamma <- nrow(info$gamma)
+  n_theta <- nrow(info$theta)
+  full <- as.numeric(laplace$full_parameters)
+  n_expected <- n_beta + n_gamma + n_theta
+  if (length(full) != n_expected) {
+    stop(
+      "length(laplace$full_parameters) (", length(full),
+      ") must equal n_beta + n_gamma + n_theta (", n_expected, ")",
+      call. = FALSE
+    )
+  }
+
+  beta <- stats::setNames(
+    full[seq_len(n_beta)],
+    info$beta$beta_label
+  )
+  gamma_mode <- stats::setNames(
+    full[seq(n_beta + 1L, length.out = n_gamma)],
+    info$gamma$gamma_label
+  )
+
+  list(
+    terms = model_data$terms,
+    random_info = info$gamma,
+    beta = beta,
+    gamma_mode = gamma_mode,
+    half_H_inv = adlaplace::laplace_half_H_inv(laplace)
+  )
 }
 
-cond_sim <- function(fit, term, newx, n = 500) {
-  terms_here <- grep(term, unlist(lapply(fit$terms, function(xx) xx$var)))
-  model_here <- unlist(lapply(fit$terms[terms_here], function(xx) xx$model))
-
-  if (any(model_here %in% c("hiwp", "iwp"))) {
-    return(cond_sim_iwp(fit, newx = newx, n = n))
-  }
-  if (any(model_here %in% c("iid"))) {
-    return(cond_sim_iid(fit, term, n))
-  }
-
-  stop("No supported model found for term.")
-}
-
-#' Conditional simulation for IWP/HIWP terms
+#' Conditional simulation for IWP/HIWP terms (flat arguments)
 #'
 #' @description
-#' Draw conditional simulations of the Gaussian process model components,
-#' then summarize the
-#' resulting linear predictors and group-level effect curves.
+#' Draw conditional simulations of IWP/HIWP/RSIWP model components from explicit
+#' inputs. Prefer \code{\link{cond_sim_iwp}} when you have \code{laplace} and
+#' \code{model_data} objects; use this function for custom pipelines.
 #'
-#' @param fit A fitted model list with components `objects$terms`,
-#'   `objects$parameters_info$gamma`, `parameters$gamma`, `parameters$beta`,
-#'   and Laplace output in `extra` (including `half_H_inv` when
-#'   `log_lik_laplace(..., deriv = TRUE)` was used).
+#' @param terms Named list of model term objects from \code{model_data()$terms}.
+#' @param random_info Data frame from \code{model_data()$data$info$gamma} with
+#'   columns \code{gamma_label}, \code{term}, \code{model}, and \code{by}.
+#' @param beta Named numeric vector of fixed-effect MLEs, or a data frame with
+#'   columns \code{beta_label} and \code{mle}.
+#' @param gamma_mode Named numeric vector of random-effect modes at the Laplace
+#'   inner optimum, or a data frame with columns \code{gamma_label} and \code{mode}.
+#' @param half_H_inv Matrix \eqn{H^{-1/2}} for inner random effects; from
+#'   \code{\link[adlaplace]{laplace_half_H_inv}(laplace)}.
 #' @param newx Optional list of prediction data frames, one per variable.
-#'   When omitted, a default prediction grid is built from the term ranges.
-#' @param n Number of conditional draws to simulate.
-#' @param weights Optional weights used to average group-level effects.
-#'   Supply either a named numeric vector keyed by group or a named list of
-#'   such vectors keyed by variable. If `NULL`, equal weights are used.
-#' @param probs Numeric vector of probabilities used when computing
-#'   quantiles.
-#' @param probs_envelope Numeric vector of probabilities used for computing
-#'   prediction intervals/envelopes.
+#'   When \code{NULL}, a default grid is built from term knot ranges.
+#' @param n Number of conditional draws.
+#' @param weights Optional group weights (named vector or list by variable).
+#' @param probs Quantile levels for summaries.
+#' @param probs_envelope Envelope probability levels (requires \pkg{GET}).
 #'
-#' @return A list with components:
-#' \describe{
-#'   \item{`sim`}{Simulated linear predictors for each variable.}
-#'   \item{`quantiles`}{Pointwise quantiles of `sim` using `probs`.}
-#'   \item{`group_quantiles`}{Pointwise quantiles of transformed
-#'   group-level effects for each variable and group.}
-#'   \item{`weighted_quantiles`}{Pointwise quantiles of the weighted
-#'   average group-level effects (on the exponential scale) for each variable.}
-#' }
-#'
+#' @return List with simulated curves, quantiles, and envelopes.
 #' @export
-cond_sim_iwp <- function(
-  fit,
-  newx,
+cond_sim_iwp_at <- function(
+  terms,
+  random_info,
+  beta,
+  gamma_mode,
+  half_H_inv,
+  newx = NULL,
   n = 500,
   weights = NULL,
   probs = c(0.025, 0.5, 0.975),
   probs_envelope = c(0.1, 0.9)
 ) {
-  terms <- fit$objects$terms
+  .validate_random_info(random_info)
+
   terms_vars <- lapply(terms, methods::slot, "term")
   terms_no_vars <- unlist(lapply(terms_vars, length)) == 0
   terms_have_vars <- terms[!terms_no_vars]
   terms_vars <- terms_vars[!terms_no_vars]
   terms_type <- unlist(lapply(terms_have_vars, methods::slot, "type"))
 
-terms_has_by <- vapply(terms_have_vars, function(x) {
-  if (methods::.hasSlot(x, "by")) {
-    length(methods::slot(x, "by")) > 0
-  } else {
-    FALSE
-  }
-}, logical(1))
+  terms_has_by <- vapply(terms_have_vars, function(x) {
+    if (methods::.hasSlot(x, "by")) {
+      length(methods::slot(x, "by")) > 0
+    } else {
+      FALSE
+    }
+  }, logical(1))
 
   terms_classes <- unlist(lapply(terms_have_vars, class))
   is_iwp <- which(terms_classes %in% c("iwp", "hiwp", "rsiwp"))
 
-  vars_to_sim <- unique(unlist(terms_vars[is_iwp]))
+  beta_hat <- .as_named_param_vector(beta, label_col = "beta_label", value_col = "mle")
+  gamma_label <- random_info$gamma_label
+  sim_gamma <- cond_sim_gamma(half_H_inv, gamma_mode, gamma_label, n)
 
-  sim_gamma <- cond_sim_gamma(fit, n)
-  beta_hat <- fit$parameters$beta$mle
-  names(beta_hat) <- fit$parameters$beta$beta_label
-
-  if (missing(newx)) {
+  if (is.null(newx)) {
     newx <- get_terms_pred(terms_have_vars[is_iwp])
   }
+
   design_list <- sim_global <- fixed_pred <- sim_f <- list()
   for (D in names(newx)) {
     newx_here <- newx[[D]]
@@ -295,10 +366,10 @@ terms_has_by <- vapply(terms_have_vars, function(x) {
       fixed = do.call(cbind, design_list_here[is_beta_here]),
       random = do.call(cbind, design_list_here[is_gamma_here])
     )
-    sim_global[[D]] <- 
+    sim_global[[D]] <-
       design_list[[D]]$random %*% sim_gamma[colnames(design_list[[D]]$random), ]
-    if (!is.null(design_list[[D]]$fixed)) {
-      fixed_pred[[D]] <- 
+    if (!is.null(design_list[[D]]$fixed) && ncol(design_list[[D]]$fixed) > 0L) {
+      fixed_pred[[D]] <-
         design_list[[D]]$fixed %*% beta_hat[colnames(design_list[[D]]$fixed)]
     } else {
       fixed_pred[[D]] <- rep(0, nrow(newx_here))
@@ -306,18 +377,15 @@ terms_has_by <- vapply(terms_have_vars, function(x) {
     sim_f[[D]] <- sim_global[[D]] + drop(fixed_pred[[D]])
   }
 
-  # D=1;matplot(unlist(newx[[D]]),sim_f[[D]], type="l" )
-
   result <- get_group_quantiles(
     sim_f = sim_f,
     new_xa = design_list,
     sim_gamma = sim_gamma,
-    random_info = fit$objects$parameters_info$gamma,
+    random_info = random_info,
     weights = weights,
     probs = probs,
     probs_envelope = probs_envelope
   )
-
 
   result$x <- lapply(newx, "[[", 1)
   result$sim <- lapply(sim_f, exp)
@@ -332,18 +400,87 @@ terms_has_by <- vapply(terms_have_vars, function(x) {
   result
 }
 
-cond_sim_iid <- function(fit, term, n) {
-  terms_here <- grep(term, unlist(lapply(fit$terms, function(xx) xx$var)))
-  model_here <- unlist(lapply(fit$terms[terms_here], function(xx) xx$model))
+#' Conditional simulation for IWP/HIWP terms
+#'
+#' @description
+#' Draw conditional simulations of the Gaussian process model components,
+#' then summarize the resulting linear predictors and group-level effect curves.
+#'
+#' @param laplace Output of \code{\link[adlaplace]{log_lik_laplace}(..., deriv = TRUE)}.
+#' @param model_data Output of \code{\link[adlaplace]{model_data}()}.
+#' @param newx Optional list of prediction data frames, one per variable.
+#'   When \code{NULL}, a default prediction grid is built from term knot ranges.
+#' @param n Number of conditional draws to simulate.
+#' @param weights Optional weights used to average group-level effects.
+#' @param probs Numeric vector of probabilities used when computing quantiles.
+#' @param probs_envelope Numeric vector of probabilities for envelopes.
+#'
+#' @return A list with components \code{sim}, \code{quantiles}, and \code{envelope}.
+#' @seealso \code{\link{cond_sim_iwp_at}}, \code{\link{cond_sim_iwp_inputs}}
+#' @export
+cond_sim_iwp <- function(
+  laplace,
+  model_data,
+  newx = NULL,
+  n = 500,
+  weights = NULL,
+  probs = c(0.025, 0.5, 0.975),
+  probs_envelope = c(0.1, 0.9)
+) {
+  inputs <- cond_sim_iwp_inputs(laplace, model_data)
+  cond_sim_iwp_at(
+    terms = inputs$terms,
+    random_info = inputs$random_info,
+    beta = inputs$beta,
+    gamma_mode = inputs$gamma_mode,
+    half_H_inv = inputs$half_H_inv,
+    newx = newx,
+    n = n,
+    weights = weights,
+    probs = probs,
+    probs_envelope = probs_envelope
+  )
+}
 
+get_gamma_sim <- function(half_H_inv, gamma_mode, gamma_label, random_info, term, n) {
+  gamma_sim <- cond_sim_gamma(half_H_inv, gamma_mode, gamma_label, n)
+  gamma_here <- random_info$term == term
+  gamma_sim[gamma_here, , drop = FALSE]
+}
+
+cond_sim <- function(laplace, model_data, term, newx = NULL, n = 500) {
+  terms <- model_data$terms
+  terms_here <- grep(term, vapply(terms, function(xx) xx@term, character(1L)))
+  model_here <- vapply(terms[terms_here], function(xx) xx@model, character(1L))
+
+  if (any(model_here %in% c("hiwp", "iwp", "rsiwp"))) {
+    return(cond_sim_iwp(laplace, model_data, newx = newx, n = n))
+  }
+  if (any(model_here %in% c("iid"))) {
+    return(cond_sim_iid(laplace, model_data, term, n))
+  }
+
+  stop("No supported model found for term.", call. = FALSE)
+}
+
+cond_sim_iid <- function(laplace, model_data, term, n) {
+  inputs <- cond_sim_iwp_inputs(laplace, model_data)
+  model_here <- inputs$random_info$model[inputs$random_info$term == term]
   if (!all(model_here == "iid")) {
     warning("model should be iid to use cond_sim_iid")
   }
-  gamma_here <- grep(term, fit$random_info$term)
-  sx1 <- colnames(fit$obj$env$data$A)[gamma_here]
+  gamma_here <- inputs$random_info$term == term
+  sx1 <- inputs$random_info$gamma_label[gamma_here]
   sx <- gsub(paste0("(factor[(])?", term, "[)]?"), "", sx1)
 
-  gamma_sim <- get_gamma_sim(fit, term, n)
+  gamma_sim <- get_gamma_sim(
+    inputs$half_H_inv,
+    inputs$gamma_mode,
+    inputs$random_info$gamma_label,
+    inputs$random_info,
+    term,
+    n
+  )
   list(
     x = sx,
     y = gamma_sim,

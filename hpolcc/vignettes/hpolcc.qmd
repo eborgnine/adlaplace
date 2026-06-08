@@ -48,13 +48,42 @@ cc_formula <- dirichlet_multinom(
     ref_value = 40
 )
 
-config_dev <- list(
+
+```
+
+
+## Fit
+
+```{r fit}
+fit <- hnlm(
+    formula = cc_formula,
+    data = london,
+    config = list(
     transform_theta = TRUE,
     num_threads = 8L,
     num_shards = 100L,
     verbose = FALSE
+    ),
+    control = list(maxit = 100, trace = 3, REPORT = 1)
 )
+
+fit
+summary(fit)
+fit$coefficients$beta
+fit$log_lik
+stats::coef(fit)
+fit$sample$sim[[1]][1:5, 1:3]
 ```
+
+
+```{r plot_results}
+matplot(fit$sample$x$pm10, fit$sample$sim$pm10, type='l', lty=1, col='#00000010',
+    xlab = "PM10", ylab = "RR", xaxs='i', yaxs='i',
+    ylim = quantile(fit$sample$sim$pm10, prob = c(0.005, 0.995)))
+matlines(fit$sample$x$pm10, fit$sample$envelope$common$pm10, lty=c(2,1,2), col='red')
+
+```
+
 
 ## AD development check
 
@@ -62,6 +91,12 @@ config_dev <- list(
 running outer optimization.
 
 ```{r for_dev}
+config_dev <- list(
+    transform_theta = TRUE,
+    num_threads = 8L,
+    num_shards = 100L,
+    verbose = FALSE
+)
 forres <- hnlm(
     cc_formula,
     data = london,
@@ -118,38 +153,18 @@ head(lik$opt$solution)
 `neg_log_lik` is the negative profile log-likelihood after inner optimization
 over random effects.
 
+Conditional simulations of IWP smooths use `adlaplaceHgp::cond_sim_iwp()` with
+the Laplace output and model-data bundle:
 
-
-```{r, optim}
-mle <- stats::optim(
-    par = forres$model_data$data$info$parameters$init,
-    fn = adlaplace::outer_fn,
-    gr = adlaplace::outer_gr,
-    method = "L-BFGS-B",
-    control = list(maxit = 50, trace = 3, REPORT = 1),
-    lower = forres$model_data$data$info$parameters$lower,
-    upper = forres$model_data$data$info$parameters$upper,
-    config = forres$config,
-    ad_fun = forres$ad_fun,
-    cache = forres$cache,
-    control_inner = list(report.level = 0)
-  )
-
-```
-
-## Full fit
-
-this currently takes too long to run.  
-```{r fit, eval=FALSE}
-fit <- hnlm(
-    cc_formula,
-    data = london,
-    config = modifyList(config_dev, list(
-        num_threads = 8L,
-        num_shards = 100L,
-        verbose = TRUE
-    )),
-    control = list(maxit = 100, trace = 3, REPORT = 1)
+```{r cond-sim}
+sim <- adlaplaceHgp::cond_sim_iwp(
+  laplace = lik,
+  model_data = forres$model_data,
+  n = 100
 )
+names(sim)
+# inspect assembled inputs:
+# str(adlaplaceHgp::cond_sim_iwp_inputs(lik, forres$model_data))
 ```
+
 

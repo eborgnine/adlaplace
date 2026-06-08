@@ -25,6 +25,7 @@ Collate:
     'case_crossover.R'
     'dirichlet_multinom.R'
     'format_parameters.R'
+    'hnlm-methods.R'
     'hnlm.R'
     'remove_holidays.R'
     'zzz.R'

@@ -13,7 +13,11 @@
 #' @param for_dev If \code{TRUE}, return intermediate objects for development.
 #' @param ... Unused.
 #'
-#' @return Fitted model list, or development objects when \code{for_dev = TRUE}.
+#' @return
+#' When \code{for_dev = TRUE}, a development bundle of class \code{c("hnlm_dev", "hnlm")}.
+#' Otherwise a fitted object of class \code{hnlm} with primary slots
+#' \code{coefficients}, \code{log_lik}, \code{optim}, \code{laplace},
+#' \code{model_data}, \code{ad_fun}, and optional \code{sample}.
 #' @export
 hnlm <- function(
   formula,
@@ -28,6 +32,7 @@ hnlm <- function(
   for_dev = FALSE,
   ...
 ) {
+  call <- match.call()
   config_defaults <- list(
     verbose = FALSE,
     transform_theta = TRUE,
@@ -114,15 +119,20 @@ hnlm <- function(
   )
 
   if (for_dev) {
-    return(list(
-      model_data = model_data,
-      config = config,
-      formula = formula,
-      data = model_data$data$data,
-      control = control,
-      control_inner = control_inner,
-      cache = cache,
-      ad_fun = ad_fun
+    return(structure(
+      list(
+        model_data = model_data,
+        config = config,
+        formula = formula,
+        data = model_data$data$data,
+        terms = model_data$terms,
+        control = control,
+        control_inner = control_inner,
+        cache = cache,
+        ad_fun = ad_fun,
+        call = call
+      ),
+      class = c("hnlm_dev", "hnlm", "list")
     ))
   }
 
@@ -152,7 +162,7 @@ hnlm <- function(
     cat("threads: ", config$num_threads, "\n")
   }
 
-  mle <- try(stats::optim(
+  optim_result <- try(stats::optim(
     par = config$opt$init,
     fn = adlaplace::outer_fn,
     gr = adlaplace::outer_gr,
@@ -168,78 +178,95 @@ hnlm <- function(
 
   config$gamma <- get("gamma", cache)
 
-  result <- list(
-    opt = mle,
-    objects = list(
-      config = config,
-      formula = formula,
-      terms = model_data$terms,
-      parameters_info = model_data$data$info,
-      random_info = model_data$data$info$gamma,
-      control_inner = control_inner,
-      control = control,
-      cache = cache,
-      ad_fun = ad_fun,
-      model_data = model_data
-    )
-  )
   if (verbose_orig) {
     cat("one last evaluation of likelihood\n")
   }
 
-  par_name <- grep("solution|par", names(result$opt), value = TRUE)[1]
-  result$extra <- try(adlaplace::log_lik_laplace(
-    x = result$opt[[par_name]],
-    gamma = result$objects$cache$gamma,
-    config = result$objects$config,
-    control = result$objects$control_inner,
+  par_name <- grep("solution|par", names(optim_result), value = TRUE)[1]
+  par_opt <- optim_result[[par_name]]
+
+  laplace <- try(adlaplace::log_lik_laplace(
+    x = par_opt,
+    gamma = cache$gamma,
+    config = config,
+    control = control_inner,
     ad_fun = ad_fun,
     deriv = TRUE
   ))
-  result$extra$parameters_orig <- result$parameters
-  result$parameters <- try(format_parameters(result))
+
+  coefficients <- try(format_parameters(
+    laplace = laplace,
+    parameters_info = model_data$data$info,
+    transform_theta = isTRUE(config$transform_theta)
+  ))
 
   if (verbose_orig) {
     cat("hessian of parameters\n")
   }
-  result$hessian_parameters <- try(
+  hessian_outer <- try(
     Matrix::forceSymmetric(numDeriv::jacobian(
       func = adlaplace::outer_gr,
-      x = result$opt[[par_name]],
-      config = result$objects$config,
-      control_inner = result$objects$control_inner,
+      x = par_opt,
+      config = config,
+      control_inner = control_inner,
       ad_fun = ad_fun,
-      cache = result$objects$cache
+      cache = cache
     ), "U")
   )
+
   if (verbose_orig) {
     cat("conditional samples\n")
   }
-  result$sample <- try(adlaplaceHgp::cond_sim_iwp(
-    fit = result,
-    n = c(result$objects$config$num_sim, 500)[1]
+  sample <- try(adlaplaceHgp::cond_sim_iwp(
+    laplace = laplace,
+    model_data = model_data,
+    n = c(config$num_sim, 500)[1]
   ))
 
-  seq_inner <- seq(
-    from = max(c(0, nrow(result$parameters$beta))) + 1,
-    length.out = nrow(result$parameters$gamma)
-  )
-
-  H_inner <- result$extra$hessian$H_inner <-
-    result$extra$hessian$H[seq_inner, seq_inner]
-
-  which_is_iid <- grepl("iid", result$parameters$gamma$model)
-  if (any(which_is_iid) && requireNamespace("WoodburyMatrix", quietly = TRUE)) {
-    Dinv <- H_inner[which_is_iid, which_is_iid]
-
-    for_var_years <- WoodburyMatrix::WoodburyMatrix(
-      A = Matrix::solve(Dinv),
-      B = H_inner[!which_is_iid, !which_is_iid],
-      X = H_inner[which_is_iid, !which_is_iid],
-      symmetric = TRUE
+  hessian <- list(outer = hessian_outer, inner = NULL, var_iid = NULL)
+  if (!is.null(coefficients$gamma) && nrow(coefficients$gamma) > 0L) {
+    seq_inner <- seq(
+      from = max(c(0L, nrow(coefficients$beta))) + 1L,
+      length.out = nrow(coefficients$gamma)
     )
-    result$extra$hessian$var_iid <- WoodburyMatrix::solve(for_var_years)
+    if (!is.null(laplace$extra$hessian$H)) {
+      hessian$inner <- laplace$extra$hessian$H[seq_inner, seq_inner]
+    }
+    which_is_iid <- grepl("iid", coefficients$gamma$model)
+    if (any(which_is_iid) &&
+        !is.null(hessian$inner) &&
+        requireNamespace("WoodburyMatrix", quietly = TRUE)) {
+      H_inner <- hessian$inner
+      Dinv <- H_inner[which_is_iid, which_is_iid]
+      for_var_years <- WoodburyMatrix::WoodburyMatrix(
+        A = Matrix::solve(Dinv),
+        B = H_inner[!which_is_iid, !which_is_iid],
+        X = H_inner[which_is_iid, !which_is_iid],
+        symmetric = TRUE
+      )
+      hessian$var_iid <- WoodburyMatrix::solve(for_var_years)
+    }
   }
 
-  result
+  structure(
+    list(
+      coefficients = coefficients,
+      log_lik = laplace$log_lik,
+      optim = optim_result,
+      converged = isTRUE(optim_result$convergence == 0L),
+      laplace = laplace,
+      hessian = hessian,
+      formula = formula,
+      model_data = model_data,
+      ad_fun = ad_fun,
+      config = config,
+      terms = model_data$terms,
+      control = control,
+      control_inner = control_inner,
+      cache = cache,
+      sample = sample,
+      call = call
+    ),
+    class = c("hnlm", "list")
+  )
 }

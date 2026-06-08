@@ -5,8 +5,9 @@
 \title{Conditional simulation for IWP/HIWP terms}
 \usage{
 cond_sim_iwp(
-  fit,
-  newx,
+  laplace,
+  model_data,
+  newx = NULL,
   n = 500,
   weights = NULL,
   probs = c(0.025, 0.5, 0.975),
@@ -14,39 +15,28 @@ cond_sim_iwp(
 )
 }
 \arguments{
-\item{fit}{A fitted model list with components \code{objects$terms},
-\code{objects$parameters_info$gamma}, \code{parameters$gamma}, \code{parameters$beta},
-and Laplace output in \code{extra} (including \code{half_H_inv} when
-\code{log_lik_laplace(..., deriv = TRUE)} was used).}
+\item{laplace}{Output of \code{\link[adlaplace]{log_lik_laplace}(..., deriv = TRUE)}.}
+
+\item{model_data}{Output of \code{\link[adlaplace]{model_data}()}.}
 
 \item{newx}{Optional list of prediction data frames, one per variable.
-When omitted, a default prediction grid is built from the term ranges.}
+When \code{NULL}, a default prediction grid is built from term knot ranges.}
 
 \item{n}{Number of conditional draws to simulate.}
 
-\item{weights}{Optional weights used to average group-level effects.
-Supply either a named numeric vector keyed by group or a named list of
-such vectors keyed by variable. If \code{NULL}, equal weights are used.}
+\item{weights}{Optional weights used to average group-level effects.}
 
-\item{probs}{Numeric vector of probabilities used when computing
-quantiles.}
+\item{probs}{Numeric vector of probabilities used when computing quantiles.}
 
-\item{probs_envelope}{Numeric vector of probabilities used for computing
-prediction intervals/envelopes.}
+\item{probs_envelope}{Numeric vector of probabilities for envelopes.}
 }
 \value{
-A list with components:
-\describe{
-\item{\code{sim}}{Simulated linear predictors for each variable.}
-\item{\code{quantiles}}{Pointwise quantiles of \code{sim} using \code{probs}.}
-\item{\code{group_quantiles}}{Pointwise quantiles of transformed
-group-level effects for each variable and group.}
-\item{\code{weighted_quantiles}}{Pointwise quantiles of the weighted
-average group-level effects (on the exponential scale) for each variable.}
-}
+A list with components \code{sim}, \code{quantiles}, and \code{envelope}.
 }
 \description{
 Draw conditional simulations of the Gaussian process model components,
-then summarize the
-resulting linear predictors and group-level effect curves.
+then summarize the resulting linear predictors and group-level effect curves.
+}
+\seealso{
+\code{\link{cond_sim_iwp_at}}, \code{\link{cond_sim_iwp_inputs}}
 }

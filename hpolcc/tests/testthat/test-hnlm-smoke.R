@@ -11,6 +11,8 @@ test_that("hnlm for_dev builds ad_fun via ad_fun", {
     ),
     for_dev = TRUE
   )
+  expect_s3_class(forres, "hnlm")
+  expect_s3_class(forres, "hnlm_dev")
   expect_true(methods::is(forres$ad_fun, "ad_fun"))
   expect_true(is.list(forres$model_data))
   expect_true("observations" %in% names(forres$model_data))
@@ -23,4 +25,30 @@ test_that("hnlm for_dev builds ad_fun via ad_fun", {
   )
   dens <- adlaplace::joint_log_dens(forres$ad_fun, x)
   expect_true(is.finite(dens))
+})
+
+test_that("hnlm fit returns flat hnlm object", {
+  skip_if_not_installed("adlaplace")
+  skip_if_not_installed("adlaplaceHgp")
+  td <- make_hpolcc_test_data()
+  fit <- hpolcc::hnlm(
+    formula = td$formula,
+    data = td$data,
+    config = list(
+      verbose = FALSE,
+      num_shards = 4L,
+      num_threads = 1L
+    ),
+    control = list(maxit = 3L, trace = 0),
+    control_inner = list(report.level = 0, maxit = 5L)
+  )
+  expect_s3_class(fit, "hnlm")
+  expect_false("hnlm_dev" %in% class(fit))
+  expect_null(fit$objects)
+  expect_true(is.list(fit$coefficients))
+  expect_true(is.finite(fit$log_lik))
+  expect_true(is.list(fit$laplace))
+  expect_true(is.list(fit$model_data))
+  expect_true(is.list(fit$hessian))
+  expect_true(is.list(fit$optim))
 })

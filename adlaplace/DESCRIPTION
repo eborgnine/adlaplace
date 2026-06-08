@@ -39,6 +39,7 @@ Collate:
     'inner_opt.R'
     'intercept.R'
     'iwp.R'
+    'laplace_half_H_inv.R'
     'linear.R'
     'log_lik_deriv.R'
     'log_lik_laplace.R'

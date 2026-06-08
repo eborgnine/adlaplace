@@ -7,8 +7,7 @@
 hnlm(
   formula,
   data,
-  cc_design = c(),
-  config = list(dirichlet = TRUE, boundary_is_random = FALSE, transform_theta = TRUE),
+  config = list(transform_theta = TRUE),
   control = list(maxit = 1000, trace = 3, REPORT = 1),
   control_inner = list(report.level = 0),
   for_dev = FALSE,
@@ -16,54 +15,28 @@ hnlm(
 )
 }
 \arguments{
-\item{formula}{A formula object specifying the model to be fitted.}
+\item{formula}{Model formula with a \code{dirichlet_multinom(...)} response on the LHS.}
 
-\item{data}{A data frame containing the variables specified in the formula.}
+\item{data}{Data frame containing variables referenced in \code{formula}.}
 
-\item{cc_design}{An object specifying the case-crossover design.}
+\item{config}{Configuration list. Common entries: \code{transform_theta},
+\code{num_threads}, \code{num_shards}, \code{verbose}.}
 
-\item{config}{A list of configuration options including:
-\itemize{
-  \item dirichlet: Logical; whether to use Dirichlet distribution (default: TRUE)
-  \item boundary_is_random: Logical; whether boundary should be treated as random (default: FALSE)
-  \item transform_theta: Logical; whether to transform theta parameters (default: TRUE)
-}}
+\item{control}{Control list passed to outer \code{optim}.}
 
-\item{control}{A list of control options for optimization including:
-\itemize{
-  \item maxit: Maximum number of iterations (default: 1000)
-  \item trace: Level of tracing output (default: 3)
-  \item REPORT: Reporting frequency (default: 1)
-}}
+\item{control_inner}{Control list passed to inner optimization.}
 
-\item{control_inner}{A list of control options for inner optimization including:
-\itemize{
-  \item report.level: Reporting level for inner optimization (default: 0)
-}}
+\item{for_dev}{If \code{TRUE}, return intermediate objects for development.}
 
-\item{for_dev}{Logical; if TRUE, returns intermediate objects for development (default: FALSE).}
-
-\item{...}{Additional arguments passed to methods.}
+\item{...}{Unused.}
 }
 \value{
-A list containing the fitted model object and related information.
+When \code{for_dev = TRUE}, a development bundle of class \code{c("hnlm_dev", "hnlm")}.
+Otherwise a fitted object of class \code{hnlm} with primary slots
+\code{coefficients}, \code{log_lik}, \code{optim}, \code{laplace},
+\code{model_data}, \code{ad_fun}, and optional \code{sample}.
 }
 \description{
-This function fits a hierarchical model using the specified formula and data,
-incorporating case-crossover designs, fixed and random effects, and precision
-matrices for random effects.
-}
-\details{
-The function handles fixed effects, random effects, and their associated
-precision matrices. It optimizes via \pkg{adlaplace} automatic differentiation
-and Laplace approximation (inner optimization over random effects when present).
-}
-\examples{
-# Example usage
-# data <- data.frame(y = rnorm(100), x1 = rnorm(100), x2 = rnorm(100))
-# result <- hnlm(y ~ x1 + x2, data = data)
-
-}
-\seealso{
-\code{\link{f}} for specifying model terms
+Fits a hierarchical case-crossover model with a \code{dirichlet_multinom} response
+term, using \pkg{adlaplace} automatic differentiation and Laplace approximation.
 }
