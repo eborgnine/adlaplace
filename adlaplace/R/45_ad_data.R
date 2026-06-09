@@ -93,6 +93,9 @@ normalize_config_for_ptr <- function(config, data, kind = NULL) {
       config$shards <- default_obs_shards(n_obs)
     }
   }
+  if (is.null(config[["beta"]])) {
+    config$beta <- numeric(0)
+  }
   n_gamma <- layout$n_gamma
   gamma_len <- if (is.null(config[["gamma"]])) {
     0L

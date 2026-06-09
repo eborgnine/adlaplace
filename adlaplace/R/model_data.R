@@ -63,9 +63,9 @@ model_data <- function(formula, data, verbose = FALSE, na_omit = TRUE) {
     all_data$elgm_matrix <- elgm_mats[[1L]]
   }
 
-  n_beta <- nrow(all_data$info$beta)
-  n_gamma <- nrow(all_data$info$gamma)
-  n_theta <- nrow(all_data$info$theta)
+  n_beta <- max(c(0, nrow(all_data$info$beta))) # nrow might be NULL
+  n_gamma <- max(c(0, nrow(all_data$info$gamma)))
+  n_theta <- max(c(0, nrow(all_data$info$theta)))
 
   observations <- list()
   random <- list()

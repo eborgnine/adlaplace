@@ -192,7 +192,9 @@ hessian <- function(ad_fun_ptr, x, shards = NULL, inner = FALSE, verbose = FALSE
 #' Runs the inner optimization problem (typically over \eqn{\gamma}) using the
 #' trustOptim sparse trust-region Conjugate Gradient solver. This function
 #' evaluates the objective, gradient, and Hessian through the pre-built AD pack
-#' (external pointer) and returns the solution along with curvature information.
+#' (external pointer) and returns the solution along with curvature
+NULL
+
 #'
 #' @param x Numeric full parameter vector of length \code{Nparams}.
 #' @param parameters Numeric vector of fixed outer parameters
@@ -201,28 +203,21 @@ hessian <- function(ad_fun_ptr, x, shards = NULL, inner = FALSE, verbose = FALSE
 #' @param gamma Numeric vector of starting values for inner parameters
 #'   (\code{gamma}; length \code{Ngamma}) used by \code{inner_opt()}.
 #' @param ad_fun \code{ad_fun} S4 object from \code{ad_fun(ad_fun_ptr)}.
-#' @param verbose Logical; if \code{TRUE}, print threads, shards, and parameter sizes.
-#' @param control List of trust-region control parameters for
-#'   \code{inner_opt()} (see \pkg{trustOptim}).
-#' @param deriv Logical: if \code{TRUE}, return full outer gradient and Hessian at the
-#'   inner solution; if \code{FALSE}, return inner quantities only (default).
+#' @param verbose Logical; if \code{TRUE}, print threads, shards, and parameter
+NULL
+
 #'
 #' @return
 #'   \item{\code{inner_opt()}}{Returns \code{log_lik}, \code{neg_log_lik}
 #'   (Laplace profile likelihood and its negation), \code{parameters} (outer
-#'   \code{beta} and \code{theta} passed in), \code{full_parameters} (outer plus
-#'   inner \code{gamma} at the mode), \code{fval} (inner objective:
-#'   negative log joint density at \eqn{\hat\gamma}), \code{solution},
-#'   \code{gradient} (list \code{inner}, \code{outer}; \code{outer} empty when
-#'   \code{deriv=FALSE}), \code{hessian} (list \code{inner}, \code{outer},
-#'   \code{chol_inner}, \code{half_log_det}; when \code{deriv=TRUE} also
-#'   \code{half_H_inv}, \code{H_inv}, and \code{trace3}),
-#'   \code{iterations}, \code{status}, \code{trust.radius}, \code{method}.
-#'   Objective and derivatives use the **negative log-density** convention.}
+#'   \code{beta} and \code{theta} passed in), \code{full_parameters} (outer
+NULL
+
 #'
 #' @details
-#' This calls the sparse method from the \code{TrustOptim} package via the Cpp interface.
-#' \code{inner_opt()} negates tape log-density values in C++ for minimization.
+#' This calls the sparse method from the \code{TrustOptim} package via the Cpp
+NULL
+
 #'
 #' @name innerOpt
 NULL

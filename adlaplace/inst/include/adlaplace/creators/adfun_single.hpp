@@ -28,7 +28,7 @@ inline GroupPack build_ad_fun_random(
   }
 
   if (cfg.verbose) {
-    Rcpp::Rcout << "build_ad_fun_random\n";
+    Rcpp::Rcout << "build_ad_fun_random: taping...\n";
   }
 
   const CPPAD_TESTVECTOR(double) ad_params_G = make_ad_params_seed(cfg, model);
@@ -49,6 +49,9 @@ inline GroupPack build_ad_fun_random(
   GroupPack pack;
   pack.fun = std::move(fun);
   pack.owner_thread_assigned = false;
+  if (cfg.verbose) {
+    Rcpp::Rcout << "build_ad_fun_random: computing sparsity...\n";
+  }
   adpack_sparsity(ad_params_G, model.seq_gamma, pack, cfg.verbose);
   return pack;
 }
@@ -62,7 +65,7 @@ inline GroupPack build_ad_fun_parameters(
   validate_config_matches_model(cfg, model);
 
   if (cfg.verbose) {
-    Rcpp::Rcout << "build_ad_fun_parameters\n";
+    Rcpp::Rcout << "build_ad_fun_parameters: taping...\n";
   }
 
   const CPPAD_TESTVECTOR(double) ad_params_G = make_ad_params_seed(cfg, model);
@@ -83,6 +86,9 @@ inline GroupPack build_ad_fun_parameters(
   GroupPack pack;
   pack.fun = std::move(fun);
   pack.owner_thread_assigned = false;
+  if (cfg.verbose) {
+    Rcpp::Rcout << "build_ad_fun_parameters: computing sparsity...\n";
+  }
   adpack_sparsity(ad_params_G, model.seq_gamma, pack, cfg.verbose);
   return pack;
 }

@@ -51,3 +51,38 @@ test_that("ad_fun builds from hnlm for_dev model_data bundle", {
   H <- adlaplace::hessian(forres$ad_fun, x)
   expect_true(inherits(H, "Matrix") || inherits(H, "matrix"))
 })
+
+test_that("ad_fun builds from hnlm for_dev with no fixed effects", {
+  skip_if_not_installed("adlaplace")
+  td <- make_hpolcc_test_data()
+  formula <- hpolcc::dirichlet_multinom(
+    count,
+    by = c("year", "region", "date")
+  ) ~ adlaplace::iid(date)
+  forres <- hpolcc::hnlm(
+    formula = formula,
+    data = td$data,
+    config = list(
+      verbose = FALSE,
+      num_shards = 2L,
+      num_threads = 1L
+    ),
+    for_dev = TRUE
+  )
+
+  expect_equal(as.integer(forres$ad_fun@sizes["beta"]), 0L)
+  expect_equal(nrow(forres$model_data$data$info$beta), 0L)
+
+  n_gamma <- as.integer(forres$ad_fun@sizes["gamma"])
+  n_theta <- as.integer(forres$ad_fun@sizes["theta"])
+  x <- c(
+    rep(0, n_gamma),
+    forres$config$opt$init[seq_len(n_theta)]
+  )
+
+  dens <- adlaplace::joint_log_dens(forres$ad_fun, x)
+  expect_true(is.finite(dens))
+
+  g <- adlaplace::grad(forres$ad_fun, x)
+  expect_equal(length(g), length(x))
+})

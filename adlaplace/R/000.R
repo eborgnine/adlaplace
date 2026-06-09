@@ -25,6 +25,22 @@ setOldClass("ad_fun_ptr")
 .my_theta_parscale <- 1
 
 #' @keywords internal
+ad_fun_shard_label <- function(shard, name = NULL) {
+  if (!is.null(name) && length(name) == 1L && nzchar(name)) {
+    return(name)
+  }
+  paste0(shard@ad_kind, "/", shard@ad_fun)
+}
+
+#' @keywords internal
+init_from_info_block <- function(block) {
+  if (is.null(block) || !is.data.frame(block) || nrow(block) == 0L) {
+    return(numeric(0))
+  }
+  as.numeric(block$init)
+}
+
+#' @keywords internal
 is_model_data_bundle <- function(x) {
   is.list(x) &&
     all(c("data", "observations", "random", "parameters") %in% names(x)) &&

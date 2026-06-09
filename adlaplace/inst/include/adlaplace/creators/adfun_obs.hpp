@@ -38,6 +38,9 @@ inline std::vector<GroupPack> build_ad_fun_obs(
   cppad_parallel_setup(1);
 
   for (size_t d = 0; d < ng; ++d) {
+    if (cfg.verbose) {
+      Rcpp::Rcout << "  taping observation group " << (d + 1) << " / " << ng << "\n";
+    }
     CppAD::vector<CppAD::AD<double>> ad_params(model.num_full);
     for (size_t j = 0; j < model.num_full; ++j) {
       ad_params[j] = ad_params_G[j];
@@ -49,6 +52,9 @@ inline std::vector<GroupPack> build_ad_fun_obs(
   }
 
   for (size_t d = 0; d < ng; ++d) {
+    if (cfg.verbose) {
+      Rcpp::Rcout << "  sparsity observation group " << (d + 1) << " / " << ng << "\n";
+    }
     adpack_sparsity(ad_params_G, model.seq_gamma, result[d], cfg.verbose);
   }
   cppad_parallel_setup(1);

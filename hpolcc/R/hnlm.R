@@ -61,7 +61,8 @@ hnlm <- function(
   ))
   if (length(resp_idx) != 1L) {
     stop("formula must include exactly one dirichlet_multinom(...) response term",
-      call. = FALSE)
+      call. = FALSE
+    )
   }
   resp <- model_terms[[resp_idx]]
   if (!length(resp@by)) {
@@ -74,11 +75,10 @@ hnlm <- function(
     verbose = config$verbose,
     na_omit = TRUE
   )
-  cc_matrix <- model_data$data$elgm_matrix
 
   if (config$verbose) {
     cat("number per strata\n")
-    print(table(diff(cc_matrix@p)))
+    print(table(diff(model_data$data$elgm_matrix@p)))
     cat("\ncollecting terms\n")
   }
 
@@ -99,7 +99,7 @@ hnlm <- function(
 
   config$shards <- adlaplace::ad_shards(
     A = model_data$data$A,
-    elgm_matrix = cc_matrix,
+    elgm_matrix = model_data$data$elgm_matrix,
     num_shards = config$num_shards,
     min_groups = min(config$num_shards, config$num_threads * 4L)
   )
@@ -108,7 +108,7 @@ hnlm <- function(
     cat("done.\n")
     cat(
       "getting AD fun, ",
-      paste(dim(config$shards), collapse = ","), "shards\n"
+      paste(dim(config$shards), collapse = ","), "shards..."
     )
   }
 
@@ -117,6 +117,9 @@ hnlm <- function(
     config,
     num_threads = config$num_threads
   )
+  if (verbose_orig) {
+    cat("done.\n")
+  }
 
   if (for_dev) {
     return(structure(
@@ -227,8 +230,8 @@ hnlm <- function(
   hessian <- list(outer = hessian_outer, inner = NULL, var_iid = NULL)
   n_beta <- nrow(model_data$data$info$beta)
   if (!inherits(coefficients, "try-error") &&
-      !is.null(coefficients$gamma) &&
-      nrow(coefficients$gamma) > 0L) {
+    !is.null(coefficients$gamma) &&
+    nrow(coefficients$gamma) > 0L) {
     h_pack <- laplace$extra$hessian
     if (is.list(h_pack) && !is.null(h_pack$inner)) {
       hessian$inner <- h_pack$inner
@@ -246,8 +249,8 @@ hnlm <- function(
     }
     which_is_iid <- grepl("iid", coefficients$gamma$model)
     if (any(which_is_iid) &&
-        !is.null(hessian$inner) &&
-        requireNamespace("WoodburyMatrix", quietly = TRUE)) {
+      !is.null(hessian$inner) &&
+      requireNamespace("WoodburyMatrix", quietly = TRUE)) {
       H_inner <- hessian$inner
       Dinv <- H_inner[which_is_iid, which_is_iid]
       for_var_years <- WoodburyMatrix::WoodburyMatrix(

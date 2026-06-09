@@ -220,19 +220,26 @@ inline CscPattern::CscPattern(const Rcpp::S4& sm) : dim(2, 0) {
   }
 }
 
+inline void adlaplace_assign_numeric_vec(
+  std::vector<double>& out,
+  const Rcpp::List& cfg,
+  const char* key) {
+  if (!cfg.containsElementNamed(key) || Rf_isNull(cfg[key])) {
+    out.clear();
+    return;
+  }
+  Rcpp::NumericVector nv = cfg[key];
+  out.assign(nv.begin(), nv.end());
+}
+
 inline Config::Config(const Rcpp::List& cfg)
   : verbose(adlaplace_get_bool(cfg, "verbose", false)),
     transform_theta(adlaplace_get_bool(cfg, "transform_theta", false)),
     num_threads(adlaplace_get_int(cfg, "num_threads", 1))
 {
-  Rcpp::NumericVector beta_nv = cfg["beta"];
-  this->beta.assign(beta_nv.begin(), beta_nv.end());
-
-  Rcpp::NumericVector gamma_nv = cfg["gamma"];
-  this->gamma.assign(gamma_nv.begin(), gamma_nv.end());
-
-  Rcpp::NumericVector theta_nv = cfg["theta"];
-  this->theta.assign(theta_nv.begin(), theta_nv.end());
+  adlaplace_assign_numeric_vec(beta, cfg, "beta");
+  adlaplace_assign_numeric_vec(gamma, cfg, "gamma");
+  adlaplace_assign_numeric_vec(theta, cfg, "theta");
 
   if (cfg.containsElementNamed("shards")) {
     shards = CscPattern(Rcpp::as<Rcpp::S4>(cfg["shards"]));

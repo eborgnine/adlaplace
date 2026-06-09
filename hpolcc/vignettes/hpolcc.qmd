@@ -1,8 +1,15 @@
 ---
 title: "Case-crossover models with hpolcc"
+author: "Patrick Brown"
+date: "`r Sys.Date()`"
 format:
   html:
     toc: true
+    toc-depth: 3
+vignette: >
+  %\VignetteIndexEntry{Case-crossover models with hpolcc}
+  %\VignetteEngine{quarto::html}
+  %\VignetteEncoding{UTF-8}
 ---
 
 ## Introduction
@@ -16,7 +23,7 @@ Strata are defined by day-of-week within month and year via
 integrated Wiener process smooth (`iwp(pm10, ...)`), with relative humidity as
 a linear fixed effect.
 
-```{r setup}
+```{r setup, include=FALSE}
 # adlaplace must load before hpolcc/data.table so CppAD OpenMP setup runs first
 library(adlaplace)
 library(hpolcc)

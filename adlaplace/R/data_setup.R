@@ -126,6 +126,20 @@ data_setup <- function(formula, data, verbose = FALSE) {
   theta_setup$id <- seq.int(0, length.out = nrow(theta_setup))
 
   beta_setup <- do.call(rbind, lapply(terms, beta_info, data = data))
+  if (is.null(beta_setup)) {
+    beta_setup <- data.frame(
+      term = character(),
+      model = character(),
+      label = character(),
+      order = numeric(),
+      beta_label = character(),
+      init = numeric(),
+      lower = numeric(),
+      upper = numeric(),
+      parscale = numeric(),
+      stringsAsFactors = FALSE
+    )
+  }
 
   random_info_list <- Filter(Negate(is.null), lapply(terms, random_info, data = data))
   if (length(random_info_list) == 0L) {
