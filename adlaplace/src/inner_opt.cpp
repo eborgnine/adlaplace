@@ -117,18 +117,54 @@ Rcpp::S4 csc_to_dtCMatrix_lower(
 	return mat;
 }
 
-// Numeric LDL from chol_update (x on L1 pattern, d on diagonal); pattern from groups.
+Rcpp::S4 csc_to_dgCMatrix(
+	const std::vector<int>& p,
+	const std::vector<int>& i,
+	const std::vector<double>& x,
+	int n)
+{
+	if (static_cast<size_t>(n + 1) != p.size()) {
+		Rcpp::stop("csc_to_dgCMatrix: p length must be nrow + 1");
+	}
+	if (i.size() != x.size()) {
+		Rcpp::stop("csc_to_dgCMatrix: i and x length must match");
+	}
+
+	Rcpp::S4 mat("dgCMatrix");
+	mat.slot("p") = Rcpp::IntegerVector(p.begin(), p.end());
+	mat.slot("i") = Rcpp::IntegerVector(i.begin(), i.end());
+	mat.slot("x") = Rcpp::NumericVector(x.begin(), x.end());
+	mat.slot("Dim") = Rcpp::IntegerVector::create(n, n);
+	return mat;
+}
+
+// Numeric LDL from chol_update (x on L1 pattern, d on diagonal); pattern from chol_inner_list.
 Rcpp::List chol_inner_numeric(
 	const ad_fun& backend,
 	const std::vector<double>& x,
-	const std::vector<double>& d)
+	const std::vector<double>& d,
+	const std::vector<double>& linv_x,
+	bool include_linv)
 {
 	const CholPattern& pat = backend.chol_pattern;
-	return Rcpp::List::create(
+
+	Rcpp::List out = Rcpp::List::create(
 		Rcpp::Named("L1") = csc_to_dtCMatrix_lower(pat.L1_p, pat.L1_i, x, pat.n),
 		Rcpp::Named("D") = Rcpp::NumericVector(d.begin(), d.end()),
-		Rcpp::Named("perm") = Rcpp::IntegerVector(pat.perm.begin(), pat.perm.end())
+		Rcpp::Named("perm") = Rcpp::IntegerVector(pat.perm.begin(), pat.perm.end()),
+		Rcpp::Named("perm_inv") = Rcpp::IntegerVector(pat.perm_inv.begin(), pat.perm_inv.end())
 	);
+
+	if (include_linv) {
+		out["Linv"] = csc_to_dgCMatrix(
+			pat.Linv_p,
+			pat.Linv_i,
+			linv_x,
+			pat.n
+		);
+	}
+
+	return out;
 }
 
 struct InnerOptResult {
@@ -144,6 +180,7 @@ struct InnerOptResult {
 	Eigen::SparseMatrix<double> hessian_outer;
 	std::vector<double> x_out;
 	std::vector<double> d_out;
+	std::vector<double> linv_x_out;
 	int iterations = NA_INTEGER;
 	MB_Status status = SUCCESS;
 	double trust_radius = NA_REAL;
@@ -237,6 +274,9 @@ InnerOptResult inner_opt(
 	InnerOptResult out;
 	out.x_out.assign(backend.chol_pattern.L1_i.size(), 0.0);
 	out.d_out.assign(H.rows(), 0.0);
+	if (deriv) {
+		out.linv_x_out.assign(backend.chol_pattern.Linv_i.size(), 0.0);
+	}
 
 
 	{
@@ -335,6 +375,19 @@ InnerOptResult inner_opt(
 		);
 	}
 
+	if (deriv && out.chol_ok) {
+		const std::size_t n = static_cast<std::size_t>(H.rows());
+		linv_update(
+			n,
+			backend.chol_pattern.L1_p,
+			backend.chol_pattern.L1_i,
+			out.x_out,
+			backend.chol_pattern.Linv_p,
+			backend.chol_pattern.Linv_i,
+			out.linv_x_out
+		);
+	}
+
 	out.grad_inner = grad;
 	out.hessian_inner = H;
 	if (deriv) {
@@ -354,18 +407,21 @@ InnerOptResult inner_opt(
 
 
 //' @rdname innerOpt
-//' @keywords internal
+//' @export
 // [[Rcpp::export]]
 Rcpp::List inner_opt(
 	const Rcpp::NumericVector parameters,
 	const Rcpp::NumericVector gamma,
 	const Rcpp::S4& ad_fun,
-	const Rcpp::List& control = Rcpp::List(),
+	SEXP control = R_NilValue,
 	bool deriv = false,
 	bool verbose = false)
 {
 	try {
-		const TrustControl control_c(control);
+		const Rcpp::List control_list(
+			Rf_isNull(control) ? Rcpp::List() : Rcpp::as<Rcpp::List>(control)
+		);
+		const TrustControl control_c(control_list);
 		::ad_fun* backend = resolve_ad_fun_laplace(ad_fun);
 
 		std::vector<double> parameters_vec(parameters.begin(), parameters.end());
@@ -383,7 +439,9 @@ Rcpp::List inner_opt(
 		const Rcpp::List chol_inner = chol_inner_numeric(
 			*backend,
 			result.x_out,
-			result.d_out
+			result.d_out,
+			result.linv_x_out,
+			deriv
 		);
 
 		return Rcpp::List::create(

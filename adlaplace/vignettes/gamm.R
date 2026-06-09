@@ -18,8 +18,10 @@ if (requireNamespace("mgcv", quietly = TRUE)) {
 if (requireNamespace("mgcv", quietly = TRUE)) {
   md <- adlaplace::model_data(
     data = dat,
-    formula = y ~ x1 + f(x2, model = "iwp", p = 2, knots = seq(0, 1, len = 11)) +
-      f(fac, model = "iid") + f(model = "overdispersion", lower = 1e-9)
+    formula = y ~ x1 +
+      adlaplace::iwp(x2, p = 2, knots = seq(0, 1, len = 11)) +
+      adlaplace::iid(fac) +
+      adlaplace::overdispersion(lower = 1e-9)
   )
 
   config <- list(

@@ -49,12 +49,12 @@ hrpoly(
 
 \item{parscale}{Parameter scale for optimization.}
 
-\item{term}{An `hrpoly` term object.}
+\item{term}{An \code{hrpoly} term object.}
 
 \item{data}{A data frame containing the variables used in the term.}
 }
 \value{
-An `hrpoly` term object.
+An \code{hrpoly} term object.
 
 A design matrix for the hrpoly term.
 
@@ -73,13 +73,13 @@ Creates a hierarchical random polynomial model term.
 }
 \section{Methods}{
 
-The following methods are available for `hrpoly` objects:
+The following methods are available for \code{hrpoly} objects:
 \describe{
-  \item{\code{design(term, data)}}{Creates design matrix for hrpoly term}
-  \item{\code{precision(term, data)}}{Creates precision matrix for hrpoly term}
-  \item{\code{theta_info(term)}}{Extracts theta parameter information}
-  \item{\code{beta_info(term, data)}}{Extracts beta parameter information}
-  \item{\code{random_info(term, data)}}{Extracts random effects information}
+\item{\code{design(term, data)}}{Creates design matrix for hrpoly term}
+\item{\code{precision(term, data)}}{Creates precision matrix for hrpoly term}
+\item{\code{theta_info(term)}}{Extracts theta parameter information}
+\item{\code{beta_info(term, data)}}{Extracts beta parameter information}
+\item{\code{random_info(term, data)}}{Extracts random effects information}
 }
 }
 

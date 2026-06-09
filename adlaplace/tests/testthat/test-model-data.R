@@ -12,16 +12,15 @@ test_that("model_data captures y from explicit observations term", {
   dat <- mgcv::gamSim(6, n = 80, scale = 0.2, dist = "poisson")
 
   md <- adlaplace::model_data(
-    adlaplace::f(y, model = "nbinom", lower = 1e-9) ~
+    adlaplace::nbinom(y, lower = 1e-9) ~
       x1 +
-      adlaplace::f(
+      adlaplace::iwp(
         x2,
-        model = "iwp",
         p = 2,
         knots = seq(0, 1, len = 11),
         ref_value = 0.5
       ) +
-      adlaplace::f(fac, model = "iid"),
+      adlaplace::iid(fac),
     data = dat,
     verbose = FALSE
   )

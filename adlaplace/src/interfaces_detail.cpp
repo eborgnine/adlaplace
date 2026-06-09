@@ -30,7 +30,8 @@ static Rcpp::List ad_fun_list_from_s4(const Rcpp::S4& obj) {
     Rcpp::Named("inner") = obj.slot("inner"),
     Rcpp::Named("map_outer") = obj.slot("map_outer"),
     Rcpp::Named("map_inner") = obj.slot("map_inner"),
-    Rcpp::Named("sizes") = obj.slot("sizes")
+    Rcpp::Named("sizes") = obj.slot("sizes"),
+    Rcpp::Named("chol_inner_list") = obj.slot("chol_inner_list")
   );
 }
 

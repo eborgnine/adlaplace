@@ -38,8 +38,8 @@ bg <- by_group(term = "group", levels = c("A", "B", "C"))
 # Create from data
 dat <- data.frame(group = c("A", "B", "A", "C"))
 bg <- by_group(term = "group", data = dat)
-# Assuming hrp is an hrpoly term with a by slot
-hrp <- hrpoly(x = "age", by = "site")
+# With a hierarchical term from adlaplaceHgp that has a by slot:
+hrp <- adlaplaceHgp::hrpoly(x = "age", by = "site")
 dat <- data.frame(age = 1:10, site = rep(c("A", "B"), each = 5))
 hrp <- add_by_levels(hrp, dat)
 }

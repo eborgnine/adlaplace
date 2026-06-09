@@ -31,11 +31,14 @@ london$date <- as.Date(ISOdate(london$year, london$month, london$day))
 london$year_month_dow <- format(london$date, "%Y-%m-%a")
 head(london)
 quantile(london$pm10, na.rm = TRUE)
+quantile(london$tmean, na.rm = TRUE)
+
 ```
 
 ## Model specification
 
 ```{r model-spec}
+london$temp_div10 = london$tmean / 10
 cc_formula <- dirichlet_multinom(
     all,
     by = "year_month_dow",
@@ -46,9 +49,11 @@ cc_formula <- dirichlet_multinom(
     p = 2,
     knots = seq(0, 100, by = 10),
     ref_value = 40
-)
-
-
+) + iwp(
+    temp_div10, 
+p = 3, knots = seq(-2, 30, by = 2)/10, 
+init = 0.01, parscale = 100,
+ref_value = 20/10)
 ```
 
 
@@ -66,7 +71,9 @@ fit <- hnlm(
     ),
     control = list(maxit = 100, trace = 3, REPORT = 1)
 )
+```
 
+```{r summary}
 fit
 summary(fit)
 fit$coefficients$beta
@@ -141,9 +148,27 @@ lik = log_lik_laplace(
     ad_fun = forres$ad_fun,
     config = modifyList(forres$config, list(verbose=TRUE)),
     gamma = forres$cache$gamma,
-    control = list(report.level = 2),
-    deriv = TRUE
+    control = list(report.level = 2, report.freq = 1),
+    deriv = FALSE
 )
+
+bob = Matrix::Cholesky(lik$extra$hessian$inner, perm = TRUE, LDL = TRUE)
+bob_ex <- Matrix::expand2(bob)
+
+ci <- lik$extra$hessian$chol_inner
+
+quantile(as.numeric(bob_ex$D@x) - ci$D)
+
+table(bob@perm == ci$perm)
+
+diff_L1 <- bob_ex$L1 - ci$L1
+c(L1 = max(abs(diff_L1)), D = max(abs(diff_D)), perm_match = all(bob@perm == ci$perm))
+which(abs(diff_D) > 0)
+which(abs(diff_L1) > 0, arr.ind = TRUE)
+
+H_perm <- ci$L1 %*% Matrix::Diagonal(length(ci$D), ci$D) %*% Matrix::t(ci$L1)
+reconstructH <- H_perm[order(ci$perm), order(ci$perm)]
+max(abs(reconstructH - lik$extra$hessian$inner))
 
 lik$neg_log_lik
 lik$grad

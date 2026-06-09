@@ -18,8 +18,17 @@ double chol_update(
 	std::vector<double>& d_out
 );
 
-CholPattern chol_pattern_from_inner_template(const hessian_template& inner);
+// Fill Linv_x on fixed CSC pattern given numeric unit-lower L (same permuted ordering).
+void linv_update(
+	std::size_t n,
+	const std::vector<int>& L_p,
+	const std::vector<int>& L_i,
+	const std::vector<double>& L_x,
+	const std::vector<int>& Linv_p,
+	const std::vector<int>& Linv_i,
+	std::vector<double>& Linv_x
+);
 
-void ad_fun_attach_chol_pattern_from_template(ad_fun& shards);
+void ad_fun_attach_chol_pattern_from_list(ad_fun& shards, const Rcpp::List& hessian_pack);
 
 #endif

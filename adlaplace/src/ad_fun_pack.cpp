@@ -76,5 +76,5 @@ void ad_fun_attach_hessians_from_list(
   shards.map_inner = hessian_map_view(Rcpp::as<Rcpp::List>(ad_fun["map_inner"]));
 
   shards.hessians_attached = true;
-  ad_fun_attach_chol_pattern_from_template(shards);
+  ad_fun_attach_chol_pattern_from_list(shards, ad_fun);
 }

@@ -123,16 +123,6 @@ log_lik_laplace <- function(
   result <- result_inner[setdiff(names(result_inner), c("gradient", "hessian"))]
   result$extra <- result_inner[c("gradient", "hessian")]
 
-  if (length(ad_fun@chol_inner_list) > 0L) {
-    cil <- ad_fun@chol_inner_list
-    result$extra$hessian$perm <- cil$perm
-    result$extra$hessian$perm_inv <- cil$perm_inv
-    if (is.list(result$extra$hessian$chol_inner)) {
-      result$extra$hessian$chol_inner$perm <- cil$perm
-      result$extra$hessian$chol_inner$perm_inv <- cil$perm_inv
-    }
-  }
-
   if (!deriv) {
     return(result)
   }

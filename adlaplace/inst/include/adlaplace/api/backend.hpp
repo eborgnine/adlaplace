@@ -9,7 +9,7 @@
 #include "adlaplace/api/adpack_handle.h"
 #include "adlaplace/creators/rviews.hpp"
 
-// Symbolic LDL pattern derived from the inner Hessian template (not from R Matrix objects).
+// Symbolic LDL pattern from hessian_map()$chol_inner_list (L1, Linv, perm).
 struct CholPattern {
 	int n = 0;
 	std::vector<int> L1_p;

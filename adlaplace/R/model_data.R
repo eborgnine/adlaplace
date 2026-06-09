@@ -4,7 +4,7 @@
 #' \code{ad_data} shards for the observation density, parameter densities, and
 #' each random-effect term.
 #'
-#' @param formula Model formula with \code{f()} or constructor terms.
+#' @param formula Model formula with constructor terms (e.g. \code{iwp()}, \code{iid()}).
 #' @param data Data frame containing variables referenced in \code{formula}.
 #' @param verbose Print extra information while parsing terms.
 #' @param na_omit When \code{TRUE} (default), drop rows with \code{NA} in
@@ -24,7 +24,7 @@
 #' @examples
 #' \dontrun{
 #' md <- model_data(
-#'   y ~ x1 + f(x2, model = "iwp", p = 2, knots = seq(0, 1, len = 11)),
+#'   y ~ x1 + iwp(x2, p = 2, knots = seq(0, 1, len = 11)),
 #'   data = dat
 #' )
 #' }

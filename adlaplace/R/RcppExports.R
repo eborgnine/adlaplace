@@ -227,8 +227,8 @@ hessian <- function(ad_fun_ptr, x, shards = NULL, inner = FALSE, verbose = FALSE
 NULL
 
 #' @rdname innerOpt
-#' @keywords internal
-inner_opt <- function(parameters, gamma, ad_fun, control, deriv = FALSE, verbose = FALSE) {
+#' @export
+inner_opt <- function(parameters, gamma, ad_fun, control = NULL, deriv = FALSE, verbose = FALSE) {
     .Call(`_adlaplace_inner_opt`, parameters, gamma, ad_fun, control, deriv, verbose)
 }
 

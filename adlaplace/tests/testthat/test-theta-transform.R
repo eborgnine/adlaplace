@@ -2,7 +2,7 @@ test_that("data_setup defaults transform to TRUE for all theta rows", {
   skip_if_not_installed("mgcv")
   dat <- mgcv::gamSim(6, n = 80, scale = 0.2, dist = "poisson")
   md <- adlaplace::model_data(
-    adlaplace::f(y, model = "nbinom", lower = 1e-9) ~
+    adlaplace::nbinom(y, lower = 1e-9) ~
       x1 +
       adlaplace::iid(fac, init = 0.25),
     data = dat,

@@ -1,11 +1,11 @@
 #' @include 000.R
-#' @include rpoly.R
 #' Hierarchical Random Polynomial Model Term
 #'
 #' @description Creates and manages hierarchical random polynomial model terms.
 #' @name hrpoly-class
 #' @docType class
 #' @exportClass hrpoly
+#' @importFrom adlaplace by_group design rpoly
 #'
 #' @section Methods:
 #' The following methods are available for `hrpoly` objects:
@@ -38,9 +38,9 @@ setClass("hrpoly",
          ),
          contains = "model",
          prototype = list(
-           by = methods::new("by_group"),
+           by = adlaplace::by_group(),
            knots = numeric(0),
-           type = factor("random", levels = .type_factor_levels),
+           type = factor("random", levels = adlaplace:::.type_factor_levels),
            ad_fun = "random_diagonal",
            ad_kind = "random"
          )
@@ -86,7 +86,7 @@ hrpoly <- function(
 
   # Handle by: can be character or by_group
   if (is.character(by)) {
-    by <- by_group(term = by)
+    by <- adlaplace::by_group(term = by)
   }
   # If by is already a by_group, use as is
 
@@ -219,5 +219,4 @@ setMethod("random_info", "hrpoly", function(term, data) {
   result$gamma_label <- paste0(result$label,  "_g", result$by_labels)
   result
 })
-
 

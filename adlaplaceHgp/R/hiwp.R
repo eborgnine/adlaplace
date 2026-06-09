@@ -9,8 +9,6 @@
 #' @importFrom adlaplace iwp
 #' @importFrom adlaplace rpoly
 #' @importFrom adlaplace fpoly
-#' @importFrom adlaplace hrpoly
-#'
 #' @section Methods:
 #' The following methods are available for `hiwp` objects:
 #' \describe{
@@ -106,7 +104,7 @@ hiwp <- function(
   if (include_poly) {
     for (D_poly in seq(1, len = p - 1)) {
       hrpoly_name <- paste(c(x, "hrpoly", D_poly), collapse = "_")
-      result[[hrpoly_name]] <- adlaplace::hrpoly(
+      result[[hrpoly_name]] <- hrpoly(
         x = x, p = D_poly, ref_value = ref_value,
         by = result[[1]]@by,
         init = init[2 + D_poly],

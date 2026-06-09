@@ -21,10 +21,11 @@ RoxygenNote: 7.3.3
 Roxygen: list(markdown = TRUE)
 Collate:
     '000.R'
+    'cond_simu.R'
     'hiwp.R'
+    'hrpoly.R'
     'rsfpoly.R'
-    'rsrpoly.R'
     'rsiid.R'
     'rsiwp.R'
-    'cond_simu.R'
+    'rsrpoly.R'
 NeedsCompilation: no

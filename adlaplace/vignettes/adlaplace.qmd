@@ -590,7 +590,13 @@ config2 <- list(
 )
 ad_fun2 <- ad_fun(md, config2, num_threads = 4L)
 
-param_remap <- c(2, 1, 3, 4, 5)
+md$observations$y@XTp[,1:5]
+data_obs@XTp[,1:5]
+
+md$data$info$parameters[,c("term","model","label","init","transform")]
+data_obs@theta_map
+
+param_remap <- c(2, 1, 5, 3, 4)
 log_lik2 <- log_lik_laplace(
   x = res_deriv$parameters[param_remap],
   config = config2,

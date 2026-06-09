@@ -16,6 +16,6 @@ make_hpolcc_test_data <- function(n_strata = 6L, n_per = 4L) {
     formula = hpolcc::dirichlet_multinom(
       count,
       by = c("year", "region", "date")
-    ) ~ hum + adlaplace::f(date, model = "iid")
+    ) ~ hum + adlaplace::iid(date)
   )
 }

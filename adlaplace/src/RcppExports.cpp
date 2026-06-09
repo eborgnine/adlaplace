@@ -210,7 +210,7 @@ BEGIN_RCPP
 END_RCPP
 }
 // inner_opt
-Rcpp::List inner_opt(const Rcpp::NumericVector parameters, const Rcpp::NumericVector gamma, const Rcpp::S4& ad_fun, const Rcpp::List& control, bool deriv, bool verbose);
+Rcpp::List inner_opt(const Rcpp::NumericVector parameters, const Rcpp::NumericVector gamma, const Rcpp::S4& ad_fun, SEXP control, bool deriv, bool verbose);
 RcppExport SEXP _adlaplace_inner_opt(SEXP parametersSEXP, SEXP gammaSEXP, SEXP ad_funSEXP, SEXP controlSEXP, SEXP derivSEXP, SEXP verboseSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
@@ -218,7 +218,7 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const Rcpp::NumericVector >::type parameters(parametersSEXP);
     Rcpp::traits::input_parameter< const Rcpp::NumericVector >::type gamma(gammaSEXP);
     Rcpp::traits::input_parameter< const Rcpp::S4& >::type ad_fun(ad_funSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::List& >::type control(controlSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type control(controlSEXP);
     Rcpp::traits::input_parameter< bool >::type deriv(derivSEXP);
     Rcpp::traits::input_parameter< bool >::type verbose(verboseSEXP);
     rcpp_result_gen = Rcpp::wrap(inner_opt(parameters, gamma, ad_fun, control, deriv, verbose));

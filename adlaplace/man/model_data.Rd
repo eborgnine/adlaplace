@@ -7,7 +7,7 @@
 model_data(formula, data, verbose = FALSE, na_omit = TRUE)
 }
 \arguments{
-\item{formula}{Model formula with \code{f()} or constructor terms.}
+\item{formula}{Model formula with constructor terms (e.g. \code{iwp()}, \code{iid()}).}
 
 \item{data}{Data frame containing variables referenced in \code{formula}.}
 
@@ -37,7 +37,7 @@ each random-effect term.
 \examples{
 \dontrun{
 md <- model_data(
-  y ~ x1 + f(x2, model = "iwp", p = 2, knots = seq(0, 1, len = 11)),
+  y ~ x1 + iwp(x2, p = 2, knots = seq(0, 1, len = 11)),
   data = dat
 )
 }

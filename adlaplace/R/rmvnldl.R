@@ -9,15 +9,22 @@ as_ldl_list <- function(chol_prec) {
       perm_inv = as.integer(order(chol_prec@perm) - 1L)
     ))
   }
-  if (is.list(chol_prec) &&
-    all(c("L1", "D", "perm", "perm_inv") %in% names(chol_prec))
-  ) {
+  if (is.list(chol_prec) && all(c("L1", "D", "perm") %in% names(chol_prec))) {
+    perm <- as.integer(chol_prec$perm)
+    perm_inv <- if ("perm_inv" %in% names(chol_prec)) {
+      as.integer(chol_prec$perm_inv)
+    } else {
+      as.integer(order(perm) - 1L)
+    }
     out <- list(
       L1 = chol_prec$L1,
       D = as.numeric(chol_prec$D),
-      perm = as.integer(chol_prec$perm),
-      perm_inv = as.integer(chol_prec$perm_inv)
+      perm = perm,
+      perm_inv = perm_inv
     )
+    if ("Linv" %in% names(chol_prec)) {
+      out$Linv <- chol_prec$Linv
+    }
     return(out)
   }
   stop(
@@ -29,7 +36,7 @@ as_ldl_list <- function(chol_prec) {
 #' @noRd
 half_H_inv_from_ldl <- function(ldl) {
   p <- length(ldl$D)
-  Linv <- Matrix::solve(ldl$L1)
+  Linv <- if (!is.null(ldl$Linv)) ldl$Linv else Matrix::solve(ldl$L1)
   halfDinv <- Matrix::Diagonal(p, ldl$D^(-0.5))
 
   half_H_inv_perm <- Matrix::crossprod(Linv, halfDinv)

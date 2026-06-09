@@ -2,27 +2,17 @@
 % Please edit documentation in R/effects.R
 \name{strip_term_name}
 \alias{strip_term_name}
-\title{Parse Model Terms from Formula}
+\title{Strip quotes from a term name string}
 \usage{
 strip_term_name(x)
 }
 \arguments{
-\item{formula}{Model formula containing f() calls (e.g. \code{f(x, model = "iwp")},
-\code{linear(x)}). Symbols such as \code{x} refer to column names in
-\code{data} passed to \code{model_data()}, not objects in the calling environment.}
-
-\item{package}{Character vector of package names to search for model constructors}
-
-\item{verbose}{print extra information}
+\item{x}{Character vector of term names.}
 }
 \value{
-List of model term objects
+Character vector with surrounding quotes removed.
 }
 \description{
-Parses a formula and creates model terms using constructors from specified packages.
-}
-\examples{
-terms <- collect_terms(y ~ f(x, model = "iwp"))
-
+Strip quotes from a term name string
 }
 \keyword{internal}

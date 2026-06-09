@@ -17,7 +17,7 @@ test_that("ad_fun(model_data) keeps user-supplied config beta and theta", {
 
   dat <- data.frame(y = y, x1 = X[, 2], r1 = r1)
   md <- adlaplace::model_data(
-    adlaplaceExample::skewnormal(y) ~ x1 + adlaplace::f(r1, model = "iid"),
+    adlaplaceExample::skewnormal(y) ~ x1 + adlaplace::iid(r1),
     data = dat
   )
 

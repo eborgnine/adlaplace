@@ -81,7 +81,7 @@ ADLAPLACE_SCRIPT_DIR="$(Rscript -e 'cat(system.file("scripts", package="adlaplac
 
 ```r
 library(adlaplaceExample)
-md <- model_data(y ~ skewnormal(x1) + f(r1, model = "iid") + f(r2, model = "iid"), data = dat)
+md <- model_data(y ~ skewnormal(x1) + iid(r1) + iid(r2), data = dat)
 ad_fun <- adlaplace::ad_fun(md, config, num_threads = 4L)
 ```
 
