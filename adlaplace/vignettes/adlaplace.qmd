@@ -414,7 +414,6 @@ colnames(fit_cmp) <- c(
 fit_cmp
 exp(outer_fit$par[n_beta + seq_len(n_theta)])
 outer_fit$value
-
 ```
 
 ## Derivative checks
@@ -591,10 +590,10 @@ config2 <- list(
 )
 ad_fun2 <- ad_fun(md, config2, num_threads = 4L)
 
-md$observations$y@XTp[,1:5]
-data_obs@XTp[,1:5]
+md$observations$y@XTp[, 1:5]
+data_obs@XTp[, 1:5]
 
-md$data$info$parameters[,c("term","model","label","init","transform")]
+md$data$info$parameters[, c("term", "model", "label", "init", "transform")]
 data_obs@theta_map
 
 param_remap <- c(2, 1, 5, 3, 4)
@@ -606,4 +605,26 @@ log_lik2 <- log_lik_laplace(
 )
 c(log_lik2$log_lik, res_deriv$log_lik)
 rbind(log_lik2$grad, res_deriv$grad[param_remap])
+```
+
+
+# mean estimation
+
+Posterior mean of the random effects can be approximated with sparse nested
+Gauss–Hermite quadrature (`mvQuad`): nodes are drawn from the Laplace proposal
+`N(hat(gamma), H^{-1})` and reweighted by `joint_log_dens` relative to that
+Gaussian.
+
+```{r meanEstimation}
+library(mvQuad)
+mean_estimate <- mean_mvquad(
+  parameters = log_lik2$parameters,
+  mode = log_lik2$opt$solution,
+  cov = log_lik2$extra$hessian$H_inv,
+  ad_fun = ad_fun2,
+  n = 3
+)
+quantile(mean_estimate - log_lik2$opt$solution)
+plot(log_lik2$opt$solution, mean_estimate)
+abline(0, 1, col = "red", lty = 2)
 ```

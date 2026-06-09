@@ -87,6 +87,7 @@ log_lik_deriv <- function(
     result$deriv$d_det - result$deriv$grad_u
   result$deriv$d_log_lik <- -result$deriv$d_neg_log_lik
 
+
   result
 }
 

@@ -9,7 +9,7 @@ Description: Computes Laplace approximations for hierarchical models using
 License: MPL-2.0
 Depends: R (>= 3.5.0)
 Imports: Matrix (>= 1.2.18), Rcpp (>= 1.0.3), methods, data.table
-Suggests: numDeriv, abind, quarto, trustOptim, testthat (>= 3.0.0)
+Suggests: numDeriv, abind, quarto, trustOptim, testthat (>= 3.0.0), mvQuad
 Config/testthat/edition: 3
 VignetteBuilder: quarto
 Enhances: RSpectra, mgcv
@@ -41,6 +41,7 @@ Collate:
     'linear.R'
     'log_lik_deriv.R'
     'log_lik_laplace.R'
+    'mean_mvquad.R'
     'model_data.R'
     'nbinom.R'
     'prepare_model_rows.R'

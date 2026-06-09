@@ -338,7 +338,7 @@ InnerOptResult inner_opt(
 		}
 
 		if (deriv) {
-			// Outer grad/Hessian in the same CppAD parallel session as inner TR.
+			// Outer grad/Hessian 
 			if (verbose && adlaplace_debug_enabled()) {
 				Rcpp::Rcout << "inner_opt: trust region done; outer get_fdfh next ("
 				            << num_threads << " threads)\n";
