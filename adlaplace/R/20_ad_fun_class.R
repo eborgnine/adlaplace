@@ -9,8 +9,12 @@
 #' @slot parallel_map Thread-affinity map (\code{ngCMatrix}); rows are shards,
 #'   columns are threads, with one nonzero per shard row.
 #' @slot chol_inner Symbolic LDL factor or empty sparse matrix.
-#' @slot chol_inner_list Numeric LDL list for C++ (\code{L1}, \code{Linv}, \code{perm}, \code{perm_inv}).
+#' @slot chol_inner_list Numeric LDL list for C++ (\code{L1}, \code{Linv},
+#'   \code{perm}, \code{perm_inv}, \code{half_H_inv}, \code{H_inv}).
 #' @slot sizes Named numeric vector \code{beta}/\code{gamma}/\code{theta}.
+#' @slot info List of parameter metadata (\code{beta}, \code{gamma},
+#'   \code{theta}, \code{parameters}); populated from \code{model_data()$data$info}
+#'   when the handle is built from a model-data bundle, otherwise empty.
 #' @importClassesFrom Matrix dgCMatrix ngCMatrix
 #' @exportClass ad_fun
 setClass(
@@ -25,6 +29,10 @@ setClass(
     parallel_map = "ngCMatrix",
     chol_inner = "ANY",
     chol_inner_list = "list",
-    sizes = "numeric"
+    sizes = "numeric",
+    info = "list"
+  ),
+  prototype = list(
+    info = list()
   )
 )

@@ -27,7 +27,8 @@
 //'   negative log joint density at \eqn{\hat\gamma}), \code{solution},
 //'   \code{gradient} (list \code{inner}, \code{outer}; \code{outer} empty when
 //'   \code{deriv=FALSE}), \code{hessian} (list \code{inner}, \code{outer},
-//'   \code{chol_inner}, \code{half_log_det}),
+//'   \code{chol_inner}, \code{half_log_det}; when \code{deriv=TRUE} also
+//'   \code{half_H_inv} and \code{H_inv}),
 //'   \code{iterations}, \code{status}, \code{trust.radius}, \code{method}.
 //'   Objective and derivatives use the **negative log-density** convention.}
 //'
@@ -181,6 +182,8 @@ struct InnerOptResult {
 	std::vector<double> x_out;
 	std::vector<double> d_out;
 	std::vector<double> linv_x_out;
+	std::vector<double> half_h_inv_x_out;
+	std::vector<double> h_inv_x_out;
 	int iterations = NA_INTEGER;
 	MB_Status status = SUCCESS;
 	double trust_radius = NA_REAL;
@@ -386,6 +389,30 @@ InnerOptResult inner_opt(
 			backend.chol_pattern.Linv_i,
 			out.linv_x_out
 		);
+		if (n > 0 &&
+		    !backend.chol_pattern.half_H_inv_i.empty() &&
+		    !backend.chol_pattern.H_inv_i.empty()) {
+			half_h_inv_update(
+				n,
+				backend.chol_pattern.Linv_p,
+				backend.chol_pattern.Linv_i,
+				out.linv_x_out,
+				out.d_out,
+				backend.chol_pattern.perm_inv,
+				backend.chol_pattern.half_H_inv_p,
+				backend.chol_pattern.half_H_inv_i,
+				out.half_h_inv_x_out
+			);
+			h_inv_update(
+				n,
+				backend.chol_pattern.half_H_inv_p,
+				backend.chol_pattern.half_H_inv_i,
+				out.half_h_inv_x_out,
+				backend.chol_pattern.H_inv_p,
+				backend.chol_pattern.H_inv_i,
+				out.h_inv_x_out
+			);
+		}
 	}
 
 	out.grad_inner = grad;
@@ -444,6 +471,28 @@ Rcpp::List inner_opt(
 			deriv
 		);
 
+		Rcpp::List hessian_out = Rcpp::List::create(
+			Rcpp::Named("inner") = eigen_to_dgCMatrix(result.hessian_inner),
+			Rcpp::Named("outer") = eigen_to_dgCMatrix(result.hessian_outer),
+			Rcpp::Named("chol_inner") = chol_inner,
+			Rcpp::Named("half_log_det") = Rcpp::wrap(result.half_log_det)
+		);
+		if (deriv && result.chol_ok && !result.half_h_inv_x_out.empty()) {
+			const CholPattern& pat = backend->chol_pattern;
+			hessian_out["half_H_inv"] = csc_to_dgCMatrix(
+				pat.half_H_inv_p,
+				pat.half_H_inv_i,
+				result.half_h_inv_x_out,
+				pat.n
+			);
+			hessian_out["H_inv"] = csc_to_dgCMatrix(
+				pat.H_inv_p,
+				pat.H_inv_i,
+				result.h_inv_x_out,
+				pat.n
+			);
+		}
+
 		return Rcpp::List::create(
 			Rcpp::Named("log_lik") = Rcpp::wrap(result.log_lik),
 			Rcpp::Named("neg_log_lik") = Rcpp::wrap(result.neg_log_lik),
@@ -461,12 +510,7 @@ Rcpp::List inner_opt(
 				Rcpp::Named("inner") = Rcpp::wrap(result.grad_inner),
 				Rcpp::Named("outer") = Rcpp::wrap(result.grad_outer)
 			),
-			Rcpp::Named("hessian") = Rcpp::List::create(
-				Rcpp::Named("inner") = eigen_to_dgCMatrix(result.hessian_inner),
-				Rcpp::Named("outer") = eigen_to_dgCMatrix(result.hessian_outer),
-				Rcpp::Named("chol_inner") = chol_inner,
-				Rcpp::Named("half_log_det") = Rcpp::wrap(result.half_log_det)
-			)
+			Rcpp::Named("hessian") = hessian_out
 		);
 	}
 	catch (const Rcpp::exception& e) {

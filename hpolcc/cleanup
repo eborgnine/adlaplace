@@ -9,6 +9,12 @@ if [ -f "src/Makevars" ]; then
     echo "Removed src/Makevars"
 fi
 
+# Quarto / knitr vignette outputs (recreated by quarto render)
+rm -rf vignettes/*_files
+rm -f vignettes/*.html
+rm -f vignettes/*.knit.md
+rm -f vignettes/*.R
+
 # Remove any compiled object files
 find . -type f \( -name '*.o' -o -name '*.so' \) -delete
 

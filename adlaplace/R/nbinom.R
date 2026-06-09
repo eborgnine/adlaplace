@@ -53,7 +53,7 @@ nbinom <- function(x,
   methods::new(
     "nbinom",
     term = x,
-    label = paste(x, "overdispersion", sep = "_"),
+    label = paste(x, "nbinom_sd", sep = "_"),
     formula = stats::as.formula(paste(x, "~."), env = new.env()),
     init = init,
     lower = lower,
@@ -80,7 +80,7 @@ setMethod("theta_info", "nbinom", function(term) {
   data.frame(
     term = term@term,
     model = "nbinom",
-    label = paste0(term@label, "_overdispersion"),
+    label = term@label,
     init = term@init,
     lower = term@lower,
     upper = term@upper,

@@ -11,7 +11,8 @@
 #' @return A list with \code{outer}, \code{inner}, optional \code{chol_inner_list}
 #'   (symbolic LDL pattern for C++: \code{L1}, \code{Linv}, \code{perm},
 #'   \code{perm} (0-based; inner Hessian uses \code{index1 = FALSE}),
-#'   \code{perm_inv} (0-based)), optional \code{chol_inner} (\code{dCHMsimpl}
+#'   \code{perm_inv} (0-based), \code{half_H_inv}, \code{H_inv}), optional
+#'   \code{chol_inner} (\code{dCHMsimpl}
 #'   for R), \code{map_outer}, \code{map_inner}, and \code{sizes} (named
 #'   \code{beta}/\code{gamma}/\code{theta}; consumed internally by
 #'   \code{ad_fun()}).
@@ -161,11 +162,18 @@ hessian_map <- function(sparsity_list, Nbeta, Ngamma, Ntheta) {
   if (!is.null(chol_inner)) {
     L <- Matrix::expand2(chol_inner)$L1
     perm0 <- as.integer(chol_inner@perm)
+    perm_inv <- as.integer(order(chol_inner@perm) - 1L)
+    Linv <- methods::as(Matrix::solve(L), "nMatrix")
+    half_H_inv_pat <- Matrix::crossprod(Linv, Matrix::Diagonal(Ngamma, 1))
+    half_H_inv_pat <- half_H_inv_pat[perm_inv + 1L, ]
+    H_inv_pat <- Matrix::tcrossprod(half_H_inv_pat)
     chol_inner_list <- list(
       L1 = L,
-      Linv = methods::as(Matrix::solve(L), "nMatrix"),
+      Linv = Linv,
       perm = perm0,
-      perm_inv = as.integer(order(chol_inner@perm) - 1L)
+      perm_inv = perm_inv,
+      half_H_inv = methods::as(half_H_inv_pat, "CsparseMatrix"),
+      H_inv = methods::as(H_inv_pat, "CsparseMatrix")
     )
   }
 

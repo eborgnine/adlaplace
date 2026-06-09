@@ -34,10 +34,17 @@ log_lik_deriv <- function(
       call. = FALSE
     )
   }
-  half_H_inv <- half_H_inv_from_ldl(ldl)
+  half_H_inv <- hessian_pack$half_H_inv
+  if (is.null(half_H_inv)) {
+    half_H_inv <- half_H_inv_from_ldl(ldl)
+  }
+  H_inv <- hessian_pack$H_inv
+  if (is.null(H_inv)) {
+    H_inv <- Matrix::tcrossprod(half_H_inv)
+  }
   Hstuff <- list(
     half_H_inv = half_H_inv,
-    H_inv = Matrix::tcrossprod(half_H_inv)
+    H_inv = H_inv
   )
 
   seq_gamma1 <- seq.int(num_beta + 1L, length.out = num_gamma)

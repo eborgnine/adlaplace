@@ -48,6 +48,6 @@ List with simulated curves, quantiles, and envelopes.
 }
 \description{
 Draw conditional simulations of IWP/HIWP/RSIWP model components from explicit
-inputs. Prefer \code{\link{cond_sim_iwp}} when you have \code{laplace} and
-\code{model_data} objects; use this function for custom pipelines.
+inputs. Prefer \code{\link{cond_sim_iwp}} when you have a Laplace \code{fit}
+and \code{model_data} objects; use this function for custom pipelines.
 }

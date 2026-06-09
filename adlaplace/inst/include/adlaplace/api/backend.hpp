@@ -9,13 +9,18 @@
 #include "adlaplace/api/adpack_handle.h"
 #include "adlaplace/creators/rviews.hpp"
 
-// Symbolic LDL pattern from hessian_map()$chol_inner_list (L1, Linv, perm).
+// Symbolic LDL pattern from hessian_map()$chol_inner_list (L1, Linv, perm,
+// half_H_inv, H_inv).
 struct CholPattern {
 	int n = 0;
 	std::vector<int> L1_p;
 	std::vector<int> L1_i;
 	std::vector<int> Linv_p;
 	std::vector<int> Linv_i;
+	std::vector<int> half_H_inv_p;
+	std::vector<int> half_H_inv_i;
+	std::vector<int> H_inv_p;
+	std::vector<int> H_inv_i;
 	std::vector<int> perm;
 	std::vector<int> perm_inv;
 };

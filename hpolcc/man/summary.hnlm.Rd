@@ -19,11 +19,10 @@
 \item{digits}{Number of significant digits to print.}
 }
 \value{
-An object of class \code{summary.hnlm} with coefficient table,
+An object of class \code{summary.hnlm} with the parameters table,
 variance matrix, log-likelihood, and convergence flag.
 }
 \description{
-Wald-style standard errors from \code{solve(hessian$outer)} (or a
-Moore-Penrose inverse if singular). Estimates are on the optimization
-scale (\code{optim$par}); transformed theta parameters are on the log scale.
+Returns \code{coefficients$parameters} from the fit, including \code{mle} and
+\code{se} (when the outer Hessian was available at fit time).
 }

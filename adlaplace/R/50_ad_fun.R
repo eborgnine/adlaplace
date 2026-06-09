@@ -36,7 +36,7 @@ build_parallel_map <- function(n_shards, num_threads, owner_threads = NULL) {
 }
 
 #' @keywords internal
-new_ad_fun_from_ptr <- function(ptr, num_threads = 1L) {
+new_ad_fun_from_ptr <- function(ptr, num_threads = 1L, info = list()) {
   if (!is(ptr, "ad_fun_ptr")) {
     stop("ptr must be an ad_fun_ptr external pointer")
   }
@@ -79,7 +79,8 @@ new_ad_fun_from_ptr <- function(ptr, num_threads = 1L) {
     parallel_map = parallel_map,
     chol_inner = hessian_pack$chol_inner,
     chol_inner_list = hessian_pack$chol_inner_list,
-    sizes = hessian_pack$sizes
+    sizes = hessian_pack$sizes,
+    info = info
   )
 }
 
@@ -170,5 +171,9 @@ setMethod("ad_fun", signature = c(x = "list"), function(x, config, num_threads =
     )$init
   }
   ptrs <- lapply(shards, ad_fun_ptr, config = config_build)
-  ad_fun(do.call(c, ptrs), num_threads = num_threads)
+  new_ad_fun_from_ptr(
+    do.call(c, ptrs),
+    num_threads = num_threads,
+    info = x$data$info
+  )
 })

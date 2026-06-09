@@ -315,7 +315,7 @@ plot(
 abline(0, 1, col = "red", lty = 2)
 ```
 
-## Profile likelihood
+## likelihood
 
 `log_lik_laplace()` runs the inner optimizer and returns the Laplace
 approximation to the marginal log likelihood. With `deriv = TRUE`, it also
@@ -414,9 +414,10 @@ colnames(fit_cmp) <- c(
 fit_cmp
 exp(outer_fit$par[n_beta + seq_len(n_theta)])
 outer_fit$value
+
 ```
 
-## Profile derivative checks
+## Derivative checks
 
 Finite-difference checks along one outer coordinate validate the profile gradient,
 the determinant derivative, and the chain rule through the inner mode

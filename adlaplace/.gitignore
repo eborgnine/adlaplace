@@ -5,6 +5,7 @@
 vignettes/*_files/
 vignettes/*.html
 vignettes/*.knit.md
+vignettes/*.R
 
 # testthat snapshot dir (only commit when expect_snapshot tests exist)
 tests/testthat/_snaps/

@@ -47,8 +47,13 @@ columns are threads, with one nonzero per shard row.}
 
 \item{\code{chol_inner}}{Symbolic LDL factor or empty sparse matrix.}
 
-\item{\code{chol_inner_list}}{Numeric LDL list for C++ (\code{L1}, \code{Linv}, \code{perm}, \code{perm_inv}).}
+\item{\code{chol_inner_list}}{Numeric LDL list for C++ (\code{L1}, \code{Linv},
+\code{perm}, \code{perm_inv}, \code{half_H_inv}, \code{H_inv}).}
 
 \item{\code{sizes}}{Named numeric vector \code{beta}/\code{gamma}/\code{theta}.}
+
+\item{\code{info}}{List of parameter metadata (\code{beta}, \code{gamma},
+\code{theta}, \code{parameters}); populated from \code{model_data()$data$info}
+when the handle is built from a model-data bundle, otherwise empty.}
 }}
 

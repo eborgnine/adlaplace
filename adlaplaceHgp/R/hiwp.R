@@ -77,6 +77,7 @@ hiwp <- function(
 
   result[[hiwp_name]] <- methods::new("hiwp",
     term = x,
+    label = hiwp_name,
     formula = the_f,
     p.order = as.integer(p),
     ref_value = ref_value,
@@ -91,6 +92,7 @@ hiwp <- function(
     iwp_name <- paste(c(x, "iwp"), collapse = "_")
     result[[iwp_name]] <- methods::new("iwp",
       term = x,
+      label = iwp_name,
       formula = the_f,
       p.order = as.integer(p),
       ref_value = ref_value,

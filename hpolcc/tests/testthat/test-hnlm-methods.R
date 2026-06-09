@@ -16,7 +16,10 @@ test_that("hnlm S3 methods work on fitted object", {
 
   expect_output(print(fit), "hnlm fit")
   expect_true(is.finite(as.numeric(stats::logLik(fit))))
-  expect_equal(length(stats::coef(fit)), nrow(fit$coefficients$beta) + nrow(fit$coefficients$theta))
+  expect_equal(
+    length(stats::coef(fit)),
+    nrow(fit$coefficients$parameters)
+  )
   expect_true(is.finite(fit$log_lik))
   expect_equal(as.numeric(stats::logLik(fit)), fit$log_lik)
 
@@ -48,14 +51,12 @@ test_that("summary and vcov use outer Hessian", {
 
   sm <- summary(fit)
   expect_s3_class(sm, "summary.hnlm")
-  expect_equal(nrow(sm$coefficients), length(fit$optim$par))
-  expect_true(all(is.finite(sm$coefficients[, "Std. Error"])))
-  expect_equal(
-    unname(sm$coefficients[, "Estimate"]),
-    unname(fit$optim$par),
-    tolerance = 1e-10
-  )
-  expect_output(print(sm), "Outer parameters")
+  expect_equal(nrow(sm$coefficients), nrow(fit$coefficients$parameters))
+  expect_true("mle" %in% names(sm$coefficients))
+  expect_true("se" %in% names(sm$coefficients))
+  expect_true(all(is.finite(sm$coefficients$se)))
+  expect_equal(sm$coefficients$mle, fit$coefficients$parameters$mle)
+  expect_output(print(sm), "Parameters:")
 })
 
 test_that("coef and logLik fail on for_dev bundle", {

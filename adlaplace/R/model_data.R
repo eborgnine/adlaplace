@@ -57,6 +57,7 @@ model_data <- function(formula, data, verbose = FALSE, na_omit = TRUE) {
   }
 
   all_data <- data_setup(formula = formula_in, data = data, verbose = verbose)
+  the_terms <- all_data$terms
 
   if (length(elgm_mats) == 1L) {
     all_data$elgm_matrix <- elgm_mats[[1L]]

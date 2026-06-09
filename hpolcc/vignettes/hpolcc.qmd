@@ -48,12 +48,13 @@ cc_formula <- dirichlet_multinom(
     pm10,
     p = 2,
     knots = seq(0, 100, by = 10),
-    ref_value = 40
+    ref_value = 40,
+    init = 0.001, parscale = 100
 ) + iwp(
-    temp_div10, 
-p = 3, knots = seq(-2, 30, by = 2)/10, 
+    tmean, 
+p = 3, knots = seq(-2, 30, by = 2), 
 init = 0.01, parscale = 100,
-ref_value = 20/10)
+ref_value = 20)
 ```
 
 
@@ -69,26 +70,33 @@ fit <- hnlm(
     num_shards = 100L,
     verbose = FALSE
     ),
-    control = list(maxit = 100, trace = 3, REPORT = 1)
+    control = list(
+        maxit = 1000, trace = 3, REPORT = 1,
+     factr = 1e3,
+    pgtol = 1e-12  
+    )
 )
 ```
 
 ```{r summary}
 fit
 summary(fit)
-fit$coefficients$beta
-fit$log_lik
-stats::coef(fit)
-fit$sample$sim[[1]][1:5, 1:3]
 ```
 
 
 ```{r plot_results}
-matplot(fit$sample$x$pm10, fit$sample$sim$pm10, type='l', lty=1, col='#00000010',
-    xlab = "PM10", ylab = "RR", xaxs='i', yaxs='i',
-    ylim = quantile(fit$sample$sim$pm10, prob = c(0.005, 0.995)))
-matlines(fit$sample$x$pm10, fit$sample$envelope$common$pm10, lty=c(2,1,2), col='red')
-
+par(mfrow=c(1,2), mar=c(2.25,2.25,0,0), bty='l', mgp=c(1,0.5,0))
+for(D in names(fit$sample$sim)) {
+    the_xlim = range(london[[D]], na.rm = TRUE)
+    sample_in_xlim = fit$sample$sim[[D]][
+        fit$sample$x[[D]] > min(the_xlim) & 
+        fit$sample$x[[D]] < max(the_xlim),]
+matplot(fit$sample$x[[D]], fit$sample$sim[[D]], type='l', lty=1, col='#00000010',
+    xlab = D, ylab = "RR", xaxs='i', yaxs='i',
+    xlim = the_xlim,
+    ylim = quantile(sample_in_xlim, prob = c(0.005, 0.99)))
+matlines(fit$sample$x[[D]], fit$sample$envelope$common[[D]], lty=c(2,1,2), col='red')
+}
 ```
 
 
@@ -149,26 +157,8 @@ lik = log_lik_laplace(
     config = modifyList(forres$config, list(verbose=TRUE)),
     gamma = forres$cache$gamma,
     control = list(report.level = 2, report.freq = 1),
-    deriv = FALSE
+    deriv = TRUE
 )
-
-bob = Matrix::Cholesky(lik$extra$hessian$inner, perm = TRUE, LDL = TRUE)
-bob_ex <- Matrix::expand2(bob)
-
-ci <- lik$extra$hessian$chol_inner
-
-quantile(as.numeric(bob_ex$D@x) - ci$D)
-
-table(bob@perm == ci$perm)
-
-diff_L1 <- bob_ex$L1 - ci$L1
-c(L1 = max(abs(diff_L1)), D = max(abs(diff_D)), perm_match = all(bob@perm == ci$perm))
-which(abs(diff_D) > 0)
-which(abs(diff_L1) > 0, arr.ind = TRUE)
-
-H_perm <- ci$L1 %*% Matrix::Diagonal(length(ci$D), ci$D) %*% Matrix::t(ci$L1)
-reconstructH <- H_perm[order(ci$perm), order(ci$perm)]
-max(abs(reconstructH - lik$extra$hessian$inner))
 
 lik$neg_log_lik
 lik$grad
@@ -183,7 +173,7 @@ the Laplace output and model-data bundle:
 
 ```{r cond-sim}
 sim <- adlaplaceHgp::cond_sim_iwp(
-  laplace = lik,
+  fit = lik,
   model_data = forres$model_data,
   n = 100
 )

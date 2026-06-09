@@ -194,10 +194,9 @@ hnlm <- function(
     deriv = TRUE
   ))
 
-  coefficients <- try(format_parameters(
-    laplace = laplace,
-    parameters_info = model_data$data$info,
-    transform_theta = isTRUE(config$transform_theta)
+  coefficients <- try(adlaplace::format_parameters(
+    info = ad_fun@info,
+    gamma = cache$gamma, parameters = par_opt
   ))
 
   if (verbose_orig) {
@@ -214,23 +213,36 @@ hnlm <- function(
     ), "U")
   )
 
+  coefficients <- hnlm_attach_parameter_se(coefficients, hessian_outer)
+
   if (verbose_orig) {
     cat("conditional samples\n")
   }
   sample <- try(adlaplaceHgp::cond_sim_iwp(
-    laplace = laplace,
+    fit = laplace,
     model_data = model_data,
     n = c(config$num_sim, 500)[1]
   ))
 
   hessian <- list(outer = hessian_outer, inner = NULL, var_iid = NULL)
-  if (!is.null(coefficients$gamma) && nrow(coefficients$gamma) > 0L) {
-    seq_inner <- seq(
-      from = max(c(0L, nrow(coefficients$beta))) + 1L,
-      length.out = nrow(coefficients$gamma)
-    )
-    if (!is.null(laplace$extra$hessian$H)) {
-      hessian$inner <- laplace$extra$hessian$H[seq_inner, seq_inner]
+  n_beta <- nrow(model_data$data$info$beta)
+  if (!inherits(coefficients, "try-error") &&
+      !is.null(coefficients$gamma) &&
+      nrow(coefficients$gamma) > 0L) {
+    h_pack <- laplace$extra$hessian
+    if (is.list(h_pack) && !is.null(h_pack$inner)) {
+      hessian$inner <- h_pack$inner
+    } else if (is.list(h_pack) && !is.null(h_pack$H)) {
+      n_gamma <- nrow(coefficients$gamma)
+      if (nrow(h_pack$H) == n_gamma) {
+        hessian$inner <- h_pack$H
+      } else {
+        seq_inner <- seq(
+          from = max(c(0L, n_beta)) + 1L,
+          length.out = n_gamma
+        )
+        hessian$inner <- h_pack$H[seq_inner, seq_inner, drop = FALSE]
+      }
     }
     which_is_iid <- grepl("iid", coefficients$gamma$model)
     if (any(which_is_iid) &&

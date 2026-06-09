@@ -7,6 +7,42 @@ hnlm_check_fitted <- function(object) {
 }
 
 #' @keywords internal
+hnlm_attach_parameter_se <- function(coefficients, hessian_outer) {
+  if (inherits(coefficients, "try-error") ||
+      is.null(coefficients$parameters) ||
+      inherits(hessian_outer, "try-error") ||
+      is.null(hessian_outer)) {
+    return(coefficients)
+  }
+  H <- as.matrix(hessian_outer)
+  n_par <- nrow(coefficients$parameters)
+  if (nrow(H) != n_par || ncol(H) != n_par) {
+    return(coefficients)
+  }
+  V <- tryCatch(
+    solve(H),
+    error = function(e) {
+      warning(
+        "outer Hessian is singular; using Moore-Penrose inverse for standard errors",
+        call. = FALSE
+      )
+      hpolcc_pinv(H)
+    }
+  )
+  se_opt <- sqrt(pmax(0, diag(V)))
+  params <- coefficients$parameters
+  se <- se_opt
+  if ("transform" %in% names(params)) {
+    idx <- which(params$transform %in% TRUE)
+    if (length(idx) > 0L) {
+      se[idx] <- params$mle[idx] * se_opt[idx]
+    }
+  }
+  coefficients$parameters$se <- se
+  coefficients
+}
+
+#' @keywords internal
 hpolcc_pinv <- function(M, tol = NULL) {
   s <- svd(M)
   if (is.null(tol)) {
@@ -66,42 +102,33 @@ vcov.hnlm <- function(object, ...) {
 
 #' Summary method for \code{hnlm} fits
 #'
-#' Wald-style standard errors from \code{solve(hessian$outer)} (or a
-#' Moore-Penrose inverse if singular). Estimates are on the optimization
-#' scale (\code{optim$par}); transformed theta parameters are on the log scale.
+#' Returns \code{coefficients$parameters} from the fit, including \code{mle} and
+#' \code{se} (when the outer Hessian was available at fit time).
 #'
 #' @param object A fitted \code{hnlm} object.
 #' @param ... Not used.
-#' @return An object of class \code{summary.hnlm} with coefficient table,
+#' @return An object of class \code{summary.hnlm} with the parameters table,
 #'   variance matrix, log-likelihood, and convergence flag.
 #' @export
 summary.hnlm <- function(object, ...) {
   hnlm_check_fitted(object)
-  V <- hnlm_outer_vcov(object)
-  est <- object$optim$par
-  se <- sqrt(diag(V))
-  z <- est / se
-  pval <- 2 * stats::pnorm(-abs(z))
-  labels <- object$model_data$data$info$parameters$label
-  coef_table <- cbind(
-    Estimate = est,
-    `Std. Error` = se,
-    `z value` = z,
-    `Pr(>|z|)` = pval
-  )
-  if (length(labels) == nrow(coef_table)) {
-    rownames(coef_table) <- labels
+  params <- object$coefficients$parameters
+  if (is.null(params) || nrow(params) == 0L) {
+    stop("coefficients$parameters not available", call. = FALSE)
   }
+  V <- tryCatch(
+    hnlm_outer_vcov(object),
+    error = function(e) NULL
+  )
   structure(
     list(
       call = object$call,
-      coefficients = coef_table,
+      coefficients = params,
       vcov = V,
       log_lik = object$log_lik,
-      df = length(est),
+      df = length(object$optim$par),
       nobs = nrow(object$model_data$data$data),
-      converged = object$converged,
-      scale = "outer"
+      converged = object$converged
     ),
     class = "summary.hnlm"
   )
@@ -119,13 +146,15 @@ print.summary.hnlm <- function(x, digits = max(3L, getOption("digits") - 3L), ..
   cat("Log-likelihood:", format(x$log_lik, digits = digits), "\n")
   cat("Observations:", x$nobs, "\n")
   cat("Converged:", if (isTRUE(x$converged)) "yes" else "no", "\n")
-  cat("\nOuter parameters (optimization scale):\n")
-  print(
-    signif(x$coefficients, digits = digits),
-    print.gap = 2L
-  )
-  cat("\nStandard errors from inverse outer Hessian.\n")
-  cat("Transformed theta parameters are on the log scale.\n")
+  cat("\nParameters:\n")
+  cols <- intersect(c("label", "term", "model", "mle", "se"), names(x$coefficients))
+  tab <- x$coefficients[, cols, drop = FALSE]
+  num_cols <- vapply(tab, is.numeric, logical(1))
+  tab[num_cols] <- signif(tab[num_cols], digits = digits)
+  print(tab, row.names = FALSE)
+  if (!"se" %in% names(x$coefficients)) {
+    cat("\nStandard errors not available (outer Hessian missing or invalid).\n")
+  }
   invisible(x)
 }
 
@@ -150,13 +179,26 @@ print.hnlm <- function(x, ...) {
     conv <- if (isTRUE(x$converged)) "yes" else "no"
     cat("  converged:", conv, "\n")
   }
-  if (!is_dev && !is.null(x$coefficients$beta) && nrow(x$coefficients$beta) > 0L) {
-    cat("  beta:\n")
-    print(x$coefficients$beta[, c("label", "mle"), drop = FALSE], row.names = FALSE)
-  }
-  if (!is_dev && !is.null(x$coefficients$theta) && nrow(x$coefficients$theta) > 0L) {
-    cat("  theta:\n")
-    print(x$coefficients$theta[, c("label", "mle"), drop = FALSE], row.names = FALSE)
+  if (!is_dev && length(x$coefficients) > 0L &&
+      !is.null(x$coefficients$parameters) &&
+      nrow(x$coefficients$parameters) > 0L) {
+    params <- x$coefficients$parameters
+    n_beta <- nrow(x$model_data$data$info$beta)
+    n_theta <- nrow(x$model_data$data$info$theta)
+    if (n_beta > 0L) {
+      cat("  beta:\n")
+      print(
+        params[seq_len(n_beta), c("label", "mle"), drop = FALSE],
+        row.names = FALSE
+      )
+    }
+    if (n_theta > 0L) {
+      cat("  theta:\n")
+      print(
+        params[seq(n_beta + 1L, length.out = n_theta), c("label", "mle"), drop = FALSE],
+        row.names = FALSE
+      )
+    }
   }
   invisible(x)
 }
@@ -166,14 +208,27 @@ coef.hnlm <- function(object, ...) {
   if ("hnlm_dev" %in% class(object)) {
     stop("coef() requires a fitted hnlm object", call. = FALSE)
   }
-  beta <- object$coefficients$beta
-  theta <- object$coefficients$theta
-  out <- numeric(0)
-  if (nrow(beta) > 0L) {
-    out <- stats::setNames(beta$mle, beta$beta_label)
+  params <- object$coefficients$parameters
+  if (is.null(params) || nrow(params) == 0L) {
+    return(numeric(0))
   }
-  if (nrow(theta) > 0L) {
-    out <- c(out, stats::setNames(theta$mle, theta$label))
+  n_beta <- nrow(object$model_data$data$info$beta)
+  n_theta <- nrow(object$model_data$data$info$theta)
+  out <- numeric(0)
+  if (n_beta > 0L) {
+    out <- stats::setNames(
+      params$mle[seq_len(n_beta)],
+      object$model_data$data$info$beta$beta_label
+    )
+  }
+  if (n_theta > 0L) {
+    out <- c(
+      out,
+      stats::setNames(
+        params$mle[seq(n_beta + 1L, length.out = n_theta)],
+        object$model_data$data$info$theta$label
+      )
+    )
   }
   out
 }
@@ -198,7 +253,7 @@ simulate.hnlm <- function(object, nsim = 500, ...) {
     stop("simulate() requires a fitted hnlm object", call. = FALSE)
   }
   adlaplaceHgp::cond_sim_iwp(
-    laplace = object$laplace,
+    fit = object$laplace,
     model_data = object$model_data,
     n = nsim,
     ...

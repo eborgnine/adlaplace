@@ -291,8 +291,8 @@ cond_sim_iwp_inputs <- function(laplace, model_data) {
 #'
 #' @description
 #' Draw conditional simulations of IWP/HIWP/RSIWP model components from explicit
-#' inputs. Prefer \code{\link{cond_sim_iwp}} when you have \code{laplace} and
-#' \code{model_data} objects; use this function for custom pipelines.
+#' inputs. Prefer \code{\link{cond_sim_iwp}} when you have a Laplace \code{fit}
+#' and \code{model_data} objects; use this function for custom pipelines.
 #'
 #' @param terms Named list of model term objects from \code{model_data()$terms}.
 #' @param random_info Data frame from \code{model_data()$data$info$gamma} with
@@ -406,7 +406,7 @@ cond_sim_iwp_at <- function(
 #' Draw conditional simulations of the Gaussian process model components,
 #' then summarize the resulting linear predictors and group-level effect curves.
 #'
-#' @param laplace Output of \code{\link[adlaplace]{log_lik_laplace}(..., deriv = TRUE)}.
+#' @param fit Output of \code{\link[adlaplace]{log_lik_laplace}(..., deriv = TRUE)}.
 #' @param model_data Output of \code{\link[adlaplace]{model_data}()}.
 #' @param newx Optional list of prediction data frames, one per variable.
 #'   When \code{NULL}, a default prediction grid is built from term knot ranges.
@@ -419,7 +419,7 @@ cond_sim_iwp_at <- function(
 #' @seealso \code{\link{cond_sim_iwp_at}}, \code{\link{cond_sim_iwp_inputs}}
 #' @export
 cond_sim_iwp <- function(
-  laplace,
+  fit,
   model_data,
   newx = NULL,
   n = 500,
@@ -427,7 +427,7 @@ cond_sim_iwp <- function(
   probs = c(0.025, 0.5, 0.975),
   probs_envelope = c(0.1, 0.9)
 ) {
-  inputs <- cond_sim_iwp_inputs(laplace, model_data)
+  inputs <- cond_sim_iwp_inputs(fit, model_data)
   cond_sim_iwp_at(
     terms = inputs$terms,
     random_info = inputs$random_info,

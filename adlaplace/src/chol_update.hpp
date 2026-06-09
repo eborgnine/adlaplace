@@ -29,6 +29,30 @@ void linv_update(
 	std::vector<double>& Linv_x
 );
 
+// half_H_inv[r,j] = Linv[j, perm_inv[r]] * D[j]^(-1/2) in original gamma ordering.
+void half_h_inv_update(
+	std::size_t n,
+	const std::vector<int>& Linv_p,
+	const std::vector<int>& Linv_i,
+	const std::vector<double>& Linv_x,
+	const std::vector<double>& d,
+	const std::vector<int>& perm_inv,
+	const std::vector<int>& half_H_inv_p,
+	const std::vector<int>& half_H_inv_i,
+	std::vector<double>& half_H_inv_x
+);
+
+// H_inv = half_H_inv %*% t(half_H_inv) on fixed CSC pattern.
+void h_inv_update(
+	std::size_t n,
+	const std::vector<int>& half_H_inv_p,
+	const std::vector<int>& half_H_inv_i,
+	const std::vector<double>& half_H_inv_x,
+	const std::vector<int>& H_inv_p,
+	const std::vector<int>& H_inv_i,
+	std::vector<double>& H_inv_x
+);
+
 void ad_fun_attach_chol_pattern_from_list(ad_fun& shards, const Rcpp::List& hessian_pack);
 
 #endif

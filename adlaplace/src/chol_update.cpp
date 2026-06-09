@@ -189,6 +189,139 @@ void linv_update(
 	}
 }
 
+double csc_entry(
+	const std::size_t row,
+	const std::size_t col,
+	const std::vector<int>& p,
+	const std::vector<int>& i,
+	const std::vector<double>& x)
+{
+	for (std::size_t pos = static_cast<std::size_t>(p[col]);
+	     pos < static_cast<std::size_t>(p[col + 1]);
+	     ++pos) {
+		if (static_cast<std::size_t>(i[pos]) == row) {
+			return x[pos];
+		}
+	}
+	return 0.0;
+}
+
+void half_h_inv_update(
+	const std::size_t n,
+	const std::vector<int>& Linv_p,
+	const std::vector<int>& Linv_i,
+	const std::vector<double>& Linv_x,
+	const std::vector<double>& d,
+	const std::vector<int>& perm_inv,
+	const std::vector<int>& half_H_inv_p,
+	const std::vector<int>& half_H_inv_i,
+	std::vector<double>& half_H_inv_x)
+{
+	if (Linv_p.size() != n + 1) {
+		Rcpp::stop("half_h_inv_update: Linv_p length must be nrow + 1");
+	}
+	if (Linv_x.size() != Linv_i.size()) {
+		Rcpp::stop("half_h_inv_update: Linv_i and Linv_x length must match");
+	}
+	if (d.size() != n) {
+		Rcpp::stop("half_h_inv_update: d length must equal nrow");
+	}
+	if (perm_inv.size() != n) {
+		Rcpp::stop("half_h_inv_update: perm_inv length must equal nrow");
+	}
+	if (half_H_inv_p.size() != n + 1) {
+		Rcpp::stop("half_h_inv_update: half_H_inv_p length must be nrow + 1");
+	}
+	if (half_H_inv_x.size() != half_H_inv_i.size()) {
+		half_H_inv_x.assign(half_H_inv_i.size(), 0.0);
+	} else {
+		std::fill(half_H_inv_x.begin(), half_H_inv_x.end(), 0.0);
+	}
+
+	for (std::size_t col = 0; col < n; ++col) {
+		for (std::size_t pos = static_cast<std::size_t>(half_H_inv_p[col]);
+		     pos < static_cast<std::size_t>(half_H_inv_p[col + 1]);
+		     ++pos) {
+			const std::size_t row = static_cast<std::size_t>(half_H_inv_i[pos]);
+			const std::size_t perm_row = static_cast<std::size_t>(perm_inv[row]);
+			const double scale = std::pow(d[col], -0.5);
+			half_H_inv_x[pos] = csc_entry(col, perm_row, Linv_p, Linv_i, Linv_x) * scale;
+		}
+	}
+}
+
+void h_inv_update(
+	const std::size_t n,
+	const std::vector<int>& half_H_inv_p,
+	const std::vector<int>& half_H_inv_i,
+	const std::vector<double>& half_H_inv_x,
+	const std::vector<int>& H_inv_p,
+	const std::vector<int>& H_inv_i,
+	std::vector<double>& H_inv_x)
+{
+	if (half_H_inv_p.size() != n + 1) {
+		Rcpp::stop("h_inv_update: half_H_inv_p length must be nrow + 1");
+	}
+	if (half_H_inv_x.size() != half_H_inv_i.size()) {
+		Rcpp::stop("h_inv_update: half_H_inv_i and half_H_inv_x length must match");
+	}
+	if (H_inv_p.size() != n + 1) {
+		Rcpp::stop("h_inv_update: H_inv_p length must be nrow + 1");
+	}
+	if (H_inv_x.size() != H_inv_i.size()) {
+		H_inv_x.assign(H_inv_i.size(), 0.0);
+	} else {
+		std::fill(H_inv_x.begin(), H_inv_x.end(), 0.0);
+	}
+
+	std::vector<std::vector<std::pair<int, double>>> rows_by_col(n);
+	for (std::size_t col = 0; col < n; ++col) {
+		for (std::size_t pos = static_cast<std::size_t>(half_H_inv_p[col]);
+		     pos < static_cast<std::size_t>(half_H_inv_p[col + 1]);
+		     ++pos) {
+			rows_by_col[col].emplace_back(
+				half_H_inv_i[pos],
+				half_H_inv_x[pos]
+			);
+		}
+	}
+
+	std::vector<std::vector<std::pair<int, double>>> row_entries(n);
+	for (std::size_t col = 0; col < n; ++col) {
+		for (const auto& entry : rows_by_col[col]) {
+			row_entries[static_cast<std::size_t>(entry.first)].emplace_back(
+				static_cast<int>(col),
+				entry.second
+			);
+		}
+	}
+
+	for (std::size_t col = 0; col < n; ++col) {
+		for (std::size_t pos = static_cast<std::size_t>(H_inv_p[col]);
+		     pos < static_cast<std::size_t>(H_inv_p[col + 1]);
+		     ++pos) {
+			const std::size_t row = static_cast<std::size_t>(H_inv_i[pos]);
+			const auto& a = row_entries[row];
+			const auto& b = row_entries[col];
+			std::size_t ia = 0;
+			std::size_t ib = 0;
+			double sum = 0.0;
+			while (ia < a.size() && ib < b.size()) {
+				if (a[ia].first < b[ib].first) {
+					++ia;
+				} else if (a[ia].first > b[ib].first) {
+					++ib;
+				} else {
+					sum += a[ia].second * b[ib].second;
+					++ia;
+					++ib;
+				}
+			}
+			H_inv_x[pos] = sum;
+		}
+	}
+}
+
 namespace {
 
 void copy_csc_pi_from_s4(
@@ -212,12 +345,18 @@ CholPattern chol_pattern_from_list(const Rcpp::List& cil, const int n_gamma) {
 	if (!cil.containsElementNamed("L1") ||
 	    !cil.containsElementNamed("Linv") ||
 	    !cil.containsElementNamed("perm") ||
-	    !cil.containsElementNamed("perm_inv")) {
-		Rcpp::stop("chol_inner_list must contain L1, Linv, perm, and perm_inv");
+	    !cil.containsElementNamed("perm_inv") ||
+	    !cil.containsElementNamed("half_H_inv") ||
+	    !cil.containsElementNamed("H_inv")) {
+		Rcpp::stop(
+			"chol_inner_list must contain L1, Linv, perm, perm_inv, half_H_inv, and H_inv"
+		);
 	}
 
 	const Rcpp::S4 L1 = cil["L1"];
 	const Rcpp::S4 Linv = cil["Linv"];
+	const Rcpp::S4 half_H_inv = cil["half_H_inv"];
+	const Rcpp::S4 H_inv = cil["H_inv"];
 	const Rcpp::IntegerVector perm_r = cil["perm"];
 	const Rcpp::IntegerVector perm_inv_r = cil["perm_inv"];
 
@@ -235,6 +374,8 @@ CholPattern chol_pattern_from_list(const Rcpp::List& cil, const int n_gamma) {
 
 	copy_csc_pi_from_s4(L1, pattern.L1_p, pattern.L1_i);
 	copy_csc_pi_from_s4(Linv, pattern.Linv_p, pattern.Linv_i);
+	copy_csc_pi_from_s4(half_H_inv, pattern.half_H_inv_p, pattern.half_H_inv_i);
+	copy_csc_pi_from_s4(H_inv, pattern.H_inv_p, pattern.H_inv_i);
 
 	pattern.perm.resize(static_cast<std::size_t>(n_gamma));
 	pattern.perm_inv.resize(static_cast<std::size_t>(n_gamma));

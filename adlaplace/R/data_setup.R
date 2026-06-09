@@ -176,22 +176,17 @@ data_setup <- function(formula, data, verbose = FALSE) {
     }
   }
 
-  resp_idx <- which(vapply(terms, function(t) {
-    inherits(t, "response")
-  }, logical(1L)))
   obs_idx <- which(vapply(terms, function(t) {
     methods::is(t, "model") && !is.na(t@ad_kind) &&
       identical(t@ad_kind, "observations")
   }, logical(1L)))
   y <- numeric(0)
   term_idx <- integer(0)
-  if (length(resp_idx) == 1L) {
-    term_idx <- resp_idx[1L]
-  } else if (length(resp_idx) == 0L && length(obs_idx) == 1L) {
+  if (length(obs_idx) == 1L) {
     term_idx <- obs_idx[1L]
-  } else if (length(resp_idx) > 1L || length(obs_idx) > 1L) {
-    warning("multiple response or observation-density terms; using the first")
-    term_idx <- if (length(resp_idx) > 0L) resp_idx[1L] else obs_idx[1L]
+  } else if (length(obs_idx) > 1L) {
+    warning("multiple observation-density terms; using the first")
+    term_idx <- obs_idx[1L]
   }
   if (length(term_idx) == 1L) {
     y <- as.numeric(data[[terms[[term_idx]]@term]])

@@ -5,7 +5,7 @@
 \title{Conditional simulation for IWP/HIWP terms}
 \usage{
 cond_sim_iwp(
-  laplace,
+  fit,
   model_data,
   newx = NULL,
   n = 500,
@@ -15,7 +15,7 @@ cond_sim_iwp(
 )
 }
 \arguments{
-\item{laplace}{Output of \code{\link[adlaplace]{log_lik_laplace}(..., deriv = TRUE)}.}
+\item{fit}{Output of \code{\link[adlaplace]{log_lik_laplace}(..., deriv = TRUE)}.}
 
 \item{model_data}{Output of \code{\link[adlaplace]{model_data}()}.}
 

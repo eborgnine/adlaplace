@@ -86,9 +86,12 @@ outer_fit <- stats::optim(
   ad_fun = ad_fun,
   cache = cache
 )
-model_stuff$data$info$parameters[, c("label")]
 outer_fit$par
 outer_fit$value
+
+adlaplace::format_parameters(
+  parameters = outer_fit$par,gamma = cache$gamma,
+  info=ad_fun@info)$parameters
 ```
 
 ```{r}

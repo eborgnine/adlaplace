@@ -215,7 +215,8 @@ hessian <- function(ad_fun_ptr, x, shards = NULL, inner = FALSE, verbose = FALSE
 #'   negative log joint density at \eqn{\hat\gamma}), \code{solution},
 #'   \code{gradient} (list \code{inner}, \code{outer}; \code{outer} empty when
 #'   \code{deriv=FALSE}), \code{hessian} (list \code{inner}, \code{outer},
-#'   \code{chol_inner}, \code{half_log_det}),
+#'   \code{chol_inner}, \code{half_log_det}; when \code{deriv=TRUE} also
+#'   \code{half_H_inv} and \code{H_inv}),
 #'   \code{iterations}, \code{status}, \code{trust.radius}, \code{method}.
 #'   Objective and derivatives use the **negative log-density** convention.}
 #'

@@ -53,11 +53,6 @@ my_formula <-
     init = 1
   ) +
   adlaplace::iid(fac, init = 0.25)
-
-my_terms <- collect_terms(
-  my_formula,
-  verbose = TRUE
-)
 ```
 
 ```{r model_data}
@@ -82,26 +77,6 @@ config$num_threads <- 4L
 ad_fun <- adlaplace::ad_fun(md, config, num_threads = config$num_threads)
 ```
 
-
-```{r checkByShard}
-shards <- seq.int(from = 0, length.out = adlaplace::n_groups(ad_fun@ptr))
-xx <- c(
-  md$data$info$beta$init,
-  rep(0, nrow(md$data$info$gamma)),
-  adlaplace::apply_theta_log(md$data$info$theta, cols = "init")$init
-)
-
-
-my_ad_ptr <- clone_ad_fun_ptr(ad_fun@ptr)
-
-by_shard <- mapply(
-  adlaplace::joint_log_dens,
-  shards = shards,
-  MoreArgs = list(x = xx, ad_fun = my_ad_ptr, negative = FALSE),
-  SIMPLIFY = TRUE
-)
-by_shard[seq(to = length(by_shard), length.out = 5)]
-```
 
 
 ```{r log_lik}
@@ -149,9 +124,36 @@ outer_fit <- stats::optim(
 )
 
 outer_fit$par
+outer_fit$summary = format_parameters(
+  parameters = outer_fit$par,gamma = cache$gamma,
+  info=ad_fun@info)
+outer_fit$summary$parameters
 outer_fit$value
 adlaplace::outer_gr(x = outer_fit$par, cache = cache, config = config, ad_fun = ad_fun)
 ```
+
+## check by shard
+
+```{r checkByShard}
+shards <- seq.int(from = 0, length.out = adlaplace::n_groups(ad_fun@ptr))
+xx <- c(
+  md$data$info$beta$init,
+  rep(0, nrow(md$data$info$gamma)),
+  adlaplace::apply_theta_log(md$data$info$theta, cols = "init")$init
+)
+
+
+my_ad_ptr <- clone_ad_fun_ptr(ad_fun@ptr)
+
+by_shard <- mapply(
+  adlaplace::joint_log_dens,
+  shards = shards,
+  MoreArgs = list(x = xx, ad_fun = my_ad_ptr, negative = FALSE),
+  SIMPLIFY = TRUE
+)
+by_shard[seq(to = length(by_shard), length.out = 5)]
+```
+
 
 ## Profile derivative checks
 

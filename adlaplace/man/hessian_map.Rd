@@ -19,7 +19,8 @@ hessian_map(sparsity_list, Nbeta, Ngamma, Ntheta)
 A list with \code{outer}, \code{inner}, optional \code{chol_inner_list}
   (symbolic LDL pattern for C++: \code{L1}, \code{Linv}, \code{perm},
   \code{perm} (0-based; inner Hessian uses \code{index1 = FALSE}),
-  \code{perm_inv} (0-based)), optional \code{chol_inner} (\code{dCHMsimpl}
+  \code{perm_inv} (0-based), \code{half_H_inv}, \code{H_inv}), optional
+  \code{chol_inner} (\code{dCHMsimpl}
   for R), \code{map_outer}, \code{map_inner}, and \code{sizes} (named
   \code{beta}/\code{gamma}/\code{theta}; consumed internally by
   \code{ad_fun()}).
