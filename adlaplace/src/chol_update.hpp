@@ -19,8 +19,8 @@ double chol_update(
 );
 
 // Fill Linv_x on fixed CSC pattern given numeric unit-lower L (same permuted ordering).
+// nrow inferred from L_p.size() - 1.
 void linv_update(
-	std::size_t n,
 	const std::vector<int>& L_p,
 	const std::vector<int>& L_i,
 	const std::vector<double>& L_x,
@@ -30,8 +30,8 @@ void linv_update(
 );
 
 // half_H_inv[r,j] = Linv[j, perm_inv[r]] * D[j]^(-1/2) in original gamma ordering.
+// nrow inferred from Linv_p.size() - 1.
 void half_h_inv_update(
-	std::size_t n,
 	const std::vector<int>& Linv_p,
 	const std::vector<int>& Linv_i,
 	const std::vector<double>& Linv_x,
@@ -43,8 +43,8 @@ void half_h_inv_update(
 );
 
 // H_inv = half_H_inv %*% t(half_H_inv) on fixed CSC pattern.
+// nrow inferred from half_H_inv_p.size() - 1.
 void h_inv_update(
-	std::size_t n,
 	const std::vector<int>& half_H_inv_p,
 	const std::vector<int>& half_H_inv_i,
 	const std::vector<double>& half_H_inv_x,

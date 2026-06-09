@@ -9,10 +9,9 @@ SystemRequirements: CppAD, OpenMP
 License: GPL-3
 Depends:
     R (>= 4.1.0),
-    adlaplace (>= 0.3.0),
-    adlaplaceHgp (>= 0.3.0)
+    adlaplace (>= 0.3.0)
 LinkingTo: Rcpp, adlaplace, RcppEigen, trustOptim
-Imports: Rcpp, Matrix, data.table, methods, timeDate, numDeriv, stats
+Imports: Rcpp, Matrix, data.table, methods, timeDate, numDeriv, stats, adlaplaceHgp
 Suggests: GET, WoodburyMatrix, testthat (>= 3.0.0), rmarkdown, knitr, quarto, trustOptim
 VignetteBuilder: quarto
 Config/testthat/edition: 3

@@ -66,6 +66,16 @@ new_ad_fun_from_ptr <- function(ptr, num_threads = 1L, info = list()) {
     Ngamma = n_gamma,
     Ntheta = n_theta
   )
+  chol_inner_list <- hessian_pack$chol_inner_list
+  if (length(chol_inner_list) > 0L && !is.null(chol_inner_list$half_H_inv)) {
+    hessian_pack$chol_inner_list$trace_columns <- trace_columns_from_pattern(
+      group_sparsity = lapply(sparsity, function(xx) xx$grad_inner),
+      n_beta = n_beta,
+      n_gamma = n_gamma,
+      half_H_inv_pat = chol_inner_list$half_H_inv
+    )
+    chol_inner_list <- hessian_pack$chol_inner_list
+  }
   adlaplace_attach_hessian(ptr, hessian_pack)
 
   methods::new(
@@ -78,7 +88,7 @@ new_ad_fun_from_ptr <- function(ptr, num_threads = 1L, info = list()) {
     map_inner = hessian_pack$map_inner,
     parallel_map = parallel_map,
     chol_inner = hessian_pack$chol_inner,
-    chol_inner_list = hessian_pack$chol_inner_list,
+    chol_inner_list = chol_inner_list,
     sizes = hessian_pack$sizes,
     info = info
   )

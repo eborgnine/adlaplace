@@ -28,7 +28,7 @@
 //'   \code{gradient} (list \code{inner}, \code{outer}; \code{outer} empty when
 //'   \code{deriv=FALSE}), \code{hessian} (list \code{inner}, \code{outer},
 //'   \code{chol_inner}, \code{half_log_det}; when \code{deriv=TRUE} also
-//'   \code{half_H_inv} and \code{H_inv}),
+//'   \code{half_H_inv}, \code{H_inv}, and \code{trace3}),
 //'   \code{iterations}, \code{status}, \code{trust.radius}, \code{method}.
 //'   Objective and derivatives use the **negative log-density** convention.}
 //'
@@ -60,6 +60,7 @@
 #include "adlaplace/runtime/thread_groups.hpp"
 #include "adlaplace/runtime/thread_affinity_debug.hpp"
 #include "chol_update.hpp"
+#include "trace_hinv_t_runtime.hpp"
 #include "trustOptimWrappers.hpp"
 #include "trustOptimControl.hpp"
 
@@ -184,6 +185,7 @@ struct InnerOptResult {
 	std::vector<double> linv_x_out;
 	std::vector<double> half_h_inv_x_out;
 	std::vector<double> h_inv_x_out;
+	std::vector<double> trace3;
 	int iterations = NA_INTEGER;
 	MB_Status status = SUCCESS;
 	double trust_radius = NA_REAL;
@@ -281,6 +283,7 @@ InnerOptResult inner_opt(
 		out.linv_x_out.assign(backend.chol_pattern.Linv_i.size(), 0.0);
 	}
 
+	double log_det = NA_REAL;
 
 	{
 		CppadParallelScope parallel_scope(static_cast<std::size_t>(num_threads));
@@ -301,6 +304,10 @@ InnerOptResult inner_opt(
 
 		const double grad_l2_sq = grad.squaredNorm();
 		if (grad_l2_sq > 10.0) {
+			if (verbose && adlaplace_debug_enabled()) {
+				Rcpp::Rcout << "restarting with shrunk gamma\n";
+			}
+
 			gamma_start = gamma_start.cwiseMax(-0.1).cwiseMin(0.1);
 			Trust_CG_Sparse<Tvec, AD_Func_Opt, THess, TPreLLt> opt_retry(
 				funObj, gamma_start,
@@ -316,6 +323,16 @@ InnerOptResult inner_opt(
 			status = opt_retry.get_current_state(solution, fval, grad, H, iterations, radius);
 		}
 
+		H.makeCompressed();
+		log_det = chol_update(
+			H,
+			backend.chol_pattern.perm,
+			backend.chol_pattern.L1_p,
+			backend.chol_pattern.L1_i,
+			out.x_out,
+			out.d_out
+		);
+		
 		for (std::size_t d = 0; d < n_gamma; ++d) {
 			fullParams[static_cast<Eigen::Index>(gamma_begin + d)] = solution[static_cast<Eigen::Index>(d)];
 		}
@@ -328,30 +345,73 @@ InnerOptResult inner_opt(
 			}
 			AD_Func_Opt funObjOuter(
 				backend, params_init, false, num_threads, &thread_groups);
+
 			gradOuter = Tvec(static_cast<Eigen::Index>(n_params));
 			Houter = funObjOuter.Htemplate.cast<double>();
 			funObjOuter.get_fdfh(fullParams, fval, gradOuter, Houter);
+
 			if (verbose && adlaplace_debug_enabled()) {
 				Rcpp::Rcout << "inner_opt: outer get_fdfh done\n";
 			}
 			adlaplace_debug_raise_if_any("inner_opt outer get_fdfh");
-		}
+
+				linv_update(
+					backend.chol_pattern.L1_p,
+					backend.chol_pattern.L1_i,
+					out.x_out,
+					backend.chol_pattern.Linv_p,
+					backend.chol_pattern.Linv_i,
+					out.linv_x_out
+				);
+
+				half_h_inv_update(
+						backend.chol_pattern.Linv_p,
+						backend.chol_pattern.Linv_i,
+						out.linv_x_out,
+						out.d_out,
+						backend.chol_pattern.perm_inv,
+						backend.chol_pattern.half_H_inv_p,
+						backend.chol_pattern.half_H_inv_i,
+						out.half_h_inv_x_out
+					);
+
+					h_inv_update(
+						backend.chol_pattern.half_H_inv_p,
+						backend.chol_pattern.half_H_inv_i,
+						out.half_h_inv_x_out,
+						backend.chol_pattern.H_inv_p,
+						backend.chol_pattern.H_inv_i,
+						out.h_inv_x_out
+					);
+
+					if (verbose && adlaplace_debug_enabled()) {
+						Rcpp::Rcout << "inner_opt: trace_hinv_t next ("
+						            << num_threads << " threads)\n";
+					}
+
+					const std::vector<double> x_vec(
+						fullParams.data(),
+						fullParams.data() + static_cast<Eigen::Index>(n_params)
+					);
+					out.trace3 = adlaplace_trace::trace_hinv_t_parallel(
+						backend,
+						x_vec,
+						backend.chol_pattern.half_H_inv_p,
+						backend.chol_pattern.half_H_inv_i,
+						out.half_h_inv_x_out,
+						n_gamma,
+						backend.chol_pattern.trace_columns_p,
+						backend.chol_pattern.trace_columns_i,
+						verbose
+					);
+
+				}
 	}
 
 	if (verbose && adlaplace_debug_enabled()) {
 		Rcpp::Rcout << "inner_opt: parallel block ended\n";
 	}
 	adlaplace_debug_raise_if_any("inner_opt after parallel block");
-
-	H.makeCompressed();
-	const double log_det = chol_update(
-		H,
-		backend.chol_pattern.perm,
-		backend.chol_pattern.L1_p,
-		backend.chol_pattern.L1_i,
-		out.x_out,
-		out.d_out
-	);
 
 	out.fval = fval;
 	out.solution = solution;
@@ -376,43 +436,6 @@ InnerOptResult inner_opt(
 		Rcpp::warning(
 			"inner_opt: non-positive or non-finite D; half_log_det not computed"
 		);
-	}
-
-	if (deriv && out.chol_ok) {
-		const std::size_t n = static_cast<std::size_t>(H.rows());
-		linv_update(
-			n,
-			backend.chol_pattern.L1_p,
-			backend.chol_pattern.L1_i,
-			out.x_out,
-			backend.chol_pattern.Linv_p,
-			backend.chol_pattern.Linv_i,
-			out.linv_x_out
-		);
-		if (n > 0 &&
-		    !backend.chol_pattern.half_H_inv_i.empty() &&
-		    !backend.chol_pattern.H_inv_i.empty()) {
-			half_h_inv_update(
-				n,
-				backend.chol_pattern.Linv_p,
-				backend.chol_pattern.Linv_i,
-				out.linv_x_out,
-				out.d_out,
-				backend.chol_pattern.perm_inv,
-				backend.chol_pattern.half_H_inv_p,
-				backend.chol_pattern.half_H_inv_i,
-				out.half_h_inv_x_out
-			);
-			h_inv_update(
-				n,
-				backend.chol_pattern.half_H_inv_p,
-				backend.chol_pattern.half_H_inv_i,
-				out.half_h_inv_x_out,
-				backend.chol_pattern.H_inv_p,
-				backend.chol_pattern.H_inv_i,
-				out.h_inv_x_out
-			);
-		}
 	}
 
 	out.grad_inner = grad;
@@ -491,6 +514,9 @@ Rcpp::List inner_opt(
 				result.h_inv_x_out,
 				pat.n
 			);
+		}
+		if (deriv && result.chol_ok && !result.trace3.empty()) {
+			hessian_out["trace3"] = Rcpp::wrap(result.trace3);
 		}
 
 		return Rcpp::List::create(

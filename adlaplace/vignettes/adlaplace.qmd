@@ -325,19 +325,19 @@ determinant correction.
 OpenMP shard affinity is fixed when you call `ad_fun(ad_fun_plain, num_threads = …)`
 (`owner_thread = shard_index %% num_threads`); `log_lik_laplace()` does not change it.
 The same assignment is used for inner optimization, outer derivatives when
-`deriv = TRUE`, and `trace_hinv_t` (same OpenMP shard groups as `inner_opt`, no
-separate serial driver). `inner_opt()` uses one OpenMP/CppAD parallel session for
-trust-region inner optimization and outer `get_fdfh` when `deriv = TRUE`.
+`deriv = TRUE`, and the profile trace (`trace_hinv_t` logic, same OpenMP shard
+groups). `inner_opt()` uses one OpenMP/CppAD parallel session for trust-region
+inner optimization, outer `get_fdfh`, and trace evaluation when `deriv = TRUE`.
 `ad_fun_ptr()` and `joint_log_dens()` on a plain
 ptr do not use threads. For serial runs only, use `ad_fun(..., num_threads = 1L)`.
 
 For thread-affinity diagnostics, reinstall from a fresh tarball with
 `PKG_CXXFLAGS="-DDEBUG" R CMD INSTALL adlaplace_*.tar.gz` (use `R CMD INSTALL --clean`
 if installing from source). Configure prints when DEBUG is enabled. With
-`config$verbose = TRUE`, `inner_opt` and `trace_hinv_t` print the same style of
-CppAD session phase messages (trust region, outer `get_fdfh`, trace shards).
-Each `CppadParallelScope` end flushes per-thread CppAD pools before the next
-`.Call` (e.g. `trace_hinv_t` after R work in `log_lik_deriv`, or another optimizer step).
+`config$verbose = TRUE`, `inner_opt` prints CppAD session phase messages (trust
+region, outer `get_fdfh`, trace shards). With `deriv = TRUE`, trace runs inside
+that session; standalone `trace_hinv_t()` remains for direct use. Each
+`CppadParallelScope` end flushes per-thread CppAD pools before the next `.Call`.
 
 ```{r testLogLik}
 config$verbose <- TRUE

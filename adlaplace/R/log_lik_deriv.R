@@ -48,39 +48,22 @@ log_lik_deriv <- function(
   )
 
   seq_gamma1 <- seq.int(num_beta + 1L, length.out = num_gamma)
-  seq_gamma0 <- seq_gamma1 - 1L
 
-  sparsity <- ad_fun@group_sparsity
-  which_columns_by_group1 <- lapply(
-    sparsity,
-    function(xx, refmat) {
-      grad_inner_gamma <- match(xx, seq_gamma0)
-      linv_here <- refmat[grad_inner_gamma, , drop = FALSE]
-      which(diff(linv_here@p) > 0) - 1L
-    },
-    refmat = Hstuff$half_H_inv
-  )
-
-  which_columns_by_group <- Matrix::sparseMatrix(
-    i = unlist(which_columns_by_group1),
-    j = rep(
-      seq(0, length.out = length(which_columns_by_group1)),
-      unlist(lapply(which_columns_by_group1, length))
-    ),
-    index1 = FALSE,
-    dims = c(num_gamma, length(which_columns_by_group1))
-  )
-
-  if (verbose) {
-    message("log_lik_deriv: calling trace_hinv_t ...")
+  the_trace <- hessian_pack$trace3
+  if (is.null(the_trace)) {
+    stop(
+      "hessian$trace3 is missing; run inner_opt(..., deriv = TRUE) with ",
+      "current adlaplace (trace is computed inside inner_opt)",
+      call. = FALSE
+    )
   }
-  the_trace <- adlaplace::trace_hinv_t(
-    ad_fun = ad_fun,
-    x = full_parameters,
-    LinvPt = Hstuff$half_H_inv,
-    LinvPtColumns = which_columns_by_group,
-    verbose = verbose
-  )
+  if (length(the_trace) != n_params) {
+    stop(
+      "length(hessian$trace3) (", length(the_trace), ") must equal num_beta + ",
+      "num_gamma + num_theta (", n_params, ")",
+      call. = FALSE
+    )
+  }
 
   dU <- -Hstuff$H_inv %*% hessian_pack$outer[seq_gamma1, -seq_gamma1]
 

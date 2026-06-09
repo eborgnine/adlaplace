@@ -21,6 +21,8 @@ struct CholPattern {
 	std::vector<int> half_H_inv_i;
 	std::vector<int> H_inv_p;
 	std::vector<int> H_inv_i;
+	std::vector<int> trace_columns_p;
+	std::vector<int> trace_columns_i;
 	std::vector<int> perm;
 	std::vector<int> perm_inv;
 };

@@ -12,6 +12,7 @@
 #'   (symbolic LDL pattern for C++: \code{L1}, \code{Linv}, \code{perm},
 #'   \code{perm} (0-based; inner Hessian uses \code{index1 = FALSE}),
 #'   \code{perm_inv} (0-based), \code{half_H_inv}, \code{H_inv}), optional
+#'   \code{trace_columns} (added in \code{ad_fun()}, not by this function),
 #'   \code{chol_inner} (\code{dCHMsimpl}
 #'   for R), \code{map_outer}, \code{map_inner}, and \code{sizes} (named
 #'   \code{beta}/\code{gamma}/\code{theta}; consumed internally by
@@ -193,5 +194,55 @@ hessian_map <- function(sparsity_list, Nbeta, Ngamma, Ntheta) {
     map_outer = result_map$outer,
     map_inner = result_map$inner,
     sizes = c(beta = Nbeta, gamma = Ngamma, theta = Ntheta)
+  )
+}
+
+#' Per-shard column indices into half_H_inv for trace_hinv_t
+#'
+#' Built from \code{group_sparsity} and the symbolic \code{half_H_inv} pattern
+#' in \code{chol_inner_list}. Added to that list in \code{new_ad_fun_from_ptr()}.
+#'
+#' @param group_sparsity List of per-shard \code{grad_inner} index vectors.
+#' @param n_beta Number of fixed-effect parameters.
+#' @param n_gamma Number of random-effect parameters.
+#' @param half_H_inv_pat Symbolic \code{half_H_inv} sparse matrix pattern.
+#' @return Sparse \code{ngCMatrix} (\code{index1 = FALSE}) with
+#'   \code{dims = c(n_gamma, length(group_sparsity))}.
+#' @keywords internal
+trace_columns_from_pattern <- function(
+  group_sparsity,
+  n_beta,
+  n_gamma,
+  half_H_inv_pat
+) {
+  n_groups <- length(group_sparsity)
+  if (n_gamma < 1L || n_groups < 1L || is.null(half_H_inv_pat)) {
+    return(Matrix::sparseMatrix(
+      i = integer(0),
+      j = integer(0),
+      dims = c(n_gamma, n_groups),
+      index1 = FALSE
+    ))
+  }
+
+  seq_gamma0 <- seq.int(n_beta, length.out = n_gamma)
+  which_columns_by_group1 <- lapply(
+    group_sparsity,
+    function(xx, refmat) {
+      grad_inner_gamma <- match(xx, seq_gamma0)
+      linv_here <- refmat[grad_inner_gamma, , drop = FALSE]
+      which(diff(linv_here@p) > 0L) - 1L
+    },
+    refmat = half_H_inv_pat
+  )
+
+  Matrix::sparseMatrix(
+    i = unlist(which_columns_by_group1),
+    j = rep(
+      seq(0L, length.out = length(which_columns_by_group1)),
+      unlist(lapply(which_columns_by_group1, length))
+    ),
+    index1 = FALSE,
+    dims = c(n_gamma, length(which_columns_by_group1))
   )
 }

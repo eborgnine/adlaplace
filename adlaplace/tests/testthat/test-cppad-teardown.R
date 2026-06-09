@@ -1,4 +1,4 @@
-# CppAD team teardown: inner_opt then trace_hinv_t (separate CppadParallelScope per .Call).
+# CppAD team teardown: deriv=TRUE uses one CppadParallelScope in inner_opt (opt + trace).
 
 cppad_teardown_fixture <- function(num_threads = 4L) {
   set.seed(42)
@@ -39,7 +39,7 @@ cppad_teardown_fixture <- function(num_threads = 4L) {
   )
 }
 
-test_that("log_lik_laplace deriv=TRUE runs trace after inner_opt (team teardown)", {
+test_that("log_lik_laplace deriv=TRUE runs trace inside inner_opt (team teardown)", {
   skip_if(
     Sys.info()[["sysname"]] == "Darwin" &&
       Sys.getenv("ADLAPLACE_TEST_PARALLEL_INNER_OPT", "") != "1",

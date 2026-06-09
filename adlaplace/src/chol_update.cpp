@@ -127,7 +127,6 @@ double chol_update(
 }
 
 void linv_update(
-	const std::size_t n,
 	const std::vector<int>& L_p,
 	const std::vector<int>& L_i,
 	const std::vector<double>& L_x,
@@ -135,14 +134,15 @@ void linv_update(
 	const std::vector<int>& Linv_i,
 	std::vector<double>& Linv_x)
 {
-	if (L_p.size() != n + 1) {
-		Rcpp::stop("linv_update: L_p length must be nrow + 1");
+	if (L_p.size() < 1) {
+		Rcpp::stop("linv_update: L_p is empty");
+	}
+	const std::size_t n = L_p.size() - 1;
+	if (Linv_p.size() != n + 1) {
+		Rcpp::stop("linv_update: Linv_p length must be nrow + 1");
 	}
 	if (L_x.size() != L_i.size()) {
 		Rcpp::stop("linv_update: L_i and L_x length must match");
-	}
-	if (Linv_p.size() != n + 1) {
-		Rcpp::stop("linv_update: Linv_p length must be nrow + 1");
 	}
 	Linv_x.assign(Linv_i.size(), 0.0);
 
@@ -207,7 +207,6 @@ double csc_entry(
 }
 
 void half_h_inv_update(
-	const std::size_t n,
 	const std::vector<int>& Linv_p,
 	const std::vector<int>& Linv_i,
 	const std::vector<double>& Linv_x,
@@ -217,9 +216,10 @@ void half_h_inv_update(
 	const std::vector<int>& half_H_inv_i,
 	std::vector<double>& half_H_inv_x)
 {
-	if (Linv_p.size() != n + 1) {
-		Rcpp::stop("half_h_inv_update: Linv_p length must be nrow + 1");
+	if (Linv_p.size() < 1) {
+		Rcpp::stop("half_h_inv_update: Linv_p is empty");
 	}
+	const std::size_t n = Linv_p.size() - 1;
 	if (Linv_x.size() != Linv_i.size()) {
 		Rcpp::stop("half_h_inv_update: Linv_i and Linv_x length must match");
 	}
@@ -251,7 +251,6 @@ void half_h_inv_update(
 }
 
 void h_inv_update(
-	const std::size_t n,
 	const std::vector<int>& half_H_inv_p,
 	const std::vector<int>& half_H_inv_i,
 	const std::vector<double>& half_H_inv_x,
@@ -259,9 +258,10 @@ void h_inv_update(
 	const std::vector<int>& H_inv_i,
 	std::vector<double>& H_inv_x)
 {
-	if (half_H_inv_p.size() != n + 1) {
-		Rcpp::stop("h_inv_update: half_H_inv_p length must be nrow + 1");
+	if (half_H_inv_p.size() < 1) {
+		Rcpp::stop("h_inv_update: half_H_inv_p is empty");
 	}
+	const std::size_t n = half_H_inv_p.size() - 1;
 	if (half_H_inv_x.size() != half_H_inv_i.size()) {
 		Rcpp::stop("h_inv_update: half_H_inv_i and half_H_inv_x length must match");
 	}
@@ -376,6 +376,14 @@ CholPattern chol_pattern_from_list(const Rcpp::List& cil, const int n_gamma) {
 	copy_csc_pi_from_s4(Linv, pattern.Linv_p, pattern.Linv_i);
 	copy_csc_pi_from_s4(half_H_inv, pattern.half_H_inv_p, pattern.half_H_inv_i);
 	copy_csc_pi_from_s4(H_inv, pattern.H_inv_p, pattern.H_inv_i);
+	if (cil.containsElementNamed("trace_columns")) {
+		const Rcpp::S4 trace_columns = cil["trace_columns"];
+		copy_csc_pi_from_s4(
+			trace_columns,
+			pattern.trace_columns_p,
+			pattern.trace_columns_i
+		);
+	}
 
 	pattern.perm.resize(static_cast<std::size_t>(n_gamma));
 	pattern.perm_inv.resize(static_cast<std::size_t>(n_gamma));
