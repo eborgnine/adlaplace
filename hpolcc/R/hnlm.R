@@ -176,7 +176,8 @@ hnlm <- function(
     config = config,
     ad_fun = ad_fun,
     cache = cache,
-    control_inner = control_inner
+    control_inner = control_inner,
+    hessian = TRUE
   ))
 
   config$gamma <- get("gamma", cache)
@@ -205,18 +206,7 @@ hnlm <- function(
   if (verbose_orig) {
     cat("hessian of parameters\n")
   }
-  hessian_outer <- try(
-    Matrix::forceSymmetric(numDeriv::jacobian(
-      func = adlaplace::outer_gr,
-      x = par_opt,
-      config = config,
-      control_inner = control_inner,
-      ad_fun = ad_fun,
-      cache = cache
-    ), "U")
-  )
 
-  coefficients <- hnlm_attach_parameter_se(coefficients, hessian_outer)
 
   if (verbose_orig) {
     cat("conditional samples\n")
@@ -227,7 +217,11 @@ hnlm <- function(
     n = c(config$num_sim, 500)[1]
   ))
 
-  hessian <- list(outer = hessian_outer, inner = NULL, var_iid = NULL)
+  hessian <- list(outer = optim_result$hessian, inner = NULL, var_iid = NULL)
+  optim_result$hessian <- NULL
+  coefficients <- hnlm_attach_parameter_se(coefficients, hessian$outer)
+
+
   n_beta <- nrow(model_data$data$info$beta)
   if (!inherits(coefficients, "try-error") &&
     !is.null(coefficients$gamma) &&
