@@ -159,6 +159,9 @@ struct AD_Func_Opt {
     std::fill(hess_upper_accum.begin(), hess_upper_accum.end(), 0.0);
     std::vector<double> grad_full(Nparams, 0.0);
     const bool inner_flag = inner;
+    const char* phase = inner ? "inner_opt get_fdfh" : "outer get_fdfh";
+    int api_err_shard = -1;
+    int api_err_rc = 0;
 
 #pragma omp parallel num_threads(num_threads)
     {
@@ -176,17 +179,37 @@ struct AD_Func_Opt {
             s,
             pack.owner_thread,
             static_cast<std::size_t>(omp_get_thread_num()),
-            inner ? "inner_opt get_fdfh" : "outer get_fdfh"
+            phase
           );
           adlaplace_debug_note_grad_mismatch(grad_local.data(), Nparams);
           continue;
         }
+        if (!h->api->f_grad_hess) {
+#pragma omp critical(adlaplace_api_err)
+          {
+            if (api_err_shard < 0) {
+              api_err_shard = static_cast<int>(s);
+              api_err_rc = -1;
+            }
+          }
+          continue;
+        }
         int* map_ptr = const_cast<int*>(hess_maps[s].data());
         std::fill(hess_local.begin(), hess_local.end(), 0.0);
-        (void)h->api->f_grad_hess(
+        const int rc = h->api->f_grad_hess(
           h->ctx, params_local.data(), &inner_flag,
           &f_local, grad_local.data(), hess_local.data(), map_ptr
         );
+        if (rc != 0) {
+#pragma omp critical(adlaplace_api_err)
+          {
+            if (api_err_shard < 0) {
+              api_err_shard = static_cast<int>(s);
+              api_err_rc = rc;
+            }
+          }
+          continue;
+        }
 
 #pragma omp critical
         {
@@ -205,7 +228,19 @@ struct AD_Func_Opt {
       }
     }
 
-    adlaplace_debug_raise_if_any(inner ? "inner_opt get_fdfh" : "outer get_fdfh");
+    if (api_err_shard >= 0) {
+      if (api_err_rc < 0) {
+        Rcpp::stop("%s: api->f_grad_hess is NULL for shard %d", phase, api_err_shard);
+      }
+      Rcpp::stop(
+        "%s: api->f_grad_hess failed for shard %d with code %d",
+        phase,
+        api_err_shard,
+        api_err_rc
+      );
+    }
+
+    adlaplace_debug_raise_if_any(phase);
     if (gout.size() > 0) {
       const size_t gsize = static_cast<size_t>(gout.size());
       const size_t ncopy = gsize < nvars_opt ? gsize : nvars_opt;
