@@ -163,6 +163,8 @@ struct AD_Func_Opt {
     int api_err_shard = -1;
     int api_err_rc = 0;
 
+    adlaplace_debug_begin_f_local_log();
+
 #pragma omp parallel num_threads(num_threads)
     {
       double f_local = 0.0;
@@ -225,8 +227,13 @@ struct AD_Func_Opt {
         for (size_t k = 0; k < Nparams; ++k) {
           grad_full[k] -= grad_local[k];
         }
+        adlaplace_debug_record_f_local(
+          omp_get_thread_num(), f_local, shard_group.size()
+        );
       }
     }
+
+    adlaplace_debug_print_f_locals(phase, f);
 
     if (api_err_shard >= 0) {
       if (api_err_rc < 0) {
