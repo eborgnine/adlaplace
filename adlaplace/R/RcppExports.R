@@ -228,6 +228,26 @@ inner_opt <- function(parameters, gamma, ad_fun, control = NULL, deriv = FALSE, 
     .Call(`_adlaplace_inner_opt`, parameters, gamma, ad_fun, control, deriv, verbose)
 }
 
+#' Evaluate f, gradient, and Hessian via \code{AD_Func_Opt::get_fdfh}
+#'
+#' Diagnostic entry point mirroring the \code{Trust_CG_Sparse} / \code{inner_opt()}
+#' derivative path (OpenMP shard groups, Hessian map aggregation). Always returns
+#' the **negative** log density and derivatives (same sign as \code{inner_opt()}).
+#'
+#' @param parameters Numeric vector of length \code{Nbeta + Ntheta} (fixed outer params).
+#' @param gamma Numeric vector of length \code{Ngamma}.
+#' @param ad_fun \code{ad_fun} S4 object (requires Hessian templates and thread assignment).
+#' @param inner Logical; if \code{TRUE}, evaluate inner-\eqn{\gamma} derivatives;
+#'   if \code{FALSE}, evaluate outer derivatives at the full parameter vector.
+#' @param verbose Logical; if \code{TRUE}, print thread and shard info.
+#'
+#' @rdname adlaplace_cpp
+#' @return List with components \code{f} (scalar), \code{grad} (numeric), and
+#'   \code{hessian} (sparse \code{Matrix} object).
+fun_obj_fdfh <- function(parameters, gamma, ad_fun_s4, inner = TRUE, verbose = FALSE) {
+    .Call(`_adlaplace_fun_obj_fdfh`, parameters, gamma, ad_fun_s4, inner, verbose)
+}
+
 #' @rdname adlaplace_cpp
 #' @param verbose Logical; if \code{TRUE}, print threads, shards, and parameter sizes.
 trace_hinv_t <- function(ad_fun_ptr, x, LinvPt, LinvPtColumns, verbose = FALSE) {

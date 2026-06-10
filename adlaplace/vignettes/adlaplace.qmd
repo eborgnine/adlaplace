@@ -249,8 +249,16 @@ by_shard <- vapply(
   },
   numeric(1)
 )
-sum(by_shard)
-adlaplace::joint_log_dens(ad_fun_plain, x_full, negative = FALSE)
+by_shard[1:5]
+
+res_fdf <- fun_obj_fdfh(ad_pack, c(config$beta, config$theta), config$gamma, inner = TRUE, verbose = TRUE)
+
+c(
+  sum(by_shard),
+  adlaplace::joint_log_dens(ad_fun_plain, x_full, negative = FALSE),
+  adlaplace::joint_log_dens(ad_pack, x_full, negative = FALSE),
+  -res_fdf$f
+)
 ```
 
 ## Joint log density derivatives
@@ -294,19 +302,27 @@ The returned solution should track the simulated random effects.
 
 ```{r testInnerOpt}
 x_outer <- c(config$beta, config$theta)
+x_full <- c(config$beta, config$gamma, config$theta)
+
 
 inner_res <- adlaplace::inner_opt(
   parameters = x_outer,
   gamma = config$gamma,
   ad_fun = ad_pack,
   control = list(
-    maxit = 100,
-    report.level = 0,
-    report.freq = 0
+    maxit = 2,
+    report.level = 3,
+    report.freq = 1,
+    grad.tol = 1e-8,
+    cg.tol = 1e-6
   ),
   deriv = TRUE,
-  verbose = FALSE
+  verbose = TRUE
 )
+adlaplace::joint_log_dens(ad_pack, x_full, negative = TRUE)
+
+
+inner_res$opt$fval
 
 plot(
   inner_res$opt$solution, gamma,
@@ -513,7 +529,11 @@ quantile(abs(dU_check - dU_check2))
 quantile(abs(dU_check2 - res_mid$extra$dU))
 
 quantile(as.matrix(solve(res_mid$extra$hessian$inner)) - as.matrix(res_mid$extra$hessian$H_inv))
-quantile(as.matrix(solve(res_mid$extra$hessian$inner)) - Matrix::crossprod(res_mid$extra$hessian$half_H_inv))
+quantile(as.matrix(solve(res_mid$extra$hessian$inner)) - Matrix::tcrossprod(res_mid$extra$hessian$half_H_inv))
+quantile(as.matrix(res_mid$extra$hessian$H_inv) - Matrix::tcrossprod(res_mid$extra$hessian$half_H_inv))
+
+
+(as.matrix(solve(res_mid$extra$hessian$inner)) - as.matrix(res_mid$extra$hessian$H_inv))[1:5, 1:5]
 
 
 

@@ -5,6 +5,7 @@
 \alias{joint_log_dens}
 \alias{grad}
 \alias{hessian}
+\alias{fun_obj_fdfh}
 \alias{trace_hinv_t}
 \title{C++ backend entry points}
 \usage{
@@ -21,6 +22,8 @@ hessian(
   negative = TRUE
 )
 
+fun_obj_fdfh(ad_fun, parameters, gamma, inner = TRUE, verbose = FALSE)
+
 trace_hinv_t(ad_fun_ptr, x, LinvPt, LinvPtColumns, verbose = FALSE)
 
 joint_log_dens(ad_fun_ptr, x, shards = NULL, negative = TRUE)
@@ -37,6 +40,8 @@ hessian(
 )
 
 trace_hinv_t(ad_fun_ptr, x, LinvPt, LinvPtColumns, verbose = FALSE)
+
+fun_obj_fdfh(ad_fun, parameters, gamma, inner = TRUE, verbose = FALSE)
 }
 \arguments{
 \item{ad_fun_ptr}{External pointer of class \code{ad_fun_ptr}.}
@@ -51,9 +56,16 @@ trace_hinv_t(ad_fun_ptr, x, LinvPt, LinvPtColumns, verbose = FALSE)
 \pkg{trustOptim} sign, consistent with \code{inner_opt()}). If \code{FALSE}, return \eqn{\ell(x)}, \eqn{\nabla\ell},
 and \eqn{\nabla^2\ell}.}
 
-\item{inner}{Logical scalar for inner-\eqn{\gamma} vs outer derivatives.}
+\item{inner}{Logical; if \code{TRUE}, evaluate inner-\eqn{\gamma} derivatives;
+if \code{FALSE}, evaluate outer derivatives at the full parameter vector.}
 
 \item{verbose}{Logical; if \code{TRUE}, print threads, shards, and CppAD session phases.}
+
+\item{ad_fun}{\code{ad_fun} S4 object (requires Hessian templates and thread assignment).}
+
+\item{parameters}{Numeric vector of length \code{Nbeta + Ntheta}.}
+
+\item{gamma}{Numeric vector of length \code{Ngamma}.}
 
 \item{LinvPt, LinvPtColumns}{See \code{trace_hinv_t()}.}
 }
@@ -63,9 +75,16 @@ Scalar log-density value (sign per \code{negative}).
 Gradient of log density (sign per \code{negative}).
 
 Sparse Hessian of log density (sign per \code{negative}).
+
+List with components \code{f} (scalar), \code{grad} (numeric), and
+  \code{hessian} (sparse \code{Matrix} object).
 }
 \description{
 Low-level C++ entry points exposed to R via Rcpp.
+
+Diagnostic entry point mirroring the \code{Trust_CG_Sparse} / \code{inner_opt()}
+derivative path (OpenMP shard groups, Hessian map aggregation). Always returns
+the **negative** log density and derivatives (same sign as \code{inner_opt()}).
 }
 \section{Functions}{
 \itemize{
@@ -76,6 +95,8 @@ Low-level C++ entry points exposed to R via Rcpp.
 \item \code{hessian()}: Accept \code{ad_fun} S4 (uses \code{@ptr}).
 
 \item \code{trace_hinv_t()}: Accept \code{ad_fun} S4 (uses \code{@ptr}).
+
+\item \code{fun_obj_fdfh()}: Accept \code{ad_fun} S4 (requires Hessian templates).
 
 }}
 \section{Sign convention}{

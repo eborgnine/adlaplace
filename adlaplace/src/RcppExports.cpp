@@ -225,6 +225,21 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// fun_obj_fdfh
+Rcpp::List fun_obj_fdfh(const Rcpp::NumericVector& parameters, const Rcpp::NumericVector& gamma, const Rcpp::S4& ad_fun_s4, bool inner, bool verbose);
+RcppExport SEXP _adlaplace_fun_obj_fdfh(SEXP parametersSEXP, SEXP gammaSEXP, SEXP ad_fun_s4SEXP, SEXP innerSEXP, SEXP verboseSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::NumericVector& >::type parameters(parametersSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::NumericVector& >::type gamma(gammaSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::S4& >::type ad_fun_s4(ad_fun_s4SEXP);
+    Rcpp::traits::input_parameter< bool >::type inner(innerSEXP);
+    Rcpp::traits::input_parameter< bool >::type verbose(verboseSEXP);
+    rcpp_result_gen = Rcpp::wrap(fun_obj_fdfh(parameters, gamma, ad_fun_s4, inner, verbose));
+    return rcpp_result_gen;
+END_RCPP
+}
 // trace_hinv_t
 Rcpp::NumericVector trace_hinv_t(SEXP ad_fun_ptr, const Rcpp::NumericVector& x, const Rcpp::S4& LinvPt, const Rcpp::S4& LinvPtColumns, bool verbose);
 RcppExport SEXP _adlaplace_trace_hinv_t(SEXP ad_fun_ptrSEXP, SEXP xSEXP, SEXP LinvPtSEXP, SEXP LinvPtColumnsSEXP, SEXP verboseSEXP) {
@@ -259,6 +274,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_adlaplace_grad", (DL_FUNC) &_adlaplace_grad, 5},
     {"_adlaplace_hessian", (DL_FUNC) &_adlaplace_hessian, 6},
     {"_adlaplace_inner_opt", (DL_FUNC) &_adlaplace_inner_opt, 6},
+    {"_adlaplace_fun_obj_fdfh", (DL_FUNC) &_adlaplace_fun_obj_fdfh, 5},
     {"_adlaplace_trace_hinv_t", (DL_FUNC) &_adlaplace_trace_hinv_t, 5},
     {NULL, NULL, 0}
 };

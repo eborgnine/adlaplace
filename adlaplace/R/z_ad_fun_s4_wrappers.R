@@ -26,3 +26,11 @@ trace_hinv_t <- function(ad_fun_ptr, x, LinvPt, LinvPtColumns, verbose = FALSE) 
   ptr <- if (isS4(ad_fun_ptr) && methods::.hasSlot(ad_fun_ptr, "ptr")) ad_fun_ptr@ptr else ad_fun_ptr
   .Call("_adlaplace_trace_hinv_t", ptr, x, LinvPt, LinvPtColumns, verbose)
 }
+
+#' @describeIn adlaplace_cpp Accept \code{ad_fun} S4 (requires Hessian templates).
+#' @param parameters Numeric vector of length \code{Nbeta + Ntheta}.
+#' @param gamma Numeric vector of length \code{Ngamma}.
+#' @export
+fun_obj_fdfh <- function(ad_fun, parameters, gamma, inner = TRUE, verbose = FALSE) {
+  .Call(`_adlaplace_fun_obj_fdfh`, parameters, gamma, ad_fun, inner, verbose)
+}
