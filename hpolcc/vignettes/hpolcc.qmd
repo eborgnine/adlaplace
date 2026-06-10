@@ -39,13 +39,12 @@ london$year_month_dow <- format(london$date, "%Y-%m-%a")
 head(london)
 quantile(london$pm10, na.rm = TRUE)
 quantile(london$tmean, na.rm = TRUE)
-
 ```
 
 ## Model specification
 
 ```{r model-spec}
-london$temp_div10 = london$tmean / 10
+london$temp_div10 <- london$tmean / 10
 cc_formula <- dirichlet_multinom(
     all,
     by = "year_month_dow",
@@ -58,10 +57,11 @@ cc_formula <- dirichlet_multinom(
     ref_value = 40,
     init = 0.001, parscale = 100
 ) + iwp(
-    tmean, 
-p = 3, knots = seq(-2, 30, by = 2), 
-init = 0.01, parscale = 100,
-ref_value = 20)
+    tmean,
+    p = 3, knots = seq(-2, 30, by = 2),
+    init = 0.01, parscale = 100,
+    ref_value = 20
+)
 ```
 
 
@@ -72,15 +72,15 @@ fit <- hnlm(
     formula = cc_formula,
     data = london,
     config = list(
-    transform_theta = TRUE,
-    num_threads = 8L,
-    num_shards = 100L,
-    verbose = FALSE
+        transform_theta = TRUE,
+        num_threads = 8L,
+        num_shards = 100L,
+        verbose = FALSE
     ),
     control = list(
         maxit = 1000, trace = 3, REPORT = 1,
-     factr = 1e3,
-    pgtol = 1e-12  
+        factr = 1e3,
+        pgtol = 1e-12
     )
 )
 ```
@@ -92,17 +92,20 @@ summary(fit)
 
 
 ```{r plot_results}
-par(mfrow=c(1,2), mar=c(2.25,2.25,0,0), bty='l', mgp=c(1,0.5,0))
-for(D in names(fit$sample$sim)) {
-    the_xlim = range(london[[D]], na.rm = TRUE)
-    sample_in_xlim = fit$sample$sim[[D]][
-        fit$sample$x[[D]] > min(the_xlim) & 
-        fit$sample$x[[D]] < max(the_xlim),]
-matplot(fit$sample$x[[D]], fit$sample$sim[[D]], type='l', lty=1, col='#00000010',
-    xlab = D, ylab = "RR", xaxs='i', yaxs='i',
-    xlim = the_xlim,
-    ylim = quantile(sample_in_xlim, prob = c(0.005, 0.99)))
-matlines(fit$sample$x[[D]], fit$sample$envelope$common[[D]], lty=c(2,1,2), col='red')
+par(mfrow = c(1, 2), mar = c(2.25, 2.25, 0, 0), bty = "l", mgp = c(1, 0.5, 0))
+for (D in names(fit$sample$sim)) {
+    the_xlim <- range(london[[D]], na.rm = TRUE)
+    sample_in_xlim <- fit$sample$sim[[D]][
+        fit$sample$x[[D]] > min(the_xlim) &
+            fit$sample$x[[D]] < max(the_xlim),
+    ]
+    matplot(fit$sample$x[[D]], fit$sample$sim[[D]],
+        type = "l", lty = 1, col = "#00000010",
+        xlab = D, ylab = "RR", xaxs = "i", yaxs = "i",
+        xlim = the_xlim,
+        ylim = quantile(sample_in_xlim, prob = c(0.005, 0.99))
+    )
+    matlines(fit$sample$x[[D]], fit$sample$envelope$common[[D]], lty = c(2, 1, 2), col = "red")
 }
 ```
 
@@ -128,6 +131,20 @@ forres <- hnlm(
 slotNames(forres$ad_fun)
 dim(forres$config$shards)
 forres$model_data$data$info$parameters
+bob <- stats::optim(
+    par = forres$config$opt$init,
+    fn = adlaplace::outer_fn,
+    gr = adlaplace::outer_gr,
+    method = "L-BFGS-B",
+    control = forres$control,
+    lower = forres$config$opt$lower,
+    upper = forres$config$opt$upper,
+    config = forres$config,
+    ad_fun = forres$ad_fun,
+    cache = forres$cache,
+    control_inner = forres$control_inner,
+    hessian = TRUE
+)
 ```
 
 ## Joint log density
@@ -139,15 +156,13 @@ parameters (`beta`, inner `gamma`, and `theta`).
 sz <- forres$ad_fun@sizes
 x_full <- c(
     forres$config$opt$init[seq_len(sz["beta"])],
-    rep(0, sz["gamma"]),
+    forres$cache$gamma,
     forres$config$opt$init[seq(sz["beta"] + 1L, length.out = sz["theta"])]
 )
 
-forres$model_data$data$info$parameters[, c("label", "init")]
-c(beta = sz["beta"], gamma = sz["gamma"], theta = sz["theta"])
-
 joint_log_dens(forres$ad_fun, x_full)
 grad(forres$ad_fun, x_full)
+bob <- hessian(forres$ad_fun, x_full)
 ```
 
 ## Likelihood
@@ -158,10 +173,10 @@ optimizes random effects and returns the  log-likelihood.
 ```{r likelihood}
 x_outer <- forres$model_data$data$info$parameters$init
 
-lik = log_lik_laplace(
+lik <- log_lik_laplace(
     x = x_outer,
     ad_fun = forres$ad_fun,
-    config = modifyList(forres$config, list(verbose=TRUE)),
+    config = modifyList(forres$config, list(verbose = TRUE)),
     gamma = forres$cache$gamma,
     control = list(report.level = 2, report.freq = 1),
     deriv = TRUE
@@ -180,9 +195,9 @@ the Laplace output and model-data bundle:
 
 ```{r cond-sim}
 sim <- adlaplaceHgp::cond_sim_iwp(
-  fit = lik,
-  model_data = forres$model_data,
-  n = 100
+    fit = lik,
+    model_data = forres$model_data,
+    n = 100
 )
 names(sim)
 # inspect assembled inputs:
