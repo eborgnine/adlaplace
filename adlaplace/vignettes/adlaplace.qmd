@@ -340,7 +340,6 @@ that session; standalone `trace_hinv_t()` remains for direct use. Each
 `CppadParallelScope` end flushes per-thread CppAD pools before the next `.Call`.
 
 ```{r testLogLik}
-config$verbose <- TRUE
 res_noderiv <- adlaplace::log_lik_laplace(
   x = x_outer,
   ad_fun = ad_pack,
@@ -494,16 +493,54 @@ max_abs_hess_diff <- max(abs((hessian_outer - hessian_plain)@x), na.rm = TRUE)
 max_abs_hess_diff
 ```
 
+
+```{r checkDu}  
+seq_gamma1 <- seq.int(
+  ad_pack@sizes["beta"] + 1L,
+  length.out = ad_pack@sizes["gamma"]
+)
+#  dU <- -Hstuff$H_inv %*% hessian_pack$outer[seq_gamma1, -seq_gamma1]
+dU_check <- -solve(
+  res_mid$extra$hessian$inner,
+  res_mid$extra$hessian$outer[seq_gamma1, -seq_gamma1]
+)
+dU_check2 <- -
+  res_mid$extra$hessian$H_inv %*%
+  res_mid$extra$hessian$outer[seq_gamma1, -seq_gamma1]
+
+quantile(abs(dU_check - res_mid$extra$dU))
+quantile(abs(dU_check - dU_check2))
+quantile(abs(dU_check2 - res_mid$extra$dU))
+
+quantile(as.matrix(solve(res_mid$extra$hessian$inner)) - as.matrix(res_mid$extra$hessian$H_inv))
+quantile(as.matrix(solve(res_mid$extra$hessian$inner)) - Matrix::crossprod(res_mid$extra$hessian$half_H_inv))
+
+
+
+
+plot(
+  Sx, dU[Du, Dpar, ],
+  type = "l",
+  xlab = expression(theta[3]),
+  ylab = expression(d * u[Du] / d * theta[3])
+)
+points(SxD, diff(u_hat[, Du]) / diff(Sx), pch = 16)
+points(rep(res_mid$parameters[Dpar], 2),
+  c(dU_check[Du, Dpar], dU_check2[Du, Dpar]),
+  col = c("red", "blue"), cex = c(5, 3)
+)
+```
+
 ## Joint density derivative checks
 
 The same finite-difference idea applies to the full joint log density
 $-\log p(\beta, \gamma, \theta \mid y)$ and its AD gradient and Hessian.
 
 ```{r derivJointDens, fig.height=5}
-par(mfrow = c(2, 2), mar = c(2, 2, 2, 0), mgp = c(1, 0.5, 0))
+par(mfrow = c(4, 2), mar = c(2, 2, 2, 0), mgp = c(1, 0.5, 0))
 
 x_here <- res_mid$full_parameters
-Dpar_dens <- length(x_here)
+Dpar_dens <- length(x_here) - 1
 Ngrid <- 11L
 shards <- seq.int(from = 0L, length.out = adlaplace::n_groups(ad_fun_plain))
 
@@ -520,6 +557,11 @@ dens <- vapply(
   ad_fun = ad_fun_plain,
   shards = shards,
   negative = FALSE
+)
+
+rbind(
+  dens[1:5],
+  dens[seq(to = length(dens), length.out = 5)]
 )
 
 grad <- do.call(
@@ -553,7 +595,9 @@ for (i in seq_len(Ngrid)) {
 }
 
 grad_slope <- apply(grad, 1, diff) / mean(diff(Sx))
-for (Dpar2 in c(Dpar_dens, 1L, length(x_here) - 2L, length(x_here) - 1L)) {
+s_par2 <- sort(unique(c(Dpar_dens, 1:3, seq(to = length(x_here), length.out = 5))))
+s_par2 <- s_par2[seq(1, min(c(prod(par("mfrow")) - 1, length(s_par2))))]
+for (Dpar2 in s_par2) {
   plot(
     Sx, hes[Dpar_dens, Dpar2, ],
     type = "l",

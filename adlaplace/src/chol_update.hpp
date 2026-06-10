@@ -42,7 +42,8 @@ void half_h_inv_update(
 	std::vector<double>& half_H_inv_x
 );
 
-// H_inv = half_H_inv %*% t(half_H_inv) on fixed CSC pattern.
+// H_inv = half_H_inv %*% t(half_H_inv) on fixed upper-triangle CSC pattern.
+// Only entries with row <= col are filled; exported as dsCMatrix (uplo = U).
 // nrow inferred from half_H_inv_p.size() - 1.
 void h_inv_update(
 	const std::vector<int>& half_H_inv_p,

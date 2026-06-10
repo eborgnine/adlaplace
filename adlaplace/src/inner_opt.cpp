@@ -119,6 +119,25 @@ Rcpp::S4 csc_to_dtCMatrix_lower(const std::vector<int> &p,
   return mat;
 }
 
+Rcpp::S4 csc_to_dsCMatrix_upper(const std::vector<int> &p,
+                                const std::vector<int> &i,
+                                const std::vector<double> &x, int n) {
+  if (static_cast<size_t>(n + 1) != p.size()) {
+    Rcpp::stop("csc_to_dsCMatrix_upper: p length must be nrow + 1");
+  }
+  if (i.size() != x.size()) {
+    Rcpp::stop("csc_to_dsCMatrix_upper: i and x length must match");
+  }
+
+  Rcpp::S4 mat("dsCMatrix");
+  mat.slot("p") = Rcpp::IntegerVector(p.begin(), p.end());
+  mat.slot("i") = Rcpp::IntegerVector(i.begin(), i.end());
+  mat.slot("x") = Rcpp::NumericVector(x.begin(), x.end());
+  mat.slot("Dim") = Rcpp::IntegerVector::create(n, n);
+  mat.slot("uplo") = Rcpp::String("U");
+  return mat;
+}
+
 Rcpp::S4 csc_to_dgCMatrix(const std::vector<int> &p, const std::vector<int> &i,
                           const std::vector<double> &x, int n) {
   if (static_cast<size_t>(n + 1) != p.size()) {
@@ -443,8 +462,8 @@ Rcpp::List inner_opt(const Rcpp::NumericVector parameters,
       const CholPattern &pat = backend->chol_pattern;
       hessian_out["half_H_inv"] = csc_to_dgCMatrix(
           pat.half_H_inv_p, pat.half_H_inv_i, result.half_h_inv_x_out, pat.n);
-      hessian_out["H_inv"] =
-          csc_to_dgCMatrix(pat.H_inv_p, pat.H_inv_i, result.h_inv_x_out, pat.n);
+      hessian_out["H_inv"] = csc_to_dsCMatrix_upper(
+          pat.H_inv_p, pat.H_inv_i, result.h_inv_x_out, pat.n);
     }
     if (deriv && result.chol_ok && !result.trace3.empty()) {
       hessian_out["trace3"] = Rcpp::wrap(result.trace3);

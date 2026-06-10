@@ -167,7 +167,7 @@ hessian_map <- function(sparsity_list, Nbeta, Ngamma, Ntheta) {
     Linv <- methods::as(Matrix::solve(L), "nMatrix")
     half_H_inv_pat <- Matrix::crossprod(Linv, Matrix::Diagonal(Ngamma, 1))
     half_H_inv_pat <- half_H_inv_pat[perm_inv + 1L, ]
-    H_inv_pat <- Matrix::tcrossprod(half_H_inv_pat)
+    H_inv_pat <- Matrix::drop0(Matrix::triu(Matrix::tcrossprod(half_H_inv_pat), k = 0L))
     chol_inner_list <- list(
       L1 = L,
       Linv = Linv,

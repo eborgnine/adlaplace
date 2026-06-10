@@ -301,6 +301,9 @@ void h_inv_update(
 		     pos < static_cast<std::size_t>(H_inv_p[col + 1]);
 		     ++pos) {
 			const std::size_t row = static_cast<std::size_t>(H_inv_i[pos]);
+			if (row > col) {
+				continue;
+			}
 			const auto& a = row_entries[row];
 			const auto& b = row_entries[col];
 			std::size_t ia = 0;

@@ -160,6 +160,16 @@ x_full <- c(
     forres$config$opt$init[seq(sz["beta"] + 1L, length.out = sz["theta"])]
 )
 
+shards <- seq.int(from = 0L, length.out = n_groups(forres$ad_fun@ptr))
+by_shard <- vapply(
+    shards,
+    function(s) joint_log_dens(forres$ad_fun, x_full, shards = s),
+    numeric(1)
+)
+by_shard[1:5]
+by_shard[seq(to = length(by_shard), length.out = 5)]
+
+sum(by_shard)
 joint_log_dens(forres$ad_fun, x_full)
 grad(forres$ad_fun, x_full)
 bob <- hessian(forres$ad_fun, x_full)
