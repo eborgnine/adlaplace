@@ -462,8 +462,8 @@ Rcpp::List inner_opt(const Rcpp::NumericVector parameters,
       const CholPattern &pat = backend->chol_pattern;
       hessian_out["half_H_inv"] = csc_to_dgCMatrix(
           pat.half_H_inv_p, pat.half_H_inv_i, result.half_h_inv_x_out, pat.n);
-      hessian_out["H_inv"] = csc_to_dsCMatrix_upper(
-          pat.H_inv_p, pat.H_inv_i, result.h_inv_x_out, pat.n);
+      hessian_out["H_inv"] = csc_to_dsCMatrix_upper(pat.H_inv_p, pat.H_inv_i,
+                                                    result.h_inv_x_out, pat.n);
     }
     if (deriv && result.chol_ok && !result.trace3.empty()) {
       hessian_out["trace3"] = Rcpp::wrap(result.trace3);
@@ -495,58 +495,53 @@ Rcpp::List inner_opt(const Rcpp::NumericVector parameters,
 
 //' Evaluate f, gradient, and Hessian via \code{AD_Func_Opt::get_fdfh}
 //'
-//' Diagnostic entry point mirroring the \code{Trust_CG_Sparse} / \code{inner_opt()}
-//' derivative path (OpenMP shard groups, Hessian map aggregation). Always returns
-//' the **negative** log density and derivatives (same sign as \code{inner_opt()}).
+//' Diagnostic entry point mirroring the \code{Trust_CG_Sparse} /
+//\code{inner_opt()} ' derivative path (OpenMP shard groups, Hessian map
+// aggregation). Always returns ' the **negative** log density and derivatives
+//(same sign as \code{inner_opt()}).
 //'
-//' @param parameters Numeric vector of length \code{Nbeta + Ntheta} (fixed outer params).
-//' @param gamma Numeric vector of length \code{Ngamma}.
-//' @param ad_fun \code{ad_fun} S4 object (requires Hessian templates and thread assignment).
-//' @param inner Logical; if \code{TRUE}, evaluate inner-\eqn{\gamma} derivatives;
-//'   if \code{FALSE}, evaluate outer derivatives at the full parameter vector.
-//' @param verbose Logical; if \code{TRUE}, print thread and shard info.
+//' @param parameters Numeric vector of length \code{Nbeta + Ntheta} (fixed
+// outer params). ' @param gamma Numeric vector of length \code{Ngamma}. '
+// @param ad_fun \code{ad_fun} S4 object (requires Hessian templates and thread
+// assignment). ' @param inner Logical; if \code{TRUE}, evaluate
+// inner-\eqn{\gamma} derivatives; '   if \code{FALSE}, evaluate outer
+// derivatives at the full parameter vector. ' @param verbose Logical; if
+//\code{TRUE}, print thread and shard info.
 //'
 //' @rdname adlaplace_cpp
 //' @return List with components \code{f} (scalar), \code{grad} (numeric), and
 //'   \code{hessian} (sparse \code{Matrix} object).
 // [[Rcpp::export]]
-Rcpp::List fun_obj_fdfh(
-  const Rcpp::NumericVector& parameters,
-  const Rcpp::NumericVector& gamma,
-  const Rcpp::S4& ad_fun_s4,
-  bool inner = true,
-  bool verbose = false) {
+Rcpp::List fun_obj_fdfh(const Rcpp::NumericVector &parameters,
+                        const Rcpp::NumericVector &gamma,
+                        const Rcpp::S4 &ad_fun_s4, bool inner = true,
+                        bool verbose = false) {
 
-  ::ad_fun* backend = resolve_ad_fun_laplace(ad_fun_s4);
+  ::ad_fun *backend = resolve_ad_fun_laplace(ad_fun_s4);
   adlaplace_require_owner_threads_assigned(*backend);
 
   const std::vector<std::vector<std::size_t>> thread_groups =
-    thread_groups_from_backend(*backend);
+      thread_groups_from_backend(*backend);
   const int num_threads = static_cast<int>(thread_groups.size());
 
   const std::size_t n_beta =
-    static_cast<std::size_t>(backend->sizes.named("beta"));
+      static_cast<std::size_t>(backend->sizes.named("beta"));
   const std::size_t n_gamma =
-    static_cast<std::size_t>(backend->sizes.named("gamma"));
+      static_cast<std::size_t>(backend->sizes.named("gamma"));
   const std::size_t n_theta =
-    static_cast<std::size_t>(backend->sizes.named("theta"));
+      static_cast<std::size_t>(backend->sizes.named("theta"));
   const std::size_t n_params = n_beta + n_gamma + n_theta;
   const std::size_t gamma_begin = n_beta;
   const std::size_t theta_begin = n_beta + n_gamma;
 
   if (static_cast<std::size_t>(parameters.size()) != n_beta + n_theta) {
-    Rcpp::stop(
-      "parameters has length %d but expected Nbeta+Ntheta=%d",
-      static_cast<int>(parameters.size()),
-      static_cast<int>(n_beta + n_theta)
-    );
+    Rcpp::stop("parameters has length %d but expected Nbeta+Ntheta=%d",
+               static_cast<int>(parameters.size()),
+               static_cast<int>(n_beta + n_theta));
   }
   if (static_cast<std::size_t>(gamma.size()) != n_gamma) {
-    Rcpp::stop(
-      "gamma has length %d but expected Ngamma=%d",
-      static_cast<int>(gamma.size()),
-      static_cast<int>(n_gamma)
-    );
+    Rcpp::stop("gamma has length %d but expected Ngamma=%d",
+               static_cast<int>(gamma.size()), static_cast<int>(n_gamma));
   }
   if (n_gamma == 0) {
     Rcpp::stop("Ngamma must be > 0");
@@ -556,26 +551,66 @@ Rcpp::List fun_obj_fdfh(
   Eigen::VectorXd fullParams(static_cast<Eigen::Index>(n_params));
   for (std::size_t d = 0; d < n_beta; ++d) {
     params_init[d] = parameters[static_cast<R_xlen_t>(d)];
-    fullParams[static_cast<Eigen::Index>(d)] = parameters[static_cast<R_xlen_t>(d)];
+    fullParams[static_cast<Eigen::Index>(d)] =
+        parameters[static_cast<R_xlen_t>(d)];
   }
   for (std::size_t d = 0; d < n_gamma; ++d) {
     params_init[gamma_begin + d] = gamma[static_cast<R_xlen_t>(d)];
     fullParams[static_cast<Eigen::Index>(gamma_begin + d)] =
-      gamma[static_cast<R_xlen_t>(d)];
+        gamma[static_cast<R_xlen_t>(d)];
   }
   for (std::size_t d = 0; d < n_theta; ++d) {
-    params_init[theta_begin + d] = parameters[static_cast<R_xlen_t>(n_beta + d)];
+    params_init[theta_begin + d] =
+        parameters[static_cast<R_xlen_t>(n_beta + d)];
     fullParams[static_cast<Eigen::Index>(theta_begin + d)] =
-      parameters[static_cast<R_xlen_t>(n_beta + d)];
+        parameters[static_cast<R_xlen_t>(n_beta + d)];
   }
 
   const std::size_t nvars_opt = inner ? n_gamma : n_params;
   if (verbose) {
-    Rcpp::Rcout << "fun_obj_fdfh: "
-                << (inner ? "inner" : "outer")
+    auto env_or = [](const char *name) -> const char * {
+      const char *v = std::getenv(name);
+      return (v && v[0] != '\0') ? v : "(unset)";
+    };
+    Rcpp::Rcout << "fun_obj_fdfh: " << (inner ? "inner" : "outer")
                 << ", threads = " << num_threads
                 << ", shards = " << backend->fun.size()
                 << ", nvars = " << nvars_opt << "\n";
+    Rcpp::Rcout << "  ad_fun configured_num_threads = "
+                << backend->configured_num_threads << "\n";
+    Rcpp::Rcout << "  thread_groups:";
+    for (int t = 0; t < num_threads; ++t) {
+      Rcpp::Rcout << " [" << t
+                  << "]=" << thread_groups[static_cast<std::size_t>(t)].size();
+    }
+    Rcpp::Rcout << "\n";
+    Rcpp::Rcout << "  env OMP_NUM_THREADS=" << env_or("OMP_NUM_THREADS")
+                << " OMP_THREAD_LIMIT=" << env_or("OMP_THREAD_LIMIT")
+                << " OMP_DYNAMIC=" << env_or("OMP_DYNAMIC")
+                << " OMP_MAX_ACTIVE_LEVELS=" << env_or("OMP_MAX_ACTIVE_LEVELS")
+                << " OMP_NESTED=" << env_or("OMP_NESTED")
+                << " OMP_PROC_BIND=" << env_or("OMP_PROC_BIND")
+                << " OMP_PLACES=" << env_or("OMP_PLACES")
+                << " OMP_WAIT_POLICY=" << env_or("OMP_WAIT_POLICY") << "\n";
+    Rcpp::Rcout << "  env MKL_NUM_THREADS=" << env_or("MKL_NUM_THREADS")
+                << " OPENBLAS_NUM_THREADS=" << env_or("OPENBLAS_NUM_THREADS")
+                << " VECLIB_MAXIMUM_THREADS="
+                << env_or("VECLIB_MAXIMUM_THREADS") << "\n";
+    Rcpp::Rcout << "  omp (serial, pre-CppadParallelScope):"
+                << " in_parallel=" << (omp_in_parallel() != 0)
+                << " thread_num=" << omp_get_thread_num() << " num_threads="
+                << omp_get_num_threads() // 1 outside parallel
+                << " max_threads=" << omp_get_max_threads()
+                << " num_procs=" << omp_get_num_procs()
+#ifdef _OPENMP
+                << " dynamic=" << omp_get_dynamic()
+#if _OPENMP >= 200805
+                << " max_active_levels=" << omp_get_max_active_levels()
+#endif
+#else
+                << " (_OPENMP not defined at compile time)"
+#endif
+                << "\n";
   }
 
   AD_Func_Opt funObj(*backend, params_init, inner, num_threads, &thread_groups);
@@ -601,9 +636,7 @@ Rcpp::List fun_obj_fdfh(
     Rcpp::Rcout << "fun_obj_fdfh: done\n";
   }
 
-  return Rcpp::List::create(
-    Rcpp::Named("f") = fval,
-    Rcpp::Named("grad") = Rcpp::wrap(grad_vec),
-    Rcpp::Named("hessian") = eigen_to_dgCMatrix(H)
-  );
+  return Rcpp::List::create(Rcpp::Named("f") = fval,
+                            Rcpp::Named("grad") = Rcpp::wrap(grad_vec),
+                            Rcpp::Named("hessian") = eigen_to_dgCMatrix(H));
 }
