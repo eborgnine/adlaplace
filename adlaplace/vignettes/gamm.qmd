@@ -124,9 +124,10 @@ outer_fit <- stats::optim(
 )
 
 outer_fit$par
-outer_fit$summary = format_parameters(
-  parameters = outer_fit$par,gamma = cache$gamma,
-  info=ad_fun@info)
+outer_fit$summary <- format_parameters(
+  parameters = outer_fit$par, gamma = cache$gamma,
+  info = ad_fun@info
+)
 outer_fit$summary$parameters
 outer_fit$value
 adlaplace::outer_gr(x = outer_fit$par, cache = cache, config = config, ad_fun = ad_fun)
@@ -143,12 +144,10 @@ xx <- c(
 )
 
 
-my_ad_ptr <- clone_ad_fun_ptr(ad_fun@ptr)
-
 by_shard <- mapply(
   adlaplace::joint_log_dens,
   shards = shards,
-  MoreArgs = list(x = xx, ad_fun = my_ad_ptr, negative = FALSE),
+  MoreArgs = list(x = xx, ad_fun = ad_fun, negative = FALSE),
   SIMPLIFY = TRUE
 )
 by_shard[seq(to = length(by_shard), length.out = 5)]

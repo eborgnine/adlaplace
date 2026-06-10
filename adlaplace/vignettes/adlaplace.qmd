@@ -228,10 +228,11 @@ Shard handles are combined with `c()`. This uses move semantics: after
 not be reused.
 
 ```{r adShards_combined}
-ad_fun_plain <- c( # ad_fun_obs, ad_fun_extra,
+ad_fun_plain <- c(
+  ad_fun_obs, ad_fun_extra,
   ad_fun_r1, ad_fun_r2
 )
-ad_pack <- adlaplace::ad_fun(ad_fun_plain, num_threads = 4)
+ad_pack <- adlaplace::ad_fun(ad_fun_plain, num_threads = 12)
 ```
 
 The per-shard log densities sum to the joint log density at a fixed parameter
@@ -543,7 +544,7 @@ quantile(as.matrix(res_mid$extra$hessian$H_inv) - Matrix::tcrossprod(res_mid$ext
 (as.matrix(solve(res_mid$extra$hessian$inner)) - as.matrix(res_mid$extra$hessian$H_inv))[1:5, 1:5]
 
 
-
+par(mfrow = c(1, 1))
 
 plot(
   Sx, dU[Du, Dpar, ],

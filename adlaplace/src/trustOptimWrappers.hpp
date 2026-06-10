@@ -154,7 +154,7 @@ struct AD_Func_Opt {
     int api_err_shard = -1;
     int api_err_rc = 0;
 
-#ifdef DEBUG
+#ifdef DEBUG_EXTRA
     std::vector<double> f_local_log(static_cast<size_t>(num_threads), -99.0);
 #endif
 
@@ -218,12 +218,12 @@ struct AD_Func_Opt {
         }
       }
 
-#ifdef DEBUG
+#ifdef DEBUG_EXTRA
       f_local_log[static_cast<size_t>(omp_get_thread_num())] = f_local;
 #endif
     }
 
-#ifdef DEBUG
+#ifdef DEBUG_EXTRA
     Rcpp::Rcout << phase << " f_local:\n";
     for (int t = 0; t < num_threads; ++t) {
       Rcpp::Rcout << "  thread=" << t
