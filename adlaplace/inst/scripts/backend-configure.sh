@@ -58,7 +58,7 @@ EOF
   return 1
 }
 
-check_openmp_linux_static () {
+check_openmp_linux () {
   tmpdir="config.$$"
   mkdir "$tmpdir"
   cat > "$tmpdir/conftest.cpp" <<'EOF'
@@ -68,7 +68,7 @@ int main() {
   return omp_get_max_threads() >= 1 ? 0 : 1;
 }
 EOF
-  if eval "$CXX_CMD $CPPFLAGS_CMD $CXXFLAGS_CMD -fopenmp -static-libgomp \
+  if eval "$CXX_CMD $CPPFLAGS_CMD $CXXFLAGS_CMD -fopenmp \
       $tmpdir/conftest.cpp -o $tmpdir/conftest" \
       >/dev/null 2>&1; then
     rm -rf "$tmpdir"
@@ -164,7 +164,7 @@ else
   msg "configure: no standalone CppAD library detected; relying on header-only CppAD"
 fi
 
-# ---- Optional OpenMP (always static: libomp.a on macOS, -static-libgomp on Linux) ----
+# ---- Optional OpenMP (static libomp.a on macOS; dynamic -fopenmp on Linux) ----
 if [ "$UNAME_S" = "Darwin" ]; then
   if [ -n "$BREW_PREFIX" ] \
      && [ -f "$BREW_PREFIX/opt/libomp/include/omp.h" ] \
@@ -181,12 +181,10 @@ if [ "$UNAME_S" = "Darwin" ]; then
     msg "configure: OpenMP not enabled on macOS (Homebrew libomp not found)"
   fi
 else
-  if check_cxxflag "-fopenmp" && check_openmp_linux_static; then
+  if check_cxxflag "-fopenmp" && check_openmp_linux; then
     OPENMP_CXXFLAGS="-fopenmp"
-    OPENMP_LIBS="-fopenmp -static-libgomp"
-    msg "configure: OpenMP enabled using -fopenmp -static-libgomp"
-  elif check_cxxflag "-fopenmp"; then
-    msg "configure: OpenMP not enabled (static libgomp link failed)"
+    OPENMP_LIBS="-fopenmp"
+    msg "configure: OpenMP enabled using -fopenmp"
   else
     msg "configure: OpenMP not enabled (compiler does not accept -fopenmp)"
   fi
