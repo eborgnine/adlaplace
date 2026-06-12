@@ -98,8 +98,11 @@ xseq <- seq(knots_pm[1], rev(knots_pm)[1], by = 0.5)
 newx <- list(pm = data.frame(pm = xseq, hum = 0))
 
 sim <- adlaplaceHgp::cond_sim_iwp(
-  fit = fit$laplace,
-  model_data = fit$model_data,
+  fit = fit$extra,
+  model_data = list(
+    terms = fit$call$terms,
+    data = list(info = fit$info)
+  ),
   newx = newx,
   n = 500,
   probs = c(0.1, 0.5, 0.9)

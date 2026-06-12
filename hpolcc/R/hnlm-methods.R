@@ -7,6 +7,23 @@ hnlm_check_fitted <- function(object) {
 }
 
 #' @keywords internal
+hnlm_nobs <- function(object) {
+  shards <- object$call$config$shards
+  if (!is.null(shards)) {
+    return(as.integer(nrow(shards)))
+  }
+  NA_integer_
+}
+
+#' @keywords internal
+hnlm_model_data_stub <- function(object) {
+  list(
+    terms = object$call$terms,
+    data = list(info = object$info)
+  )
+}
+
+#' @keywords internal
 hnlm_attach_parameter_se <- function(coefficients, hessian_outer) {
   if (inherits(coefficients, "try-error") ||
       is.null(coefficients$parameters) ||
@@ -122,12 +139,12 @@ summary.hnlm <- function(object, ...) {
   )
   structure(
     list(
-      call = object$call,
+      call = object$call$call,
       coefficients = params,
       vcov = V,
       log_lik = object$log_lik,
       df = length(object$optim$par),
-      nobs = nrow(object$model_data$data$data),
+      nobs = hnlm_nobs(object),
       converged = object$converged
     ),
     class = "summary.hnlm"
@@ -166,11 +183,19 @@ print.hnlm <- function(x, ...) {
   } else {
     cat("hnlm fit\n")
   }
-  if (!is.null(x$formula)) {
-    cat("  formula:", paste(deparse(x$formula), collapse = " "), "\n")
-  }
-  if (!is.null(x$model_data$data$data)) {
-    cat("  n =", nrow(x$model_data$data$data), "\n")
+  if ("hnlm_dev" %in% class(x)) {
+    if (!is.null(x$formula)) {
+      cat("  formula:", paste(deparse(x$formula), collapse = " "), "\n")
+    }
+    if (!is.null(x$model_data$data$data)) {
+      cat("  n =", nrow(x$model_data$data$data), "\n")
+    }
+  } else if (!is.null(x$call$call$formula)) {
+    cat("  formula:", paste(deparse(x$call$call$formula), collapse = " "), "\n")
+    nobs <- hnlm_nobs(x)
+    if (!is.na(nobs)) {
+      cat("  n =", nobs, "\n")
+    }
   }
   if (!is_dev && !is.null(x$log_lik)) {
     cat("  log-lik:", format(x$log_lik, digits = 5), "\n")
@@ -183,8 +208,8 @@ print.hnlm <- function(x, ...) {
       !is.null(x$coefficients$parameters) &&
       nrow(x$coefficients$parameters) > 0L) {
     params <- x$coefficients$parameters
-    n_beta <- nrow(x$model_data$data$info$beta)
-    n_theta <- nrow(x$model_data$data$info$theta)
+    n_beta <- nrow(x$info$beta)
+    n_theta <- nrow(x$info$theta)
     if (n_beta > 0L) {
       cat("  beta:\n")
       print(
@@ -212,13 +237,13 @@ coef.hnlm <- function(object, ...) {
   if (is.null(params) || nrow(params) == 0L) {
     return(numeric(0))
   }
-  n_beta <- nrow(object$model_data$data$info$beta)
-  n_theta <- nrow(object$model_data$data$info$theta)
+  n_beta <- nrow(object$info$beta)
+  n_theta <- nrow(object$info$theta)
   out <- numeric(0)
   if (n_beta > 0L) {
     out <- stats::setNames(
       params$mle[seq_len(n_beta)],
-      object$model_data$data$info$beta$beta_label
+      object$info$beta$beta_label
     )
   }
   if (n_theta > 0L) {
@@ -226,7 +251,7 @@ coef.hnlm <- function(object, ...) {
       out,
       stats::setNames(
         params$mle[seq(n_beta + 1L, length.out = n_theta)],
-        object$model_data$data$info$theta$label
+        object$info$theta$label
       )
     )
   }
@@ -238,11 +263,10 @@ logLik.hnlm <- function(object, ...) {
   if ("hnlm_dev" %in% class(object)) {
     stop("logLik() requires a fitted hnlm object", call. = FALSE)
   }
-  nobs <- nrow(object$model_data$data$data)
   structure(
     object$log_lik,
     df = length(coef(object)),
-    nobs = nobs,
+    nobs = hnlm_nobs(object),
     class = "logLik"
   )
 }
@@ -253,8 +277,8 @@ simulate.hnlm <- function(object, nsim = 500, ...) {
     stop("simulate() requires a fitted hnlm object", call. = FALSE)
   }
   adlaplaceHgp::cond_sim_iwp(
-    fit = object$laplace,
-    model_data = object$model_data,
+    fit = object$extra,
+    model_data = hnlm_model_data_stub(object),
     n = nsim,
     ...
   )

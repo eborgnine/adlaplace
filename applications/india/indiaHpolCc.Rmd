@@ -186,7 +186,7 @@ s_var <- names(res$sample$sim)
 s_var_names <- c(temp_div10 = "temperature", sqrt_pm = "PM2.5")[s_var]
 
 params <- res$coefficients$parameters
-n_beta <- nrow(res$model_data$data$info$beta)
+n_beta <- nrow(res$info$beta)
 theta_table <- params[seq(n_beta + 1L, nrow(params)), c("term", "model", "mle", "init", "lower", "parscale", "transform"), drop = FALSE]
 theta_table$log_mle <- ifelse(theta_table$transform, log(theta_table$mle), NA_real_)
 theta_table$term <- s_var_names[theta_table$term]
@@ -361,13 +361,14 @@ knitr::kable(
   kableExtra::column_spec(2, latex_column_spec = "p{0.7\\\\linewidth}")
 ```
 
-```{r derivJointDens}
+```{r derivJointDens, eval=FALSE}
+# Requires an hnlm(for_dev = TRUE) bundle with ad_fun; fitted objects store extra only.
 library(adlaplace)
 
 ad_fun <- res$ad_fun
 sz <- ad_fun@sizes
 
-x_joint <- res$laplace$full_parameters
+x_joint <- res$extra$full_parameters
 x_joint[seq(sz["beta"] + 1L, length.out = sz["gamma"])] <- 0.1
 
 # Perturb one parameter and compare analytic gradient to finite differences.
@@ -425,13 +426,13 @@ for (D in seq_len(min(16L, nrow(hess1b)))) {
 ```{r testLogLgrad, eval=FALSE, include=FALSE}
 res <- res_pm_temp
 x_outer <- res$optim$par
-gamma_start <- res$cache$gamma
+gamma_start <- res$call$cache$gamma
 
 ll1 <- log_lik_laplace(
   x = x_outer,
   gamma = gamma_start,
   ad_fun = res$ad_fun,
-  config = res$config,
+  config = res$call$config,
   deriv = TRUE,
   control = list(report.level = 4, maxit = 5000, report.freq = 2)
 )
@@ -451,7 +452,7 @@ res2 <- lapply(
       x = parDf[[j]],
       gamma = gamma_start,
       ad_fun = res$ad_fun,
-      config = res$config,
+      config = res$call$config,
       deriv = TRUE,
       control = list(report.level = 0, maxit = 5000)
     )
@@ -540,7 +541,7 @@ s_var <- names(res$sample$sim)
 s_var_names <- c(temp_div10 = "temperature", sqrt_pm = "PM2.5")[s_var]
 
 params <- res$coefficients$parameters
-n_beta <- nrow(res$model_data$data$info$beta)
+n_beta <- nrow(res$info$beta)
 theta_table <- params[seq(n_beta + 1L, nrow(params)), c("term", "model", "mle", "init", "lower", "parscale", "transform"), drop = FALSE]
 theta_table$log_mle <- ifelse(theta_table$transform, log(theta_table$mle), NA_real_)
 theta_table$term <- s_var_names[theta_table$term]

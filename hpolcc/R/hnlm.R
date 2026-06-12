@@ -16,8 +16,10 @@
 #' @return
 #' When \code{for_dev = TRUE}, a development bundle of class \code{c("hnlm_dev", "hnlm")}.
 #' Otherwise a fitted object of class \code{hnlm} with primary slots
-#' \code{coefficients}, \code{log_lik}, \code{optim}, \code{laplace},
-#' \code{model_data}, \code{ad_fun}, and optional \code{sample}.
+#' \code{coefficients}, \code{log_lik}, \code{optim}, \code{converged},
+#' \code{extra} (Laplace output), \code{hessian}, \code{info}, optional
+#' \code{sample}, and \code{call} (fit metadata including \code{config},
+#' \code{terms}, and the original \code{match.call}).
 #' @export
 hnlm <- function(
   formula,
@@ -263,18 +265,20 @@ hnlm <- function(
       log_lik = laplace$log_lik,
       optim = optim_result,
       converged = isTRUE(optim_result$convergence == 0L),
-      laplace = laplace,
+      extra = laplace,
       hessian = hessian,
-      formula = formula,
-      model_data = model_data,
-      ad_fun = ad_fun,
-      config = config,
-      terms = model_data$terms,
-      control = control,
-      control_inner = control_inner,
-      cache = cache,
+      info = ad_fun@info,
+      # model_data = model_data,
+      #      ad_fun = ad_fun,
       sample = sample,
-      call = call
+      call = list(
+        config = config,
+        terms = model_data$terms,
+        control = control,
+        control_inner = control_inner,
+        cache = cache,
+        call = call
+      )
     ),
     class = c("hnlm", "list")
   )

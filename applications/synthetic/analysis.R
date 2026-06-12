@@ -10,8 +10,11 @@ newx <- list(pm = expand.grid(
 ))
 
 sim <- cond_sim_iwp(
-  fit = fit$laplace,
-  model_data = fit$model_data,
+  fit = fit$extra,
+  model_data = list(
+    terms = fit$call$terms,
+    data = list(info = fit$info)
+  ),
   newx = newx,
   n = 1000,
   probs = c(0.01, 0.5, 0.99)
