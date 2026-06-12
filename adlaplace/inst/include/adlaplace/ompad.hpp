@@ -4,8 +4,9 @@
 #include <cstddef>
 
 // Setup/teardown must run on OpenMP thread 0, outside any #pragma omp parallel
-// region. Teardown flushes per-thread CppAD thread_alloc pools before
-// parallel_setup(1) so a later CppadParallelScope (e.g. trace_hinv_t) is safe.
+// region. Tape build stays in default sequential CppAD mode; CppadParallelScope(N)
+// at eval time (inner_opt, trace_hinv_t, etc.) owns parallel setup/teardown.
+// cppad_parallel_setup() tears down first when the thread count changes.
 
 void cppad_parallel_setup(std::size_t num_threads);
 void cppad_parallel_teardown();

@@ -103,21 +103,11 @@ test_that("fun_obj_fdfh matches direct eval (serial, inner=FALSE)", {
 })
 
 test_that("fun_obj_fdfh matches direct eval (multi-thread, inner=TRUE)", {
-  skip_if(
-    Sys.info()[["sysname"]] == "Darwin" &&
-      Sys.getenv("ADLAPLACE_TEST_PARALLEL_INNER_OPT", "") != "1",
-    "parallel fun_obj_fdfh test (set ADLAPLACE_TEST_PARALLEL_INNER_OPT=1 on macOS)"
-  )
   m <- build_fun_obj_test_model(num_threads = 10L)
   expect_fun_obj_parity(m, inner = TRUE)
 })
 
 test_that("fun_obj_fdfh matches direct eval (multi-thread, inner=FALSE)", {
-  skip_if(
-    Sys.info()[["sysname"]] == "Darwin" &&
-      Sys.getenv("ADLAPLACE_TEST_PARALLEL_INNER_OPT", "") != "1",
-    "parallel fun_obj_fdfh test (set ADLAPLACE_TEST_PARALLEL_INNER_OPT=1 on macOS)"
-  )
   m <- build_fun_obj_test_model(num_threads = 10L)
   expect_fun_obj_parity(m, inner = FALSE)
 })

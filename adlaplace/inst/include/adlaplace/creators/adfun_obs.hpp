@@ -4,7 +4,6 @@
 #include "adlaplace/api/log_dens_fn.hpp"
 #include "adlaplace/creators/adfun_common.hpp"
 #include "adlaplace/creators/ad_data.hpp"
-#include "adlaplace/ompad.hpp"
 
 inline size_t count_obs_shards(const ad_data& model, const Rcpp::List& config) {
   const Config cfg(config);
@@ -35,8 +34,6 @@ inline std::vector<GroupPack> build_ad_fun_obs(
   std::vector<GroupPack> result(ng);
   const CPPAD_TESTVECTOR(double) ad_params_G = make_ad_params_seed(cfg, model);
 
-  cppad_parallel_setup(1);
-
   for (size_t d = 0; d < ng; ++d) {
     if (cfg.verbose) {
       Rcpp::Rcout << "  taping observation group " << (d + 1) << " / " << ng << "\n";
@@ -57,7 +54,6 @@ inline std::vector<GroupPack> build_ad_fun_obs(
     }
     adpack_sparsity(ad_params_G, model.seq_gamma, result[d], cfg.verbose);
   }
-  cppad_parallel_setup(1);
 
   return result;
 }

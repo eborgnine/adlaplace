@@ -47,13 +47,6 @@ test_that("ad_fun assigns threads for multi-shard model", {
 })
 
 test_that("log_lik_laplace deriv=TRUE with multi-thread ad_fun", {
-  # Parallel trust-region inner_opt can segfault on some macOS toolchains; opt in via
-  # ADLAPLACE_TEST_PARALLEL_INNER_OPT=1 (vignette / Linux CI).
-  skip_if(
-    Sys.info()[["sysname"]] == "Darwin" &&
-      Sys.getenv("ADLAPLACE_TEST_PARALLEL_INNER_OPT", "") != "1",
-    "parallel inner_opt deriv test (set ADLAPLACE_TEST_PARALLEL_INNER_OPT=1 on macOS)"
-  )
   set.seed(0)
   Nobs <- 120L
   Nrandom1 <- 4L

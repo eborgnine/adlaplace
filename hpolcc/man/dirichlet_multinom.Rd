@@ -11,11 +11,11 @@ dirichlet_multinom(x, by, init = 0.001, lower = 0, upper = Inf, parscale = 1)
 
 \item{by}{Character vector of stratification variables (e.g. \code{c("year", "month", "dow")}).}
 
-\item{init}{Initial value for overdispersion SD \code{tau}.}
+\item{init}{Initial value for overdispersion \code{sd}.}
 
-\item{lower}{Lower bound for \code{tau}.}
+\item{lower}{Lower bound for \code{sd}.}
 
-\item{upper}{Upper bound for \code{tau}.}
+\item{upper}{Upper bound for \code{sd}.}
 
 \item{parscale}{Parameter scale for optimization.}
 }

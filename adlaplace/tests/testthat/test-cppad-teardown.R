@@ -40,11 +40,6 @@ cppad_teardown_fixture <- function(num_threads = 4L) {
 }
 
 test_that("log_lik_laplace deriv=TRUE runs trace inside inner_opt (team teardown)", {
-  skip_if(
-    Sys.info()[["sysname"]] == "Darwin" &&
-      Sys.getenv("ADLAPLACE_TEST_PARALLEL_INNER_OPT", "") != "1",
-    "parallel deriv+trace teardown test (set ADLAPLACE_TEST_PARALLEL_INNER_OPT=1 on macOS)"
-  )
   fx <- cppad_teardown_fixture(num_threads = 4L)
   ll <- adlaplace::log_lik_laplace(
     x = c(fx$config$beta, fx$config$theta),
@@ -60,11 +55,6 @@ test_that("log_lik_laplace deriv=TRUE runs trace inside inner_opt (team teardown
 })
 
 test_that("back-to-back log_lik_laplace deriv=TRUE reuses CppAD team teardown", {
-  skip_if(
-    Sys.info()[["sysname"]] == "Darwin" &&
-      Sys.getenv("ADLAPLACE_TEST_PARALLEL_INNER_OPT", "") != "1",
-    "parallel deriv+trace teardown test (set ADLAPLACE_TEST_PARALLEL_INNER_OPT=1 on macOS)"
-  )
   fx <- cppad_teardown_fixture(num_threads = 4L)
   args <- list(
     x = c(fx$config$beta, fx$config$theta),

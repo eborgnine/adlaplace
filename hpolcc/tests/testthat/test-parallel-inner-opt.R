@@ -1,16 +1,7 @@
 # Mixed-DSO dirichlet_multinom: obs/extra in hpolcc.so, random (iid) in adlaplace.so.
 
-skip_parallel_on_macos <- function() {
-  skip_if(
-    Sys.info()[["sysname"]] == "Darwin" &&
-      Sys.getenv("ADLAPLACE_TEST_PARALLEL_INNER_OPT", "") != "1",
-    "parallel inner_opt test (set ADLAPLACE_TEST_PARALLEL_INNER_OPT=1 on macOS)"
-  )
-}
-
 test_that("parallel log_lik_laplace deriv=FALSE via hnlm for_dev bundle", {
   skip_if_not_installed("adlaplace")
-  skip_parallel_on_macos()
   td <- make_hpolcc_test_data()
   forres <- hpolcc::hnlm(
     formula = td$formula,
@@ -37,9 +28,31 @@ test_that("parallel log_lik_laplace deriv=FALSE via hnlm for_dev bundle", {
   expect_equal(length(forres$config$opt$init), n_beta + n_theta)
 })
 
+test_that("parallel inner_opt deriv=FALSE via hnlm for_dev bundle (outer_fn path)", {
+  skip_if_not_installed("adlaplace")
+  td <- make_hpolcc_test_data()
+  forres <- hpolcc::hnlm(
+    formula = td$formula,
+    data = td$data,
+    config = list(
+      verbose = FALSE,
+      num_shards = 8L,
+      num_threads = 4L
+    ),
+    for_dev = TRUE
+  )
+  result <- adlaplace::inner_opt(
+    parameters = forres$config$opt$init,
+    gamma = forres$cache$gamma,
+    ad_fun = forres$ad_fun,
+    control = list(maxit = 5L, report.level = 0, report.freq = 0),
+    deriv = FALSE
+  )
+  expect_true(is.finite(result$neg_log_lik))
+})
+
 test_that("parallel log_lik_laplace deriv=TRUE via hnlm for_dev bundle", {
   skip_if_not_installed("adlaplace")
-  skip_parallel_on_macos()
   td <- make_hpolcc_test_data()
   forres <- hpolcc::hnlm(
     formula = td$formula,

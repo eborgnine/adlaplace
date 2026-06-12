@@ -43,9 +43,9 @@ setClass(
 #'
 #' @param x Outcome variable name.
 #' @param by Character vector of stratification variables (e.g. \code{c("year", "month", "dow")}).
-#' @param init Initial value for overdispersion SD \code{tau}.
-#' @param lower Lower bound for \code{tau}.
-#' @param upper Upper bound for \code{tau}.
+#' @param init Initial value for overdispersion \code{sd}.
+#' @param lower Lower bound for \code{sd}.
+#' @param upper Upper bound for \code{sd}.
 #' @param parscale Parameter scale for optimization.
 #' @return A \code{dirichlet_multinom} object.
 #' @export
@@ -97,13 +97,13 @@ setMethod("precision", "dirichlet_multinom", function(term, data) {
   NULL
 })
 
-#' @describeIn dirichlet_multinom-class Theta info for overdispersion \code{tau}.
+#' @describeIn dirichlet_multinom-class Theta info for overdispersion \code{sd}.
 #' @export
 setMethod("theta_info", "dirichlet_multinom", function(term) {
   data.frame(
     term = term@term,
     model = "dirichlet_multinom",
-    label = paste0(term@label, "_tau"),
+    label = paste0(term@label, "_sd"),
     init = term@init,
     lower = term@lower,
     upper = term@upper,

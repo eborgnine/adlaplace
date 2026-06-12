@@ -44,7 +44,7 @@ registered as \code{dirichlet_multinomial}.
 
 \item \code{precision(dirichlet_multinom)}: Precision method (not used).
 
-\item \code{theta_info(dirichlet_multinom)}: Theta info for overdispersion \code{tau}.
+\item \code{theta_info(dirichlet_multinom)}: Theta info for overdispersion \code{sd}.
 
 \item \code{beta_info(dirichlet_multinom)}: Beta info method (not used).
 

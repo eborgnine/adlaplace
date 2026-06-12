@@ -4,7 +4,6 @@
 #include "adlaplace/api/log_dens_fn.hpp"
 #include "adlaplace/creators/adfun_common.hpp"
 #include "adlaplace/creators/ad_data.hpp"
-#include "adlaplace/ompad.hpp"
 
 inline GroupPack build_ad_fun_random(
   const ad_data& model,
@@ -32,8 +31,6 @@ inline GroupPack build_ad_fun_random(
   }
 
   const CPPAD_TESTVECTOR(double) ad_params_G = make_ad_params_seed(cfg, model);
-
-  cppad_parallel_setup(1);
 
   CppAD::vector<CppAD::AD<double>> ad_params(model.num_full);
   for (size_t d = 0; d < model.num_full; ++d) {
@@ -69,8 +66,6 @@ inline GroupPack build_ad_fun_parameters(
   }
 
   const CPPAD_TESTVECTOR(double) ad_params_G = make_ad_params_seed(cfg, model);
-
-  cppad_parallel_setup(1);
 
   CppAD::vector<CppAD::AD<double>> ad_params(model.num_full);
   for (size_t d = 0; d < model.num_full; ++d) {

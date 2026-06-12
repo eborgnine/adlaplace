@@ -50,14 +50,25 @@ void debug_teardown_restored() {}
 void cppad_parallel_setup(std::size_t num_threads) {
   require_serial_main_thread("cppad_parallel_setup");
   if (num_threads < 1) num_threads = 1;
+
+  if (num_threads != cppad_team_num_threads) {
+    cppad_parallel_teardown();
+  }
+
   cppad_team_num_threads = num_threads;
   set_num_threads_wrapper(num_threads);
-  CppAD::thread_alloc::parallel_setup(
-    num_threads,
-    &in_parallel_wrapper,
-    &thread_num_wrapper
-  );
-  CppAD::thread_alloc::hold_memory(true);
+
+  if (num_threads == 1) {
+    CppAD::thread_alloc::parallel_setup(1, nullptr, nullptr);
+    CppAD::thread_alloc::hold_memory(false);
+  } else {
+    CppAD::thread_alloc::parallel_setup(
+      num_threads,
+      &in_parallel_wrapper,
+      &thread_num_wrapper
+    );
+    CppAD::thread_alloc::hold_memory(true);
+  }
   CppAD::parallel_ad<double>();
 }
 

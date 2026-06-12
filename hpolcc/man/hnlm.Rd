@@ -33,8 +33,10 @@ hnlm(
 \value{
 When \code{for_dev = TRUE}, a development bundle of class \code{c("hnlm_dev", "hnlm")}.
 Otherwise a fitted object of class \code{hnlm} with primary slots
-\code{coefficients}, \code{log_lik}, \code{optim}, \code{laplace},
-\code{model_data}, \code{ad_fun}, and optional \code{sample}.
+\code{coefficients}, \code{log_lik}, \code{optim}, \code{converged},
+\code{extra} (Laplace output), \code{hessian}, \code{info}, optional
+\code{sample}, and \code{call} (fit metadata including \code{config},
+\code{terms}, and the original \code{match.call}).
 }
 \description{
 Fits a hierarchical case-crossover model with a \code{dirichlet_multinom} response
