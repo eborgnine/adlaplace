@@ -35,10 +35,19 @@ test_that("hgp term constructors produce design and precision matrices", {
   rsiid_terms <- rsiid(x = "x", mult = "mult")
   rsiid_term <- rsiid_terms[[1]]
   expect_s4_class(rsiid_term, "rsiid")
+  expect_equal(rsiid_term@ad_fun, "random_diagonal")
+  expect_equal(rsiid_term@ad_kind, "random")
+  expect_equal(rsiid_term@label, "x_mult_rsiid")
   A_rsiid <- design(rsiid_term, data)
   P_rsiid <- precision(rsiid_term, data)
   expect_gt(ncol(A_rsiid), 0L)
   expect_gt(nrow(P_rsiid), 0L)
+
+  rsiid_gamma <- random_info(rsiid_term, data)
+  rsiid_theta <- theta_info(rsiid_term)
+  expect_equal(unique(rsiid_gamma$label), rsiid_term@label)
+  expect_equal(rsiid_theta$label, rsiid_term@label)
+  expect_equal(rsiid_gamma$gamma_label, colnames(A_rsiid))
 
   rsfpoly_term <- rsfpoly(x = "x", mult = "mult", p = 2)
   expect_s4_class(rsfpoly_term, "rsfpoly")

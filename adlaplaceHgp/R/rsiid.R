@@ -23,7 +23,9 @@ setClass("rsiid",
   ),
   contains = "model",
   prototype = prototype(
-    type = factor("random", levels = adlaplace:::.type_factor_levels)
+    type = factor("random", levels = adlaplace:::.type_factor_levels),
+    ad_fun = "random_diagonal",
+    ad_kind = "random"
   )
 )
 
@@ -60,13 +62,16 @@ rsiid <- function(
   if (!missing(ref_mult) && length(ref_mult) != 1) {
     stop("ref_mult must be a single value")
   }
-  result = list(methods::new("rsiid",
+  rsiid_label <- paste(c(x, mult, "rsiid"), collapse = "_")
+
+  result <- list(methods::new("rsiid",
     term = x,
+    label = rsiid_label,
     mult = mult,
     ref_mult = ref_mult,
     formula = stats::as.formula(paste0("~ 0 + ", x), env = new.env()),
     init = init, lower = lower, upper = upper, parscale = parscale
-    ))
+  ))
   names(result) = result[[1]]@term
   result
 }
@@ -110,10 +115,17 @@ setMethod("precision", "rsiid", function(term, data) {
 #' @return A data frame containing theta parameter information for the random slope term
 #' @export
 setMethod("theta_info", "rsiid", function(term) {
-  result <- adlaplace::theta_info(methods::as(term, "iid"))
-  result$model = "rsiid"
-  result$label = gsub("_iid$", "_rsiid", result$label)
-  result
+  result <- data.frame(
+    term = term@term,
+    model = "rsiid",
+    label = term@label,
+    init = term@init,
+    lower = term@lower,
+    upper = term@upper,
+    parscale = term@parscale,
+    type = term@type
+  )
+  return(result)
 })
 
 # Beta info for rpoly terms
@@ -133,10 +145,23 @@ setMethod("beta_info", "rsiid", function(term) {
 #' @return A data frame containing random effects information for the random slope polynomial term
 #' @export
 setMethod("random_info", "rsiid", function(term, data) {
+  term_values <- data[[term@term]]
+  basis_labels <- if (is.factor(term_values)) {
+    levels(term_values)
+  } else {
+    as.character(sort(unique(term_values)))
+  }
 
-  result = adlaplace::random_info(methods::as(term, "iid"), data)
-  result$model = "rsiid"
-  result$label = gsub("_iid$", "_rsiid", result$label)
-  result$gamma_label = gsub("_iid_", "_rsiid_", result$gamma_label)
+  result <- data.frame(
+    term = term@term,
+    model = "rsiid",
+    label = term@label,
+    by = NA,
+    by_labels = NA,
+    basis = basis_labels,
+    order = NA
+  )
+  result$gamma_label <- paste0(term@term, "_rsiid_", result$basis)
+
   result
 })
