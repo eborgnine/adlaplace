@@ -23,7 +23,9 @@ setClass("rsiwp",
   ),
   contains = "model",
   prototype = prototype(
-    type = factor("random", levels = adlaplace:::.type_factor_levels)
+    type = factor("random", levels = adlaplace:::.type_factor_levels),
+    ad_fun = "random_diagonal",
+    ad_kind = "random"
   )
 )
 
@@ -102,8 +104,11 @@ rsiwp <- function(
   ref_value <- adlaplace:::ref_align(ref_value, knots)
 
 
+  rsiwp_label <- paste(c(x, mult, "rsiwp"), collapse = "_")
+
   result[[iwp_name]] <- methods::new("rsiwp",
     term = x,
+    label = rsiwp_label,
     mult = mult,
     formula = the_f,
     p.order = as.integer(p),
@@ -191,7 +196,7 @@ setMethod("precision", "rsiwp", function(term, data) {
 setMethod("theta_info", "rsiwp", function(term) {
   result <- data.frame(
     term = term@term, model = "rsiwp",
-    label = paste(c(term@term, term@mult, "rsiwp"), collapse = "_"),
+    label = term@label,
     init = term@init,
     lower = term@lower, upper = term@upper,
     parscale = term@parscale,
@@ -218,7 +223,7 @@ setMethod("random_info", "rsiwp", function(term, data) {
   result <- expand.grid(
     term = term@term,
     model = "rsiwp",
-    label = paste(c(term@term, term@mult, "rsiwp"), collapse = "_"),
+    label = term@label,
     by = NA,
     basis = basis,
     order = term@p.order,
