@@ -257,7 +257,7 @@ setMethod("ad_fun", signature = c(x = "list"), function(x, config, num_threads =
     if (verbose) {
       cat(
         "  [", i, "/", n_shards, "] ",
-        ad_fun_shard_label(shard, shard_name),
+        adlaplace:::ad_fun_shard_label(shard, shard_name),
         " (CppAD tape",
         if (identical(shard@ad_kind, "observations") && !is.null(config_build$shards)) {
           paste0(", ", ncol(config_build$shards), " groups")

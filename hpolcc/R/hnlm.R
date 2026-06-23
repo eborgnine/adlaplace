@@ -115,7 +115,7 @@ hnlm <- function(
   }
 
   ad_fun <- adlaplace::ad_fun(
-    model_data,
+    x = model_data,
     config,
     num_threads = config$num_threads
   )

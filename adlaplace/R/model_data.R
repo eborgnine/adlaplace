@@ -30,10 +30,10 @@
 #' }
 model_data <- function(formula, data, verbose = FALSE, na_omit = TRUE) {
   formula_in <- formula
-  the_terms <- parse_model_terms(formula, verbose = verbose)
+  the_terms <- adlaplace:::parse_model_terms(formula, verbose = verbose)
 
   if (na_omit) {
-    data <- prepare_model_rows(data, the_terms, verbose = verbose)
+    data <- adlaplace:::prepare_model_rows(data, the_terms, verbose = verbose)
   }
 
   elgm_mats <- list()

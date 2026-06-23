@@ -53,7 +53,7 @@ ad_fun_ptr <- function(data, config) {
   )
   fn <- utils::getFromNamespace(builder, pkg)
   if (identical(kind, "random")) {
-    return(fn(data, data@precision, config, name))
+    return(fn(data, precision = data@precision, config = config, name = name))
   }
   fn(data, config, name)
 }
