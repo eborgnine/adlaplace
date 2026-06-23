@@ -6,8 +6,8 @@ get_terms_pred <- function(terms, length.out = 100) {
   svar <- unlist(lapply(terms[is_iwp], methods::slot, "term"))
   sknots <- lapply(terms[is_iwp], methods::slot, "knots")
 
-  smin <- unlist(lapply(sknots, min)) 
-    smax <- unlist(lapply(sknots, max)) 
+  smin <- unlist(lapply(sknots, min))
+  smax <- unlist(lapply(sknots, max))
 
   pred_seq <- mapply(
     function(var, from, to, length.out) {
@@ -396,6 +396,7 @@ cond_sim_iwp_at <- function(
     get_one_envelope,
     probs = probs_envelope
   )
+  result$gamma <- sim_gamma
 
   result
 }
