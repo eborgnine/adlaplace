@@ -235,8 +235,8 @@ compute_weights_precision <- function(knots) {
     knots_pos <- unique(sort(ifelse(knots > 0, knots, 0)))
     d1 <- diff(knots_neg)
     d2 <- diff(knots_pos)
-    Precweights1 <- diag(d1)
-    Precweights2 <- diag(d2)
+    Precweights1 <- diag(d1, nrow = length(d1))
+    Precweights2 <- diag(d2, nrow = length(d2))
     methods::as(Matrix::bdiag(Precweights1, Precweights2), "matrix")
   }
 }

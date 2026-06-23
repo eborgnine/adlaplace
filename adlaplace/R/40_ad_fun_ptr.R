@@ -41,8 +41,7 @@ ad_fun_ptr <- function(data, config) {
   if (length(pkg) != 1L || is.na(pkg) || !nzchar(pkg)) {
     pkg <- "adlaplace"
   }
-  builder <- switch(
-    kind,
+  builder <- switch(kind,
     observations = "get_ad_fun_raw_obs",
     parameters = "get_ad_fun_raw_parameters",
     random = "get_ad_fun_raw_random",
@@ -52,7 +51,7 @@ ad_fun_ptr <- function(data, config) {
       call. = FALSE
     )
   )
-  fn <- getFromNamespace(builder, pkg)
+  fn <- utils::getFromNamespace(builder, pkg)
   if (identical(kind, "random")) {
     return(fn(data, data@precision, config, name))
   }
