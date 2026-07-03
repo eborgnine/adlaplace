@@ -1,4 +1,4 @@
-PKGS := adlaplace adlaplaceExample hpolcc
+PKGS := adlaplace adlaplaceExample hpolcc admvn
 ADLAPLACE_DIR := adlaplace
 ADLAPLACE_EXAMPLE_DIR := adlaplaceExample
 HPOLCC_DIR := hpolcc
@@ -70,6 +70,23 @@ hpolcc: adlaplace
 	TARBALL="$${PKG}_$${VERSION}.tar.gz"; \
 	test -f "$$TARBALL" || { echo "Expected tarball $$TARBALL not found"; exit 1; }; \
 	echo "==> Built $$TARBALL"
+
+admvn:
+	@echo "==> Running cleanup for admvn"
+	cd admvn && ./cleanup
+	@echo "==> Running configure for admvn"
+	cd admvn && ./configure
+	@echo "==> Running compileAttributes for admvn from admvn"
+	Rscript -e "Rcpp::compileAttributes('admvn')"
+	@echo "==> Running roxygen2 for admvn from admvn"
+	Rscript -e "roxygen2::roxygenize('admvn')"
+	@echo "==> Building package admvn from admvn"
+	R CMD build --no-build-vignettes admvn
+	@PKG="$$(sed -n 's/^Package:[[:space:]]*//p' admvn/DESCRIPTION | head -n 1)"; \
+	VERSION="$$(sed -n 's/^Version:[[:space:]]*//p' admvn/DESCRIPTION | head -n 1)"; \
+	TARBALL="$${PKG}_$${VERSION}.tar.gz"; \
+	test -f "$$TARBALL" || { echo "Expected tarball $$TARBALL not found"; exit 1; }; \
+	echo "==> Built $$TARBALL (installation skipped)"
 
 dirichlet_multinom.pdf: hpolcc/vignettes/dirichlet_multinom.Rmd
 	pandoc hpolcc/vignettes/dirichlet_multinom.Rmd -o dirichlet_multinom.pdf

@@ -1,0 +1,28 @@
+Package: admvn
+Type: Package
+Title: Multivariate Normal CDF with CppAD Derivatives
+Version: 0.1.0
+Authors@R: person(given = "Patrick", family = "Brown",
+    email = "patrick.brown@gmail.com",
+    role = c("aut", "cre", "cph"))
+Description: Evaluates the cumulative distribution function of the multivariate
+    normal distribution using Genz's quasi-Monte Carlo algorithm, with
+    gradient and Hessian with respect to the upper integration limits computed
+    via CppAD automatic differentiation.
+License: GPL-3
+Depends: R (>= 4.1.0)
+Imports: Rcpp (>= 1.0.3)
+LinkingTo: Rcpp
+Suggests: mvtnorm, numDeriv, testthat (>= 3.0.0)
+Config/testthat/edition: 3
+Encoding: UTF-8
+SystemRequirements: CppAD
+RoxygenNote: 7.3.3
+Roxygen: list(markdown = TRUE)
+NeedsCompilation: yes
+Collate:
+    '000.R'
+    'admvn-package.R'
+    'RcppExports.R'
+    'pmvn.R'
+    'pmvn_fun.R'

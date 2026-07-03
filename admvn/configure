@@ -1,0 +1,25 @@
+#!/bin/sh
+set -eu
+
+SCRIPT_DIR="$(cd "$(dirname "$0")/inst/scripts" && pwd)"
+. "$SCRIPT_DIR/backend-configure.sh"
+
+infile="src/Makevars.in"
+outfile="src/Makevars"
+
+if [ ! -f "$infile" ]; then
+  echo "configure: ERROR: $infile not found" >&2
+  exit 1
+fi
+
+esc_sed () { printf '%s' "$1" | sed 's/[\/&]/\\&/g'; }
+
+sed \
+  -e "s/@BREW_CPPFLAGS@/$(esc_sed "$BREW_CPPFLAGS")/g" \
+  -e "s/@CPPAD_CPPFLAGS@/$(esc_sed "$CPPAD_CPPFLAGS")/g" \
+  -e "s/@CPPAD_INCLUDE_CPPFLAGS@/$(esc_sed "$CPPAD_INCLUDE_CPPFLAGS")/g" \
+  -e "s/@CPPAD_LIBS@/$(esc_sed "$CPPAD_LIBS")/g" \
+  "$infile" > "$outfile"
+
+chmod 644 "$outfile"
+exit 0

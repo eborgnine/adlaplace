@@ -1,0 +1,5 @@
+useDynLib(admvn, .registration = TRUE)
+importFrom(Rcpp, evalCpp)
+importFrom(stats, dnorm, pnorm)
+export(pmvn)
+export(pmvn_fun)
