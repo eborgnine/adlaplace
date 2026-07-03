@@ -84,6 +84,65 @@ test_that("pmvn_fun matches pmvn", {
   expect_equal(b$hessian, a$hessian, tolerance = 1e-10)
 })
 
+test_that("pmvn_fun reuses tape when mean and sigma change", {
+  skip_if_not_installed("numDeriv")
+  sigma <- matrix(c(1, 0.2, 0.2, 1), 2, 2)
+  sigma2 <- matrix(c(1.1, 0.15, 0.15, 0.9), 2, 2)
+  upper <- c(0.4, -0.1)
+  f <- pmvn_fun(
+    lower = c(-Inf, -Inf),
+    mean = c(0, 0),
+    sigma = sigma,
+    n_points = 2000L,
+    n_shifts = 12L,
+    seed = 7L
+  )
+  out1 <- f$eval(upper)
+  out2 <- f$eval(upper, mean = c(0.05, -0.1), sigma = sigma2)
+
+  g_num <- numDeriv::grad(
+    function(x) pmvn(x, lower = c(-Inf, -Inf), mean = c(0.05, -0.1),
+                     sigma = sigma2, n_points = 2000L, n_shifts = 12L,
+                     seed = 7L)$value,
+    upper
+  )
+  expect_equal(out2$gradient, as.numeric(g_num), tolerance = 0.04)
+  expect_false(isTRUE(all.equal(out1$value, out2$value, tolerance = 1e-6)))
+})
+
+test_that("pack_genz_ch round-trip matches pmvn", {
+  sigma <- matrix(c(1, 0.3, 0.3, 1.2), 2, 2)
+  upper <- c(0.6, 0.2)
+  f <- pmvn_fun(lower = c(-Inf, -Inf), mean = c(0, 0), sigma = sigma, seed = 42L)
+  direct <- pmvn(upper, lower = c(-Inf, -Inf), mean = c(0, 0), sigma = sigma, seed = 42L)
+  via_tape <- f$eval(upper, mean = c(0, 0), sigma = sigma)
+  expect_equal(via_tape$value, direct$value, tolerance = 1e-10)
+  pack <- pack_genz_ch(sigma, f$perm)
+  expect_equal(length(pack$scale), 2L)
+  expect_equal(nrow(pack$ch), 2L)
+})
+
+test_that("inner = FALSE gradient w.r.t. mean matches finite differences", {
+  skip_if_not_installed("numDeriv")
+  sigma <- matrix(c(1, 0.15, 0.15, 1.1), 2, 2)
+  mean0 <- c(0.05, -0.1)
+  upper <- c(0.35, 0.2)
+  f <- pmvn_fun(
+    lower = c(-Inf, -Inf),
+    mean = mean0,
+    sigma = sigma,
+    n_points = 1500L,
+    n_shifts = 10L,
+    seed = 11L
+  )
+  out <- f$eval(upper, inner = FALSE)
+  g_num <- numDeriv::grad(
+    function(m) f$eval(upper, mean = m, inner = FALSE)$value,
+    mean0
+  )
+  expect_equal(out$gradient_mean, as.numeric(g_num), tolerance = 0.05)
+})
+
 test_that("univariate pmvn matches pnorm", {
   sd <- sqrt(2.5)
   out <- pmvn(0.5, lower = -Inf, sigma = matrix(2.5, 1, 1))

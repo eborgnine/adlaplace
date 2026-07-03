@@ -27,39 +27,68 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// pack_genz_ch_cpp
+Rcpp::List pack_genz_ch_cpp(Rcpp::NumericMatrix sigma, Rcpp::IntegerVector perm);
+RcppExport SEXP _admvn_pack_genz_ch_cpp(SEXP sigmaSEXP, SEXP permSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::NumericMatrix >::type sigma(sigmaSEXP);
+    Rcpp::traits::input_parameter< Rcpp::IntegerVector >::type perm(permSEXP);
+    rcpp_result_gen = Rcpp::wrap(pack_genz_ch_cpp(sigma, perm));
+    return rcpp_result_gen;
+END_RCPP
+}
 // pmvn_fun_create_cpp
-SEXP pmvn_fun_create_cpp(Rcpp::NumericVector lower, Rcpp::NumericVector mean, Rcpp::NumericMatrix sigma, int n_points, int n_shifts, unsigned int seed);
-RcppExport SEXP _admvn_pmvn_fun_create_cpp(SEXP lowerSEXP, SEXP meanSEXP, SEXP sigmaSEXP, SEXP n_pointsSEXP, SEXP n_shiftsSEXP, SEXP seedSEXP) {
+SEXP pmvn_fun_create_cpp(Rcpp::NumericVector lower, Rcpp::NumericVector mean, Rcpp::NumericMatrix sigma, Rcpp::Nullable<Rcpp::NumericVector> upper_seed, int n_points, int n_shifts, unsigned int seed);
+RcppExport SEXP _admvn_pmvn_fun_create_cpp(SEXP lowerSEXP, SEXP meanSEXP, SEXP sigmaSEXP, SEXP upper_seedSEXP, SEXP n_pointsSEXP, SEXP n_shiftsSEXP, SEXP seedSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< Rcpp::NumericVector >::type lower(lowerSEXP);
     Rcpp::traits::input_parameter< Rcpp::NumericVector >::type mean(meanSEXP);
     Rcpp::traits::input_parameter< Rcpp::NumericMatrix >::type sigma(sigmaSEXP);
+    Rcpp::traits::input_parameter< Rcpp::Nullable<Rcpp::NumericVector> >::type upper_seed(upper_seedSEXP);
     Rcpp::traits::input_parameter< int >::type n_points(n_pointsSEXP);
     Rcpp::traits::input_parameter< int >::type n_shifts(n_shiftsSEXP);
     Rcpp::traits::input_parameter< unsigned int >::type seed(seedSEXP);
-    rcpp_result_gen = Rcpp::wrap(pmvn_fun_create_cpp(lower, mean, sigma, n_points, n_shifts, seed));
+    rcpp_result_gen = Rcpp::wrap(pmvn_fun_create_cpp(lower, mean, sigma, upper_seed, n_points, n_shifts, seed));
+    return rcpp_result_gen;
+END_RCPP
+}
+// pmvn_fun_perm_cpp
+Rcpp::IntegerVector pmvn_fun_perm_cpp(SEXP ptr);
+RcppExport SEXP _admvn_pmvn_fun_perm_cpp(SEXP ptrSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< SEXP >::type ptr(ptrSEXP);
+    rcpp_result_gen = Rcpp::wrap(pmvn_fun_perm_cpp(ptr));
     return rcpp_result_gen;
 END_RCPP
 }
 // pmvn_fun_eval_cpp
-Rcpp::List pmvn_fun_eval_cpp(SEXP ptr, Rcpp::NumericVector upper);
-RcppExport SEXP _admvn_pmvn_fun_eval_cpp(SEXP ptrSEXP, SEXP upperSEXP) {
+Rcpp::List pmvn_fun_eval_cpp(SEXP ptr, Rcpp::NumericVector upper, Rcpp::Nullable<Rcpp::NumericVector> mean, Rcpp::Nullable<Rcpp::NumericMatrix> sigma, bool inner);
+RcppExport SEXP _admvn_pmvn_fun_eval_cpp(SEXP ptrSEXP, SEXP upperSEXP, SEXP meanSEXP, SEXP sigmaSEXP, SEXP innerSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< SEXP >::type ptr(ptrSEXP);
     Rcpp::traits::input_parameter< Rcpp::NumericVector >::type upper(upperSEXP);
-    rcpp_result_gen = Rcpp::wrap(pmvn_fun_eval_cpp(ptr, upper));
+    Rcpp::traits::input_parameter< Rcpp::Nullable<Rcpp::NumericVector> >::type mean(meanSEXP);
+    Rcpp::traits::input_parameter< Rcpp::Nullable<Rcpp::NumericMatrix> >::type sigma(sigmaSEXP);
+    Rcpp::traits::input_parameter< bool >::type inner(innerSEXP);
+    rcpp_result_gen = Rcpp::wrap(pmvn_fun_eval_cpp(ptr, upper, mean, sigma, inner));
     return rcpp_result_gen;
 END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
     {"_admvn_pmvn_cpp", (DL_FUNC) &_admvn_pmvn_cpp, 7},
-    {"_admvn_pmvn_fun_create_cpp", (DL_FUNC) &_admvn_pmvn_fun_create_cpp, 6},
-    {"_admvn_pmvn_fun_eval_cpp", (DL_FUNC) &_admvn_pmvn_fun_eval_cpp, 2},
+    {"_admvn_pack_genz_ch_cpp", (DL_FUNC) &_admvn_pack_genz_ch_cpp, 2},
+    {"_admvn_pmvn_fun_create_cpp", (DL_FUNC) &_admvn_pmvn_fun_create_cpp, 7},
+    {"_admvn_pmvn_fun_perm_cpp", (DL_FUNC) &_admvn_pmvn_fun_perm_cpp, 1},
+    {"_admvn_pmvn_fun_eval_cpp", (DL_FUNC) &_admvn_pmvn_fun_eval_cpp, 5},
     {NULL, NULL, 0}
 };
 

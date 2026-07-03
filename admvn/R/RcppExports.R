@@ -5,11 +5,19 @@ pmvn_cpp <- function(upper, lower, mean, sigma, n_points = 1021L, n_shifts = 8L,
     .Call(`_admvn_pmvn_cpp`, upper, lower, mean, sigma, n_points, n_shifts, seed)
 }
 
-pmvn_fun_create_cpp <- function(lower, mean, sigma, n_points = 1021L, n_shifts = 8L, seed = 1L) {
-    .Call(`_admvn_pmvn_fun_create_cpp`, lower, mean, sigma, n_points, n_shifts, seed)
+pack_genz_ch_cpp <- function(sigma, perm) {
+    .Call(`_admvn_pack_genz_ch_cpp`, sigma, perm)
 }
 
-pmvn_fun_eval_cpp <- function(ptr, upper) {
-    .Call(`_admvn_pmvn_fun_eval_cpp`, ptr, upper)
+pmvn_fun_create_cpp <- function(lower, mean, sigma, upper_seed = NULL, n_points = 1021L, n_shifts = 8L, seed = 1L) {
+    .Call(`_admvn_pmvn_fun_create_cpp`, lower, mean, sigma, upper_seed, n_points, n_shifts, seed)
+}
+
+pmvn_fun_perm_cpp <- function(ptr) {
+    .Call(`_admvn_pmvn_fun_perm_cpp`, ptr)
+}
+
+pmvn_fun_eval_cpp <- function(ptr, upper, mean = NULL, sigma = NULL, inner = TRUE) {
+    .Call(`_admvn_pmvn_fun_eval_cpp`, ptr, upper, mean, sigma, inner)
 }
 

@@ -13,7 +13,8 @@ License: GPL-3
 Depends: R (>= 4.1.0)
 Imports: Rcpp (>= 1.0.3)
 LinkingTo: Rcpp
-Suggests: mvtnorm, numDeriv, testthat (>= 3.0.0)
+Suggests: mvtnorm, numDeriv, testthat (>= 3.0.0), knitr, rmarkdown
+VignetteBuilder: knitr
 Config/testthat/edition: 3
 Encoding: UTF-8
 SystemRequirements: CppAD
@@ -24,5 +25,6 @@ Collate:
     '000.R'
     'admvn-package.R'
     'RcppExports.R'
+    'pack_genz_ch.R'
     'pmvn.R'
     'pmvn_fun.R'

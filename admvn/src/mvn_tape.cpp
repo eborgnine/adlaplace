@@ -1,5 +1,6 @@
 #include "mvn_tape.hpp"
 
+#include "mvn_sparsity.hpp"
 #include "qnorm_atomic.hpp"
 
 #include <Rcpp.h>
@@ -179,30 +180,61 @@ void chlrdr(
   }
 }
 
+bool chol_lower(
+  const std::vector<std::vector<double>>& a,
+  std::vector<std::vector<double>>& l) {
+
+  const std::size_t n = a.size();
+  l.assign(n, std::vector<double>(n, 0.0));
+  for (std::size_t i = 0; i < n; ++i) {
+    for (std::size_t j = 0; j <= i; ++j) {
+      double s = a[i][j];
+      for (std::size_t k = 0; k < j; ++k) {
+        s -= l[i][k] * l[j][k];
+      }
+      if (i == j) {
+        if (s <= 0.0) {
+          return false;
+        }
+        l[i][j] = std::sqrt(s);
+      } else {
+        if (l[j][j] == 0.0) {
+          return false;
+        }
+        l[i][j] = s / l[j][j];
+      }
+    }
+  }
+  return true;
+}
+
+template <typename ADType>
+using ChMatrix = std::vector<std::vector<ADType>>;
+
 template <typename ADType>
 ADType qmc_integrand(
   const std::vector<ADType>& bs,
-  const std::vector<double>& as,
-  const std::vector<std::vector<double>>& ch,
+  const std::vector<ADType>& as,
+  const ChMatrix<ADType>& ch,
   const std::vector<double>& w) {
 
   const std::size_t n = bs.size();
-  const double ct0 = ch[0][0];
-  const double ai0 = as[0];
+  const ADType ct0 = ch[0][0];
+  const ADType ai0 = as[0];
   const ADType bi0 = bs[0];
 
   ADType c1 = ADType(0.0);
-  if (ai0 > -kNine * ct0) {
-    if (ai0 < kNine * ct0) {
-      c1 = detail::pnorm_ad(ADType(ai0) / ct0);
+  if (ai0 > ADType(-kNine) * ct0) {
+    if (ai0 < ADType(kNine) * ct0) {
+      c1 = detail::pnorm_ad(ai0 / ct0);
     } else {
       c1 = ADType(1.0);
     }
   }
 
   ADType d1 = ADType(0.0);
-  if (bi0 > ADType(-kNine * ct0)) {
-    if (bi0 < ADType(kNine * ct0)) {
+  if (bi0 > ADType(-kNine) * ct0) {
+    if (bi0 < ADType(kNine) * ct0) {
       d1 = detail::pnorm_ad(bi0 / ct0);
     } else {
       d1 = ADType(1.0);
@@ -220,26 +252,25 @@ ADType qmc_integrand(
 
     ADType s = ADType(0.0);
     for (std::size_t k = 0; k < i; ++k) {
-      s += ADType(ch[i][k]) * y[k];
+      s += ch[i][k] * y[k];
     }
 
-    const double ct = ch[i][i];
-    const double asi = as[i];
-    const ADType aicnt = ADType(asi) - s;
+    const ADType ct = ch[i][i];
+    const ADType aicnt = as[i] - s;
     const ADType bicnt = bs[i] - s;
 
     ADType ci = ADType(1.0);
     ADType di = ADType(1.0);
 
-    if (aicnt < ADType(-kNine * ct)) {
+    if (aicnt < ADType(-kNine) * ct) {
       ci = ADType(0.0);
-    } else if (CppAD::abs(aicnt) < ADType(kNine * ct)) {
+    } else if (CppAD::abs(aicnt) < ADType(kNine) * ct) {
       ci = detail::pnorm_ad(aicnt / ct);
     }
 
-    if (bicnt < ADType(-kNine * ct)) {
+    if (bicnt < ADType(-kNine) * ct) {
       di = ADType(0.0);
-    } else if (CppAD::abs(bicnt) < ADType(kNine * ct)) {
+    } else if (CppAD::abs(bicnt) < ADType(kNine) * ct) {
       di = detail::pnorm_ad(bicnt / ct);
     }
 
@@ -298,32 +329,54 @@ double qmc_integrand_double(
 std::vector<double> make_bs(
   const std::vector<double>& upper,
   const std::vector<double>& mean,
-  const MvnSetup& setup) {
+  const std::vector<int>& perm,
+  const std::vector<double>& scale) {
 
-  const std::size_t n = setup.n;
+  const std::size_t n = perm.size();
   std::vector<double> bs(n);
   for (std::size_t i = 0; i < n; ++i) {
-    const int j = setup.perm[i];
-    bs[i] = (upper[j] - mean[j]) / setup.scale[j];
+    const int j = perm[i];
+    bs[i] = (upper[j] - mean[j]) / scale[j];
   }
   return bs;
 }
 
-double qmc_error(
-  const MvnSetup& setup,
-  const std::vector<double>& upper,
-  const std::vector<double>& mean) {
+std::vector<double> make_as(
+  const std::vector<double>& lower,
+  const std::vector<double>& mean,
+  const std::vector<int>& perm,
+  const std::vector<double>& scale) {
 
-  const std::vector<double> bs = make_bs(upper, mean, setup);
+  const std::size_t n = perm.size();
+  std::vector<double> as(n);
+  for (std::size_t i = 0; i < n; ++i) {
+    const int j = perm[i];
+    if (is_neg_inf(lower[j])) {
+      as[i] = -std::numeric_limits<double>::infinity();
+    } else {
+      as[i] = (lower[j] - mean[j]) / scale[j];
+    }
+  }
+  return as;
+}
+
+double qmc_error(
+  const MvnTape& tape,
+  const std::vector<double>& upper,
+  const std::vector<double>& mean,
+  const GenzPack& genz) {
+
+  const std::vector<double> bs = make_bs(upper, mean, tape.perm, genz.scale);
+  const std::vector<double> as = make_as(tape.lower, mean, tape.perm, genz.scale);
   double p = 0.0;
   double e = 0.0;
 
-  for (std::size_t shift = 0; shift < setup.n_shifts; ++shift) {
+  for (std::size_t shift = 0; shift < tape.n_shifts; ++shift) {
     double sm = 0.0;
-    for (std::size_t pt = 0; pt < setup.n_points; ++pt) {
-      sm += qmc_integrand_double(bs, setup.as, setup.ch, setup.qmc_w[shift][pt]);
+    for (std::size_t pt = 0; pt < tape.n_points; ++pt) {
+      sm += qmc_integrand_double(bs, as, genz.ch, tape.qmc_w[shift][pt]);
     }
-    sm /= static_cast<double>(setup.n_points);
+    sm /= static_cast<double>(tape.n_points);
     const double dm = (sm - p) / static_cast<double>(shift + 1);
     p += dm;
     e = (static_cast<double>(shift) * e / static_cast<double>(shift + 1)) + dm * dm;
@@ -332,56 +385,189 @@ double qmc_error(
   return 3.0 * std::sqrt(e);
 }
 
+ChMatrix<CppAD::AD<double>> unpack_ch_ad(
+  const std::vector<CppAD::AD<double>>& x,
+  std::size_t n,
+  std::size_t ch_offset) {
+
+  ChMatrix<CppAD::AD<double>> ch(n, std::vector<CppAD::AD<double>>(n, CppAD::AD<double>(0.0)));
+  for (std::size_t i = 0; i < n; ++i) {
+    for (std::size_t j = 0; j <= i; ++j) {
+      ch[i][j] = x[ch_offset + vech_index(i, j)];
+    }
+  }
+  return ch;
+}
+
+void build_taped_fun(
+  MvnTape& tape,
+  const std::vector<double>& lower,
+  const std::vector<double>& domain_seed) {
+
+  detail::init_qnorm_atomic();
+
+  const std::size_t n = tape.n;
+  const std::size_t n_dom = tape.n_domain;
+  if (domain_seed.size() != n_dom) {
+    throw std::runtime_error("domain_seed has wrong length");
+  }
+
+  std::vector<CppAD::AD<double>> x_ad(n_dom);
+  for (std::size_t i = 0; i < n_dom; ++i) {
+    x_ad[i] = domain_seed[i];
+  }
+  CppAD::Independent(x_ad);
+
+  const std::size_t off_mean = n;
+  const std::size_t off_scale = 2 * n;
+  const std::size_t off_ch = 3 * n;
+
+  ChMatrix<CppAD::AD<double>> ch_ad = unpack_ch_ad(x_ad, n, off_ch);
+
+  std::vector<CppAD::AD<double>> bs(n);
+  std::vector<CppAD::AD<double>> as(n);
+  for (std::size_t i = 0; i < n; ++i) {
+    const int j = tape.perm[i];
+    const CppAD::AD<double> scale_j = x_ad[off_scale + j];
+    bs[i] = (x_ad[j] - x_ad[off_mean + j]) / scale_j;
+    if (is_neg_inf(lower[j])) {
+      as[i] = CppAD::AD<double>(-1e50);
+    } else {
+      as[i] = (CppAD::AD<double>(lower[j]) - x_ad[off_mean + j]) / scale_j;
+    }
+  }
+
+  CppAD::AD<double> total = CppAD::AD<double>(0.0);
+  const double norm = static_cast<double>(tape.n_shifts * tape.n_points);
+
+  for (std::size_t shift = 0; shift < tape.n_shifts; ++shift) {
+    for (std::size_t pt = 0; pt < tape.n_points; ++pt) {
+      total += qmc_integrand(bs, as, ch_ad, tape.qmc_w[shift][pt]);
+    }
+  }
+  total /= norm;
+
+  std::vector<CppAD::AD<double>> y(1);
+  y[0] = total;
+  tape.fun = CppAD::ADFun<double>(x_ad, y);
+}
+
+GenzPack pack_genz_ch_sigma_p(
+  const std::vector<std::vector<double>>& sigma,
+  const std::vector<int>& perm) {
+
+  const std::size_t n = sigma.size();
+  GenzPack out;
+  out.scale.resize(n);
+
+  std::vector<std::vector<double>> sigma_p(n, std::vector<double>(n, 0.0));
+  for (std::size_t i = 0; i < n; ++i) {
+    out.scale[i] = std::sqrt(sigma[i][i]);
+    for (std::size_t j = 0; j < n; ++j) {
+      sigma_p[i][j] = sigma[perm[i]][perm[j]];
+    }
+  }
+
+  std::vector<double> dp(n);
+  std::vector<std::vector<double>> corr_p(n, std::vector<double>(n, 0.0));
+  for (std::size_t i = 0; i < n; ++i) {
+    dp[i] = std::sqrt(sigma_p[i][i]);
+    for (std::size_t j = 0; j < n; ++j) {
+      corr_p[i][j] = sigma_p[i][j] / (dp[i] * dp[j]);
+    }
+  }
+
+  if (!chol_lower(corr_p, out.ch)) {
+    throw std::runtime_error("pack_genz_ch: Cholesky failed");
+  }
+  return out;
+}
+
 }  // namespace
 
-MvnSetup prepare_mvn_setup(
-  const std::vector<double>& lower,
+std::size_t vech_size(std::size_t n) {
+  return n * (n + 1) / 2;
+}
+
+std::size_t vech_index(std::size_t i, std::size_t j) {
+  return i * (i + 1) / 2 + j;
+}
+
+std::size_t domain_size(std::size_t n) {
+  return 3 * n + vech_size(n);
+}
+
+GenzPack pack_genz_ch(
+  const std::vector<std::vector<double>>& sigma,
+  const std::vector<int>& perm) {
+  return pack_genz_ch_sigma_p(sigma, perm);
+}
+
+std::vector<double> pack_domain(
   const std::vector<double>& upper,
   const std::vector<double>& mean,
-  const std::vector<std::vector<double>>& sigma,
+  const GenzPack& genz) {
+
+  const std::size_t n = upper.size();
+  const std::size_t n_dom = domain_size(n);
+  std::vector<double> x(n_dom);
+  for (std::size_t i = 0; i < n; ++i) {
+    x[i] = upper[i];
+    x[n + i] = mean[i];
+    x[2 * n + i] = genz.scale[i];
+  }
+  const std::size_t off_ch = 3 * n;
+  for (std::size_t i = 0; i < n; ++i) {
+    for (std::size_t j = 0; j <= i; ++j) {
+      x[off_ch + vech_index(i, j)] = genz.ch[i][j];
+    }
+  }
+  return x;
+}
+
+MvnTape create_mvn_tape(
+  const std::vector<double>& lower,
+  const std::vector<double>& upper_seed,
+  const std::vector<double>& mean_seed,
+  const std::vector<std::vector<double>>& sigma_seed,
   std::size_t n_points,
   std::size_t n_shifts,
   unsigned int seed) {
 
-  const std::size_t n = sigma.size();
+  const std::size_t n = sigma_seed.size();
   if (n == 0) {
     throw std::runtime_error("sigma must be at least 1x1");
   }
 
-  MvnSetup setup;
-  setup.n = n;
-  setup.n_points = n_points;
-  setup.n_shifts = n_shifts;
-  setup.mean = mean;
-  setup.perm.resize(n);
-  setup.inv_perm.resize(n);
-  setup.scale.resize(n);
-  std::iota(setup.perm.begin(), setup.perm.end(), 0);
+  MvnTape tape;
+  tape.n = n;
+  tape.n_vech = vech_size(n);
+  tape.n_domain = domain_size(n);
+  tape.n_points = n_points;
+  tape.n_shifts = n_shifts;
+  tape.lower = lower;
+  tape.perm.resize(n);
+  std::iota(tape.perm.begin(), tape.perm.end(), 0);
 
-  std::vector<std::vector<double>> c = sigma;
+  std::vector<std::vector<double>> c = sigma_seed;
   std::vector<double> ap(n);
   std::vector<double> bp(n);
+  std::vector<double> scale(n);
   for (std::size_t i = 0; i < n; ++i) {
-    setup.scale[i] = std::sqrt(sigma[i][i]);
+    scale[i] = std::sqrt(sigma_seed[i][i]);
     ap[i] = is_neg_inf(lower[i]) ? -std::numeric_limits<double>::infinity()
-                                 : (lower[i] - mean[i]) / setup.scale[i];
-    bp[i] = is_pos_inf(upper[i]) ? std::numeric_limits<double>::infinity()
-                                 : (upper[i] - mean[i]) / setup.scale[i];
+                                 : (lower[i] - mean_seed[i]) / scale[i];
+    bp[i] = is_pos_inf(upper_seed[i]) ? std::numeric_limits<double>::infinity()
+                                      : (upper_seed[i] - mean_seed[i]) / scale[i];
   }
 
-  chlrdr(c, ap, bp, setup.perm);
-  setup.as = ap;
-  setup.ch = c;
-
-  for (std::size_t i = 0; i < n; ++i) {
-    setup.inv_perm[setup.perm[i]] = static_cast<int>(i);
-  }
+  chlrdr(c, ap, bp, tape.perm);
 
   const std::vector<double> q = primes_sqrt(n);
   std::mt19937 rng(seed);
   std::uniform_real_distribution<double> unif(0.0, 1.0);
 
-  setup.qmc_w.assign(
+  tape.qmc_w.assign(
     n_shifts,
     std::vector<std::vector<double>>(
       n_points,
@@ -392,78 +578,113 @@ MvnSetup prepare_mvn_setup(
     for (std::size_t pt = 0; pt < n_points; ++pt) {
       const double cnt = static_cast<double>(pt + 1);
       for (std::size_t dim = 0; dim + 1 < n; ++dim) {
-        double x = std::fmod(cnt * q[dim] + xr, 1.0);
-        if (x < 0.0) {
-          x += 1.0;
+        double xv = std::fmod(cnt * q[dim] + xr, 1.0);
+        if (xv < 0.0) {
+          xv += 1.0;
         }
-        setup.qmc_w[shift][pt][dim] = std::abs(2.0 * x - 1.0);
+        tape.qmc_w[shift][pt][dim] = std::abs(2.0 * xv - 1.0);
       }
     }
   }
 
-  return setup;
-}
-
-CppAD::ADFun<double> build_mvn_tape(const MvnSetup& setup) {
-  detail::init_qnorm_atomic();
-
-  const std::size_t n = setup.n;
-  std::vector<CppAD::AD<double>> upper_ad(n);
-  CppAD::Independent(upper_ad);
-
-  std::vector<CppAD::AD<double>> bs(n);
+  GenzPack genz;
+  genz.scale.resize(n);
   for (std::size_t i = 0; i < n; ++i) {
-    const int j = setup.perm[i];
-    bs[i] = (upper_ad[j] - setup.mean[j]) / setup.scale[j];
+    genz.scale[i] = std::sqrt(sigma_seed[i][i]);
   }
+  genz.ch = c;
+  const std::vector<double> domain_seed =
+    pack_domain(upper_seed, mean_seed, genz);
 
-  CppAD::AD<double> total = CppAD::AD<double>(0.0);
-  const double norm = static_cast<double>(setup.n_shifts * setup.n_points);
+  build_taped_fun(tape, lower, domain_seed);
 
-  for (std::size_t shift = 0; shift < setup.n_shifts; ++shift) {
-    for (std::size_t pt = 0; pt < setup.n_points; ++pt) {
-      total += qmc_integrand(bs, setup.as, setup.ch, setup.qmc_w[shift][pt]);
-    }
-  }
-  total /= norm;
+  tape.x_seed = detail::to_cppad_vector(domain_seed);
 
-  std::vector<CppAD::AD<double>> y(1);
-  y[0] = total;
-  CppAD::ADFun<double> fun(upper_ad, y);
-  return fun;
+  std::vector<std::size_t> inner_subset(n);
+  std::iota(inner_subset.begin(), inner_subset.end(), 0);
+
+  detail::setup_mvn_sparsity(
+    tape.fun,
+    tape.x_seed,
+    inner_subset,
+    tape.pattern_grad,
+    tape.pattern_grad_inner,
+    tape.pattern_hessian,
+    tape.pattern_hessian_inner,
+    tape.work_grad,
+    tape.work_inner_grad,
+    tape.work_hess,
+    tape.work_inner_hess,
+    tape.unused_pattern,
+    tape.w);
+
+  return tape;
 }
 
 MvnResult eval_mvn_tape(
-  const MvnSetup& setup,
+  MvnTape& tape,
   const std::vector<double>& upper,
   const std::vector<double>& mean,
-  CppAD::ADFun<double>* pre_taped) {
+  const std::vector<std::vector<double>>& sigma,
+  bool inner) {
 
-  const std::size_t n = setup.n;
+  const std::size_t n = tape.n;
   MvnResult out;
   out.gradient.assign(n, 0.0);
   out.hessian.assign(n, std::vector<double>(n, 0.0));
+  out.gradient_mean.assign(n, 0.0);
 
   detail::init_qnorm_atomic();
 
-  CppAD::ADFun<double> owned;
-  CppAD::ADFun<double>* fun = pre_taped;
-  if (!fun) {
-    owned = build_mvn_tape(setup);
-    fun = &owned;
-  }
+  const GenzPack genz = pack_genz_ch(sigma, tape.perm);
+  const CppAD::vector<double> x = detail::to_cppad_vector(pack_domain(upper, mean, genz));
 
-  const std::vector<double> x = upper;
-  out.value = (*fun).Forward(0, x)[0];
-  out.gradient = (*fun).Jacobian(x);
-  const std::vector<double> h = (*fun).Hessian(x, 0);
-  for (std::size_t i = 0; i < n; ++i) {
-    for (std::size_t j = 0; j < n; ++j) {
-      out.hessian[i][j] = h[i * n + j];
+  out.value = tape.fun.Forward(0, x)[0];
+
+  auto& pattern_grad = inner ? tape.pattern_grad_inner : tape.pattern_grad;
+  auto& work_grad = inner ? tape.work_inner_grad : tape.work_grad;
+  CppAD::sparse_rc<CppAD::vector<size_t>> jac_pattern;
+  tape.fun.sparse_jac_rev(x, pattern_grad, jac_pattern, detail::kJacColor, work_grad);
+
+  if (inner) {
+    const auto& cols = pattern_grad.col();
+    const auto& vals = pattern_grad.val();
+    for (size_t k = 0; k < pattern_grad.nnz(); ++k) {
+      out.gradient[cols[k]] += vals[k];
+    }
+  } else {
+    std::vector<double> grad_full(tape.n_domain, 0.0);
+    const auto& cols = pattern_grad.col();
+    const auto& vals = pattern_grad.val();
+    for (size_t k = 0; k < pattern_grad.nnz(); ++k) {
+      grad_full[cols[k]] += vals[k];
+    }
+    for (std::size_t i = 0; i < n; ++i) {
+      out.gradient[i] = grad_full[i];
+      out.gradient_mean[i] = grad_full[n + i];
     }
   }
-  out.error = qmc_error(setup, upper, mean);
 
+  auto& pattern_hes = inner ? tape.pattern_hessian_inner : tape.pattern_hessian;
+  auto& work_hes = inner ? tape.work_inner_hess : tape.work_hess;
+  CppAD::sparse_rc<CppAD::vector<size_t>> hes_pattern;
+  tape.fun.sparse_hes(x, tape.w, pattern_hes, hes_pattern, detail::kHessColor, work_hes);
+
+  const auto& rows = pattern_hes.row();
+  const auto& cols = pattern_hes.col();
+  const auto& vals = pattern_hes.val();
+  for (size_t k = 0; k < pattern_hes.nnz(); ++k) {
+    const std::size_t i = rows[k];
+    const std::size_t j = cols[k];
+    if (i < n && j < n) {
+      out.hessian[i][j] += vals[k];
+      if (i != j) {
+        out.hessian[j][i] += vals[k];
+      }
+    }
+  }
+
+  out.error = qmc_error(tape, upper, mean, genz);
   return out;
 }
 
