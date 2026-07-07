@@ -2,8 +2,8 @@
 
 #include <vector>
 
-#include "adlaplace/runtime/interfaces_detail.hpp"
-#include "adlaplace/eval/trace_hinv_t_runtime.hpp"
+#include "adlaplace/runtime.hpp"
+#include "adlaplace/trace_hinv_t_runtime.hpp"
 
 //' @rdname adlaplace_cpp
 //' @param verbose Logical; if \code{TRUE}, print threads, shards, and parameter sizes.

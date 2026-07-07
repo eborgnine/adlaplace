@@ -124,6 +124,12 @@ Each model piece is compiled separately with `ad_fun_ptr()`. The full model has
 four shards: observation likelihood, hyperparameter (extra) terms, and one shard
 per random-effect group. Shards are merged later with `ad_fun()`.
 
+`beta_map` and `gamma_map` map local design columns of `X` and `A` into the
+global `(beta, gamma, theta)` vector: column `j` of `beta_map` has one structural
+`1` at row `r` when local `X` column `j` uses global beta `r` (and similarly for
+`gamma_map` / `A`). When `ncol(X) > 0`, `ncol(beta_map)` must equal `ncol(X)` with
+exactly one nonzero per column.
+
 ### Observations and hyperparameters
 
 The observation shard uses the third $\theta$ component (global overdispersion).

@@ -2,8 +2,9 @@
 #include <cppad/cppad.hpp>
 #include <cmath>
 
-#include "adlaplace/creators/ad_data.hpp"
-#include "adlaplace/creators/rviews.hpp"
+#include "adlaplace/ad_data.hpp"
+#include "adlaplace/eta.hpp"
+#include "adlaplace/rviews.hpp"
 
 static CppAD::AD<double> stable_logsumexp(
   const CppAD::vector<CppAD::AD<double>>& eta)
@@ -35,22 +36,7 @@ static CppAD::vector<CppAD::AD<double>> compute_eta_for_stratum(
   for (size_t j = 0, k = startHere; j < NinStrata; ++j, ++k) {
     const size_t Deta = static_cast<size_t>(model.elgm_matrix.i[k]);
 
-    CppAD::AD<double> accGamma = 0.0;
-    CppAD::AD<double> accBeta = 0.0;
-
-    const size_t p0x = model.XTp.p[Deta];
-    const size_t p1x = model.XTp.p[Deta + 1];
-    for (size_t t = p0x; t < p1x; ++t) {
-      accBeta += model.XTp.x[t] * x[model.XTp.i[t]];
-    }
-
-    const size_t p0a = model.ATp.p[Deta];
-    const size_t p1a = model.ATp.p[Deta + 1];
-    for (size_t t = p0a; t < p1a; ++t) {
-      accGamma += model.ATp.x[t] * x[model.num_beta + model.ATp.i[t]];
-    }
-
-    etaHere[j] = accBeta + accGamma;
+    etaHere[j] = eta_at(x, model, Deta);
   }
 
   return etaHere;
@@ -104,10 +90,9 @@ static inline CppAD::AD<double> tau_sq_from_x(
 CppAD::vector<CppAD::AD<double>> logDensObs(
   const CppAD::vector<CppAD::AD<double>>& x,
   const ad_data& model,
-  const Rcpp::List& config_list,
+  const Config& config,
   const size_t Dgroup)
 {
-  const Config config(config_list);
   CppAD::AD<double> result1 = 0.0;
   CppAD::vector<CppAD::AD<double>> result(1);
 
@@ -145,9 +130,8 @@ CppAD::vector<CppAD::AD<double>> logDensObs(
 CppAD::vector<CppAD::AD<double>> logDensExtra(
   const CppAD::vector<CppAD::AD<double>>& x,
   const ad_data& model,
-  const Rcpp::List& config_list)
+  const Config& config)
 {
-  const Config config(config_list);
   const CppAD::AD<double> tauSq = tau_sq_from_x(x, model, config);
 
   const size_t Nstrata = static_cast<size_t>(model.elgm_matrix.ncol());

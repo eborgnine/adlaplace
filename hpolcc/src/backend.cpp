@@ -1,29 +1,22 @@
 #include <Rcpp.h>
 
-#include "adlaplace/api/log_dens_fn.hpp"
-#include "adlaplace/creators/adfun_obs.hpp"
-#include "adlaplace/creators/adfun_single.hpp"
-#include "adlaplace/extension/adfun_pack.hpp"
-#include "adlaplace/extension/backend_adpack_api.hpp"
+#include "adlaplace/adfun.hpp"
+#include "adlaplace/extension.hpp"
 
 CppAD::vector<CppAD::AD<double>> logDensObs(
   const CppAD::vector<CppAD::AD<double>>& x,
   const ad_data& model,
-  const Rcpp::List& config_list,
+  const Config& config,
   const size_t Dgroup);
 
 CppAD::vector<CppAD::AD<double>> logDensExtra(
   const CppAD::vector<CppAD::AD<double>>& x,
   const ad_data& model,
-  const Rcpp::List& config_list);
+  const Config& config);
 
-void backend_destroy(void* vctx) {
-  delete static_cast<GroupPack*>(vctx);
-}
+#include "adlaplace/eval_impl.hpp"
 
-#include "adlaplace/extension/backend_eval_amalgam.hpp"
-
-ADLAPLACE_DEFINE_BACKEND_ADPACK_API(hpolcc_AD_API)
+ADLAPLACE_DEFINE_BACKEND(hpolcc_make_shard)
 
 static LogDensObsFn resolve_obs_density(const std::string& name) {
   if (name == "dirichlet_multinomial") return logDensObs;
@@ -46,12 +39,12 @@ SEXP get_ad_fun_raw_obs(SEXP model, Rcpp::List config, std::string name) {
   const ad_data ad_model(model);
   std::vector<GroupPack> packs = build_ad_fun_obs(
     ad_model, config, resolve_obs_density(name));
-  ad_fun* groups = adlaplace_packs_to_ad_fun_api(
+  ad_fun* groups = packs_to_ad_fun(
     std::move(packs),
     ad_model.num_beta,
     ad_model.num_theta,
-    &hpolcc_AD_API);
-  return adlaplace_make_ad_fun_ptr(groups);
+    hpolcc_make_shard);
+  return make_ad_fun_ptr(groups);
 }
 
 //' Build parameters-shard \code{ad_fun_ptr} in this package's shared library.
@@ -67,10 +60,10 @@ SEXP get_ad_fun_raw_parameters(SEXP model, Rcpp::List config, std::string name) 
     ad_model, config, resolve_extra_density(name));
   std::vector<GroupPack> packs;
   packs.push_back(std::move(pack));
-  ad_fun* groups = adlaplace_packs_to_ad_fun_api(
+  ad_fun* groups = packs_to_ad_fun(
     std::move(packs),
     ad_model.num_beta,
     ad_model.num_theta,
-    &hpolcc_AD_API);
-  return adlaplace_make_ad_fun_ptr(groups);
+    hpolcc_make_shard);
+  return make_ad_fun_ptr(groups);
 }

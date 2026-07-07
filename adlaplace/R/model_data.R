@@ -80,12 +80,28 @@ model_data <- function(formula, data, verbose = FALSE, na_omit = TRUE) {
     elgm_here <- elgm_mats[[term_here@term]]
 
     if (identical(kind, "observations")) {
+      beta_map <- if (n_beta > 0L && ncol(all_data$X) > 0L) {
+        list(
+          match(colnames(all_data$X), all_data$info$beta$beta_label),
+          as.integer(n_beta)
+        )
+      } else {
+        n_beta
+      }
+      gamma_map <- if (n_gamma > 0L && ncol(all_data$A) > 0L) {
+        list(
+          match(colnames(all_data$A), all_data$info$gamma$gamma_label),
+          as.integer(n_gamma)
+        )
+      } else {
+        n_gamma
+      }
       observations[[term_here@term]] <- ad_data(
         y = all_data$y,
         A = all_data$A,
         X = all_data$X,
-        beta_map = Matrix::Diagonal(n_beta),
-        gamma_map = Matrix::Diagonal(n_gamma),
+        beta_map = beta_map,
+        gamma_map = gamma_map,
         theta_map = list(
           grep(term_here@label, all_data$info$theta$label),
           as.integer(n_theta)
@@ -119,20 +135,26 @@ model_data <- function(formula, data, verbose = FALSE, na_omit = TRUE) {
     }
   }
 
-  parameters <- lapply(
-    observations,
-    function(xx) {
-      ad_data(
-        y = xx@y,
-        theta_map = xx@theta_map,
-        beta_map = nrow(xx@beta_map),
-        gamma_map = nrow(xx@gamma_map),
-        elgm_matrix = xx@elgm_matrix,
-        ad_fun = parameter_ad_fun(xx@ad_fun),
-        ad_kind = "parameters",
-        package = xx@package
-      )
-    }
+  parameters <- Filter(
+    Negate(is.null),
+    lapply(
+      observations,
+      function(xx) {
+        if (ncol(xx@theta_map) == 0L) {
+          return(NULL)
+        }
+        ad_data(
+          y = xx@y,
+          theta_map = xx@theta_map,
+          beta_map = nrow(xx@beta_map),
+          gamma_map = nrow(xx@gamma_map),
+          elgm_matrix = xx@elgm_matrix,
+          ad_fun = parameter_ad_fun(xx@ad_fun),
+          ad_kind = "parameters",
+          package = xx@package
+        )
+      }
+    )
   )
   if (length(parameters) > 0L) {
     nm <- names(parameters)

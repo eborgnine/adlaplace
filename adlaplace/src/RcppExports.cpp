@@ -23,20 +23,6 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
-// get_ad_fun_raw_random
-SEXP get_ad_fun_raw_random(SEXP model, SEXP precision, Rcpp::List config, std::string name);
-RcppExport SEXP _adlaplace_get_ad_fun_raw_random(SEXP modelSEXP, SEXP precisionSEXP, SEXP configSEXP, SEXP nameSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< SEXP >::type model(modelSEXP);
-    Rcpp::traits::input_parameter< SEXP >::type precision(precisionSEXP);
-    Rcpp::traits::input_parameter< Rcpp::List >::type config(configSEXP);
-    Rcpp::traits::input_parameter< std::string >::type name(nameSEXP);
-    rcpp_result_gen = Rcpp::wrap(get_ad_fun_raw_random(model, precision, config, name));
-    return rcpp_result_gen;
-END_RCPP
-}
 // get_ad_fun_raw_parameters
 SEXP get_ad_fun_raw_parameters(SEXP model, Rcpp::List config, std::string name);
 RcppExport SEXP _adlaplace_get_ad_fun_raw_parameters(SEXP modelSEXP, SEXP configSEXP, SEXP nameSEXP) {
@@ -164,6 +150,30 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// create_ad_fun_random_diagonal
+SEXP create_ad_fun_random_diagonal(SEXP model, Rcpp::List config);
+RcppExport SEXP _adlaplace_create_ad_fun_random_diagonal(SEXP modelSEXP, SEXP configSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< SEXP >::type model(modelSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type config(configSEXP);
+    rcpp_result_gen = Rcpp::wrap(create_ad_fun_random_diagonal(model, config));
+    return rcpp_result_gen;
+END_RCPP
+}
+// create_ad_fun_random_mult
+SEXP create_ad_fun_random_mult(SEXP model, Rcpp::List config);
+RcppExport SEXP _adlaplace_create_ad_fun_random_mult(SEXP modelSEXP, SEXP configSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< SEXP >::type model(modelSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type config(configSEXP);
+    rcpp_result_gen = Rcpp::wrap(create_ad_fun_random_mult(model, config));
+    return rcpp_result_gen;
+END_RCPP
+}
 // joint_log_dens
 double joint_log_dens(SEXP ad_fun_ptr, const Rcpp::NumericVector& x, Rcpp::Nullable<Rcpp::IntegerVector> shards, bool negative);
 RcppExport SEXP _adlaplace_joint_log_dens(SEXP ad_fun_ptrSEXP, SEXP xSEXP, SEXP shardsSEXP, SEXP negativeSEXP) {
@@ -258,7 +268,6 @@ END_RCPP
 
 static const R_CallMethodDef CallEntries[] = {
     {"_adlaplace_get_ad_fun_raw_obs", (DL_FUNC) &_adlaplace_get_ad_fun_raw_obs, 3},
-    {"_adlaplace_get_ad_fun_raw_random", (DL_FUNC) &_adlaplace_get_ad_fun_raw_random, 4},
     {"_adlaplace_get_ad_fun_raw_parameters", (DL_FUNC) &_adlaplace_get_ad_fun_raw_parameters, 3},
     {"_adlaplace_c_ad_fun_ptr", (DL_FUNC) &_adlaplace_c_ad_fun_ptr, 1},
     {"_adlaplace_adlaplace_attach_hessian", (DL_FUNC) &_adlaplace_adlaplace_attach_hessian, 2},
@@ -270,6 +279,8 @@ static const R_CallMethodDef CallEntries[] = {
     {"_adlaplace_get_owner_thread_assigned", (DL_FUNC) &_adlaplace_get_owner_thread_assigned, 2},
     {"_adlaplace_assign_owner_threads", (DL_FUNC) &_adlaplace_assign_owner_threads, 2},
     {"_adlaplace_clone_ad_fun_ptr_impl", (DL_FUNC) &_adlaplace_clone_ad_fun_ptr_impl, 1},
+    {"_adlaplace_create_ad_fun_random_diagonal", (DL_FUNC) &_adlaplace_create_ad_fun_random_diagonal, 2},
+    {"_adlaplace_create_ad_fun_random_mult", (DL_FUNC) &_adlaplace_create_ad_fun_random_mult, 2},
     {"_adlaplace_joint_log_dens", (DL_FUNC) &_adlaplace_joint_log_dens, 4},
     {"_adlaplace_grad", (DL_FUNC) &_adlaplace_grad, 5},
     {"_adlaplace_hessian", (DL_FUNC) &_adlaplace_hessian, 6},

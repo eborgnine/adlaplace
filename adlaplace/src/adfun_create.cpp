@@ -1,9 +1,8 @@
 #include <Rcpp.h>
 
 #include <Rinternals.h>
-#include "adlaplace/api/register.hpp"
-#include "adlaplace/runtime/ad_fun_clone.hpp"
-#include "adlaplace/runtime/interfaces_detail.hpp"
+#include "adlaplace/register.hpp"
+#include "adlaplace/runtime.hpp"
 
 //' Build raw AD handle for observation shards only
 //'
@@ -15,20 +14,6 @@
 // [[Rcpp::export]]
 SEXP get_ad_fun_raw_obs(SEXP model, Rcpp::List config, std::string name) {
   ad_fun* groups = get_ad_fun_raw_obs_h(model, config, name);
-  return make_ad_fun_ptr(groups);
-}
-
-//' Build raw AD handle for a random-effect shard
-//'
-//' @param model An \code{ad_data} S4 object (maps for the term).
-//' @param precision Numeric vector of diagonal precision weights (required).
-//' @param config Model configuration list.
-//' @param name Registered random density name (e.g. \code{"random_diagonal"}).
-//' @return External pointer of class \code{ad_fun_ptr}.
-//' @keywords internal
-// [[Rcpp::export]]
-SEXP get_ad_fun_raw_random(SEXP model, SEXP precision, Rcpp::List config, std::string name) {
-  ad_fun* groups = get_ad_fun_raw_random_h(model, precision, config, name);
   return make_ad_fun_ptr(groups);
 }
 
@@ -111,10 +96,7 @@ int n_groups(SEXP handle) {
 // [[Rcpp::export]]
 Rcpp::List get_sizes(SEXP handle, int group) {
   ad_fun* groups = ad_fun_from_handle(handle);
-  adlaplace_adpack_handle* h = shard_handle(groups, static_cast<size_t>(group));
-  if (!h->api->get_sizes) {
-    Rcpp::stop("backend api->get_sizes is NULL");
-  }
+  adlaplace_shard* shard = shard_handle(groups, static_cast<size_t>(group));
 
   int n_inner = 0;
   int n_outer = 0;
@@ -124,8 +106,8 @@ Rcpp::List get_sizes(SEXP handle, int group) {
   int nnz_grad_outer = 0;
   int nnz_hes_inner = 0;
   int nnz_hes_outer = 0;
-  if (h->api->get_sizes(
-      h->ctx, &n_inner, &n_outer, &n_beta, &n_theta,
+  if (shard->get_sizes(
+      &n_inner, &n_outer, &n_beta, &n_theta,
       &nnz_grad_inner, &nnz_grad_outer,
       &nnz_hes_inner, &nnz_hes_outer) != 0) {
     Rcpp::stop("backend api->get_sizes failed for group %d", group);
@@ -164,9 +146,8 @@ Rcpp::List get_sparse_pattern(SEXP handle, int group) {
 // [[Rcpp::export]]
 int get_thread_owner(SEXP handle, int group) {
   ad_fun* groups = ad_fun_from_handle(handle);
-  adlaplace_adpack_handle* h = shard_handle(groups, static_cast<size_t>(group));
-  GroupPack* pack = pack_ctx(h->ctx);
-  return static_cast<int>(pack->owner_thread);
+  adlaplace_shard* shard = shard_handle(groups, static_cast<size_t>(group));
+  return static_cast<int>(shard->pack.owner_thread);
 }
 
 //' Configured \code{num_threads} from \code{ad_fun()} thread assignment
@@ -194,9 +175,8 @@ Rcpp::IntegerVector get_configured_num_threads(SEXP handle) {
 // [[Rcpp::export]]
 bool get_owner_thread_assigned(SEXP handle, int group) {
   ad_fun* groups = ad_fun_from_handle(handle);
-  adlaplace_adpack_handle* h = shard_handle(groups, static_cast<size_t>(group));
-  GroupPack* pack = pack_ctx(h->ctx);
-  return pack->owner_thread_assigned;
+  adlaplace_shard* shard = shard_handle(groups, static_cast<size_t>(group));
+  return shard->pack.owner_thread_assigned;
 }
 
 //' Assign OpenMP owner threads to all shards
@@ -216,10 +196,9 @@ void assign_owner_threads(SEXP handle, int num_threads) {
   ad_fun* groups = ad_fun_from_handle(handle);
   const std::size_t n_threads = static_cast<std::size_t>(num_threads);
   for (std::size_t s = 0; s < groups->fun.size(); ++s) {
-    adlaplace_adpack_handle* h = shard_handle(groups, s);
-    GroupPack* pack = pack_ctx(h->ctx);
-    pack->owner_thread = pack->shard_index % n_threads;
-    pack->owner_thread_assigned = true;
+    adlaplace_shard* shard = shard_handle(groups, s);
+    shard->pack.owner_thread = shard->pack.shard_index % n_threads;
+    shard->pack.owner_thread_assigned = true;
   }
   groups->configured_num_threads = n_threads;
   groups->num_threads_configured = true;

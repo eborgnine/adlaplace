@@ -107,11 +107,11 @@ model_iid <- adlaplace:::ad_data(
 
 ```{r ad_pack}
 config$verbose <- TRUE
-ptr_obs <- adlaplace:::ad_fun_ptr(data = data_obs, config = config)
+ptr_obs <- adlaplace::ad_fun_ptr(data = data_obs, config = config)
 # this part takes a few minutes
-ptr_iid <- adlaplace:::ad_fun_ptr(data = model_iid, config = config)
-ptr_struct <- adlaplace:::ad_fun_ptr(data = model_struct, config = config)
-ad_pack <- adlaplace:::ad_fun(c(ptr_obs, ptr_struct, ptr_iid), num_threads = 4L)
+ptr_iid <- adlaplace::ad_fun_ptr(data = model_iid, config = config)
+ptr_struct <- adlaplace::ad_fun_ptr(data = model_struct, config = config)
+ad_pack <- adlaplace::ad_fun(c(ptr_obs, ptr_struct, ptr_iid), num_threads = 4L)
 ```
 
 ## Outer optimization
@@ -122,7 +122,7 @@ cache$gamma <- rep(0, n_gamma)
 
 opt <- optim(
   par = config$theta,
-  fn = adlaplace:::outer_fn, gr = adlaplace:::outer_gr,
+  fn = adlaplace::outer_fn, gr = adlaplace::outer_gr,
   method = "L-BFGS-B",
   lower = rep(-6, n_theta), upper = rep(4, n_theta),
   control = list(maxit = 200L, factr = 1e3, trace = 3, REPORT = 1),
@@ -131,7 +131,7 @@ opt <- optim(
   control_inner = list(maxit = 100L, report.level = 0, report.freq = 0)
 )
 
-res <- adlaplace:::log_lik_laplace(
+res <- adlaplace::log_lik_laplace(
   x = opt$par, gamma = cache$gamma,
   ad_fun = ad_pack, config = config, control = control_inner, deriv = FALSE
 )

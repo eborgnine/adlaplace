@@ -1,4 +1,4 @@
-#' @include wrappers.R model_data.R ad_shards.R log_lik_laplace.R
+#' @include log_lik.R model_data.R ad_shards.R
 NULL
 
 #' Fit a hierarchical model by Laplace-approximate maximum likelihood

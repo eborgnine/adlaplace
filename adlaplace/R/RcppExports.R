@@ -12,18 +12,6 @@ get_ad_fun_raw_obs <- function(model, config, name) {
     .Call(`_adlaplace_get_ad_fun_raw_obs`, model, config, name)
 }
 
-#' Build raw AD handle for a random-effect shard
-#'
-#' @param model An \code{ad_data} S4 object (maps for the term).
-#' @param precision Numeric vector of diagonal precision weights (required).
-#' @param config Model configuration list.
-#' @param name Registered random density name (e.g. \code{"random_diagonal"}).
-#' @return External pointer of class \code{ad_fun_ptr}.
-#' @keywords internal
-get_ad_fun_raw_random <- function(model, precision, config, name) {
-    .Call(`_adlaplace_get_ad_fun_raw_random`, model, precision, config, name)
-}
-
 #' Build raw AD handle for a parameters shard
 #'
 #' @param model An \code{ad_data} S4 object.
@@ -145,6 +133,26 @@ assign_owner_threads <- function(handle, num_threads) {
 #' @keywords internal
 clone_ad_fun_ptr_ <- function(handle) {
     .Call(`_adlaplace_clone_ad_fun_ptr_impl`, handle)
+}
+
+#' Build raw AD handle for a random_diagonal shard
+#'
+#' @param model An \code{ad_data} S4 object with \code{precision} slot set.
+#' @param config Model configuration list.
+#' @return External pointer of class \code{ad_fun_ptr}.
+#' @keywords internal
+create_ad_fun_random_diagonal <- function(model, config) {
+    .Call(`_adlaplace_create_ad_fun_random_diagonal`, model, config)
+}
+
+#' Build raw AD handle for a random_mult shard
+#'
+#' @param model An \code{ad_data} S4 object with \code{precision} slot set.
+#' @param config Model configuration list.
+#' @return External pointer of class \code{ad_fun_ptr}.
+#' @keywords internal
+create_ad_fun_random_mult <- function(model, config) {
+    .Call(`_adlaplace_create_ad_fun_random_mult`, model, config)
 }
 
 #' @title C++ backend entry points

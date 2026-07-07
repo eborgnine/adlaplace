@@ -1,0 +1,298 @@
+#include <Rcpp.h>
+#include <Rinternals.h>
+
+#include "adlaplace/ad_data.hpp"
+#include "adlaplace/adfun.hpp"
+#include "adlaplace/atomics.hpp"
+#include "adlaplace/register.hpp"
+#include "adlaplace/rviews.hpp"
+
+#include <algorithm>
+#include <set>
+#include <utility>
+#include <vector>
+
+extern adlaplace_shard *adlaplace_make_shard(GroupPack &&);
+
+namespace {
+
+CppAD::vector<CppAD::AD<double>> random_diagonal_impl(
+  const CppAD::vector<CppAD::AD<double>>& x,
+  const ad_data& model,
+  const NumVecView& Q,
+  const std::vector<std::size_t>& gamma_indices,
+  const Config& config) {
+
+  const std::size_t Ngamma = gamma_indices.size();
+  if (Q.size() != Ngamma) {
+    Rcpp::warning("precision length (%d) differs from gamma_map columns (%d)",
+                  static_cast<int>(Q.size()), static_cast<int>(Ngamma));
+  }
+
+  const std::size_t theta_index = model.theta_index(0);
+  CppAD::AD<double> logSd;
+  if (config.transform_theta) {
+    logSd = x[theta_index];
+  } else {
+    logSd = CppAD::log(x[theta_index]);
+  }
+
+  CppAD::AD<double> precision = CppAD::exp(-2 * logSd);
+  CppAD::AD<double> qpart = 0.0;
+  double logQsum = 0.0;
+
+  const std::size_t nq = std::min(Ngamma, Q.size());
+  for (std::size_t k = 0; k < nq; ++k) {
+    const std::size_t gidx = gamma_indices[k];
+    const double qk = Q[k];
+    qpart += x[gidx] * x[gidx] * qk;
+    logQsum += std::log(qk);
+  }
+  qpart *= CppAD::AD<double>(0.5) * precision;
+
+  CppAD::AD<double> qDet = logSd * CppAD::AD<double>(Ngamma) +
+    CppAD::AD<double>(Ngamma * ONEHALFLOGTWOPI);
+
+  if (config.verbose) {
+    Rcpp::Rcout << "theta index " << theta_index <<
+      " logVariance " << logSd << " precision " << precision << "\n";
+    Rcpp::Rcout << "random_diagonal n_gamma " << Ngamma <<
+      " qDet " << qDet <<
+      " qpart " << qpart << "\n";
+  }
+
+  CppAD::vector<CppAD::AD<double>> result(1);
+  result[0] = -qpart - qDet + CppAD::AD<double>(0.5 * logQsum);
+  return result;
+}
+
+void set_sparse_rc_upper_pairs(
+    CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> &hessian,
+    const std::size_t n_params,
+    const std::set<std::pair<std::size_t, std::size_t>> &pairs) {
+  hessian.resize(n_params, n_params, pairs.size());
+  std::size_t k = 0;
+  for (const auto &rc : pairs) {
+    hessian.set(k++, rc.first, rc.second);
+  }
+}
+
+CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)>
+random_diagonal_sparsity(const ad_data &model) {
+
+  const std::vector<std::size_t> gamma_indices =
+      model.all_gamma_global_indices();
+  const std::size_t theta_index = model.theta_index(0);
+  const std::size_t n_gamma = gamma_indices.size();
+  const std::size_t n_params = model.num_full;
+
+  CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> hessian;
+  hessian.resize(n_params, n_params, n_gamma + 1);
+  for (std::size_t k = 0; k < n_gamma; ++k) {
+    const std::size_t gi = gamma_indices[k];
+    hessian.set(k, gi, gi);
+  }
+  hessian.set(n_gamma, theta_index, theta_index);
+  return hessian;
+}
+
+CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)>
+random_mult_sparsity(const ad_data &model) {
+
+  const DgCView Q = model.mult_precision_Q();
+  const std::size_t theta_index = model.theta_index(0);
+  const std::size_t n_params = model.num_full;
+  const int n_term = model.gamma_map.ncol();
+
+  std::set<std::pair<std::size_t, std::size_t>> hes_upper;
+
+  for (int col = 0; col < n_term; ++col) {
+    const std::vector<std::size_t> gj_idx = model.gamma_global_indices(col);
+    if (gj_idx.empty()) {
+      continue;
+    }
+    const std::size_t gj = gj_idx[0];
+
+    const int p0 = Q.p[col];
+    const int p1 = Q.p[col + 1];
+    for (int k = p0; k < p1; ++k) {
+      const std::vector<std::size_t> gi_idx =
+          model.gamma_global_indices(static_cast<int>(Q.i[k]));
+      if (gi_idx.empty()) {
+        continue;
+      }
+      const std::size_t gi = gi_idx[0];
+
+      const std::size_t i = std::min(gi, gj);
+      const std::size_t j = std::max(gi, gj);
+      hes_upper.insert({i, j});
+      hes_upper.insert({std::min(gi, theta_index), std::max(gi, theta_index)});
+      hes_upper.insert({std::min(gj, theta_index), std::max(gj, theta_index)});
+    }
+  }
+
+  hes_upper.insert({theta_index, theta_index});
+  CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> hessian;
+  set_sparse_rc_upper_pairs(hessian, n_params, hes_upper);
+  return hessian;
+}
+
+GroupPack build_ad_fun_random(const ad_data &model, const Rcpp::List &config,
+                              LogDensSingleRandomFn log_dens,
+                              const CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)>
+                                  &hessian = empty_sparse_rc()) {
+
+  const Config cfg(config);
+  validate_config_matches_model(cfg, model, false);
+  if (Rf_isNull(model.precision)) {
+    Rcpp::stop("precision is required for random densities");
+  }
+  if (TYPEOF(model.precision) == REALSXP || TYPEOF(model.precision) == INTSXP) {
+    const NumVecView Q(model.precision);
+    const int n_gamma_cols = model.gamma_map.ncol();
+    if (Q.size() != static_cast<R_xlen_t>(n_gamma_cols)) {
+      Rcpp::stop("length(precision) (%d) must match ncol(gamma_map) (%d)",
+                 static_cast<int>(Q.size()), n_gamma_cols);
+    }
+  }
+
+  if (cfg.verbose) {
+    Rcpp::Rcout << "build_ad_fun_random: taping...\n";
+  }
+
+  const CPPAD_TESTVECTOR(double) ad_params_G = make_ad_params_seed(cfg, model);
+
+  CppAD::vector<CppAD::AD<double>> ad_params(model.num_full);
+  for (size_t d = 0; d < model.num_full; ++d) {
+    ad_params[d] = ad_params_G[d];
+  }
+
+  CppAD::Independent(ad_params);
+
+  CppAD::vector<CppAD::AD<double>> result_here =
+      log_dens(ad_params, model, cfg);
+
+  CppAD::ADFun<double> fun(ad_params, result_here);
+
+  GroupPack pack;
+  pack.fun = std::move(fun);
+  pack.owner_thread_assigned = false;
+  if (cfg.verbose) {
+    Rcpp::Rcout << "build_ad_fun_random: computing sparsity...\n";
+  }
+
+  adpack_sparsity(ad_params_G, model.seq_gamma, pack, cfg.verbose, hessian);
+  return pack;
+}
+
+} // namespace
+
+CppAD::vector<CppAD::AD<double>> random_diagonal(
+  const CppAD::vector<CppAD::AD<double>>& x,
+  const ad_data& model,
+  const Config& config) {
+
+  if (Rf_isNull(model.precision)) {
+    Rcpp::stop("precision is required for random_diagonal");
+  }
+  const NumVecView Q(model.precision);
+  const std::vector<std::size_t> gamma_indices = model.all_gamma_global_indices();
+  return random_diagonal_impl(x, model, Q, gamma_indices, config);
+}
+
+CppAD::vector<CppAD::AD<double>> random_mult(
+  const CppAD::vector<CppAD::AD<double>>& x,
+  const ad_data& model,
+  const Config& config) {
+
+  const DgCView Q = model.mult_precision_Q();
+  const int n_term = model.gamma_map.ncol();
+  if (static_cast<std::size_t>(Q.nrow()) != static_cast<std::size_t>(n_term) ||
+      static_cast<std::size_t>(Q.ncol()) != static_cast<std::size_t>(n_term)) {
+    Rcpp::stop("random_mult Q is %d x %d but gamma_map has %d columns",
+               Q.nrow(), Q.ncol(), n_term);
+  }
+
+  const double rank = model.mult_precision_rank();
+  const double log_det = model.mult_precision_log_det();
+
+  const std::size_t theta_index = model.theta_index(0);
+  CppAD::AD<double> logSd;
+  if (config.transform_theta) {
+    logSd = x[theta_index];
+  } else {
+    logSd = CppAD::log(x[theta_index]);
+  }
+  const CppAD::AD<double> tau = CppAD::exp(-2 * logSd);
+
+  CppAD::AD<double> qf = 0.0;
+  for (int j = 0; j < Q.ncol(); ++j) {
+    const std::vector<std::size_t> gj_idx = model.gamma_global_indices(j);
+    if (gj_idx.empty()) {
+      Rcpp::stop("gamma_map column %d has no structural nonzero", j + 1);
+    }
+    const std::size_t gj = gj_idx[0];
+    const int p0 = Q.p[j];
+    const int p1 = Q.p[j + 1];
+    for (int k = p0; k < p1; ++k) {
+      const std::vector<std::size_t> gi_idx =
+        model.gamma_global_indices(static_cast<int>(Q.i[k]));
+      if (gi_idx.empty()) {
+        Rcpp::stop("gamma_map column %d has no structural nonzero", Q.i[k] + 1);
+      }
+      const std::size_t gi = gi_idx[0];
+      qf += x[gi] * Q.value(k) * x[gj];
+    }
+  }
+  const CppAD::AD<double> qpart = CppAD::AD<double>(0.5) * tau * qf;
+
+  if (config.verbose) {
+    Rcpp::Rcout << "random_mult n_gamma " << n_term << " rank " << rank
+                << " log_det " << log_det << " theta index " << theta_index
+                << "\n";
+  }
+
+  CppAD::vector<CppAD::AD<double>> result(1);
+  result[0] = -qpart - logSd * CppAD::AD<double>(rank) +
+              CppAD::AD<double>(0.5 * log_det - rank * ONEHALFLOGTWOPI);
+  return result;
+}
+
+//' Build raw AD handle for a random_diagonal shard
+//'
+//' @param model An \code{ad_data} S4 object with \code{precision} slot set.
+//' @param config Model configuration list.
+//' @return External pointer of class \code{ad_fun_ptr}.
+//' @keywords internal
+// [[Rcpp::export]]
+SEXP create_ad_fun_random_diagonal(SEXP model, Rcpp::List config) {
+  const ad_data ad_model(model);
+  CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> hes_pat =
+      random_diagonal_sparsity(ad_model);
+  GroupPack pack =
+      build_ad_fun_random(ad_model, config, random_diagonal, hes_pat);
+  std::vector<GroupPack> packs;
+  packs.push_back(std::move(pack));
+  ad_fun *groups = packs_to_ad_fun(std::move(packs), ad_model.num_beta,
+                                   ad_model.num_theta, adlaplace_make_shard);
+  return make_ad_fun_ptr(groups);
+}
+
+//' Build raw AD handle for a random_mult shard
+//'
+//' @param model An \code{ad_data} S4 object with \code{precision} slot set.
+//' @param config Model configuration list.
+//' @return External pointer of class \code{ad_fun_ptr}.
+//' @keywords internal
+// [[Rcpp::export]]
+SEXP create_ad_fun_random_mult(SEXP model, Rcpp::List config) {
+  const ad_data ad_model(model);
+  CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> hes_pat =
+      random_mult_sparsity(ad_model);
+  GroupPack pack = build_ad_fun_random(ad_model, config, random_mult, hes_pat);
+  std::vector<GroupPack> packs;
+  packs.push_back(std::move(pack));
+  ad_fun *groups = packs_to_ad_fun(std::move(packs), ad_model.num_beta,
+                                   ad_model.num_theta, adlaplace_make_shard);
+  return make_ad_fun_ptr(groups);
+}

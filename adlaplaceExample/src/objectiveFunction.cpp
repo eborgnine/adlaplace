@@ -2,17 +2,17 @@
 #include <cppad/cppad.hpp>
 #include <cmath>
 
-#include "adlaplace/creators/ad_data.hpp"
-#include "adlaplace/creators/rviews.hpp"
-#include "adlaplace/math/constants.hpp"
+#include "adlaplace/ad_data.hpp"
+#include "adlaplace/eta.hpp"
+#include "adlaplace/rviews.hpp"
+#include "adlaplace/atomics.hpp"
 
 CppAD::vector<CppAD::AD<double>> logDensObs(
   const CppAD::vector<CppAD::AD<double>>& x,
   const ad_data& model,
-  const Rcpp::List& config_list,
+  const Config& config,
   const size_t Dgroup)
 {
-  const Config config(config_list);
 
   CppAD::AD<double> result = 0.0;
 
@@ -46,21 +46,7 @@ CppAD::vector<CppAD::AD<double>> logDensObs(
   for (size_t DI = startP; DI < endP; ++DI) {
     const size_t Dobs = have_shards ? config.shards.i[DI] : DI;
 
-    CppAD::AD<double> eta_fixed = 0.0;
-    const size_t p0x = model.XTp.p[Dobs];
-    const size_t p1x = model.XTp.p[Dobs + 1];
-    for (size_t D = p0x; D < p1x; ++D) {
-      eta_fixed += model.XTp.x[D] * x[model.XTp.i[D]];
-    }
-
-    CppAD::AD<double> eta_random = 0.0;
-    const size_t p0a = model.ATp.p[Dobs];
-    const size_t p1a = model.ATp.p[Dobs + 1];
-    for (size_t D = p0a; D < p1a; ++D) {
-      eta_random += model.ATp.x[D] * x[model.num_beta + model.ATp.i[D]];
-    }
-
-    CppAD::AD<double> eta = eta_fixed + eta_random;
+    const CppAD::AD<double> eta = eta_at(x, model, Dobs);
     CppAD::AD<double> z = (CppAD::AD<double>(model.y[Dobs]) - eta) / omega_sqrt2;
     CppAD::AD<double> t = -alpha * z;
 
@@ -75,9 +61,8 @@ CppAD::vector<CppAD::AD<double>> logDensObs(
 CppAD::vector<CppAD::AD<double>> logDensExtra(
   const CppAD::vector<CppAD::AD<double>>& x,
   const ad_data& model,
-  const Rcpp::List& config_list)
+  const Config& config)
 {
-  const Config config(config_list);
 
   const std::size_t omega_index = model.theta_index(0);
   CppAD::AD<double> omega_in = x[omega_index];

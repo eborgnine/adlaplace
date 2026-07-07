@@ -58,7 +58,7 @@ test_that("random_diagonal ad_fun_ptr builds", {
   expect_true(methods::is(af, "ad_fun"))
 })
 
-test_that("random_diagonal grad and hess match finite differences", {
+test_that("random_diagonal grad and inner hess match finite differences", {
   set.seed(42)
   nr <- 20L
   fx <- random_diagonal_fixture(nr = nr)
@@ -74,9 +74,9 @@ test_that("random_diagonal grad and hess match finite differences", {
   gr_fd <- finite_diff_grad(f, x)
   expect_equal(gr_ad, gr_fd, tolerance = 5e-5)
 
-  H_ad <- as.matrix(adlaplace::hessian(af, x, negative = FALSE))
+  H_ad <- as.matrix(adlaplace::hessian(af, x, inner = TRUE, negative = FALSE))
   H_fd <- finite_diff_hess(f, x)
-  expect_equal(diag(H_ad), diag(H_fd), tolerance = 5e-4)
+  expect_equal(diag(H_ad)[seq_len(nr)], diag(H_fd)[seq_len(nr)], tolerance = 5e-4)
 
   tau <- exp(-2 * x[length(x)])
   expect_equal(diag(H_ad)[seq_len(nr)], -tau * rep(2, nr), tolerance = 1e-5)

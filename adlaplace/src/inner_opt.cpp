@@ -56,15 +56,15 @@
 #include <CG-sparse.h>
 
 // Local
-#include "adlaplace/creators/rviews.hpp"
-#include "adlaplace/math/constants.hpp"
+#include "adlaplace/rviews.hpp"
+#include "adlaplace/atomics.hpp"
 #include "adlaplace/ompad.hpp"
-#include "adlaplace/runtime/thread_affinity_debug.hpp"
-#include "adlaplace/runtime/thread_groups.hpp"
-#include "adlaplace/linalg/chol_update.hpp"
-#include "adlaplace/eval/trace_hinv_t_runtime.hpp"
-#include "adlaplace/optim/trustOptimControl.hpp"
-#include "adlaplace/optim/trustOptimWrappers.hpp"
+#include "adlaplace/runtime.hpp"
+#include "adlaplace/runtime.hpp"
+#include "adlaplace/chol_update.hpp"
+#include "adlaplace/trace_hinv_t_runtime.hpp"
+#include "adlaplace/trustoptim.hpp"
+#include "adlaplace/trustoptim.hpp"
 
 // Convert Eigen sparse matrix to Matrix::dgCMatrix S4 object directly
 Rcpp::S4 eigen_to_dgCMatrix(const Eigen::SparseMatrix<double> &M) {

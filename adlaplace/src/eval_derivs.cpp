@@ -2,7 +2,7 @@
 
 #include <vector>
 
-#include "adlaplace/runtime/interfaces_detail.hpp"
+#include "adlaplace/runtime.hpp"
 
 namespace {
 
@@ -49,7 +49,7 @@ double joint_log_dens(
 
   ad_fun* backend = resolve_ad_fun_eval(ad_fun_ptr);
   const size_t n_shards = backend->fun.size();
-  const size_t Nparams = pack_ctx(backend->fun[0]->ctx)->x.size();
+  const size_t Nparams = backend->fun[0]->pack.x.size();
   if (static_cast<size_t>(x.size()) != Nparams) {
     Rcpp::stop("x has length %d but expected Nparams=%d", x.size(), (int)Nparams);
   }
@@ -59,11 +59,11 @@ double joint_log_dens(
 
   double total = 0.0;
   for (size_t s : shard_idx) {
-    adlaplace_adpack_handle* h = shard_handle(backend, s);
+    adlaplace_shard* shard = shard_handle(backend, s);
     double fg = 0.0;
-    const int rc = h->api->f(h->ctx, x.begin(), &fg);
+    const int rc = shard->f(x.begin(), &fg);
     if (rc != 0) {
-      Rcpp::stop("backend api->f failed for shard %d with code %d", (int)s, rc);
+      Rcpp::stop("shard f failed for shard %d with code %d", (int)s, rc);
     }
     total += fg;
   }
@@ -90,9 +90,9 @@ Rcpp::NumericVector grad(
   double f_dummy = 0.0;
 
   for (size_t s : shard_idx) {
-    adlaplace_adpack_handle* h = shard_handle(backend, s);
-    if (h->api->f_grad(h->ctx, x.begin(), &inner, &f_dummy, grad_out.begin()) != 0)
-      Rcpp::stop("backend api->f_grad failed for shard %d", (int)s);
+    adlaplace_shard* shard = shard_handle(backend, s);
+    if (shard->f_grad(x.begin(), inner, &f_dummy, grad_out.begin()) != 0)
+      Rcpp::stop("shard f_grad failed for shard %d", (int)s);
   }
   if (negative) {
     grad_out = -grad_out;
@@ -111,9 +111,6 @@ Rcpp::S4 hessian(
   const bool verbose = false,
   bool negative = true) {
   ad_fun* backend = resolve_ad_fun_eval(ad_fun_ptr);
-  if (!backend->fun[0]->api->f_grad_hess) {
-    Rcpp::stop("ad_fun api->f_grad_hess is NULL");
-  }
 
   const size_t Nparams = x.size();
   const size_t n_shards = backend->fun.size();
@@ -127,11 +124,11 @@ Rcpp::S4 hessian(
   if (verbose) Rcpp::Rcout << "Starting Hessian computation..." << std::endl;
 
   for (size_t s : shard_idx) {
-    adlaplace_adpack_handle* h = shard_handle(backend, s);
+    adlaplace_shard* shard = shard_handle(backend, s);
     int n_inner, n_outer, n_beta, n_theta, nnz_grad_i, nnz_grad_o, nnz_hes_i, nnz_hes_o;
-    if (h->api->get_sizes(h->ctx, &n_inner, &n_outer, &n_beta, &n_theta,
+    if (shard->get_sizes(&n_inner, &n_outer, &n_beta, &n_theta,
                           &nnz_grad_i, &nnz_grad_o, &nnz_hes_i, &nnz_hes_o) != 0)
-      Rcpp::stop("backend api->get_sizes failed for shard %d", (int)s);
+      Rcpp::stop("shard get_sizes failed for shard %d", (int)s);
 
     int nnz = inner ? nnz_hes_i : nnz_hes_o;
     if (nnz == 0) continue;
@@ -140,11 +137,11 @@ Rcpp::S4 hessian(
     std::vector<int> p_hir(nnz_hes_i), p_hic(nnz_hes_i);
     std::vector<int> p_hor(nnz_hes_o), p_hoc(nnz_hes_o);
 
-    if (h->api->get_sparse_pattern(h->ctx,
+    if (shard->get_sparse_pattern(
         p_gi.data(), p_go.data(),
         p_hir.data(), p_hic.data(),
         p_hor.data(), p_hoc.data()) != 0)
-      Rcpp::stop("backend api->get_sparse_pattern failed for shard %d", (int)s);
+      Rcpp::stop("shard get_sparse_pattern failed for shard %d", (int)s);
 
     const int* rows = inner ? p_hir.data() : p_hor.data();
     const int* cols = inner ? p_hic.data() : p_hoc.data();
@@ -155,8 +152,8 @@ Rcpp::S4 hessian(
 
     std::vector<double> grad_scratch(Nparams, 0.0);
     double f_dummy = 0.0;
-    if (h->api->f_grad_hess(h->ctx, x.begin(), &inner, &f_dummy, grad_scratch.data(), vals.data(), map.data()) != 0)
-      Rcpp::stop("backend api->f_grad_hess failed for shard %d", (int)s);
+    if (shard->f_grad_hess(x.begin(), inner, &f_dummy, grad_scratch.data(), vals.data(), map.data()) != 0)
+      Rcpp::stop("shard f_grad_hess failed for shard %d", (int)s);
 
     const double sign = negative ? -1.0 : 1.0;
     for (int k = 0; k < nnz; ++k) {
