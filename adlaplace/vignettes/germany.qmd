@@ -1,0 +1,382 @@
+---
+title: "BYM disease mapping: Germany oral cavity cancer"
+author: "Patrick Brown"
+date: "`r Sys.Date()`"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+vignette: >
+  %\VignetteIndexEntry{BYM disease mapping: Germany oral cavity cancer}
+  %\VignetteEngine{quarto::html}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+library("Matrix")
+library("adlaplace")
+data("germany")
+```
+
+## Introduction
+
+This vignette fits a Besag-York-Mollie (BYM) model to the Germany oral-cavity-cancer
+data (Besag, York, and Mollié 1991). Counts $y_i$ in 544 districts follow
+$y_i \sim \mathrm{Poisson}(E_i e^{\eta_i})$ with a structured intrinsic CAR
+(ICAR) component plus an unstructured iid component.
+
+The example uses the low-level `adlaplace` pipeline and the `random_mult`
+kernel. The generalized log-determinant and rank of the ICAR precision are
+stored in the bundled `germany` data; only the precision multipliers enter
+the AD tape (Sørbye and Rue 2014). The intercept is omitted because the ICAR
+precision is rank-deficient.
+
+## Data
+
+The `germany` object includes case and expected counts, the district adjacency
+matrix, the scaled ICAR precision `Q_scaled`, and the `prec` list for
+`random_mult`.
+
+```{r data}
+n <- length(germany$Y)
+n_theta <- 2L
+```
+
+```{r precision}
+ref_id <- which.max(apply(germany$adj, 1, sum))
+idx <- setdiff(seq_len(n), ref_id)
+
+deg <- Matrix::rowSums(germany$adj)
+Q_icar <- Matrix::Diagonal(n, deg) - germany$adj
+
+Q_ref <- Q_icar[idx, idx]
+Q_ref <- as(as(Q_ref, "generalMatrix"), "CsparseMatrix")
+```
+
+Latent vector $\gamma = (u_{\mathrm{struct}}, u_{\mathrm{iid}})$ has length
+$2n - 1$: structured effects on $n - 1$ areas (reference area `ref_id` fixed
+at zero) plus $n$ iid effects. Observations use `poisson_obs` with offset
+$\log E_i$.
+
+```{r shards}
+n_gamma <- 2 * n
+
+A_obs <- cbind(
+  Matrix::sparseMatrix(i = seq_len(n), j = seq_len(n), x = 1, dims = c(n, n)),
+  Matrix::sparseMatrix(i = seq_len(n), j = seq_len(n), x = 1, dims = c(n, n))
+)
+X_obs <- Matrix::Matrix(0, n, 0)
+
+config <- list(
+  transform_theta = TRUE,
+  gamma = rep(0, n_gamma),
+  theta = log(c(1e-2, 0.1)),
+  offset = log(germany$E),
+  shards = adlaplace::ad_shards(A_obs, num_shards = 2L),
+  verbose = FALSE
+)
+
+data_obs <- adlaplace:::ad_data(
+  y = germany$Y,
+  A = A_obs,
+  X = X_obs,
+  theta_map = n_theta,
+  ad_kind = "observations",
+  ad_fun = "poisson_obs"
+)
+
+model_struct <- adlaplace:::ad_data(
+  gamma_map = Matrix::sparseMatrix(
+    i = seq_len(n), j = seq_len(n), x = 1,
+    dims = c(n_gamma, n)
+  ),
+  theta_map = c(1L, n_theta),
+  ad_kind = "random",
+  ad_fun = "random_mult",
+  precision = germany$prec
+)
+
+
+model_iid <- adlaplace:::ad_data(
+  gamma_map = Matrix::sparseMatrix(
+    i = seq.int(n + 1L, length.out = n), j = seq_len(n), x = 1,
+    dims = c(n_gamma, n)
+  ),
+  theta_map = c(2L, n_theta),
+  ad_kind = "random",
+  ad_fun = "random_diagonal",
+  precision = rep(1, n)
+)
+```
+
+## Building AD shards
+
+Each model piece is taped separately with `ad_fun_ptr()`. The `random_mult`
+shard for the ICAR term is the slowest step.
+
+```{r ad_pack}
+ptr_obs <- adlaplace::ad_fun_ptr(data = data_obs, config = config)
+ptr_iid <- adlaplace::ad_fun_ptr(data = model_iid, config = config)
+ptr_struct <- adlaplace::ad_fun_ptr(data = model_struct, config = config)
+
+ad_fun_plain <- c(ptr_obs, ptr_struct, ptr_iid)
+ad_pack <- adlaplace::ad_fun(ad_fun_plain, num_threads = 4L)
+```
+
+
+
+## Combining shards
+
+Per-shard log densities sum to the joint log density at a fixed parameter vector.
+
+```{r checkByShard}
+x_full <- c(config$gamma, config$theta)
+shards <- seq.int(from = 0L, length.out = adlaplace::n_groups(ad_fun_plain))
+
+by_shard <- vapply(
+  shards,
+  function(s) {
+    adlaplace::joint_log_dens(ad_fun_plain, x_full, shards = s, negative = TRUE)
+  },
+  numeric(1)
+)
+
+res_fdf <- adlaplace::fun_obj_fdfh(
+  ad_pack,
+  config$theta, config$gamma,
+  inner = FALSE, verbose = FALSE
+)
+
+c(
+  sum(by_shard),
+  adlaplace::joint_log_dens(ad_fun_plain, x_full, negative = TRUE),
+  adlaplace::joint_log_dens(ad_pack, x_full, negative = TRUE),
+  res_fdf$f
+)
+```
+
+## Joint log density derivatives
+
+Gradients and Hessians on all shards should agree with a subset covering the
+full model.
+
+```{r testLogDens}
+log_all <- adlaplace::joint_log_dens(ad_fun_plain, x_full, negative = TRUE)
+log_sub <- adlaplace::joint_log_dens(
+  ad_fun_plain, x_full,
+  shards = 0:2, negative = TRUE
+)
+
+grad_all <- adlaplace::grad(ad_fun_plain, x_full, negative = TRUE)
+grad_sub <- adlaplace::grad(ad_fun_plain, x_full, shards = 0:2, negative = TRUE)
+
+hess_all <- adlaplace::hessian(ad_fun_plain, x_full, negative = TRUE)
+hess_sub <- adlaplace::hessian(ad_fun_plain, x_full, shards = 0:2, negative = TRUE)
+
+rbind(
+  log_diff = log_all - res_fdf$f,
+  max_abs_grad_diff = max(abs(grad_all - res_fdf$grad)),
+  max_abs_hess_diff = max(abs(as.matrix(hess_all) - as.matrix(res_fdf$hessian))),
+  log_sub_diff = log_all - log_sub,
+  max_abs_grad_sub_diff = max(abs(grad_all - grad_sub)),
+  max_abs_hess_sub_diff = max(abs(as.matrix(hess_all) - as.matrix(hess_sub)))
+)
+```
+
+## Inner optimization
+
+Given hyperparameters $\theta$, `inner_opt()` maximizes over $\gamma$.
+
+```{r testInnerOpt}
+x_outer <- config$theta
+
+inner_res <- adlaplace::inner_opt(
+  parameters = log(c(1e-1, 1e-1)),
+  gamma = config$gamma,
+  ad_fun = ad_pack,
+  control = list(
+    maxit = 1000L,
+    report.level = 4,
+    report.freq = 5,
+    grad.tol = 1e-8,
+    cg.tol = 1e-6
+  ),
+  deriv = TRUE,
+  verbose = FALSE
+)
+
+inner_res$opt$fval
+
+summary(inner_res$hessian$trace3)
+```
+
+## Joint density derivative checks
+
+The same finite-difference idea applies to the full joint log density
+$-\log p(\gamma, \theta \mid y)$ and its AD gradient and Hessian.
+
+```{r derivJointDens, fig.height=5}
+par(mfrow = c(4, 2), mar = c(2, 2, 2, 0), mgp = c(1, 0.5, 0))
+
+x_here <- inner_res$full_parameters
+Dpar_dens <- 96 # length(x_here) - 1L
+Ngrid <- 11L
+shards <- seq.int(from = 0L, length.out = adlaplace::n_groups(ad_fun_plain))
+
+par_grid <- matrix(x_here, nrow = Ngrid, ncol = length(x_here), byrow = TRUE)
+Sx <- x_here[Dpar_dens] + seq(-0.1, 0.1, length.out = Ngrid)
+SxD <- Sx[-1] - diff(Sx) / 2
+par_grid[, Dpar_dens] <- Sx
+x_list <- split(par_grid, row(par_grid))
+
+dens <- vapply(
+  x_list,
+  adlaplace::joint_log_dens,
+  numeric(1),
+  ad_fun = ad_fun_plain,
+  shards = shards,
+  negative = FALSE
+)
+
+rbind(
+  dens[1:5],
+  dens[seq(to = length(dens), length.out = 5)]
+)
+
+grad <- do.call(
+  cbind,
+  lapply(
+    x_list,
+    adlaplace::grad,
+    ad_fun = ad_fun_plain,
+    inner = FALSE,
+    shards = shards,
+    negative = FALSE
+  )
+)
+
+plot(Sx, grad[Dpar_dens, ], type = "l", ylab = "AD gradient")
+points(SxD, diff(dens) / diff(Sx), pch = 16)
+legend("topright", legend = c("AD", "finite diff"), lty = c(1, NA), pch = c(NA, 1), bty = "n")
+
+hes <- array(
+  dim = c(length(x_here), length(x_here), Ngrid),
+  dimnames = list(NULL, NULL, NULL)
+)
+for (i in seq_len(Ngrid)) {
+  hes[, , i] <- as.matrix(adlaplace::hessian(
+    ad_fun_plain,
+    x_list[[i]],
+    inner = FALSE,
+    shards = shards,
+    negative = FALSE
+  ))
+}
+
+grad_slope <- apply(grad, 1, diff) / mean(diff(Sx))
+s_par2 <- sort(unique(c(Dpar_dens + 0:5, Dpar_dens + length(germany$Y), seq(to = length(x_here), length.out = 5))))
+s_par2 <- s_par2[seq(1, min(c(prod(par("mfrow")) - 1L, length(s_par2))))]
+for (Dpar2 in s_par2) {
+  plot(
+    Sx, hes[Dpar_dens, Dpar2, ],
+    type = "l",
+    ylab = paste0("H[", Dpar_dens, ",", Dpar2, "]"),
+    ylim = range(c(hes[Dpar_dens, Dpar2, ], grad_slope[, Dpar2]), na.rm = TRUE)
+  )
+  points(SxD, grad_slope[, Dpar2], pch = 16)
+}
+
+hes_sub <- hes[1:length(config$gamma), 1:length(config$gamma), ]
+hes_eval <- apply(hes_sub, 3, eigen)
+```
+
+## Profile likelihood
+
+`log_lik_laplace()` runs the inner optimizer and returns the Laplace
+approximation to the marginal log likelihood.
+
+```{r testLogLik}
+res_noderiv <- adlaplace::log_lik_laplace(
+  x = x_outer,
+  ad_fun = ad_pack,
+  config = config,
+  deriv = FALSE
+)
+
+res_deriv <- adlaplace::log_lik_laplace(
+  x = x_outer,
+  ad_fun = ad_pack,
+  config = config,
+  deriv = TRUE
+)
+
+data.frame(
+  log_lik = c(res_noderiv$log_lik, res_deriv$log_lik),
+  neg_log_lik = c(res_noderiv$neg_log_lik, res_deriv$neg_log_lik),
+  inner_fval = c(res_deriv$opt$fval, res_deriv$opt$fval),
+  row.names = c("deriv = FALSE", "deriv = TRUE")
+)
+
+res_deriv$grad
+```
+
+## Outer optimization
+
+`outer_fn()` and `outer_gr()` wrap `log_lik_laplace()` for use with
+`stats::optim()`.
+
+```{r optim}
+cache <- new.env(parent = emptyenv())
+cache$gamma <- rep(0, n_gamma)
+
+control_inner <- list(
+  maxit = 100L,
+  report.level = 0,
+  report.freq = 0
+)
+
+opt <- optim(
+  par = config$theta,
+  fn = adlaplace::outer_fn,
+  gr = adlaplace::outer_gr,
+  method = "L-BFGS-B",
+  lower = rep(-15, n_theta),
+  control = list(maxit = 200L, factr = 1e3, trace = 1, REPORT = 1),
+  config = config,
+  ad_fun = ad_pack,
+  cache = cache,
+  control_inner = control_inner
+)
+
+res <- adlaplace::log_lik_laplace(
+  x = opt$par,
+  gamma = cache$gamma,
+  ad_fun = ad_pack,
+  config = config,
+  control = control_inner,
+  deriv = FALSE
+)
+
+u_hat <- res$opt$solution
+eta_hat <- u_hat[seq_len(n)] + u_hat[seq.int(n + 1L, length.out = n)]
+sd_hat <- exp(opt$par)
+data.frame(
+  component = c("SD structured (ICAR)", "SD unstructured (iid)"),
+  estimate = sd_hat
+)
+```
+
+## Spatial effects
+
+```{r maps, fig.height=4}
+par(mfrow = c(1, 1), mar = c(4, 4, 2, 1), mgp = c(2.2, 0.7, 0))
+plot(
+  seq_len(n), eta_hat,
+  type = "h", xlab = "district", ylab = expression(hat(eta)),
+  main = "Total spatial effect (adlaplace mode)"
+)
+```
+
+The structured (ICAR) component typically dominates; the unstructured component
+is often near zero. Results are Laplace-approximate MLEs and conditional modes,
+not fully Bayesian posterior summaries.

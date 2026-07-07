@@ -16,12 +16,11 @@ extern adlaplace_shard *adlaplace_make_shard(GroupPack &&);
 
 namespace {
 
-CppAD::vector<CppAD::AD<double>> random_diagonal_impl(
-  const CppAD::vector<CppAD::AD<double>>& x,
-  const ad_data& model,
-  const NumVecView& Q,
-  const std::vector<std::size_t>& gamma_indices,
-  const Config& config) {
+CppAD::vector<CppAD::AD<double>>
+random_diagonal_impl(const CppAD::vector<CppAD::AD<double>> &x,
+                     const ad_data &model, const NumVecView &Q,
+                     const std::vector<std::size_t> &gamma_indices,
+                     const Config &config) {
 
   const std::size_t Ngamma = gamma_indices.size();
   if (Q.size() != Ngamma) {
@@ -51,14 +50,13 @@ CppAD::vector<CppAD::AD<double>> random_diagonal_impl(
   qpart *= CppAD::AD<double>(0.5) * precision;
 
   CppAD::AD<double> qDet = logSd * CppAD::AD<double>(Ngamma) +
-    CppAD::AD<double>(Ngamma * ONEHALFLOGTWOPI);
+                           CppAD::AD<double>(Ngamma * ONEHALFLOGTWOPI);
 
   if (config.verbose) {
-    Rcpp::Rcout << "theta index " << theta_index <<
-      " logVariance " << logSd << " precision " << precision << "\n";
-    Rcpp::Rcout << "random_diagonal n_gamma " << Ngamma <<
-      " qDet " << qDet <<
-      " qpart " << qpart << "\n";
+    Rcpp::Rcout << "theta index " << theta_index << " logVariance " << logSd
+                << " precision " << precision << "\n";
+    Rcpp::Rcout << "random_diagonal n_gamma " << Ngamma << " qDet " << qDet
+                << " qpart " << qpart << "\n";
   }
 
   CppAD::vector<CppAD::AD<double>> result(1);
@@ -66,7 +64,12 @@ CppAD::vector<CppAD::AD<double>> random_diagonal_impl(
   return result;
 }
 
-void set_sparse_rc_upper_pairs(
+// CppAD's sparse_hes hands the pattern directly to the cppad.symmetric
+// coloring, which treats missing entries as structural zeros; it does NOT
+// symmetrize. Analytic patterns must therefore contain BOTH triangles,
+// like the pattern for_hes_sparsity discovers. adpack_sparsity extracts
+// the upper-triangle subsets itself.
+void set_sparse_rc_pairs(
     CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> &hessian,
     const std::size_t n_params,
     const std::set<std::pair<std::size_t, std::size_t>> &pairs) {
@@ -87,12 +90,15 @@ random_diagonal_sparsity(const ad_data &model) {
   const std::size_t n_params = model.num_full;
 
   CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> hessian;
-  hessian.resize(n_params, n_params, n_gamma + 1);
+  hessian.resize(n_params, n_params, 3 * n_gamma + 1);
+  hessian.set(0, theta_index, theta_index);
+  std::size_t t = 1;
   for (std::size_t k = 0; k < n_gamma; ++k) {
     const std::size_t gi = gamma_indices[k];
-    hessian.set(k, gi, gi);
+    hessian.set(t++, gi, gi);
+    hessian.set(t++, gi, theta_index);
+    hessian.set(t++, theta_index, gi);
   }
-  hessian.set(n_gamma, theta_index, theta_index);
   return hessian;
 }
 
@@ -104,8 +110,11 @@ random_mult_sparsity(const ad_data &model) {
   const std::size_t n_params = model.num_full;
   const int n_term = model.gamma_map.ncol();
 
-  std::set<std::pair<std::size_t, std::size_t>> hes_upper;
+  std::set<std::pair<std::size_t, std::size_t>> pairs;
 
+  // gamma-gamma block: structural nonzeros of Q, mapped to global indices.
+  // Q uses general (full symmetric) storage, but insert both orders anyway
+  // in case only one triangle is stored.
   for (int col = 0; col < n_term; ++col) {
     const std::vector<std::size_t> gj_idx = model.gamma_global_indices(col);
     if (gj_idx.empty()) {
@@ -113,27 +122,31 @@ random_mult_sparsity(const ad_data &model) {
     }
     const std::size_t gj = gj_idx[0];
 
-    const int p0 = Q.p[col];
-    const int p1 = Q.p[col + 1];
-    for (int k = p0; k < p1; ++k) {
+    for (int k = Q.p[col]; k < Q.p[col + 1]; ++k) {
       const std::vector<std::size_t> gi_idx =
           model.gamma_global_indices(static_cast<int>(Q.i[k]));
       if (gi_idx.empty()) {
         continue;
       }
       const std::size_t gi = gi_idx[0];
-
-      const std::size_t i = std::min(gi, gj);
-      const std::size_t j = std::max(gi, gj);
-      hes_upper.insert({i, j});
-      hes_upper.insert({std::min(gi, theta_index), std::max(gi, theta_index)});
-      hes_upper.insert({std::min(gj, theta_index), std::max(gj, theta_index)});
+      pairs.insert({gi, gj});
+      pairs.insert({gj, gi});
     }
   }
 
-  hes_upper.insert({theta_index, theta_index});
+  // gamma-theta cross terms (both orders) and the theta diagonal.
+  for (int col = 0; col < n_term; ++col) {
+    const std::vector<std::size_t> g_idx = model.gamma_global_indices(col);
+    if (g_idx.empty()) {
+      continue;
+    }
+    pairs.insert({g_idx[0], theta_index});
+    pairs.insert({theta_index, g_idx[0]});
+  }
+  pairs.insert({theta_index, theta_index});
+
   CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> hessian;
-  set_sparse_rc_upper_pairs(hessian, n_params, hes_upper);
+  set_sparse_rc_pairs(hessian, n_params, pairs);
   return hessian;
 }
 
@@ -187,23 +200,22 @@ GroupPack build_ad_fun_random(const ad_data &model, const Rcpp::List &config,
 
 } // namespace
 
-CppAD::vector<CppAD::AD<double>> random_diagonal(
-  const CppAD::vector<CppAD::AD<double>>& x,
-  const ad_data& model,
-  const Config& config) {
+CppAD::vector<CppAD::AD<double>>
+random_diagonal(const CppAD::vector<CppAD::AD<double>> &x, const ad_data &model,
+                const Config &config) {
 
   if (Rf_isNull(model.precision)) {
     Rcpp::stop("precision is required for random_diagonal");
   }
   const NumVecView Q(model.precision);
-  const std::vector<std::size_t> gamma_indices = model.all_gamma_global_indices();
+  const std::vector<std::size_t> gamma_indices =
+      model.all_gamma_global_indices();
   return random_diagonal_impl(x, model, Q, gamma_indices, config);
 }
 
-CppAD::vector<CppAD::AD<double>> random_mult(
-  const CppAD::vector<CppAD::AD<double>>& x,
-  const ad_data& model,
-  const Config& config) {
+CppAD::vector<CppAD::AD<double>>
+random_mult(const CppAD::vector<CppAD::AD<double>> &x, const ad_data &model,
+            const Config &config) {
 
   const DgCView Q = model.mult_precision_Q();
   const int n_term = model.gamma_map.ncol();
@@ -236,7 +248,7 @@ CppAD::vector<CppAD::AD<double>> random_mult(
     const int p1 = Q.p[j + 1];
     for (int k = p0; k < p1; ++k) {
       const std::vector<std::size_t> gi_idx =
-        model.gamma_global_indices(static_cast<int>(Q.i[k]));
+          model.gamma_global_indices(static_cast<int>(Q.i[k]));
       if (gi_idx.empty()) {
         Rcpp::stop("gamma_map column %d has no structural nonzero", Q.i[k] + 1);
       }
@@ -289,7 +301,8 @@ SEXP create_ad_fun_random_mult(SEXP model, Rcpp::List config) {
   const ad_data ad_model(model);
   CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> hes_pat =
       random_mult_sparsity(ad_model);
-  GroupPack pack = build_ad_fun_random(ad_model, config, random_mult, hes_pat);
+  GroupPack pack =
+      build_ad_fun_random(ad_model, config, random_mult, hes_pat);
   std::vector<GroupPack> packs;
   packs.push_back(std::move(pack));
   ad_fun *groups = packs_to_ad_fun(std::move(packs), ad_model.num_beta,

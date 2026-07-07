@@ -1,7 +1,7 @@
 expected_diagonal_outer_pattern <- function(nr, theta_index = nr) {
   pairs <- cbind(
-  row = c(seq_len(nr) - 1L, theta_index),
-  col = c(seq_len(nr) - 1L, theta_index)
+    row = c(seq_len(nr) - 1L, seq_len(nr) - 1L, theta_index),
+    col = c(seq_len(nr) - 1L, rep(theta_index, nr), theta_index)
   )
   pairs[order(pairs[, 1], pairs[, 2]), , drop = FALSE]
 }

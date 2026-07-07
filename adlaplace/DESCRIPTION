@@ -21,11 +21,11 @@ RoxygenNote: 7.3.3
 NeedsCompilation: yes
 Collate:
     'zzz.R'
-    'classes.R'
-    'ad_fun_ptr.R'
-    'ad_data.R'
     'RcppExports.R'
+    'classes.R'
+    'ad_data.R'
     'ad_fun.R'
+    'ad_fun_ptr.R'
     'ad_shards.R'
     'data_setup.R'
     'effects.R'
@@ -37,9 +37,11 @@ Collate:
     'fit_methods.R'
     'fixed_terms.R'
     'format_parameters.R'
+    'germany-data.R'
     'hessian_map.R'
     'iid.R'
     'rpoly.R'
     'iwp.R'
     'mvn_utils.R'
     'prepare_model_rows.R'
+LazyData: true

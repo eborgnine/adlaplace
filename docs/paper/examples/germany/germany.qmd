@@ -33,6 +33,8 @@ graph <- INLA::inla.read.graph(g_file)
 adj <- INLA::inla.graph2matrix(graph)
 adj <- as(adj, "CsparseMatrix")
 
+ref_id <- which.max(apply(adj, 1, sum))
+
 deg <- Matrix::rowSums(adj)
 Q_icar <- Matrix::Diagonal(nrow(adj), deg) - adj
 Q_icar <- as(as(Q_icar, "generalMatrix"), "CsparseMatrix")
@@ -47,6 +49,26 @@ ev <- eigen(as.matrix(Q_scaled), symmetric = TRUE, only.values = TRUE)$values
 ev <- sort(ev, decreasing = TRUE)
 log_det_gen <- sum(log(ev[seq_len(nrow(adj) - 1L)]))
 prec <- list(Q = Q_scaled, log_det = log_det_gen, rank = nrow(adj) - 1L)
+```
+
+An alternative to `inla.scale.model` and the generalized determinant is to
+fix the structured effect in area `ref_id` to zero. The precision on the
+remaining $n-1$ areas is the principal submatrix $Q_{-r,-r}$, which is positive
+definite for a connected graph. Use `prec_ref` with a structural `gamma_map` on
+$n-1$ columns (all areas except `ref_id`); the constrained area has zero effect.
+
+```{r precision_ref}
+idx <- setdiff(seq_len(nrow(adj)), ref_id)
+Q_ref <- Q_icar[idx, idx]
+Q_ref <- as(as(Q_ref, "generalMatrix"), "CsparseMatrix")
+
+log_det_ref <- as.numeric(Matrix::determinant(Q_ref, logarithm = TRUE)$modulus)
+prec_ref <- list(
+  Q = Q_ref,
+  log_det = log_det_ref,
+  rank = nrow(Q_ref)
+)
+prec_ref$rank
 ```
 
 ## adlaplace shards

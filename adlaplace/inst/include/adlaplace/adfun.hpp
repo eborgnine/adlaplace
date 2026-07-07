@@ -170,8 +170,9 @@ inline void adpack_sparsity(const CPPAD_TESTVECTOR(double) & x,
 
   if (verbose) {
     Rcpp::Rcout << "  sparsity: grad " << grad.nnz() << ", grad_inner "
-                << grad_inner.nnz() << ", hes " << hessian_upper.nnz()
-                << ", hes_inner " << hessian_inner_upper.nnz() << "\n";
+                << grad_inner.nnz() << ", hes full" << hessian_here.nnz()
+                << ", hes upper" << hessian_upper.nnz() << ", hes_inner "
+                << hessian_inner_upper.nnz() << "\n";
   }
 
   gp.fun.Forward(0, x);
