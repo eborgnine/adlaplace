@@ -3,21 +3,30 @@
 
 #include "adlaplace/creators/adfun_obs.hpp"
 #include "adlaplace/creators/adfun_single.hpp"
+#include "adlaplace/densities/binomial.hpp"
+#include "adlaplace/densities/gaussian.hpp"
 #include "adlaplace/densities/nbinom.hpp"
-#include "adlaplace/densities/random.hpp"
+#include "adlaplace/densities/poisson.hpp"
+#include "adlaplace/densities/random_diagonal.hpp"
+#include "adlaplace/densities/random_mult.hpp"
 
 static LogDensObsFn resolve_obs_density(const std::string& name) {
   if (name == "nbinom_obs") return nbinom_obs;
+  if (name == "poisson_obs") return poisson_obs;
+  if (name == "gaussian_obs") return gaussian_obs;
+  if (name == "binomial_obs") return binomial_obs;
   Rcpp::stop("unknown observation density: %s", name.c_str());
 }
 
 static LogDensSingleDataFn resolve_extra_density(const std::string& name) {
   if (name == "nbinom_extra") return nbinom_extra;
+  if (name == "gaussian_extra") return gaussian_extra;
   Rcpp::stop("unknown parameters density: %s", name.c_str());
 }
 
 static LogDensSingleRandomDiagFn resolve_random_density(const std::string& name) {
   if (name == "random_diagonal" || name == "random") return random_diagonal;
+  if (name == "random_mult") return random_mult;
   Rcpp::stop("unknown random density: %s", name.c_str());
 }
 

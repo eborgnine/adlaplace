@@ -267,7 +267,7 @@ x_list <- split(par_grid, row(par_grid))
 dens <- mapply(
   adlaplace::joint_log_dens,
   x = x_list,
-  MoreArgs = list(ad_fun_ptr = ad_fun, negative = FALSE)
+  MoreArgs = list(ad_fun = ad_fun, negative = FALSE)
 )
 
 grad <- do.call(

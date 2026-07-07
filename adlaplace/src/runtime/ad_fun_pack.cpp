@@ -1,5 +1,5 @@
 #include "adlaplace/runtime/ad_fun_pack.hpp"
-#include "../chol_update.hpp"
+#include "adlaplace/linalg/chol_update.hpp"
 
 hessian_template hessian_template_from_dgc(
   const DgCView& tpl,

@@ -4,7 +4,10 @@ test_that("model_data captures y from plain formula LHS", {
     md <- adlaplace::model_data(y ~ linear(x1), data = dat)
   })
   expect_equal(md$data$y, as.numeric(dat$y))
-  expect_true(length(md$observations) == 0L)
+  # bare response defaults to a gaussian observation term
+  expect_true(length(md$observations) == 1L)
+  expect_identical(md$observations[[1]]@ad_fun, "gaussian_obs")
+  expect_identical(names(md$parameters), "y_extra")
 })
 
 test_that("model_data captures y from explicit observations term", {

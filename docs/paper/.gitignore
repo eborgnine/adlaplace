@@ -1,0 +1,11 @@
+cache/
+figures/
+*.log
+*.aux
+*.out
+*.bbl
+*.blg
+*.knit.md
+*.utf8.md
+adlaplace.tex
+adlaplace.pdf

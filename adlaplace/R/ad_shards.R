@@ -34,7 +34,9 @@
 #' A <- matrix(rnorm(100), 20, 5)
 #' G <- ad_shards(A, num_shards = 3)
 #' G
-#'
+#' @name ad_shards
+NULL
+
 #' Default observation shard map (one column, all observations)
 #'
 #' @param n_obs Number of observations (\code{length(y)}).

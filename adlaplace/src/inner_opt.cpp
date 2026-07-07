@@ -61,10 +61,10 @@
 #include "adlaplace/ompad.hpp"
 #include "adlaplace/runtime/thread_affinity_debug.hpp"
 #include "adlaplace/runtime/thread_groups.hpp"
-#include "chol_update.hpp"
-#include "trace_hinv_t_runtime.hpp"
-#include "trustOptimControl.hpp"
-#include "trustOptimWrappers.hpp"
+#include "adlaplace/linalg/chol_update.hpp"
+#include "adlaplace/eval/trace_hinv_t_runtime.hpp"
+#include "adlaplace/optim/trustOptimControl.hpp"
+#include "adlaplace/optim/trustOptimWrappers.hpp"
 
 // Convert Eigen sparse matrix to Matrix::dgCMatrix S4 object directly
 Rcpp::S4 eigen_to_dgCMatrix(const Eigen::SparseMatrix<double> &M) {

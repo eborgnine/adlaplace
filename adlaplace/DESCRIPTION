@@ -1,14 +1,15 @@
 Package: adlaplace
 Type: Package
 Title: Laplace Approximations Using Automatic Differentiation
-Version: 0.3.0
+Version: 0.4.0
 Authors@R: person(given="Patrick", family="Brown", email="patrick.brown@gmail.com", role=c("aut","cre","cph"))
 Maintainer: Patrick Brown <patrick.brown@gmail.com>
 Description: Computes Laplace approximations for hierarchical models using
     automatic differentiation (CppAD) and trust-region optimization.
 License: MPL-2.0
 Depends: R (>= 3.5.0)
-Imports: Matrix (>= 1.2.18), Rcpp (>= 1.0.3), methods, data.table
+Imports: Matrix (>= 1.2.18), Rcpp (>= 1.0.3), methods, data.table, stats,
+    graphics
 Suggests: numDeriv, abind, quarto, trustOptim, testthat (>= 3.0.0), mvQuad
 Config/testthat/edition: 3
 VignetteBuilder: quarto
@@ -28,11 +29,19 @@ Collate:
     '50_ad_fun.R'
     'RcppExports.R'
     'ad_shards.R'
+    'binomial.R'
     'by_group.R'
     'data_setup.R'
     'effects.R'
+    'log_lik_laplace.R'
+    'model_data.R'
+    'wrappers.R'
+    'fit.R'
+    'sim_fit.R'
+    'fit_methods.R'
     'format_parameters.R'
     'fpoly.R'
+    'gaussian.R'
     'hessian_map.R'
     'iid.R'
     'intercept.R'
@@ -40,12 +49,8 @@ Collate:
     'iwp.R'
     'linear.R'
     'log_lik_deriv.R'
-    'log_lik_laplace.R'
     'mean_mvquad.R'
-    'model_data.R'
     'nbinom.R'
     'prepare_model_rows.R'
     'rmvnldl.R'
-    'sim_fit.R'
-    'wrappers.R'
     'z_ad_fun_s4_wrappers.R'

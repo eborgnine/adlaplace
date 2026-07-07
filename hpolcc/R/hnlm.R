@@ -99,6 +99,9 @@ hnlm <- function(
     cat("getting shards...")
   }
 
+  # Case-crossover shards are partitioned from the stratum (elgm) design, not
+  # the random-effects design alone, so they are built here and passed to
+  # adlaplace() via config$shards (which adlaplace() reuses when present).
   config$shards <- adlaplace::ad_shards(
     A = model_data$data$A,
     elgm_matrix = model_data$data$elgm_matrix,
@@ -106,24 +109,22 @@ hnlm <- function(
     min_groups = min(config$num_shards, config$num_threads * 4L)
   )
 
-  if (verbose_orig) {
-    cat("done.\n")
-    cat(
-      "getting AD fun, ",
-      paste(dim(config$shards), collapse = ","), "shards..."
-    )
-  }
-
-  ad_fun <- adlaplace::ad_fun(
-    x = model_data,
-    config,
-    num_threads = config$num_threads
-  )
-  if (verbose_orig) {
-    cat("done.\n")
-  }
-
   if (for_dev) {
+    if (verbose_orig) {
+      cat("done.\n")
+      cat(
+        "getting AD fun, ",
+        paste(dim(config$shards), collapse = ","), "shards..."
+      )
+    }
+    ad_fun <- adlaplace::ad_fun(
+      x = model_data,
+      config,
+      num_threads = config$num_threads
+    )
+    if (verbose_orig) {
+      cat("done.\n")
+    }
     return(structure(
       list(
         model_data = model_data,
@@ -145,7 +146,11 @@ hnlm <- function(
     if (verbose_orig) {
       cat("no gammas, only one layer of optimization\n")
     }
-
+    ad_fun <- adlaplace::ad_fun(
+      x = model_data,
+      config,
+      num_threads = config$num_threads
+    )
     mle <- stats::optim(
       par = config$opt$init,
       fn = function(x) adlaplace::joint_log_dens(ad_fun, x),
@@ -167,42 +172,33 @@ hnlm <- function(
     cat("threads: ", config$num_threads, "\n")
   }
 
-  optim_result <- try(stats::optim(
-    par = config$opt$init,
-    fn = adlaplace::outer_fn,
-    gr = adlaplace::outer_gr,
-    method = "L-BFGS-B",
+  # Reuse the shared adlaplace() pipeline on the precomputed model_data: it
+  # tapes the AD shards once (reusing the case-crossover config$shards built
+  # above) and maximizes the Laplace-approximate marginal likelihood with
+  # optim(hessian = TRUE). The hpolcc-specific post-processing (conditional
+  # simulation, Woodbury var_iid) is layered on top of the returned fit below.
+  fit <- adlaplace::adlaplace(
+    formula = model_data,
+    config = config,
+    num_threads = config$num_threads,
+    num_shards = config$num_shards,
     control = control,
-    lower = config$opt$lower,
-    upper = config$opt$upper,
-    config = config,
-    ad_fun = ad_fun,
-    cache = cache,
     control_inner = control_inner,
-    hessian = TRUE
-  ))
+    method = "L-BFGS-B",
+    hessian = TRUE,
+    verbose = verbose_orig
+  )
 
-  config$gamma <- get("gamma", cache)
-
-  if (verbose_orig) {
-    cat("one last evaluation of likelihood\n")
-  }
-
-  par_name <- grep("solution|par", names(optim_result), value = TRUE)[1]
-  par_opt <- optim_result[[par_name]]
-
-  laplace <- try(adlaplace::log_lik_laplace(
-    x = par_opt,
-    gamma = cache$gamma,
-    config = config,
-    control = control_inner,
-    ad_fun = ad_fun,
-    deriv = TRUE
-  ))
+  ad_fun <- fit$ad_fun
+  optim_result <- fit$optim
+  par_opt <- fit$optim$par
+  cache$gamma <- fit$cache$gamma
+  config$gamma <- fit$cache$gamma
+  laplace <- fit$details
 
   coefficients <- try(adlaplace::format_parameters(
     info = ad_fun@info,
-    gamma = cache$gamma, parameters = par_opt
+    gamma = fit$cache$gamma, parameters = par_opt
   ))
 
   if (verbose_orig) {
@@ -221,7 +217,10 @@ hnlm <- function(
 
   hessian <- list(outer = optim_result$hessian, inner = NULL, var_iid = NULL)
   optim_result$hessian <- NULL
-  coefficients <- hnlm_attach_parameter_se(coefficients, hessian$outer)
+  coefficients <- hnlm_attach_parameter_se(
+    coefficients, hessian$outer,
+    vcov = fit$vcov
+  )
 
 
   n_beta <- nrow(model_data$data$info$beta)

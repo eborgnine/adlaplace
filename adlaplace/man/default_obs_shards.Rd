@@ -2,57 +2,18 @@
 % Please edit documentation in R/ad_shards.R
 \name{default_obs_shards}
 \alias{default_obs_shards}
-\title{Partition observations into AD shards by sparsity pattern}
+\title{Default observation shard map (one column, all observations)}
 \usage{
 default_obs_shards(n_obs)
 }
 \arguments{
 \item{n_obs}{Number of observations (\code{length(y)}).}
-
-\item{A}{Random-effects design matrix (\code{nrow(A)} = number of observations).}
-
-\item{elgm_matrix}{A numeric matrix (or matrix-like object) for extended latent gaussian models.}
-
-\item{num_shards}{Integer giving the maximum number of shards to construct.
-The actual number of shards may be smaller if fewer distinct loadings
-are present.}
-
-\item{min_groups}{Integer giving the minimum number of shards.}
 }
 \value{
-A sparse matrix of class \code{"dgCMatrix"} (from \pkg{Matrix}), with
-one column per shard and one row per observation. Nonzero entries
-correspond to singular-vector loadings.
-
 A \code{dgCMatrix} with one shard column and structural ones mapping
   each observation row to that shard (0-based row indices).
 }
 \description{
-The function partitions columns into \code{num_shards} shards using
-quantiles of the first right singular vector, optionally using \pkg{RSpectra}
-for efficiency when available.
-}
-\details{
-The resulting grouping is returned as a sparse matrix whose columns
-correspond to shards and whose entries are the singular-vector loadings.
-Shards are ordered from most heterogeneous to most homogeneous.
-
-
-If the \pkg{RSpectra} package is available, the leading singular vector
-is computed using \code{RSpectra::svds}; otherwise, a full singular value
-decomposition via \code{\link[base]{svd}} is used.
-
-Shard boundaries are defined by empirical quantiles of the loadings.
-Shards are subsequently reordered so that shards with larger within-shard
-variability appear first.
-}
-\examples{
-set.seed(1)
-A <- matrix(rnorm(100), 20, 5)
-G <- ad_shards(A, num_shards = 3)
-G
-
 Default observation shard map (one column, all observations)
-
 }
 \keyword{internal}

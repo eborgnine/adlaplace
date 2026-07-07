@@ -39,9 +39,24 @@ collect_terms <- function(
     pkg_env[[pkg]] <- asNamespace(pkg)
   }
 
-  term_labels <- rownames(attr(stats::terms(formula), "factors")) # attr(stats::terms(formula), "term.labels")
+  formula_terms <- stats::terms(formula)
+  term_labels <- rownames(attr(formula_terms, "factors")) # attr(stats::terms(formula), "term.labels")
+  response_idx <- attr(formula_terms, "response")
+  response_label <- if (response_idx > 0L) term_labels[response_idx] else NULL
 
   terms_1 <- lapply(term_labels, function(lab) {
+    # a bare response symbol (e.g. y ~ x) defaults to a Gaussian
+    # observation term; bare covariate symbols default to linear()
+    if (identical(lab, response_label) && !grepl("[(]", lab)) {
+      if (verbose) {
+        message("Response '", lab, "' defaulting to gaussian(", lab, ")")
+      }
+      term_obj <- gaussian(lab)
+      term_obj <- list(term_obj)
+      names(term_obj) <- lab
+      return(term_obj)
+    }
+
     term_obj <- eval_term_label(lab, pkg_env)
     if (!is.null(term_obj) && verbose) {
       message(

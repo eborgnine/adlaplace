@@ -55,8 +55,9 @@ $$
 
 The linear predictor is $\eta = X\beta + A\gamma$, with two independent random-effect
 groups in $A$ and log-standard-deviation parameters for each group plus a global
-overdispersion parameter. Densities are implemented in `src/nbinom.cpp` (observations
-and hyperparameters) and `src/random.cpp` (random effects).
+overdispersion parameter. Densities are implemented under `src/densities/` (e.g.
+`nbinom.cpp` for observations and hyperparameters, `random_diagonal.cpp` for
+random effects).
 
 ## Simulated data
 
@@ -157,34 +158,31 @@ ad_fun_extra <- adlaplace::ad_fun_ptr(data = data_extra, config = config)
 Each group gets a diagonal normal prior with its own $\theta$ index.
 
 ```{r adShards_random}
-nr1 <- Nrandom1
-nr2 <- Nrandom2
-
 model_r1 <- adlaplace:::ad_data(
   beta_map = n_beta,
   gamma_map = Matrix::sparseMatrix(
-    i = seq_len(nr1),
-    j = seq_len(nr1),
-    dims = c(n_gamma, nr1)
+    i = seq_len(Nrandom1),
+    j = seq_len(Nrandom1),
+    dims = c(n_gamma, Nrandom1)
   ),
   theta_map = c(1L, n_theta),
   ad_kind = "random",
   ad_fun = "random_diagonal",
-  precision = rep(1, nr1)
+  precision = rep(1, Nrandom1)
 )
 ad_fun_r1 <- adlaplace::ad_fun_ptr(data = model_r1, config = config)
 
 model_r2 <- adlaplace:::ad_data(
   beta_map = n_beta,
   gamma_map = Matrix::sparseMatrix(
-    i = seq.int(nr1 + 1L, length.out = nr2),
-    j = seq_len(nr2),
-    dims = c(n_gamma, nr2)
+    i = seq.int(Nrandom1 + 1L, length.out = Nrandom2),
+    j = seq_len(Nrandom2),
+    dims = c(n_gamma, Nrandom2)
   ),
   theta_map = c(2L, n_theta),
   ad_kind = "random",
   ad_fun = "random_diagonal",
-  precision = rep(1, nr2)
+  precision = rep(1, Nrandom2)
 )
 ad_fun_r2 <- adlaplace::ad_fun_ptr(data = model_r2, config = config)
 ```

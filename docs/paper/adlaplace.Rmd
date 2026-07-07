@@ -1,0 +1,742 @@
+---
+documentclass: jss
+author:
+  - name: Patrick Brown
+    affiliation: |
+      | University of Toronto
+    # TODO: confirm address block before submission
+    address: |
+      | Department of Statistical Sciences
+      | University of Toronto
+    email: \email{patrick.brown@utoronto.ca}
+title:
+  formatted: "\\pkg{adlaplace}: Extensible Laplace Approximations for Hierarchical Models with Automatic Differentiation in \\proglang{R}"
+  plain: "adlaplace: Extensible Laplace Approximations for Hierarchical Models with Automatic Differentiation in R"
+  short: "\\pkg{adlaplace}: Extensible Laplace Approximations"
+abstract: >
+  The \pkg{adlaplace} package fits hierarchical models in \proglang{R} by
+  maximizing a Laplace approximation to the marginal likelihood, with all
+  derivatives computed by automatic differentiation through \pkg{CppAD}.
+  The package occupies similar ground to \pkg{TMB} but differs in three
+  respects.  First, the gradient of the Laplace-approximate log likelihood
+  includes the term arising from the dependence of the log-determinant on
+  the mode of the random effects, computed with trace contractions that
+  avoid forming any third-order derivative tensor explicitly.  Second, the
+  joint log density is decomposed into independent shards which are taped
+  and evaluated in parallel with OpenMP, giving parallelism for the density,
+  gradient, Hessian, and the determinant-derivative contractions alike.
+  Third, model components are organized in two extensible layers: high-level
+  \proglang{R} model terms (random intercepts, penalized splines, Gaussian
+  Markov random fields) that map onto a small set of low-level C++ density
+  kernels, and both layers can be extended by third-party packages without
+  modifying \pkg{adlaplace} itself.  We describe the methodology and
+  architecture, demonstrate the user-facing interface, and validate the
+  package against \pkg{mgcv}, \pkg{TMB}, and \pkg{INLA} on three examples:
+  a negative binomial additive mixed model, a logistic mixed model for the
+  \code{bacteria} data with the built-in \code{binomial()} observation
+  density, and the Besag-York-Mollie disease-mapping model for Germany using a
+  non-diagonal intrinsic precision matrix.
+keywords:
+  formatted: [Laplace approximation, automatic differentiation, hierarchical models, "\\proglang{R}", parallel computing, "\\pkg{CppAD}"]
+  plain: [Laplace approximation, automatic differentiation, hierarchical models, R, parallel computing, CppAD]
+preamble: >
+  \usepackage{amsmath}
+  \usepackage{amssymb}
+  \usepackage{bm}
+  \usepackage{booktabs}
+output: rticles::jss_article
+bibliography: adlaplace.bib
+---
+
+```{r setup, include=FALSE}
+options(prompt = "R> ", continue = "+  ", width = 70, useFancyQuotes = FALSE)
+knitr::opts_chunk$set(
+  echo = TRUE, message = FALSE, warning = FALSE,
+  cache = TRUE, cache.path = "cache/", fig.path = "figures/"
+)
+library("Matrix")
+library("adlaplace")
+have_inla <- requireNamespace("INLA", quietly = TRUE)
+have_tmb <- requireNamespace("TMB", quietly = TRUE)
+have_mgcv <- requireNamespace("mgcv", quietly = TRUE)
+```
+
+# Introduction {#sec:intro}
+
+Hierarchical models with latent Gaussian random effects are a workhorse of
+applied statistics: generalized linear mixed models, penalized regression
+splines, and spatial models based on Gaussian Markov random fields all take
+the form
+\begin{equation}
+Y \mid U \sim \pi(y \mid U; \theta), \qquad
+U \sim \mathrm{N}\{0, Q(\theta)^{-1}\},
+\label{eq:model}
+\end{equation}
+with observations $Y$, latent effects $U$, and a low-dimensional parameter
+vector $\theta$.  Maximum likelihood estimation of $\theta$ requires the
+marginal likelihood $\pi(y; \theta) = \int \pi(y \mid u; \theta)\,
+\pi(u; \theta)\, du$, an integral that is analytically intractable outside
+the Gaussian case.  The Laplace approximation
+[@tierney1986laplace; @skaug2006admb] replaces the integral with the
+integrand evaluated at the conditional mode, corrected by the determinant of
+the negative Hessian, and has proved accurate and fast for a wide range of
+models [@rue2009inla; @wood2011fast].
+
+The \pkg{TMB} package [@kristensen2016tmb] made this strategy broadly
+accessible in \proglang{R} by combining the Laplace approximation with
+automatic differentiation (AD): the user writes the joint negative log
+density in \proglang{C++}, and \pkg{TMB} supplies its gradient and Hessian
+by AD, locates the conditional mode, and differentiates the approximate
+marginal likelihood with respect to $\theta$.  \pkg{TMB} descends from
+\pkg{ADMB} [@fournier2012admb] and underlies popular front ends such as
+\pkg{glmmTMB} [@brooks2017glmmtmb].
+
+The \pkg{adlaplace} package presented here implements the same
+Laplace-plus-AD strategy with a different set of design decisions.
+
+First, the *derivative of the Laplace approximation* is computed
+exactly.  The approximate log likelihood contains
+$\log |H(\hat U(\theta), \theta)|$, where $H$ is the negative Hessian of the
+joint log density in $U$ and $\hat U(\theta)$ is the conditional mode.
+Differentiating this term with respect to $\theta$ involves third-order
+derivatives, and the chain rule contributes a term through the dependence of
+$\hat U(\theta)$ on $\theta$ that \pkg{TMB} omits (see Section
+\ref{sec:derivative}).  \pkg{adlaplace} evaluates both terms using trace
+contractions against a Cholesky factor of $H^{-1}$, so that no third-order
+tensor is ever formed explicitly, and the computation remains compatible
+with atomic functions whose higher-order derivatives are provided
+analytically.
+
+Second, *parallelization* is built into the representation of the model
+rather than added afterwards.  The joint log density is written as a sum of
+shards -- subsets of observations, blocks of random effects, and
+parameter-only terms -- each of which is taped as a separate \pkg{CppAD}
+function.  Density evaluations, gradients, Hessians, and the contractions
+required for the determinant derivative all decompose over shards and are
+evaluated in parallel with OpenMP threads.  The dependency stack is
+deliberately small: \pkg{CppAD} [@bell2023cppad] is the only AD library
+used, with \pkg{Rcpp} [@eddelbuettel2011rcpp] and \pkg{Matrix}
+[@bates2015matrix] handling the interface between \proglang{R} and
+\proglang{C++}.
+
+Third, the package is organized for *extensibility* in two layers.  At the
+top, \proglang{R} model terms such as `iid()`, `iwp()`, and `gmrf()`
+describe model components in the formula language and produce design
+matrices, precision structures, and parameter metadata.  At the bottom, a
+small set of \proglang{C++} density kernels -- `gaussian_obs`,
+`nbinom_obs`, `poisson_obs`, `binomial_obs`, `random_diagonal`,
+`random_mult`, and so on -- evaluate log densities on AD types.  Many top-level terms map to one
+bottom-level kernel: random intercepts and spline penalties differ in their
+design and precision matrices, not in their density kernel.  Both layers
+can be extended from separate packages: \pkg{adlaplaceHgp} adds top-level
+terms for hierarchical Gaussian process models using only \proglang{R}
+code, while \pkg{adlaplaceExample} is a minimal template for adding a new
+\proglang{C++} observation density (a skew-normal) in a backend package.
+Custom densities that prove generally useful, such as the built-in
+\code{binomial_obs} kernel, can be promoted into the core.
+
+The paper proceeds as follows.  Section \ref{sec:methods} sets out the
+Laplace approximation, the exact derivative, and the contraction
+identities.  Section \ref{sec:parallel} describes the shard decomposition
+and the parallel evaluation model.  Section \ref{sec:using} demonstrates
+the user-facing interface.  Section \ref{sec:architecture} details the
+two-layer architecture and the extension mechanism.  Section
+\ref{sec:illustrations} validates the package against \pkg{mgcv}
+[@wood2017gam], \pkg{TMB}, and \pkg{INLA} [@rue2009inla] on three
+examples, and Section \ref{sec:discussion} concludes.
+
+# Laplace approximation and its derivative {#sec:methods}
+
+## Notation and the approximate likelihood
+
+Write $f(u, \theta) = \log \pi(y, u; \theta)$ for the joint log density of
+model \eqref{eq:model} as a function of the latent effects $u \in
+\mathbb{R}^m$ and parameters $\theta \in \mathbb{R}^p$, with the data $y$
+fixed.  Here $\theta$ collects both regression coefficients $\beta$ and
+variance parameters; \pkg{adlaplace} treats them uniformly as outer
+parameters.  Define
+\begin{align}
+G(u, \theta) &= \frac{\partial}{\partial u} f(u, \theta), &
+H(u, \theta) &= -\frac{\partial^2}{\partial u \partial u^\top} f(u, \theta),
+\end{align}
+and let $\hat U(\theta)$ solve $G\{\hat U(\theta), \theta\} = 0$.  The
+Laplace approximation to the marginal log likelihood is
+\begin{equation}
+\ell(\theta) =
+f\{\hat U(\theta), \theta\}
++ \frac{m}{2} \log(2\pi)
+- \frac{1}{2} \log \big| H\{\hat U(\theta), \theta\} \big|.
+\label{eq:laplace}
+\end{equation}
+AD of $f$ gives $G$ and $H$ at any point; the difficulty is
+differentiating \eqref{eq:laplace} with respect to $\theta$, since
+$\hat U(\theta)$ has no closed form and $\log |H|$ evaluated at
+$\hat U(\theta)$ hides third-order derivatives of $f$.
+
+Throughout, subscripts denote partial derivative blocks evaluated at
+$\{\hat U(\theta), \theta\}$:
+$H_{UU} = H$, $H_{U\theta} = -\partial^2 f / \partial u\, \partial
+\theta^\top$, and the third-order tensors
+\begin{align}
+T_{UUi} = \frac{\partial}{\partial u_i} H(u, \theta)
+  \bigg|_{u = \hat U(\theta)},
+\qquad
+T_{UU\theta_r} = \frac{\partial}{\partial \theta_r} H(u, \theta)
+  \bigg|_{u = \hat U(\theta)}.
+\end{align}
+
+## Derivative of the mode
+
+Implicit differentiation of $G\{\hat U(\theta), \theta\} = 0$ gives the
+standard identity
+\begin{equation}
+\frac{\partial}{\partial \theta} \hat U(\theta)
+= -H_{UU}^{-1} H_{U\theta},
+\label{eq:dmode}
+\end{equation}
+which requires only second derivatives of $f$.
+
+## Derivative of the log determinant {#sec:derivative}
+
+By the chain rule, the derivative of the log determinant term in
+\eqref{eq:laplace} has two parts: a direct dependence on $\theta$, and an
+indirect dependence through the mode,
+\begin{equation}
+\frac{\partial}{\partial \theta_r}
+\log \big| H\{\hat U(\theta), \theta\} \big|
+=
+\underbrace{\operatorname{tr}\!\big( H_{UU}^{-1}\, T_{UU\theta_r} \big)}_{W_r}
+\;+\;
+\sum_i
+\underbrace{\operatorname{tr}\!\big( H_{UU}^{-1}\, T_{UUi} \big)}_{V_i}
+\left[ \frac{\partial \hat U(\theta)}{\partial \theta_r} \right]_i .
+\label{eq:dlogdet}
+\end{equation}
+Substituting \eqref{eq:dmode} and writing $V = (V_1, \ldots, V_m)$,
+$W = (W_1, \ldots, W_p)$,
+\begin{equation}
+\frac{\partial}{\partial \theta}
+\log \big| H\{\hat U(\theta), \theta\} \big|
+= - V H_{UU}^{-1} H_{U\theta} + W .
+\end{equation}
+Combining with the derivative of $f\{\hat U(\theta), \theta\}$, in which
+the indirect term vanishes because $G\{\hat U(\theta), \theta\} = 0$, the
+gradient of \eqref{eq:laplace} is
+\begin{equation}
+\frac{\partial}{\partial \theta} \ell(\theta)
+= f_\theta
++ \tfrac{1}{2} V H_{UU}^{-1} H_{U\theta}
+- \tfrac{1}{2} W .
+\label{eq:gradient}
+\end{equation}
+The published description of \pkg{TMB} [@kristensen2016tmb, Section 5]
+differentiates $\log|H(u, \theta)|$ with $u$ held fixed at the mode, which
+yields only the $W$ term of \eqref{eq:dlogdet}; the mode-dependence term
+$V H_{UU}^{-1} H_{U\theta}$ is omitted.  For symmetric joint densities the
+omitted term is often small, but it is not zero in general, and
+\eqref{eq:gradient} is the exact gradient of the function
+\eqref{eq:laplace} being maximized.  Exactness matters in practice: it is
+what allows the outer optimizer to converge to tight tolerances and what
+makes the numerically differentiated Hessian of \eqref{eq:gradient} at the
+optimum a valid observed information matrix for standard errors (Section
+\ref{sec:using}).  The finite-difference validation in the package test
+suite confirms that \eqref{eq:gradient} matches difference quotients of
+\eqref{eq:laplace} to numerical precision.
+
+## Trace contractions avoid third-order tensors {#sec:contractions}
+
+Both $V$ and $W$ contract the third-order tensors against $H_{UU}^{-1}$.
+Neither tensor is ever formed.  Let $H_{UU}^{-1} = B B^\top$ with $B$ a
+(sparse) Cholesky factor obtained from the same factorization used by the
+inner Newton iterations.  Then
+\begin{equation}
+\operatorname{tr}\big( H_{UU}^{-1}\, T_{\,\cdot} \big)
+= \operatorname{tr}\big( B^\top T_{\,\cdot}\, B \big)
+= \sum_k B_k^\top\, T_{\,\cdot}\, B_k,
+\label{eq:contraction}
+\end{equation}
+where $B_k$ denotes the $k$th column of $B$.  Each summand
+$B_k^\top T_{\,\cdot} B_k$ is a second directional derivative of $G$ (or
+first directional derivative of $H$) in the direction $B_k$: in AD terms it
+is obtained by a forward sweep in direction $B_k$ followed by a reverse
+sweep, at a cost proportional to an ordinary gradient evaluation.  The
+number of sweeps is the number of structurally nonzero columns of $B$, and
+sparsity of $H_{UU}$ -- guaranteed for the models of Section
+\ref{sec:parallel} by construction -- keeps both the factorization and the
+contraction cheap.
+
+Because the contractions only require forward and reverse sweeps of first
+and second order applied to the taped $H$, they remain valid when the
+density involves atomic functions (for example $\log \Gamma$, needed by
+the negative binomial density) whose derivatives are supplied analytically
+rather than by taping elementary operations.  This is the "compatible with
+special functions" property: exact third-order information is extracted
+without requiring the AD tool to tape third derivatives of every atomic.
+
+## Inner optimization
+
+For fixed $\theta$, the mode $\hat U(\theta)$ is found by a trust-region
+Newton iteration using the sparse $H_{UU}$ and $G$ from AD.  The
+factorization computed in the final Newton step is reused for the
+determinant in \eqref{eq:laplace} and for the contractions
+\eqref{eq:contraction}, and the converged mode is cached and used to
+warm-start the inner problem at the next outer iterate.
+
+# Parallel evaluation with shards {#sec:parallel}
+
+## Shard decomposition
+
+The joint log density of model \eqref{eq:model} is a sum of conditionally
+independent contributions,
+\begin{equation}
+f(u, \theta) =
+\sum_{\ell} \log \pi\big( y^{(\ell)} \mid u; \theta \big)
++ \sum_{m} \log \pi\big( u^{(m)}; \theta \big)
++ \sum_{s} c_s(\theta),
+\label{eq:shards}
+\end{equation}
+where $y^{(\ell)}$ are blocks of observations, $u^{(m)}$ are blocks of
+random effects, and $c_s(\theta)$ collects normalizing terms that depend
+only on $\theta$.  \pkg{adlaplace} represents each summand as a *shard*: a
+self-contained AD function with its own tape, data, and sparsity
+information.  Observation shards are formed by partitioning the rows of
+the data so that each shard touches a limited set of random effects --
+`ad_shards()` computes such a partition from the sparsity pattern of the
+random-effects design matrix.  The split of each observation density into
+an $\eta$-dependent shard and a parameter-only shard (for example
+`gaussian_obs` and `gaussian_extra`) keeps the per-observation tapes
+small: normalizing constants such as $-n \log \sigma$ or
+$\sum_i \log \Gamma(y_i + \nu)$ are taped once rather than once per shard.
+
+## Everything decomposes over shards
+
+The value, gradient, and Hessian of \eqref{eq:shards} are sums over
+shards, and so is the contraction \eqref{eq:contraction}:
+\begin{equation}
+\operatorname{tr}\big( H_{UU}^{-1} T_{\,\cdot} \big)
+= \sum_k \sum_\ell B_k^\top T^{(\ell)}_{\,\cdot} B_k
++ \sum_k \sum_m B_k^\top T^{(m)}_{\,\cdot} B_k .
+\end{equation}
+Each term touches one shard's tape and one column of $B$, so the entire
+outer-gradient computation \eqref{eq:gradient} -- not just the density
+evaluation -- is embarrassingly parallel.  Shards are assigned to OpenMP
+threads; each thread owns its work arrays, and results are accumulated
+into shared sparse structures with scatter maps computed once at tape
+time.  The number of threads is a runtime argument (`num_threads`), and
+the tapes themselves are recorded in parallel as well, which matters for
+models with many shards.
+
+This contrasts with parallelism that is bolted on at the linear-algebra
+level: because the shard structure mirrors the statistical structure of
+the model, parallel efficiency does not depend on the internals of the AD
+tool, and the same decomposition serves taping, evaluation,
+differentiation, and the third-order contractions.
+
+# Using adlaplace {#sec:using}
+
+## A first model
+
+The user-facing entry point is `adlaplace()`, which takes a formula built
+from model terms, fits the model, and returns an object with the standard
+accessor methods.  A minimal example with a Gaussian response and a random
+intercept:
+
+```{r usage-sim, echo=TRUE}
+set.seed(1)
+n <- 500
+grp <- factor(sample(20, n, replace = TRUE))
+x <- runif(n)
+y <- 1 + 2 * x + rnorm(20, sd = 0.5)[grp] + rnorm(n, sd = 0.3)
+dat <- data.frame(y = y, x = x, grp = grp)
+```
+
+```{r usage-fit, echo=TRUE}
+library("adlaplace")
+fit <- adlaplace(y ~ x + iid(grp), data = dat)
+summary(fit)
+```
+
+A bare response on the left-hand side defaults to a Gaussian observation
+density with a residual standard deviation parameter; other observation
+densities are requested explicitly, as in
+`nbinom(y) ~ x + iid(grp)`.  Variance parameters are optimized on the log
+scale, and `summary()`, `coef()`, and `confint()` report them back-transformed
+by default, with delta-method standard errors:
+
+```{r usage-methods, echo=TRUE}
+coef(fit)
+confint(fit, parm = "grp_iid")
+```
+
+## Standard errors
+
+The outer optimization uses `stats::optim()` with the exact AD gradient
+\eqref{eq:gradient} and `hessian = TRUE`, so the observed information is
+the numerically differentiated exact gradient at the optimum -- one layer
+of finite differencing applied to an exact quantity, rather than two.
+`vcov()` returns the resulting covariance on the optimization scale or the
+natural scale, and all reported intervals derive from it.
+
+## The pipeline, exposed
+
+`adlaplace()` is a thin orchestration of four steps that remain available
+individually for non-standard models (Section \ref{sec:bym} uses them
+directly):
+
+```{r usage-pipeline, echo=TRUE, eval=FALSE}
+md <- model_data(nbinom(y) ~ x + iid(grp), data = dat)
+config <- list(shards = ad_shards(md$data$A, num_shards = 100))
+af <- ad_fun(md, config)
+opt <- optim(md$data$info$parameters$init, outer_fn, outer_gr,
+  ad_fun = af, config = config, cache = new.env(),
+  method = "L-BFGS-B", hessian = TRUE)
+```
+
+`model_data()` parses the formula into design matrices and parameter
+metadata; `ad_shards()` partitions the observations; `ad_fun()` records
+the \pkg{CppAD} tapes; and `outer_fn`/`outer_gr` evaluate
+\eqref{eq:laplace} and \eqref{eq:gradient}.
+
+# Architecture and extensibility {#sec:architecture}
+
+## Two layers
+
+Model specification is separated into two layers.
+
+*Top layer: \proglang{R} model terms.*  A model term is an S4 object that
+knows how to produce a design matrix (`design()`), a precision structure
+(`precision()`), and metadata for its parameters (`theta_info()`,
+`beta_info()`, `random_info()`).  Built-in terms include `intercept()`,
+`linear()`, `iid()` (random intercepts), and `iwp()` (integrated Wiener
+process / penalized spline).  Each term names the low-level density kernel
+that evaluates its log density, through its `ad_fun` slot.
+
+*Bottom layer: \proglang{C++} density kernels.*  A kernel is a
+\proglang{C++} function that evaluates one shard's log density on AD
+types.  The built-in kernels are few: `gaussian_obs`, `nbinom_obs`,
+`poisson_obs`, and `binomial_obs` for observations, `random_diagonal` and
+`random_mult` for Gaussian random effects, plus the corresponding
+parameter-only `_extra` kernels where an observation family has
+hyperparameters.  Many terms share one kernel: `iid()` and `iwp()` both use
+`random_diagonal`, differing only in the design and precision matrices
+they construct, and any Gaussian random field with precision
+$\tau Q$ for fixed sparse $Q$ uses `random_mult`.
+
+## Extending the top layer: adlaplaceHgp
+
+New model classes that reduce to existing kernels require only
+\proglang{R} code.  The \pkg{adlaplaceHgp} package defines terms for
+hierarchical Gaussian process models -- `hiwp()`, `hrpoly()`, `rsiid()`,
+and relatives -- by subclassing the term classes and providing `design()`
+and `precision()` methods.  It contains no \proglang{C++} and no
+knowledge of tapes or shards.
+
+## Extending the bottom layer: adlaplaceExample
+
+New observation densities require a backend package with \proglang{C++}
+code, for which \pkg{adlaplaceExample} is the template.  It implements a
+skew-normal observation density in two source files: `objectiveFunction.cpp`
+holds the model-specific log densities (an $\eta$-dependent observation
+shard and a parameter-only shard), and `backend.cpp` holds the boilerplate
+-- tape-evaluation amalgam, an exported C API created by one macro, and
+two resolver functions mapping density names to function pointers.  The
+accompanying \proglang{R} file defines the `skewnormal()` term whose
+`package` slot directs \pkg{adlaplace} to build tapes with the backend's
+entry points.  Tapes are recorded and evaluated inside the backend's
+shared library, while the Laplace machinery of Section \ref{sec:methods}
+-- inner optimization, determinant, contractions, parallel scheduling --
+is called through the C API and never duplicated.
+
+The template is deliberately small (about 200 lines of commented
+\proglang{C++} and 100 of \proglang{R}).  Custom densities that become
+widely useful can be promoted into the core, as with the built-in
+\code{binomial_obs} kernel used in Section \ref{sec:bacteria}.
+
+# Illustrations {#sec:illustrations}
+
+We validate \pkg{adlaplace} on three examples chosen to exercise the exact
+gradient (Section \ref{sec:gamm}), a built-in logistic mixed model
+(Section \ref{sec:bacteria}), and a non-diagonal intrinsic precision matrix
+(Section \ref{sec:bym}).  Full code walkthroughs are in
+\texttt{docs/paper/examples/}; the emphasis here is on agreement of
+estimates, not on speed.
+
+## Negative binomial additive mixed model vs mgcv {#sec:gamm}
+
+```{r gamm-run, include=FALSE}
+suppressMessages({
+  library(Matrix)
+  library(adlaplace)
+  library(mgcv)
+})
+set.seed(0)
+dat <- gamSim(6, n = 1000, verbose = FALSE)
+dat$f2 <- sqrt(dat$f2)
+dat$f2 <- dat$f2 - dat$f2[which.min(abs(dat$x2 - 0.5))]
+dat$mu <- exp(-1 + 0 * dat$x1 + dat$f2 +
+  rnorm(nlevels(dat$fac), sd = 0.25)[as.integer(dat$fac)])
+nbinom_sd <- 0.25
+dat$Z <- rgamma(nrow(dat), nbinom_sd^(-2), nbinom_sd^(-2))
+dat$y <- rpois(nrow(dat), lambda = dat$mu * dat$Z)
+
+b2 <- gamm(
+  y ~ x1 + s(x2),
+  family = nb(),
+  data = dat,
+  random = list(fac = ~1)
+)
+
+fit_gamm <- adlaplace(
+  nbinom(y, lower = 1e-9, init = 0.15) ~ x1 +
+    iwp(x2, ref_value = 0.5, p = 2, knots = seq(0, 1, len = 21), init = 1) +
+    iid(fac, init = 0.25),
+  data = dat,
+  num_threads = 4L,
+  num_shards = 100L,
+  control = list(maxit = 200L, factr = 1e3, pgtol = 1e-12)
+)
+
+co_gamm <- coef(fit_gamm)
+comparison_table_gamm <- data.frame(
+  Parameter = c("x1 (fixed)", "SD random intercept (fac)"),
+  adlaplace = c(
+    unname(co_gamm[grep("^x1", names(co_gamm))])[1],
+    unname(co_gamm[grep("fac", names(co_gamm))])[1]
+  ),
+  `mgcv::gamm` = c(
+    unname(summary(b2$gam)$p.coeff["x1"]),
+    as.numeric(nlme::VarCorr(b2$lme)["(Intercept)", "StdDev"])
+  ),
+  check.names = FALSE
+)
+
+res_gamm <- log_lik_laplace(
+  x = fit_gamm$optim$par, gamma = fit_gamm$cache$gamma,
+  ad_fun = fit_gamm$ad_fun, config = fit_gamm$config, deriv = FALSE
+)
+newx_gamm <- data.frame(x2 = seq(0, 1, len = 101))
+sim_gamm <- sim_fit(x = newx_gamm, data = fit_gamm$model_data, fit = res_gamm, n = 500L)
+sim_centered_gamm <- sim_gamm - matrix(
+  colMeans(sim_gamm), nrow(sim_gamm), ncol(sim_gamm), byrow = TRUE
+)
+```
+
+We simulate a negative binomial additive mixed model following the
+`mgcv::gamm()` help files [@wood2017gam]: $n = 1000$ observations with a
+linear effect of $x_1$, a smooth effect of $x_2$, and a random intercept
+over a 40-level factor, with a gamma-distributed multiplicative
+overdispersion giving a negative binomial margin.  The \pkg{adlaplace}
+formula uses the `iwp()` spline term with 21 knots:
+
+```{r gamm-formula, echo=TRUE, eval=FALSE}
+fit <- adlaplace(
+  nbinom(y, init = 0.15) ~ x1 +
+    iwp(x2, ref_value = 0.5, p = 2, knots = seq(0, 1, len = 21), init = 1) +
+    iid(fac, init = 0.25),
+  data = dat, num_threads = 4
+)
+```
+
+The same model is fitted with `mgcv::gamm(y ~ x1 + s(x2), family = nb,
+random = list(fac = ~1))`, which uses penalized quasi-likelihood.
+Table \ref{tab:gamm} compares the fixed effect and variance components;
+Figure \ref{fig:gamm} overlays the estimated smooth with posterior draws
+of the \pkg{adlaplace} `iwp` curve.
+
+```{r gamm-table, results="asis", echo=FALSE}
+knitr::kable(
+  comparison_table_gamm,
+  format = "latex", booktabs = TRUE, digits = 3,
+  caption = "\\label{tab:gamm}Estimates from adlaplace and mgcv::gamm
+  for the simulated negative binomial additive mixed model.")
+```
+
+```{r gamm-figure, echo=FALSE, fig.height=4, fig.cap="\\label{fig:gamm}Estimated smooth effect of $x_2$: mgcv::gamm fit (blue) and adlaplace posterior draws of the iwp component (grey), both centred."}
+par(mar = c(4, 4, 1, 1), mgp = c(2.2, 0.7, 0))
+plot(b2$gam, select = 1, col = "blue", rug = FALSE,
+  xlab = "x2", ylab = "s(x2)", shift = 0)
+matlines(newx_gamm$x2, sim_centered_gamm, col = "#00000008", lty = 1)
+points(dat$x2, dat$f2, col = "red", cex = 0.15, pch = 16)
+legend("topleft", bty = "n",
+  legend = c("mgcv::gamm", "adlaplace draws", "truth"),
+  col = c("blue", "#00000060", "red"), lty = c(1, 1, NA), pch = c(NA, NA, 16))
+```
+
+The two fits agree on the fixed effect, the smooth, and the random-intercept
+standard deviation to within Monte Carlo and approximation error, confirming
+that the exact gradient of Section \ref{sec:derivative} drives the outer
+optimizer to the same optimum reached by the mature \pkg{mgcv}
+implementation.
+
+## Logistic mixed model vs TMB and INLA {#sec:bacteria}
+
+The \code{bacteria} data [@venables2002mass] record presence of \emph{H.
+influenzae} in repeated observations on 50 children.  We fit a Bernoulli
+response with logit link, fixed effects of treatment and a week indicator,
+and a child-level random intercept using the built-in \code{binomial()}
+term and \code{adlaplace()}:
+
+```{r bacteria-formula, echo=TRUE, eval=FALSE}
+fit <- adlaplace(
+  binomial(yn) ~ trt + wk + iid(ID, init = 1),
+  data = bacteria, num_shards = 20L
+)
+```
+
+The supplement \texttt{examples/bacteria/bacteria.qmd} gives the full
+analysis and comparison code.  We compare against \code{glmmPQL}
+(penalized quasi-likelihood), \pkg{TMB} (exact Laplace, via
+\pkg{glmmTMB}), and \pkg{INLA} where available.
+
+```{r bacteria-run, include=FALSE}
+source("replication/02-bacteria.R", local = (bact_env <- new.env()))
+```
+
+```{r bacteria-table, results="asis", echo=FALSE}
+if (exists("comparison_table", envir = bact_env)) {
+  knitr::kable(
+    get("comparison_table", envir = bact_env),
+    format = "latex", booktabs = TRUE, digits = 3,
+    caption = "\\label{tab:bacteria}Bacteria data: fixed effects and
+    random-intercept standard deviation from adlaplace, glmmPQL, TMB, and INLA.")
+}
+```
+
+\pkg{adlaplace} agrees with \pkg{glmmTMB} on every fixed effect and on the
+random-intercept standard deviation to four decimal places (for example
+intercepts of $3.548$ versus $3.548$ and standard deviations of $1.242$
+versus $1.242$), as expected because both solve the same Laplace
+optimization problem.  Differences from \code{glmmPQL} and \pkg{INLA} are
+modest and in the direction anticipated for a binary response and for
+\pkg{INLA}'s prior on the random-intercept precision.
+
+## Besag-York-Mollie disease mapping vs INLA {#sec:bym}
+
+The final example exercises `random_mult`: a Gaussian random effect with
+precision $\tau Q$ for fixed sparse $Q$, with the generalized
+log-determinant and rank of $Q$ passed as constants.  We reproduce the
+Germany oral-cavity-cancer example from \pkg{INLA}
+[@besag1991bym; @rue2009inla] using the low-level pipeline (no formula
+interface).  The supplement \texttt{examples/germany/germany.qmd} documents
+the full assembly of observation and random-effect shards, the ICAR
+scaling with \pkg{INLA}'s utilities [@sorbye2014scaling], and the
+comparison plots.
+
+Because the ICAR precision is rank-deficient, the intercept is omitted
+rather than imposing a sum-to-zero constraint.
+
+```{r bym-run, include=FALSE}
+if (have_inla) {
+  source("replication/03-bym-germany.R", local = (bym_env <- new.env()))
+}
+```
+
+```{r bym-table, results="asis", echo=FALSE}
+if (have_inla && exists("comparison_hyper", envir = bym_env)) {
+  knitr::kable(
+    get("comparison_hyper", envir = bym_env),
+    format = "latex", booktabs = TRUE, digits = 3,
+    caption = "\\label{tab:bym}Germany BYM: posterior standard deviations of
+    the structured (ICAR) and unstructured spatial components from adlaplace
+    and INLA.")
+}
+```
+
+```{r bym-figure, echo=FALSE, fig.height=4, fig.cap="\\label{fig:bym}Germany oral cavity cancer: posterior mean spatial relative risk from adlaplace (left) and INLA (right)."}
+if (have_inla && exists("plot_maps", envir = bym_env)) {
+  get("plot_maps", envir = bym_env)()
+}
+```
+
+```{r bym-scatter, echo=FALSE, fig.height=4, fig.cap="\\label{fig:bymscatter}District-level total spatial effect (structured plus unstructured): adlaplace posterior mode against INLA posterior mean, with the identity line."}
+if (have_inla && exists("plot_scatter", envir = bym_env)) {
+  get("plot_scatter", envir = bym_env)()
+}
+```
+
+The district-level total spatial effects agree closely (correlation
+$0.99$ across 544 districts; Figure \ref{fig:bymscatter}), and component
+standard deviations are comparable (Table \ref{tab:bym}).
+
+# Discussion {#sec:discussion}
+
+\pkg{adlaplace} implements Laplace-approximate maximum likelihood for
+hierarchical models with three distinguishing features: the exact gradient
+of the approximate likelihood, including the mode-dependence term of the
+log-determinant derivative computed by trace contractions that avoid any
+explicit third-order tensor; a shard decomposition that makes the density,
+gradient, Hessian, and determinant-derivative contractions all parallel
+over OpenMP threads with a single lightweight AD dependency; and a
+two-layer, extensible architecture in which new model terms are added in
+\proglang{R} and new density kernels in small backend packages, without
+modifying the core.  The illustrations show agreement with \pkg{mgcv}, \pkg{TMB}, and \pkg{INLA}
+across additive, mixed, and spatial models.
+
+The package is complementary to existing tools.  Its exact gradient and
+extensible kernels make it a convenient foundation for methodological work,
+and the Laplace-approximate marginal likelihood is a natural building block
+for approximate Bayesian inference, as discussed below.
+
+# Future work {#sec:future}
+
+## General precision matrices with the determinant on the AD tape
+
+The `random_mult` kernel of Section \ref{sec:bym} covers precision matrices
+of the form $\tau Q$ with $Q$ fixed: because the single hyperparameter
+enters only as a multiplier, the log-determinant reduces to
+$r \log \tau + \log|Q|_{+}$, and the generalized determinant $\log|Q|_{+}$
+and rank $r$ can be computed once in \proglang{R} and enter the tape as
+constants.  Many useful models fall outside this family -- the BYM2
+reparameterization [@riebler2016bym2], the Leroux model, autoregressive and
+Matern-type structures, and products of Kronecker factors all have
+precision matrices $Q(\theta)$ whose determinant depends on the
+hyperparameters in a non-trivial way.  Supporting these requires evaluating
+$\log\det Q(\theta)$ inside the AD tape, so that its derivative with
+respect to $\theta$ is produced by the same reverse sweeps as the rest of
+the objective.  The natural implementation is a sparse
+$LDL^{\mathsf{T}}$ factorization recorded on the tape, either
+operation-by-operation for small blocks or as an atomic operation with a
+hand-coded derivative, as \pkg{TMB} does through its atomic sparse Cholesky
+[@kristensen2016tmb].  Because a `random_*` kernel occupies a single
+parameter shard in the decomposition of Section \ref{sec:parallel}, a
+determinant-on-tape kernel would drop in alongside `random_diagonal` and
+`random_mult` without changes to the parallel evaluation machinery; the
+existing kernels remain preferable when they apply, since they keep the
+factorization off the tape entirely.
+
+## Bayesian inference, priors, and aghq
+
+The outer optimization currently targets the Laplace-approximate marginal
+likelihood, with no penalization of the hyperparameters.  A modest
+extension is a prior layer: penalized-complexity priors
+[@simpson2017pc] or user-supplied log-priors on $\theta$ added as an
+additional parameter shard, turning the outer objective into a
+log-posterior and the reported estimates into posterior modes.  Beyond
+that, the quantities \pkg{adlaplace} already computes -- the
+Laplace-approximate log-posterior and its exact gradient -- are precisely
+the inputs required by adaptive Gauss-Hermite quadrature as implemented in
+the \pkg{aghq} package [@stringer2021aghq; @stringer2022fast], which
+adapts its quadrature grid using the mode and curvature of the
+approximate posterior.  Wrapping an `adlaplace` fit in the function and
+gradient pair that \pkg{aghq} expects would deliver posterior summaries
+for the hyperparameters, and posterior distributions for the random
+effects by mixing the conditional Gaussians over the quadrature points,
+while retaining the shard-parallel evaluation and the exact gradient of
+Section \ref{sec:methods}.  The same interface would serve Hamiltonian
+Monte Carlo on the marginal posterior [@carpenter2017stan].
+
+Other directions include higher-order corrections using the fourth-order
+derivative expressions already derived for the log-determinant, and a
+broader library of built-in observation densities.
+
+# Computational details {#sec:details}
+
+```{r sessioninfo, echo=FALSE, results="asis"}
+toLatex(sessionInfo(), locale = FALSE)
+```
+
+# Acknowledgments {#sec:ack}
+
+TODO: funding and acknowledgments.
+
+# References

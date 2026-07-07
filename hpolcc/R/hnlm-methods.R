@@ -24,7 +24,7 @@ hnlm_model_data_stub <- function(object) {
 }
 
 #' @keywords internal
-hnlm_attach_parameter_se <- function(coefficients, hessian_outer) {
+hnlm_attach_parameter_se <- function(coefficients, hessian_outer, vcov = NULL) {
   if (inherits(coefficients, "try-error") ||
       is.null(coefficients$parameters) ||
       inherits(hessian_outer, "try-error") ||
@@ -36,16 +36,21 @@ hnlm_attach_parameter_se <- function(coefficients, hessian_outer) {
   if (nrow(H) != n_par || ncol(H) != n_par) {
     return(coefficients)
   }
-  V <- tryCatch(
-    solve(H),
-    error = function(e) {
-      warning(
-        "outer Hessian is singular; using Moore-Penrose inverse for standard errors",
-        call. = FALSE
-      )
-      hpolcc_pinv(H)
-    }
-  )
+  if (!is.null(vcov) && all(dim(vcov) == n_par)) {
+    # vcov already computed (e.g. by adlaplace()); skip re-inverting.
+    V <- as.matrix(vcov)
+  } else {
+    V <- tryCatch(
+      solve(H),
+      error = function(e) {
+        warning(
+          "outer Hessian is singular; using Moore-Penrose inverse for standard errors",
+          call. = FALSE
+        )
+        hpolcc_pinv(H)
+      }
+    )
+  }
   se_opt <- sqrt(pmax(0, diag(V)))
   params <- coefficients$parameters
   se <- se_opt

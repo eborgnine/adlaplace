@@ -22,19 +22,13 @@ chol_inner_from_fit <- function(fit) {
 #' (\eqn{\gamma}) contributions from each model term.
 #'
 #' @param x Data frame of prediction covariates (same variables as the fitted model).
+#'   Only terms whose variables appear in \code{x} contribute.
 #' @param data Object returned by \code{\link{model_data}}.
 #' @param fit Result from \code{\link{log_lik_laplace}} at the fitted outer parameters.
 #' @param n Number of draws for random-effect simulation.
 #'
-#' @return A list with:
-#' \describe{
-#'   \item{eta}{Combined linear predictor, \code{nrow(x)} by \code{n} matrix
-#'     (or vector if only fixed effects contribute).}
-#'   \item{eta_fixed}{Fixed-effect part (\code{nrow(x)} by \code{1}).}
-#'   \item{eta_random}{Random-effect part (\code{nrow(x)} by \code{n}).}
-#'   \item{gamma_sims}{Draws from \code{\link{rmvnldl}} (\code{n} by \code{length(gamma)}).}
-#'   \item{x}{The prediction grid \code{x} (echoed).}
-#' }
+#' @return The combined linear predictor: a \code{nrow(x)} by \code{n} matrix of
+#'   simulated values (fixed-effect contributions are constant across columns).
 #'
 #' @export
 sim_fit <- function(x, data, fit, n = 500L) {

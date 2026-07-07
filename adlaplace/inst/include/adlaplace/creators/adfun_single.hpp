@@ -14,16 +14,18 @@ inline GroupPack build_ad_fun_random(
   const Config cfg(config);
   validate_config_matches_model(cfg, model, false);
   if (Rf_isNull(precision)) {
-    Rcpp::stop("precision is required for random_diagonal");
+    Rcpp::stop("precision is required for random densities");
   }
-  const NumVecView Q(precision);
-  const int n_gamma_cols = model.gamma_map.ncol();
-  if (Q.size() != static_cast<R_xlen_t>(n_gamma_cols)) {
-    Rcpp::stop(
-      "length(precision) (%d) must match ncol(gamma_map) (%d)",
-      static_cast<int>(Q.size()),
-      n_gamma_cols
-    );
+  if (TYPEOF(precision) == REALSXP || TYPEOF(precision) == INTSXP) {
+    const NumVecView Q(precision);
+    const int n_gamma_cols = model.gamma_map.ncol();
+    if (Q.size() != static_cast<R_xlen_t>(n_gamma_cols)) {
+      Rcpp::stop(
+        "length(precision) (%d) must match ncol(gamma_map) (%d)",
+        static_cast<int>(Q.size()),
+        n_gamma_cols
+      );
+    }
   }
 
   if (cfg.verbose) {

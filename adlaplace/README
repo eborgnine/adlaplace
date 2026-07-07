@@ -8,7 +8,7 @@ Laplace approximations for hierarchical models using CppAD and trust-region opti
 |-------|---|-----|
 | Model (formula, S4 terms) | `effects.R`, `data_setup.R`, term `*.R` | — |
 | Laplace (AD handle, profile likelihood) | `ad_fun.R`, `ad_data.R`, `log_lik_laplace.R`, `wrappers.R` | `get_ad_fun_raw_*`, `inner_opt`, … |
-| Engine (eval, optimizer) | `R/RcppExports.R` | `src/*.cpp`, `src/include/adlaplace/` |
+| Engine (eval, optimizer) | `R/RcppExports.R` | `src/{densities,eval,runtime,optim}/`, `src/include/adlaplace/` |
 
 Public headers for backend packages live in `inst/include/adlaplace/` (including `math/lgamma.hpp` for custom likelihoods). Private engine headers are in `src/include/adlaplace/`.
 

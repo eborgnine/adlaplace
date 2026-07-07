@@ -7,7 +7,8 @@
 sim_fit(x, data, fit, n = 500L)
 }
 \arguments{
-\item{x}{Data frame of prediction covariates (same variables as the fitted model).}
+\item{x}{Data frame of prediction covariates (same variables as the fitted model).
+Only terms whose variables appear in \code{x} contribute.}
 
 \item{data}{Object returned by \code{\link{model_data}}.}
 
@@ -16,15 +17,8 @@ sim_fit(x, data, fit, n = 500L)
 \item{n}{Number of draws for random-effect simulation.}
 }
 \value{
-A list with:
-\describe{
-  \item{eta}{Combined linear predictor, \code{nrow(x)} by \code{n} matrix
-    (or vector if only fixed effects contribute).}
-  \item{eta_fixed}{Fixed-effect part (\code{nrow(x)} by \code{1}).}
-  \item{eta_random}{Random-effect part (\code{nrow(x)} by \code{n}).}
-  \item{gamma_sims}{Draws from \code{\link{rmvnldl}} (\code{n} by \code{length(gamma)}).}
-  \item{x}{The prediction grid \code{x} (echoed).}
-}
+The combined linear predictor: a \code{nrow(x)} by \code{n} matrix of
+  simulated values (fixed-effect contributions are constant across columns).
 }
 \description{
 Draws random effects from the Laplace approximation and evaluates the

@@ -40,7 +40,7 @@ inline std::vector<double> trace_hinv_t_parallel(
   const std::vector<int>& LinvPtColumns_i,
   const bool verbose) {
     
-  const std::size_t Nparams = pack_ctx(backend.fun[0]->ctx)->fun.Domain();
+  const std::size_t Nparams = pack_ctx(backend.fun[0]->ctx)->x.size();
   if (x.size() != Nparams) {
     Rcpp::stop(
       "x has length %d but expected Nparams=%d",

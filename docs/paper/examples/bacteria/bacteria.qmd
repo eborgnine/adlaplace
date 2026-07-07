@@ -1,0 +1,152 @@
+---
+title: "Logistic mixed model: MASS bacteria data"
+author: "Patrick Brown"
+date: last-modified
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: false
+---
+
+## Introduction
+
+The `bacteria` data set in **MASS** records repeated throat swabs for
+*Haemophilus influenzae* on 50 children (Venables and Ripley 2002). We fit the
+logistic mixed model from the `glmmPQL` help page:
+
+```r
+glmmPQL(y ~ trt + I(week > 2), random = ~ 1 | ID,
+        family = binomial, data = bacteria)
+```
+
+using the built-in `binomial()` observation term and `iid()` random intercept.
+
+## Data
+
+```{r setup}
+library(adlaplace)
+library(MASS)
+have_tmb <- requireNamespace("glmmTMB", quietly = TRUE)
+have_inla <- requireNamespace("INLA", quietly = TRUE)
+data(bacteria)
+bacteria$yn <- as.integer(bacteria$y == "y")
+bacteria$wk <- as.integer(bacteria$week > 2)
+head(bacteria[, c("ID", "y", "trt", "week", "yn", "wk")])
+```
+
+## Fit with adlaplace
+
+```{r fit}
+fit <- adlaplace(
+  binomial(yn) ~ trt + wk + iid(ID, init = 1),
+  data = bacteria,
+  num_shards = 20L
+)
+summary(fit)
+```
+
+```{r coef}
+co <- coef(fit)
+data.frame(
+  parameter = names(co),
+  estimate = unname(co)
+)
+```
+
+The random-intercept standard deviation `ID_iid` is on the log scale during
+optimization; exponentiate for the natural scale.
+
+## glmmPQL reference
+
+```{r pql}
+pql <- glmmPQL(
+  y ~ trt + I(week > 2), random = ~ 1 | ID,
+  family = binomial, data = bacteria, verbose = FALSE
+)
+nlme::fixef(pql)
+as.numeric(nlme::VarCorr(pql)["(Intercept)", "StdDev"])
+```
+
+## glmmTMB reference
+
+```{r tmb, eval=have_tmb}
+tmb <- glmmTMB::glmmTMB(
+  yn ~ trt + wk + (1 | ID),
+  family = binomial(), data = bacteria
+)
+glmmTMB::fixef(tmb)$cond
+sqrt(as.numeric(glmmTMB::VarCorr(tmb)$cond$ID))
+```
+
+## INLA reference
+
+```{r inla, eval=have_inla}
+INLA::inla.setOption(num.threads = "1:1")
+inl <- INLA::inla(
+  yn ~ trt + wk + f(ID, model = "iid",
+    hyper = list(prec = list(prior = "pc.prec", param = c(1, 0.01)))),
+  family = "binomial", Ntrials = 1, data = bacteria
+)
+inl$summary.fixed[, "mean"]
+INLA::inla.emarginal(
+  function(x) 1 / sqrt(x),
+  inl$marginals.hyperpar[["Precision for ID"]]
+)
+```
+
+## Comparison table
+
+```{r compare}
+lab <- names(co)
+adl <- c(
+  `(Intercept)` = unname(co[lab == "intercept"]),
+  trtdrug = unname(co[lab == "trt_linear"][1]),
+  `trtdrug+` = unname(co[which(lab == "trt_linear")[2]]),
+  `I(week>2)` = unname(co[lab == "wk_linear"]),
+  `SD(ID)` = unname(co[lab == "ID_iid"])
+)
+
+fe <- nlme::fixef(pql)
+pql_vec <- c(
+  fe[["(Intercept)"]], fe[["trtdrug"]], fe[["trtdrug+"]],
+  fe[["I(week > 2)TRUE"]],
+  as.numeric(nlme::VarCorr(pql)["(Intercept)", "StdDev"])
+)
+
+comparison_table <- data.frame(
+  Parameter = names(adl),
+  adlaplace = as.numeric(adl),
+  glmmPQL = pql_vec,
+  check.names = FALSE
+)
+
+if (have_tmb) {
+  tfe <- glmmTMB::fixef(tmb)$cond
+  tmb_sd <- sqrt(as.numeric(glmmTMB::VarCorr(tmb)$cond$ID))
+  comparison_table$glmmTMB <- c(
+    tfe[["(Intercept)"]], tfe[["trtdrug"]], tfe[["trtdrug+"]],
+    tfe[["wk"]], tmb_sd
+  )
+}
+
+if (have_inla) {
+  ife <- inl$summary.fixed[, "mean"]
+  names(ife) <- rownames(inl$summary.fixed)
+  inla_sd <- INLA::inla.emarginal(
+    function(x) 1 / sqrt(x),
+    inl$marginals.hyperpar[["Precision for ID"]]
+  )
+  comparison_table$INLA <- c(
+    ife[["(Intercept)"]], ife[["trtdrug"]], ife[["trtdrug+"]],
+    ife[["wk"]], inla_sd
+  )
+}
+
+knitr::kable(comparison_table, digits = 3)
+```
+
+`adlaplace` and `glmmTMB` agree closely (both use an exact Laplace
+approximation). Differences from `glmmPQL` are expected for a binary
+response; `INLA` posterior means differ slightly because of its prior on the
+random-intercept precision.

@@ -1,5 +1,5 @@
 #include "adlaplace/runtime/interfaces_detail.hpp"
-#include "../chol_update.hpp"
+#include "adlaplace/linalg/chol_update.hpp"
 
 namespace {
 

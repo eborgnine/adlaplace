@@ -11,7 +11,7 @@ get_ad_fun_raw_parameters(model, config, name)
 
 \item{config}{Model configuration list.}
 
-\item{name}{Registered single-data density name (e.g. \code{"skewnormal_extra"}).}
+\item{name}{Parameters density name (e.g. \code{"skewnormal_extra"}).}
 }
 \value{
 External pointer of class \code{ad_fun_ptr}.

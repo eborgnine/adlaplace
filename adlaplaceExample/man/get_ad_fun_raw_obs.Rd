@@ -11,7 +11,7 @@ get_ad_fun_raw_obs(model, config, name)
 
 \item{config}{Model configuration list.}
 
-\item{name}{Registered observation density name (e.g. \code{"skewnormal_obs"}).}
+\item{name}{Observation density name (e.g. \code{"skewnormal_obs"}).}
 }
 \value{
 External pointer of class \code{ad_fun_ptr}.

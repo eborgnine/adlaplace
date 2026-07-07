@@ -164,11 +164,16 @@ setGeneric("ad_fun", function(x, config = NULL, num_threads = 1L, ...) {
 #' @describeIn ad_fun Attach Hessian templates to a raw \code{ad_fun_ptr}.
 #' @export
 setMethod("ad_fun", signature = c(x = "ad_fun_ptr"), function(x, config = NULL, num_threads = 1L, ...) {
-  dots <- list(...)
-  extras <- dots
-  verbose <- isTRUE(config[["verbose"]])
+  extras <- list(...)
+  verbose <- FALSE
   if (!is.null(config)) {
-    extras <- c(list(config), extras)
+    if (is.list(config) && !is(config, "ad_fun_ptr")) {
+      # a genuine config list: only verbose is used at attach time
+      verbose <- isTRUE(config[["verbose"]])
+    } else {
+      # positional shorthand ad_fun(ptr1, ptr2, ...): treat as extra shard
+      extras <- c(list(config), extras)
+    }
   }
   if (length(extras) > 0L) {
     if (!all(vapply(extras, function(ptr) is(ptr, "ad_fun_ptr"), logical(1)))) {

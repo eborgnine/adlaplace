@@ -102,6 +102,7 @@ test_that("model_data builds data for iwp formula", {
     x = runif(n),
     id = rep(1:10, each = 3L)
   )
+  # bare response defaults to gaussian(y)
   md <- adlaplace::model_data(
     data = df,
     formula = y ~ intercept() + linear(x),

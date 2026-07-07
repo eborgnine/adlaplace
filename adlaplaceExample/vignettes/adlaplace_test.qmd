@@ -162,6 +162,7 @@ model_r1 <- adlaplace::ad_data(
   theta_map = c(1L, n_theta),
   ad_kind = "random",
   ad_fun = "random_diagonal",
+  package = "adlaplace",
   precision = rep(1, nr1)
 )
 ad_fun_r1 <- adlaplace::ad_fun_ptr(data = model_r1, config = config)
@@ -176,6 +177,7 @@ model_r2 <- adlaplace::ad_data(
   theta_map = c(2L, n_theta),
   ad_kind = "random",
   ad_fun = "random_diagonal",
+  package = "adlaplace",
   precision = rep(1, nr2)
 )
 ad_fun_r2 <- adlaplace::ad_fun_ptr(data = model_r2, config = config)

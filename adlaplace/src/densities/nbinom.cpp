@@ -1,4 +1,4 @@
-#include "adlaplace/adlaplace.hpp"
+#include "adlaplace/creators/ad_data.hpp"
 #include "adlaplace/math/lgamma.hpp"
 #include "adlaplace/densities/nbinom.hpp"
 

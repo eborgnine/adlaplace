@@ -1,10 +1,13 @@
-#include "adlaplace/densities/random.hpp"
+#include "adlaplace/densities/random_diagonal.hpp"
 #include "adlaplace/creators/rviews.hpp"
 #include "adlaplace/math/constants.hpp"
 
+#include <algorithm>
+#include <vector>
+
 namespace {
 
-CppAD::vector<CppAD::AD<double>> random_diagonal(
+CppAD::vector<CppAD::AD<double>> random_diagonal_impl(
   const CppAD::vector<CppAD::AD<double>>& x,
   const ad_data& model,
   const NumVecView& Q,
@@ -13,7 +16,7 @@ CppAD::vector<CppAD::AD<double>> random_diagonal(
 
   const std::size_t Ngamma = gamma_indices.size();
   if (Q.size() != Ngamma) {
-    Rcpp::warning("precision length (%d) differs from gamma_map rows (%d)",
+    Rcpp::warning("precision length (%d) differs from gamma_map columns (%d)",
                   static_cast<int>(Q.size()), static_cast<int>(Ngamma));
   }
 
@@ -68,5 +71,5 @@ CppAD::vector<CppAD::AD<double>> random_diagonal(
   }
   const NumVecView Q(precision);
   const std::vector<std::size_t> gamma_indices = model.all_gamma_global_indices();
-  return random_diagonal(x, model, Q, gamma_indices, Config(config));
+  return random_diagonal_impl(x, model, Q, gamma_indices, Config(config));
 }
