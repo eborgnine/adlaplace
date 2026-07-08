@@ -12,7 +12,7 @@ Description: Hierarchical and random-slope integrated Wiener process model terms
 License: GPL-3
 Depends:
     R (>= 4.1.0),
-    adlaplace (>= 0.3.0)
+    adlaplace (>= 0.4.0)
 Imports: methods, stats, Matrix
 Suggests: GET, testthat (>= 3.0.0)
 Config/testthat/edition: 3

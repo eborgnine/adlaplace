@@ -3,7 +3,6 @@
 \docType{class}
 \name{dirichlet_multinom-class}
 \alias{dirichlet_multinom-class}
-\alias{dirichlet_multinom}
 \alias{elgm_matrix,dirichlet_multinom-method}
 \alias{design,dirichlet_multinom-method}
 \alias{precision,dirichlet_multinom-method}

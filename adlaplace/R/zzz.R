@@ -6,8 +6,6 @@ NULL
 
 loadNamespace("Matrix")
 
-.type_factor_levels <- c("fixed", "random", "response")
-
 #' @exportClass ad_fun_ptr
 setClass("ad_fun_ptr", contains = "externalptr")
 

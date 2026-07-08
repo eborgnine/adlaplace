@@ -2,7 +2,7 @@
 % Please edit documentation in R/effects.R
 \name{strip_term_name}
 \alias{strip_term_name}
-\title{Strip quotes from a term name string}
+\title{Per-shard layout for AD density evaluation}
 \usage{
 strip_term_name(x)
 }
@@ -13,6 +13,5 @@ strip_term_name(x)
 Character vector with surrounding quotes removed.
 }
 \description{
-Strip quotes from a term name string
+Per-shard layout for AD density evaluation
 }
-\keyword{internal}

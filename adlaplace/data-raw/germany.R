@@ -66,7 +66,7 @@ gmap <- terra::aggregate(gmap_4, "id")
 gmap <- gmap[match(unique(xy$id), gmap$id), ]
 
 adj <- Matrix::Matrix(terra::adjacent(gmap, type = "intersects", symmetric = TRUE, pairs = FALSE))
-
+Matrix::diag(adj) <- 1
 
 g_file <- system.file("demodata/germany.graph", package = "INLA")
 graph <- INLA::inla.read.graph(g_file)
@@ -104,12 +104,12 @@ ev <- eigen(as.matrix(Q_scaled), symmetric = TRUE, only.values = TRUE)$values
 ev <- sort(ev, decreasing = TRUE)
 log_det_gen <- sum(log(ev[seq_len(nrow(adj) - 1L)]))
 
+data("Germany", package = "INLA")
 germany <- list(
   Y = as.numeric(Germany$Y),
   E = as.numeric(Germany$E),
   region = as.integer(Germany$region),
   adj = adj,
-  Q_scaled = Q_scaled,
   prec = list(
     Q = Q_scaled,
     log_det = log_det_gen,
@@ -118,4 +118,4 @@ germany <- list(
   map = terra::wrap(gmap)
 )
 
-save(germany, file = "data/germany.rda", compress = "xz")
+save(germany, file = "adlaplace/data/germany.rda", compress = "xz")

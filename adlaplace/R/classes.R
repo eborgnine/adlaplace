@@ -1,3 +1,13 @@
+#' Valid model type factor levels
+#'
+#' Character vector of allowed levels for the \code{type} slot on
+#' \code{model} objects.
+#'
+#' @export
+.type_factor_levels <- c("fixed", "random", "response")
+
+NULL
+
 #' Per-shard layout for AD density evaluation
 #'
 #' @slot y Response vector.

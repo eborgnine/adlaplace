@@ -19,8 +19,19 @@ hnlm(
 
 \item{data}{Data frame containing variables referenced in \code{formula}.}
 
-\item{config}{Configuration list. Common entries: \code{transform_theta},
-\code{num_threads}, \code{num_shards}, \code{verbose}.}
+\item{config}{Configuration list passed to \pkg{adlaplace}. Common entries:
+\describe{
+\item{\code{transform_theta}}{If \code{TRUE} (default), optimize
+log-scale hyperparameters.}
+\item{\code{num_threads}}{OpenMP threads for inner optimization and
+derivative evaluation (default \code{1L}).}
+\item{\code{num_shards}}{Target number of observation shards for
+parallel evaluation (default \code{1000L}).}
+\item{\code{num_sim}}{Number of conditional simulation draws from
+\code{adlaplaceHgp::cond_sim_iwp} (default \code{500}).}
+\item{\code{verbose}}{Verbosity level; values above \code{1} enable
+extra \pkg{adlaplace} logging.}
+}}
 
 \item{control}{Control list passed to outer \code{optim}.}
 

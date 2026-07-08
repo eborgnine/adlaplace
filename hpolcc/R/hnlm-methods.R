@@ -270,7 +270,7 @@ logLik.hnlm <- function(object, ...) {
   }
   structure(
     object$log_lik,
-    df = length(coef(object)),
+    df = length(stats::coef(object)),
     nobs = hnlm_nobs(object),
     class = "logLik"
   )

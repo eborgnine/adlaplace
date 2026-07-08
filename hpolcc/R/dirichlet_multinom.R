@@ -4,7 +4,7 @@
 #' @description Model term for the case-crossover Dirichlet-multinomial log density
 #' registered as \code{dirichlet_multinomial}.
 #' @name dirichlet_multinom-class
-#' @aliases dirichlet_multinom
+#' @aliases dirichlet_multinom-class
 #' @docType class
 #' @title Dirichlet-multinomial response term
 #' @exportClass dirichlet_multinom
@@ -31,7 +31,7 @@ setClass(
     lower = 0,
     upper = Inf,
     parscale = 1,
-    type = factor("response", levels = adlaplace:::.type_factor_levels),
+    type = factor("response", levels = adlaplace::.type_factor_levels),
     ad_fun = "dirichlet_multinomial",
     ad_kind = "observations",
     package = "hpolcc",
@@ -55,7 +55,7 @@ dirichlet_multinom <- function(x,
                                lower = 0,
                                upper = Inf,
                                parscale = 1) {
-  x <- adlaplace:::strip_term_name(as.character(x))
+  x <- adlaplace::strip_term_name(as.character(x))
   by <- as.character(by)
   methods::new(
     "dirichlet_multinom",

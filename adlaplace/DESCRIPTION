@@ -20,7 +20,6 @@ SystemRequirements: CppAD, OpenMP
 RoxygenNote: 7.3.3
 NeedsCompilation: yes
 Collate:
-    'zzz.R'
     'RcppExports.R'
     'classes.R'
     'ad_data.R'
@@ -44,4 +43,5 @@ Collate:
     'iwp.R'
     'mvn_utils.R'
     'prepare_model_rows.R'
+    'zzz.R'
 LazyData: true

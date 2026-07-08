@@ -235,6 +235,5 @@ zero in both fits. Small differences reflect the distinct inferential targets:
 the posterior mean under its default priors.
 
 ```{r map, fig.height=4}
-gmap <- terra::unwrap(germany$map)
 plot(gmap)
 ```

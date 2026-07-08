@@ -92,7 +92,9 @@ setMethod("design", "rsiid", function(term, data) {
   a_matrix <- adlaplace::design(term_iid, data)
   a_matrix <- a_matrix * mult_vec
 
-  colnames(a_matrix) <- gsub("_iid_", "_rsiid_", colnames(a_matrix))
+  colnames(a_matrix) <- gsub(
+    "_iid_", paste0("_rsiid_", term@mult, "_"), colnames(a_matrix)
+  )
   a_matrix
 })
 
@@ -104,8 +106,9 @@ setMethod("design", "rsiid", function(term, data) {
 #' @export
 setMethod("precision", "rsiid", function(term, data) {
   result <- adlaplace::precision(methods::as(term, "iid"), data)
-  rownames(result) <- colnames(result) <- 
-    gsub("_iid_", "_rsiid_", colnames(result))
+  rownames(result) <- colnames(result) <- gsub(
+    "_iid_", paste0("_rsiid_", term@mult, "_"), colnames(result)
+  )
   result
 })
 
@@ -161,7 +164,9 @@ setMethod("random_info", "rsiid", function(term, data) {
     basis = basis_labels,
     order = NA
   )
-  result$gamma_label <- paste0(term@term, "_rsiid_", result$basis)
+  result$gamma_label <- paste0(
+    term@term, "_rsiid_", term@mult, "_", result$basis
+  )
 
   result
 })

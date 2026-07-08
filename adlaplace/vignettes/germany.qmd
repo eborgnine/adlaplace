@@ -37,21 +37,8 @@ The `germany` object includes case and expected counts, the district adjacency
 matrix, the scaled ICAR precision `Q_scaled`, and the `prec` list for
 `random_mult`.
 
-```{r data}
-n <- length(germany$Y)
-n_theta <- 2L
-```
 
-```{r precision}
-ref_id <- which.max(apply(germany$adj, 1, sum))
-idx <- setdiff(seq_len(n), ref_id)
 
-deg <- Matrix::rowSums(germany$adj)
-Q_icar <- Matrix::Diagonal(n, deg) - germany$adj
-
-Q_ref <- Q_icar[idx, idx]
-Q_ref <- as(as(Q_ref, "generalMatrix"), "CsparseMatrix")
-```
 
 Latent vector $\gamma = (u_{\mathrm{struct}}, u_{\mathrm{iid}})$ has length
 $2n - 1$: structured effects on $n - 1$ areas (reference area `ref_id` fixed
@@ -59,6 +46,8 @@ at zero) plus $n$ iid effects. Observations use `poisson_obs` with offset
 $\log E_i$.
 
 ```{r shards}
+n <- length(germany$Y)
+n_theta <- 2L
 n_gamma <- 2 * n
 
 A_obs <- cbind(
