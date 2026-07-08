@@ -27,11 +27,11 @@ precision is rank-deficient.
 ## ICAR precision
 
 ```{r precision}
-data(Germany, package = "INLA")
-g_file <- system.file("demodata/germany.graph", package = "INLA")
-graph <- INLA::inla.read.graph(g_file)
-adj <- INLA::inla.graph2matrix(graph)
-adj <- as(adj, "CsparseMatrix")
+data(germany, package = "adlaplace")
+
+gmap <- terra::unwrap(germany$map)
+adj <- Matrix::Matrix(terra::adjacent(gmap, type = "intersects", symmetric = TRUE, pairs = FALSE))
+Matrix::diag(adj) <- 1
 
 ref_id <- which.max(apply(adj, 1, sum))
 
@@ -168,7 +168,7 @@ sd_adl
 ```{r inla}
 Germany$region.struct <- Germany$region
 Germany$region.iid <- Germany$region
-inla.setOption(num.threads = "1:1")
+library(INLA)
 inla_fit <- inla(
   Y ~ -1 +
     f(region.struct,
@@ -233,3 +233,8 @@ The structured (ICAR) component dominates; the unstructured component is near
 zero in both fits. Small differences reflect the distinct inferential targets:
 `adlaplace` reports the Laplace-approximate MLE and conditional mode; `INLA`
 the posterior mean under its default priors.
+
+```{r map, fig.height=4}
+gmap <- terra::unwrap(germany$map)
+plot(gmap)
+```
