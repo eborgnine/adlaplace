@@ -13,7 +13,10 @@
 #' @param num_shards Integer giving the maximum number of shards to construct.
 #'   The actual number of shards may be smaller if fewer distinct loadings
 #'   are present.
-#' @param min_groups Integer giving the minimum number of shards.
+#' @param min_groups Integer giving the minimum number of shards. When there
+#'   are fewer distinct singular-vector loadings than \code{min_groups}, only
+#'   the largest exact-loading group is split until \code{min_groups} is reached
+#'   (or that group cannot be split further).
 #'
 #' @details
 #' If the \pkg{RSpectra} package is available, the leading singular vector
@@ -69,7 +72,6 @@ ad_shards <- function(A, elgm_matrix, num_shards, min_groups = 0) {
     num_shards <- ncol(ATp)
   }
 
-  # to do:  implement min_groups
   if (!missing(elgm_matrix)) {
     ATp_t <- methods::as(Matrix::Matrix(ATp), "TsparseMatrix")
     ATp_t <- data.frame(row = ATp_t@j, gamma = ATp_t@i)
@@ -109,30 +111,51 @@ ad_shards <- function(A, elgm_matrix, num_shards, min_groups = 0) {
     loadings <- sv$v[, 1]
   }
 
-  uniqueLoadings <- sort(unique(loadings))
-  if (length(uniqueLoadings) < min_groups) {
-    the_min_diff <- abs(diff(uniqueLoadings))
-    if (length(the_min_diff) == 0) {
-      the_min_diff <- 1
-    } else {
-      the_min_diff <- min(the_min_diff) / 2
-    }
-    loadings <- loadings + stats::runif(length(loadings), -the_min_diff, the_min_diff)
-    groupCut <- stats::quantile(loadings, seq(0, 1, len = min_groups + 1))
-    groupCut[1] <- groupCut[1] - 1
-    groupCut[length(groupCut)] <- groupCut[length(groupCut)] + 1
-  } else if (length(uniqueLoadings) <= num_shards) {
-    num_shards <- length(uniqueLoadings)
-    groupCut <- uniqueLoadings[-1] - diff(uniqueLoadings) / 2
-    groupCut <- c(uniqueLoadings[1] - 1, groupCut, uniqueLoadings[length(uniqueLoadings)] + 1)
-  } else {
-    groupCut <- unique(stats::quantile(uniqueLoadings, seq(0, 1, len = num_shards + 1)))
-    groupCut[1] <- groupCut[1] - 1
-    groupCut[length(groupCut)] <- groupCut[length(groupCut)] + 1
+  uniqueLoadings <- sort(unique(loadings[is.finite(loadings)]))
+  if (!length(uniqueLoadings)) {
+    stop("ad_shards: no finite singular-vector loadings", call. = FALSE)
   }
-  loadingsCut <- cut(loadings, groupCut)
-  loadingsCut2 <- factor(loadingsCut, names(sort(table(loadingsCut), decreasing = TRUE)))
-  theJ <- as.integer(loadingsCut2) - 1L
+
+  # Discrete groups from exact loadings. If fewer than min_groups, split only
+  # the largest group into enough pieces to reach min_groups.
+  group_id <- match(loadings, uniqueLoadings)
+  if (length(uniqueLoadings) < min_groups) {
+    counts <- tabulate(group_id, nbins = length(uniqueLoadings))
+    big <- which.max(counts)
+    idx <- which(group_id == big)
+    n_pieces <- min(
+      length(idx),
+      as.integer(min_groups) - length(uniqueLoadings) + 1L
+    )
+    if (n_pieces > 1L) {
+      piece <- floor((seq_along(idx) - 1L) * n_pieces / length(idx))
+      new_ids <- c(big, seq.int(length(uniqueLoadings) + 1L, length.out = n_pieces - 1L))
+      group_id[idx] <- new_ids[piece + 1L]
+    }
+  }
+
+  n_groups <- length(unique(group_id[!is.na(group_id)]))
+  if (n_groups > num_shards) {
+    # Too many distinct loadings: quantile-merge on the continuous loadings.
+    groupCut <- unique(as.numeric(stats::quantile(
+      uniqueLoadings, seq(0, 1, len = num_shards + 1)
+    )))
+    groupCut[1] <- groupCut[1] - 1
+    groupCut[length(groupCut)] <- groupCut[length(groupCut)] + 1
+    groupCut <- unique(groupCut)
+    if (length(groupCut) < 2L) {
+      stop("ad_shards: could not form unique cut breaks", call. = FALSE)
+    }
+    loadingsCut <- cut(loadings, groupCut)
+    theJ <- as.integer(factor(
+      loadingsCut, names(sort(table(loadingsCut), decreasing = TRUE))
+    )) - 1L
+  } else {
+    # One shard per discrete group (after any largest-group split).
+    theJ <- as.integer(factor(
+      group_id, names(sort(table(group_id), decreasing = TRUE))
+    )) - 1L
+  }
 
   theSd <- pmax(tapply(loadings, theJ, stats::sd), 0, na.rm = TRUE)
   orderSd <- order(theSd, decreasing = TRUE) - 1L

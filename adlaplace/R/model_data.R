@@ -116,7 +116,18 @@ model_data <- function(formula, data, verbose = FALSE, na_omit = TRUE) {
     if (identical(kind, "random")) {
       prec_mat <- precision(term_here, all_data$data)
       if (!is.null(prec_mat)) {
-        random[[term_here@term]] <- ad_data(
+        # Key by @label, not @term: multiple random terms can share a grouping
+        # variable (e.g. two rsiid() slopes on the same cdcode) while still
+        # having distinct labels / gamma columns.
+        random_name <- term_here@label
+        if (random_name %in% names(random)) {
+          stop(
+            "duplicate random-term label '", random_name, "'; ",
+            "each random term needs a unique @label",
+            call. = FALSE
+          )
+        }
+        random[[random_name]] <- ad_data(
           beta_map = n_beta,
           gamma_map = list(
             which(all_data$info$gamma$label == term_here@label),
