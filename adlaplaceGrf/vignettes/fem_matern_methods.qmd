@@ -118,7 +118,7 @@ knots_fine <- list(
   y = seq(-1, 2, by = 0.1)
 )
 
-set.seed()
+set.seed(0)
 sites_eval <- data.frame(
   x = runif(100),
   y = runif(100)

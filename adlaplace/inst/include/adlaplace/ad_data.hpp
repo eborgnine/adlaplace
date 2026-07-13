@@ -16,6 +16,7 @@ struct ad_data {
   DgCView XTp;
   DgCView elgm_matrix;
   NumVecView y;
+  NumVecView weights;
 
   SEXP precision = R_NilValue;
 
@@ -110,6 +111,7 @@ inline ad_data::ad_data(SEXP data_sexp) {
   XTp = DgCView(Rcpp::as<Rcpp::S4>(ad_data_slot(data_sexp, "XTp")));
   elgm_matrix = DgCView(Rcpp::as<Rcpp::S4>(ad_data_slot(data_sexp, "elgm_matrix")));
   y = NumVecView(ad_data_slot(data_sexp, "y"));
+  weights = NumVecView(ad_data_slot(data_sexp, "weights"));
   precision = ad_data_slot(data_sexp, "precision");
 
   num_beta = static_cast<std::size_t>(beta_map.nrow());

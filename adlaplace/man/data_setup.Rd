@@ -16,7 +16,8 @@ ad_data(
   ad_fun = NA_character_,
   ad_kind = NA_character_,
   package = NA_character_,
-  precision = NULL
+  precision = NULL,
+  weights = numeric(0)
 )
 
 data_setup(formula, data, verbose = FALSE)
@@ -67,6 +68,9 @@ otherwise an empty matrix.}
 \item{package}{Package recording AD tapes for this shard (optional).}
 
 \item{precision}{Optional precision payload (any R object).}
+
+\item{weights}{Optional per-observation weights (e.g. binomial trial counts).
+Empty means all ones.}
 
 \item{formula}{Model formula or named list of term objects.}
 

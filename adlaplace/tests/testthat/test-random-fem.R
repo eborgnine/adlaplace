@@ -1,8 +1,12 @@
 test_that("random_fem_2 matches dense Matérn FEM log density", {
   skip_if_not_installed("adlaplaceGrf")
 
-  g <- expand.grid(x = seq(0, 1, length.out = 4), y = seq(0, 1, length.out = 4))
-  fem <- adlaplaceGrf::grf_bspline(list(x = g$x, y = g$y), degree = 2L, n_interior = 1L)
+  knots_list <- list(
+    x = seq(0, 1, length.out = 4),
+    y = seq(0, 1, length.out = 4)
+  )
+  g <- do.call(expand.grid, knots_list)
+  fem <- adlaplaceGrf::grf_bspline(g, knots_list, degree = 2L)
   prec <- adlaplaceGrf::fem_precision_payload(fem, alpha = 2L)
   nr <- nrow(fem$C)
 

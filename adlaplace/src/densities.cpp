@@ -56,12 +56,16 @@ CppAD::vector<CppAD::AD<double>> binomial_obs(
   const size_t ny = model.y.size();
   const auto range = obs_range(config, ny, Dgroup);
   const bool have_shards = config.shards.ncol() > 0;
+  const bool have_weights = model.weights.size() == ny;
 
   CppAD::AD<double> result = 0.0;
   for (size_t DI = range.first; DI < range.second; ++DI) {
     const size_t Dobs = have_shards ? static_cast<size_t>(config.shards.i[DI]) : DI;
     const CppAD::AD<double> eta = eta_at(x, model, Dobs);
-    result += CppAD::AD<double>(model.y[Dobs]) * eta - softplus_ad(eta);
+    const CppAD::AD<double> ntrials = have_weights
+      ? CppAD::AD<double>(model.weights[Dobs])
+      : CppAD::AD<double>(1.0);
+    result += CppAD::AD<double>(model.y[Dobs]) * eta - ntrials * softplus_ad(eta);
   }
 
   CppAD::vector<CppAD::AD<double>> out(1);

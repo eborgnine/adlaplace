@@ -109,7 +109,23 @@ model_data <- function(formula, data, verbose = FALSE, na_omit = TRUE) {
         elgm_matrix = elgm_here,
         ad_fun = ad_name,
         ad_kind = "observations",
-        package = term_here@package
+        package = term_here@package,
+        weights = {
+          if (methods::is(term_here, "binomial") &&
+              length(term_here@size) == 1L &&
+              nzchar(term_here@size)) {
+            size_col <- term_here@size
+            if (!size_col %in% names(all_data$data)) {
+              stop(
+                "binomial size column '", size_col, "' not found in data",
+                call. = FALSE
+              )
+            }
+            as.numeric(all_data$data[[size_col]])
+          } else {
+            numeric(0)
+          }
+        }
       )
     }
 
@@ -127,6 +143,11 @@ model_data <- function(formula, data, verbose = FALSE, na_omit = TRUE) {
             call. = FALSE
           )
         }
+        prec_payload <- if (is.list(prec_mat)) {
+          prec_mat
+        } else {
+          as.numeric(Matrix::diag(prec_mat))
+        }
         random[[random_name]] <- ad_data(
           beta_map = n_beta,
           gamma_map = list(
@@ -134,13 +155,13 @@ model_data <- function(formula, data, verbose = FALSE, na_omit = TRUE) {
             n_gamma
           ),
           theta_map = list(
-            which(all_data$info$theta$label == term_here@label),
+            grep(term_here@label, all_data$info$theta$label),
             as.integer(n_theta)
           ),
           ad_fun = ad_name,
           ad_kind = "random",
           package = term_here@package,
-          precision = as.numeric(Matrix::diag(prec_mat))
+          precision = prec_payload
         )
       }
     }
@@ -162,7 +183,8 @@ model_data <- function(formula, data, verbose = FALSE, na_omit = TRUE) {
           elgm_matrix = xx@elgm_matrix,
           ad_fun = parameter_ad_fun(xx@ad_fun),
           ad_kind = "parameters",
-          package = xx@package
+          package = xx@package,
+          weights = xx@weights
         )
       }
     )

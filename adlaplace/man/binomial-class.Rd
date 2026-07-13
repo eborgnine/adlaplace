@@ -9,9 +9,9 @@
 \alias{theta_info,binomial-method}
 \alias{beta_info,binomial-method}
 \alias{random_info,binomial-method}
-\title{Bernoulli observation term}
+\title{Binomial observation term}
 \usage{
-binomial(x, link = "logit")
+binomial(x, size = NULL, link = "logit")
 
 \S4method{design}{binomial}(term, data)
 
@@ -24,7 +24,9 @@ binomial(x, link = "logit")
 \S4method{random_info}{binomial}(term, data)
 }
 \arguments{
-\item{x}{Outcome variable name (0/1 coded).}
+\item{x}{Outcome variable name (counts of successes; 0/1 when Bernoulli).}
+
+\item{size}{Optional column name for the number of trials per observation.}
 
 \item{link}{Link passed to \code{stats::binomial()} in the fallback case.}
 }
@@ -33,14 +35,18 @@ A \code{binomial} object (or a \code{stats::family} when called
   with no response variable).
 }
 \description{
-Model term for the observation-level Bernoulli log density with
+Model term for the observation-level binomial log density with
 a logit link, registered as \code{binomial_obs}. For each observation with
-linear predictor \code{eta = X beta + A gamma} the log density is
-\code{y * eta - log(1 + exp(eta))}. The response \code{y} must be coded as
-0/1. There are no observation-level hyperparameters.
+linear predictor \code{eta = X beta + A gamma}, trial count \code{N}, and
+success count \code{y}, the log density contribution is
+\code{y * eta - N * log(1 + exp(eta))} (up to a data-only constant). When
+\code{size} is omitted, \code{N = 1} (Bernoulli). There are no
+observation-level hyperparameters.
 
 Creates a response term wired to the \code{binomial_obs} AD
-shard. A Bernoulli likelihood has no observation-level hyperparameters.
+shard. A Bernoulli likelihood (\code{size} omitted) has no observation-level
+hyperparameters. With \code{size}, trial counts are read from that column
+of \code{data} and stored as observation weights.
 
 When called with no response variable this function falls back to
 \code{stats::binomial()}, so \code{glm(..., family = binomial)} and
@@ -48,7 +54,7 @@ When called with no response variable this function falls back to
 \pkg{adlaplace} attached.
 }
 \details{
-Bernoulli (binomial logit) observation model term
+Binomial observation model term
 }
 \section{Functions}{
 \itemize{
@@ -56,7 +62,7 @@ Bernoulli (binomial logit) observation model term
 
 \item \code{precision(binomial)}: Precision method (not used).
 
-\item \code{theta_info(binomial)}: Theta info (Bernoulli has no hyperparameters).
+\item \code{theta_info(binomial)}: Theta info (binomial has no hyperparameters).
 
 \item \code{beta_info(binomial)}: Beta info method (not used).
 
@@ -68,6 +74,13 @@ Bernoulli (binomial logit) observation model term
 \describe{
   \item{\code{ad_fun}}{Character scalar \code{"binomial_obs"}.}
   \item{\code{ad_kind}}{Character scalar \code{"observations"}.}
+}
+}
+
+\section{Slots}{
+
+\describe{
+  \item{\code{size}}{Optional column name for per-observation trial counts.}
 }
 }
 

@@ -1,0 +1,107 @@
+---
+title: "Loaloa prevalence with FEM Matérn"
+author: "Patrick Brown"
+date: "`r Sys.Date()`"
+format:
+  html:
+    toc: true
+    toc-depth: 2
+    html-math-method: mathml
+vignette: >
+  %\VignetteIndexEntry{Loaloa prevalence with FEM Matérn}
+  %\VignetteEngine{quarto::html}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup}
+#| include: false
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 5
+)
+has_geostatsp <- requireNamespace("geostatsp", quietly = TRUE) &&
+  requireNamespace("terra", quietly = TRUE)
+```
+
+```{r pkgs}
+library(adlaplace)
+library(adlaplaceGrf)
+```
+
+This vignette fits a binomial geostatistical model for loaloa prevalence
+using a village-level IID effect and a FEM Matérn spatial field
+(`degree = 3`, α = 3), matching the Matérn shape used in geostatsp
+examples.
+
+```{r skip-check}
+#| echo: false
+if (!has_geostatsp) {
+  knitr::knit_exit()
+}
+```
+
+## Data
+
+```{r data}
+library(geostatsp)
+library(terra)
+
+data(loaloa)
+loaloa <- unwrap(loaloa)
+elev_r <- unwrap(elevationLoa)
+evi_r <- unwrap(eviLoa)
+
+dat <- as.data.frame(loaloa)
+dat$elev <- as.numeric(terra::extract(elev_r, loaloa)[, 2L])
+dat$evi <- as.numeric(terra::extract(evi_r, loaloa)[, 2L])
+dat$villageID <- factor(dat$villageID)
+# Scale covariates for numerical stability
+dat$elev_s <- as.numeric(scale(dat$elev))
+dat$evi_s <- as.numeric(scale(dat$evi))
+
+c(n = nrow(dat), mean_prev = mean(dat$y / dat$N))
+```
+
+## Knot lines
+
+Use a coarse knot grid over a buffered region around the villages.
+(`geostatsp` and `terra` mask `matern` / `crds`, so call them with `::`.)
+
+```{r knots}
+xy <- adlaplaceGrf::crds(loaloa)
+pad <- 2e4
+xlim <- range(xy[, 1L]) + c(-pad, pad)
+ylim <- range(xy[, 2L]) + c(-pad, pad)
+knots_list <- list(
+  x = seq(xlim[1L], xlim[2L], length.out = 8L),
+  y = seq(ylim[1L], ylim[2L], length.out = 8L)
+)
+```
+
+## Fit
+
+geostatsp Matérn **shape = 2** corresponds to ν = 2 and SPDE α = 3 in
+two dimensions, so we use `degree = 3` / `random_fem_3`.
+
+```{r fit}
+#| cache: false
+fit <- adlaplace(
+  binomial(y, size = N) ~
+    elev_s + evi_s +
+    iid(villageID, init = 0.5) +
+    adlaplaceGrf::matern(
+      x = loaloa, knots = knots_list, degree = 3L, init = c(1e-4, 1)
+    ),
+  data = dat,
+  num_shards = 10L,
+  control = list(maxit = 200L)
+)
+fit$optim$convergence
+coef(fit)
+```
+
+```{r summary}
+logLik(fit)
+```

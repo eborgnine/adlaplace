@@ -403,7 +403,8 @@ ad_data_from_mats <- function(y = numeric(0),
                               ad_fun = NA_character_,
                               ad_kind = NA_character_,
                               package = NA_character_,
-                              precision = NULL) {
+                              precision = NULL,
+                              weights = numeric(0)) {
   n_obs <- length(y)
   validate_ad_data_dims(y, A, X)
   ATp <- design_Tp(A, n_obs, "A")
@@ -466,6 +467,13 @@ ad_data_from_mats <- function(y = numeric(0),
     n_beta_design,
     n_gamma_design
   )
+  weights <- as.numeric(weights)
+  if (length(weights) > 0L && length(weights) != n_obs) {
+    stop(
+      "length(weights) (", length(weights), ") must match length(y) (", n_obs, ")",
+      call. = FALSE
+    )
+  }
   methods::new(
     "ad_data",
     y = as.numeric(y),
@@ -478,7 +486,8 @@ ad_data_from_mats <- function(y = numeric(0),
     ad_fun = ad_fun,
     ad_kind = ad_kind,
     package = package,
-    precision = precision
+    precision = precision,
+    weights = weights
   )
 }
 
@@ -520,6 +529,8 @@ ad_data_from_mats <- function(y = numeric(0),
 #' @param ad_kind Shard kind (\code{"observations"}, \code{"parameters"}, \code{"random"}; optional).
 #' @param package Package recording AD tapes for this shard (optional).
 #' @param precision Optional precision payload (any R object).
+#' @param weights Optional per-observation weights (e.g. binomial trial counts).
+#'   Empty means all ones.
 #' @export
 ad_data <- function(y = missing(),
                     A = NULL,
@@ -531,7 +542,8 @@ ad_data <- function(y = missing(),
                     ad_fun = NA_character_,
                     ad_kind = NA_character_,
                     package = NA_character_,
-                    precision = NULL) {
+                    precision = NULL,
+                    weights = numeric(0)) {
   if (missing(y)) {
     return(ad_data_from_mats(
       y = numeric(0),
@@ -544,7 +556,8 @@ ad_data <- function(y = missing(),
       ad_fun = ad_fun,
       ad_kind = ad_kind,
       package = package,
-      precision = precision
+      precision = precision,
+      weights = weights
     ))
   }
   if (is(y, "ad_data")) {
@@ -564,6 +577,7 @@ ad_data <- function(y = missing(),
     }
     pkg <- if (missing(package)) y@package else as.character(package)
     prec <- if (missing(precision)) y@precision else precision
+    wts <- if (missing(weights)) y@weights else as.numeric(weights)
     out <- methods::new(
       "ad_data",
       y = y@y,
@@ -576,7 +590,8 @@ ad_data <- function(y = missing(),
       ad_fun = fun,
       ad_kind = kind,
       package = pkg,
-      precision = prec
+      precision = prec,
+      weights = wts
     )
     validate_ad_data_maps(out, kind)
     return(out)
@@ -592,6 +607,7 @@ ad_data <- function(y = missing(),
     ad_fun = ad_fun,
     ad_kind = ad_kind,
     package = package,
-    precision = precision
+    precision = precision,
+    weights = weights
   )
 }

@@ -28,6 +28,8 @@ NULL
 #' @slot package Package name whose shared library records tapes for this shard
 #'   (defaults to \code{"adlaplace"} when missing).
 #' @slot precision Optional precision payload (any R object).
+#' @slot weights Optional per-observation weights (e.g. binomial trial counts).
+#'   Empty means all ones.
 #' @importClassesFrom Matrix Matrix ngCMatrix
 #' @exportClass ad_data
 setClass(
@@ -43,7 +45,11 @@ setClass(
     ad_fun = "character",
     ad_kind = "character",
     package = "character",
-    precision = "ANY"
+    precision = "ANY",
+    weights = "numeric"
+  ),
+  prototype = prototype(
+    weights = numeric(0)
   )
 )
 

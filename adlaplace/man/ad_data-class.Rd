@@ -38,5 +38,8 @@ selects global theta row \code{r} for this shard's theta component \code{j}.}
 (defaults to \code{"adlaplace"} when missing).}
 
 \item{\code{precision}}{Optional precision payload (any R object).}
+
+\item{\code{weights}}{Optional per-observation weights (e.g. binomial trial counts).
+Empty means all ones.}
 }}
 

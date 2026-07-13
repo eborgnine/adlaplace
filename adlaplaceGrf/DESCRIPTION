@@ -15,7 +15,7 @@ Depends:
     R (>= 4.1.0),
     adlaplace (>= 0.4.0)
 Imports: methods, stats, Matrix, splines
-Suggests: terra, testthat (>= 3.0.0), quarto
+Suggests: terra, testthat (>= 3.0.0), quarto, geostatsp
 Config/testthat/edition: 3
 VignetteBuilder: quarto
 Encoding: UTF-8
@@ -29,5 +29,7 @@ Collate:
     'grf_bspline-terra.R'
     'fem_chol.R'
     'fem_precision.R'
+    'crds.R'
+    'matern.R'
     'zzz.R'
 NeedsCompilation: no

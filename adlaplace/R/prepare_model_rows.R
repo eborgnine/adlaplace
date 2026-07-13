@@ -24,6 +24,14 @@ required_model_variables <- function(terms) {
     }
   })))
 
+  size_vars <- unique(unlist(lapply(terms, function(t) {
+    if (methods::is(t, "binomial") && length(t@size) == 1L && nzchar(t@size)) {
+      t@size
+    } else {
+      character(0)
+    }
+  })))
+
   strata_vars <- unique(unlist(lapply(terms, function(t) {
     if (methods::is(t, "model") &&
         identical(t@ad_kind, "observations") &&
@@ -35,7 +43,7 @@ required_model_variables <- function(terms) {
     }
   })))
 
-  unique(c(covariates, strata_vars, random_slope_terms))
+  unique(c(covariates, strata_vars, random_slope_terms, size_vars))
 }
 
 #' Drop incomplete rows and sort case-crossover strata

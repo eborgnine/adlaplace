@@ -12,7 +12,10 @@
 The actual number of shards may be smaller if fewer distinct loadings
 are present.}
 
-\item{min_groups}{Integer giving the minimum number of shards.}
+\item{min_groups}{Integer giving the minimum number of shards. When there
+are fewer distinct singular-vector loadings than \code{min_groups}, only
+the largest exact-loading group is split until \code{min_groups} is reached
+(or that group cannot be split further).}
 }
 \value{
 A sparse matrix of class \code{"dgCMatrix"} (from \pkg{Matrix}), with

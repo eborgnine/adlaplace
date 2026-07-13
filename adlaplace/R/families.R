@@ -1,14 +1,16 @@
-#' Bernoulli (binomial logit) observation model term
+#' Binomial observation model term
 #'
-#' @description Model term for the observation-level Bernoulli log density with
+#' @description Model term for the observation-level binomial log density with
 #' a logit link, registered as \code{binomial_obs}. For each observation with
-#' linear predictor \code{eta = X beta + A gamma} the log density is
-#' \code{y * eta - log(1 + exp(eta))}. The response \code{y} must be coded as
-#' 0/1. There are no observation-level hyperparameters.
+#' linear predictor \code{eta = X beta + A gamma}, trial count \code{N}, and
+#' success count \code{y}, the log density contribution is
+#' \code{y * eta - N * log(1 + exp(eta))} (up to a data-only constant). When
+#' \code{size} is omitted, \code{N = 1} (Bernoulli). There are no
+#' observation-level hyperparameters.
 #' @name binomial-class
 #' @aliases binomial
 #' @docType class
-#' @title Bernoulli observation term
+#' @title Binomial observation term
 #' @exportClass binomial
 #'
 #' @section Slots (inherited from \code{model}):
@@ -16,10 +18,15 @@
 #'   \item{\code{ad_fun}}{Character scalar \code{"binomial_obs"}.}
 #'   \item{\code{ad_kind}}{Character scalar \code{"observations"}.}
 #' }
+#' @section Slots:
+#' \describe{
+#'   \item{\code{size}}{Optional column name for per-observation trial counts.}
+#' }
 NULL
 
 setClass(
   "binomial",
+  slots = c(size = "character"),
   contains = "model",
   prototype = prototype(
     knots = numeric(0),
@@ -31,14 +38,17 @@ setClass(
     parscale = numeric(0),
     type = factor("response", levels = .type_factor_levels),
     ad_fun = "binomial_obs",
-    ad_kind = "observations"
+    ad_kind = "observations",
+    size = character(0)
   )
 )
 
-#' Bernoulli observation term constructor
+#' Binomial observation term constructor
 #'
 #' @description Creates a response term wired to the \code{binomial_obs} AD
-#' shard. A Bernoulli likelihood has no observation-level hyperparameters.
+#' shard. A Bernoulli likelihood (\code{size} omitted) has no observation-level
+#' hyperparameters. With \code{size}, trial counts are read from that column
+#' of \code{data} and stored as observation weights.
 #'
 #' When called with no response variable this function falls back to
 #' \code{stats::binomial()}, so \code{glm(..., family = binomial)} and
@@ -46,21 +56,28 @@ setClass(
 #' \pkg{adlaplace} attached.
 #'
 #' @rdname binomial-class
-#' @param x Outcome variable name (0/1 coded).
+#' @param x Outcome variable name (counts of successes; 0/1 when Bernoulli).
+#' @param size Optional column name for the number of trials per observation.
 #' @param link Link passed to \code{stats::binomial()} in the fallback case.
 #' @return A \code{binomial} object (or a \code{stats::family} when called
 #'   with no response variable).
 #' @export
-binomial <- function(x, link = "logit") {
+binomial <- function(x, size = NULL, link = "logit") {
   if (missing(x)) {
     return(stats::binomial(link = link))
   }
   x <- strip_term_name(as.character(x))
+  size_col <- if (is.null(size)) {
+    character(0)
+  } else {
+    strip_term_name(as.character(size))
+  }
   methods::new(
     "binomial",
     term = x,
     label = paste(x, "binomial", sep = "_"),
-    formula = stats::as.formula(paste(x, "~."), env = new.env())
+    formula = stats::as.formula(paste(x, "~."), env = new.env()),
+    size = size_col
   )
 }
 
@@ -76,7 +93,7 @@ setMethod("precision", "binomial", function(term, data) {
   NULL
 })
 
-#' @describeIn binomial-class Theta info (Bernoulli has no hyperparameters).
+#' @describeIn binomial-class Theta info (binomial has no hyperparameters).
 #' @export
 setMethod("theta_info", "binomial", function(term) {
   NULL

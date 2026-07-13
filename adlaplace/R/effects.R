@@ -11,36 +11,34 @@ strip_term_name <- function(x) {
 #' Parse Model Terms from Formula
 #'
 #' @description
-#' Parses a formula and creates model terms using constructors from specified packages.
+#' Parses a formula and creates model terms by evaluating constructor calls in
+#' the formula environment (so \code{pkg::term(...)} and terms from attached
+#' packages on the search path work). Falls back to the \pkg{adlaplace}
+#' namespace for built-in constructors.
 #'
 #' @param formula Model formula with constructor terms (e.g. \code{iwp(x, ...)},
 #'   \code{iid(fac)}, \code{nbinom(y, ...)} on the LHS). Bare symbols such as
-#'   \code{x} are coerced to \code{linear(x)}. Symbols refer to column names in
-#'   \code{data} passed to \code{model_data()}, not objects in the calling environment.
-#' @param package Character vector of package names to search for model constructors
+#'   \code{x} are coerced to \code{linear(x)}. Unnamed first positional symbols
+#'   are treated as column names in \code{data}; named arguments (e.g.
+#'   \code{x = sites} for spatial terms) are evaluated as objects in the
+#'   formula environment. The named argument \code{size} is also treated as a
+#'   column name when passed as a symbol (\code{binomial(y, size = N)}).
 #' @param verbose print extra information
 #' @return List of model term objects
 #'
 #' @export
-collect_terms <- function(
-  formula, package = character(0), verbose = FALSE
-) {
+collect_terms <- function(formula, verbose = FALSE) {
   if (!methods::is(formula, "formula")) {
     warning("formula must be of class formula")
   }
-  model_package <- unique(c(package, "adlaplace"))
 
-  # Ensure packages are loaded
-  pkg_env <- list()
-  for (pkg in model_package) {
-    if (!requireNamespace(pkg, quietly = TRUE)) {
-      warning(paste("Package", pkg, "not available, skipping"))
-    }
-    pkg_env[[pkg]] <- asNamespace(pkg)
+  formula_env <- environment(formula)
+  if (is.null(formula_env)) {
+    formula_env <- parent.frame()
   }
 
   formula_terms <- stats::terms(formula)
-  term_labels <- rownames(attr(formula_terms, "factors")) # attr(stats::terms(formula), "term.labels")
+  term_labels <- rownames(attr(formula_terms, "factors"))
   response_idx <- attr(formula_terms, "response")
   response_label <- if (response_idx > 0L) term_labels[response_idx] else NULL
 
@@ -57,7 +55,7 @@ collect_terms <- function(
       return(term_obj)
     }
 
-    term_obj <- eval_term_label(lab, pkg_env)
+    term_obj <- eval_term_label(lab, formula_env)
     if (!is.null(term_obj) && verbose) {
       message(
         "Model term ", substr(lab, 1, 20),
@@ -69,7 +67,7 @@ collect_terms <- function(
       if (grepl("[(]", lab)) {
         stop(
           "Failed to parse term '", lab,
-          "' in any of the specified packages",
+          "'. Use pkg::term(...) or library(pkg) so constructors are visible.",
           call. = FALSE
         )
       }
@@ -96,6 +94,10 @@ collect_terms <- function(
   terms_1
 }
 
+#' Column-name formals coerced even when named (symbols -> character).
+#' @noRd
+.column_name_args <- c("size")
+
 #' @noRd
 coerce_term_call_symbols <- function(expr) {
   if (is.symbol(expr) || is.name(expr)) {
@@ -105,13 +107,26 @@ coerce_term_call_symbols <- function(expr) {
     return(expr)
   }
   args <- as.list(expr)
+  nm <- names(args)
   for (i in seq_along(args)) {
     if (i == 1L) {
       next
     }
     a <- args[[i]]
+    arg_name <- if (is.null(nm)) {
+      ""
+    } else {
+      nm[[i]]
+    }
+    if (is.null(arg_name) || is.na(arg_name)) {
+      arg_name <- ""
+    }
     if (is.symbol(a) || is.name(a)) {
-      if (i == 2L) {
+      is_unnamed <- !nzchar(arg_name)
+      # Only the first positional (unnamed) argument is treated as a column
+      # name, so named object args like matern(x = sites) stay objects.
+      # Named size=N is also a column name.
+      if ((is_unnamed && i == 2L) || arg_name %in% .column_name_args) {
         args[[i]] <- as.character(a)
       }
     } else if (is.call(a)) {
@@ -122,17 +137,22 @@ coerce_term_call_symbols <- function(expr) {
 }
 
 #' @noRd
-eval_term_label <- function(lab, pkg_envs) {
+eval_term_label <- function(lab, formula_env) {
   expr <- parse(text = lab, keep.source = FALSE)[[1]]
   expr <- coerce_term_call_symbols(expr)
-  for (pkg in names(pkg_envs)) {
-    try_result <- try(
-      eval(expr, envir = pkg_envs[[pkg]]),
-      silent = TRUE
-    )
-    if (!inherits(try_result, "try-error")) {
-      return(try_result)
-    }
+  try_result <- try(
+    eval(expr, envir = formula_env),
+    silent = TRUE
+  )
+  if (!inherits(try_result, "try-error")) {
+    return(try_result)
+  }
+  try_result <- try(
+    eval(expr, envir = asNamespace("adlaplace")),
+    silent = TRUE
+  )
+  if (!inherits(try_result, "try-error")) {
+    return(try_result)
   }
   NULL
 }
