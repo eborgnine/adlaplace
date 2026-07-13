@@ -72,6 +72,12 @@ MvnResult eval_mvn_tape(
   const std::vector<std::vector<double>>& sigma,
   bool inner = true);
 
+std::vector<double> eval_mvn_domain_grad(
+  MvnTape& tape,
+  const std::vector<double>& upper,
+  const std::vector<double>& mean,
+  const std::vector<std::vector<double>>& sigma);
+
 }  // namespace admvn
 
 #endif

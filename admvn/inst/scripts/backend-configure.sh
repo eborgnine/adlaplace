@@ -6,7 +6,70 @@ CPPAD_LIBS=""
 BREW_CPPFLAGS=""
 BREW_PREFIX=""
 
+OPENMP_CPPFLAGS=""
+OPENMP_CXXFLAGS=""
+OPENMP_LIBS=""
+
 UNAME_S="$(uname -s 2>/dev/null || echo unknown)"
+CXX_CMD="$(R CMD config CXX 2>/dev/null || echo c++)"
+CXXFLAGS_CMD="$(R CMD config CXXFLAGS 2>/dev/null || true)"
+CPPFLAGS_CMD="$(R CMD config CPPFLAGS 2>/dev/null || true)"
+
+check_cxxflag () {
+  flag="$1"
+  tmpdir="config.$$"
+  mkdir "$tmpdir"
+  cat > "$tmpdir/conftest.cpp" <<'EOF'
+int main() { return 0; }
+EOF
+  if eval "$CXX_CMD $CPPFLAGS_CMD $CXXFLAGS_CMD $flag -c $tmpdir/conftest.cpp -o $tmpdir/conftest.o" \
+       >/dev/null 2>&1; then
+    rm -rf "$tmpdir"
+    return 0
+  fi
+  rm -rf "$tmpdir"
+  return 1
+}
+
+check_openmp_darwin () {
+  tmpdir="config.$$"
+  mkdir "$tmpdir"
+  cat > "$tmpdir/conftest.cpp" <<'EOF'
+#include <omp.h>
+int main() {
+  omp_set_num_threads(1);
+  return omp_get_max_threads() >= 1 ? 0 : 1;
+}
+EOF
+  if eval "$CXX_CMD $CPPFLAGS_CMD $CXXFLAGS_CMD -I$BREW_PREFIX/opt/libomp/include -Xpreprocessor -fopenmp \
+      $tmpdir/conftest.cpp $BREW_PREFIX/opt/libomp/lib/libomp.a -o $tmpdir/conftest" \
+      >/dev/null 2>&1; then
+    rm -rf "$tmpdir"
+    return 0
+  fi
+  rm -rf "$tmpdir"
+  return 1
+}
+
+check_openmp_linux () {
+  tmpdir="config.$$"
+  mkdir "$tmpdir"
+  cat > "$tmpdir/conftest.cpp" <<'EOF'
+#include <omp.h>
+int main() {
+  omp_set_num_threads(1);
+  return omp_get_max_threads() >= 1 ? 0 : 1;
+}
+EOF
+  if eval "$CXX_CMD $CPPFLAGS_CMD $CXXFLAGS_CMD -fopenmp \
+      $tmpdir/conftest.cpp -o $tmpdir/conftest" \
+      >/dev/null 2>&1; then
+    rm -rf "$tmpdir"
+    return 0
+  fi
+  rm -rf "$tmpdir"
+  return 1
+}
 
 if [ "$UNAME_S" = "Darwin" ] && command -v brew >/dev/null 2>&1; then
   BREW_PREFIX="$(brew --prefix 2>/dev/null || true)"
@@ -79,3 +142,21 @@ else
 fi
 
 CPPAD_LIBS="$(detect_cppad_lib || true)"
+
+# Optional OpenMP (static libomp.a on macOS; dynamic -fopenmp on Linux)
+if [ "$UNAME_S" = "Darwin" ]; then
+  if [ -n "$BREW_PREFIX" ] \
+     && [ -f "$BREW_PREFIX/opt/libomp/include/omp.h" ] \
+     && [ -f "$BREW_PREFIX/opt/libomp/lib/libomp.a" ]; then
+    if check_openmp_darwin; then
+      OPENMP_CPPFLAGS="-I$BREW_PREFIX/opt/libomp/include"
+      OPENMP_CXXFLAGS="-Xpreprocessor -fopenmp"
+      OPENMP_LIBS="$BREW_PREFIX/opt/libomp/lib/libomp.a"
+    fi
+  fi
+else
+  if check_cxxflag "-fopenmp" && check_openmp_linux; then
+    OPENMP_CXXFLAGS="-fopenmp"
+    OPENMP_LIBS="-fopenmp"
+  fi
+fi

@@ -1,0 +1,33 @@
+Package: adlaplaceGrf
+Type: Package
+Title: FEM Matérn Gaussian Random Fields for adlaplace
+Version: 0.1.0
+Authors@R: person(given = "Patrick", family = "Brown",
+    email = "patrick.brown@utoronto.ca",
+    role = c("aut", "cre", "cph"))
+Description: Tensor-product B-spline finite-element ingredients for Matérn
+    Gaussian random fields (mass, stiffness, and higher-order Grams) for use
+    with the adlaplace Laplace approximation framework. Provides design and
+    Gram matrix construction on regular grids, with optional terra SpatRaster /
+    SpatVector input.
+License: GPL-3
+Depends:
+    R (>= 4.1.0),
+    adlaplace (>= 0.4.0)
+Imports: methods, stats, Matrix, splines
+Suggests: terra, testthat (>= 3.0.0), quarto
+Config/testthat/edition: 3
+VignetteBuilder: quarto
+Encoding: UTF-8
+RoxygenNote: 7.3.3
+Roxygen: list(markdown = TRUE)
+Collate:
+    '000.R'
+    'knots.R'
+    'grams_1d.R'
+    'grf_bspline.R'
+    'grf_bspline-terra.R'
+    'fem_chol.R'
+    'fem_precision.R'
+    'zzz.R'
+NeedsCompilation: no

@@ -4,9 +4,11 @@
 \name{admvn-package}
 \alias{admvn}
 \alias{admvn-package}
-\title{Multivariate normal CDF with CppAD derivatives}
+\title{Multivariate normal CDF and SUN density with CppAD derivatives}
 \description{
-Genz quasi-Monte Carlo MVN probabilities with gradient and Hessian.
+Genz quasi-Monte Carlo MVN probabilities with gradient and Hessian,
+and SUN(3,3) log-density with derivatives with respect to a block-Cholesky
+parameter vector.
 }
 \author{
 \strong{Maintainer}: Patrick Brown \email{patrick.brown@gmail.com} [copyright holder]

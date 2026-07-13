@@ -688,4 +688,27 @@ MvnResult eval_mvn_tape(
   return out;
 }
 
+std::vector<double> eval_mvn_domain_grad(
+  MvnTape& tape,
+  const std::vector<double>& upper,
+  const std::vector<double>& mean,
+  const std::vector<std::vector<double>>& sigma) {
+
+  detail::init_qnorm_atomic();
+
+  const GenzPack genz = pack_genz_ch(sigma, tape.perm);
+  const CppAD::vector<double> x = detail::to_cppad_vector(pack_domain(upper, mean, genz));
+
+  CppAD::sparse_rc<CppAD::vector<size_t>> jac_pattern;
+  tape.fun.sparse_jac_rev(x, tape.pattern_grad, jac_pattern, detail::kJacColor, tape.work_grad);
+
+  std::vector<double> grad_full(tape.n_domain, 0.0);
+  const auto& cols = tape.pattern_grad.col();
+  const auto& vals = tape.pattern_grad.val();
+  for (size_t k = 0; k < tape.pattern_grad.nnz(); ++k) {
+    grad_full[cols[k]] += vals[k];
+  }
+  return grad_full;
+}
+
 }  // namespace admvn
