@@ -1,4 +1,5 @@
 #include "adlaplace/chol_update.hpp"
+#include "adlaplace/chol_update_impl.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -26,20 +27,6 @@ double sym_entry(
 	return 0.0;
 }
 
-// (H_perm)_{r,j} = H_{perm[r], perm[j]} with Matrix perm[j] = original index for permuted j.
-double sym_entry_perm(
-	size_t row,
-	size_t col,
-	const Eigen::SparseMatrix<double>& H,
-	const std::vector<int>& perm)
-{
-	return sym_entry(
-		static_cast<size_t>(perm[row]),
-		static_cast<size_t>(perm[col]),
-		H
-	);
-}
-
 } // namespace
 
 // Numeric LDL of P H P' in permuted ordering; H is original (upper CSC), perm 0-based.
@@ -57,73 +44,27 @@ double chol_update(
 		Rcpp::stop("chol_update: H must be square");
 	}
 	const size_t n = static_cast<size_t>(H.rows());
-	if (perm.size() != n) {
-		Rcpp::stop(
-			"chol_update: perm length (%d) must match H nrow (%d)",
-			static_cast<int>(perm.size()),
-			static_cast<int>(n)
-		);
-	}
-	if (p_out.size() != n + 1) {
-		Rcpp::stop("chol_update: p_out length must be nrow + 1");
-	}
-	if (d_out.size() != n) {
-		d_out.assign(n, 0.0);
-	}
-	if (x_out.size() != i_out.size()) {
-		x_out.assign(i_out.size(), 0.0);
-	}
+	std::vector<int> H_p(n + 1, 0);
+	std::vector<int> H_i;
+	std::vector<double> H_x;
+	H_i.reserve(static_cast<std::size_t>(H.nonZeros()));
+	H_x.reserve(static_cast<std::size_t>(H.nonZeros()));
 
-	std::vector<double> y(n, 0.0);
-
-	for (size_t j = 0; j < n; ++j) {
-		for (size_t r = 0; r < n; ++r) {
-			y[r] = sym_entry_perm(r, j, H, perm);
-		}
-
-		for (size_t k = 0; k < j; ++k) {
-			bool has_l_jk = false;
-			double l_jk = 0.0;
-			for (size_t pos = p_out[k]; pos < p_out[k + 1]; ++pos) {
-				if (static_cast<size_t>(i_out[pos]) == j) {
-					l_jk = x_out[pos];
-					has_l_jk = true;
-					break;
-				}
-			}
-			if (!has_l_jk) {
-				continue;
-			}
-			const double alpha = l_jk * d_out[k];
-			for (size_t pos = p_out[k]; pos < p_out[k + 1]; ++pos) {
-				const size_t row = static_cast<size_t>(i_out[pos]);
-				if (row < j) {
-					continue;
-				}
-				y[row] -= alpha * x_out[pos];
-			}
-		}
-
-		d_out[j] = y[j];
-		for (size_t pos = p_out[j]; pos < p_out[j + 1]; ++pos) {
-			const size_t row = static_cast<size_t>(i_out[pos]);
-			if (row == j) {
-				x_out[pos] = 1.0;
-			} else if (row > j) {
-				x_out[pos] = y[row] / d_out[j];
+	for (size_t c = 0; c < n; ++c) {
+		H_p[c] = static_cast<int>(H_i.size());
+		for (size_t r = 0; r <= c; ++r) {
+			const double v = sym_entry(r, c, H);
+			if (v != 0.0) {
+				H_i.push_back(static_cast<int>(r));
+				H_x.push_back(v);
 			}
 		}
 	}
+	H_p[n] = static_cast<int>(H_i.size());
 
-	double log_det = 0.0;
-	for (size_t j = 0; j < n; ++j) {
-		const double dj = d_out[j];
-		if (dj <= 0.0 || !std::isfinite(dj)) {
-			return NA_REAL;
-		}
-		log_det += std::log(dj);
-	}
-	return log_det;
+	return adlaplace::chol::chol_update_csc(
+		H_p, H_i, H_x, perm, p_out, i_out, x_out, d_out
+	);
 }
 
 void linv_update(

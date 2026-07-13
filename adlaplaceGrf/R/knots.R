@@ -41,34 +41,47 @@ open_knot_vector <- function(range, degree, n_interior = 5L, interior = NULL) {
   c(rep(range[1], degree + 1L), interior, rep(range[2], degree + 1L))
 }
 
+#' Expand unique axis breakpoints to an open knot vector
+#'
+#' @param t Strictly increasing (or unique) knot-line positions including the
+#'   domain endpoints, e.g. `seq(-0.2, 1.2, by = 0.1)`.
+#' @param degree B-spline degree.
+#' @return Open knot vector with endpoints repeated `degree + 1` times.
+#' @keywords internal
+axis_to_open_knots <- function(t, degree) {
+  t <- sort(unique(as.numeric(t)))
+  if (length(t) < 2L || any(!is.finite(t))) {
+    stop("each knots axis must have at least two finite positions")
+  }
+  interior <- if (length(t) > 2L) t[-c(1L, length(t))] else numeric(0)
+  open_knot_vector(range(t), degree, interior = interior)
+}
+
 #' Normalize knots to list(x, y) open knot vectors
 #'
-#' @param knots `NULL`, `list(x, y)`, or (via callers) already-resolved lists.
-#' @param xlim,ylim Domain ranges used when `knots` is `NULL`.
+#' User form is a `knots_list`-style object:
+#' `list(x = seq(...), y = seq(...))` of unique, increasing knot-line
+#' positions on each axis (domain endpoints included). Those are expanded to
+#' open B-spline knot vectors. Already-open vectors (with repeated endpoints)
+#' are left as-is.
+#'
+#' @param knots `list(x, y)` of axis knot positions / open vectors.
 #' @param degree B-spline degree.
-#' @param n_interior Default number of interior knots per axis when `knots` is
-#'   `NULL` (scalar or length-2).
 #' @return `list(x = ..., y = ...)` of open knot vectors.
 #' @keywords internal
-resolve_knots_list <- function(knots, xlim, ylim, degree, n_interior = 5L) {
-  if (is.null(knots)) {
-    ni <- rep_len(as.integer(n_interior), 2L)
-    return(list(
-      x = open_knot_vector(xlim, degree, n_interior = ni[1]),
-      y = open_knot_vector(ylim, degree, n_interior = ni[2])
-    ))
-  }
+resolve_knots_list <- function(knots, degree) {
   if (!is.list(knots) || is.null(knots$x) || is.null(knots$y)) {
-    stop("knots must be NULL or list(x = ..., y = ...)")
+    stop("knots must be list(x = ..., y = ...), e.g. list(x = seq(...), y = seq(...))")
   }
   kx <- as.numeric(knots$x)
   ky <- as.numeric(knots$y)
-  # If user passed interior-only or unique knots, expand to open vectors.
+  # Unique axis positions (knots_list style) -> open knot vectors.
+  # Repeated endpoints mean the user already passed an open vector.
   if (length(unique(kx)) == length(kx)) {
-    kx <- open_knot_vector(range(kx), degree, interior = if (length(kx) > 2L) kx[-c(1L, length(kx))] else NULL)
+    kx <- axis_to_open_knots(kx, degree)
   }
   if (length(unique(ky)) == length(ky)) {
-    ky <- open_knot_vector(range(ky), degree, interior = if (length(ky) > 2L) ky[-c(1L, length(ky))] else NULL)
+    ky <- axis_to_open_knots(ky, degree)
   }
   list(x = kx, y = ky)
 }

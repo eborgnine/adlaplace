@@ -174,6 +174,30 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// create_ad_fun_random_fem_2
+SEXP create_ad_fun_random_fem_2(SEXP model, Rcpp::List config);
+RcppExport SEXP _adlaplace_create_ad_fun_random_fem_2(SEXP modelSEXP, SEXP configSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< SEXP >::type model(modelSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type config(configSEXP);
+    rcpp_result_gen = Rcpp::wrap(create_ad_fun_random_fem_2(model, config));
+    return rcpp_result_gen;
+END_RCPP
+}
+// create_ad_fun_random_fem_3
+SEXP create_ad_fun_random_fem_3(SEXP model, Rcpp::List config);
+RcppExport SEXP _adlaplace_create_ad_fun_random_fem_3(SEXP modelSEXP, SEXP configSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< SEXP >::type model(modelSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type config(configSEXP);
+    rcpp_result_gen = Rcpp::wrap(create_ad_fun_random_fem_3(model, config));
+    return rcpp_result_gen;
+END_RCPP
+}
 // joint_log_dens
 double joint_log_dens(SEXP ad_fun_ptr, const Rcpp::NumericVector& x, Rcpp::Nullable<Rcpp::IntegerVector> shards, bool negative);
 RcppExport SEXP _adlaplace_joint_log_dens(SEXP ad_fun_ptrSEXP, SEXP xSEXP, SEXP shardsSEXP, SEXP negativeSEXP) {
@@ -281,6 +305,8 @@ static const R_CallMethodDef CallEntries[] = {
     {"_adlaplace_clone_ad_fun_ptr_impl", (DL_FUNC) &_adlaplace_clone_ad_fun_ptr_impl, 1},
     {"_adlaplace_create_ad_fun_random_diagonal", (DL_FUNC) &_adlaplace_create_ad_fun_random_diagonal, 2},
     {"_adlaplace_create_ad_fun_random_mult", (DL_FUNC) &_adlaplace_create_ad_fun_random_mult, 2},
+    {"_adlaplace_create_ad_fun_random_fem_2", (DL_FUNC) &_adlaplace_create_ad_fun_random_fem_2, 2},
+    {"_adlaplace_create_ad_fun_random_fem_3", (DL_FUNC) &_adlaplace_create_ad_fun_random_fem_3, 2},
     {"_adlaplace_joint_log_dens", (DL_FUNC) &_adlaplace_joint_log_dens, 4},
     {"_adlaplace_grad", (DL_FUNC) &_adlaplace_grad, 5},
     {"_adlaplace_hessian", (DL_FUNC) &_adlaplace_hessian, 6},

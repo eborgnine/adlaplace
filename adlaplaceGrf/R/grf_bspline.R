@@ -7,16 +7,17 @@
 #' Coefficient ordering is column-major (`vec`) over the `n_x` by `n_y` array of
 #' tensor basis indices: basis `(i, j)` maps to column `i + (j - 1) * n_x`.
 #'
-#' @param coords Evaluation locations. Methods are defined for `list`
-#'   (`list(x, y)`), and (if **terra** is installed) `SpatRaster` / `SpatVector`.
+#' @param coords Evaluation locations. For a `data.frame` (e.g. `sites_eval` from
+#'   `expand.grid`), rows are point coordinates with columns `x` and `y`. For a
+#'   plain `list(x, y)` of axis sequences, the full tensor grid is formed with
+#'   `expand.grid`. With **terra**, `SpatRaster` / `SpatVector` are also accepted.
+#' @param knots Knot-line positions on each axis: `list(x = seq(...), y = seq(...))`
+#'   of unique increasing breakpoints (domain endpoints included). These are
+#'   expanded to open B-spline knot vectors. With terra, a `SpatRaster` whose
+#'   grid defines knot lines is also accepted.
 #' @param degree B-spline degree; must be `>= 2`. Default `2` (α = 2). Use
 #'   `degree = 3` when assembling `G3` for α = 3.
-#' @param knots Knot specification: `NULL` (regular open knots from coordinate
-#'   ranges), `list(x, y)` of knot vectors, or (terra) a `SpatRaster` whose
-#'   grid defines knot lines.
-#' @param n_interior Number of interior knots per axis when `knots = NULL`
-#'   (scalar or length-2).
-#' @param ... Passed to methods (unused for `list`).
+#' @param ... Passed to methods (unused for `list` / `data.frame`).
 #'
 #' @return A list with:
 #' \describe{
@@ -26,11 +27,48 @@
 #'   \item{degree, knots, n_basis}{metadata (`n_basis = c(n_x, n_y)`)}
 #' }
 #'
+#' @examples
+#' sites_list <- list(x = seq(0, 1, by = 0.25), y = seq(0, 1, by = 0.25))
+#' sites_eval <- do.call(expand.grid, sites_list)
+#' fem <- grf_bspline(sites_eval, sites_list, degree = 2L)
+#'
 #' @export
 setGeneric(
   "grf_bspline",
-  function(coords, degree = 2L, knots = NULL, ...) {
+  function(coords, knots, degree = 2L, ...) {
     standardGeneric("grf_bspline")
+  }
+)
+
+coords_xy <- function(coords) {
+  if (is.null(coords$x) || is.null(coords$y)) {
+    stop("coords must have numeric components x and y")
+  }
+  x <- as.numeric(coords$x)
+  y <- as.numeric(coords$y)
+  if (length(x) != length(y)) {
+    stop("coords$x and coords$y must have the same length (use expand.grid)")
+  }
+  if (any(!is.finite(x)) || any(!is.finite(y))) {
+    stop("coords must be finite")
+  }
+  list(x = x, y = y)
+}
+
+#' @rdname grf_bspline
+#' @export
+setMethod(
+  "grf_bspline",
+  signature(coords = "list"),
+  function(coords, knots, degree = 2L, ...) {
+    # Axis sequences list(x, y) -> evaluation grid
+    xy <- coords_xy(expand.grid(
+      x = as.numeric(coords$x),
+      y = as.numeric(coords$y),
+      KEEP.OUT.ATTRS = FALSE,
+      stringsAsFactors = FALSE
+    ))
+    grf_bspline_xy(xy$x, xy$y, knots = knots, degree = degree)
   }
 )
 
@@ -38,37 +76,21 @@ setGeneric(
 #' @export
 setMethod(
   "grf_bspline",
-  signature(coords = "list"),
-  function(coords, degree = 2L, knots = NULL, n_interior = 5L, ...) {
-    if (is.null(coords$x) || is.null(coords$y)) {
-      stop("coords list must have numeric components x and y")
-    }
-    x <- as.numeric(coords$x)
-    y <- as.numeric(coords$y)
-    if (length(x) != length(y)) {
-      stop("coords$x and coords$y must have the same length")
-    }
-    if (any(!is.finite(x)) || any(!is.finite(y))) {
-      stop("coords must be finite")
-    }
-    grf_bspline_xy(x, y, degree = degree, knots = knots, n_interior = n_interior)
+  signature(coords = "data.frame"),
+  function(coords, knots, degree = 2L, ...) {
+    xy <- coords_xy(coords)
+    grf_bspline_xy(xy$x, xy$y, knots = knots, degree = degree)
   }
 )
 
 #' Core assembly from numeric x, y and list knots
 #' @keywords internal
-grf_bspline_xy <- function(x, y, degree = 2L, knots = NULL, n_interior = 5L) {
+grf_bspline_xy <- function(x, y, knots, degree = 2L) {
   degree <- as.integer(degree)
   if (degree < 2L) {
     stop("degree must be >= 2")
   }
-  kn <- resolve_knots_list(
-    knots,
-    xlim = range(x),
-    ylim = range(y),
-    degree = degree,
-    n_interior = n_interior
-  )
+  kn <- resolve_knots_list(knots, degree = degree)
   nx <- n_basis_knots(kn$x, degree)
   ny <- n_basis_knots(kn$y, degree)
 

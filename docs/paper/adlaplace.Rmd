@@ -35,7 +35,10 @@ abstract: >
   a negative binomial additive mixed model, a logistic mixed model for the
   \code{bacteria} data with the built-in \code{binomial()} observation
   density, and the Besag-York-Mollie disease-mapping model for Germany using a
-  non-diagonal intrinsic precision matrix.
+  non-diagonal intrinsic precision matrix.  A fourth illustration uses the
+  companion package \pkg{adlaplaceGrf} to assemble a finite-element
+  Mat\'{e}rn Gaussian random field whose hyperparameter-dependent precision
+  determinant is evaluated on the AD tape.
 keywords:
   formatted: [Laplace approximation, automatic differentiation, hierarchical models, "\\proglang{R}", parallel computing, "\\pkg{CppAD}"]
   plain: [Laplace approximation, automatic differentiation, hierarchical models, R, parallel computing, CppAD]
@@ -59,6 +62,7 @@ library("adlaplace")
 have_inla <- requireNamespace("INLA", quietly = TRUE)
 have_tmb <- requireNamespace("TMB", quietly = TRUE)
 have_mgcv <- requireNamespace("mgcv", quietly = TRUE)
+have_grf <- requireNamespace("adlaplaceGrf", quietly = TRUE)
 ```
 
 # Introduction {#sec:intro}
@@ -143,7 +147,8 @@ the user-facing interface.  Section \ref{sec:architecture} details the
 two-layer architecture and the extension mechanism.  Section
 \ref{sec:illustrations} validates the package against \pkg{mgcv}
 [@wood2017gam], \pkg{TMB}, and \pkg{INLA} [@rue2009inla] on three
-examples, and Section \ref{sec:discussion} concludes.
+examples and demonstrates a Mat\'{e}rn SPDE field with
+\pkg{adlaplaceGrf}, and Section \ref{sec:discussion} concludes.
 
 # Laplace approximation and its derivative {#sec:methods}
 
@@ -415,12 +420,14 @@ that evaluates its log density, through its `ad_fun` slot.
 \proglang{C++} function that evaluates one shard's log density on AD
 types.  The built-in kernels are few: `gaussian_obs`, `nbinom_obs`,
 `poisson_obs`, and `binomial_obs` for observations, `random_diagonal` and
-`random_mult` for Gaussian random effects, plus the corresponding
-parameter-only `_extra` kernels where an observation family has
-hyperparameters.  Many terms share one kernel: `iid()` and `iwp()` both use
-`random_diagonal`, differing only in the design and precision matrices
-they construct, and any Gaussian random field with precision
-$\tau Q$ for fixed sparse $Q$ uses `random_mult`.
+`random_mult` for Gaussian random effects with fixed precision patterns,
+`random_fem_2` and `random_fem_3` for Mat\'{e}rn SPDE fields whose
+precision $Q(\kappa, \tau)$ depends on hyperparameters (Section
+\ref{sec:matern}), plus the corresponding parameter-only `_extra` kernels
+where an observation family has hyperparameters.  Many terms share one
+kernel: `iid()` and `iwp()` both use `random_diagonal`, differing only in
+the design and precision matrices they construct, and any Gaussian random
+field with precision $\tau Q$ for fixed sparse $Q$ uses `random_mult`.
 
 ## Extending the top layer: adlaplaceHgp
 
@@ -429,7 +436,10 @@ New model classes that reduce to existing kernels require only
 hierarchical Gaussian process models -- `hiwp()`, `hrpoly()`, `rsiid()`,
 and relatives -- by subclassing the term classes and providing `design()`
 and `precision()` methods.  It contains no \proglang{C++} and no
-knowledge of tapes or shards.
+knowledge of tapes or shards.  The companion \pkg{adlaplaceGrf} package
+similarly lives mostly in \proglang{R}, assembling finite-element Grams
+for Mat\'{e}rn SPDE fields that are then evaluated by the core
+`random_fem_2` / `random_fem_3` kernels (Section \ref{sec:matern}).
 
 ## Extending the bottom layer: adlaplaceExample
 
@@ -454,12 +464,14 @@ widely useful can be promoted into the core, as with the built-in
 
 # Illustrations {#sec:illustrations}
 
-We validate \pkg{adlaplace} on three examples chosen to exercise the exact
+We validate \pkg{adlaplace} on examples chosen to exercise the exact
 gradient (Section \ref{sec:gamm}), a built-in logistic mixed model
-(Section \ref{sec:bacteria}), and a non-diagonal intrinsic precision matrix
-(Section \ref{sec:bym}).  Full code walkthroughs are in
+(Section \ref{sec:bacteria}), a non-diagonal intrinsic precision matrix
+(Section \ref{sec:bym}), and a hyperparameter-dependent Mat\'{e}rn
+precision with $\log|Q(\theta)|$ on the AD tape (Section
+\ref{sec:matern}).  Full code walkthroughs are in
 \texttt{docs/paper/examples/}; the emphasis here is on agreement of
-estimates, not on speed.
+estimates and derivatives, not on speed.
 
 ## Negative binomial additive mixed model vs mgcv {#sec:gamm}
 
@@ -658,6 +670,191 @@ The district-level total spatial effects agree closely (correlation
 $0.99$ across 544 districts; Figure \ref{fig:bymscatter}), and component
 standard deviations are comparable (Table \ref{tab:bym}).
 
+## FEM Mat\'{e}rn field with determinant on the AD tape {#sec:matern}
+
+The `random_mult` kernel of Section \ref{sec:bym} covers precision matrices
+of the form $\tau Q$ with $Q$ fixed.  Mat\'{e}rn fields obtained from the
+Whittle SPDE [@whittle1954; @lindgren2011spde] have a precision
+$Q(\kappa, \tau)$ that depends on the range and marginal-variance
+hyperparameters in a non-scalar way, so $\log|Q(\theta)|$ must be
+evaluated on the AD tape.  The companion package \pkg{adlaplaceGrf}
+assembles tensor-product B-spline finite-element Grams on a rectangle,
+and the core kernels `random_fem_2` ($\alpha = 2$, $\nu = 1$ in $d = 2$)
+and `random_fem_3` ($\alpha = 3$) record a sparse Cholesky update of
+$Q(\theta)$ during taping.
+
+We first check that the FEM field approximates the closed-form Mat\'{e}rn
+covariance.  With $\nu = 1$, $\kappa = 3$, and $\tau$ chosen so that the
+Mat\'{e}rn marginal variance is one, we evaluate the FEM covariance
+$\mathbf{A} Q^{-1} \mathbf{A}^{\top}$ at $100$ uniform sites in the unit
+square for a coarse and a fine knot grid, and compare to the exact
+Mat\'{e}rn correlation as a function of distance
+(Figure~\ref{fig:matern}).
+
+```{r matern-run, include=FALSE}
+matern_ok <- FALSE
+if (have_grf) {
+  suppressMessages({
+    library(Matrix)
+    library(adlaplace)
+    library(adlaplaceGrf)
+  })
+  set.seed(1)
+  nu <- 1
+  kappa <- 3
+  tau <- 1 / sqrt(4 * pi * kappa^2)
+  knots_coarse <- list(
+    x = seq(-0.2, 1.2, by = 0.2),
+    y = seq(-0.2, 1.2, by = 0.2)
+  )
+  knots_fine <- list(
+    x = seq(-1, 2, by = 0.1),
+    y = seq(-1, 2, by = 0.1)
+  )
+  sites_eval <- data.frame(x = runif(100), y = runif(100))
+  matern_cov <- function(h, nu, kappa, sigma2 = 1) {
+    h <- pmax(h, 1e-12)
+    r <- kappa * h
+    sigma2 * (2^(1 - nu) / gamma(nu)) * (r^nu) * besselK(r, nu)
+  }
+  D <- as.matrix(dist(sites_eval))
+  Sigma <- matern_cov(D, nu, kappa, sigma2 = 1)
+  diag(Sigma) <- 1
+  fem_cov_at_sites <- function(sites_eval, knots_list) {
+    fem <- grf_bspline(sites_eval, knots_list, degree = 2L)
+    Q <- fem_precision(kappa, tau, fem$C, fem$G, fem$G2, alpha = 2L)
+    A <- fem$A
+    X <- Matrix::solve(Q, Matrix::t(A))
+    as.matrix(A %*% X)
+  }
+  Sig_coarse <- fem_cov_at_sites(sites_eval, knots_coarse)
+  Sig_fine <- fem_cov_at_sites(sites_eval, knots_fine)
+  rel_err <- function(S_hat, S) {
+    sqrt(sum((S_hat - S)^2)) / sqrt(sum(S^2))
+  }
+  matern_cov_table <- data.frame(
+    grid = c("coarse (by = 0.2)", "fine (by = 0.1)"),
+    frobenius_rel = c(rel_err(Sig_coarse, Sigma), rel_err(Sig_fine, Sigma)),
+    max_abs = c(max(abs(Sig_coarse - Sigma)), max(abs(Sig_fine - Sigma))),
+    mean_diag = c(mean(diag(Sig_coarse)), mean(diag(Sig_fine)))
+  )
+  upper <- upper.tri(D)
+  matern_corr_df <- data.frame(
+    dist = D[upper],
+    matern = Sigma[upper] /
+      sqrt(diag(Sigma)[row(Sigma)[upper]] * diag(Sigma)[col(Sigma)[upper]]),
+    coarse = Sig_coarse[upper] /
+      sqrt(pmax(diag(Sig_coarse)[row(Sig_coarse)[upper]], 1e-8) *
+        pmax(diag(Sig_coarse)[col(Sig_coarse)[upper]], 1e-8)),
+    fine = Sig_fine[upper] /
+      sqrt(pmax(diag(Sig_fine)[row(Sig_fine)[upper]], 1e-8) *
+        pmax(diag(Sig_fine)[col(Sig_fine)[upper]], 1e-8))
+  )
+  matern_corr_df <- matern_corr_df[order(matern_corr_df$dist), ]
+
+  # Joint density AD check on a small FEM model
+  knots_list <- list(
+    x = seq(0, 1, length.out = 5),
+    y = seq(0, 1, length.out = 5)
+  )
+  sites_small <- do.call(expand.grid, knots_list)
+  fem <- grf_bspline(sites_small, knots_list, degree = 2L)
+  prec <- fem_precision_payload(fem, alpha = 2L)
+  nr <- nrow(fem$C)
+  A <- fem$A
+  n <- nrow(A)
+  sigma <- 0.4
+  log_kappa <- log(2)
+  log_tau <- log(1)
+  w_true <- rnorm(nr, sd = 0.2)
+  y <- as.numeric(A %*% w_true + rnorm(n, sd = sigma))
+  obs <- adlaplace:::ad_data(
+    y = y, A = A,
+    gamma_map = Matrix::Diagonal(nr),
+    theta_map = Matrix::sparseMatrix(i = 1L, j = 1L, dims = c(3L, 1L)),
+    ad_kind = "observations", ad_fun = "gaussian_obs"
+  )
+  extra <- adlaplace::ad_data(
+    obs, ad_kind = "parameters", ad_fun = "gaussian_extra"
+  )
+  rand <- adlaplace:::ad_data(
+    gamma_map = Matrix::Diagonal(nr),
+    theta_map = Matrix::sparseMatrix(
+      i = c(2L, 3L), j = c(1L, 2L), x = c(1, 1), dims = c(3L, 2L)
+    ),
+    ad_kind = "random", ad_fun = "random_fem_2", precision = prec
+  )
+  config <- list(
+    gamma = rep(0, nr),
+    theta = c(log(sigma), log_kappa, log_tau),
+    transform_theta = TRUE
+  )
+  ptr <- c(
+    ad_fun_ptr(obs, config),
+    ad_fun_ptr(extra, config),
+    ad_fun_ptr(rand, config)
+  )
+  w <- rnorm(nr, sd = 0.1)
+  x <- c(w, log(sigma), log_kappa, log_tau)
+  g_ad <- as.numeric(grad(ptr, x, inner = FALSE, negative = FALSE))
+  eps <- 1e-5
+  g_fd <- vapply(seq_along(x), function(i) {
+    xp <- xm <- x
+    xp[i] <- xp[i] + eps
+    xm[i] <- xm[i] - eps
+    (joint_log_dens(ptr, xp, negative = FALSE) -
+      joint_log_dens(ptr, xm, negative = FALSE)) / (2 * eps)
+  }, numeric(1))
+  matern_grad_diff <- max(abs(g_ad - g_fd))
+  matern_ok <- TRUE
+}
+```
+
+```{r matern-formula, echo=TRUE, eval=FALSE}
+fem <- grf_bspline(sites_eval, knots_list, degree = 2L)
+prec <- fem_precision_payload(fem, alpha = 2L)
+rand <- ad_data(
+  gamma_map = Diagonal(nrow(fem$C)),
+  theta_map = sparseMatrix(i = c(2L, 3L), j = c(1L, 2L), x = c(1, 1), dims = c(3L, 2L)),
+  ad_kind = "random", ad_fun = "random_fem_2", precision = prec
+)
+```
+
+```{r matern-table, results="asis", echo=FALSE}
+if (matern_ok) {
+  knitr::kable(
+    matern_cov_table,
+    format = "latex", booktabs = TRUE, digits = 3,
+    caption = "\\label{tab:matern}FEM Mat\\'{e}rn covariance at 100 sites
+    versus the closed-form Mat\\'{e}rn ($\nu = 1$, $\\kappa = 3$): relative
+    Frobenius error, maximum absolute entrywise error, and mean diagonal.")
+}
+```
+
+```{r matern-figure, echo=FALSE, fig.height=4, fig.cap="\\label{fig:matern}Exact Mat\\'{e}rn correlation versus distance, with FEM approximations on a coarse and a fine knot grid."}
+if (matern_ok) {
+  par(mar = c(4, 4, 1, 1), mgp = c(2.2, 0.7, 0))
+  plot(matern_corr_df$dist, matern_corr_df$matern,
+    type = "l", lwd = 2, ylim = c(0, 1), xlim = c(0, 1),
+    xlab = "distance", ylab = "correlation"
+  )
+  lines(matern_corr_df$dist, matern_corr_df$coarse, col = "tomato", lty = 2, lwd = 2)
+  lines(matern_corr_df$dist, matern_corr_df$fine, col = "steelblue", lty = 3, lwd = 2)
+  legend("topright", bty = "n",
+    legend = c("Matern", "FEM coarse", "FEM fine"),
+    col = c("black", "tomato", "steelblue"), lty = c(1, 2, 3), lwd = 2)
+}
+```
+
+The finer knot grid tracks the Mat\'{e}rn correlation more closely
+(Table~\ref{tab:matern}; Figure~\ref{fig:matern}).  Wiring the same Grams
+into `random_fem_2` with Gaussian observations, the AD gradient of the
+joint log density agrees with central finite differences to machine
+precision (maximum absolute difference
+`r if (matern_ok) format(matern_grad_diff, digits = 2, scientific = TRUE) else "NA"`
+in the small check above), confirming that the sparse Cholesky of
+$Q(\kappa, \tau)$ is correctly recorded on the tape.
+
 # Discussion {#sec:discussion}
 
 \pkg{adlaplace} implements Laplace-approximate maximum likelihood for
@@ -669,8 +866,10 @@ gradient, Hessian, and determinant-derivative contractions all parallel
 over OpenMP threads with a single lightweight AD dependency; and a
 two-layer, extensible architecture in which new model terms are added in
 \proglang{R} and new density kernels in small backend packages, without
-modifying the core.  The illustrations show agreement with \pkg{mgcv}, \pkg{TMB}, and \pkg{INLA}
-across additive, mixed, and spatial models.
+modifying the core.  The illustrations show agreement with \pkg{mgcv},
+\pkg{TMB}, and \pkg{INLA} across additive, mixed, and spatial models, and
+agreement of a Mat\'{e}rn FEM field with its closed-form covariance when
+$\log|Q(\theta)|$ is evaluated on the AD tape.
 
 The package is complementary to existing tools.  Its exact gradient and
 extensible kernels make it a convenient foundation for methodological work,
@@ -686,23 +885,24 @@ of the form $\tau Q$ with $Q$ fixed: because the single hyperparameter
 enters only as a multiplier, the log-determinant reduces to
 $r \log \tau + \log|Q|_{+}$, and the generalized determinant $\log|Q|_{+}$
 and rank $r$ can be computed once in \proglang{R} and enter the tape as
-constants.  Many useful models fall outside this family -- the BYM2
-reparameterization [@riebler2016bym2], the Leroux model, autoregressive and
-Matern-type structures, and products of Kronecker factors all have
+constants.  Section \ref{sec:matern} shows one important extension already
+implemented: the Mat\'{e}rn SPDE precisions $Q(\kappa, \tau)$ for operator
+orders $\alpha = 2$ and $3$, with a sparse Cholesky update recorded on the
+tape through `random_fem_2` / `random_fem_3` and Grams assembled by
+\pkg{adlaplaceGrf}.  Other useful models still fall outside this family --
+the BYM2 reparameterization [@riebler2016bym2], the Leroux model,
+autoregressive structures, and products of Kronecker factors all have
 precision matrices $Q(\theta)$ whose determinant depends on the
-hyperparameters in a non-trivial way.  Supporting these requires evaluating
-$\log\det Q(\theta)$ inside the AD tape, so that its derivative with
-respect to $\theta$ is produced by the same reverse sweeps as the rest of
-the objective.  The natural implementation is a sparse
-$LDL^{\mathsf{T}}$ factorization recorded on the tape, either
-operation-by-operation for small blocks or as an atomic operation with a
-hand-coded derivative, as \pkg{TMB} does through its atomic sparse Cholesky
-[@kristensen2016tmb].  Because a `random_*` kernel occupies a single
-parameter shard in the decomposition of Section \ref{sec:parallel}, a
-determinant-on-tape kernel would drop in alongside `random_diagonal` and
-`random_mult` without changes to the parallel evaluation machinery; the
-existing kernels remain preferable when they apply, since they keep the
-factorization off the tape entirely.
+hyperparameters in a non-trivial way.  Supporting these requires the same
+determinant-on-tape pattern, either operation-by-operation for small
+blocks or as an atomic sparse Cholesky with a hand-coded derivative, as
+\pkg{TMB} does [@kristensen2016tmb].  Because a `random_*` kernel occupies
+a single parameter shard in the decomposition of Section
+\ref{sec:parallel}, further determinant-on-tape kernels would drop in
+alongside `random_diagonal`, `random_mult`, and `random_fem_*` without
+changes to the parallel evaluation machinery; the existing kernels remain
+preferable when they apply, since they keep the factorization off the tape
+entirely whenever $Q$ is fixed up to a scalar.
 
 ## Bayesian inference, priors, and aghq
 

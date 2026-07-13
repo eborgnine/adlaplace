@@ -1,0 +1,8 @@
+.Rproj.user
+.Rhistory
+.RData
+*.tar.gz
+vignettes/*.html
+vignettes/*_files/
+vignettes/*.knit.md
+vignettes/.quarto/

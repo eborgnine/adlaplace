@@ -5,6 +5,7 @@
 #include <Eigen/Sparse>
 
 #include "adlaplace/backend.hpp"
+#include "adlaplace/chol_update_impl.hpp"
 
 #include <vector>
 

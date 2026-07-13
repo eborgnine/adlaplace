@@ -1,4 +1,4 @@
-#' Gauss-Legendre nodes and weights on [-1, 1]
+#' Gauss-Legendre nodes and weights on the reference interval
 #' @keywords internal
 gauss_legendre <- function(n) {
   n <- as.integer(n)
@@ -8,7 +8,6 @@ gauss_legendre <- function(n) {
   }
   i <- seq_len(n - 1L)
   b <- i / sqrt(4 * i^2 - 1)
-  beta <- diag(b, nrow = n - 1L, ncol = n - 1L)
   J <- matrix(0, n, n)
   J[cbind(i, i + 1L)] <- b
   J[cbind(i + 1L, i)] <- b
@@ -19,7 +18,7 @@ gauss_legendre <- function(n) {
   list(nodes = nodes[ord], weights = as.numeric(weights[ord]))
 }
 
-#' Map GL nodes from [-1,1] to [a,b]
+#' Map GL nodes from the reference interval to an arbitrary interval
 #' @keywords internal
 gl_on_interval <- function(a, b, gl) {
   mid <- 0.5 * (a + b)
