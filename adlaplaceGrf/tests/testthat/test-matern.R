@@ -33,10 +33,11 @@ test_that("matern parses WKT and HEX point columns", {
   expect_equal(as.matrix(A_hex), as.matrix(A_wkt))
 })
 
-test_that("matern shape 2 selects random_fem_3", {
+test_that("matern shape 2 selects random_fem_ssq_3", {
   knots_list <- list(x = seq(0, 1, length.out = 4), y = seq(0, 1, length.out = 4))
   term <- matern("geometry", knots = knots_list, shape = 2L)
-  expect_identical(term@ad_fun, "random_fem_3")
+  expect_identical(term@ad_fun, "random_fem_ssq_3")
+  expect_identical(extra_ad_fun(term), "random_fem_det_3")
   expect_identical(term@package, "adlaplaceGrf")
   expect_equal(term@p.order, 3L)
   expect_equal(precision(term, data.frame())$alpha, 3L)
@@ -75,7 +76,8 @@ test_that("matern formula term works via :: and model_data", {
   terms <- adlaplace::collect_terms(f)
   mat <- terms[[grep("matern", names(terms))[1L]]]
   expect_s4_class(mat, "matern")
-  expect_identical(mat@ad_fun, "random_fem_2")
+  expect_identical(mat@ad_fun, "random_fem_ssq_2")
+  expect_identical(extra_ad_fun(mat), "random_fem_det_2")
   expect_equal(mat@term, "geometry")
 
   md <- adlaplace::model_data(f, data = dat)
@@ -83,9 +85,18 @@ test_that("matern formula term works via :: and model_data", {
   prec <- md$random[[1L]]@precision
   expect_true(is.list(prec))
   expect_true(all(c("Q_p", "Q_i", "C_x", "chol", "alpha") %in% names(prec)))
-  expect_identical(md$random[[1L]]@ad_fun, "random_fem_2")
+  expect_identical(md$random[[1L]]@ad_fun, "random_fem_ssq_2")
   expect_identical(md$random[[1L]]@package, "adlaplaceGrf")
   expect_equal(ncol(md$random[[1L]]@theta_map), 2L)
+
+  det_idx <- grep("_det$", names(md$parameters))
+  expect_length(det_idx, 1L)
+  det <- md$parameters[[det_idx]]
+  expect_identical(det@ad_fun, "random_fem_det_2")
+  expect_identical(det@ad_kind, "parameters")
+  expect_identical(det@package, "adlaplaceGrf")
+  expect_identical(det@precision, prec)
+  expect_equal(ncol(det@theta_map), 2L)
 })
 
 test_that("matern_est returns mean/sd and optional sims on SpatRaster", {

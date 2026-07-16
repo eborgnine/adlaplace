@@ -72,7 +72,7 @@ test_that("model_data passes list precision through for random_fem", {
     gamma_map = Matrix::Diagonal(nr),
     theta_map = list(c(1L, 2L), 2L),
     ad_kind = "random",
-    ad_fun = "random_fem_2",
+    ad_fun = "random_fem_ssq_2",
     package = "adlaplaceGrf",
     precision = prec
   )

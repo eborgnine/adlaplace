@@ -8,6 +8,8 @@
 \alias{beta_info}
 \alias{random_info}
 \alias{elgm_matrix}
+\alias{extra_ad_fun}
+\alias{extra_ad_fun,model-method}
 \title{Model Term Generics}
 \usage{
 design(term, data)
@@ -21,6 +23,10 @@ beta_info(term, data)
 random_info(term, data)
 
 elgm_matrix(term, data)
+
+extra_ad_fun(term)
+
+\S4method{extra_ad_fun}{model}(term)
 }
 \arguments{
 \item{term}{A model term object.}
@@ -29,7 +35,13 @@ elgm_matrix(term, data)
 }
 \value{
 Method-specific return values.
+
+Character density name, or \code{NULL}.
 }
 \description{
 Generic functions for extracting model matrices and parameter information from model terms.
+
+When non-\code{NULL}, \code{\link{model_data}} emits an extra
+\code{ad_kind = "parameters"} shard (e.g. FEM log-determinant) alongside the
+random shard. Default is \code{NULL} (no companion).
 }

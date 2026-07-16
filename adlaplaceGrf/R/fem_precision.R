@@ -60,7 +60,7 @@ upper_csc_pattern <- function(S) {
   list(p = as.integer(U@p), i = as.integer(U@i), n = n)
 }
 
-#' Build `random_fem_2` / `random_fem_3` precision payload for adlaplace
+#' Build `random_fem_ssq_*` / `random_fem_det_*` precision payload for adlaplace
 #'
 #' @param fem Result of [grf_bspline()] (or list with C, G, G2, optional G3).
 #' @param alpha `2` or `3`.

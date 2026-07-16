@@ -2,7 +2,7 @@
 % Please edit documentation in R/fem_precision.R
 \name{fem_precision_payload}
 \alias{fem_precision_payload}
-\title{Build \code{random_fem_2} / \code{random_fem_3} precision payload for adlaplace}
+\title{Build \verb{random_fem_ssq_*} / \verb{random_fem_det_*} precision payload for adlaplace}
 \usage{
 fem_precision_payload(fem, alpha = 2L)
 }
@@ -16,5 +16,5 @@ List for \code{ad_data@precision}: Grams, chol pattern, and Q CSC
 coefficients aligned for on-tape assembly.
 }
 \description{
-Build \code{random_fem_2} / \code{random_fem_3} precision payload for adlaplace
+Build \verb{random_fem_ssq_*} / \verb{random_fem_det_*} precision payload for adlaplace
 }

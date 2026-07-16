@@ -203,6 +203,24 @@ setGeneric("random_info", function(term, data) standardGeneric("random_info"))
 #' @export
 setGeneric("elgm_matrix", function(term, data) standardGeneric("elgm_matrix"))
 
+#' Optional companion parameters density name for a random term
+#'
+#' When non-\code{NULL}, \code{\link{model_data}} emits an extra
+#' \code{ad_kind = "parameters"} shard (e.g. FEM log-determinant) alongside the
+#' random shard. Default is \code{NULL} (no companion).
+#'
+#' @param term A model term object.
+#' @return Character density name, or \code{NULL}.
+#' @rdname model-generics
+#' @export
+setGeneric("extra_ad_fun", function(term) standardGeneric("extra_ad_fun"))
+
+#' @rdname model-generics
+#' @export
+setMethod("extra_ad_fun", "model", function(term) {
+  NULL
+})
+
 #' By-Group Classes and Functions
 #'
 #' @description Functions for creating and managing by_group objects for hierarchical

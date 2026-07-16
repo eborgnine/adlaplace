@@ -1,4 +1,4 @@
-test_that("random_fem_2 matches dense Matern FEM log density", {
+test_that("random_fem ssq + det match dense Matern FEM log density", {
   knots_list <- list(
     x = seq(0, 1, length.out = 4),
     y = seq(0, 1, length.out = 4)
@@ -8,14 +8,6 @@ test_that("random_fem_2 matches dense Matern FEM log density", {
   prec <- fem_precision_payload(fem, alpha = 2L)
   nr <- nrow(fem$C)
 
-  model <- adlaplace:::ad_data(
-    gamma_map = Matrix::Diagonal(nr),
-    theta_map = list(c(1L, 2L), 2L),
-    ad_kind = "random",
-    ad_fun = "random_fem_2",
-    package = "adlaplaceGrf",
-    precision = prec
-  )
   # Public theta: (range, sd) with range = sqrt(8*nu)/kappa; alpha=2 => nu=1
   kappa <- 1.5
   nu <- 1
@@ -29,8 +21,29 @@ test_that("random_fem_2 matches dense Matern FEM log density", {
     theta = c(log_range, log_sd),
     transform_theta = TRUE
   )
-  ptr <- adlaplace::ad_fun_ptr(model, config)
-  expect_equal(adlaplace:::n_groups(ptr), 2L)
+
+  rand_ssq <- adlaplace:::ad_data(
+    gamma_map = Matrix::Diagonal(nr),
+    theta_map = list(c(1L, 2L), 2L),
+    ad_kind = "random",
+    ad_fun = "random_fem_ssq_2",
+    package = "adlaplaceGrf",
+    precision = prec
+  )
+  rand_det <- adlaplace:::ad_data(
+    beta_map = 0L,
+    gamma_map = nr,
+    theta_map = list(c(1L, 2L), 2L),
+    ad_kind = "parameters",
+    ad_fun = "random_fem_det_2",
+    package = "adlaplaceGrf",
+    precision = prec
+  )
+
+  ptr_ssq <- adlaplace::ad_fun_ptr(rand_ssq, config)
+  ptr_det <- adlaplace::ad_fun_ptr(rand_det, config)
+  expect_equal(adlaplace:::n_groups(ptr_ssq), 1L)
+  expect_equal(adlaplace:::n_groups(ptr_det), 1L)
 
   set.seed(7)
   w <- rnorm(nr)
@@ -46,18 +59,20 @@ test_that("random_fem_2 matches dense Matern FEM log density", {
   manual <- manual_ssq + manual_det
 
   expect_equal(
-    adlaplace::joint_log_dens(ptr, x, negative = FALSE),
-    manual,
-    tolerance = 1e-8
-  )
-  expect_equal(
-    adlaplace::joint_log_dens(ptr, x, shards = 0L, negative = FALSE),
+    adlaplace::joint_log_dens(ptr_ssq, x, negative = FALSE),
     manual_ssq,
     tolerance = 1e-8
   )
   expect_equal(
-    adlaplace::joint_log_dens(ptr, x, shards = 1L, negative = FALSE),
+    adlaplace::joint_log_dens(ptr_det, x, negative = FALSE),
     manual_det,
+    tolerance = 1e-8
+  )
+  # c() moves shards and clears inputs
+  ptr <- c(ptr_ssq, ptr_det)
+  expect_equal(
+    adlaplace::joint_log_dens(ptr, x, negative = FALSE),
+    manual,
     tolerance = 1e-8
   )
 

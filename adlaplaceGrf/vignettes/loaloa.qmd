@@ -77,12 +77,12 @@ directly as `knots` to `matern()` (cell centers become the knot lines).
 ## Fit
 
 geostatsp Matérn **shape = 2** is ν = 2 (SPDE α = 3 in 2D), so we pass
-`shape = 2` to `matern()` (cubic B-splines / `random_fem_3`). Locations come
+`shape = 2` to `matern()` (cubic B-splines / `random_fem_ssq_3`). Locations come
 from the `geometry` column (WKT) in the model data frame.
 
 ```{r model_setup}
 #| cache: false
-knots_grid <- geostatsp::squareRaster(loaloa, cells = 12, buffer = 500 * 1000)
+knots_grid <- geostatsp::squareRaster(loaloa, cells = 8, buffer = 500 * 1000)
 loaloa_df <- as.data.frame(loaloa_for_fit$data, geom = "WKT")
 
 loaloa_model <- adlaplace::binomial(y, size = N) ~
@@ -98,233 +98,7 @@ loaloa_model <- adlaplace::binomial(y, size = N) ~
   )
 ```
 
-Compare `inner_opt` (trustOptim, AD derivatives) to a derivative-free
-`optim(..., method = "Nelder-Mead")` on $\gamma$ only, with $\beta$ and $\theta$
-held fixed at their inits. Nelder-Mead starts from the `inner_opt` mode.
-Diagnostic chunks below are `eval: false` by default (slow); set them to
-`true` locally when debugging.
 
-```{r inner-vs-nm}
-#| cache: false
-#| eval: false
-md <- adlaplace::model_data(
-  formula = loaloa_model,
-  data = loaloa_df,
-  verbose = TRUE
-)
-config <- list(
-  transform_theta = TRUE,
-  verbose = TRUE,
-  num_threads = 1L,
-  shards = adlaplace::ad_shards(md$data$A, num_shards = 20L)
-)
-af <- adlaplace::ad_fun(md, config, num_threads = config$num_threads)
-adlaplace::n_groups(af@ptr)
-
-n_beta <- length(md$data$info$beta$init)
-n_gamma <- nrow(md$data$info$gamma)
-n_theta <- nrow(md$data$info$theta)
-
-# outer parameters on the optimization scale (theta already logged in info$parameters)
-par_outer <- md$data$info$parameters$init
-beta <- par_outer[seq_len(n_beta)]
-theta <- par_outer[seq.int(n_beta + 1L, length.out = n_theta)]
-gamma0 <- rep(0, n_gamma)
-
-make_x <- function(gamma) {
-  c(beta, gamma, theta)
-}
-
-inner_res <- adlaplace::inner_opt(
-  parameters = par_outer,
-  gamma = gamma0,
-  ad_fun = af,
-  control = list(maxit = 500L, report.level = 1, report.freq = 10),
-  deriv = FALSE,
-  verbose = TRUE
-)
-
-g_hat_inner <- as.numeric(inner_res$opt$solution)
-
-# minimize -log joint dens over gamma; start from inner_opt mode
-obj_nm <- function(gamma) {
-  adlaplace::joint_log_dens(af, make_x(gamma), negative = TRUE)
-}
-
-nm_res <- stats::optim(
-  par = g_hat_inner,
-  fn = obj_nm,
-  method = "Nelder-Mead",
-  control = list(maxit = 200L, reltol = 1e-10, trace = 1, REPORT = 50)
-)
-
-g_nm <- as.numeric(nm_res$par)
-
-f_inner <- adlaplace::joint_log_dens(af, make_x(g_hat_inner), negative = TRUE)
-f_nm <- adlaplace::joint_log_dens(af, make_x(g_nm), negative = TRUE)
-
-data.frame(
-  method = c("inner_opt", "Nelder-Mead"),
-  neg_log_dens = c(f_inner, f_nm),
-  log_dens = c(-f_inner, -f_nm),
-  opt_value = c(inner_res$opt$fval, nm_res$value),
-  convergence = c(NA_integer_, nm_res$convergence),
-  max_abs_gamma_diff = c(NA_real_, max(abs(g_hat_inner - g_nm))),
-  cor_gamma = c(NA_real_, stats::cor(g_hat_inner, g_nm))
-)
-
-c(
-  inner_opt_log_lik = inner_res$log_lik,
-  max_abs_gamma_diff = max(abs(g_hat_inner - g_nm)),
-  rms_gamma_diff = sqrt(mean((g_hat_inner - g_nm)^2))
-)
-```
-
-Inner (γ-block) gradient and Hessian FD checks at the **Nelder-Mead** γ estimate
-(outer $\beta$, $\theta$ fixed).
-
-```{r debug}
-#| cache: false
-#| eval: false
-#| fig.height: 5
-
-gamma_check <- c(2L, 4L)
-
-# base point: Nelder-Mead <U+03B3> with fixed outer parameters
-x_here <- make_x(g_nm)
-
-idx_g <- n_beta + gamma_check
-Dpar <- idx_g[length(idx_g)]
-
-Ngrid <- 7L
-par_grid <- matrix(x_here, nrow = Ngrid, ncol = length(x_here), byrow = TRUE)
-Sx <- x_here[Dpar] + seq(-0.15, 0.15, length.out = Ngrid)
-SxD <- Sx[-1] - diff(Sx) / 2
-par_grid[, Dpar] <- Sx
-x_list <- split(par_grid, row(par_grid))
-
-dens <- vapply(
-  x_list,
-  adlaplace::joint_log_dens,
-  numeric(1),
-  ad_fun = af,
-  negative = FALSE
-)
-
-g_ad_scan <- do.call(
-  cbind,
-  lapply(
-    x_list,
-    adlaplace::grad,
-    ad_fun = af,
-    inner = TRUE,
-    negative = FALSE
-  )
-)
-
-i_mid <- (Ngrid + 1L) %/% 2L
-eps <- 1e-5
-x_mid <- x_list[[i_mid]]
-g_ad <- as.numeric(adlaplace::grad(
-  af, x_mid,
-  inner = TRUE, negative = FALSE
-))
-g_fd <- vapply(idx_g, function(i) {
-  xp <- x_mid
-  xm <- x_mid
-  xp[i] <- xp[i] + eps
-  xm[i] <- xm[i] - eps
-  (adlaplace::joint_log_dens(af, xp, negative = FALSE) -
-    adlaplace::joint_log_dens(af, xm, negative = FALSE)) / (2 * eps)
-}, numeric(1))
-grad_err <- abs(g_ad[idx_g] - g_fd)
-c(
-  n_gamma = n_gamma,
-  dens_mid = dens[i_mid],
-  max_abs_inner_grad_err = max(grad_err),
-  which_gamma = gamma_check[which.max(grad_err)]
-)
-rbind(ad = g_ad[idx_g], fd = g_fd)
-
-H_ad <- as.matrix(adlaplace::hessian(
-  af, x_mid,
-  inner = TRUE, negative = FALSE
-))
-H_fd <- matrix(NA_real_, length(idx_g), length(idx_g))
-for (a in seq_along(idx_g)) {
-  for (b in seq_along(idx_g)) {
-    ia <- idx_g[a]
-    ib <- idx_g[b]
-    xpp <- x_mid
-    xpm <- x_mid
-    xmp <- x_mid
-    xmm <- x_mid
-    xpp[ia] <- xpp[ia] + eps
-    xpp[ib] <- xpp[ib] + eps
-    xpm[ia] <- xpm[ia] + eps
-    xpm[ib] <- xpm[ib] - eps
-    xmp[ia] <- xmp[ia] - eps
-    xmp[ib] <- xmp[ib] + eps
-    xmm[ia] <- xmm[ia] - eps
-    xmm[ib] <- xmm[ib] - eps
-    H_fd[a, b] <- (
-      adlaplace::joint_log_dens(af, xpp, negative = FALSE) -
-        adlaplace::joint_log_dens(af, xpm, negative = FALSE) -
-        adlaplace::joint_log_dens(af, xmp, negative = FALSE) +
-        adlaplace::joint_log_dens(af, xmm, negative = FALSE)
-    ) / (4 * eps * eps)
-  }
-}
-H_ad_sub <- H_ad[idx_g, idx_g, drop = FALSE]
-list(
-  H_ad = H_ad_sub,
-  H_fd = H_fd,
-  max_abs_hess_err = max(abs(H_ad_sub - H_fd))
-)
-
-par(mfrow = c(2, 2), mar = c(2, 2, 2, 0), mgp = c(1, 0.5, 0))
-ylab_g <- paste0("gamma[", gamma_check[length(gamma_check)], "]")
-plot(Sx, dens, type = "b", xlab = ylab_g, ylab = "joint log dens")
-plot(Sx, g_ad_scan[Dpar, ], type = "l", xlab = ylab_g, ylab = "inner AD grad")
-points(SxD, diff(dens) / diff(Sx), pch = 16)
-legend("topright", legend = c("AD", "finite diff"), lty = c(1, NA), pch = c(NA, 1), bty = "n")
-
-hes_scan <- vapply(seq_len(Ngrid), function(i) {
-  Hi <- as.matrix(adlaplace::hessian(
-    af, x_list[[i]],
-    inner = TRUE, negative = FALSE
-  ))
-  Hi[Dpar, Dpar]
-}, numeric(1))
-g_slope <- diff(g_ad_scan[Dpar, ]) / diff(Sx)
-plot(
-  Sx, hes_scan,
-  type = "l", xlab = ylab_g,
-  ylab = paste0("H_inner[", Dpar, ",", Dpar, "]"),
-  ylim = range(c(hes_scan, g_slope), na.rm = TRUE)
-)
-points(SxD, g_slope, pch = 16)
-
-if (length(idx_g) >= 2L) {
-  i1 <- idx_g[1L]
-  i2 <- Dpar
-  hes_cross <- vapply(seq_len(Ngrid), function(i) {
-    Hi <- as.matrix(adlaplace::hessian(
-      af, x_list[[i]],
-      inner = TRUE, negative = FALSE
-    ))
-    Hi[i1, i2]
-  }, numeric(1))
-  g1_slope <- diff(g_ad_scan[i1, ]) / diff(Sx)
-  plot(
-    Sx, hes_cross,
-    type = "l", xlab = ylab_g,
-    ylab = paste0("H_inner[", i1, ",", i2, "]"),
-    ylim = range(c(hes_cross, g1_slope), na.rm = TRUE)
-  )
-  points(SxD, g1_slope, pch = 16)
-}
-```
 
 ```{r fit}
 fit <- adlaplace::adlaplace(
@@ -332,14 +106,14 @@ fit <- adlaplace::adlaplace(
   data = loaloa_df,
   num_shards = 20L,
   control = list(maxit = 200, trace = 3, REPORT = 1),
-  config = list(num_threads = 1L),
-  verbose = TRUE
+  config = list(num_threads = 4L),
+  verbose = FALSE
 )
 fit$optim$convergence
 coef(fit)
 ```
 
-```{r fit-glgm, eval=has_INLA, cache=FALSE}
+```{r fit-glgm}
 loaFit <- geostatsp::glgm(
   y ~ elev_s + evi_s +
     f(
@@ -378,7 +152,7 @@ ad_pars <- c(
 ad_pars
 ```
 
-```{r summary-compare, eval=has_INLA}
+```{r summary-compare}
 if (length(loaFit$parameters)) {
   glgm_sum <- loaFit$parameters$summary
   knitr::kable(glgm_sum[, c("mean", "0.025quant", "0.975quant")], digits = 3)
@@ -433,37 +207,76 @@ my_sim <- adlaplaceGrf:::matern_est(fit, loaloa_for_fit$grid, n = 10)
 
 Posterior mean and SD of the spatial field from both fits (glgm when available):
 
-```{r plot-surfaces}
-#| fig.width: 8
-#| fig.height: 8
-my_col <- mapmisc::colourScale(my_sim[[grep("sd", names(my_sim), invert = TRUE)]], style = "equal", digits = 2, breaks = 9, col = "Spectral")
-sd_col <- mapmisc::colourScale(my_sim[[grep("sd", names(my_sim))]], style = "equal", digits = 2, breaks = 9)
-if (has_INLA && exists("loaFit") && length(loaFit$parameters)) {
-  old_par <- graphics::par(mfrow = c(2, 2), mar = c(2, 2, 2, 4))
-  on.exit(graphics::par(old_par), add = TRUE)
-  mapmisc::map.new(loaloa)
-  terra::plot(loaFit$raster[["random.mean"]], main = "glgm random mean", add = TRUE, col = my_col$col, breaks = my_col$breaks, legend = FALSE)
-  mapmisc::map.new(loaloa)
-  terra::plot(my_sim[["mean"]], main = "adlaplace matern mean", add = TRUE, col = my_col$col, breaks = my_col$breaks, legend = FALSE)
-  mapmisc::legendBreaks("right", my_col)
-  mapmisc::map.new(loaloa)
-  terra::plot(loaFit$raster[["random.sd"]], main = "glgm random sd", add = TRUE, col = sd_col$col, breaks = sd_col$breaks, legend = FALSE)
-  mapmisc::map.new(loaloa)
-  terra::plot(my_sim[["sd"]], main = "adlaplace matern sd", add = TRUE, col = sd_col$col, breaks = sd_col$breaks, legend = FALSE)
-  mapmisc::legendBreaks("right", sd_col)
-} else {
-  old_par <- graphics::par(mfrow = c(1, 2), mar = c(2, 2, 2, 4))
-  on.exit(graphics::par(old_par), add = TRUE)
-  terra::plot(my_sim[["mean"]], main = "adlaplace matern mean")
-  terra::plot(my_sim[["sd"]], main = "adlaplace matern sd")
-}
+```{r plot-surfaces-setup}
+#| include: false
+my_col <- mapmisc::colourScale(
+  my_sim[[grep("sd", names(my_sim), invert = TRUE)]],
+  style = "equal", digits = 2, breaks = 9, col = "Spectral"
+)
+sd_col <- mapmisc::colourScale(
+  my_sim[[grep("sd", names(my_sim))]],
+  style = "equal", digits = 2, breaks = 9
+)
+plot_compare <- has_INLA && exists("loaFit") && length(loaFit$parameters)
+plot_alone <- !plot_compare
 ```
+
+```{r plot-surfaces-compare}
+#| fig-width: 8
+#| fig-height: 8
+#| layout-ncol: 2
+#| fig-cap: "Posterior mean and SD of the spatial field (glgm vs adlaplace)."
+#| fig-subcap:
+#|   - "glgm random mean"
+#|   - "adlaplace matern mean"
+#|   - "glgm random sd"
+#|   - "adlaplace matern sd"
+data("worldMap", package = "mapmisc")
+worldMap <- terra::unwrap(worldMap)
+worldMap <- terra::crop(worldMap, terra::ext(c(-2, 10, -10, 5) * 1e6))
+worldMapT <- terra::project(worldMap, loaloa)
+mapmisc::map.new(loaloa)
+terra::plot(
+  loaFit$raster[["random.mean"]],
+  add = TRUE, col = my_col$col, breaks = my_col$breaks, legend = FALSE
+)
+terra::plot(worldMapT, add = TRUE)
+mapmisc::legendBreaks("right", my_col)
+
+mapmisc::map.new(loaloa)
+terra::plot(
+  my_sim[["mean"]],
+  add = TRUE, col = my_col$col, breaks = my_col$breaks, legend = FALSE
+)
+terra::plot(worldMapT, add = TRUE)
+mapmisc::legendBreaks("right", my_col)
+
+mapmisc::map.new(loaloa)
+terra::plot(
+  loaFit$raster[["random.sd"]],
+  add = TRUE, col = sd_col$col, breaks = sd_col$breaks, legend = FALSE
+)
+terra::plot(worldMapT, add = TRUE)
+mapmisc::legendBreaks("right", sd_col)
+
+mapmisc::map.new(loaloa)
+terra::plot(
+  my_sim[["sd"]],
+  add = TRUE, col = sd_col$col, breaks = sd_col$breaks, legend = FALSE
+)
+terra::plot(worldMapT, add = TRUE)
+mapmisc::legendBreaks("right", sd_col)
+```
+
+
+
 
 Four posterior draws of the adlaplace Matérn field:
 
 ```{r plot-sims}
 #| fig.width: 8
 #| fig.height: 8
-sim_layers <- paste0("sim", c(1L, 34L, 67L, 100L))
-terra::plot(my_sim[[sim_layers]], nc = 2, main = sim_layers)
+sim_layers <- paste0("sim", 1:6)
+terra::plot(my_sim[[sim_layers]], nc = 2, col = my_col$col, breaks = my_col$breaks, legend = FALSE)
+mapmisc::legendBreaks("right", my_col, bty = "n")
 ```

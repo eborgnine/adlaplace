@@ -175,7 +175,10 @@ matern_column_xy <- function(x) {
 #' Matern FEM spatial random field term
 #'
 #' Formula term for a 2D Matern GRF via tensor-product B-spline FEM, wired to
-#' adlaplace kernels `random_fem_2` (shape nu = 1) or `random_fem_3` (nu = 2).
+#' adlaplaceGrf kernels `random_fem_ssq_2` / `random_fem_det_2` (shape nu = 1)
+#' or `random_fem_ssq_3` / `random_fem_det_3` (nu = 2). The quadratic form is a
+#' random shard; the log-determinant is a parameters companion via
+#' [adlaplace::extra_ad_fun()].
 #' The first argument is a **column name** in `data` (like [adlaplace::iid()]):
 #' that column holds observation locations as a 2-column matrix, WKT text, or
 #' HEX WKB points. Knot lines are supplied at construction; the observation
@@ -198,7 +201,7 @@ setClass(
     p.order = 2L,
     knots = numeric(0),
     type = factor("random", levels = adlaplace:::.type_factor_levels),
-    ad_fun = "random_fem_2",
+    ad_fun = "random_fem_ssq_2",
     ad_kind = "random",
     package = "adlaplaceGrf",
     fem = NULL
@@ -233,7 +236,11 @@ matern <- function(x,
   knots <- matern_knots(knots)
   fem <- matern_fem_grams(knots, degree = degree)
 
-  ad_fun <- if (identical(degree, 3L)) "random_fem_3" else "random_fem_2"
+  ad_fun <- if (identical(degree, 3L)) {
+    "random_fem_ssq_3"
+  } else {
+    "random_fem_ssq_2"
+  }
   methods::new(
     "matern",
     term = x,
@@ -250,6 +257,13 @@ matern <- function(x,
     fem = fem
   )
 }
+
+#' @describeIn matern-class Companion parameters density for the FEM
+#'   log-determinant shard.
+#' @export
+setMethod("extra_ad_fun", "matern", function(term) {
+  sub("^random_fem_ssq_", "random_fem_det_", term@ad_fun, perl = TRUE)
+})
 
 #' @keywords internal
 ensure_matern_fem <- function(term) {

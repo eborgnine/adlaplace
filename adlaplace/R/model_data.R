@@ -69,6 +69,7 @@ model_data <- function(formula, data, verbose = FALSE, na_omit = TRUE) {
 
   observations <- list()
   random <- list()
+  random_parameters <- list()
 
   for (term_here in the_terms) {
     if (!methods::is(term_here, "model")) {
@@ -148,21 +149,35 @@ model_data <- function(formula, data, verbose = FALSE, na_omit = TRUE) {
         } else {
           as.numeric(Matrix::diag(prec_mat))
         }
+        theta_map_here <- list(
+          grep(term_here@label, all_data$info$theta$label),
+          as.integer(n_theta)
+        )
         random[[random_name]] <- ad_data(
           beta_map = n_beta,
           gamma_map = list(
             which(all_data$info$gamma$label == term_here@label),
             n_gamma
           ),
-          theta_map = list(
-            grep(term_here@label, all_data$info$theta$label),
-            as.integer(n_theta)
-          ),
+          theta_map = theta_map_here,
           ad_fun = ad_name,
           ad_kind = "random",
           package = term_here@package,
           precision = prec_payload
         )
+        extra_name <- extra_ad_fun(term_here)
+        if (is.character(extra_name) && length(extra_name) == 1L &&
+            nzchar(extra_name)) {
+          random_parameters[[paste0(random_name, "_det")]] <- ad_data(
+            beta_map = n_beta,
+            gamma_map = n_gamma,
+            theta_map = theta_map_here,
+            ad_fun = extra_name,
+            ad_kind = "parameters",
+            package = term_here@package,
+            precision = prec_payload
+          )
+        }
       }
     }
   }
@@ -195,6 +210,9 @@ model_data <- function(formula, data, verbose = FALSE, na_omit = TRUE) {
       nm <- rep("", length(parameters))
     }
     names(parameters) <- paste0(nm, "_extra")
+  }
+  if (length(random_parameters) > 0L) {
+    parameters <- c(parameters, random_parameters)
   }
 
   list(
