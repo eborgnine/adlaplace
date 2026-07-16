@@ -155,107 +155,55 @@ create_ad_fun_random_mult <- function(model, config) {
     .Call(`_adlaplace_create_ad_fun_random_mult`, model, config)
 }
 
-#' @title C++ backend entry points
-#' @name adlaplace_cpp
-#' @description Low-level C++ entry points exposed to R via Rcpp.
-#'
-#' @param negative Logical (default \code{TRUE}). If \code{TRUE}, return the
-#'   **negative** log density \eqn{-\ell(x)} and its derivatives (minimization /
-#'   \pkg{trustOptim} sign, consistent with \code{inner_opt()}). If \code{FALSE}, return \eqn{\ell(x)}, \eqn{\nabla\ell},
-#'   and \eqn{\nabla^2\ell}.
-#' @param ad_fun_ptr External pointer of class \code{ad_fun_ptr}.
-#' @param x Numeric parameter vector of length \code{Nparams}.
-#' @param shards Optional integer vector of 0-based shard indices; \code{NULL} or
-#'   \code{integer(0)} evaluates all shards.
-#' @param inner Logical scalar for inner-\eqn{\gamma} vs outer derivatives.
-#' @param verbose Logical passed to \code{hessian()}.
-#' @param LinvPt,LinvPtColumns See \code{trace_hinv_t()}.
-#'
-#' @section Sign convention:
-#' With default \code{negative = TRUE}, \code{joint_log_dens()}, \code{grad()},
-#' and \code{hessian()} match \code{inner_opt()} (negative
-#' log-density). Set \code{negative = FALSE} for the joint log density and its
-#' derivatives at the same \code{x}.
-#'
-#' @rdname adlaplace_cpp
-#' @return Scalar log-density value (sign per \code{negative}).
-joint_log_dens <- function(ad_fun_ptr, x, shards = NULL, negative = TRUE) {
-    .Call(`_adlaplace_joint_log_dens`, ad_fun_ptr, x, shards, negative)
+joint_log_dens <- function(ad_fun, x, shards = NULL, negative = TRUE) {
+    .Call(`_adlaplace_joint_log_dens`, ad_fun, x, shards, negative)
 }
 
-#' @rdname adlaplace_cpp
-#' @return Gradient of log density (sign per \code{negative}).
-grad <- function(ad_fun_ptr, x, shards = NULL, inner = FALSE, negative = TRUE) {
-    .Call(`_adlaplace_grad`, ad_fun_ptr, x, shards, inner, negative)
+grad <- function(ad_fun, x, shards = NULL, inner = FALSE, negative = TRUE) {
+    .Call(`_adlaplace_grad`, ad_fun, x, shards, inner, negative)
 }
 
-#' @rdname adlaplace_cpp
-#' @return Sparse Hessian of log density (sign per \code{negative}).
-hessian <- function(ad_fun_ptr, x, shards = NULL, inner = FALSE, verbose = FALSE, negative = TRUE) {
-    .Call(`_adlaplace_hessian`, ad_fun_ptr, x, shards, inner, verbose, negative)
+hessian <- function(ad_fun, x, shards = NULL, inner = FALSE, verbose = FALSE, negative = TRUE) {
+    .Call(`_adlaplace_hessian`, ad_fun, x, shards, inner, verbose, negative)
 }
 
 #' Inner optimization over gamma using trust-region CG (sparse)
 #'
-#' Runs the inner optimization problem (typically over \eqn{\gamma}) using the
-#' trustOptim sparse trust-region Conjugate Gradient solver. This function
-#' evaluates the objective, gradient, and Hessian through the pre-built AD pack
-#' (external pointer) and returns the solution along with curvature
-NULL
-
+#' Runs the inner optimization over \eqn{\gamma} using the
+#' \pkg{trustOptim} sparse trust-region CG solver on a pre-built
+#' \code{\link{ad_fun}} handle.
 #'
-#' @param x Numeric full parameter vector of length \code{Nparams}.
 #' @param parameters Numeric vector of fixed outer parameters
-#'   (\code{beta}, \code{theta}; length \code{Nbeta+Ntheta}) used by
-#'   \code{inner_opt()}.
+#'   (\code{beta}, \code{theta}; length \code{Nbeta+Ntheta}).
 #' @param gamma Numeric vector of starting values for inner parameters
-#'   (\code{gamma}; length \code{Ngamma}) used by \code{inner_opt()}.
-#' @param ad_fun \code{ad_fun} S4 object from \code{ad_fun(ad_fun_ptr)}.
-#' @param verbose Logical; if \code{TRUE}, print threads, shards, and parameter
-NULL
-
+#'   (\code{gamma}; length \code{Ngamma}).
+#' @param ad_fun \code{ad_fun} S4 object from \code{\link{ad_fun}}.
+#' @param control List of trust-region control parameters (see \pkg{trustOptim}).
+#' @param deriv Logical; if \code{TRUE}, also return outer gradient/Hessian
+#'   pieces and Cholesky-based quantities at the inner mode.
+#' @param verbose Logical; if \code{TRUE}, print thread/shard diagnostics.
 #'
-#' @return
-#'   \item{\code{inner_opt()}}{Returns \code{log_lik}, \code{neg_log_lik}
-#'   (Laplace profile likelihood and its negation), \code{parameters} (outer
-#'   \code{beta} and \code{theta} passed in), \code{full_parameters} (outer
-NULL
-
+#' @return A list with \code{log_lik}, \code{neg_log_lik}, \code{parameters},
+#'   \code{full_parameters}, \code{opt}, \code{gradient}
+#'   (list \code{inner}/\code{outer}), and \code{hessian}
+#'   (list \code{inner}/\code{outer}/\code{chol_inner}/\code{half_log_det};
+#'   with \code{deriv=TRUE} also \code{half_H_inv}, \code{H_inv}, \code{trace3}).
+#'   Objective and derivatives use the negative log-density convention.
 #'
 #' @details
-#' This calls the sparse method from the \code{TrustOptim} package via the Cpp
-NULL
-
+#' Negates tape log-density values in C++ for minimization via
+#' \pkg{trustOptim}.
 #'
-#' @name innerOpt
-NULL
-
-#' Evaluate f, gradient, and Hessian via \code{AD_Func_Opt::get_fdfh}
-#'
-#' Diagnostic entry point mirroring the \code{Trust_CG_Sparse} /
-NULL
-
-#'
-#' @param parameters Numeric vector of length \code{Nbeta + Ntheta} (fixed
-NULL
-
-#' @rdname innerOpt
 #' @export
 inner_opt <- function(parameters, gamma, ad_fun, control = NULL, deriv = FALSE, verbose = FALSE) {
     .Call(`_adlaplace_inner_opt`, parameters, gamma, ad_fun, control, deriv, verbose)
 }
 
-#'
-#' @rdname adlaplace_cpp
-#' @return List with components \code{f} (scalar), \code{grad} (numeric), and
-#'   \code{hessian} (sparse \code{Matrix} object).
-fun_obj_fdfh <- function(parameters, gamma, ad_fun_s4, inner = TRUE, verbose = FALSE) {
-    .Call(`_adlaplace_fun_obj_fdfh`, parameters, gamma, ad_fun_s4, inner, verbose)
+fun_obj_fdfh <- function(parameters, gamma, ad_fun, inner = TRUE, verbose = FALSE) {
+    .Call(`_adlaplace_fun_obj_fdfh`, parameters, gamma, ad_fun, inner, verbose)
 }
 
-#' @rdname adlaplace_cpp
-#' @param verbose Logical; if \code{TRUE}, print threads, shards, and parameter sizes.
-trace_hinv_t <- function(ad_fun_ptr, x, LinvPt, LinvPtColumns, verbose = FALSE) {
-    .Call(`_adlaplace_trace_hinv_t`, ad_fun_ptr, x, LinvPt, LinvPtColumns, verbose)
+trace_hinv_t <- function(ad_fun, x, LinvPt, LinvPtColumns, verbose = FALSE) {
+    .Call(`_adlaplace_trace_hinv_t`, ad_fun, x, LinvPt, LinvPtColumns, verbose)
 }
 

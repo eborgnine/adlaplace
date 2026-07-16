@@ -1,6 +1,7 @@
 ^\.DS_Store$
 ^\.lintr$
 ^\.gitignore$
+^\.cursor$
 ^\.\.Rcheck$
 ^config\.
 ^config\.[0-9]+/

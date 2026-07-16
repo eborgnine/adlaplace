@@ -1,7 +1,10 @@
 #' @include classes.R
+NULL
+
 #' Parameter-block row counts for an \code{ad_data}
 #'
 #' @param x An \code{ad_data} object.
+#' @param ... Unused; for S4 generic compatibility.
 #' @return Named list with \code{n_beta}, \code{n_gamma}, and \code{n_theta}.
 #' @export
 setGeneric("sizes", function(x, ...) standardGeneric("sizes"))

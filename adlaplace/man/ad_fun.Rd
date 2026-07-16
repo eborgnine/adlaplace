@@ -2,9 +2,18 @@
 % Please edit documentation in R/ad_fun.R
 \name{ad_fun}
 \alias{ad_fun}
+\alias{ad_fun,ad_fun_ptr-method}
+\alias{ad_fun,ad_data-method}
+\alias{ad_fun,list-method}
 \title{Build AD function with Hessian templates}
 \usage{
 ad_fun(x, config = NULL, num_threads = 1L, ...)
+
+\S4method{ad_fun}{ad_fun_ptr}(x, config = NULL, num_threads = 1L, ...)
+
+\S4method{ad_fun}{ad_data}(x, config = NULL, num_threads = 1L, ...)
+
+\S4method{ad_fun}{list}(x, config = NULL, num_threads = 1L, ...)
 }
 \arguments{
 \item{x}{One of: an \code{ad_fun_ptr}, an \code{ad_data} shard with

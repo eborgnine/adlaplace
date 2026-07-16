@@ -6,7 +6,17 @@ NULL
 
 loadNamespace("Matrix")
 
+#' Raw AD handle (external pointer)
+#'
+#' S4 class for a C++ AD backend handle. Objects are created by
+#' \code{\link{ad_fun_ptr}}, combined with \code{\link{c.ad_fun_ptr}}, and
+#' typically passed to \code{\link{ad_fun}} to attach Hessian templates.
+#'
+#' @name ad_fun_ptr-class
+#' @aliases ad_fun_ptr-class
 #' @exportClass ad_fun_ptr
+#' @seealso \code{\link{ad_fun_ptr}}, \code{\link{ad_fun}},
+#'   \code{\link{clone_ad_fun_ptr}}
 setClass("ad_fun_ptr", contains = "externalptr")
 
 #' @keywords internal

@@ -53,11 +53,11 @@ new_ad_fun_from_ptr <- function(ptr, num_threads = 1L, info = list(), verbose = 
       num_threads, " thread(s))...\n",
       sep = ""
     )
-    flush.console()
+    utils::flush.console()
   }
   if (verbose) {
     cat("  assigning owner threads...\n")
-    flush.console()
+    utils::flush.console()
   }
   assign_owner_threads(ptr, num_threads)
   owner_threads <- vapply(
@@ -76,7 +76,7 @@ new_ad_fun_from_ptr <- function(ptr, num_threads = 1L, info = list(), verbose = 
       ", gamma=", n_gamma, ", theta=", n_theta, ")...\n",
       sep = ""
     )
-    flush.console()
+    utils::flush.console()
   }
   shard_ids <- seq_len(n_shards) - 1L
   sparsity <- vector("list", n_shards)
@@ -84,13 +84,13 @@ new_ad_fun_from_ptr <- function(ptr, num_threads = 1L, info = list(), verbose = 
     g <- shard_ids[[i]]
     if (verbose && n_shards > 1L) {
       cat("    sparsity group ", i, "/", n_shards, "\n", sep = "")
-      flush.console()
+      utils::flush.console()
     }
     sparsity[[i]] <- c(get_sizes(ptr, g), get_sparse_pattern(ptr, g))
   }
   if (verbose) {
     cat("  building Hessian map...\n")
-    flush.console()
+    utils::flush.console()
   }
   hessian_pack <- hessian_map(
     sparsity_list = sparsity,
@@ -102,7 +102,7 @@ new_ad_fun_from_ptr <- function(ptr, num_threads = 1L, info = list(), verbose = 
   if (length(chol_inner_list) > 0L && !is.null(chol_inner_list$half_H_inv)) {
     if (verbose) {
       cat("  building trace column map...\n")
-      flush.console()
+      utils::flush.console()
     }
     hessian_pack$chol_inner_list$trace_columns <- trace_columns_from_pattern(
       group_sparsity = lapply(sparsity, function(xx) xx$grad_inner),
@@ -114,13 +114,13 @@ new_ad_fun_from_ptr <- function(ptr, num_threads = 1L, info = list(), verbose = 
   }
   if (verbose) {
     cat("  attaching Hessian templates to C++ handle...\n")
-    flush.console()
+    utils::flush.console()
   }
   adlaplace_attach_hessian(ptr, hessian_pack)
 
   if (verbose) {
     cat("ad_fun: Hessian attach complete.\n")
-    flush.console()
+    utils::flush.console()
   }
 
   methods::new(
@@ -162,7 +162,7 @@ setGeneric("ad_fun", function(x, config = NULL, num_threads = 1L, ...) {
   standardGeneric("ad_fun")
 })
 
-#' @describeIn ad_fun Attach Hessian templates to a raw \code{ad_fun_ptr}.
+#' @rdname ad_fun
 #' @export
 setMethod("ad_fun", signature = c(x = "ad_fun_ptr"), function(x, config = NULL, num_threads = 1L, ...) {
   extras <- list(...)
@@ -182,14 +182,14 @@ setMethod("ad_fun", signature = c(x = "ad_fun_ptr"), function(x, config = NULL, 
     }
     if (verbose) {
       cat("ad_fun: merging ", 1L + length(extras), " raw handle(s)...\n", sep = "")
-      flush.console()
+      utils::flush.console()
     }
     x <- do.call(c, c(list(x), extras))
   }
   new_ad_fun_from_ptr(x, num_threads = num_threads, verbose = verbose)
 })
 
-#' @describeIn ad_fun Build pointer from one \code{ad_data} shard, then attach templates.
+#' @rdname ad_fun
 #' @export
 setMethod("ad_fun",
   signature = c(x = "ad_data"),
@@ -208,8 +208,7 @@ setMethod("ad_fun",
   }
 )
 
-#' @describeIn ad_fun Build pointers from a \code{model_data()} bundle, merge,
-#'   and attach templates.
+#' @rdname ad_fun
 #' @export
 setMethod("ad_fun", signature = c(x = "list"), function(x, config, num_threads = 1L, ...) {
   if (!is_model_data_bundle(x)) {
@@ -230,7 +229,7 @@ setMethod("ad_fun", signature = c(x = "list"), function(x, config, num_threads =
     theta = init_from_info_block(x$data$info$theta),
     gamma = rep(0, nrow(x$data$info$gamma))
   )
-  config_build <- modifyList(defaults, config)
+  config_build <- utils::modifyList(defaults, config)
   if (identical(config_build$transform_theta, TRUE) && is.null(config$theta)) {
     config_build$theta <- apply_theta_log(
       x$data$info$theta,
@@ -254,7 +253,7 @@ setMethod("ad_fun", signature = c(x = "list"), function(x, config, num_threads =
       "...\n",
       sep = ""
     )
-    flush.console()
+    utils::flush.console()
   }
   ptrs <- vector("list", n_shards)
   for (i in seq_len(n_shards)) {
@@ -263,7 +262,7 @@ setMethod("ad_fun", signature = c(x = "list"), function(x, config, num_threads =
     if (verbose) {
       cat(
         "  [", i, "/", n_shards, "] ",
-        adlaplace:::ad_fun_shard_label(shard, shard_name),
+        ad_fun_shard_label(shard, shard_name),
         " (CppAD tape",
         if (identical(shard@ad_kind, "observations") && !is.null(config_build$shards)) {
           paste0(", ", ncol(config_build$shards), " groups")
@@ -273,17 +272,17 @@ setMethod("ad_fun", signature = c(x = "list"), function(x, config, num_threads =
         ")...\n",
         sep = ""
       )
-      flush.console()
+      utils::flush.console()
     }
     ptrs[[i]] <- ad_fun_ptr(shard, config = config_build)
     if (verbose) {
       cat("  [", i, "/", n_shards, "] done (", n_groups(ptrs[[i]]), " AD group(s)).\n", sep = "")
-      flush.console()
+      utils::flush.console()
     }
   }
   if (verbose) {
     cat("ad_fun: merging density handles...\n")
-    flush.console()
+    utils::flush.console()
   }
   new_ad_fun_from_ptr(
     do.call(c, ptrs),
@@ -293,40 +292,68 @@ setMethod("ad_fun", signature = c(x = "list"), function(x, config, num_threads =
   )
 })
 
-#' @describeIn adlaplace_cpp Accept \code{ad_fun} S4 (uses \code{@ptr}).
+#' C++ backend entry points
+#'
+#' Low-level entry points exposed to R. Accept an \code{ad_fun} S4 object
+#' (via \code{@ptr}) or a raw \code{ad_fun_ptr}.
+#'
+#' @param ad_fun An \code{ad_fun} S4 object or \code{ad_fun_ptr} handle.
+#' @param x Numeric parameter vector of length \code{Nparams}.
+#' @param shards Optional integer vector of 0-based shard indices; \code{NULL} or
+#'   \code{integer(0)} evaluates all shards.
+#' @param negative Logical (default \code{TRUE}). If \code{TRUE}, return the
+#'   **negative** log density \eqn{-\ell(x)} and its derivatives (minimization /
+#'   \pkg{trustOptim} sign, consistent with \code{inner_opt()}). If \code{FALSE},
+#'   return \eqn{\ell(x)}, \eqn{\nabla\ell}, and \eqn{\nabla^2\ell}.
+#' @param inner Logical; if \code{TRUE}, evaluate inner-\eqn{\gamma}
+#'   derivatives; if \code{FALSE}, evaluate outer derivatives at the full
+#'   parameter vector.
+#' @param verbose Logical; if \code{TRUE}, print threads, shards, and CppAD
+#'   session phases.
+#' @param parameters Numeric vector of length \code{Nbeta + Ntheta}.
+#' @param gamma Numeric vector of length \code{Ngamma}.
+#' @param LinvPt,LinvPtColumns Sparse factors for \code{trace_hinv_t()}.
+#'
+#' @section Sign convention:
+#' With default \code{negative = TRUE}, \code{joint_log_dens()}, \code{grad()},
+#' and \code{hessian()} match \code{inner_opt()} (negative log-density). Set
+#' \code{negative = FALSE} for the joint log density and its derivatives at the
+#' same \code{x}.
+#'
+#' @name adlaplace_cpp
+#' @return See individual functions.
+NULL
+
+#' @rdname adlaplace_cpp
 #' @export
 joint_log_dens <- function(ad_fun, x, shards = NULL, negative = TRUE) {
   ptr <- if (isS4(ad_fun) && methods::.hasSlot(ad_fun, "ptr")) ad_fun@ptr else ad_fun
   .Call(`_adlaplace_joint_log_dens`, ptr, x, shards, negative)
 }
 
-#' @describeIn adlaplace_cpp Accept \code{ad_fun} S4 (uses \code{@ptr}).
+#' @rdname adlaplace_cpp
 #' @export
 grad <- function(ad_fun, x, shards = NULL, inner = FALSE, negative = TRUE) {
   ptr <- if (isS4(ad_fun) && methods::.hasSlot(ad_fun, "ptr")) ad_fun@ptr else ad_fun
   .Call(`_adlaplace_grad`, ptr, x, shards, inner, negative)
 }
 
-#' @describeIn adlaplace_cpp Accept \code{ad_fun} S4 (uses \code{@ptr}).
+#' @rdname adlaplace_cpp
 #' @export
 hessian <- function(ad_fun, x, shards = NULL, inner = FALSE, verbose = FALSE, negative = TRUE) {
   ptr <- if (isS4(ad_fun) && methods::.hasSlot(ad_fun, "ptr")) ad_fun@ptr else ad_fun
   .Call(`_adlaplace_hessian`, ptr, x, shards, inner, verbose, negative)
 }
 
-#' @describeIn adlaplace_cpp Accept \code{ad_fun} S4 (uses \code{@ptr}).
-#' @param verbose Logical; if \code{TRUE}, print threads, shards, and CppAD session phases.
+#' @rdname adlaplace_cpp
 #' @export
 trace_hinv_t <- function(ad_fun, x, LinvPt, LinvPtColumns, verbose = FALSE) {
   ptr <- if (isS4(ad_fun) && methods::.hasSlot(ad_fun, "ptr")) ad_fun@ptr else ad_fun
   .Call("_adlaplace_trace_hinv_t", ptr, x, LinvPt, LinvPtColumns, verbose)
 }
 
-#' @describeIn adlaplace_cpp Accept \code{ad_fun} S4 (requires Hessian templates).
-#' @param parameters Numeric vector of length \code{Nbeta + Ntheta}.
-#' @param gamma Numeric vector of length \code{Ngamma}.
+#' @rdname adlaplace_cpp
 #' @export
 fun_obj_fdfh <- function(ad_fun, parameters, gamma, inner = TRUE, verbose = FALSE) {
   .Call(`_adlaplace_fun_obj_fdfh`, parameters, gamma, ad_fun, inner, verbose)
 }
-

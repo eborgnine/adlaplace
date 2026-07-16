@@ -30,10 +30,10 @@
 #' }
 model_data <- function(formula, data, verbose = FALSE, na_omit = TRUE) {
   formula_in <- formula
-  the_terms <- adlaplace:::parse_model_terms(formula, verbose = verbose)
+  the_terms <- parse_model_terms(formula, verbose = verbose)
 
   if (na_omit) {
-    data <- adlaplace:::prepare_model_rows(data, the_terms, verbose = verbose)
+    data <- prepare_model_rows(data, the_terms, verbose = verbose)
   }
 
   elgm_mats <- list()
@@ -134,8 +134,7 @@ model_data <- function(formula, data, verbose = FALSE, na_omit = TRUE) {
       prec_mat <- precision(term_here, all_data$data)
       if (!is.null(prec_mat)) {
         # Key by @label, not @term: multiple random terms can share a grouping
-        # variable (e.g. two rsiid() slopes on the same cdcode) while still
-        # having distinct labels / gamma columns.
+        # variable while still having distinct labels / gamma columns.
         random_name <- term_here@label
         if (random_name %in% names(random)) {
           stop(

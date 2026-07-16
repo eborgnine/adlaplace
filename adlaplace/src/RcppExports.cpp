@@ -176,47 +176,47 @@ BEGIN_RCPP
 END_RCPP
 }
 // joint_log_dens
-double joint_log_dens(SEXP ad_fun_ptr, const Rcpp::NumericVector& x, Rcpp::Nullable<Rcpp::IntegerVector> shards, bool negative);
-RcppExport SEXP _adlaplace_joint_log_dens(SEXP ad_fun_ptrSEXP, SEXP xSEXP, SEXP shardsSEXP, SEXP negativeSEXP) {
+double joint_log_dens(SEXP ad_fun, const Rcpp::NumericVector& x, Rcpp::Nullable<Rcpp::IntegerVector> shards, bool negative);
+RcppExport SEXP _adlaplace_joint_log_dens(SEXP ad_funSEXP, SEXP xSEXP, SEXP shardsSEXP, SEXP negativeSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< SEXP >::type ad_fun_ptr(ad_fun_ptrSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type ad_fun(ad_funSEXP);
     Rcpp::traits::input_parameter< const Rcpp::NumericVector& >::type x(xSEXP);
     Rcpp::traits::input_parameter< Rcpp::Nullable<Rcpp::IntegerVector> >::type shards(shardsSEXP);
     Rcpp::traits::input_parameter< bool >::type negative(negativeSEXP);
-    rcpp_result_gen = Rcpp::wrap(joint_log_dens(ad_fun_ptr, x, shards, negative));
+    rcpp_result_gen = Rcpp::wrap(joint_log_dens(ad_fun, x, shards, negative));
     return rcpp_result_gen;
 END_RCPP
 }
 // grad
-Rcpp::NumericVector grad(SEXP ad_fun_ptr, const Rcpp::NumericVector& x, Rcpp::Nullable<Rcpp::IntegerVector> shards, bool inner, bool negative);
-RcppExport SEXP _adlaplace_grad(SEXP ad_fun_ptrSEXP, SEXP xSEXP, SEXP shardsSEXP, SEXP innerSEXP, SEXP negativeSEXP) {
+Rcpp::NumericVector grad(SEXP ad_fun, const Rcpp::NumericVector& x, Rcpp::Nullable<Rcpp::IntegerVector> shards, bool inner, bool negative);
+RcppExport SEXP _adlaplace_grad(SEXP ad_funSEXP, SEXP xSEXP, SEXP shardsSEXP, SEXP innerSEXP, SEXP negativeSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< SEXP >::type ad_fun_ptr(ad_fun_ptrSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type ad_fun(ad_funSEXP);
     Rcpp::traits::input_parameter< const Rcpp::NumericVector& >::type x(xSEXP);
     Rcpp::traits::input_parameter< Rcpp::Nullable<Rcpp::IntegerVector> >::type shards(shardsSEXP);
     Rcpp::traits::input_parameter< bool >::type inner(innerSEXP);
     Rcpp::traits::input_parameter< bool >::type negative(negativeSEXP);
-    rcpp_result_gen = Rcpp::wrap(grad(ad_fun_ptr, x, shards, inner, negative));
+    rcpp_result_gen = Rcpp::wrap(grad(ad_fun, x, shards, inner, negative));
     return rcpp_result_gen;
 END_RCPP
 }
 // hessian
-Rcpp::S4 hessian(SEXP ad_fun_ptr, const Rcpp::NumericVector& x, Rcpp::Nullable<Rcpp::IntegerVector> shards, bool inner, const bool verbose, bool negative);
-RcppExport SEXP _adlaplace_hessian(SEXP ad_fun_ptrSEXP, SEXP xSEXP, SEXP shardsSEXP, SEXP innerSEXP, SEXP verboseSEXP, SEXP negativeSEXP) {
+Rcpp::S4 hessian(SEXP ad_fun, const Rcpp::NumericVector& x, Rcpp::Nullable<Rcpp::IntegerVector> shards, bool inner, const bool verbose, bool negative);
+RcppExport SEXP _adlaplace_hessian(SEXP ad_funSEXP, SEXP xSEXP, SEXP shardsSEXP, SEXP innerSEXP, SEXP verboseSEXP, SEXP negativeSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< SEXP >::type ad_fun_ptr(ad_fun_ptrSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type ad_fun(ad_funSEXP);
     Rcpp::traits::input_parameter< const Rcpp::NumericVector& >::type x(xSEXP);
     Rcpp::traits::input_parameter< Rcpp::Nullable<Rcpp::IntegerVector> >::type shards(shardsSEXP);
     Rcpp::traits::input_parameter< bool >::type inner(innerSEXP);
     Rcpp::traits::input_parameter< const bool >::type verbose(verboseSEXP);
     Rcpp::traits::input_parameter< bool >::type negative(negativeSEXP);
-    rcpp_result_gen = Rcpp::wrap(hessian(ad_fun_ptr, x, shards, inner, verbose, negative));
+    rcpp_result_gen = Rcpp::wrap(hessian(ad_fun, x, shards, inner, verbose, negative));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -237,32 +237,32 @@ BEGIN_RCPP
 END_RCPP
 }
 // fun_obj_fdfh
-Rcpp::List fun_obj_fdfh(const Rcpp::NumericVector& parameters, const Rcpp::NumericVector& gamma, const Rcpp::S4& ad_fun_s4, bool inner, bool verbose);
-RcppExport SEXP _adlaplace_fun_obj_fdfh(SEXP parametersSEXP, SEXP gammaSEXP, SEXP ad_fun_s4SEXP, SEXP innerSEXP, SEXP verboseSEXP) {
+Rcpp::List fun_obj_fdfh(const Rcpp::NumericVector& parameters, const Rcpp::NumericVector& gamma, const Rcpp::S4& ad_fun, bool inner, bool verbose);
+RcppExport SEXP _adlaplace_fun_obj_fdfh(SEXP parametersSEXP, SEXP gammaSEXP, SEXP ad_funSEXP, SEXP innerSEXP, SEXP verboseSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< const Rcpp::NumericVector& >::type parameters(parametersSEXP);
     Rcpp::traits::input_parameter< const Rcpp::NumericVector& >::type gamma(gammaSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::S4& >::type ad_fun_s4(ad_fun_s4SEXP);
+    Rcpp::traits::input_parameter< const Rcpp::S4& >::type ad_fun(ad_funSEXP);
     Rcpp::traits::input_parameter< bool >::type inner(innerSEXP);
     Rcpp::traits::input_parameter< bool >::type verbose(verboseSEXP);
-    rcpp_result_gen = Rcpp::wrap(fun_obj_fdfh(parameters, gamma, ad_fun_s4, inner, verbose));
+    rcpp_result_gen = Rcpp::wrap(fun_obj_fdfh(parameters, gamma, ad_fun, inner, verbose));
     return rcpp_result_gen;
 END_RCPP
 }
 // trace_hinv_t
-Rcpp::NumericVector trace_hinv_t(SEXP ad_fun_ptr, const Rcpp::NumericVector& x, const Rcpp::S4& LinvPt, const Rcpp::S4& LinvPtColumns, bool verbose);
-RcppExport SEXP _adlaplace_trace_hinv_t(SEXP ad_fun_ptrSEXP, SEXP xSEXP, SEXP LinvPtSEXP, SEXP LinvPtColumnsSEXP, SEXP verboseSEXP) {
+Rcpp::NumericVector trace_hinv_t(SEXP ad_fun, const Rcpp::NumericVector& x, const Rcpp::S4& LinvPt, const Rcpp::S4& LinvPtColumns, bool verbose);
+RcppExport SEXP _adlaplace_trace_hinv_t(SEXP ad_funSEXP, SEXP xSEXP, SEXP LinvPtSEXP, SEXP LinvPtColumnsSEXP, SEXP verboseSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< SEXP >::type ad_fun_ptr(ad_fun_ptrSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type ad_fun(ad_funSEXP);
     Rcpp::traits::input_parameter< const Rcpp::NumericVector& >::type x(xSEXP);
     Rcpp::traits::input_parameter< const Rcpp::S4& >::type LinvPt(LinvPtSEXP);
     Rcpp::traits::input_parameter< const Rcpp::S4& >::type LinvPtColumns(LinvPtColumnsSEXP);
     Rcpp::traits::input_parameter< bool >::type verbose(verboseSEXP);
-    rcpp_result_gen = Rcpp::wrap(trace_hinv_t(ad_fun_ptr, x, LinvPt, LinvPtColumns, verbose));
+    rcpp_result_gen = Rcpp::wrap(trace_hinv_t(ad_fun, x, LinvPt, LinvPtColumns, verbose));
     return rcpp_result_gen;
 END_RCPP
 }

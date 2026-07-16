@@ -5,17 +5,15 @@
 #include "adlaplace/runtime.hpp"
 #include "adlaplace/trace_hinv_t_runtime.hpp"
 
-//' @rdname adlaplace_cpp
-//' @param verbose Logical; if \code{TRUE}, print threads, shards, and parameter sizes.
 // [[Rcpp::export]]
 Rcpp::NumericVector trace_hinv_t(
-  SEXP ad_fun_ptr,
+  SEXP ad_fun,
   const Rcpp::NumericVector& x,
   const Rcpp::S4& LinvPt,
   const Rcpp::S4& LinvPtColumns,
   bool verbose = false
 ) {
-  ad_fun* backend = resolve_ad_fun_eval(ad_fun_ptr);
+  ::ad_fun* backend = resolve_ad_fun_eval(ad_fun);
 
   Rcpp::IntegerVector LinvPt_p = LinvPt.slot("p");
   Rcpp::IntegerVector LinvPt_i = LinvPt.slot("i");

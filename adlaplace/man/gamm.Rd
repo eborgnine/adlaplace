@@ -2,6 +2,8 @@
 \docType{data}
 \name{gamm}
 \alias{gamm}
+\alias{dat}
+\alias{b2}
 \title{Example GAMM data and fitted model}
 \format{
 This dataset loads two objects into the workspace:
@@ -10,6 +12,7 @@ This dataset loads two objects into the workspace:
   \item{\code{b2}}{A fitted \code{mgcv::gamm} object from \code{y ~ s(x2)} with random intercept \code{fac}.}
 }
 }
+\description{for vignette example}
 \source{
 Generated with \code{mgcv::gamSim()} and \code{mgcv::gamm()}.
 }

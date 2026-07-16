@@ -1,45 +1,4 @@
 
-//' Inner optimization over gamma using trust-region CG (sparse)
-//'
-//' Runs the inner optimization problem (typically over \eqn{\gamma}) using the
-//' trustOptim sparse trust-region Conjugate Gradient solver. This function
-//' evaluates the objective, gradient, and Hessian through the pre-built AD pack
-//' (external pointer) and returns the solution along with curvature
-// information.
-//'
-//' @param x Numeric full parameter vector of length \code{Nparams}.
-//' @param parameters Numeric vector of fixed outer parameters
-//'   (\code{beta}, \code{theta}; length \code{Nbeta+Ntheta}) used by
-//'   \code{inner_opt()}.
-//' @param gamma Numeric vector of starting values for inner parameters
-//'   (\code{gamma}; length \code{Ngamma}) used by \code{inner_opt()}.
-//' @param ad_fun \code{ad_fun} S4 object from \code{ad_fun(ad_fun_ptr)}.
-//' @param verbose Logical; if \code{TRUE}, print threads, shards, and parameter
-// sizes. ' @param control List of trust-region control parameters for '
-//\code{inner_opt()} (see \pkg{trustOptim}). ' @param deriv Logical: if
-//\code{TRUE}, return full outer gradient and Hessian at the '   inner solution;
-// if \code{FALSE}, return inner quantities only (default).
-//'
-//' @return
-//'   \item{\code{inner_opt()}}{Returns \code{log_lik}, \code{neg_log_lik}
-//'   (Laplace profile likelihood and its negation), \code{parameters} (outer
-//'   \code{beta} and \code{theta} passed in), \code{full_parameters} (outer
-// plus '   inner \code{gamma} at the mode), \code{fval} (inner objective: '
-// negative log joint density at \eqn{\hat\gamma}), \code{solution}, '
-//\code{gradient} (list \code{inner}, \code{outer}; \code{outer} empty when '
-//\code{deriv=FALSE}), \code{hessian} (list \code{inner}, \code{outer}, '
-//\code{chol_inner}, \code{half_log_det}; when \code{deriv=TRUE} also '
-//\code{half_H_inv}, \code{H_inv}, and \code{trace3}), '   \code{iterations},
-//\code{status}, \code{trust.radius}, \code{method}. '   Objective and
-// derivatives use the **negative log-density** convention.}
-//'
-//' @details
-//' This calls the sparse method from the \code{TrustOptim} package via the Cpp
-// interface. ' \code{inner_opt()} negates tape log-density values in C++ for
-// minimization.
-//'
-//' @name innerOpt
-
 // Standard C
 #include <cmath>
 #include <cstdio>
@@ -431,7 +390,33 @@ InnerOptResult inner_opt(const std::vector<double> &parameters,
   return out;
 }
 
-//' @rdname innerOpt
+//' Inner optimization over gamma using trust-region CG (sparse)
+//'
+//' Runs the inner optimization over \eqn{\gamma} using the
+//' \pkg{trustOptim} sparse trust-region CG solver on a pre-built
+//' \code{\link{ad_fun}} handle.
+//'
+//' @param parameters Numeric vector of fixed outer parameters
+//'   (\code{beta}, \code{theta}; length \code{Nbeta+Ntheta}).
+//' @param gamma Numeric vector of starting values for inner parameters
+//'   (\code{gamma}; length \code{Ngamma}).
+//' @param ad_fun \code{ad_fun} S4 object from \code{\link{ad_fun}}.
+//' @param control List of trust-region control parameters (see \pkg{trustOptim}).
+//' @param deriv Logical; if \code{TRUE}, also return outer gradient/Hessian
+//'   pieces and Cholesky-based quantities at the inner mode.
+//' @param verbose Logical; if \code{TRUE}, print thread/shard diagnostics.
+//'
+//' @return A list with \code{log_lik}, \code{neg_log_lik}, \code{parameters},
+//'   \code{full_parameters}, \code{opt}, \code{gradient}
+//'   (list \code{inner}/\code{outer}), and \code{hessian}
+//'   (list \code{inner}/\code{outer}/\code{chol_inner}/\code{half_log_det};
+//'   with \code{deriv=TRUE} also \code{half_H_inv}, \code{H_inv}, \code{trace3}).
+//'   Objective and derivatives use the negative log-density convention.
+//'
+//' @details
+//' Negates tape log-density values in C++ for minimization via
+//' \pkg{trustOptim}.
+//'
 //' @export
 // [[Rcpp::export]]
 Rcpp::List inner_opt(const Rcpp::NumericVector parameters,
@@ -493,31 +478,13 @@ Rcpp::List inner_opt(const Rcpp::NumericVector parameters,
   }
 }
 
-//' Evaluate f, gradient, and Hessian via \code{AD_Func_Opt::get_fdfh}
-//'
-//' Diagnostic entry point mirroring the \code{Trust_CG_Sparse} /
-//\code{inner_opt()} ' derivative path (OpenMP shard groups, Hessian map
-// aggregation). Always returns ' the **negative** log density and derivatives
-//(same sign as \code{inner_opt()}).
-//'
-//' @param parameters Numeric vector of length \code{Nbeta + Ntheta} (fixed
-// outer params). ' @param gamma Numeric vector of length \code{Ngamma}. '
-// @param ad_fun \code{ad_fun} S4 object (requires Hessian templates and thread
-// assignment). ' @param inner Logical; if \code{TRUE}, evaluate
-// inner-\eqn{\gamma} derivatives; '   if \code{FALSE}, evaluate outer
-// derivatives at the full parameter vector. ' @param verbose Logical; if
-//\code{TRUE}, print thread and shard info.
-//'
-//' @rdname adlaplace_cpp
-//' @return List with components \code{f} (scalar), \code{grad} (numeric), and
-//'   \code{hessian} (sparse \code{Matrix} object).
 // [[Rcpp::export]]
 Rcpp::List fun_obj_fdfh(const Rcpp::NumericVector &parameters,
                         const Rcpp::NumericVector &gamma,
-                        const Rcpp::S4 &ad_fun_s4, bool inner = true,
+                        const Rcpp::S4 &ad_fun, bool inner = true,
                         bool verbose = false) {
 
-  ::ad_fun *backend = resolve_ad_fun_laplace(ad_fun_s4);
+  ::ad_fun *backend = resolve_ad_fun_laplace(ad_fun);
   adlaplace_require_owner_threads_assigned(*backend);
 
   const std::vector<std::vector<std::size_t>> thread_groups =

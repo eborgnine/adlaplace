@@ -66,6 +66,15 @@ ad_fun_ptr <- function(data, config) {
   fn(data, config, name)
 }
 
+#' Combine \code{ad_fun_ptr} handles
+#'
+#' Moves AD shards from one or more \code{ad_fun_ptr} objects into a single
+#' handle. Inputs are cleared after the merge (ownership moves).
+#'
+#' @param x An \code{ad_fun_ptr}.
+#' @param ... Additional \code{ad_fun_ptr} objects.
+#' @return A combined \code{ad_fun_ptr}.
+#' @seealso \code{\link{clone_ad_fun_ptr}}, \code{\link{ad_fun}}
 #' @export
 #' @method c ad_fun_ptr
 c.ad_fun_ptr <- function(x, ...) {

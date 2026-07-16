@@ -53,6 +53,9 @@ setClass(
   )
 )
 
+# External pointer class set in C++; register before the ad_fun slot type.
+methods::setOldClass("ad_fun_ptr")
+
 #' AD function with Hessian templates attached
 #'
 #' @slot ptr Raw combined handle (\code{ad_fun_ptr}).
@@ -297,11 +300,6 @@ by_group <- function(term, data = NULL, levels = NULL) {
 #' @param data A data frame containing the grouping variable
 #' @return The term with updated by_group levels
 #' @export
-#' @examples
-#' # With a hierarchical term from adlaplaceHgp that has a by slot:
-#' hrp <- adlaplaceHgp::hrpoly(x = "age", by = "site")
-#' dat <- data.frame(age = 1:10, site = rep(c("A", "B"), each = 5))
-#' hrp <- add_by_levels(hrp, dat)
 add_by_levels <- function(term, data) {
   if (!"by" %in% methods::slotNames(term)) {
     return(term)

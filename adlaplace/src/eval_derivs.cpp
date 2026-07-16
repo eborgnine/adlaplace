@@ -16,38 +16,14 @@ Rcpp::IntegerVector shards_vector(
 
 }  // namespace
 
-//' @title C++ backend entry points
-//' @name adlaplace_cpp
-//' @description Low-level C++ entry points exposed to R via Rcpp.
-//'
-//' @param negative Logical (default \code{TRUE}). If \code{TRUE}, return the
-//'   **negative** log density \eqn{-\ell(x)} and its derivatives (minimization /
-//'   \pkg{trustOptim} sign, consistent with \code{inner_opt()}). If \code{FALSE}, return \eqn{\ell(x)}, \eqn{\nabla\ell},
-//'   and \eqn{\nabla^2\ell}.
-//' @param ad_fun_ptr External pointer of class \code{ad_fun_ptr}.
-//' @param x Numeric parameter vector of length \code{Nparams}.
-//' @param shards Optional integer vector of 0-based shard indices; \code{NULL} or
-//'   \code{integer(0)} evaluates all shards.
-//' @param inner Logical scalar for inner-\eqn{\gamma} vs outer derivatives.
-//' @param verbose Logical passed to \code{hessian()}.
-//' @param LinvPt,LinvPtColumns See \code{trace_hinv_t()}.
-//'
-//' @section Sign convention:
-//' With default \code{negative = TRUE}, \code{joint_log_dens()}, \code{grad()},
-//' and \code{hessian()} match \code{inner_opt()} (negative
-//' log-density). Set \code{negative = FALSE} for the joint log density and its
-//' derivatives at the same \code{x}.
-//'
-//' @rdname adlaplace_cpp
-//' @return Scalar log-density value (sign per \code{negative}).
 // [[Rcpp::export]]
 double joint_log_dens(
-  SEXP ad_fun_ptr,
+  SEXP ad_fun,
   const Rcpp::NumericVector& x,
   Rcpp::Nullable<Rcpp::IntegerVector> shards = R_NilValue,
   bool negative = true) {
 
-  ad_fun* backend = resolve_ad_fun_eval(ad_fun_ptr);
+  ::ad_fun* backend = resolve_ad_fun_eval(ad_fun);
   const size_t n_shards = backend->fun.size();
   const size_t Nparams = backend->fun[0]->pack.x.size();
   if (static_cast<size_t>(x.size()) != Nparams) {
@@ -70,17 +46,15 @@ double joint_log_dens(
   return negative ? -total : total;
 }
 
-//' @rdname adlaplace_cpp
-//' @return Gradient of log density (sign per \code{negative}).
 // [[Rcpp::export]]
 Rcpp::NumericVector grad(
-  SEXP ad_fun_ptr,
+  SEXP ad_fun,
   const Rcpp::NumericVector& x,
   Rcpp::Nullable<Rcpp::IntegerVector> shards = R_NilValue,
   bool inner = false,
   bool negative = true) {
 
-  ad_fun* backend = resolve_ad_fun_eval(ad_fun_ptr);
+  ::ad_fun* backend = resolve_ad_fun_eval(ad_fun);
   const size_t Nparams = x.size();
   const size_t n_shards = backend->fun.size();
   const std::vector<size_t> shard_idx =
@@ -100,17 +74,15 @@ Rcpp::NumericVector grad(
   return grad_out;
 }
 
-//' @rdname adlaplace_cpp
-//' @return Sparse Hessian of log density (sign per \code{negative}).
 // [[Rcpp::export]]
 Rcpp::S4 hessian(
-  SEXP ad_fun_ptr,
+  SEXP ad_fun,
   const Rcpp::NumericVector& x,
   Rcpp::Nullable<Rcpp::IntegerVector> shards = R_NilValue,
   bool inner = false,
   const bool verbose = false,
   bool negative = true) {
-  ad_fun* backend = resolve_ad_fun_eval(ad_fun_ptr);
+  ::ad_fun* backend = resolve_ad_fun_eval(ad_fun);
 
   const size_t Nparams = x.size();
   const size_t n_shards = backend->fun.size();

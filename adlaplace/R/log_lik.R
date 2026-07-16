@@ -121,21 +121,21 @@ outer_gr <- function(
 #' contain \code{beta}, \code{gamma}, or \code{theta} when \code{ad_fun} is
 #' supplied.
 #'
-#' When \code{deriv=FALSE}, the return value is the \code{inner_opt()} list
+#' When \code{deriv=FALSE}, the return value is the \code{\link{inner_opt}()} list
 #' (profile likelihood, nested \code{gradient} and \code{hessian}, and \code{opt}).
 #' When \code{deriv=TRUE}, the same list is augmented with \code{grad},
-#' \code{deriv}, and \code{extra} from \code{\link[=log_lik_deriv]{log_lik_deriv()}}.
+#' \code{deriv}, and \code{extra} from the internal profile-derivative helper.
 #'
-#' @return A list. With \code{deriv=FALSE}, same as \code{inner_opt()}. With
+#' @return A list. With \code{deriv=FALSE}, same as \code{\link{inner_opt}}. With
 #' \code{deriv=TRUE}, additionally:
 #' \describe{
 #'   \item{grad}{Gradient of \code{neg_log_lik} w.r.t. outer \code{x}.}
-#'   \item{deriv}{Data frame of profile derivative pieces (see \code{log_lik_deriv}).}
+#'   \item{deriv}{Data frame of profile derivative pieces.}
 #'   \item{extra}{Intermediate objects (\code{dU}, \code{trace3}, Cholesky factors).}
 #' }
 #'
 #' @note The Laplace approximation assumes the inner Hessian is positive definite
-#'   at the optimum. If \code{inner_opt()} fails to converge or returns a
+#'   at the optimum. If \code{\link{inner_opt}} fails to converge or returns a
 #'   non-invertible Hessian, \code{log_lik_laplace()} issues a warning or error.
 #'
 #' @seealso
