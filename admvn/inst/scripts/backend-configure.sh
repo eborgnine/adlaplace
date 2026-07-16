@@ -1,19 +1,26 @@
-# CppAD detection for admvn (header-only; optional libcppad_lib)
-
+# Force: do not use ColPack paths
 CPPAD_CPPFLAGS="-DCPPAD_HAS_COLPACK=0"
 CPPAD_INCLUDE_CPPFLAGS=""
 CPPAD_LIBS=""
-BREW_CPPFLAGS=""
-BREW_PREFIX=""
 
 OPENMP_CPPFLAGS=""
 OPENMP_CXXFLAGS=""
 OPENMP_LIBS=""
+BREW_CPPFLAGS=""
+BREW_PREFIX=""
 
 UNAME_S="$(uname -s 2>/dev/null || echo unknown)"
+R_HOME_DIR="$(R RHOME 2>/dev/null || true)"
+
 CXX_CMD="$(R CMD config CXX 2>/dev/null || echo c++)"
 CXXFLAGS_CMD="$(R CMD config CXXFLAGS 2>/dev/null || true)"
 CPPFLAGS_CMD="$(R CMD config CPPFLAGS 2>/dev/null || true)"
+
+EIGEN_SYSTEM_CPPFLAGS=""
+RCPP_EIGEN_INCLUDE_DIR="$(Rscript -e 'cat(system.file("include", package="RcppEigen"))' 2>/dev/null || true)"
+if [ -n "$RCPP_EIGEN_INCLUDE_DIR" ]; then
+  EIGEN_SYSTEM_CPPFLAGS="-isystem $RCPP_EIGEN_INCLUDE_DIR"
+fi
 
 check_cxxflag () {
   flag="$1"
@@ -71,19 +78,16 @@ EOF
   return 1
 }
 
-if [ "$UNAME_S" = "Darwin" ] && command -v brew >/dev/null 2>&1; then
-  BREW_PREFIX="$(brew --prefix 2>/dev/null || true)"
-  if [ -n "$BREW_PREFIX" ] && [ -d "$BREW_PREFIX/include" ]; then
-    BREW_CPPFLAGS="-I$BREW_PREFIX/include"
-  fi
-fi
-
 detect_cppad_include_dir () {
+  echo "configure: checking CppAD header locations..." >&2
+  
   if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists cppad 2>/dev/null; then
     result=$(pkg-config --cflags-only-I cppad 2>/dev/null \
       | sed -n 's/.*-I\([^[:space:]]*\).*/\1/p' \
       | head -n 1)
+    echo "configure: pkg-config CppAD include path: ${result:-none}" >&2
     if [ -n "$result" ] && [ -f "$result/cppad/cppad.hpp" ]; then
+      echo "configure: found CppAD headers via pkg-config at $result" >&2
       printf '%s' "$result"
       return 0
     fi
@@ -92,16 +96,19 @@ detect_cppad_include_dir () {
   for base in \
     "$BREW_PREFIX/opt/cppad/include" \
     /opt/homebrew/include \
-    /usr/local/include \
     /usr/include \
+    /usr/local/include \
     /opt/include
   do
+    echo "configure: checking $base/cppad/cppad.hpp" >&2
     if [ -f "$base/cppad/cppad.hpp" ]; then
+      echo "configure: found CppAD headers at $base" >&2
       printf '%s' "$base"
       return 0
     fi
   done
 
+  echo "configure: ERROR: CppAD headers NOT found in any checked location" >&2
   return 1
 }
 
@@ -133,17 +140,31 @@ detect_cppad_lib () {
   return 1
 }
 
+# ---- Brew discovery (macOS only) ----
+if [ "$UNAME_S" = "Darwin" ] && command -v brew >/dev/null 2>&1; then
+  BREW_PREFIX="$(brew --prefix 2>/dev/null || true)"
+  if [ -n "$BREW_PREFIX" ] && [ -d "$BREW_PREFIX/include" ]; then
+    BREW_CPPFLAGS="-I$BREW_PREFIX/include"
+  fi
+fi
+
 CPPAD_INCLUDE_DIR="$(detect_cppad_include_dir || true)"
 if [ -n "$CPPAD_INCLUDE_DIR" ]; then
   CPPAD_INCLUDE_CPPFLAGS="-I$CPPAD_INCLUDE_DIR"
+  msg "configure: using CppAD headers from $CPPAD_INCLUDE_DIR"
 else
   echo "configure: ERROR: could not locate CppAD headers (cppad/cppad.hpp)" >&2
   exit 1
 fi
 
 CPPAD_LIBS="$(detect_cppad_lib || true)"
+if [ -n "$CPPAD_LIBS" ]; then
+  msg "configure: using CppAD library flags: $CPPAD_LIBS"
+else
+  msg "configure: no standalone CppAD library detected; relying on header-only CppAD"
+fi
 
-# Optional OpenMP (static libomp.a on macOS; dynamic -fopenmp on Linux)
+# ---- Optional OpenMP (static libomp.a on macOS; dynamic -fopenmp on Linux) ----
 if [ "$UNAME_S" = "Darwin" ]; then
   if [ -n "$BREW_PREFIX" ] \
      && [ -f "$BREW_PREFIX/opt/libomp/include/omp.h" ] \
@@ -152,11 +173,22 @@ if [ "$UNAME_S" = "Darwin" ]; then
       OPENMP_CPPFLAGS="-I$BREW_PREFIX/opt/libomp/include"
       OPENMP_CXXFLAGS="-Xpreprocessor -fopenmp"
       OPENMP_LIBS="$BREW_PREFIX/opt/libomp/lib/libomp.a"
+      msg "configure: OpenMP enabled on macOS using static Homebrew libomp"
+    else
+      msg "configure: OpenMP not enabled (compiler does not accept -Xpreprocessor -fopenmp)"
     fi
+  else
+    msg "configure: OpenMP not enabled on macOS (Homebrew libomp not found)"
   fi
 else
   if check_cxxflag "-fopenmp" && check_openmp_linux; then
     OPENMP_CXXFLAGS="-fopenmp"
     OPENMP_LIBS="-fopenmp"
+    msg "configure: OpenMP enabled using -fopenmp"
+  else
+    msg "configure: OpenMP not enabled (compiler does not accept -fopenmp)"
   fi
 fi
+
+# Always true because we force it
+msg "configure: CppAD ColPack: DISABLED (forced via CPPAD_HAS_COLPACK=0)"

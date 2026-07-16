@@ -1,29 +1,20 @@
 #!/bin/sh
-# Cleanup script for hpolcc package
-# This script removes files that are generated during package installation
-# but should not be included in the source package
+# Remove generated files that should not ship in the source tarball.
 
-# Remove src/Makevars if it exists
-if [ -f "src/Makevars" ]; then
-    rm -f src/Makevars
-    echo "Removed src/Makevars"
-fi
+rm -f src/Makevars
 
-# Quarto / knitr vignette outputs (recreated by quarto render)
+# Quarto / knitr HTML vignette outputs (recreated by quarto render)
 rm -rf vignettes/*_files
 rm -f vignettes/*.html
 rm -f vignettes/*.knit.md
 rm -f vignettes/*.R
 
 # testthat creates tests/testthat/_snaps/ even without snapshot tests; remove
-# only when empty (silent — avoids R CMD build "Removed empty directory" noise)
+# only when empty (silent — avoids git "Removed empty directory" noise)
 _snaps=tests/testthat/_snaps
 if [ -d "$_snaps" ] && [ -z "$(ls -A "$_snaps" 2>/dev/null)" ]; then
   rmdir "$_snaps" 2>/dev/null || true
 fi
 
-# Remove any compiled object files
+# Compiled objects anywhere under the package tree
 find . -type f \( -name '*.o' -o -name '*.so' \) -delete
-
-
-echo "Cleanup complete"

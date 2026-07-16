@@ -1,5 +1,15 @@
 #!/bin/sh
+# configure: standalone CppAD package (local copy of adlaplace backend-configure.sh)
+
 set -eu
+
+VERBOSE="${ADLAPLACE_CONFIGURE_VERBOSE:-0}"
+msg() {
+  if [ "$VERBOSE" = "1" ]; then
+    echo "$@"
+  fi
+  return 0
+}
 
 SCRIPT_DIR="$(cd "$(dirname "$0")/inst/scripts" && pwd)"
 . "$SCRIPT_DIR/backend-configure.sh"
@@ -15,14 +25,15 @@ fi
 esc_sed () { printf '%s' "$1" | sed 's/[\/&]/\\&/g'; }
 
 sed \
+  -e "s/@OPENMP_CPPFLAGS@/$(esc_sed "$OPENMP_CPPFLAGS")/g" \
+  -e "s/@OPENMP_CXXFLAGS@/$(esc_sed "$OPENMP_CXXFLAGS")/g" \
+  -e "s/@OPENMP_LIBS@/$(esc_sed "$OPENMP_LIBS")/g" \
   -e "s/@BREW_CPPFLAGS@/$(esc_sed "$BREW_CPPFLAGS")/g" \
   -e "s/@CPPAD_CPPFLAGS@/$(esc_sed "$CPPAD_CPPFLAGS")/g" \
   -e "s/@CPPAD_INCLUDE_CPPFLAGS@/$(esc_sed "$CPPAD_INCLUDE_CPPFLAGS")/g" \
   -e "s/@CPPAD_LIBS@/$(esc_sed "$CPPAD_LIBS")/g" \
-  -e "s/@OPENMP_CPPFLAGS@/$(esc_sed "$OPENMP_CPPFLAGS")/g" \
-  -e "s/@OPENMP_CXXFLAGS@/$(esc_sed "$OPENMP_CXXFLAGS")/g" \
-  -e "s/@OPENMP_LIBS@/$(esc_sed "$OPENMP_LIBS")/g" \
-  "$infile" > "$outfile"
+  -e "s/@EIGEN_SYSTEM_CPPFLAGS@/$(esc_sed "$EIGEN_SYSTEM_CPPFLAGS")/g" \
+"$infile" > "$outfile"
 
 chmod 644 "$outfile"
 exit 0

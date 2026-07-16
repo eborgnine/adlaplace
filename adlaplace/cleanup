@@ -15,3 +15,6 @@ _snaps=tests/testthat/_snaps
 if [ -d "$_snaps" ] && [ -z "$(ls -A "$_snaps" 2>/dev/null)" ]; then
   rmdir "$_snaps" 2>/dev/null || true
 fi
+
+# Compiled objects anywhere under the package tree
+find . -type f \( -name '*.o' -o -name '*.so' \) -delete

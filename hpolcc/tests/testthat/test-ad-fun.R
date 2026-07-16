@@ -2,8 +2,7 @@ test_that("model_data attaches elgm_matrix for dirichlet_multinom", {
   skip_if_not_installed("adlaplace")
   td <- make_hpolcc_test_data()
   model_terms <- adlaplace::collect_terms(
-    stats::update.formula(td$formula, . ~ . - 1),
-    package = c("hpolcc", "adlaplaceHgp")
+    stats::update.formula(td$formula, . ~ . - 1)
   )
   md <- adlaplace::model_data(
     formula = model_terms,

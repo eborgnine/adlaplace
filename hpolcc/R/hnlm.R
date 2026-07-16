@@ -60,7 +60,6 @@ hnlm <- function(
   if (methods::is(formula, "formula")) {
     model_terms <- adlaplace::collect_terms(
       formula = stats::update.formula(formula, . ~ . - 1),
-      package = c("hpolcc", "adlaplaceHgp"),
       verbose = config$verbose
     )
   } else {
