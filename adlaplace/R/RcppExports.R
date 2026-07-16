@@ -155,26 +155,6 @@ create_ad_fun_random_mult <- function(model, config) {
     .Call(`_adlaplace_create_ad_fun_random_mult`, model, config)
 }
 
-#' Build raw AD handle for a random_fem_2 shard
-#'
-#' @param model An \code{ad_data} S4 object with FEM precision payload.
-#' @param config Model configuration list.
-#' @return External pointer of class \code{ad_fun_ptr}.
-#' @keywords internal
-create_ad_fun_random_fem_2 <- function(model, config) {
-    .Call(`_adlaplace_create_ad_fun_random_fem_2`, model, config)
-}
-
-#' Build raw AD handle for a random_fem_3 shard
-#'
-#' @param model An \code{ad_data} S4 object with FEM precision payload.
-#' @param config Model configuration list.
-#' @return External pointer of class \code{ad_fun_ptr}.
-#' @keywords internal
-create_ad_fun_random_fem_3 <- function(model, config) {
-    .Call(`_adlaplace_create_ad_fun_random_fem_3`, model, config)
-}
-
 #' @title C++ backend entry points
 #' @name adlaplace_cpp
 #' @description Low-level C++ entry points exposed to R via Rcpp.

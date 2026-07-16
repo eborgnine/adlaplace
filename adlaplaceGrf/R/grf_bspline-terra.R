@@ -51,14 +51,14 @@ register_terra_methods <- function() {
   }
   methods::setMethod(
     "grf_bspline",
-    signature(coords = "SpatRaster"),
+    methods::signature(coords = "SpatRaster"),
     function(coords, knots, degree = 2L, ...) {
       grf_bspline_terra(coords, knots, degree = degree)
     }
   )
   methods::setMethod(
     "grf_bspline",
-    signature(coords = "SpatVector"),
+    methods::signature(coords = "SpatVector"),
     function(coords, knots, degree = 2L, ...) {
       grf_bspline_terra(coords, knots, degree = degree)
     }

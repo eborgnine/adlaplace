@@ -2,7 +2,7 @@
 % Please edit documentation in R/fem_precision.R
 \name{fem_precision}
 \alias{fem_precision}
-\title{Assemble FEM Matérn precision Q2 or Q3 from Grams}
+\title{Assemble FEM Matern precision Q2 or Q3 from Grams}
 \usage{
 fem_precision(kappa, tau, C, G, G2, G3 = NULL, alpha = 2L)
 }
@@ -17,5 +17,5 @@ fem_precision(kappa, tau, C, G, G2, G3 = NULL, alpha = 2L)
 Sparse \code{dgCMatrix} precision.
 }
 \description{
-Assemble FEM Matérn precision Q2 or Q3 from Grams
+Assemble FEM Matern precision Q2 or Q3 from Grams
 }

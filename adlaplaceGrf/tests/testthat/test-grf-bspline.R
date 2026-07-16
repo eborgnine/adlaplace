@@ -53,3 +53,13 @@ test_that("fem_chol_pattern returns perm and L1", {
   expect_equal(length(payload$chol$perm), nrow(fem$C))
   expect_true(inherits(payload$chol$L1, "Matrix"))
 })
+
+test_that("align_gram_to_pattern skips empty CSC columns", {
+  # Upper-tri CSC with an empty middle column (p has a repeated pointer)
+  p <- as.integer(c(0, 2, 2, 3))
+  i <- as.integer(c(0, 1, 2))
+  M <- Matrix::Diagonal(3)
+  x <- align_gram_to_pattern(M, p, i, n = 3L)
+  expect_equal(length(x), 3L)
+  expect_true(all(is.finite(x)))
+})

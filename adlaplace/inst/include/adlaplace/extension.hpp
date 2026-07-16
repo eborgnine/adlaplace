@@ -1,11 +1,15 @@
 #ifndef ADLAPLACE_EXTENSION_HPP
 #define ADLAPLACE_EXTENSION_HPP
 
-// Public API for backend packages (e.g. adlaplaceExample) that compile custom
-// log densities and CppAD tape construction in their own shared library.
+// Public API for backend packages (e.g. adlaplaceExample, adlaplaceGrf) that
+// compile custom log densities and CppAD tape construction in their own shared
+// library.
 //
-// On macOS, build_ad_fun_obs / build_ad_fun_parameters must be compiled into
-// the same .so as the density functions; registering pointers alone is not enough.
+// On macOS, tape recording and evaluation must live in the same .so as the
+// density functions (include eval_impl.hpp once and ADLAPLACE_DEFINE_BACKEND).
+// Observation/parameter densities export get_ad_fun_raw_obs /
+// get_ad_fun_raw_parameters; random densities export create_ad_fun_<name>
+// looked up via data@package.
 
 #include <cstddef>
 #include <vector>

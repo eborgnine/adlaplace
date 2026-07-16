@@ -27,3 +27,34 @@ test_that("random_info reuses precomputed term label", {
   info <- adlaplace::random_info(term, data.frame(grp = factor(c("a", "b", "a"))))
   expect_true(all(info$label == term@label))
 })
+
+test_that("collect_terms reports missing constructor vs evaluation failure", {
+  f_missing <- y ~ not_a_real_term(x)
+  expect_error(
+    adlaplace::collect_terms(f_missing),
+    "constructor 'not_a_real_term' is not available"
+  )
+
+  # Constructor exists, but an argument expression fails while evaluating.
+  make_bad_term <- function(x = NULL, knots = NULL) {
+    list(x = x, knots = knots)
+  }
+  boom <- function() {
+    stop("nested boom", call. = FALSE)
+  }
+  sites <- cbind(1:3, 4:6)
+  f_nested <- y ~ make_bad_term(x = sites, knots = boom())
+  environment(f_nested) <- environment()
+  expect_error(
+    adlaplace::collect_terms(f_nested),
+    "Failed to evaluate term"
+  )
+  expect_error(
+    adlaplace::collect_terms(f_nested),
+    "nested boom"
+  )
+  expect_error(
+    adlaplace::collect_terms(f_nested),
+    "named arguments"
+  )
+})

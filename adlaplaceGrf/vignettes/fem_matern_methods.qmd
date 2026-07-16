@@ -50,6 +50,54 @@ In $d=2$:
 On a bounded domain, homogeneous Neumann boundary conditions are used; pad the
 domain by about half a correlation range in applications.
 
+# Parameterization: range and sd
+
+The FEM term exposes hyperparameters $(\mathrm{range},\mathrm{sd})$ (optimized as
+$\log\mathrm{range}$, $\log\mathrm{sd}$), not the raw SPDE pair $(\kappa,\tau)$.
+The public `range` is the same **practical range** as geostatsp/INLA,
+$\rho=\sqrt{8\nu}/\kappa$. Internally the AD kernels convert
+
+$$
+\kappa = \sqrt{8\nu}/\mathrm{range},
+\qquad
+\tau =
+\begin{cases}
+1\big/\bigl(\kappa\,\sigma\sqrt{4\pi}\bigr) & \alpha=2\ (\nu=1),\\
+1\big/\bigl(\kappa^2\,\sigma\sqrt{8\pi}\bigr) & \alpha=3\ (\nu=2),
+\end{cases}
+$$
+
+with $\sigma=\mathrm{sd}$, so that $\mathrm{sd}$ is the **marginal standard
+deviation** of the Matérn field $u(\mathbf{s})$ on the linear-predictor scale.
+In 2D, $\nu=\alpha-1$.
+
+| Quantity | Meaning | Units (loaloa) |
+|----------|---------|----------------|
+| Coordinates / knots | Spatial location | m |
+| `range` $=\rho=\sqrt{8\nu}/\kappa$ | Practical range (≈0.1 correlation) | m |
+| `sd` $=\sigma$ | Marginal SD of $u(\mathbf{s})$ | same as $u$ (e.g. logit) |
+| $\tau$ | Internal SPDE precision scale | derived from $\kappa,\sigma$ |
+
+So with coordinates in metres and $\nu=2$, `range = 1e5` means a practical range
+of $100\,\mathrm{km}$ and $\kappa=4\times10^{-5}\,\mathrm{m}^{-1}$.
+
+**geostatsp / INLA `glgm`** uses the same `(range, sd)` meaning, so coefficient
+tables can be compared directly:
+
+```r
+cf <- coef(fit)
+c(
+  range = unname(cf[["geometry_matern_log_range"]]),
+  sd = unname(cf[["geometry_matern_log_sd"]])
+)
+```
+
+(`glgm` may label the range row `range/1000` when the summary is in kilometres;
+convert by $\times 1000$ first.)
+
+The Gram matrices $\mathbf{C}$, $\mathbf{G}$, … use the same coordinate units as
+the knots, so `range` is already on that scale.
+
 # Finite-element weights and Grams
 
 Write $\widetilde{u}(\mathbf{s})=\boldsymbol{\psi}(\mathbf{s})^\top\mathbf{w}$.

@@ -1,8 +1,8 @@
-#' Tensor-product B-spline FEM ingredients for a 2D Matérn GRF
+#' Tensor-product B-spline FEM ingredients for a 2D Matern GRF
 #'
 #' Builds the design matrix of tensor-product B-splines at evaluation
 #' coordinates together with sparse mass, stiffness, and higher-order Gram
-#' matrices used in the SPDE FEM precision for operator orders α = 2 and 3.
+#' matrices used in the SPDE FEM precision for operator orders alpha = 2 and 3.
 #'
 #' Coefficient ordering is column-major (`vec`) over the `n_x` by `n_y` array of
 #' tensor basis indices: basis `(i, j)` maps to column `i + (j - 1) * n_x`.
@@ -15,8 +15,8 @@
 #'   of unique increasing breakpoints (domain endpoints included). These are
 #'   expanded to open B-spline knot vectors. With terra, a `SpatRaster` whose
 #'   grid defines knot lines is also accepted.
-#' @param degree B-spline degree; must be `>= 2`. Default `2` (α = 2). Use
-#'   `degree = 3` when assembling `G3` for α = 3.
+#' @param degree B-spline degree; must be `>= 2`. Default `2` (alpha = 2). Use
+#'   `degree = 3` when assembling `G3` for alpha = 3.
 #' @param ... Passed to methods (unused for `list` / `data.frame`).
 #'
 #' @return A list with:

@@ -73,6 +73,7 @@ test_that("model_data passes list precision through for random_fem", {
     theta_map = list(c(1L, 2L), 2L),
     ad_kind = "random",
     ad_fun = "random_fem_2",
+    package = "adlaplaceGrf",
     precision = prec
   )
   expect_true(is.list(model@precision))

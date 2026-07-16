@@ -1,0 +1,53 @@
+#!/bin/sh
+# configure: backend extension package (sources shared CppAD/OpenMP detection)
+
+set -eu
+
+VERBOSE="${ADLAPLACE_CONFIGURE_VERBOSE:-0}"
+msg() {
+  if [ "$VERBOSE" = "1" ]; then
+    echo "$@"
+  fi
+  return 0
+}
+
+ADLAPLACE_SCRIPT_DIR="$(Rscript -e 'cat(system.file("scripts", package="adlaplace"))' 2>/dev/null || true)"
+if [ -z "$ADLAPLACE_SCRIPT_DIR" ] || [ ! -f "$ADLAPLACE_SCRIPT_DIR/backend-configure.sh" ]; then
+  ADLAPLACE_SCRIPT_DIR="$(cd "$(dirname "$0")/../adlaplace/inst/scripts" && pwd)"
+fi
+if [ ! -f "$ADLAPLACE_SCRIPT_DIR/backend-configure.sh" ]; then
+  echo "configure: ERROR: adlaplace backend-configure.sh not found" >&2
+  exit 1
+fi
+. "$ADLAPLACE_SCRIPT_DIR/backend-configure.sh"
+
+ADLAPLACE_LIBS=""
+ADLAPLACE_LIBDIR="$(Rscript -e 'p <- system.file("libs", package="adlaplace"); if (nzchar(p)) cat(p)' 2>/dev/null || true)"
+if [ -n "$ADLAPLACE_LIBDIR" ] && [ -f "$ADLAPLACE_LIBDIR/adlaplace.so" ]; then
+  ADLAPLACE_LIBS="$ADLAPLACE_LIBDIR/adlaplace.so -Wl,-rpath,$ADLAPLACE_LIBDIR"
+fi
+
+infile="src/Makevars.in"
+outfile="src/Makevars"
+
+if [ ! -f "$infile" ]; then
+  echo "configure: ERROR: $infile not found" >&2
+  exit 1
+fi
+
+esc_sed () { printf '%s' "$1" | sed 's/[\/&]/\\&/g'; }
+
+sed \
+  -e "s/@OPENMP_CPPFLAGS@/$(esc_sed "$OPENMP_CPPFLAGS")/g" \
+  -e "s/@OPENMP_CXXFLAGS@/$(esc_sed "$OPENMP_CXXFLAGS")/g" \
+  -e "s/@OPENMP_LIBS@/$(esc_sed "$OPENMP_LIBS")/g" \
+  -e "s/@BREW_CPPFLAGS@/$(esc_sed "$BREW_CPPFLAGS")/g" \
+  -e "s/@CPPAD_CPPFLAGS@/$(esc_sed "$CPPAD_CPPFLAGS")/g" \
+  -e "s/@CPPAD_INCLUDE_CPPFLAGS@/$(esc_sed "$CPPAD_INCLUDE_CPPFLAGS")/g" \
+  -e "s/@CPPAD_LIBS@/$(esc_sed "$CPPAD_LIBS")/g" \
+  -e "s/@EIGEN_SYSTEM_CPPFLAGS@/$(esc_sed "$EIGEN_SYSTEM_CPPFLAGS")/g" \
+  -e "s/@ADLAPLACE_LIBS@/$(esc_sed "$ADLAPLACE_LIBS")/g" \
+"$infile" > "$outfile"
+
+chmod 644 "$outfile"
+exit 0

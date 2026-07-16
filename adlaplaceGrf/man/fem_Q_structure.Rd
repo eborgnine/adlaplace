@@ -6,6 +6,13 @@
 \usage{
 fem_Q_structure(C, G, G2, G3 = NULL)
 }
+\arguments{
+\item{C, G, G2, G3}{Sparse Grams from \code{\link[=grf_bspline]{grf_bspline()}}; \code{G3} may be \code{NULL} for
+alpha = 2.}
+}
+\value{
+Symmetric sparse matrix with the union of Gram nonzero patterns.
+}
 \description{
 Structural nonzero pattern for Q2 or Q3 from Grams
 }

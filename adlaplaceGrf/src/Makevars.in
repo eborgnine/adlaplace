@@ -1,0 +1,6 @@
+# Headers only for CppAD (link CppAD via adlaplace.so). Eval amalgam is included
+# from backend.cpp so CppAD::Forward runs in the same DSO as tape recording.
+PKG_CPPFLAGS = @CPPAD_CPPFLAGS@ @CPPAD_INCLUDE_CPPFLAGS@ @BREW_CPPFLAGS@ @EIGEN_SYSTEM_CPPFLAGS@ -DEIGEN_DONT_PARALLELIZE
+PKG_CXXFLAGS =
+PKG_LIBS     = @ADLAPLACE_LIBS@
+OBJECTS = RcppExports.o backend.o adfun_random_fem.o

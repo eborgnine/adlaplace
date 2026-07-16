@@ -189,6 +189,9 @@ data_setup <- function(formula, data, verbose = FALSE) {
       gamma_setup <- gamma_setup[gamma_reorder, ]
     }
   }
+  if (nrow(gamma_setup) > 0L && "gamma_label" %in% names(gamma_setup)) {
+    rownames(gamma_setup) <- gamma_setup$gamma_label
+  }
 
   obs_idx <- which(vapply(terms, function(t) {
     methods::is(t, "model") && !is.na(t@ad_kind) &&

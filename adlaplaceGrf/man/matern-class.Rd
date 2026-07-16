@@ -9,13 +9,12 @@
 \alias{random_info,matern-method}
 \alias{theta_info,matern-method}
 \alias{beta_info,matern-method}
-\title{Matérn FEM spatial random field term}
+\title{Matern FEM spatial random field term}
 \usage{
 matern(
   x,
   knots,
-  degree = 2L,
-  alpha = NULL,
+  shape = 1L,
   init = c(1, 1),
   lower = c(1e-09, 1e-09),
   upper = c(Inf, Inf),
@@ -33,39 +32,52 @@ matern(
 \S4method{beta_info}{matern}(term, data)
 }
 \arguments{
-\item{x}{Observation points (matrix/data.frame or terra SpatVector points).}
+\item{x}{Name of the geometry / coordinate column in \code{data}.}
 
-\item{knots}{Knot-line list \code{list(x = ..., y = ...)} for \code{\link[=grf_bspline]{grf_bspline()}}.}
+\item{knots}{Knot lines as \code{list(x = ..., y = ...)} or a terra
+\code{SpatRaster} (cell-center x/y become the knot lines).}
 
-\item{degree}{B-spline degree (\verb{>= 2}); use \code{3} for α = 3.}
+\item{shape}{Matern smoothness nu (\code{1} or \code{2}). Default \code{1L} (SPDE alpha = 2,
+quadratic B-splines). Use \code{2} for nu = 2 / cubic B-splines.}
 
-\item{alpha}{SPDE order; default equals \code{degree} when \code{degree} is 2 or 3.}
+\item{init}{Initial values for \verb{(range, sd)} on the natural scale, where
+\code{range = sqrt(8*nu)/kappa} is the practical range (same units as
+coordinates; matches geostatsp/INLA) and \code{sd} is the marginal SD of the
+Matern field. Internally converted to SPDE \verb{(kappa, tau)}.}
 
-\item{init}{Initial values for \verb{(kappa, tau)} on the natural scale.}
+\item{lower, upper}{Bounds for \verb{(range, sd)}.}
 
-\item{lower, upper}{Bounds for \verb{(kappa, tau)}.}
+\item{parscale}{Optimization scales for \verb{(range, sd)}.}
 
-\item{parscale}{Optimization scales for \verb{(kappa, tau)}.}
+\item{term}{A \code{\linkS4class{matern}} term.}
+
+\item{data}{Model data frame (passed by adlaplace generics).}
 }
 \value{
 A \code{matern} term object.
 }
 \description{
-Formula term for a 2D Matérn GRF via tensor-product B-spline FEM, wired to
-adlaplace kernels \code{random_fem_2} (α = 2) or \code{random_fem_3} (α = 3).
-Observation locations are taken from \code{x} via \code{\link[terra:crds]{terra::crds()}}; pass points with a
-named argument (\code{matern(x = sites, ...)}) so formula parsing does not
-stringify the object.
+Formula term for a 2D Matern GRF via tensor-product B-spline FEM, wired to
+adlaplace kernels \code{random_fem_2} (shape nu = 1) or \code{random_fem_3} (nu = 2).
+The first argument is a \strong{column name} in \code{data} (like \code{\link[adlaplace:iid-class]{adlaplace::iid()}}):
+that column holds observation locations as a 2-column matrix, WKT text, or
+HEX WKB points. Knot lines are supplied at construction; the observation
+design matrix is built later in \code{\link[adlaplace:model-generics]{adlaplace::design()}} from \code{data}.
+}
+\details{
+In 2D, B-spline degree and SPDE order alpha equal \code{shape + 1}.
 }
 \section{Functions}{
 \itemize{
-\item \code{design(matern)}: Design matrix of B-spline basis evaluations at points.
+\item \code{design(matern)}: Design matrix of B-spline basis evaluations at
+coordinates in \code{data[[term@term]]}.
 
 \item \code{precision(matern)}: FEM precision payload for \verb{random_fem_*}.
 
 \item \code{random_info(matern)}: Random-effect metadata (one row per basis weight).
 
-\item \code{theta_info(matern)}: Theta info for \code{kappa} and \code{tau} (log scale).
+\item \code{theta_info(matern)}: Theta info for practical \code{range = sqrt(8*nu)/kappa}
+and field \code{sd} (log scale when \code{transform_theta} is TRUE).
 
 \item \code{beta_info(matern)}: Beta info (none).
 

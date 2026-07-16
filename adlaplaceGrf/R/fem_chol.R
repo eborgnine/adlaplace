@@ -5,7 +5,7 @@
 #' `Q_structure` (typically the union of FEM Gram patterns).
 #'
 #' @param Q_structure Symmetric sparse matrix with the structural nonzeros of
-#'   `Q(θ)` (numeric values only need to make the matrix positive definite for
+#'   `Q(theta)` (numeric values only need to make the matrix positive definite for
 #'   symbolic analysis; diagonals are inflated if needed).
 #' @return A list with `perm` (0-based), `L1` (`dtCMatrix` / unit lower), and
 #'   `perm_inv` (0-based), suitable for the `chol` slot of a `random_fem_*`
@@ -36,6 +36,10 @@ fem_chol_pattern <- function(Q_structure) {
 }
 
 #' Structural nonzero pattern for Q2 or Q3 from Grams
+#'
+#' @param C,G,G2,G3 Sparse Grams from [grf_bspline()]; `G3` may be `NULL` for
+#'   alpha = 2.
+#' @return Symmetric sparse matrix with the union of Gram nonzero patterns.
 #' @export
 fem_Q_structure <- function(C, G, G2, G3 = NULL) {
   S <- Matrix::drop0(abs(C) + abs(G) + abs(G2))

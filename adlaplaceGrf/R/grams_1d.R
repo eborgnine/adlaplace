@@ -50,9 +50,10 @@ bspline_eval <- function(knots, x, degree, derivs = 0L) {
   )
 }
 
-#' 1D Gram matrix M^{pq}_{ik} = integral B_i^{(p)} B_k^{(q)} dx
+#' 1D Gram matrix of B-spline derivatives
 #'
-#' Assembled by Gauss-Legendre quadrature on each knot span.
+#' Assembles \eqn{M^{pq}_{ik} = \int B_i^{(p)} B_k^{(q)}\,dx} by Gauss-Legendre
+#' quadrature on each knot span.
 #' @keywords internal
 gram_1d <- function(knots, degree, deriv_a = 0L, deriv_b = 0L, n_quad = NULL) {
   degree <- as.integer(degree)

@@ -8,7 +8,7 @@ fem_chol_pattern(Q_structure)
 }
 \arguments{
 \item{Q_structure}{Symmetric sparse matrix with the structural nonzeros of
-\code{Q(θ)} (numeric values only need to make the matrix positive definite for
+\code{Q(theta)} (numeric values only need to make the matrix positive definite for
 symbolic analysis; diagonals are inflated if needed).}
 }
 \value{

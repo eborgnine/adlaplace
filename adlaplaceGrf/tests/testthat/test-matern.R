@@ -1,54 +1,82 @@
-test_that("crds works for matrix and data.frame without terra", {
-  m <- cbind(1:3, 4:6)
-  expect_equal(crds(m)[, 1], 1:3)
-  df <- data.frame(x = 1:2, y = 3:4)
-  expect_equal(crds(df)[, 2], 3:4)
-})
-
-test_that("matern term builds design and list precision", {
-  pts <- as.matrix(expand.grid(x = seq(0, 1, length.out = 4), y = seq(0, 1, length.out = 4)))
+test_that("matern builds design from a matrix geometry column", {
   knots_list <- list(x = seq(0, 1, length.out = 4), y = seq(0, 1, length.out = 4))
-  term <- matern(x = pts, knots = knots_list, degree = 2L)
+  n <- 9L
+  geom <- cbind(runif(n), runif(n))
+  dat <- data.frame(y = rnorm(n), geometry = I(geom))
+  # I(matrix) stores as list-like; use explicit matrix column via structure
+  dat$geometry <- geom
+  term <- matern("geometry", knots = knots_list)
   expect_s4_class(term, "matern")
-  expect_identical(term@ad_fun, "random_fem_2")
-  dat <- data.frame(dummy = seq_len(nrow(pts)))
+  expect_equal(term@term, "geometry")
+  expect_equal(term@p.order, 2L)
+  expect_null(term@fem$A)
   A <- design(term, dat)
-  expect_equal(nrow(A), nrow(pts))
-  prec <- precision(term, dat)
-  expect_true(is.list(prec))
-  expect_equal(prec$alpha, 2L)
-  th <- theta_info(term)
-  expect_equal(nrow(th), 2L)
-  expect_true(all(th$transform))
+  expect_equal(nrow(A), n)
+  expect_equal(ncol(A), nrow(term@fem$C))
 })
 
-test_that("matern degree 3 selects random_fem_3", {
-  pts <- cbind(runif(9), runif(9))
-  knots_list <- list(x = seq(0, 1, length.out = 4), y = seq(0, 1, length.out = 4))
-  term <- matern(x = pts, knots = knots_list, degree = 3L)
-  expect_identical(term@ad_fun, "random_fem_3")
-  expect_equal(term@alpha, 3L)
-})
-
-test_that("crds rejects SpatVector polygons when terra is available", {
+test_that("matern parses WKT and HEX point columns", {
   skip_if_not_installed("terra")
-  v <- terra::vect(cbind(c(0, 1, 1, 0, 0), c(0, 0, 1, 1, 0)), type = "polygons")
-  expect_error(crds(v), "points only")
+  knots_list <- list(x = seq(0, 1, length.out = 4), y = seq(0, 1, length.out = 4))
+  pts <- cbind(c(0.2, 0.5, 0.8), c(0.3, 0.4, 0.7))
+  v <- terra::vect(pts, type = "points")
+  wkt <- as.data.frame(v, geom = "WKT")$geometry
+  hex <- as.data.frame(v, geom = "HEX")$geometry
+
+  dat_wkt <- data.frame(y = rnorm(3), geometry = wkt)
+  term <- matern("geometry", knots = knots_list, shape = 1L)
+  A_wkt <- design(term, dat_wkt)
+  expect_equal(nrow(A_wkt), 3L)
+
+  dat_hex <- data.frame(y = rnorm(3), geometry = hex)
+  A_hex <- design(term, dat_hex)
+  expect_equal(as.matrix(A_hex), as.matrix(A_wkt))
+})
+
+test_that("matern shape 2 selects random_fem_3", {
+  knots_list <- list(x = seq(0, 1, length.out = 4), y = seq(0, 1, length.out = 4))
+  term <- matern("geometry", knots = knots_list, shape = 2L)
+  expect_identical(term@ad_fun, "random_fem_3")
+  expect_identical(term@package, "adlaplaceGrf")
+  expect_equal(term@p.order, 3L)
+  expect_equal(precision(term, data.frame())$alpha, 3L)
+})
+
+test_that("matern accepts SpatRaster knots via cell centers", {
+  skip_if_not_installed("terra")
+  set.seed(3)
+  r <- terra::rast(nrows = 4, ncols = 4, xmin = 0, xmax = 1, ymin = 0, ymax = 1)
+  term <- matern("geometry", knots = r)
+  expect_s4_class(term, "matern")
+  expect_equal(
+    sort(unique(term@fem$knots$x)),
+    sort(unique(terra::xFromCol(r, seq_len(terra::ncol(r)))))
+  )
+  expect_equal(
+    sort(unique(term@fem$knots$y)),
+    sort(unique(terra::yFromRow(r, seq_len(terra::nrow(r)))))
+  )
+  expect_equal(length(unique(term@fem$knots$x)), terra::ncol(r))
+  expect_equal(length(unique(term@fem$knots$y)), terra::nrow(r))
+  expect_null(term@fem$A)
+  expect_silent(precision(term, data.frame()))
 })
 
 test_that("matern formula term works via :: and model_data", {
   set.seed(2)
   n <- 16L
-  pts <- cbind(runif(n), runif(n))
-  colnames(pts) <- c("x", "y")
+  geom <- cbind(runif(n), runif(n))
+  colnames(geom) <- c("x", "y")
   knots_list <- list(x = seq(0, 1, length.out = 4), y = seq(0, 1, length.out = 4))
-  dat <- data.frame(y = rnorm(n), z = rnorm(n))
-  f <- y ~ z + adlaplaceGrf::matern(x = pts, knots = knots_list, degree = 2L)
+  dat <- data.frame(y = rnorm(n), z = rnorm(n), geometry = I(geom))
+  dat$geometry <- geom
+  f <- y ~ z + adlaplaceGrf::matern(geometry, knots = knots_list)
   environment(f) <- environment()
   terms <- adlaplace::collect_terms(f)
   mat <- terms[[grep("matern", names(terms))[1L]]]
   expect_s4_class(mat, "matern")
   expect_identical(mat@ad_fun, "random_fem_2")
+  expect_equal(mat@term, "geometry")
 
   md <- adlaplace::model_data(f, data = dat)
   expect_length(md$random, 1L)
@@ -56,5 +84,35 @@ test_that("matern formula term works via :: and model_data", {
   expect_true(is.list(prec))
   expect_true(all(c("Q_p", "Q_i", "C_x", "chol", "alpha") %in% names(prec)))
   expect_identical(md$random[[1L]]@ad_fun, "random_fem_2")
+  expect_identical(md$random[[1L]]@package, "adlaplaceGrf")
   expect_equal(ncol(md$random[[1L]]@theta_map), 2L)
+})
+
+test_that("matern_est returns mean/sd and optional sims on SpatRaster", {
+  skip_if_not_installed("terra")
+  set.seed(4)
+  n <- 16L
+  geom <- cbind(runif(n, 0.1, 0.9), runif(n, 0.1, 0.9))
+  knots_list <- list(x = seq(0, 1, length.out = 4), y = seq(0, 1, length.out = 4))
+  dat <- data.frame(y = rnorm(n), z = rnorm(n))
+  dat$geometry <- geom
+  fit <- adlaplace::adlaplace(
+    y ~ z + matern(geometry, knots = knots_list),
+    data = dat,
+    control = list(maxit = 40L)
+  )
+  eval_grid <- terra::rast(
+    nrows = 5, ncols = 5, xmin = 0, xmax = 1, ymin = 0, ymax = 1
+  )
+
+  out0 <- matern_est(fit, eval_grid, n = 0L)
+  expect_s4_class(out0, "SpatRaster")
+  expect_equal(terra::nlyr(out0), 2L)
+  expect_equal(names(out0), c("mean", "sd"))
+  expect_true(all(terra::values(out0$sd) >= 0, na.rm = TRUE))
+
+  out2 <- matern_est(fit, eval_grid, n = 2L)
+  expect_equal(terra::nlyr(out2), 4L)
+  expect_equal(names(out2), c("mean", "sd", "sim1", "sim2"))
+  expect_equal(terra::values(out2$mean), terra::values(out0$mean))
 })

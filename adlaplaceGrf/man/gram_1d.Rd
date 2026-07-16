@@ -2,11 +2,12 @@
 % Please edit documentation in R/grams_1d.R
 \name{gram_1d}
 \alias{gram_1d}
-\title{1D Gram matrix M^{pq}_{ik} = integral B_i^{(p)} B_k^{(q)} dx}
+\title{1D Gram matrix of B-spline derivatives}
 \usage{
 gram_1d(knots, degree, deriv_a = 0L, deriv_b = 0L, n_quad = NULL)
 }
 \description{
-Assembled by Gauss-Legendre quadrature on each knot span.
+Assembles \eqn{M^{pq}_{ik} = \int B_i^{(p)} B_k^{(q)}\,dx} by Gauss-Legendre
+quadrature on each knot span.
 }
 \keyword{internal}

@@ -55,22 +55,18 @@ collect_terms <- function(formula, verbose = FALSE) {
       return(term_obj)
     }
 
-    term_obj <- eval_term_label(lab, formula_env)
-    if (!is.null(term_obj) && verbose) {
-      message(
-        "Model term ", substr(lab, 1, 20),
-        "... parsed from formula"
-      )
-    }
-
-    if (is.null(term_obj)) {
-      if (grepl("[(]", lab)) {
-        stop(
-          "Failed to parse term '", lab,
-          "'. Use pkg::term(...) or library(pkg) so constructors are visible.",
-          call. = FALSE
+    parsed <- eval_term_label(lab, formula_env)
+    if (isTRUE(parsed$ok)) {
+      term_obj <- parsed$value
+      if (verbose) {
+        message(
+          "Model term ", substr(lab, 1, 20),
+          "... parsed from formula"
         )
       }
+    } else if (grepl("[(]", lab)) {
+      stop(format_term_parse_error(lab, parsed), call. = FALSE)
+    } else {
       term_obj <- linear(lab)
     }
     if (!is.list(term_obj)) {
@@ -137,22 +133,121 @@ coerce_term_call_symbols <- function(expr) {
 }
 
 #' @noRd
+try_error_message <- function(x) {
+  cond <- attr(x, "condition")
+  if (!is.null(cond)) {
+    msg <- conditionMessage(cond)
+    if (length(msg) && nzchar(msg)) {
+      return(trimws(msg))
+    }
+  }
+  msg <- paste(as.character(x), collapse = "\n")
+  msg <- sub("^Error in [^\n]*:\\s*", "", msg)
+  msg <- sub("^Error:\\s*", "", msg)
+  trimws(msg)
+}
+
+#' @noRd
+term_constructor_label <- function(expr) {
+  if (!is.call(expr)) {
+    return(NA_character_)
+  }
+  head <- expr[[1L]]
+  if (is.call(head) && identical(head[[1L]], quote(`::`))) {
+    return(paste0(as.character(head[[2L]]), "::", as.character(head[[3L]])))
+  }
+  if (is.call(head) && identical(head[[1L]], quote(`:::`))) {
+    return(paste0(as.character(head[[2L]]), ":::", as.character(head[[3L]])))
+  }
+  as.character(head)
+}
+
+#' @noRd
+term_constructor_available <- function(expr, formula_env) {
+  if (!is.call(expr)) {
+    return(FALSE)
+  }
+  head <- expr[[1L]]
+  if (is.call(head) &&
+      (identical(head[[1L]], quote(`::`)) || identical(head[[1L]], quote(`:::`)))) {
+    pkg <- as.character(head[[2L]])
+    fun <- as.character(head[[3L]])
+    if (!requireNamespace(pkg, quietly = TRUE)) {
+      return(FALSE)
+    }
+    return(exists(fun, envir = asNamespace(pkg), inherits = FALSE, mode = "function"))
+  }
+  fun <- as.character(head)
+  exists(fun, envir = formula_env, inherits = TRUE, mode = "function") ||
+    exists(fun, envir = asNamespace("adlaplace"), inherits = FALSE, mode = "function")
+}
+
+#' @noRd
+looks_like_missing_function <- function(msg) {
+  grepl(
+    "could not find function|is not an exported object|there is no package called|object '[^']+' of mode 'function' was not found",
+    msg,
+    ignore.case = TRUE
+  )
+}
+
+#' @noRd
+format_term_parse_error <- function(lab, parsed) {
+  ctor <- parsed$constructor
+  msg <- parsed$error
+  missing_ctor <- isFALSE(parsed$constructor_ok) ||
+    (is.na(parsed$constructor_ok) && looks_like_missing_function(msg))
+
+  if (missing_ctor) {
+    ctor_txt <- if (length(ctor) && !is.na(ctor) && nzchar(ctor)) {
+      paste0(" '", ctor, "'")
+    } else {
+      ""
+    }
+    paste0(
+      "Failed to parse term '", lab, "': constructor", ctor_txt,
+      " is not available. Use pkg::term(...) or library(pkg) so constructors ",
+      "are visible.",
+      if (length(msg) && nzchar(msg)) paste0(" (", msg, ")") else ""
+    )
+  } else {
+    paste0(
+      "Failed to evaluate term '", lab, "': ", msg,
+      " First unnamed arguments in formula calls are treated as data column ",
+      "names (character); pass objects with named arguments ",
+      "(e.g. x = sites) or compute nested values outside the formula."
+    )
+  }
+}
+
+#' @noRd
 eval_term_label <- function(lab, formula_env) {
   expr <- parse(text = lab, keep.source = FALSE)[[1]]
   expr <- coerce_term_call_symbols(expr)
+  ctor <- term_constructor_label(expr)
+  ctor_ok <- term_constructor_available(expr, formula_env)
+
   try_result <- try(
     eval(expr, envir = formula_env),
     silent = TRUE
   )
   if (!inherits(try_result, "try-error")) {
-    return(try_result)
+    return(list(ok = TRUE, value = try_result))
   }
-  try_result <- try(
+  err_msg <- try_error_message(try_result)
+
+  try_ns <- try(
     eval(expr, envir = asNamespace("adlaplace")),
     silent = TRUE
   )
-  if (!inherits(try_result, "try-error")) {
-    return(try_result)
+  if (!inherits(try_ns, "try-error")) {
+    return(list(ok = TRUE, value = try_ns))
   }
-  NULL
+
+  list(
+    ok = FALSE,
+    error = err_msg,
+    constructor = ctor,
+    constructor_ok = ctor_ok
+  )
 }

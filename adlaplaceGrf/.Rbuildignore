@@ -7,3 +7,6 @@
 ^vignettes/.*\.knit\.md$
 ^vignettes/\.quarto$
 ^\.cursor$
+^src/Makevars$
+^src/.*\.o$
+^src/.*\.so$

@@ -4,7 +4,7 @@
 \alias{grf_bspline}
 \alias{grf_bspline,list-method}
 \alias{grf_bspline,data.frame-method}
-\title{Tensor-product B-spline FEM ingredients for a 2D Matérn GRF}
+\title{Tensor-product B-spline FEM ingredients for a 2D Matern GRF}
 \usage{
 grf_bspline(coords, knots, degree = 2L, ...)
 
@@ -23,8 +23,8 @@ of unique increasing breakpoints (domain endpoints included). These are
 expanded to open B-spline knot vectors. With terra, a \code{SpatRaster} whose
 grid defines knot lines is also accepted.}
 
-\item{degree}{B-spline degree; must be \verb{>= 2}. Default \code{2} (α = 2). Use
-\code{degree = 3} when assembling \code{G3} for α = 3.}
+\item{degree}{B-spline degree; must be \verb{>= 2}. Default \code{2} (alpha = 2). Use
+\code{degree = 3} when assembling \code{G3} for alpha = 3.}
 
 \item{...}{Passed to methods (unused for \code{list} / \code{data.frame}).}
 }
@@ -40,7 +40,7 @@ A list with:
 \description{
 Builds the design matrix of tensor-product B-splines at evaluation
 coordinates together with sparse mass, stiffness, and higher-order Gram
-matrices used in the SPDE FEM precision for operator orders α = 2 and 3.
+matrices used in the SPDE FEM precision for operator orders alpha = 2 and 3.
 }
 \details{
 Coefficient ordering is column-major (\code{vec}) over the \code{n_x} by \code{n_y} array of

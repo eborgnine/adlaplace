@@ -70,8 +70,10 @@ backend package or `get_ad_fun_raw_random()` is required.
 
 To add a new built-in random density, export `create_ad_fun_<name>` from your
 package and set `package` on the model term. Sparsity patterns are supplied
-analytically in `src/adfun_random.cpp` as `CppAD::sparse_rc` patterns so CppAD's
-`for_hes_sparsity` sweep is skipped.
+analytically in `src/adfun_random_mult.cpp` / `src/adfun_random_fem.cpp` as `CppAD::sparse_rc` patterns so CppAD's
+`for_hes_sparsity` sweep is skipped. FEM random terms (`random_fem_2` /
+`random_fem_3`) each create two shards: quadratic form (`ssq`) and log-determinant
+(`det`).
 
 Observation and parameter shards still use the backend layout below.
 

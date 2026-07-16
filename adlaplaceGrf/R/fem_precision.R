@@ -1,4 +1,4 @@
-#' Assemble FEM Matérn precision Q2 or Q3 from Grams
+#' Assemble FEM Matern precision Q2 or Q3 from Grams
 #'
 #' @param kappa,tau Positive SPDE parameters.
 #' @param C,G,G2,G3 Sparse Grams from [grf_bspline()].
@@ -34,7 +34,14 @@ align_gram_to_pattern <- function(M, p, i, n) {
   M <- methods::as(methods::as(M, "generalMatrix"), "CsparseMatrix")
   x <- numeric(length(i))
   for (col in seq_len(n) - 1L) {
-    for (pos in seq.int(p[col + 1L], p[col + 2L] - 1L)) {
+    from <- p[col + 1L]
+    to <- p[col + 2L] - 1L
+    # Empty CSC columns have from == p[col+2]; seq.int(from, from-1) is
+    # decreasing and can yield NA / invalid subscripts -- skip them.
+    if (from > to) {
+      next
+    }
+    for (pos in from:to) {
       row <- i[pos + 1L]
       x[pos + 1L] <- M[row + 1L, col + 1L]
     }

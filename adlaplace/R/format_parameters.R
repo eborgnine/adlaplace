@@ -99,7 +99,9 @@ format_parameters <- function(
 
   out_gamma <- info$gamma
   out_gamma$mode <- fp[seq(n_beta + 1L, length.out = n_gamma)]
-  rownames(out_gamma) <- NULL
+  if (n_gamma > 0L && "gamma_label" %in% names(out_gamma)) {
+    rownames(out_gamma) <- out_gamma$gamma_label
+  }
 
   list(
     parameters = out_parameters[, 

@@ -1,21 +1,25 @@
 Package: adlaplaceGrf
 Type: Package
-Title: FEM Matérn Gaussian Random Fields for adlaplace
+Title: FEM Matern Gaussian Random Fields for adlaplace
 Version: 0.1.0
 Authors@R: person(given = "Patrick", family = "Brown",
     email = "patrick.brown@utoronto.ca",
     role = c("aut", "cre", "cph"))
-Description: Tensor-product B-spline finite-element ingredients for Matérn
+Author: Patrick Brown [aut, cre, cph]
+Maintainer: Patrick Brown <patrick.brown@utoronto.ca>
+Description: Tensor-product B-spline finite-element ingredients for Matern
     Gaussian random fields (mass, stiffness, and higher-order Grams) for use
     with the adlaplace Laplace approximation framework. Provides design and
     Gram matrix construction on regular grids, with optional terra SpatRaster /
-    SpatVector input.
+    SpatVector input, and AD tape builders for random_fem_2 / random_fem_3.
+SystemRequirements: CppAD, OpenMP
 License: GPL-3
 Depends:
     R (>= 4.1.0),
     adlaplace (>= 0.4.0)
-Imports: methods, stats, Matrix, splines
-Suggests: terra, testthat (>= 3.0.0), quarto, geostatsp
+Imports: methods, stats, Matrix, splines, Rcpp
+LinkingTo: Rcpp, adlaplace, RcppEigen, trustOptim, Matrix
+Suggests: terra, testthat (>= 3.0.0), quarto, geostatsp, INLA, knitr
 Config/testthat/edition: 3
 VignetteBuilder: quarto
 Encoding: UTF-8
@@ -23,13 +27,14 @@ RoxygenNote: 7.3.3
 Roxygen: list(markdown = TRUE)
 Collate:
     '000.R'
-    'knots.R'
-    'grams_1d.R'
-    'grf_bspline.R'
-    'grf_bspline-terra.R'
+    'RcppExports.R'
     'fem_chol.R'
     'fem_precision.R'
-    'crds.R'
+    'grams_1d.R'
+    'grf_bspline-terra.R'
+    'grf_bspline.R'
+    'knots.R'
     'matern.R'
+    'matern_est.R'
     'zzz.R'
-NeedsCompilation: no
+NeedsCompilation: yes
