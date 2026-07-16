@@ -16,11 +16,7 @@ CXX_CMD="$(R CMD config CXX 2>/dev/null || echo c++)"
 CXXFLAGS_CMD="$(R CMD config CXXFLAGS 2>/dev/null || true)"
 CPPFLAGS_CMD="$(R CMD config CPPFLAGS 2>/dev/null || true)"
 
-EIGEN_SYSTEM_CPPFLAGS=""
-RCPP_EIGEN_INCLUDE_DIR="$(Rscript -e 'cat(system.file("include", package="RcppEigen"))' 2>/dev/null || true)"
-if [ -n "$RCPP_EIGEN_INCLUDE_DIR" ]; then
-  EIGEN_SYSTEM_CPPFLAGS="-isystem $RCPP_EIGEN_INCLUDE_DIR"
-fi
+# Eigen: packages LinkingTo RcppEigen get -I from R; do not probe here.
 
 check_cxxflag () {
   flag="$1"

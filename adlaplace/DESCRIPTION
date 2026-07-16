@@ -14,7 +14,7 @@ Suggests: numDeriv, abind, quarto, trustOptim, testthat (>= 3.0.0), mvQuad
 Config/testthat/edition: 3
 VignetteBuilder: quarto
 Enhances: RSpectra, mgcv
-LinkingTo: Rcpp, trustOptim, Matrix
+LinkingTo: Rcpp, RcppEigen, trustOptim, Matrix
 Encoding: UTF-8
 SystemRequirements: CppAD, OpenMP
 RoxygenNote: 7.3.3
