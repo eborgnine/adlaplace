@@ -1,0 +1,17 @@
+This package redistributes the CppAD C++ header library and small
+RCppAD-specific patches under the following dual license, at the
+recipient's option (SPDX: EPL-2.0 OR GPL-2.0-or-later):
+
+  Eclipse Public License 2.0
+  OR
+  GNU General Public License version 2 or later
+
+The GNU GPL version 2 and version 3 texts are available from R via
+RShowDoc("GPL-2") and RShowDoc("GPL-3"), and at
+https://www.r-project.org/Licenses/
+
+The Eclipse Public License 2.0 text is available at
+https://www.eclipse.org/legal/epl-2.0/
+
+Upstream CppAD copyright: Bradley M. Bell and contributors
+(see SPDX headers under inst/include/cppad/).

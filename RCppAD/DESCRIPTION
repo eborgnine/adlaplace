@@ -17,7 +17,8 @@ Description: Provides the CppAD C++ header library for automatic
     vendored with CRAN-safe defaults (optional backends such as ColPack
     disabled) and R-safe error handling that does not call std::cerr or
     std::exit.
-License: EPL-2.0 | GPL (>= 2)
+License: file LICENSE
+License_is_FOSS: yes
 URL: https://github.com/coin-or/CppAD
 BugReports: https://github.com/patrickbrowns/adlaplace/issues
 Depends: R (>= 3.5.0)
