@@ -8,5 +8,7 @@
 ^vignettes/\.quarto$
 ^\.cursor$
 ^src/Makevars$
+^src/Makevars\.win$
 ^src/.*\.o$
 ^src/.*\.so$
+^src/.*\.dll$

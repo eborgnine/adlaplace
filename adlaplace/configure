@@ -25,7 +25,8 @@ if [ -n "$DEBUG_CXXFLAGS" ]; then
 fi
 
 infile="src/Makevars.in"
-outfile="src/Makevars"
+# Unix: src/Makevars; Windows configure.win sets MAKEVARS_OUT=src/Makevars.win
+outfile="${MAKEVARS_OUT:-src/Makevars}"
 
 if [ ! -f "$infile" ]; then
   echo "configure: ERROR: $infile not found" >&2

@@ -1,9 +1,9 @@
 #!/bin/sh
 # Remove generated files that should not ship in the source tarball.
 
-rm -f src/Makevars
+rm -f src/Makevars src/Makevars.win
 
-# Quarto / knitr HTML vignette outputs (recreated by quarto render)
+# HTML vignette intermediates (recreated by knitr/rmarkdown)
 rm -rf vignettes/*_files
 rm -f vignettes/*.html
 rm -f vignettes/*.knit.md
@@ -17,4 +17,4 @@ if [ -d "$_snaps" ] && [ -z "$(ls -A "$_snaps" 2>/dev/null)" ]; then
 fi
 
 # Compiled objects anywhere under the package tree
-find . -type f \( -name '*.o' -o -name '*.so' \) -delete
+find . -type f \( -name '*.o' -o -name '*.so' -o -name '*.dll' \) -delete

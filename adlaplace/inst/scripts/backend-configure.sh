@@ -11,10 +11,17 @@ UNAME_S="$(uname -s 2>/dev/null || echo unknown)"
 
 # R CMD INSTALL/check set R_HOME; bare `R` is rejected there (R Installation §1.6).
 # Use ${R_HOME:-} so `set -u` configure wrappers do not fail when unset.
+# configure.win sets R_ARCH_BIN (e.g. /x64) so we find R/Rscript under bin/x64.
 if [ -z "${R_HOME:-}" ]; then
   R_HOME=`R RHOME`
 fi
-R_EXE="${R_HOME}/bin/R"
+if [ -n "${R_ARCH_BIN:-}" ]; then
+  R_EXE="${R_HOME}/bin${R_ARCH_BIN}/R"
+  RSCRIPT="${R_HOME}/bin${R_ARCH_BIN}/Rscript"
+else
+  R_EXE="${R_HOME}/bin/R"
+  RSCRIPT="${R_HOME}/bin/Rscript"
+fi
 CXX_CMD="$("${R_EXE}" CMD config CXX 2>/dev/null || echo c++)"
 CXXFLAGS_CMD="$("${R_EXE}" CMD config CXXFLAGS 2>/dev/null || true)"
 CPPFLAGS_CMD="$("${R_EXE}" CMD config CPPFLAGS 2>/dev/null || true)"
@@ -135,3 +142,23 @@ if check_cxxflag "-fvisibility=hidden"; then
 else
   echo "configure: -fvisibility=hidden not supported; leaving default visibility" >&2
 fi
+
+# ---- Link backends to adlaplace's shared library (.so / .dll) ----
+# Call set_adlaplace_libs from backend configure scripts after sourcing this file.
+ADLAPLACE_LIBS=""
+set_adlaplace_libs () {
+  ADLAPLACE_LIBS=""
+  ADLAPLACE_LIBDIR="$("$RSCRIPT" -e 'p <- system.file("libs", package="adlaplace"); if (nzchar(p)) cat(p)' 2>/dev/null || true)"
+  if [ -z "$ADLAPLACE_LIBDIR" ]; then
+    echo "configure: WARNING: adlaplace libs directory not found" >&2
+    return 0
+  fi
+  if [ -f "$ADLAPLACE_LIBDIR/adlaplace.so" ]; then
+    ADLAPLACE_LIBS="$ADLAPLACE_LIBDIR/adlaplace.so -Wl,-rpath,$ADLAPLACE_LIBDIR"
+  elif [ -f "$ADLAPLACE_LIBDIR/adlaplace.dll" ]; then
+    # Windows MinGW: pass the DLL path; -Wl,-rpath is Unix-only.
+    ADLAPLACE_LIBS="$ADLAPLACE_LIBDIR/adlaplace.dll"
+  else
+    echo "configure: WARNING: adlaplace shared library not found under $ADLAPLACE_LIBDIR" >&2
+  fi
+}

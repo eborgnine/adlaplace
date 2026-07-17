@@ -3,7 +3,7 @@
 
 rm -f src/Makevars
 
-# Quarto / knitr HTML vignette outputs (recreated by quarto render)
+# HTML vignette intermediates (recreated by knitr/rmarkdown)
 rm -rf vignettes/*_files
 rm -f vignettes/*.html
 rm -f vignettes/*.knit.md

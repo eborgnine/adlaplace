@@ -26,7 +26,10 @@ hpol/inst/hessian3.pdf
 hpol/src/.DS_Store
 hpol/src/Makevars
 adlaplace/src/Makevars
+adlaplace/src/Makevars.win
 adlaplace_test/src/Makevars
+Makevars.win
+
 *.txt
 applications/india/mle.rds
 *log.txt

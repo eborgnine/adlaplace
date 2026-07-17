@@ -5,7 +5,7 @@
 vignettes/*.html
 vignettes/*_files/
 vignettes/*.knit.md
-vignettes/.quarto/
 src/*.o
 src/*.so
 src/Makevars
+src/Makevars.win
