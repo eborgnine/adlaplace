@@ -18,10 +18,15 @@ CPPFLAGS_CMD="$(R CMD config CPPFLAGS 2>/dev/null || true)"
 
 # Eigen: packages LinkingTo RcppEigen get -I from R; do not probe here.
 
+# Probe scratch dirs go under TMPDIR (mktemp). Relative config.$$ in the
+# package tree is fragile during R CMD INSTALL / staged installs.
+make_conftest_dir () {
+  mktemp -d "${TMPDIR:-/tmp}/adlaplace-conftest.XXXXXX"
+}
+
 check_cxxflag () {
   flag="$1"
-  tmpdir="config.$$"
-  mkdir "$tmpdir"
+  tmpdir="$(make_conftest_dir)" || return 1
   cat > "$tmpdir/conftest.cpp" <<'EOF'
 int main() { return 0; }
 EOF
@@ -30,13 +35,14 @@ EOF
     rm -rf "$tmpdir"
     return 0
   fi
+  echo "configure: C++ flag probe failed for '$flag':" >&2
+  eval "$CXX_CMD $CPPFLAGS_CMD $CXXFLAGS_CMD $flag -c $tmpdir/conftest.cpp -o $tmpdir/conftest.o" >&2 || true
   rm -rf "$tmpdir"
   return 1
 }
 
 check_openmp_darwin () {
-  tmpdir="config.$$"
-  mkdir "$tmpdir"
+  tmpdir="$(make_conftest_dir)" || return 1
   cat > "$tmpdir/conftest.cpp" <<'EOF'
 #include <omp.h>
 int main() {
@@ -53,13 +59,16 @@ EOF
     rm -rf "$tmpdir"
     return 0
   fi
+  echo "configure: macOS OpenMP link probe failed:" >&2
+  eval "$CXX_CMD $CPPFLAGS_CMD $CXXFLAGS_CMD -I$BREW_PREFIX/opt/libomp/include -Xpreprocessor -fopenmp \
+      $tmpdir/conftest.cpp -L$BREW_PREFIX/opt/libomp/lib -lomp \
+      -Wl,-rpath,$BREW_PREFIX/opt/libomp/lib -o $tmpdir/conftest" >&2 || true
   rm -rf "$tmpdir"
   return 1
 }
 
 check_openmp_linux () {
-  tmpdir="config.$$"
-  mkdir "$tmpdir"
+  tmpdir="$(make_conftest_dir)" || return 1
   cat > "$tmpdir/conftest.cpp" <<'EOF'
 #include <omp.h>
 int main() {
@@ -73,6 +82,9 @@ EOF
     rm -rf "$tmpdir"
     return 0
   fi
+  echo "configure: Linux OpenMP link probe failed:" >&2
+  eval "$CXX_CMD $CPPFLAGS_CMD $CXXFLAGS_CMD -fopenmp \
+      $tmpdir/conftest.cpp -o $tmpdir/conftest" >&2 || true
   rm -rf "$tmpdir"
   return 1
 }
@@ -195,7 +207,7 @@ else
   msg "configure: no standalone CppAD library detected; relying on header-only CppAD"
 fi
 
-# ---- Optional OpenMP (dynamic libomp on macOS; -fopenmp on Linux) ----
+# ---- OpenMP (required; dynamic libomp on macOS; -fopenmp on Linux) ----
 # Always report OpenMP status on stderr (visible in R CMD check install logs).
 if [ "$UNAME_S" = "Darwin" ]; then
   if [ -n "$BREW_PREFIX" ] \
@@ -212,7 +224,9 @@ if [ "$UNAME_S" = "Darwin" ]; then
       echo "configure: WARNING: OpenMP link probe failed; enabling Homebrew libomp flags anyway" >&2
     fi
   else
-    echo "configure: OpenMP not enabled on macOS (Homebrew libomp not found)" >&2
+    echo "configure: ERROR: OpenMP required but Homebrew libomp not found" >&2
+    echo "configure: install with: brew install libomp" >&2
+    exit 1
   fi
 else
   if check_cxxflag "-fopenmp" && check_openmp_linux; then
@@ -220,7 +234,9 @@ else
     OPENMP_LIBS="-fopenmp"
     echo "configure: OpenMP enabled using -fopenmp" >&2
   else
-    echo "configure: OpenMP not enabled (compiler does not accept -fopenmp)" >&2
+    echo "configure: ERROR: OpenMP is required (SystemRequirements) but -fopenmp is not usable" >&2
+    echo "configure: install a GCC/Clang toolchain with OpenMP (e.g. libgomp) and retry" >&2
+    exit 1
   fi
 fi
 

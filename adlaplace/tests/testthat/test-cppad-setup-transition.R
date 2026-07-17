@@ -65,12 +65,12 @@ expect_inner_opt_finite <- function(fx) {
   invisible(result)
 }
 
-test_that("tape build -> ad_fun(10) -> inner_opt deriv=FALSE (mixed shards)", {
+test_that("tape build -> ad_fun(2) -> inner_opt deriv=FALSE (mixed shards)", {
   fx <- build_transition_fixture(num_threads = 2L, include_random = TRUE)
   expect_inner_opt_finite(fx)
 })
 
-test_that("tape build -> ad_fun(10) -> inner_opt deriv=FALSE (obs + extra only)", {
+test_that("tape build -> ad_fun(2) -> inner_opt deriv=FALSE (obs + extra only)", {
   fx <- build_transition_fixture(num_threads = 2L, include_random = FALSE)
   expect_inner_opt_finite(fx)
 })
