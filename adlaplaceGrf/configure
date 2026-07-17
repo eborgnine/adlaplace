@@ -11,18 +11,30 @@ msg() {
   return 0
 }
 
-ADLAPLACE_SCRIPT_DIR="$(Rscript -e 'cat(system.file("scripts", package="adlaplace"))' 2>/dev/null || true)"
-if [ -z "$ADLAPLACE_SCRIPT_DIR" ] || [ ! -f "$ADLAPLACE_SCRIPT_DIR/backend-configure.sh" ]; then
-  ADLAPLACE_SCRIPT_DIR="$(cd "$(dirname "$0")/../adlaplace/inst/scripts" && pwd)"
+# R CMD check --as-cran sets _R_CHECK_R_ON_PATH_, which puts dummy R/Rscript
+# first on PATH (WRE §1.6). Always use ${R_HOME}/bin/Rscript.
+if [ -z "${R_HOME:-}" ]; then
+  R_HOME=`R RHOME`
 fi
-if [ ! -f "$ADLAPLACE_SCRIPT_DIR/backend-configure.sh" ]; then
-  echo "configure: ERROR: adlaplace backend-configure.sh not found" >&2
+RSCRIPT="${R_HOME}/bin/Rscript"
+
+ADLAPLACE_SCRIPT_DIR="$("$RSCRIPT" -e 'cat(system.file("scripts", package="adlaplace"))' 2>/dev/null || true)"
+if [ -z "$ADLAPLACE_SCRIPT_DIR" ] || [ ! -f "$ADLAPLACE_SCRIPT_DIR/backend-configure.sh" ]; then
+  _cand="$(dirname "$0")/../adlaplace/inst/scripts"
+  if [ -f "$_cand/backend-configure.sh" ]; then
+    ADLAPLACE_SCRIPT_DIR="$(cd "$_cand" && pwd)"
+  else
+    ADLAPLACE_SCRIPT_DIR=""
+  fi
+fi
+if [ -z "$ADLAPLACE_SCRIPT_DIR" ] || [ ! -f "$ADLAPLACE_SCRIPT_DIR/backend-configure.sh" ]; then
+  echo "configure: ERROR: adlaplace backend-configure.sh not found (install adlaplace first)" >&2
   exit 1
 fi
 . "$ADLAPLACE_SCRIPT_DIR/backend-configure.sh"
 
 ADLAPLACE_LIBS=""
-ADLAPLACE_LIBDIR="$(Rscript -e 'p <- system.file("libs", package="adlaplace"); if (nzchar(p)) cat(p)' 2>/dev/null || true)"
+ADLAPLACE_LIBDIR="$("$RSCRIPT" -e 'p <- system.file("libs", package="adlaplace"); if (nzchar(p)) cat(p)' 2>/dev/null || true)"
 if [ -n "$ADLAPLACE_LIBDIR" ] && [ -f "$ADLAPLACE_LIBDIR/adlaplace.so" ]; then
   ADLAPLACE_LIBS="$ADLAPLACE_LIBDIR/adlaplace.so -Wl,-rpath,$ADLAPLACE_LIBDIR"
 fi

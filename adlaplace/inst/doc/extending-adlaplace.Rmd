@@ -109,12 +109,32 @@ return make_ad_fun_ptr(groups);
 
 ## Configure
 
-Source the shared detection script from the installed **adlaplace** package:
+Source the shared detection script from the installed **adlaplace** package.
+Under `R CMD check --as-cran`, bare `Rscript` is a dummy on `PATH` (WRE §1.6);
+always call `"${R_HOME}/bin/Rscript"`. Optional monorepo sibling fallback:
+do not `cd` a missing path under `set -e`.
 
 ```sh
-ADLAPLACE_SCRIPT_DIR="$(Rscript -e 'cat(system.file("scripts", package="adlaplace"))')"
+if [ -z "${R_HOME:-}" ]; then
+  R_HOME=`R RHOME`
+fi
+RSCRIPT="${R_HOME}/bin/Rscript"
+
+ADLAPLACE_SCRIPT_DIR="$("$RSCRIPT" -e 'cat(system.file("scripts", package="adlaplace"))' 2>/dev/null || true)"
+if [ -z "$ADLAPLACE_SCRIPT_DIR" ] || [ ! -f "$ADLAPLACE_SCRIPT_DIR/backend-configure.sh" ]; then
+  _cand="$(dirname "$0")/../adlaplace/inst/scripts"
+  if [ -f "$_cand/backend-configure.sh" ]; then
+    ADLAPLACE_SCRIPT_DIR="$(cd "$_cand" && pwd)"
+  else
+    ADLAPLACE_SCRIPT_DIR=""
+  fi
+fi
+if [ -z "$ADLAPLACE_SCRIPT_DIR" ] || [ ! -f "$ADLAPLACE_SCRIPT_DIR/backend-configure.sh" ]; then
+  echo "configure: ERROR: adlaplace backend-configure.sh not found (install adlaplace first)" >&2
+  exit 1
+fi
 . "$ADLAPLACE_SCRIPT_DIR/backend-configure.sh"
-# Set ADLAPLACE_LIBS, substitute Makevars.in
+# Set ADLAPLACE_LIBS via "$RSCRIPT", substitute Makevars.in
 ```
 
 ## Usage from R

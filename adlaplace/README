@@ -1,15 +1,30 @@
 # adlaplace
 
-Laplace approximations for hierarchical models using CppAD and trust-region optimization.
+Laplace approximations for hierarchical models using CppAD (via the
+**RCppAD** R package) and trust-region optimization.
+
+## Dependencies
+
+- **RCppAD** — `Imports` + `LinkingTo`; provides `#include <cppad/cppad.hpp>`.
+  Install RCppAD before building this package. No system CppAD /
+  `libcppad_lib` is required.
+- **OpenMP** — recommended (`SystemRequirements: OpenMP`); configure enables
+  it when available. Without OpenMP, install still works and `num_threads`
+  is ignored.
 
 ## Package layout
 
 | Layer | R | C++ |
 |-------|---|-----|
 | Model (formula, S4 terms) | `effects.R`, `data_setup.R`, term `*.R` | — |
-| Laplace (AD handle, profile likelihood) | `ad_fun.R`, `ad_data.R`, `log_lik_laplace.R`, `wrappers.R` | `get_ad_fun_raw_*`, `inner_opt`, … |
-| Engine (eval, optimizer) | `R/RcppExports.R` | `src/{densities,eval,runtime,optim}/`, `src/include/adlaplace/` |
+| Laplace (AD handle, profile likelihood) | `ad_fun.R`, `ad_data.R`, `log_lik.R`, … | `inner_opt`, … |
+| Engine (eval, optimizer) | `R/RcppExports.R` | `src/`, `src/include/adlaplace/` |
 
-Public headers for backend packages live in `inst/include/adlaplace/` (including `math/lgamma.hpp` for custom likelihoods). Private engine headers are in `src/include/adlaplace/`.
+Public headers for backend packages live in `inst/include/adlaplace/`.
+Private engine headers are in `src/include/adlaplace/`.
 
-See `inst/doc/extending-adlaplace.Rmd` for writing a backend package.
+Backend packages (e.g. `adlaplaceExample`, `adlaplaceGrf`, `hpolcc`) should
+also `LinkingTo` / `Imports` **RCppAD**, and typically link against the
+installed `adlaplace` shared library.
+
+See the monorepo root [`README.md`](../README.md) for install order.

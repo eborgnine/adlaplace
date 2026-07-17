@@ -1,21 +1,23 @@
 # adlaplace
 
-Laplace approximations for hierarchical models using [CppAD](https://coin-or.github.io/CppAD/) automatic differentiation and trust-region optimization.
+Laplace approximations for hierarchical models using [CppAD](https://coin-or.github.io/CppAD/) automatic differentiation (via the **RCppAD** R package) and trust-region optimization.
 
 This repository is a monorepo. The packages most users need are:
 
 | Package | Role |
 |---------|------|
-| [`RCppAD`](RCppAD/) | Vendored CppAD headers (`LinkingTo`) |
+| [`RCppAD`](RCppAD/) | Headers-only CppAD for `LinkingTo` / `Imports` (no system CppAD) |
 | [`adlaplace`](adlaplace/) | Core Laplace / AD engine |
 | [`adlaplaceHgp`](adlaplaceHgp/) | IWP / hierarchical GP terms (`iwp`, `hiwp`, …) |
 | [`hpolcc`](hpolcc/) | Hierarchical case-crossover models (`hnlm`, `dirichlet_multinom`) |
 
-Related packages in the same tree: `adlaplaceExample` (custom-density backend example), `adlaplaceGrf` (FEM Matérn), `admvn` (MVN / SUN AD utilities).
+Related packages in the same tree: `adlaplaceExample` (custom-density backend example), `adlaplaceGrf` (FEM Matérn), `admvn` (MVN / SUN AD utilities). All compiled packages that use CppAD depend on **RCppAD**.
 
 ## System requirements
 
-`adlaplace` and backends need a C++17 compiler. **OpenMP** is recommended (`SystemRequirements: OpenMP`) for multi-threaded fits; install still succeeds without it (`num_threads` is ignored). CppAD comes from the R package **RCppAD** (no system CppAD / `libcppad_lib`).
+`adlaplace` and backends need a C++17 compiler. **OpenMP** is recommended (`SystemRequirements: OpenMP`) for multi-threaded fits; install still succeeds without it (`num_threads` is ignored).
+
+CppAD is **not** a system library here. Install the R package [`RCppAD`](RCppAD/) first; packages use `LinkingTo: RCppAD` and `#include <cppad/cppad.hpp>`. There is no need for Homebrew/`apt` CppAD or `libcppad_lib`.
 
 ### macOS (Homebrew)
 
@@ -43,9 +45,11 @@ install.packages(c(
 ))
 ```
 
+Then install **RCppAD** from this repo (not yet assumed on CRAN in local workflows).
+
 ## Install from a local clone
 
-Clone the repo, then install **in this order** (`RCppAD` before `adlaplace`; `hpolcc` depends on `adlaplace` and `adlaplaceHgp`):
+Clone the repo, then install **in this order** (`RCppAD` before anything that compiles against CppAD):
 
 ```bash
 git clone https://github.com/eborgnine/adlaplace.git
@@ -69,7 +73,7 @@ R CMD INSTALL adlaplaceHgp
 R CMD INSTALL hpolcc
 ```
 
-`configure` runs automatically during install and writes `src/Makevars` from `src/Makevars.in`.
+`configure` runs automatically during install and writes `src/Makevars` from `src/Makevars.in` (OpenMP detection only; CppAD comes from RCppAD).
 
 ## Install from GitHub
 
@@ -117,21 +121,42 @@ Load **`adlaplace` before `hpolcc`** (and before `data.table` if you attach it e
 
 ## Optional packages
 
+These also need **RCppAD** (and usually **adlaplace**) already installed:
+
 ```r
 # Custom observation densities (skew-normal backend demo)
 remotes::install_github("eborgnine/adlaplace", subdir = "adlaplaceExample")
 
 # FEM Matérn spatial fields
 remotes::install_github("eborgnine/adlaplace", subdir = "adlaplaceGrf")
+
+# MVN / SUN AD utilities
+remotes::install_github("eborgnine/adlaplace", subdir = "admvn")
 ```
+
+## Refreshing CppAD (maintainers)
+
+Upstream headers are vendored under [`RCppAD/inst/include/cppad/`](RCppAD/inst/include/cppad/). To update:
+
+```bash
+cd RCppAD
+./tools/update-cppad.sh 20260000.0   # or a path to include/
+R CMD INSTALL .
+```
+
+See [`RCppAD/README.md`](RCppAD/README.md). Do **not** download CppAD at `R CMD INSTALL` time.
 
 ## Troubleshooting
 
-- **Missing `cppad/cppad.hpp`** — install **RCppAD** first (`R CMD INSTALL RCppAD`), then reinstall packages that `LinkingTo` it.
+- **Missing `cppad/cppad.hpp`** — install **RCppAD** first (`R CMD INSTALL RCppAD`), then reinstall packages that `LinkingTo` it. Do not install system `cppad` / `libcppad-dev` for this repo.
 - **OpenMP link errors on macOS** — install `libomp` via Homebrew; reinstall `adlaplace` after that so `configure` picks up `-Xpreprocessor -fopenmp` and the `libomp` library. Without OpenMP the package still installs; multi-threading is disabled.
 - **`hpolcc` fails to link `adlaplace.so`** — install `adlaplace` into the same R library first, then reinstall `hpolcc`.
 - **Verbose configure** — set `ADLAPLACE_CONFIGURE_VERBOSE=1` in the environment before installing.
 
 ## License
 
-See each package’s `DESCRIPTION` (`adlaplace` is MPL-2.0; `hpolcc` and `adlaplaceHgp` are GPL-3).
+See each package’s `DESCRIPTION`:
+
+- `RCppAD` — EPL-2.0 or GPL-2+ (`License: file LICENSE`; vendored CppAD)
+- `adlaplace` — MPL-2.0
+- `hpolcc`, `adlaplaceHgp`, and most backends — GPL-3
