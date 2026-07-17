@@ -3,10 +3,10 @@
 
 #include <Rcpp.h>
 #include <cppad/cppad.hpp>
-#include <omp.h>
 #include <vector>
 
 #include "adlaplace/backend.hpp"
+#include "adlaplace/omp_compat.hpp"
 #include "adlaplace/ompad.hpp"
 #include "adlaplace/runtime.hpp"
 

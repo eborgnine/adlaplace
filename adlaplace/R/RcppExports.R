@@ -207,3 +207,11 @@ trace_hinv_t <- function(ad_fun, x, LinvPt, LinvPtColumns, verbose = FALSE) {
     .Call(`_adlaplace_trace_hinv_t`, ad_fun, x, LinvPt, LinvPtColumns, verbose)
 }
 
+#' Whether this build of adlaplace was compiled with OpenMP
+#'
+#' @return Logical scalar.
+#' @keywords internal
+has_openmp <- function() {
+    .Call(`_adlaplace_has_openmp`)
+}
+

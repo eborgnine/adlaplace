@@ -1,10 +1,10 @@
 #include "adlaplace/ompad.hpp"
+#include "adlaplace/omp_compat.hpp"
 #include "adlaplace/runtime.hpp"
 
 #include <Rcpp.h>
 #include <cppad/cppad.hpp>
 #include <cppad/utility/thread_alloc.hpp>
-#include <omp.h>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -53,6 +53,9 @@ void debug_teardown_restored() {}
 void cppad_parallel_setup(std::size_t num_threads) {
   require_serial_main_thread("cppad_parallel_setup");
   if (num_threads < 1) num_threads = 1;
+#ifndef _OPENMP
+  num_threads = 1;
+#endif
 
   if (num_threads != cppad_team_num_threads) {
     cppad_parallel_teardown();
@@ -73,6 +76,15 @@ void cppad_parallel_setup(std::size_t num_threads) {
     CppAD::thread_alloc::hold_memory(true);
   }
   CppAD::parallel_ad<double>();
+}
+
+// [[Rcpp::export(rng = false)]]
+bool has_openmp() {
+#ifdef _OPENMP
+  return true;
+#else
+  return false;
+#endif
 }
 
 void cppad_parallel_teardown() {

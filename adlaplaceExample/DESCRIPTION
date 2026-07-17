@@ -9,11 +9,11 @@ Description: Provides a minimal example backend package for 'adlaplace'.
     It demonstrates how to implement and expose model-specific AD tape
     construction while delegating optimization and Laplace approximation
     workflows to 'adlaplace'.
-SystemRequirements: CppAD, OpenMP
+SystemRequirements: OpenMP
 License: GPL-3
 Depends: R (>= 4.1.0)
-LinkingTo: Rcpp, adlaplace, RcppEigen, trustOptim
-Imports: Rcpp, adlaplace, Matrix
+LinkingTo: Rcpp, adlaplace, RcppEigen, trustOptim, RCppAD
+Imports: Rcpp, adlaplace, Matrix, RCppAD
 Suggests: trustOptim, abind, quarto, testthat, sn
 Enhances: sn
 VignetteBuilder: quarto

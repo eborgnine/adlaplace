@@ -1,5 +1,5 @@
 #!/bin/sh
-# configure: backend extension package (sources shared CppAD/OpenMP detection)
+# configure: backend extension package (sources adlaplace OpenMP detection)
 
 set -eu
 
@@ -38,13 +38,6 @@ fi
 esc_sed () { printf '%s' "$1" | sed 's/[\/&]/\\&/g'; }
 
 sed \
-  -e "s/@OPENMP_CPPFLAGS@/$(esc_sed "$OPENMP_CPPFLAGS")/g" \
-  -e "s/@OPENMP_CXXFLAGS@/$(esc_sed "$OPENMP_CXXFLAGS")/g" \
-  -e "s/@OPENMP_LIBS@/$(esc_sed "$OPENMP_LIBS")/g" \
-  -e "s/@BREW_CPPFLAGS@/$(esc_sed "$BREW_CPPFLAGS")/g" \
-  -e "s/@CPPAD_CPPFLAGS@/$(esc_sed "$CPPAD_CPPFLAGS")/g" \
-  -e "s/@CPPAD_INCLUDE_CPPFLAGS@/$(esc_sed "$CPPAD_INCLUDE_CPPFLAGS")/g" \
-  -e "s/@CPPAD_LIBS@/$(esc_sed "$CPPAD_LIBS")/g" \
   -e "s/@ADLAPLACE_LIBS@/$(esc_sed "$ADLAPLACE_LIBS")/g" \
 "$infile" > "$outfile"
 

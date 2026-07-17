@@ -6,6 +6,7 @@ This repository is a monorepo. The packages most users need are:
 
 | Package | Role |
 |---------|------|
+| [`RCppAD`](RCppAD/) | Vendored CppAD headers (`LinkingTo`) |
 | [`adlaplace`](adlaplace/) | Core Laplace / AD engine |
 | [`adlaplaceHgp`](adlaplaceHgp/) | IWP / hierarchical GP terms (`iwp`, `hiwp`, …) |
 | [`hpolcc`](hpolcc/) | Hierarchical case-crossover models (`hnlm`, `dirichlet_multinom`) |
@@ -14,21 +15,21 @@ Related packages in the same tree: `adlaplaceExample` (custom-density backend ex
 
 ## System requirements
 
-`adlaplace` and `hpolcc` need a C++17 compiler, **CppAD** headers (and usually `libcppad_lib`), and **OpenMP**.
+`adlaplace` and backends need a C++17 compiler. **OpenMP** is recommended (`SystemRequirements: OpenMP`) for multi-threaded fits; install still succeeds without it (`num_threads` is ignored). CppAD comes from the R package **RCppAD** (no system CppAD / `libcppad_lib`).
 
 ### macOS (Homebrew)
 
 ```bash
-brew install cppad libomp
+brew install libomp
 ```
 
-Xcode command-line tools must be installed (`xcode-select --install`). The package `configure` scripts detect Homebrew’s CppAD and `libomp` paths.
+Xcode command-line tools must be installed (`xcode-select --install`). `configure` detects Homebrew `libomp` when present.
 
 ### Ubuntu / Debian
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y libcppad-dev libomp-dev g++
+sudo apt-get install -y libomp-dev g++
 ```
 
 ### R packages
@@ -44,7 +45,7 @@ install.packages(c(
 
 ## Install from a local clone
 
-Clone the repo, then install **in this order** (`hpolcc` depends on `adlaplace` and `adlaplaceHgp`):
+Clone the repo, then install **in this order** (`RCppAD` before `adlaplace`; `hpolcc` depends on `adlaplace` and `adlaplaceHgp`):
 
 ```bash
 git clone https://github.com/eborgnine/adlaplace.git
@@ -53,6 +54,7 @@ cd adlaplace
 
 ```r
 # From the repository root
+devtools::install("RCppAD", upgrade = "never")
 devtools::install("adlaplace", upgrade = "never")
 devtools::install("adlaplaceHgp", upgrade = "never")
 devtools::install("hpolcc", upgrade = "never")
@@ -61,6 +63,7 @@ devtools::install("hpolcc", upgrade = "never")
 Or with `R CMD INSTALL`:
 
 ```bash
+R CMD INSTALL RCppAD
 R CMD INSTALL adlaplace
 R CMD INSTALL adlaplaceHgp
 R CMD INSTALL hpolcc
@@ -75,12 +78,13 @@ Using [`remotes`](https://remotes.r-lib.org/) (or `devtools`):
 ```r
 install.packages("remotes")
 
+remotes::install_github("eborgnine/adlaplace", subdir = "RCppAD")
 remotes::install_github("eborgnine/adlaplace", subdir = "adlaplace")
 remotes::install_github("eborgnine/adlaplace", subdir = "adlaplaceHgp")
 remotes::install_github("eborgnine/adlaplace", subdir = "hpolcc")
 ```
 
-Install `adlaplace` before the others so LinkingTo / runtime linking can find `adlaplace.so`.
+Install `RCppAD` then `adlaplace` before the others so LinkingTo / runtime linking can find headers and `adlaplace.so`.
 
 ## Quick check
 
@@ -123,8 +127,8 @@ remotes::install_github("eborgnine/adlaplace", subdir = "adlaplaceGrf")
 
 ## Troubleshooting
 
-- **`could not locate CppAD headers`** — install CppAD (`brew install cppad` or `libcppad-dev`) and ensure `pkg-config cppad` works, or that headers are under Homebrew’s include path.
-- **OpenMP link errors on macOS** — install `libomp` via Homebrew; reinstall `adlaplace` after that so `configure` picks up `-Xpreprocessor -fopenmp` and the `libomp` library.
+- **Missing `cppad/cppad.hpp`** — install **RCppAD** first (`R CMD INSTALL RCppAD`), then reinstall packages that `LinkingTo` it.
+- **OpenMP link errors on macOS** — install `libomp` via Homebrew; reinstall `adlaplace` after that so `configure` picks up `-Xpreprocessor -fopenmp` and the `libomp` library. Without OpenMP the package still installs; multi-threading is disabled.
 - **`hpolcc` fails to link `adlaplace.so`** — install `adlaplace` into the same R library first, then reinstall `hpolcc`.
 - **Verbose configure** — set `ADLAPLACE_CONFIGURE_VERBOSE=1` in the environment before installing.
 

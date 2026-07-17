@@ -81,8 +81,7 @@ struct TrustControl {
 #include <numeric>
 #include <vector>
 
-#include <omp.h>
-
+#include "adlaplace/omp_compat.hpp"
 #include "adlaplace/backend.hpp"
 #include "adlaplace/rviews.hpp"
 #include "adlaplace/runtime.hpp"

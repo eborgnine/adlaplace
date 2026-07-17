@@ -266,6 +266,15 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// has_openmp
+bool has_openmp();
+RcppExport SEXP _adlaplace_has_openmp() {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    rcpp_result_gen = Rcpp::wrap(has_openmp());
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_adlaplace_get_ad_fun_raw_obs", (DL_FUNC) &_adlaplace_get_ad_fun_raw_obs, 3},
@@ -288,6 +297,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_adlaplace_inner_opt", (DL_FUNC) &_adlaplace_inner_opt, 6},
     {"_adlaplace_fun_obj_fdfh", (DL_FUNC) &_adlaplace_fun_obj_fdfh, 5},
     {"_adlaplace_trace_hinv_t", (DL_FUNC) &_adlaplace_trace_hinv_t, 5},
+    {"_adlaplace_has_openmp", (DL_FUNC) &_adlaplace_has_openmp, 0},
     {NULL, NULL, 0}
 };
 

@@ -1,10 +1,20 @@
 #' @include RcppExports.R
 #' @keywords internal
-build_parallel_map <- function(n_shards, num_threads, owner_threads = NULL) {
+effective_num_threads <- function(num_threads) {
   num_threads <- as.integer(num_threads)[1]
   if (is.na(num_threads) || num_threads < 1L) {
     stop("num_threads must be a positive integer", call. = FALSE)
   }
+  # Without OpenMP at compile time, ignore requested thread count.
+  if (!isTRUE(has_openmp())) {
+    return(1L)
+  }
+  num_threads
+}
+
+#' @keywords internal
+build_parallel_map <- function(n_shards, num_threads, owner_threads = NULL) {
+  num_threads <- effective_num_threads(num_threads)
   if (n_shards < 1L) {
     stop("ad_fun pointer has no shards", call. = FALSE)
   }
@@ -41,10 +51,7 @@ new_ad_fun_from_ptr <- function(ptr, num_threads = 1L, info = list(), verbose = 
   if (!is(ptr, "ad_fun_ptr")) {
     stop("ptr must be an ad_fun_ptr external pointer")
   }
-  num_threads <- as.integer(num_threads)[1]
-  if (is.na(num_threads) || num_threads < 1L) {
-    stop("num_threads must be a positive integer", call. = FALSE)
-  }
+  num_threads <- effective_num_threads(num_threads)
   n_shards <- n_groups(ptr)
   if (verbose) {
     cat(

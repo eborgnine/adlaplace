@@ -1,9 +1,9 @@
-# Standalone CppAD package (own OpenMP + libcppad_lib; not an adlaplace backend).
-PKG_CPPFLAGS = @CPPAD_CPPFLAGS@ @CPPAD_INCLUDE_CPPFLAGS@ @OPENMP_CPPFLAGS@ @BREW_CPPFLAGS@
+# Standalone package: CppAD via LinkingTo: RCppAD; optional OpenMP.
+PKG_CPPFLAGS = @OPENMP_CPPFLAGS@
 # Keep CppAD thread_alloc / AD statics local to this DSO when mixed with other
 # CppAD packages in one R process.
 PKG_CXXFLAGS = @OPENMP_CXXFLAGS@ -fvisibility=hidden
-PKG_LIBS     = @CPPAD_LIBS@ @OPENMP_LIBS@
+PKG_LIBS     = @OPENMP_LIBS@
 
 all: $(SHLIB) strippedLib
 

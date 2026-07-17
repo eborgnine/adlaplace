@@ -1,0 +1,5 @@
+^tools$
+^.*\.tar\.gz$
+^\.Rproj\.user$
+^.*\.Rproj$
+^README\.Rmd$

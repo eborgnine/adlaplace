@@ -1,5 +1,5 @@
 #!/bin/sh
-# configure: standalone CppAD package (local copy of adlaplace backend-configure.sh)
+# configure: standalone RCppAD package (local copy of adlaplace backend-configure.sh)
 
 set -eu
 
@@ -28,10 +28,6 @@ sed \
   -e "s/@OPENMP_CPPFLAGS@/$(esc_sed "$OPENMP_CPPFLAGS")/g" \
   -e "s/@OPENMP_CXXFLAGS@/$(esc_sed "$OPENMP_CXXFLAGS")/g" \
   -e "s/@OPENMP_LIBS@/$(esc_sed "$OPENMP_LIBS")/g" \
-  -e "s/@BREW_CPPFLAGS@/$(esc_sed "$BREW_CPPFLAGS")/g" \
-  -e "s/@CPPAD_CPPFLAGS@/$(esc_sed "$CPPAD_CPPFLAGS")/g" \
-  -e "s/@CPPAD_INCLUDE_CPPFLAGS@/$(esc_sed "$CPPAD_INCLUDE_CPPFLAGS")/g" \
-  -e "s/@CPPAD_LIBS@/$(esc_sed "$CPPAD_LIBS")/g" \
 "$infile" > "$outfile"
 
 chmod 644 "$outfile"

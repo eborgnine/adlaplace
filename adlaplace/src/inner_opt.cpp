@@ -17,6 +17,7 @@
 // Local
 #include "adlaplace/rviews.hpp"
 #include "adlaplace/atomics.hpp"
+#include "adlaplace/omp_compat.hpp"
 #include "adlaplace/ompad.hpp"
 #include "adlaplace/runtime.hpp"
 #include "adlaplace/runtime.hpp"

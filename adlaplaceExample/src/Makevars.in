@@ -1,7 +1,6 @@
-# Headers only for CppAD (link CppAD via adlaplace.so). Eval amalgam is included
-# from backend.cpp so CppAD::Forward runs in the same DSO as tape recording.
+# CppAD via LinkingTo: RCppAD; runtime link to adlaplace.so.
 # Eigen headers come from LinkingTo: RcppEigen (R adds -I automatically).
-PKG_CPPFLAGS = @CPPAD_CPPFLAGS@ @CPPAD_INCLUDE_CPPFLAGS@ @BREW_CPPFLAGS@ -DEIGEN_DONT_PARALLELIZE
+PKG_CPPFLAGS = -DEIGEN_DONT_PARALLELIZE
 # Keep CppAD thread_alloc / AD statics local to this DSO (macOS mixed-DSO parallel).
 PKG_CXXFLAGS = -fvisibility=hidden
 PKG_LIBS     = @ADLAPLACE_LIBS@

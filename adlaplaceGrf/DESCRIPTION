@@ -12,13 +12,13 @@ Description: Tensor-product B-spline finite-element ingredients for Matern
     with the adlaplace Laplace approximation framework. Provides design and
     Gram matrix construction on regular grids, with optional terra SpatRaster /
     SpatVector input, and AD tape builders for random_fem_ssq_* / random_fem_det_*.
-SystemRequirements: CppAD, OpenMP
+SystemRequirements: OpenMP
 License: GPL-3
 Depends:
     R (>= 4.1.0),
     adlaplace (>= 0.4.0)
-Imports: methods, stats, Matrix, splines, Rcpp
-LinkingTo: Rcpp, adlaplace, RcppEigen, trustOptim, Matrix
+Imports: methods, stats, Matrix, splines, Rcpp, RCppAD
+LinkingTo: Rcpp, adlaplace, RcppEigen, trustOptim, Matrix, RCppAD
 Suggests: terra, testthat (>= 3.0.0), quarto, geostatsp, INLA, knitr
 Config/testthat/edition: 3
 VignetteBuilder: quarto
