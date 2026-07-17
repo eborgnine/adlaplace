@@ -8,3 +8,10 @@
 PKG_CPPFLAGS = -I../inst/include -I../src/include @CPPAD_CPPFLAGS@ @CPPAD_INCLUDE_CPPFLAGS@ @OPENMP_CPPFLAGS@ @BREW_CPPFLAGS@ -DEIGEN_DONT_PARALLELIZE
 PKG_CXXFLAGS = @OPENMP_CXXFLAGS@ @DEBUG_CXXFLAGS@
 PKG_LIBS     = @CPPAD_LIBS@ @OPENMP_LIBS@
+
+all: $(SHLIB) strippedLib
+
+strippedLib: $(SHLIB)
+	if command -v strip >/dev/null 2>&1; then case "$$(uname -s)" in Linux) strip --strip-debug "$(SHLIB)";; esac; fi
+
+.PHONY: strippedLib

@@ -6,3 +6,10 @@ PKG_CPPFLAGS = @CPPAD_CPPFLAGS@ @CPPAD_INCLUDE_CPPFLAGS@ @BREW_CPPFLAGS@ -DEIGEN
 PKG_CXXFLAGS = -fvisibility=hidden
 PKG_LIBS     = @ADLAPLACE_LIBS@
 OBJECTS = RcppExports.o backend.o adfun_random_fem.o
+
+all: $(SHLIB) strippedLib
+
+strippedLib: $(SHLIB)
+	if command -v strip >/dev/null 2>&1; then case "$$(uname -s)" in Linux) strip --strip-debug "$(SHLIB)";; esac; fi
+
+.PHONY: strippedLib
