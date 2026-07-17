@@ -2,8 +2,8 @@
 PKG_CPPFLAGS = @OPENMP_CPPFLAGS@
 # Keep CppAD thread_alloc / AD statics local to this DSO when mixed with other
 # CppAD packages in one R process.
-# @VISIBILITY_CXXFLAGS@ set by configure after probing -fvisibility=hidden.
-PKG_CXXFLAGS = @OPENMP_CXXFLAGS@ @VISIBILITY_CXXFLAGS@
+# VISIBILITY_CXXFLAGS / WARN_CXXFLAGS set by configure after probing.
+PKG_CXXFLAGS = @OPENMP_CXXFLAGS@ @VISIBILITY_CXXFLAGS@ @WARN_CXXFLAGS@
 PKG_LIBS     = @OPENMP_LIBS@
 
 all: $(SHLIB) strippedLib

@@ -1,24 +1,35 @@
-# OpenMP detection for admvn (local copy of adlaplace/inst/scripts/backend-configure.sh).
+# OpenMP / visibility / warning probes for admvn
+# (kept aligned with adlaplace/inst/scripts/backend-configure.sh; no adlaplace link).
 # CppAD comes from LinkingTo: RCppAD (no system CppAD / -lcppad_lib).
 
 OPENMP_CPPFLAGS=""
 OPENMP_CXXFLAGS=""
 OPENMP_LIBS=""
 VISIBILITY_CXXFLAGS=""
+WARN_CXXFLAGS=""
 BREW_PREFIX=""
 
 UNAME_S="$(uname -s 2>/dev/null || echo unknown)"
 
 # R CMD INSTALL/check set R_HOME; bare `R` is rejected there (R Installation §1.6).
 # Use ${R_HOME:-} so `set -u` configure wrappers do not fail when unset.
+# configure.win sets R_ARCH_BIN (e.g. /x64) so we find R/Rscript under bin/x64.
 if [ -z "${R_HOME:-}" ]; then
   R_HOME=`R RHOME`
 fi
-R_EXE="${R_HOME}/bin/R"
+if [ -n "${R_ARCH_BIN:-}" ]; then
+  R_EXE="${R_HOME}/bin${R_ARCH_BIN}/R"
+  RSCRIPT="${R_HOME}/bin${R_ARCH_BIN}/Rscript"
+else
+  R_EXE="${R_HOME}/bin/R"
+  RSCRIPT="${R_HOME}/bin/Rscript"
+fi
 CXX_CMD="$("${R_EXE}" CMD config CXX 2>/dev/null || echo c++)"
 CXXFLAGS_CMD="$("${R_EXE}" CMD config CXXFLAGS 2>/dev/null || true)"
 CPPFLAGS_CMD="$("${R_EXE}" CMD config CPPFLAGS 2>/dev/null || true)"
 
+# Probe scratch dirs go under TMPDIR (mktemp). Relative config.$$ in the
+# package tree is fragile during R CMD INSTALL / staged installs.
 make_conftest_dir () {
   mktemp -d "${TMPDIR:-/tmp}/admvn-conftest.XXXXXX"
 }
@@ -49,6 +60,8 @@ int main() {
   return omp_get_max_threads() >= 1 ? 0 : 1;
 }
 EOF
+  # Prefer dynamic libomp: static libomp.a + dyn.load (pkgload/load_all) can
+  # segfault in OpenMP TLS on macOS under R's -undefined dynamic_lookup.
   if eval "$CXX_CMD $CPPFLAGS_CMD $CXXFLAGS_CMD -I$BREW_PREFIX/opt/libomp/include -Xpreprocessor -fopenmp \
       $tmpdir/conftest.cpp -L$BREW_PREFIX/opt/libomp/lib -lomp \
       -Wl,-rpath,$BREW_PREFIX/opt/libomp/lib -o $tmpdir/conftest" \
@@ -86,12 +99,14 @@ EOF
   return 1
 }
 
-# Do not add -I$BREW_PREFIX/include (would risk system CppAD over RCppAD).
+# ---- Brew discovery (macOS only; used for libomp paths, not -I for all of Homebrew) ----
+# Do not add -I$BREW_PREFIX/include: that can put system CppAD ahead of LinkingTo: RCppAD.
 if [ "$UNAME_S" = "Darwin" ] && command -v brew >/dev/null 2>&1; then
   BREW_PREFIX="$(brew --prefix 2>/dev/null || true)"
 fi
 
 # ---- OpenMP (optional; SystemRequirements lists OpenMP as recommended) ----
+# Soft-fail: leave OPENMP_* empty so the package installs serially.
 if [ "$UNAME_S" = "Darwin" ]; then
   if [ -n "$BREW_PREFIX" ] \
      && [ -f "$BREW_PREFIX/opt/libomp/include/omp.h" ] \
@@ -102,10 +117,13 @@ if [ "$UNAME_S" = "Darwin" ]; then
     if check_openmp_darwin; then
       echo "configure: OpenMP enabled on macOS using dynamic Homebrew libomp" >&2
     else
+      # Headers/dylib present: still enable flags. A failed probe can be
+      # transient (TMPDIR/noexec, PATH) but omitting -lomp breaks dyn.load.
       echo "configure: WARNING: OpenMP link probe failed; enabling Homebrew libomp flags anyway" >&2
     fi
   else
     echo "configure: OpenMP not enabled on macOS (Homebrew libomp not found)" >&2
+    echo "configure: install with: brew install libomp (recommended; SystemRequirements: OpenMP)" >&2
   fi
 else
   if check_cxxflag "-fopenmp" && check_openmp_linux; then
@@ -114,6 +132,7 @@ else
     echo "configure: OpenMP enabled using -fopenmp" >&2
   else
     echo "configure: OpenMP not enabled (compiler does not accept -fopenmp)" >&2
+    echo "configure: install a toolchain with OpenMP for multi-threaded fits (SystemRequirements: OpenMP)" >&2
   fi
 fi
 
@@ -124,4 +143,19 @@ if check_cxxflag "-fvisibility=hidden"; then
   echo "configure: using -fvisibility=hidden" >&2
 else
   echo "configure: -fvisibility=hidden not supported; leaving default visibility" >&2
+fi
+
+# ---- Warning suppressions (Eigen / GCC 14 libstdc++ false positives) ----
+# Probe only; do not hardcode -Wno-* in committed Makevars (CRAN non-portable).
+if check_cxxflag "-Wno-uninitialized"; then
+  WARN_CXXFLAGS="$WARN_CXXFLAGS -Wno-uninitialized"
+fi
+if check_cxxflag "-Wno-maybe-uninitialized"; then
+  WARN_CXXFLAGS="$WARN_CXXFLAGS -Wno-maybe-uninitialized"
+fi
+WARN_CXXFLAGS="$(echo "$WARN_CXXFLAGS" | sed 's/^ *//')"
+if [ -n "$WARN_CXXFLAGS" ]; then
+  echo "configure: warning suppressions: $WARN_CXXFLAGS" >&2
+else
+  echo "configure: no Eigen-related -Wno-* flags enabled" >&2
 fi

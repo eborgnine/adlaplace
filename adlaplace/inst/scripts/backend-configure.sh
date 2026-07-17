@@ -5,6 +5,7 @@ OPENMP_CPPFLAGS=""
 OPENMP_CXXFLAGS=""
 OPENMP_LIBS=""
 VISIBILITY_CXXFLAGS=""
+WARN_CXXFLAGS=""
 BREW_PREFIX=""
 
 UNAME_S="$(uname -s 2>/dev/null || echo unknown)"
@@ -141,6 +142,21 @@ if check_cxxflag "-fvisibility=hidden"; then
   echo "configure: using -fvisibility=hidden" >&2
 else
   echo "configure: -fvisibility=hidden not supported; leaving default visibility" >&2
+fi
+
+# ---- Warning suppressions (Eigen / GCC 14 libstdc++ false positives) ----
+# Probe only; do not hardcode -Wno-* in committed Makevars (CRAN non-portable).
+if check_cxxflag "-Wno-uninitialized"; then
+  WARN_CXXFLAGS="$WARN_CXXFLAGS -Wno-uninitialized"
+fi
+if check_cxxflag "-Wno-maybe-uninitialized"; then
+  WARN_CXXFLAGS="$WARN_CXXFLAGS -Wno-maybe-uninitialized"
+fi
+WARN_CXXFLAGS="$(echo "$WARN_CXXFLAGS" | sed 's/^ *//')"
+if [ -n "$WARN_CXXFLAGS" ]; then
+  echo "configure: warning suppressions: $WARN_CXXFLAGS" >&2
+else
+  echo "configure: no Eigen-related -Wno-* flags enabled" >&2
 fi
 
 # ---- Link backends to adlaplace's shared library (.so / .dll) ----
