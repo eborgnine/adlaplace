@@ -2,6 +2,7 @@
 #' @importFrom Rcpp evalCpp
 #' @import Matrix
 #' @import methods
+#' @import RCppAD
 NULL
 
 loadNamespace("Matrix")

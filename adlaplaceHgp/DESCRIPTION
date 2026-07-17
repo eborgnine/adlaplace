@@ -1,6 +1,6 @@
 Package: adlaplaceHgp
 Type: Package
-Title: Hierarchical Gaussian Processes for adlaplace
+Title: Hierarchical Gaussian Processes for 'adlaplace'
 Version: 0.3.0
 Authors@R: person(given = "Patrick", family = "Brown",
     email = "patrick.borgnine@gmail.com",

@@ -1,10 +1,13 @@
 Package: hpolcc
 Type: Package
-Title: Hierarchical air pollution model
+Title: Hierarchical Air Pollution Model
 Version: 0.4.0
-Author: Patrick Brown
-Maintainer: Patrick Brown <patrick.borgnine@gmail.com>
-Description: A package for hierarchical functional case crossover models. This package provides tools for modeling air pollution health effects with hierarchical structures and case crossover designs.
+Authors@R: person(given = "Patrick", family = "Brown",
+    email = "patrick.borgnine@gmail.com",
+    role = c("aut", "cre", "cph"))
+Description: Fits hierarchical functional case-crossover models for air
+    pollution health effects, with hierarchical structures and case-crossover
+    designs built on the adlaplace Laplace approximation framework.
 SystemRequirements: OpenMP
 License: GPL-3
 Depends:

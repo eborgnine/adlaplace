@@ -19,7 +19,7 @@ Depends:
     adlaplace (>= 0.4.0)
 Imports: methods, stats, Matrix, splines, Rcpp, RCppAD
 LinkingTo: Rcpp, adlaplace, RcppEigen, trustOptim, Matrix, RCppAD
-Suggests: terra, testthat (>= 3.0.0), quarto, geostatsp, INLA, knitr
+Suggests: terra, testthat (>= 3.0.0), quarto, geostatsp, INLA, knitr, mapmisc
 Config/testthat/edition: 3
 VignetteBuilder: quarto
 Encoding: UTF-8

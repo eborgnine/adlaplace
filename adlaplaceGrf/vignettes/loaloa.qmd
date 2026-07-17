@@ -82,7 +82,7 @@ from the `geometry` column (WKT) in the model data frame.
 
 ```{r model_setup}
 #| cache: false
-knots_grid <- geostatsp::squareRaster(loaloa, cells = 8, buffer = 500 * 1000)
+knots_grid <- geostatsp::squareRaster(loaloa, cells = 6, buffer = 300 * 1000)
 loaloa_df <- as.data.frame(loaloa_for_fit$data, geom = "WKT")
 
 loaloa_model <- adlaplace::binomial(y, size = N) ~
