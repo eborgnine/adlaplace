@@ -1,6 +1,8 @@
 #!/usr/bin/env Rscript
 # Install the union of Depends/Imports/LinkingTo/Suggests from local packages,
 # excluding the local packages themselves (those are built/installed later in CI).
+# Transitive Suggests are not installed (dependencies = NA) so unavailable CRAN
+# Suggests of our Suggests (e.g. geostatsp -> RandomFields) do not break the solve.
 
 locals <- c(
   "RCppAD",
@@ -37,9 +39,10 @@ for (dir in locals) {
   }
 }
 
-pkgs <- sort(unique(setdiff(pkgs, locals)))
+base_pkgs <- rownames(installed.packages(priority = "base"))
+pkgs <- sort(unique(setdiff(pkgs, c(locals, base_pkgs))))
 message(
-  "Installing ", length(pkgs), " CRAN deps (local packages excluded):\n  ",
+  "Installing ", length(pkgs), " CRAN deps (local + base packages excluded):\n  ",
   paste(pkgs, collapse = ", ")
 )
 
@@ -50,5 +53,7 @@ if (nzchar(pak_lib)) {
   library(pak)
 }
 
-pak::pkg_install(pkgs, dependencies = TRUE)
+# Hard deps only for transitive packages: keeps geostatsp installable without
+# its archived Suggests (RandomFields). Our Suggests remain direct targets.
+pak::pkg_install(pkgs, dependencies = NA)
 message("CRAN dependency install complete.")
