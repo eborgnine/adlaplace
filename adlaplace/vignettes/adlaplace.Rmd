@@ -2,13 +2,12 @@
 title: "Laplace Approximations with adlaplace"
 author: "Patrick Brown"
 date: "`r Sys.Date()`"
-format:
-  html:
+output:
+  rmarkdown::html_vignette:
     toc: true
-    toc-depth: 3
 vignette: >
   %\VignetteIndexEntry{Laplace Approximations with adlaplace}
-  %\VignetteEngine{quarto::html}
+  %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
 

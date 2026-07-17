@@ -19,9 +19,9 @@ Depends:
     adlaplace (>= 0.4.0)
 Imports: methods, stats, Matrix, splines, Rcpp, RCppAD
 LinkingTo: Rcpp, adlaplace, RcppEigen, trustOptim, Matrix, RCppAD
-Suggests: terra, testthat (>= 3.0.0), quarto, geostatsp, knitr, mapmisc
+Suggests: terra, testthat (>= 3.0.0), geostatsp, knitr, rmarkdown, mapmisc
 Config/testthat/edition: 3
-VignetteBuilder: quarto
+VignetteBuilder: knitr
 Encoding: UTF-8
 RoxygenNote: 7.3.3
 Roxygen: list(markdown = TRUE)

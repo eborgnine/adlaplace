@@ -2,14 +2,12 @@
 title: "FEM Matérn joint density with adlaplace"
 author: "Patrick Brown"
 date: "`r Sys.Date()`"
-format:
-  html:
+output:
+  rmarkdown::html_vignette:
     toc: true
-    toc-depth: 3
-    html-math-method: mathml
 vignette: >
   %\VignetteIndexEntry{FEM Matérn joint density with adlaplace}
-  %\VignetteEngine{quarto::html}
+  %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
 

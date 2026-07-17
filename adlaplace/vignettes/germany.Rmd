@@ -2,13 +2,12 @@
 title: "BYM disease mapping: Germany oral cavity cancer"
 author: "Patrick Brown"
 date: "`r Sys.Date()`"
-format:
-  html:
+output:
+  rmarkdown::html_vignette:
     toc: true
-    toc-depth: 3
 vignette: >
   %\VignetteIndexEntry{BYM disease mapping: Germany oral cavity cancer}
-  %\VignetteEngine{quarto::html}
+  %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
 

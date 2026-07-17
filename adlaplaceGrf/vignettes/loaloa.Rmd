@@ -2,19 +2,16 @@
 title: "Loaloa prevalence with FEM Matérn"
 author: "Patrick Brown"
 date: "`r Sys.Date()`"
-format:
-  html:
+output:
+  rmarkdown::html_vignette:
     toc: true
-    toc-depth: 2
-    html-math-method: mathml
 vignette: >
   %\VignetteIndexEntry{Loaloa prevalence with FEM Matérn}
-  %\VignetteEngine{quarto::html}
+  %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
 
-```{r setup}
-#| include: false
+```{r setup, include=FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>",
@@ -36,8 +33,7 @@ using a village-level IID effect and a FEM Matérn spatial field
 examples. When **INLA** is available, the same model is also fit with
 `geostatsp::glgm` for comparison.
 
-```{r skip-check}
-#| echo: false
+```{r skip-check, echo=FALSE}
 if (!has_geostatsp) {
   knitr::knit_exit()
 }
@@ -79,8 +75,7 @@ geostatsp Matérn **shape = 2** is ν = 2 (SPDE α = 3 in 2D), so we pass
 `shape = 2` to `matern()` (cubic B-splines / `random_fem_ssq_3`). Locations come
 from the `geometry` column (WKT) in the model data frame.
 
-```{r model_setup}
-#| cache: false
+```{r model_setup, cache=FALSE}
 knots_grid <- geostatsp::squareRaster(loaloa, cells = 6, buffer = 300 * 1000)
 loaloa_df <- as.data.frame(loaloa_for_fit$data, geom = "WKT")
 
@@ -206,8 +201,7 @@ my_sim <- adlaplaceGrf:::matern_est(fit, loaloa_for_fit$grid, n = 10)
 
 Posterior mean and SD of the spatial field from both fits (glgm when available):
 
-```{r plot-surfaces-setup}
-#| include: false
+```{r plot-surfaces-setup, include=FALSE}
 my_col <- mapmisc::colourScale(
   my_sim[[grep("sd", names(my_sim), invert = TRUE)]],
   style = "equal", digits = 2, breaks = 9, col = "Spectral"
@@ -220,25 +214,19 @@ plot_compare <- exists("loaFit") && length(loaFit$parameters)
 plot_alone <- !plot_compare
 ```
 
-```{r plot-surfaces-compare}
-#| fig-width: 8
-#| fig-height: 8
-#| layout-ncol: 2
-#| fig-cap: "Posterior mean and SD of the spatial field (glgm vs adlaplace)."
-#| fig-subcap:
-#|   - "glgm random mean"
-#|   - "adlaplace matern mean"
-#|   - "glgm random sd"
-#|   - "adlaplace matern sd"
+```{r plot-surfaces-compare, fig.width=8, fig.height=8, fig.cap="Posterior mean and SD of the spatial field (glgm vs adlaplace)."}
+
 data("worldMap", package = "mapmisc")
 worldMap <- terra::unwrap(worldMap)
 worldMap <- terra::crop(worldMap, terra::ext(c(-2, 10, -10, 5) * 1e6))
 worldMapT <- terra::project(worldMap, loaloa)
 mapmisc::map.new(loaloa)
-terra::plot(
-  loaFit$raster[["random.mean"]],
-  add = TRUE, col = my_col$col, breaks = my_col$breaks, legend = FALSE
-)
+if (plot_compare) {
+  terra::plot(
+    loaFit$raster[["random.mean"]],
+    add = TRUE, col = my_col$col, breaks = my_col$breaks, legend = FALSE
+  )
+}
 terra::plot(worldMapT, add = TRUE)
 mapmisc::legendBreaks("right", my_col)
 
@@ -251,10 +239,12 @@ terra::plot(worldMapT, add = TRUE)
 mapmisc::legendBreaks("right", my_col)
 
 mapmisc::map.new(loaloa)
-terra::plot(
-  loaFit$raster[["random.sd"]],
-  add = TRUE, col = sd_col$col, breaks = sd_col$breaks, legend = FALSE
-)
+if (plot_compare) {
+  terra::plot(
+    loaFit$raster[["random.sd"]],
+    add = TRUE, col = sd_col$col, breaks = sd_col$breaks, legend = FALSE
+  )
+}
 terra::plot(worldMapT, add = TRUE)
 mapmisc::legendBreaks("right", sd_col)
 
@@ -272,9 +262,7 @@ mapmisc::legendBreaks("right", sd_col)
 
 Four posterior draws of the adlaplace Matérn field:
 
-```{r plot-sims}
-#| fig.width: 8
-#| fig.height: 8
+```{r plot-sims, fig.width=8, fig.height=8}
 sim_layers <- paste0("sim", 1:6)
 terra::plot(my_sim[[sim_layers]], nc = 2, col = my_col$col, breaks = my_col$breaks, legend = FALSE)
 mapmisc::legendBreaks("right", my_col, bty = "n")

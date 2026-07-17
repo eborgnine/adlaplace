@@ -2,13 +2,12 @@
 title: "AIS data in adlaplaceExample"
 author: "Patrick Brown"
 date: "`r Sys.Date()`"
-format:
-  html:
+output:
+  rmarkdown::html_vignette:
     toc: true
-    toc-depth: 3
 vignette: >
   %\VignetteIndexEntry{AIS data in adlaplaceExample}
-  %\VignetteEngine{quarto::html}
+  %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
 ```{r}

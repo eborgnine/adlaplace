@@ -10,10 +10,10 @@ License: MPL-2.0
 Depends: R (>= 3.5.0)
 Imports: Matrix (>= 1.2.18), Rcpp (>= 1.0.3), methods, data.table, stats,
     graphics, RCppAD
-Suggests: numDeriv, abind, quarto, trustOptim, testthat (>= 3.0.0), mvQuad,
-    mgcv, MASS, nlme, sn, terra
+Suggests: numDeriv, abind, knitr, rmarkdown, trustOptim, testthat (>= 3.0.0),
+    mvQuad, mgcv, MASS, nlme, sn, terra
 Config/testthat/edition: 3
-VignetteBuilder: quarto
+VignetteBuilder: knitr
 Enhances: RSpectra
 LinkingTo: Rcpp, RcppEigen, trustOptim, Matrix, RCppAD
 Encoding: UTF-8

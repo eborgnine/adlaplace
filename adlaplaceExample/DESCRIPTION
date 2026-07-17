@@ -14,8 +14,8 @@ License: GPL-3
 Depends: R (>= 4.1.0)
 LinkingTo: Rcpp, adlaplace, RcppEigen, trustOptim, RCppAD
 Imports: Rcpp, adlaplace, RCppAD, methods
-Suggests: trustOptim, abind, quarto, testthat, sn, Matrix, pracma
-VignetteBuilder: quarto
+Suggests: trustOptim, abind, knitr, rmarkdown, testthat, sn, Matrix, pracma
+VignetteBuilder: knitr
 Encoding: UTF-8
 RoxygenNote: 7.3.3
 Roxygen: list(markdown = TRUE)

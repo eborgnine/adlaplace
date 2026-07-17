@@ -1,5 +1,14 @@
 ---
-geometry: margin=1in
+title: "Equivalence to Conditional Gamma-Poisson Model"
+author: "Patrick Brown"
+date: "`r Sys.Date()`"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+vignette: >
+  %\VignetteIndexEntry{Equivalence to Conditional Gamma-Poisson Model}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
 ---
 
 # Equivalence to Conditional Gamma-Poisson Model

@@ -5,11 +5,11 @@
 # Jobs:
 #   - macOS: first pass without Homebrew libomp, then brew install libomp and re-check
 #   - Windows
-#   - Ubuntu CRAN-like (R-hub ubuntu-release)
+#   - Ubuntu CRAN-like (R-hub ubuntu-release); finally install INLA and re-check adlaplaceGrf
 on:
-  push:
-    branches: [main, master]
-  pull_request:
+  schedule:
+    - cron: '0 2 * * 0'   # Sundays 02:00 UTC
+  workflow_dispatch:
 
 name: R-CMD-check
 
@@ -45,6 +45,11 @@ jobs:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
       R_KEEP_PKG_SOURCE: yes
 
+    # bash so `R CMD INSTALL` is not eaten by PowerShell's `R` → Invoke-History alias
+    defaults:
+      run:
+        shell: bash
+
     steps:
       - uses: actions/checkout@v4
 
@@ -63,26 +68,33 @@ jobs:
         if: ${{ matrix.config.container != null }}
         run: |
           apt-get update
-          apt-get install -y --no-install-recommends libomp-dev
-
-      - uses: quarto-dev/quarto-actions/setup@v2
+          apt-get install -y --no-install-recommends libomp-dev curl ca-certificates
 
       - uses: r-lib/actions/setup-tinytex@v2
 
       - name: Install TinyTeX extras
         run: tlmgr install makeindex
 
+      # Install the union of all packages' check deps once (pak skips what's already ok).
+      # Local packages are still built/checked later; installs use built .tar.gz
+      # (see .github/scripts/install-local-pkg.sh).
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          packages: |
+            deps::RCppAD
+            deps::adlaplace
+            deps::adlaplaceExample
+            deps::adlaplaceHgp
+            deps::adlaplaceGrf
+            deps::hpolcc
+          extra-packages: any::rcmdcheck
+          needs: check
+
       # =====================================================================
       # Pass 1 (all jobs): macOS has no Homebrew libomp yet
       # =====================================================================
 
       # ----- RCppAD -----
-      - uses: r-lib/actions/setup-r-dependencies@v2
-        with:
-          working-directory: RCppAD
-          extra-packages: any::rcmdcheck
-          needs: check
-
       - name: Check RCppAD (plain)
         uses: r-lib/actions/check-r-package@v2
         with:
@@ -104,15 +116,9 @@ jobs:
           artifact-name: ${{ matrix.config.id }}-pass1-RCppAD-as-cran
 
       - name: Install RCppAD
-        run: R CMD INSTALL RCppAD
+        run: bash .github/scripts/install-local-pkg.sh RCppAD
 
       # ----- adlaplace -----
-      - uses: r-lib/actions/setup-r-dependencies@v2
-        with:
-          working-directory: adlaplace
-          extra-packages: any::rcmdcheck
-          needs: check
-
       - name: Check adlaplace (plain)
         uses: r-lib/actions/check-r-package@v2
         with:
@@ -134,15 +140,9 @@ jobs:
           artifact-name: ${{ matrix.config.id }}-pass1-adlaplace-as-cran
 
       - name: Install adlaplace
-        run: R CMD INSTALL adlaplace
+        run: bash .github/scripts/install-local-pkg.sh adlaplace
 
       # ----- adlaplaceExample -----
-      - uses: r-lib/actions/setup-r-dependencies@v2
-        with:
-          working-directory: adlaplaceExample
-          extra-packages: any::rcmdcheck
-          needs: check
-
       - name: Check adlaplaceExample (plain)
         uses: r-lib/actions/check-r-package@v2
         with:
@@ -164,12 +164,6 @@ jobs:
           artifact-name: ${{ matrix.config.id }}-pass1-adlaplaceExample-as-cran
 
       # ----- adlaplaceHgp -----
-      - uses: r-lib/actions/setup-r-dependencies@v2
-        with:
-          working-directory: adlaplaceHgp
-          extra-packages: any::rcmdcheck
-          needs: check
-
       - name: Check adlaplaceHgp (plain)
         uses: r-lib/actions/check-r-package@v2
         with:
@@ -191,15 +185,9 @@ jobs:
           artifact-name: ${{ matrix.config.id }}-pass1-adlaplaceHgp-as-cran
 
       - name: Install adlaplaceHgp
-        run: R CMD INSTALL adlaplaceHgp
+        run: bash .github/scripts/install-local-pkg.sh adlaplaceHgp
 
       # ----- adlaplaceGrf -----
-      - uses: r-lib/actions/setup-r-dependencies@v2
-        with:
-          working-directory: adlaplaceGrf
-          extra-packages: any::rcmdcheck
-          needs: check
-
       - name: Check adlaplaceGrf (plain)
         uses: r-lib/actions/check-r-package@v2
         with:
@@ -221,12 +209,6 @@ jobs:
           artifact-name: ${{ matrix.config.id }}-pass1-adlaplaceGrf-as-cran
 
       # ----- hpolcc -----
-      - uses: r-lib/actions/setup-r-dependencies@v2
-        with:
-          working-directory: hpolcc
-          extra-packages: any::rcmdcheck
-          needs: check
-
       - name: Check hpolcc (plain)
         uses: r-lib/actions/check-r-package@v2
         with:
@@ -258,11 +240,11 @@ jobs:
       # Rebuild installed compiled deps so LinkingTo backends see OpenMP-enabled libs.
       - name: Reinstall adlaplace with OpenMP
         if: runner.os == 'macOS'
-        run: R CMD INSTALL adlaplace
+        run: bash .github/scripts/install-local-pkg.sh adlaplace
 
       - name: Reinstall adlaplaceHgp
         if: runner.os == 'macOS'
-        run: R CMD INSTALL adlaplaceHgp
+        run: bash .github/scripts/install-local-pkg.sh adlaplaceHgp
 
       - name: Check RCppAD with OpenMP (plain)
         if: runner.os == 'macOS'
@@ -310,7 +292,7 @@ jobs:
 
       - name: Reinstall adlaplace after OpenMP check
         if: runner.os == 'macOS'
-        run: R CMD INSTALL adlaplace
+        run: bash .github/scripts/install-local-pkg.sh adlaplace
 
       - name: Check adlaplaceExample with OpenMP (plain)
         if: runner.os == 'macOS'
@@ -358,7 +340,7 @@ jobs:
 
       - name: Reinstall adlaplaceHgp after OpenMP check
         if: runner.os == 'macOS'
-        run: R CMD INSTALL adlaplaceHgp
+        run: bash .github/scripts/install-local-pkg.sh adlaplaceHgp
 
       - name: Check adlaplaceGrf with OpenMP (plain)
         if: runner.os == 'macOS'
@@ -403,3 +385,43 @@ jobs:
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
           check-dir: '"check-as-cran-omp"'
           artifact-name: macos-pass2-hpolcc-as-cran
+
+      # =====================================================================
+      # Linux CRAN-like only: install INLA, re-check adlaplaceGrf (vignettes)
+      # =====================================================================
+
+      - name: Install INLA
+        if: ${{ matrix.config.id == 'ubuntu-cran' }}
+        shell: Rscript {0}
+        run: |
+          install.packages(
+            "INLA",
+            repos = c(
+              getOption("repos"),
+              INLA = "https://inla.r-inla-download.org/R/stable"
+            ),
+            dependencies = TRUE
+          )
+          stopifnot(requireNamespace("INLA", quietly = TRUE))
+
+      - name: Check adlaplaceGrf with INLA (plain)
+        if: ${{ matrix.config.id == 'ubuntu-cran' }}
+        uses: r-lib/actions/check-r-package@v2
+        with:
+          working-directory: adlaplaceGrf
+          upload-snapshots: true
+          args: 'c("--no-manual")'
+          build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
+          check-dir: '"check-plain-inla"'
+          artifact-name: ubuntu-cran-adlaplaceGrf-inla-plain
+
+      - name: Check adlaplaceGrf with INLA (as-cran)
+        if: ${{ matrix.config.id == 'ubuntu-cran' }}
+        uses: r-lib/actions/check-r-package@v2
+        with:
+          working-directory: adlaplaceGrf
+          upload-snapshots: true
+          args: 'c("--no-manual", "--as-cran")'
+          build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
+          check-dir: '"check-as-cran-inla"'
+          artifact-name: ubuntu-cran-adlaplaceGrf-inla-as-cran

@@ -2,14 +2,12 @@
 title: "FEM Matérn methods: SPDE, B-splines, and covariance comparison"
 author: "Patrick Brown"
 date: "`r Sys.Date()`"
-format:
-  html:
+output:
+  rmarkdown::html_vignette:
     toc: true
-    toc-depth: 3
-    html-math-method: mathml
 vignette: >
   %\VignetteIndexEntry{FEM Matérn methods: SPDE, B-splines, and covariance comparison}
-  %\VignetteEngine{quarto::html}
+  %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
 
@@ -147,8 +145,8 @@ Fix α = 2, $\nu=1$, $\kappa=2$, $\tau$ chosen so the Matérn marginal variance 
 ```{r params}
 nu <- 1
 kappa <- 3
-# <U+03C3>^2 = <U+0393>(<U+03BD>) / ( <U+0393>(<U+03B1>) (4<U+03C0>)^{d/2} <U+03BA>^{2<U+03BD>} <U+03C4>^2 ) with <U+03B1>=2, d=2
-# => 1 = 1 / (1 * 4<U+03C0> * <U+03BA>^2 * <U+03C4>^2)  => <U+03C4>^2 = 1/(4<U+03C0> <U+03BA>^2)
+# sigma^2 = Gamma(nu) / ( Gamma(alpha) (4*pi)^{d/2} kappa^{2*nu} tau^2 ) with alpha=2, d=2
+# => 1 = 1 / (1 * 4*pi * kappa^2 * tau^2)  => tau^2 = 1/(4*pi*kappa^2)
 tau <- 1 / sqrt(4 * pi * kappa^2)
 rho <- sqrt(8 * nu) / kappa
 c(kappa = kappa, tau = tau, range = rho)
@@ -216,9 +214,7 @@ data.frame(
 
 Correlation versus distance (exact Matérn vs FEM):
 
-```{r plot-corr}
-#| fig-width: 7
-#| fig-height: 4
+```{r plot-corr, fig.width=7, fig.height=4}
 upper <- upper.tri(D)
 df <- data.frame(
   dist = D[upper],

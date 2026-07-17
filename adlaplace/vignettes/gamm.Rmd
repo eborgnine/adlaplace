@@ -2,13 +2,12 @@
 title: "GAMM Examples"
 author: "Patrick Brown"
 date: "`r Sys.Date()`"
-format:
-  html:
+output:
+  rmarkdown::html_vignette:
     toc: true
-    toc-depth: 3
 vignette: >
   %\VignetteIndexEntry{GAMM Examples}
-  %\VignetteEngine{quarto::html}
+  %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
 
@@ -71,7 +70,7 @@ config <- list(
 
 ```{r ad_fun_create}
 # Serial for vignette builds: OpenMP TLS can segfault under some macOS
-# libomp / dyn.load combinations when num_threads > 1 (quarto then dies
+# libomp / dyn.load combinations when num_threads > 1 (vignette build then dies
 # at log_lik with no R error message).
 config$num_threads <- 1L
 control_inner <- list(maxit = 100L, report.level = 0, report.freq = 0)
