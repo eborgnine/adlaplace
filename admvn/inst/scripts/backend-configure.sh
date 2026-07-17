@@ -44,8 +44,11 @@ int main() {
   return omp_get_max_threads() >= 1 ? 0 : 1;
 }
 EOF
+  # Prefer dynamic libomp: static libomp.a + dyn.load (pkgload/load_all) can
+  # segfault in OpenMP TLS on macOS under R's -undefined dynamic_lookup.
   if eval "$CXX_CMD $CPPFLAGS_CMD $CXXFLAGS_CMD -I$BREW_PREFIX/opt/libomp/include -Xpreprocessor -fopenmp \
-      $tmpdir/conftest.cpp $BREW_PREFIX/opt/libomp/lib/libomp.a -o $tmpdir/conftest" \
+      $tmpdir/conftest.cpp -L$BREW_PREFIX/opt/libomp/lib -lomp \
+      -Wl,-rpath,$BREW_PREFIX/opt/libomp/lib -o $tmpdir/conftest" \
       >/dev/null 2>&1; then
     rm -rf "$tmpdir"
     return 0
@@ -160,16 +163,16 @@ else
   msg "configure: no standalone CppAD library detected; relying on header-only CppAD"
 fi
 
-# ---- Optional OpenMP (static libomp.a on macOS; dynamic -fopenmp on Linux) ----
+# ---- Optional OpenMP (dynamic libomp on macOS; -fopenmp on Linux) ----
 if [ "$UNAME_S" = "Darwin" ]; then
   if [ -n "$BREW_PREFIX" ] \
      && [ -f "$BREW_PREFIX/opt/libomp/include/omp.h" ] \
-     && [ -f "$BREW_PREFIX/opt/libomp/lib/libomp.a" ]; then
+     && [ -f "$BREW_PREFIX/opt/libomp/lib/libomp.dylib" ]; then
     if check_openmp_darwin; then
       OPENMP_CPPFLAGS="-I$BREW_PREFIX/opt/libomp/include"
       OPENMP_CXXFLAGS="-Xpreprocessor -fopenmp"
-      OPENMP_LIBS="$BREW_PREFIX/opt/libomp/lib/libomp.a"
-      msg "configure: OpenMP enabled on macOS using static Homebrew libomp"
+      OPENMP_LIBS="-L$BREW_PREFIX/opt/libomp/lib -lomp -Wl,-rpath,$BREW_PREFIX/opt/libomp/lib"
+      msg "configure: OpenMP enabled on macOS using dynamic Homebrew libomp"
     else
       msg "configure: OpenMP not enabled (compiler does not accept -Xpreprocessor -fopenmp)"
     fi

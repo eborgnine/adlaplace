@@ -1,6 +1,9 @@
 # Core package: owns OpenMP + CppAD parallel_setup (not -fvisibility=hidden;
 # backends hide their local CppAD statics instead).
+# macOS OpenMP: dynamic libomp (see inst/scripts/backend-configure.sh).
 # Eigen headers come from LinkingTo: RcppEigen (R adds -I automatically).
+# -I../src/include must precede CppAD -I so src/include/cppad/utility/error_handler.hpp
+# shadows the system header (R-safe ErrorHandler; see that file's header comment).
 PKG_CPPFLAGS = -I../inst/include -I../src/include @CPPAD_CPPFLAGS@ @CPPAD_INCLUDE_CPPFLAGS@ @OPENMP_CPPFLAGS@ @BREW_CPPFLAGS@ -DEIGEN_DONT_PARALLELIZE
 PKG_CXXFLAGS = @OPENMP_CXXFLAGS@ @DEBUG_CXXFLAGS@
 PKG_LIBS     = @CPPAD_LIBS@ @OPENMP_LIBS@

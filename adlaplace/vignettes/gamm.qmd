@@ -73,7 +73,8 @@ config <- list(
 
 
 ```{r ad_fun_create}
-config$num_threads <- 4L
+config$num_threads <- 2L
+control_inner <- list(maxit = 100L, report.level = 0, report.freq = 0)
 ad_fun <- adlaplace::ad_fun(md, config, num_threads = config$num_threads)
 ```
 
@@ -84,6 +85,7 @@ res <- adlaplace::log_lik_laplace(
   x = md$data$info$parameters$init,
   ad_fun = ad_fun,
   config = c(config, list(verbose = FALSE)),
+  control = control_inner,
   deriv = TRUE
 )
 res$parameters
@@ -101,8 +103,14 @@ cache$gamma <- rep(0, nrow(md$data$info$gamma)) # config$gamma not required; war
 
 x0 <- md$data$info$parameters$init
 
-adlaplace::outer_fn(x = x0, cache = cache, config = config, ad_fun = ad_fun)
-adlaplace::outer_gr(x = x0, cache = cache, config = config, ad_fun = ad_fun)
+adlaplace::outer_fn(
+  x = x0, cache = cache, config = config, ad_fun = ad_fun,
+  control_inner = control_inner
+)
+adlaplace::outer_gr(
+  x = x0, cache = cache, config = config, ad_fun = ad_fun,
+  control_inner = control_inner
+)
 
 outer_fit <- stats::optim(
   par = md$data$info$parameters$init,
@@ -120,7 +128,8 @@ outer_fit <- stats::optim(
   upper = md$data$info$parameters$upper,
   config = config,
   ad_fun = ad_fun,
-  cache = cache
+  cache = cache,
+  control_inner = control_inner
 )
 
 outer_fit$par
@@ -161,12 +170,6 @@ the determinant derivative, and the chain rule through the inner mode
 $u(\beta, \theta)$.
 
 ```{r testLogLgrad, fig.height=7}
-control_inner <- list(
-  maxit = 100,
-  report.level = 0,
-  report.freq = 0
-)
-
 par(mfrow = c(3, 2), mar = c(2, 2, 2, 0), mgp = c(1, 0.5, 0))
 
 x1 <- outer_fit$par
@@ -321,6 +324,7 @@ res <- adlaplace::log_lik_laplace(
   gamma = cache$gamma,
   ad_fun = ad_fun,
   config = config,
+  control = control_inner,
   deriv = FALSE
 )
 
