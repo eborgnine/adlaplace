@@ -514,17 +514,16 @@ jobs:
       # Ubuntu only: stage vignette HTML for GitHub Pages
       # =====================================================================
 
+      # Static _site/ does not need actions/configure-pages (that action requires
+      # Pages to already be enabled and was failing the ubuntu check job).
+      # Repo setting: Settings → Pages → Source = GitHub Actions.
       - name: Stage vignette site
         if: ${{ matrix.config.id == 'ubuntu-cran' && success() }}
         run: bash .github/scripts/stage-vignette-site.sh
 
-      - name: Setup Pages
-        if: ${{ matrix.config.id == 'ubuntu-cran' && success() }}
-        uses: actions/configure-pages@v5
-
       - name: Upload Pages artifact
         if: ${{ matrix.config.id == 'ubuntu-cran' && success() }}
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: _site
 
@@ -539,4 +538,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
