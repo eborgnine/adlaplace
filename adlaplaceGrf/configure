@@ -36,9 +36,23 @@ if [ -z "$ADLAPLACE_SCRIPT_DIR" ] || [ ! -f "$ADLAPLACE_SCRIPT_DIR/backend-confi
   echo "configure: ERROR: adlaplace backend-configure.sh not found (install adlaplace first)" >&2
   exit 1
 fi
+# Default before source: older installed adlaplace may omit WARN_CXXFLAGS.
+WARN_CXXFLAGS=""
 . "$ADLAPLACE_SCRIPT_DIR/backend-configure.sh"
 
 set_adlaplace_libs
+# Older installed adlaplace only checked libs/adlaplace.dll; Windows uses libs/x64/.
+if [ -z "${ADLAPLACE_LIBS:-}" ]; then
+  _libs="$("$RSCRIPT" -e 'p <- system.file("libs", package="adlaplace"); if (nzchar(p)) cat(p)' 2>/dev/null || true)"
+  _arch="${R_ARCH#/}"
+  if [ -n "$_arch" ] && [ -f "$_libs/$_arch/adlaplace.dll" ]; then
+    ADLAPLACE_LIBS="$_libs/$_arch/adlaplace.dll"
+    echo "configure: linking to $ADLAPLACE_LIBS (Windows arch fallback)" >&2
+  elif [ -f "$_libs/x64/adlaplace.dll" ]; then
+    ADLAPLACE_LIBS="$_libs/x64/adlaplace.dll"
+    echo "configure: linking to $ADLAPLACE_LIBS (Windows x64 fallback)" >&2
+  fi
+fi
 
 infile="src/Makevars.in"
 # Unix: src/Makevars; Windows configure.win sets MAKEVARS_OUT=src/Makevars.win
@@ -53,8 +67,8 @@ esc_sed () { printf '%s' "$1" | sed 's/[\/&]/\\&/g'; }
 
 sed \
   -e "s/@VISIBILITY_CXXFLAGS@/$(esc_sed "$VISIBILITY_CXXFLAGS")/g" \
-  -e "s/@WARN_CXXFLAGS@/$(esc_sed "$WARN_CXXFLAGS")/g" \
-  -e "s/@ADLAPLACE_LIBS@/$(esc_sed "$ADLAPLACE_LIBS")/g" \
+  -e "s/@WARN_CXXFLAGS@/$(esc_sed "${WARN_CXXFLAGS:-}")/g" \
+  -e "s/@ADLAPLACE_LIBS@/$(esc_sed "${ADLAPLACE_LIBS:-}")/g" \
 "$infile" > "$outfile"
 
 chmod 644 "$outfile"

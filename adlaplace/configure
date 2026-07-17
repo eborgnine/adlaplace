@@ -12,6 +12,7 @@ msg() {
 }
 
 SCRIPT_DIR="$(cd "$(dirname "$0")/inst/scripts" && pwd)"
+WARN_CXXFLAGS=""
 . "$SCRIPT_DIR/backend-configure.sh"
 
 DEBUG_CXXFLAGS=""
@@ -40,7 +41,7 @@ sed \
   -e "s/@OPENMP_CXXFLAGS@/$(esc_sed "$OPENMP_CXXFLAGS")/g" \
   -e "s/@OPENMP_LIBS@/$(esc_sed "$OPENMP_LIBS")/g" \
   -e "s/@DEBUG_CXXFLAGS@/$(esc_sed "$DEBUG_CXXFLAGS")/g" \
-  -e "s/@WARN_CXXFLAGS@/$(esc_sed "$WARN_CXXFLAGS")/g" \
+  -e "s/@WARN_CXXFLAGS@/$(esc_sed "${WARN_CXXFLAGS:-}")/g" \
 "$infile" > "$outfile"
 
 chmod 644 "$outfile"

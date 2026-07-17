@@ -187,11 +187,23 @@ set_adlaplace_libs () {
     echo "configure: WARNING: adlaplace libs directory not found" >&2
     return 0
   fi
-  if [ -f "$ADLAPLACE_LIBDIR/adlaplace.so" ]; then
+  # Windows: DLL lives under libs/x64 (R_ARCH=/x64), not libs/ itself.
+  arch_subdir=""
+  if [ -n "${R_ARCH:-}" ]; then
+    arch_subdir="${R_ARCH#/}"
+  fi
+  if [ -n "$arch_subdir" ] && [ -f "$ADLAPLACE_LIBDIR/$arch_subdir/adlaplace.dll" ]; then
+    ADLAPLACE_LIBS="$ADLAPLACE_LIBDIR/$arch_subdir/adlaplace.dll"
+    echo "configure: linking to $ADLAPLACE_LIBS" >&2
+  elif [ -f "$ADLAPLACE_LIBDIR/x64/adlaplace.dll" ]; then
+    ADLAPLACE_LIBS="$ADLAPLACE_LIBDIR/x64/adlaplace.dll"
+    echo "configure: linking to $ADLAPLACE_LIBS" >&2
+  elif [ -f "$ADLAPLACE_LIBDIR/adlaplace.so" ]; then
     ADLAPLACE_LIBS="$ADLAPLACE_LIBDIR/adlaplace.so -Wl,-rpath,$ADLAPLACE_LIBDIR"
   elif [ -f "$ADLAPLACE_LIBDIR/adlaplace.dll" ]; then
-    # Windows MinGW: pass the DLL path; -Wl,-rpath is Unix-only.
+    # Windows MinGW (rare flat layout); -Wl,-rpath is Unix-only.
     ADLAPLACE_LIBS="$ADLAPLACE_LIBDIR/adlaplace.dll"
+    echo "configure: linking to $ADLAPLACE_LIBS" >&2
   else
     echo "configure: WARNING: adlaplace shared library not found under $ADLAPLACE_LIBDIR" >&2
   fi
