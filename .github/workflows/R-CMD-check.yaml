@@ -72,8 +72,10 @@ jobs:
 
       - uses: r-lib/actions/setup-tinytex@v2
 
+      # Use R's tinytex wrapper: bare `tlmgr` is often missing from bash PATH on Windows.
       - name: Install TinyTeX extras
-        run: tlmgr install makeindex
+        shell: Rscript {0}
+        run: tinytex::tlmgr_install("makeindex")
 
       # Install the union of all packages' check deps once (pak skips what's already ok).
       # Local packages are still built/checked later; installs use built .tar.gz
