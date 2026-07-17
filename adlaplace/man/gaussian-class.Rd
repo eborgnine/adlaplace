@@ -4,11 +4,7 @@
 \name{gaussian-class}
 \alias{gaussian-class}
 \alias{gaussian}
-\alias{design,gaussian-method}
-\alias{precision,gaussian-method}
 \alias{theta_info,gaussian-method}
-\alias{beta_info,gaussian-method}
-\alias{random_info,gaussian-method}
 \title{Gaussian observation term}
 \usage{
 gaussian(
@@ -19,15 +15,7 @@ gaussian(
   parscale = .my_theta_parscale
 )
 
-\S4method{design}{gaussian}(term, data)
-
-\S4method{precision}{gaussian}(term, data)
-
 \S4method{theta_info}{gaussian}(term)
-
-\S4method{beta_info}{gaussian}(term, data)
-
-\S4method{random_info}{gaussian}(term, data)
 }
 \arguments{
 \item{x}{Outcome variable name.}
@@ -68,15 +56,7 @@ Gaussian observation model term
 }
 \section{Functions}{
 \itemize{
-\item \code{design(gaussian)}: Design method (not used for observation density).
-
-\item \code{precision(gaussian)}: Precision method (not used).
-
 \item \code{theta_info(gaussian)}: Theta info for the residual standard deviation.
-
-\item \code{beta_info(gaussian)}: Beta info method (not used).
-
-\item \code{random_info(gaussian)}: Random info method (not used).
 
 }}
 \section{Slots (inherited from \code{model})}{

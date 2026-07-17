@@ -5,10 +5,7 @@
 \alias{linear-class}
 \alias{linear}
 \alias{design,linear-method}
-\alias{precision,linear-method}
-\alias{theta_info,linear-method}
 \alias{beta_info,linear-method}
-\alias{random_info,linear-method}
 \title{Linear Model Term}
 \usage{
 linear(
@@ -21,13 +18,7 @@ linear(
 
 \S4method{design}{linear}(term, data)
 
-\S4method{precision}{linear}(term, data)
-
-\S4method{theta_info}{linear}(term)
-
 \S4method{beta_info}{linear}(term, data)
-
-\S4method{random_info}{linear}(term, data)
 }
 \arguments{
 \item{x}{Variable name (character) or symbol in a formula (e.g. \code{linear(x)} in
@@ -58,13 +49,7 @@ Linear Model Term
 \itemize{
 \item \code{design(linear)}: Creates design matrix for linear term
 
-\item \code{precision(linear)}: Creates precision matrix for linear term
-
-\item \code{theta_info(linear)}: Extracts theta parameter information for linear term
-
 \item \code{beta_info(linear)}: Extracts beta parameter information for linear term
-
-\item \code{random_info(linear)}: Extracts random effects information for linear term
 
 }}
 \section{Methods}{

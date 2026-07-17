@@ -5,10 +5,7 @@
 \alias{intercept-class}
 \alias{intercept}
 \alias{design,intercept-method}
-\alias{precision,intercept-method}
-\alias{theta_info,intercept-method}
 \alias{beta_info,intercept-method}
-\alias{random_info,intercept-method}
 \title{intercept Model Term}
 \usage{
 intercept(
@@ -20,13 +17,7 @@ intercept(
 
 \S4method{design}{intercept}(term, data)
 
-\S4method{precision}{intercept}(term, data)
-
-\S4method{theta_info}{intercept}(term)
-
 \S4method{beta_info}{intercept}(term, data)
-
-\S4method{random_info}{intercept}(term, data)
 }
 \arguments{
 \item{init}{Initial value for beta parameter (default: 0)}
@@ -54,13 +45,7 @@ intercept Model Term
 \itemize{
 \item \code{design(intercept)}: Creates design matrix for intercept term
 
-\item \code{precision(intercept)}: Creates precision matrix for intercept term
-
-\item \code{theta_info(intercept)}: Extracts theta parameter information for intercept term
-
 \item \code{beta_info(intercept)}: Extracts beta parameter information for intercept term
-
-\item \code{random_info(intercept)}: Extracts random effects information for intercept term
 
 }}
 \section{Methods}{

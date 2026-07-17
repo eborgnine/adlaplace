@@ -29,7 +29,8 @@ Counts \eqn{y_i} in 544 districts follow
 effect. The bundled ICAR precision \code{Q_scaled} is the INLA
 \code{scale.model} version with sum-to-zero constraint; \code{prec} is the
 \code{random_mult} precision payload (\code{Q}, \code{log_det}, \code{rank}).
-
+}
+\details{
 District boundaries are not stored in this object (to avoid a hard
 dependency on \pkg{terra}). They ship as
 \code{system.file("extdata", "germany_map.gpkg", package = "adlaplace")}

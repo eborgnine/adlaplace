@@ -8,7 +8,6 @@
 \alias{precision,iid-method}
 \alias{random_info,iid-method}
 \alias{theta_info,iid-method}
-\alias{beta_info,iid-method}
 \title{IID Random Effects Term}
 \usage{
 iid(
@@ -26,8 +25,6 @@ iid(
 \S4method{random_info}{iid}(term, data)
 
 \S4method{theta_info}{iid}(term)
-
-\S4method{beta_info}{iid}(term)
 }
 \arguments{
 \item{x}{Variable name (typically a factor).}
@@ -59,7 +56,5 @@ Creates and manages IID (independent and identically distributed) random effects
 \item \code{random_info(iid)}: Extracts random effects information for iid term
 
 \item \code{theta_info(iid)}: Extracts theta parameter information for iid term
-
-\item \code{beta_info(iid)}: Extracts beta parameter information for iid term
 
 }}

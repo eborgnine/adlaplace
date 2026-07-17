@@ -67,12 +67,11 @@ config <- list(
 
 
 ```{r ad_fun_create}
-# Serial for vignette builds: OpenMP TLS can segfault under some macOS
-# libomp / dyn.load combinations when num_threads > 1 (vignette build then dies
-# at log_lik with no R error message).
-config$num_threads <- 1L
+# 2 threads when this build has OpenMP; otherwise serial.
+num_threads <- if (adlaplace::has_openmp()) 2L else 1L
+config$num_threads <- num_threads
 control_inner <- list(maxit = 100L, report.level = 0, report.freq = 0)
-ad_fun <- adlaplace::ad_fun(md, config, num_threads = config$num_threads)
+ad_fun <- adlaplace::ad_fun(md, config, num_threads = num_threads)
 ```
 
 

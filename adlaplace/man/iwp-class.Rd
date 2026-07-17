@@ -6,7 +6,6 @@
 \alias{design,iwp-method}
 \alias{precision,iwp-method}
 \alias{theta_info,iwp-method}
-\alias{beta_info,iwp-method}
 \alias{random_info,iwp-method}
 \title{Integrated Wiener Process Term}
 \usage{
@@ -15,8 +14,6 @@
 \S4method{precision}{iwp}(term, data)
 
 \S4method{theta_info}{iwp}(term)
-
-\S4method{beta_info}{iwp}(term, data)
 
 \S4method{random_info}{iwp}(term, data)
 }
@@ -35,8 +32,6 @@ Creates and manages integrated Wiener process (IWP) model terms.
 \item \code{precision(iwp)}: Creates precision matrix for IWP term
 
 \item \code{theta_info(iwp)}: Extracts theta parameter information for IWP term
-
-\item \code{beta_info(iwp)}: Extracts beta parameter information for IWP term
 
 \item \code{random_info(iwp)}: Extracts random effects information for IWP term
 

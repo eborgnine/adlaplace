@@ -4,24 +4,18 @@
 \name{rpoly-class}
 \alias{rpoly-class}
 \alias{rpoly}
-\alias{theta_info,rpoly-method}
 \alias{design,rpoly-method}
 \alias{precision,rpoly-method}
 \alias{random_info,rpoly-method}
-\alias{beta_info,rpoly-method}
 \title{Random Polynomial Model Term}
 \usage{
 rpoly(x, p = 2, ref_value = 0, sd = Inf)
-
-\S4method{theta_info}{rpoly}(term)
 
 \S4method{design}{rpoly}(term, data)
 
 \S4method{precision}{rpoly}(term, data)
 
 \S4method{random_info}{rpoly}(term, data)
-
-\S4method{beta_info}{rpoly}(term, data)
 }
 \arguments{
 \item{x}{Variable name.}
@@ -39,30 +33,22 @@ rpoly(x, p = 2, ref_value = 0, sd = Inf)
 \value{
 A `rpoly` term object.
 
-NULL (random polynomial terms don't have theta info).
-
 A design matrix for the random polynomial term.
 
 A precision matrix for the random polynomial term.
 
 A data frame containing random effects information for the random polynomial term.
-
-NULL (random polynomial terms don't have beta info).
 }
 \description{
 Creates and manages random polynomial model terms.
 }
 \section{Functions}{
 \itemize{
-\item \code{theta_info(rpoly)}: Theta info method for rpoly objects
-
 \item \code{design(rpoly)}: Design method for rpoly objects
 
 \item \code{precision(rpoly)}: Precision method for rpoly objects
 
 \item \code{random_info(rpoly)}: Random info method for rpoly objects
-
-\item \code{beta_info(rpoly)}: Beta info method for rpoly objects
 
 }}
 \section{Methods}{

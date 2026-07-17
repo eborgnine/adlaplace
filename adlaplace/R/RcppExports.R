@@ -203,8 +203,24 @@ inner_opt <- function(parameters, gamma, ad_fun, control = NULL, deriv = FALSE, 
     .Call(`_adlaplace_fun_obj_fdfh`, parameters, gamma, ad_fun, inner, verbose)
 }
 
+#' Whether this build was compiled with OpenMP support.
+#'
+#' @return \code{TRUE} if OpenMP was enabled at compile time, otherwise
+#'   \code{FALSE}.
+#' @export
 has_openmp <- function() {
     .Call(`_adlaplace_has_openmp`)
+}
+
+#' Touch OpenMP from the main thread after \code{dyn.load}.
+#'
+#' Intended for fresh R processes (e.g. \code{R CMD check} vignette re-builds)
+#' so Homebrew libomp TLS is initialized before the first multi-thread
+#' CppAD session.
+#'
+#' @keywords internal
+warm_openmp_runtime <- function() {
+    invisible(.Call(`_adlaplace_warm_openmp_runtime`))
 }
 
 .trace_hinv_t_cpp <- function(ad_fun, x, LinvPt, LinvPtColumns, verbose = FALSE) {

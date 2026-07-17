@@ -78,6 +78,11 @@ void cppad_parallel_setup(std::size_t num_threads) {
   CppAD::parallel_ad<double>();
 }
 
+//' Whether this build was compiled with OpenMP support.
+//'
+//' @return \code{TRUE} if OpenMP was enabled at compile time, otherwise
+//'   \code{FALSE}.
+//' @export
 // [[Rcpp::export(rng = false)]]
 bool has_openmp() {
 #ifdef _OPENMP
@@ -87,12 +92,33 @@ bool has_openmp() {
 #endif
 }
 
+//' Touch OpenMP from the main thread after \code{dyn.load}.
+//'
+//' Intended for fresh R processes (e.g. \code{R CMD check} vignette re-builds)
+//' so Homebrew libomp TLS is initialized before the first multi-thread
+//' CppAD session.
+//'
+//' @keywords internal
+// [[Rcpp::export(rng = false)]]
+void warm_openmp_runtime() {
+#ifdef _OPENMP
+  omp_set_dynamic(0);
+  (void)omp_get_max_threads();
+#pragma omp parallel num_threads(1)
+  {
+    (void)omp_get_thread_num();
+  }
+#endif
+}
+
 void cppad_parallel_teardown() {
   require_serial_main_thread("cppad_parallel_teardown");
 
   const std::size_t n_flush = cppad_team_num_threads;
   if (n_flush > 1) {
     debug_teardown_flush(n_flush);
+    // Each thread must free its own pool while CppAD still reports
+    // in_parallel(); free_available(t) from another thread is rejected.
     set_num_threads_wrapper(n_flush);
 #pragma omp parallel num_threads(static_cast<int>(n_flush))
     {

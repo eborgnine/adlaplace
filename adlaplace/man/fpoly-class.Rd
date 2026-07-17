@@ -5,10 +5,7 @@
 \alias{fpoly-class}
 \alias{fpoly}
 \alias{design,fpoly-method}
-\alias{precision,fpoly-method}
-\alias{theta_info,fpoly-method}
 \alias{beta_info,fpoly-method}
-\alias{random_info,fpoly-method}
 \title{Fixed Polynomial Model Term}
 \usage{
 fpoly(
@@ -23,13 +20,7 @@ fpoly(
 
 \S4method{design}{fpoly}(term, data)
 
-\S4method{precision}{fpoly}(term, data)
-
-\S4method{theta_info}{fpoly}(term)
-
 \S4method{beta_info}{fpoly}(term, data)
-
-\S4method{random_info}{fpoly}(term, data)
 }
 \arguments{
 \item{x}{Variable name.}
@@ -55,13 +46,7 @@ A `fpoly` term object.
 
 A design matrix for the fixed polynomial term, or NULL if p.order is 0.
 
-NULL (fixed effects don't have precision matrices).
-
-NULL (fixed effects don't have random effects parameters).
-
 A data frame containing beta parameter information for the fixed polynomial term.
-
-NULL (fixed effects don't have random effects information).
 }
 \description{
 Creates and manages fixed polynomial model terms.
@@ -70,13 +55,7 @@ Creates and manages fixed polynomial model terms.
 \itemize{
 \item \code{design(fpoly)}: Design method for fpoly objects
 
-\item \code{precision(fpoly)}: Precision method for fpoly objects
-
-\item \code{theta_info(fpoly)}: Theta info method for fpoly objects
-
 \item \code{beta_info(fpoly)}: Beta info method for fpoly objects
-
-\item \code{random_info(fpoly)}: Random info method for fpoly objects
 
 }}
 \section{Methods}{

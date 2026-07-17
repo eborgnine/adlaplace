@@ -4,11 +4,7 @@
 \name{nbinom-class}
 \alias{nbinom-class}
 \alias{nbinom}
-\alias{design,nbinom-method}
-\alias{precision,nbinom-method}
 \alias{theta_info,nbinom-method}
-\alias{beta_info,nbinom-method}
-\alias{random_info,nbinom-method}
 \title{Negative binomial observation term}
 \usage{
 nbinom(
@@ -19,15 +15,7 @@ nbinom(
   parscale = .my_theta_parscale
 )
 
-\S4method{design}{nbinom}(term, data)
-
-\S4method{precision}{nbinom}(term, data)
-
 \S4method{theta_info}{nbinom}(term)
-
-\S4method{beta_info}{nbinom}(term, data)
-
-\S4method{random_info}{nbinom}(term, data)
 }
 \arguments{
 \item{x}{Outcome variable name.}
@@ -58,15 +46,7 @@ Negative binomial observation model term
 }
 \section{Functions}{
 \itemize{
-\item \code{design(nbinom)}: Design method (not used for observation density).
-
-\item \code{precision(nbinom)}: Precision method (not used).
-
 \item \code{theta_info(nbinom)}: Theta info for the overdispersion parameter.
-
-\item \code{beta_info(nbinom)}: Beta info method (not used).
-
-\item \code{random_info(nbinom)}: Random info method (not used).
 
 }}
 \section{Slots (inherited from \code{model})}{

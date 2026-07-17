@@ -8,12 +8,12 @@
 \alias{beta_info}
 \alias{random_info}
 \alias{elgm_matrix}
-\alias{extra_ad_fun}
 \alias{design,model-method}
 \alias{precision,model-method}
 \alias{theta_info,model-method}
 \alias{beta_info,model-method}
 \alias{random_info,model-method}
+\alias{extra_ad_fun}
 \alias{extra_ad_fun,model-method}
 \title{Model Term Generics}
 \usage{
@@ -29,8 +29,6 @@ random_info(term, data)
 
 elgm_matrix(term, data)
 
-extra_ad_fun(term)
-
 \S4method{design}{model}(term, data)
 
 \S4method{precision}{model}(term, data)
@@ -41,6 +39,8 @@ extra_ad_fun(term)
 
 \S4method{random_info}{model}(term, data)
 
+extra_ad_fun(term)
+
 \S4method{extra_ad_fun}{model}(term)
 }
 \arguments{
@@ -49,15 +49,12 @@ extra_ad_fun(term)
 \item{data}{A data frame containing the variables.}
 }
 \value{
-Method-specific return values. Default methods on class \code{model}
-return \code{NULL}.
+Method-specific return values.
 
-For \code{extra_ad_fun}, a character density name, or \code{NULL}.
+Character density name, or \code{NULL}.
 }
 \description{
-Generic functions for extracting model matrices and parameter information
-from model terms. Default methods on class \code{model} return \code{NULL}
-so subclasses only override the slots they use.
+Generic functions for extracting model matrices and parameter information from model terms.
 
 When non-\code{NULL}, \code{\link{model_data}} emits an extra
 \code{ad_kind = "parameters"} shard (e.g. FEM log-determinant) alongside the

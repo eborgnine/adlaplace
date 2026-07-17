@@ -7,6 +7,13 @@ NULL
 
 loadNamespace("Matrix")
 
+.onLoad <- function(libname, pkgname) {
+  if (isTRUE(has_openmp())) {
+    warm_openmp_runtime()
+  }
+  invisible(NULL)
+}
+
 #' Raw AD handle (external pointer)
 #'
 #' S4 class for a C++ AD backend handle. Objects are created by

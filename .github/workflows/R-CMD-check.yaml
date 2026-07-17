@@ -316,8 +316,53 @@ jobs:
         if: runner.os == 'macOS'
         run: bash .github/scripts/install-local-pkg.sh adlaplace
 
+      - name: Diagnose OpenMP install (macOS pass 2)
+        if: runner.os == 'macOS'
+        run: |
+          set -euo pipefail
+          echo "== brew libomp =="
+          brew --prefix libomp
+          ls -la "$(brew --prefix libomp)/lib" | head -n 20
+          echo "== has_openmp =="
+          Rscript -e 'library(adlaplace); print(adlaplace::has_openmp())'
+          echo "== otool -L adlaplace.so =="
+          so=$(Rscript -e 'cat(list.files(system.file("libs", package="adlaplace"), pattern="[.]so$", full.names=TRUE, recursive=TRUE)[1])')
+          echo "so=$so"
+          otool -L "$so" | head -n 40
+          echo "== fresh-process OpenMP smoke =="
+          Rscript --vanilla -e '
+            library(adlaplace)
+            stopifnot(isTRUE(adlaplace::has_openmp()))
+            set.seed(2)
+            n <- 40L
+            dat <- data.frame(
+              y = rpois(n, 2), x = runif(n),
+              g = factor(rep(seq_len(4L), length.out = n))
+            )
+            md <- adlaplace::model_data(
+              data = dat,
+              formula = adlaplace::nbinom(y, init = 0.2) ~ x + adlaplace::iid(g, init = 0.2)
+            )
+            config <- list(
+              transform_theta = TRUE,
+              shards = adlaplace::ad_shards(md$data$A, num_shards = 8L),
+              verbose = FALSE
+            )
+            af <- adlaplace::ad_fun(md, config, num_threads = 2L)
+            ll <- adlaplace::log_lik_laplace(
+              x = md$data$info$parameters$init, ad_fun = af, config = config,
+              control = list(maxit = 3L, report.level = 0, report.freq = 0),
+              deriv = TRUE
+            )
+            stopifnot(is.finite(ll$log_lik))
+            cat("fresh-process smoke OK\n")
+          '
+
       - name: Check adlaplace with OpenMP (plain)
         if: runner.os == 'macOS'
+        env:
+          # Keep more vignette rebuild output if Abort trap returns.
+          _R_CHECK_VIGNETTES_NLINES_: "50"
         uses: r-lib/actions/check-r-package@v2
         with:
           # Our check dirs live at ../.ci-check/; the action's failure-time

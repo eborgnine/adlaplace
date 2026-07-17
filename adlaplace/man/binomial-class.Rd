@@ -4,24 +4,9 @@
 \name{binomial-class}
 \alias{binomial-class}
 \alias{binomial}
-\alias{design,binomial-method}
-\alias{precision,binomial-method}
-\alias{theta_info,binomial-method}
-\alias{beta_info,binomial-method}
-\alias{random_info,binomial-method}
 \title{Binomial observation term}
 \usage{
 binomial(x, size = NULL, link = "logit")
-
-\S4method{design}{binomial}(term, data)
-
-\S4method{precision}{binomial}(term, data)
-
-\S4method{theta_info}{binomial}(term)
-
-\S4method{beta_info}{binomial}(term, data)
-
-\S4method{random_info}{binomial}(term, data)
 }
 \arguments{
 \item{x}{Outcome variable name (counts of successes; 0/1 when Bernoulli).}
@@ -60,19 +45,6 @@ When called with no response variable this function falls back to
 \details{
 Binomial observation model term
 }
-\section{Functions}{
-\itemize{
-\item \code{design(binomial)}: Design method (not used for observation density).
-
-\item \code{precision(binomial)}: Precision method (not used).
-
-\item \code{theta_info(binomial)}: Theta info (binomial has no hyperparameters).
-
-\item \code{beta_info(binomial)}: Beta info method (not used).
-
-\item \code{random_info(binomial)}: Random info method (not used).
-
-}}
 \section{Slots (inherited from \code{model})}{
 
 \describe{
