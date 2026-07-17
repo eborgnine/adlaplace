@@ -415,6 +415,13 @@ jobs:
       # Linux CRAN-like only: install INLA, re-check adlaplaceGrf (vignettes)
       # =====================================================================
 
+      # INLA pulls in units (and friends); the R-hub image does not ship udunits2.
+      - name: Install INLA system dependencies
+        if: ${{ matrix.config.id == 'ubuntu-cran' }}
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends libudunits2-0 libudunits2-dev
+
       - name: Install INLA
         if: ${{ matrix.config.id == 'ubuntu-cran' }}
         shell: Rscript {0}
