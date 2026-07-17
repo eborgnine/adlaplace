@@ -47,21 +47,21 @@
 outer_fn <- function(
   x, config, cache, ad_fun, control_inner = list(), ...
 ) {
-    assign("last_par_fn", x, cache)
-    num_gamma <- as.integer(ad_fun@sizes["gamma"])
-    cache$gamma <- resolve_gamma_start(config, cache, num_gamma)
+  assign("last_par_fn", x, cache)
+  num_gamma <- as.integer(ad_fun@sizes["gamma"])
+  cache$gamma <- resolve_gamma_start(config, cache, num_gamma)
 
-    result <- adlaplace::inner_opt(
-        parameters = x,
-        gamma = cache$gamma,
-        ad_fun = ad_fun,
-        control = control_inner,
-        deriv = FALSE,
-        verbose = isTRUE(config$verbose)
-    )
+  result <- adlaplace::inner_opt(
+    parameters = x,
+    gamma = cache$gamma,
+    ad_fun = ad_fun,
+    control = control_inner,
+    deriv = FALSE,
+    verbose = isTRUE(config$verbose)
+  )
 
-    assign("gamma", result$opt$solution, cache)
-    result$neg_log_lik
+  assign("gamma", result$opt$solution, cache)
+  result$neg_log_lik
 }
 
 #' @rdname outer_optim_wrappers
@@ -69,19 +69,19 @@ outer_fn <- function(
 outer_gr <- function(
   x, config, cache, ad_fun, control_inner = list(), ...
 ) {
-    assign("last_par_gr", x, cache)
-    num_gamma <- as.integer(ad_fun@sizes["gamma"])
-    cache$gamma <- resolve_gamma_start(config, cache, num_gamma)
+  assign("last_par_gr", x, cache)
+  num_gamma <- as.integer(ad_fun@sizes["gamma"])
+  cache$gamma <- resolve_gamma_start(config, cache, num_gamma)
 
-    result <- adlaplace::log_lik_laplace(
-        x = x, config = config,
-        gamma = cache$gamma,
-        control = control_inner,
-        ad_fun = ad_fun,
-        deriv = TRUE, ...
-    )
-    assign("gamma", result$opt$solution, cache)
-    result$grad
+  result <- adlaplace::log_lik_laplace(
+    x = x, config = config,
+    gamma = cache$gamma,
+    control = control_inner,
+    ad_fun = ad_fun,
+    deriv = TRUE, ...
+  )
+  assign("gamma", result$opt$solution, cache)
+  result$grad
 }
 
 #' Log-likelihood with inner Laplace optimization
@@ -269,7 +269,7 @@ log_lik_deriv <- function(
   if (is.null(H_inv)) {
     H_inv <- Matrix::tcrossprod(half_H_inv)
   }
-  Hstuff <- list(
+  hessian_inv <- list(
     half_H_inv = half_H_inv,
     H_inv = H_inv
   )
@@ -292,12 +292,12 @@ log_lik_deriv <- function(
     )
   }
 
-  dU <- -Hstuff$H_inv %*% hessian_pack$outer[seq_gamma1, -seq_gamma1]
+  dU <- -hessian_inv$H_inv %*% hessian_pack$outer[seq_gamma1, -seq_gamma1]
 
   result <- list(
     extra = c(
       list(dU = dU, trace3 = the_trace),
-      Hstuff
+      hessian_inv
     )
   )
 
@@ -309,9 +309,9 @@ log_lik_deriv <- function(
   result$deriv$grad_u <- as.vector(-grad[seq_gamma1] %*% dU)
   result$deriv$d_det <- result$deriv$d_det_upart + result$deriv$d_det_tpart
   result$deriv$d_neg_log_lik <-
-    result$grad <-
     -result$deriv$grad_theta +
     result$deriv$d_det - result$deriv$grad_u
+  result$grad <- result$deriv$d_neg_log_lik
   result$deriv$d_log_lik <- -result$deriv$d_neg_log_lik
 
 

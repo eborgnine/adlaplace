@@ -30,6 +30,7 @@ fem_precision <- function(kappa, tau, C, G, G2, G3 = NULL, alpha = 2L) {
 
 #' Align Gram values onto an upper-triangle CSC pattern
 #' @keywords internal
+#' @noRd
 align_gram_to_pattern <- function(M, p, i, n) {
   M <- methods::as(methods::as(M, "generalMatrix"), "CsparseMatrix")
   x <- numeric(length(i))
@@ -51,6 +52,7 @@ align_gram_to_pattern <- function(M, p, i, n) {
 
 #' Build upper-triangle CSC of a structural pattern
 #' @keywords internal
+#' @noRd
 upper_csc_pattern <- function(S) {
   S <- methods::as(methods::as(Matrix::forceSymmetric(S), "generalMatrix"), "CsparseMatrix")
   n <- nrow(S)
@@ -93,7 +95,7 @@ fem_precision_payload <- function(fem, alpha = 2L) {
   )
   if (!is.null(G3)) {
     out$G3 <- G3
-    out$G3_x = align_gram_to_pattern(G3, pat$p, pat$i, pat$n)
+    out$G3_x <- align_gram_to_pattern(G3, pat$p, pat$i, pat$n)
   } else {
     out$G3_x <- rep(0, length(pat$i))
   }

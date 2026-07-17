@@ -206,6 +206,36 @@ setGeneric("random_info", function(term, data) standardGeneric("random_info"))
 #' @export
 setGeneric("elgm_matrix", function(term, data) standardGeneric("elgm_matrix"))
 
+#' @rdname model-generics
+#' @export
+setMethod("design", "model", function(term, data) {
+  NULL
+})
+
+#' @rdname model-generics
+#' @export
+setMethod("precision", "model", function(term, data) {
+  NULL
+})
+
+#' @rdname model-generics
+#' @export
+setMethod("theta_info", "model", function(term) {
+  NULL
+})
+
+#' @rdname model-generics
+#' @export
+setMethod("beta_info", "model", function(term, data) {
+  NULL
+})
+
+#' @rdname model-generics
+#' @export
+setMethod("random_info", "model", function(term, data) {
+  NULL
+})
+
 #' Optional companion parameters density name for a random term
 #'
 #' When non-\code{NULL}, \code{\link{model_data}} emits an extra
@@ -290,8 +320,8 @@ by_group <- function(term, data = NULL, levels = NULL) {
   )
 }
 
-#' @rdname by_group
-#' @description Updates the by_group levels in a model term from data.
+#' Updates the by_group levels in a model term from data.
+#'
 #' If the term has no by slot, returns it unchanged.
 #' If levels are empty, they are populated from data.
 #' If levels exist, new values in data are added with a warning.
@@ -299,7 +329,8 @@ by_group <- function(term, data = NULL, levels = NULL) {
 #' @param term A model term object (inherited from model class)
 #' @param data A data frame containing the grouping variable
 #' @return The term with updated by_group levels
-#' @export
+#' @keywords internal
+#' @noRd
 add_by_levels <- function(term, data) {
   if (!"by" %in% methods::slotNames(term)) {
     return(term)

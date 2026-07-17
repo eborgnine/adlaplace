@@ -26,5 +26,5 @@ test_that("missing config$shards uses one observation shard", {
     as_shard(model, "observations", "nbinom_obs"),
     config
   )
-  expect_equal(adlaplace::n_groups(obs_ptr), 1L)
+  expect_equal(adlaplace:::n_groups(obs_ptr), 1L)
 })

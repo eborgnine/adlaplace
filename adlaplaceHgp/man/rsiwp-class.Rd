@@ -16,7 +16,7 @@
 
 \S4method{theta_info}{rsiwp}(term)
 
-\S4method{beta_info}{rsiwp}(term)
+\S4method{beta_info}{rsiwp}(term, data)
 
 \S4method{random_info}{rsiwp}(term, data)
 }

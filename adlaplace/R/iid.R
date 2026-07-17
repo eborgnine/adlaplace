@@ -119,10 +119,3 @@ setMethod("theta_info", "iid", function(term) {
   return(result)
 })
 
-#' @describeIn iid-class Extracts beta parameter information for iid term
-#' @param term An iid term object
-#' @export
-setMethod("beta_info", "iid", function(term) {
-  # IID terms don't have beta parameters
-  return(NULL)
-})

@@ -11,11 +11,10 @@ rsiwp(
   ref_value = 0,
   ref_mult = 0,
   knots,
-  range = NULL,
-  init = .my_theta_init,
-  lower = .my_theta_lower,
-  upper = .my_theta_upper,
-  parscale = .my_theta_parscale,
+  init = NULL,
+  lower = NULL,
+  upper = NULL,
+  parscale = NULL,
   boundary_is_random = TRUE,
   include_poly = TRUE,
   include_linear = TRUE
@@ -33,8 +32,6 @@ rsiwp(
 \item{ref_mult}{Reference value for the covariate.}
 
 \item{knots}{Vector of knot locations.}
-
-\item{range}{Range of the data (optional).}
 
 \item{init}{Initial values for theta parameters.}
 

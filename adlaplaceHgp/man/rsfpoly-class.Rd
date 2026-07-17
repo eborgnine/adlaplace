@@ -17,10 +17,10 @@ rsfpoly(
   p = 2,
   ref_value = 0,
   ref_mult = 0,
-  init = .my_beta_init,
-  lower = .my_beta_lower,
-  upper = .my_beta_upper,
-  parscale = .my_beta_parscale
+  init = NULL,
+  lower = NULL,
+  upper = NULL,
+  parscale = NULL
 )
 
 \S4method{design}{rsfpoly}(term, data)

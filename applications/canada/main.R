@@ -35,7 +35,7 @@ gc()
 # data <- data[city == "Toronto"]
 
 # data (do we do that?)
-# data <- removeHolidays(data, "rm_all")
+# data <- hpolcc::remove_holidays(data, "rm_all")
 
 
 knots_pm25lag <- seq(floor(min(data$pm25lag)/5)*5,ceiling(max(data$pm25lag)/5)*5,5)

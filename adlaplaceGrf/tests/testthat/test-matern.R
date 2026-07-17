@@ -43,22 +43,17 @@ test_that("matern shape 2 selects random_fem_ssq_3", {
   expect_equal(precision(term, data.frame())$alpha, 3L)
 })
 
-test_that("matern accepts SpatRaster knots via cell centers", {
+test_that("matern accepts SpatRaster knots via knots_from_spatraster", {
   skip_if_not_installed("terra")
   set.seed(3)
   r <- terra::rast(nrows = 4, ncols = 4, xmin = 0, xmax = 1, ymin = 0, ymax = 1)
   term <- matern("geometry", knots = r)
   expect_s4_class(term, "matern")
-  expect_equal(
-    sort(unique(term@fem$knots$x)),
-    sort(unique(terra::xFromCol(r, seq_len(terra::ncol(r)))))
-  )
-  expect_equal(
-    sort(unique(term@fem$knots$y)),
-    sort(unique(terra::yFromRow(r, seq_len(terra::nrow(r)))))
-  )
-  expect_equal(length(unique(term@fem$knots$x)), terra::ncol(r))
-  expect_equal(length(unique(term@fem$knots$y)), terra::nrow(r))
+  kn <- adlaplaceGrf:::knots_from_spatraster(r, degree = 2L)
+  expect_equal(sort(unique(term@fem$knots$x)), sort(unique(kn$x)))
+  expect_equal(sort(unique(term@fem$knots$y)), sort(unique(kn$y)))
+  expect_equal(length(unique(kn$x)), terra::ncol(r) + 2L)
+  expect_equal(length(unique(kn$y)), terra::nrow(r) + 2L)
   expect_null(term@fem$A)
   expect_silent(precision(term, data.frame()))
 })

@@ -26,7 +26,7 @@ setClass("rsrpoly",
   prototype = prototype(
     knots = numeric(0),
     sd = numeric(0),
-    type = factor("random", levels = adlaplace:::.type_factor_levels)
+    type = factor("random", levels = adlaplace::.type_factor_levels)
   )
 )
 
@@ -78,7 +78,7 @@ setMethod("design", "rsrpoly", function(term, data) {
   mult_vec <- data[[term@mult]] - term@ref_mult
 
   if(any(is.na(mult_vec))) {
-    warning("missing values in", term@mult)
+    warning("missing values in ", term@mult)
   }
 
   a_matrix <- stats::poly(
@@ -123,11 +123,11 @@ setMethod("theta_info", "rsrpoly", function(term) {
 # Beta info for rpoly terms
 #' @describeIn rsrpoly-class Extracts beta parameter information for rsrpoly term
 #' @param term A rsrpoly term object
+#' @param data A data frame containing the term variables (unused)
 #' @return NULL (random slope polynomial terms don't have beta parameters)
 #' @export
-setMethod("beta_info", "rsrpoly", function(term) {
-  # Rpoly terms don't have beta parameters (random effects only)
-  return(NULL)
+setMethod("beta_info", "rsrpoly", function(term, data) {
+  NULL
 })
 
 # Gamma info for rpoly terms

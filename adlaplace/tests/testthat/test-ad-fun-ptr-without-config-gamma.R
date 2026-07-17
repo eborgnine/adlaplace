@@ -34,7 +34,7 @@ test_that("validate_config_layout allows omitted config$gamma", {
     x = 1,
     dims = c(2L, 2L),
     index1 = FALSE,
-    giveCsparse = TRUE
+    repr = "C"
   )
   model <- adlaplace:::ad_data(y = 1:2, A = A, X = matrix(1, 2, 2))
   config <- list(beta = rep(0, 2))

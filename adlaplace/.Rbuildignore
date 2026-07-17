@@ -11,3 +11,9 @@
 ^data-raw$
 ^Rplots\.pdf$
 ^.*\.tar\.gz$
+^src/Makevars$
+^src/Makevars\.win$
+^src/.*\.o$
+^src/.*\.so$
+^src/.*\.dll$
+^tests/testthat/_snaps$

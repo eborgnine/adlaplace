@@ -23,7 +23,7 @@ setClass("rsiid",
   ),
   contains = "model",
   prototype = prototype(
-    type = factor("random", levels = adlaplace:::.type_factor_levels),
+    type = factor("random", levels = adlaplace::.type_factor_levels),
     ad_fun = "random_diagonal",
     ad_kind = "random"
   )
@@ -56,12 +56,16 @@ methods::setAs(
 #' @export
 rsiid <- function(
   x, mult, ref_mult = 0,
-  init = .my_theta_init, lower = .my_theta_lower,
-  upper = .my_theta_upper, parscale = .my_theta_parscale
+  init = NULL, lower = NULL,
+  upper = NULL, parscale = NULL
 ) {
   if (!missing(ref_mult) && length(ref_mult) != 1) {
     stop("ref_mult must be a single value")
   }
+  if (is.null(init)) init <- .my_theta_init
+  if (is.null(lower)) lower <- .my_theta_lower
+  if (is.null(upper)) upper <- .my_theta_upper
+  if (is.null(parscale)) parscale <- .my_theta_parscale
   rsiid_label <- paste(c(x, mult, "rsiid"), collapse = "_")
 
   result <- list(methods::new("rsiid",
@@ -72,7 +76,7 @@ rsiid <- function(
     formula = stats::as.formula(paste0("~ 0 + ", x), env = new.env()),
     init = init, lower = lower, upper = upper, parscale = parscale
   ))
-  names(result) = result[[1]]@term
+  names(result) <- result[[1]]@term
   result
 }
 
@@ -85,7 +89,7 @@ setMethod("design", "rsiid", function(term, data) {
   mult_vec <- data[[term@mult]] - term@ref_mult
 
   if (any(is.na(mult_vec))) {
-    warning("missing values in", term@mult)
+    warning("missing values in ", term@mult)
   }
 
   term_iid = methods::as(term, "iid")
@@ -134,11 +138,11 @@ setMethod("theta_info", "rsiid", function(term) {
 # Beta info for rpoly terms
 #' @describeIn rsiid-class Extracts beta parameter information for rsiid term
 #' @param term A rsiid term object
+#' @param data A data frame containing the term variables (unused)
 #' @return NULL (random slope polynomial terms don't have beta parameters)
 #' @export
-setMethod("beta_info", "rsiid", function(term) {
-
-  return(NULL)
+setMethod("beta_info", "rsiid", function(term, data) {
+  NULL
 })
 
 # Gamma info for rpoly terms

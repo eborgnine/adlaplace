@@ -11,7 +11,7 @@
 #'   sd only).
 #' @return A `SpatRaster` with `n + 2` layers: `mean`, `sd`, and `sim1`...`simn`
 #'   when `n > 0`.
-#' @keywords internal
+#' @export
 matern_est <- function(fit, eval_grid, n = 0L) {
   if (!inherits(fit, "adlaplace_fit")) {
     stop("fit must be an adlaplace_fit object", call. = FALSE)

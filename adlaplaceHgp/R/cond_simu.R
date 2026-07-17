@@ -26,9 +26,8 @@ get_terms_pred <- function(terms, length.out = 100) {
     ]] <- 1
   }
 
-  return(pred_seq)
+  pred_seq
 }
-
 
 get_group_effect <- function(
   a_here,
@@ -54,7 +53,7 @@ get_group_effect <- function(
 }
 
 get_one_envelope <- function(x, probs) {
-  if (requireNamespace("GET", quietly = TRUE) & !is.null(x)) {
+  if (requireNamespace("GET", quietly = TRUE) && !is.null(x)) {
     result <- GET::central_region(
       GET::create_curve_set(
         list(obs = x)
@@ -66,6 +65,112 @@ get_one_envelope <- function(x, probs) {
     result <- NULL
   }
   result
+}
+
+normalize_group_weights <- function(weights_here, d_groups) {
+  if (is.null(weights_here)) {
+    stats::setNames(rep(1 / length(d_groups), length(d_groups)), d_groups)
+  } else {
+    if (!all(d_groups %in% names(weights_here))) {
+      warning(
+        "Not all groups have weights, or missing names, giving weight 0."
+      )
+      weights_here[setdiff(d_groups, names(weights_here))] <- 0
+    }
+    weights_here
+  }
+}
+
+compute_sim_by_group <- function(
+  a_here,
+  sim_global_here,
+  random_info_here,
+  sim_gamma,
+  d_var,
+  d_groups,
+  probs
+) {
+  sim_by_group <- mapply(
+    get_group_effect,
+    d_group = d_groups,
+    MoreArgs = list(
+      a_here = a_here,
+      sim_global_here = sim_global_here,
+      random_info_here = random_info_here,
+      sim_gamma = sim_gamma,
+      d_var = d_var,
+      probs = probs
+    ),
+    SIMPLIFY = FALSE
+  )
+  stats::setNames(sim_by_group, d_groups)
+}
+
+get_one_variable_quantiles <- function(
+  d_var,
+  sim_f,
+  new_xa,
+  sim_gamma,
+  random_info,
+  weights_here,
+  probs,
+  probs_envelope
+) {
+  a_here <- new_xa[[d_var]]$random
+  sim_global_here <- sim_f[[d_var]]
+  random_info_here <- random_info[random_info$term == d_var, , drop = FALSE]
+  d_groups <- setdiff(unique(random_info_here$by), NA)
+
+  weights_here <- normalize_group_weights(weights_here, d_groups)
+
+  if (!ncol(a_here)) {
+    warning("empty A")
+  }
+
+  sim_by_group <- compute_sim_by_group(
+    a_here = a_here,
+    sim_global_here = sim_global_here,
+    random_info_here = random_info_here,
+    sim_gamma = sim_gamma,
+    d_var = d_var,
+    d_groups = d_groups,
+    probs = probs
+  )
+
+  group_quantiles <- lapply(sim_by_group, function(sim_here) {
+    t(apply(sim_here, 1, stats::quantile, probs = probs))
+  })
+
+  group_envelope <- lapply(
+    sim_by_group,
+    get_one_envelope,
+    probs = probs_envelope
+  )
+
+  var_weights <- weights_here[as.character(d_groups)]
+  weighted_average <- Reduce(
+    `+`,
+    Map(function(sim_here, wt) sim_here * wt, sim_by_group, var_weights)
+  )
+
+  weighted_envelope <- NULL
+  weighted_quantiles <- NULL
+  if (!is.null(weighted_average)) {
+    weighted_envelope <- try(get_one_envelope(
+      weighted_average,
+      probs = probs_envelope
+    ))
+    weighted_quantiles <- try(t(
+      apply(weighted_average, 1, stats::quantile, probs = probs)
+    ))
+  }
+
+  list(
+    group_quantiles = group_quantiles,
+    group_envelope = group_envelope,
+    weighted_quantiles = weighted_quantiles,
+    weighted_envelope = weighted_envelope
+  )
 }
 
 get_group_quantiles <- function(
@@ -85,74 +190,29 @@ get_group_quantiles <- function(
     weighted_average <- weighted_quantiles
 
   for (d_var in names(sim_f)) {
-    a_here <- new_xa[[d_var]]$random
-    sim_global_here <- sim_f[[d_var]]
-    random_info_here <- random_info[random_info$term == d_var, , drop = FALSE]
-    d_groups <- setdiff(unique(random_info_here$by), NA)
-
     if (is.list(weights)) {
       weights_here <- weights[[d_var]]
     } else {
       weights_here <- weights
     }
-    if (is.null(weights_here)) {
-      weights_here <- stats::setNames(
-        rep(1 / length(d_groups), length(d_groups)),
-        d_groups
-      )
-    } else {
-      if (!all(d_groups %in% names(weights_here))) {
-        warning(
-          "Not all groups have weights, or missing names, giving weight 0."
-        )
-        weights_here[setdiff(d_groups, names(weights_here))] <- 0
-      }
-    }
 
-    if (!ncol(a_here)) {
-      warning("empty A")
-    }
-
-    sim_by_group <- mapply(
-      get_group_effect,
-      d_group = d_groups,
-      MoreArgs = list(
-        a_here = a_here,
-        sim_global_here = sim_global_here,
-        random_info_here = random_info_here,
-        sim_gamma = sim_gamma,
-        d_var = d_var,
-        probs = probs
-      ),
-      SIMPLIFY = FALSE
-    )
-    names(sim_by_group) <- d_groups
-
-    group_quantiles[[d_var]] <- lapply(sim_by_group, function(sim_here) {
-      t(apply(sim_here, 1, stats::quantile, probs = probs))
-    })
-
-    group_envelope[[d_var]] <- lapply(sim_by_group,
-      get_one_envelope,
-      probs = probs_envelope
+    one_var <- get_one_variable_quantiles(
+      d_var = d_var,
+      sim_f = sim_f,
+      new_xa = new_xa,
+      sim_gamma = sim_gamma,
+      random_info = random_info,
+      weights_here = weights_here,
+      probs = probs,
+      probs_envelope = probs_envelope
     )
 
-    var_weights <- weights_here[as.character(d_groups)]
-    weighted_average[[d_var]] <- Reduce(
-      `+`,
-      Map(function(sim_here, wt) sim_here * wt, sim_by_group, var_weights)
-    )
-
-    if (!is.null(weighted_average[[d_var]])) {
-      weighted_envelope[[d_var]] <- try(get_one_envelope(
-        weighted_average[[d_var]],
-        probs = probs_envelope
-      ))
-      weighted_quantiles[[d_var]] <- try(t(
-        apply(weighted_average[[d_var]], 1, stats::quantile, probs = probs)
-      ))
-    }
+    group_quantiles[[d_var]] <- one_var$group_quantiles
+    group_envelope[[d_var]] <- one_var$group_envelope
+    weighted_quantiles[[d_var]] <- one_var$weighted_quantiles
+    weighted_envelope[[d_var]] <- one_var$weighted_envelope
   }
+
   list(
     quantiles = list(
       group = group_quantiles,
@@ -234,6 +294,89 @@ cond_sim_gamma <- function(half_H_inv, gamma_mode, gamma_label, n) {
   )
   rownames(sim_gamma) <- gamma_label
   sim_gamma
+}
+
+select_iwp_terms <- function(terms) {
+  terms_vars <- lapply(terms, methods::slot, "term")
+  terms_no_vars <- unlist(lapply(terms_vars, length)) == 0
+  terms_have_vars <- terms[!terms_no_vars]
+  terms_vars <- terms_vars[!terms_no_vars]
+  terms_type <- unlist(lapply(terms_have_vars, methods::slot, "type"))
+
+  terms_has_by <- vapply(terms_have_vars, function(x) {
+    if (methods::.hasSlot(x, "by")) {
+      length(methods::slot(x, "by")) > 0
+    } else {
+      FALSE
+    }
+  }, logical(1))
+
+  terms_classes <- unlist(lapply(terms_have_vars, class))
+  is_iwp <- which(terms_classes %in% c("iwp", "hiwp", "rsiwp"))
+
+  list(
+    terms_have_vars = terms_have_vars,
+    terms_vars = terms_vars,
+    terms_type = terms_type,
+    terms_has_by = terms_has_by,
+    is_iwp = is_iwp
+  )
+}
+
+build_iwp_simulations <- function(
+  terms_have_vars,
+  terms_vars,
+  terms_type,
+  terms_has_by,
+  newx,
+  beta_hat,
+  sim_gamma
+) {
+  design_list <- sim_global <- fixed_pred <- sim_f <- list()
+
+  for (D in names(newx)) {
+    newx_here <- newx[[D]]
+    which_is_D <- terms_vars == D
+    which_here <- which(which_is_D & !terms_has_by)
+    design_list_here <- mapply(adlaplace::design,
+      term = terms_have_vars[which_here],
+      MoreArgs = list(data = newx_here), SIMPLIFY = FALSE
+    )
+    is_beta_here <- which(terms_type[which_here] == "fixed")
+    is_gamma_here <- which(terms_type[which_here] == "random")
+    design_list[[D]] <- list(
+      fixed = do.call(cbind, design_list_here[is_beta_here]),
+      random = do.call(cbind, design_list_here[is_gamma_here])
+    )
+    sim_global[[D]] <-
+      design_list[[D]]$random %*% sim_gamma[colnames(design_list[[D]]$random), ]
+    if (!is.null(design_list[[D]]$fixed) && ncol(design_list[[D]]$fixed) > 0L) {
+      fixed_pred[[D]] <-
+        design_list[[D]]$fixed %*% beta_hat[colnames(design_list[[D]]$fixed)]
+    } else {
+      fixed_pred[[D]] <- rep(0, nrow(newx_here))
+    }
+    sim_f[[D]] <- sim_global[[D]] + drop(fixed_pred[[D]])
+  }
+
+  list(
+    design_list = design_list,
+    sim_f = sim_f
+  )
+}
+
+append_common_sim_summaries <- function(result, sim_f, probs, probs_envelope) {
+  result$x <- lapply(result$x, "[[", 1)
+  result$sim <- lapply(sim_f, exp)
+  result$quantiles$common <- lapply(result$sim, function(sim_here) {
+    t(apply(sim_here, 1, stats::quantile, probs = probs))
+  })
+  result$envelope$common <- lapply(
+    result$sim,
+    get_one_envelope,
+    probs = probs_envelope
+  )
+  result
 }
 
 #' Build inputs for conditional IWP simulation
@@ -326,60 +469,28 @@ cond_sim_iwp_at <- function(
 ) {
   .validate_random_info(random_info)
 
-  terms_vars <- lapply(terms, methods::slot, "term")
-  terms_no_vars <- unlist(lapply(terms_vars, length)) == 0
-  terms_have_vars <- terms[!terms_no_vars]
-  terms_vars <- terms_vars[!terms_no_vars]
-  terms_type <- unlist(lapply(terms_have_vars, methods::slot, "type"))
-
-  terms_has_by <- vapply(terms_have_vars, function(x) {
-    if (methods::.hasSlot(x, "by")) {
-      length(methods::slot(x, "by")) > 0
-    } else {
-      FALSE
-    }
-  }, logical(1))
-
-  terms_classes <- unlist(lapply(terms_have_vars, class))
-  is_iwp <- which(terms_classes %in% c("iwp", "hiwp", "rsiwp"))
-
+  term_info <- select_iwp_terms(terms)
   beta_hat <- .as_named_param_vector(beta, label_col = "beta_label", value_col = "mle")
   gamma_label <- random_info$gamma_label
   sim_gamma <- cond_sim_gamma(half_H_inv, gamma_mode, gamma_label, n)
 
   if (is.null(newx)) {
-    newx <- get_terms_pred(terms_have_vars[is_iwp])
+    newx <- get_terms_pred(term_info$terms_have_vars[term_info$is_iwp])
   }
 
-  design_list <- sim_global <- fixed_pred <- sim_f <- list()
-  for (D in names(newx)) {
-    newx_here <- newx[[D]]
-    which_is_D <- terms_vars == D
-    which_here <- which(which_is_D & !terms_has_by)
-    design_list_here <- mapply(adlaplace::design,
-      term = terms_have_vars[which_here],
-      MoreArgs = list(data = newx_here), SIMPLIFY = FALSE
-    )
-    is_beta_here <- which(terms_type[which_here] == "fixed")
-    is_gamma_here <- which(terms_type[which_here] == "random")
-    design_list[[D]] <- list(
-      fixed = do.call(cbind, design_list_here[is_beta_here]),
-      random = do.call(cbind, design_list_here[is_gamma_here])
-    )
-    sim_global[[D]] <-
-      design_list[[D]]$random %*% sim_gamma[colnames(design_list[[D]]$random), ]
-    if (!is.null(design_list[[D]]$fixed) && ncol(design_list[[D]]$fixed) > 0L) {
-      fixed_pred[[D]] <-
-        design_list[[D]]$fixed %*% beta_hat[colnames(design_list[[D]]$fixed)]
-    } else {
-      fixed_pred[[D]] <- rep(0, nrow(newx_here))
-    }
-    sim_f[[D]] <- sim_global[[D]] + drop(fixed_pred[[D]])
-  }
+  sims <- build_iwp_simulations(
+    terms_have_vars = term_info$terms_have_vars,
+    terms_vars = term_info$terms_vars,
+    terms_type = term_info$terms_type,
+    terms_has_by = term_info$terms_has_by,
+    newx = newx,
+    beta_hat = beta_hat,
+    sim_gamma = sim_gamma
+  )
 
   result <- get_group_quantiles(
-    sim_f = sim_f,
-    new_xa = design_list,
+    sim_f = sims$sim_f,
+    new_xa = sims$design_list,
     sim_gamma = sim_gamma,
     random_info = random_info,
     weights = weights,
@@ -387,18 +498,9 @@ cond_sim_iwp_at <- function(
     probs_envelope = probs_envelope
   )
 
-  result$x <- lapply(newx, "[[", 1)
-  result$sim <- lapply(sim_f, exp)
-  result$quantiles$common <- lapply(result$sim, function(sim_here) {
-    t(apply(sim_here, 1, stats::quantile, probs = probs))
-  })
-  result$envelope$common <- lapply(result$sim,
-    get_one_envelope,
-    probs = probs_envelope
-  )
+  result$x <- newx
   result$gamma <- sim_gamma
-
-  result
+  append_common_sim_summaries(result, sims$sim_f, probs, probs_envelope)
 }
 
 #' Conditional simulation for IWP/HIWP terms
@@ -440,51 +542,5 @@ cond_sim_iwp <- function(
     weights = weights,
     probs = probs,
     probs_envelope = probs_envelope
-  )
-}
-
-get_gamma_sim <- function(half_H_inv, gamma_mode, gamma_label, random_info, term, n) {
-  gamma_sim <- cond_sim_gamma(half_H_inv, gamma_mode, gamma_label, n)
-  gamma_here <- random_info$term == term
-  gamma_sim[gamma_here, , drop = FALSE]
-}
-
-cond_sim <- function(laplace, model_data, term, newx = NULL, n = 500) {
-  terms <- model_data$terms
-  terms_here <- grep(term, vapply(terms, function(xx) xx@term, character(1L)))
-  model_here <- vapply(terms[terms_here], function(xx) xx@model, character(1L))
-
-  if (any(model_here %in% c("hiwp", "iwp", "rsiwp"))) {
-    return(cond_sim_iwp(laplace, model_data, newx = newx, n = n))
-  }
-  if (any(model_here %in% c("iid"))) {
-    return(cond_sim_iid(laplace, model_data, term, n))
-  }
-
-  stop("No supported model found for term.", call. = FALSE)
-}
-
-cond_sim_iid <- function(laplace, model_data, term, n) {
-  inputs <- cond_sim_iwp_inputs(laplace, model_data)
-  model_here <- inputs$random_info$model[inputs$random_info$term == term]
-  if (!all(model_here == "iid")) {
-    warning("model should be iid to use cond_sim_iid")
-  }
-  gamma_here <- inputs$random_info$term == term
-  sx1 <- inputs$random_info$gamma_label[gamma_here]
-  sx <- gsub(paste0("(factor[(])?", term, "[)]?"), "", sx1)
-
-  gamma_sim <- get_gamma_sim(
-    inputs$half_H_inv,
-    inputs$gamma_mode,
-    inputs$random_info$gamma_label,
-    inputs$random_info,
-    term,
-    n
-  )
-  list(
-    x = sx,
-    y = gamma_sim,
-    fixed_mean = 0
   )
 }

@@ -113,6 +113,9 @@ sed "s/@CPPAD_VERSION@/$VERSION/g" "$TOOLS/configure.hpp.in" > "$DEST/configure.
 # R-safe ErrorHandler (replace upstream utility/error_handler.hpp)
 cp "$TOOLS/patches/error_handler.hpp" "$DEST/utility/error_handler.hpp"
 
+# Inline temp_file() so LinkingTo packages need no libcppad_lib
+cp "$TOOLS/patches/temp_file.hpp" "$DEST/local/temp_file.hpp"
+
 # Redirect std::cout in headers that appear in CRAN compiled-code checks
 redirect_cout () {
   rel="$1"
@@ -143,7 +146,8 @@ Applied by \`tools/update-cppad.sh\` (re-run after each upstream refresh):
 
 1. \`configure.hpp\` — from \`tools/configure.hpp.in\` (ColPack/Eigen/ADOLC/IPOPT off).
 2. \`utility/error_handler.hpp\` — \`REprintf\` + \`Rf_error\` (no \`cerr\`/\`exit\`).
-3. \`local/var_op/atomic_op.hpp\`, \`core/ad_fun.hpp\`, \`core/fun_construct.hpp\` —
+3. \`local/temp_file.hpp\` — inline definition (headers-only; no libcppad_lib).
+4. \`local/var_op/atomic_op.hpp\`, \`core/ad_fun.hpp\`, \`core/fun_construct.hpp\` —
    \`std::cout\` → \`RCppAD::cppad_trace_stream()\`.
 
 Helper: \`inst/include/RCppAD/cppad_trace_stream.hpp\`.

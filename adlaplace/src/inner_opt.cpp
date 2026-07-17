@@ -20,10 +20,8 @@
 #include "adlaplace/omp_compat.hpp"
 #include "adlaplace/ompad.hpp"
 #include "adlaplace/runtime.hpp"
-#include "adlaplace/runtime.hpp"
 #include "adlaplace/chol_update.hpp"
 #include "adlaplace/trace_hinv_t_runtime.hpp"
-#include "adlaplace/trustoptim.hpp"
 #include "adlaplace/trustoptim.hpp"
 
 // Convert Eigen sparse matrix to Matrix::dgCMatrix S4 object directly
@@ -479,7 +477,7 @@ Rcpp::List inner_opt(const Rcpp::NumericVector parameters,
   }
 }
 
-// [[Rcpp::export]]
+// [[Rcpp::export(name = ".fun_obj_fdfh_cpp")]]
 Rcpp::List fun_obj_fdfh(const Rcpp::NumericVector &parameters,
                         const Rcpp::NumericVector &gamma,
                         const Rcpp::S4 &ad_fun, bool inner = true,

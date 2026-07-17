@@ -23,7 +23,7 @@ setClass("rsiwp",
   ),
   contains = "model",
   prototype = prototype(
-    type = factor("random", levels = adlaplace:::.type_factor_levels),
+    type = factor("random", levels = adlaplace::.type_factor_levels),
     ad_fun = "random_diagonal",
     ad_kind = "random"
   )
@@ -58,7 +58,6 @@ methods::setAs(
 #' @param ref_value Reference value for the basis.
 #' @param ref_mult Reference value for the covariate.
 #' @param knots Vector of knot locations.
-#' @param range Range of the data (optional).
 #' @param init Initial values for theta parameters.
 #' @param lower Lower bounds for theta parameters.
 #' @param upper Upper bounds for theta parameters.
@@ -75,11 +74,10 @@ rsiwp <- function(
   ref_value = 0,
   ref_mult = 0,
   knots,
-  range = NULL,
-  init = .my_theta_init,
-  lower = .my_theta_lower,
-  upper = .my_theta_upper,
-  parscale = .my_theta_parscale,
+  init = NULL,
+  lower = NULL,
+  upper = NULL,
+  parscale = NULL,
   boundary_is_random = TRUE,
   include_poly = TRUE,
   include_linear = TRUE
@@ -88,8 +86,11 @@ rsiwp <- function(
   if (length(x) != 1) stop("x must be a single variable name")
   if (length(p) != 1) stop("p must be a single value")
   if (length(ref_value) != 1) stop("ref_value must be a single value")
-  if (length(ref_mult) != 1) stop("ref_value must be a single value")
-  if (!is.null(range) && length(range) != 2) stop("range must be a vector of length 2")
+  if (length(ref_mult) != 1) stop("ref_mult must be a single value")
+  if (is.null(init)) init <- .my_theta_init
+  if (is.null(lower)) lower <- .my_theta_lower
+  if (is.null(upper)) upper <- .my_theta_upper
+  if (is.null(parscale)) parscale <- .my_theta_parscale
   if (length(init) != 1) stop("init must be a single value")
   if (length(lower) != 1) stop("lower must be a single value")
   if (length(upper) != 1) stop("upper must be a single value")
@@ -208,10 +209,10 @@ setMethod("theta_info", "rsiwp", function(term) {
 
 #' @describeIn rsiwp-class Extracts beta parameter information for RSIWP term
 #' @param term An rsiwp term object
+#' @param data A data frame containing the term variable (unused)
 #' @export
-setMethod("beta_info", "rsiwp", function(term) {
-  # IWP terms don't have beta parameters
-  return(NULL)
+setMethod("beta_info", "rsiwp", function(term, data) {
+  NULL
 })
 
 #' @describeIn rsiwp-class Extracts random effects information for RSIWP term

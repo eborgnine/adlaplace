@@ -24,7 +24,7 @@ setClass("rsfpoly",
   contains = "model",
   prototype = list(
     knots = numeric(0),
-    type = factor("fixed", levels = adlaplace:::.type_factor_levels)
+    type = factor("fixed", levels = adlaplace::.type_factor_levels)
   )
 )
 
@@ -43,11 +43,15 @@ setClass("rsfpoly",
 rsfpoly <- function(
   x, mult, p = 2,
   ref_value = 0, ref_mult = 0,
-  init = .my_beta_init,
-  lower = .my_beta_lower,
-  upper = .my_beta_upper,
-  parscale = .my_beta_parscale
+  init = NULL,
+  lower = NULL,
+  upper = NULL,
+  parscale = NULL
 ) {
+  if (is.null(init)) init <- .my_beta_init
+  if (is.null(lower)) lower <- .my_beta_lower
+  if (is.null(upper)) upper <- .my_beta_upper
+  if (is.null(parscale)) parscale <- .my_beta_parscale
   methods::new("rsfpoly",
     term = x,
     mult = mult,
@@ -79,7 +83,7 @@ setMethod("design", "rsfpoly", function(term, data) {
     degree = term@p.order,
     raw = TRUE
   )
-  D <- D[, 1:ncol(D), drop = F]
+  D <- D[, 1:ncol(D), drop = FALSE]
   D <- D * mult_vec
   seq_order <- seq.int(1, length.out = term@p.order)
 

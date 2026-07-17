@@ -221,7 +221,7 @@ coerce_map_shorthand <- function(x, what) {
       j = seq.int(1L, length.out = length(idx)),
       x = 1,
       dims = c(n, length(idx)),
-      giveCsparse = TRUE
+      repr = "C"
     ))
   }
   if (!is.atomic(x)) {
@@ -251,7 +251,7 @@ coerce_map_shorthand <- function(x, what) {
         i = integer(0),
         j = integer(0),
         dims = c(0L, 1L),
-        giveCsparse = TRUE
+        repr = "C"
       ))
     }
     if (row < 1L || row > n) {
@@ -265,7 +265,7 @@ coerce_map_shorthand <- function(x, what) {
       j = 1L,
       x = 1,
       dims = c(n, 1L),
-      giveCsparse = TRUE
+      repr = "C"
     ))
   }
   x
@@ -339,7 +339,7 @@ design_Tp <- function(M, n_obs, what = "M") {
       i = integer(0),
       j = integer(0),
       dims = c(0L, n_obs),
-      giveCsparse = TRUE
+      repr = "C"
     )))
   }
   if (nrow(M) != n_obs) {
@@ -381,7 +381,7 @@ ad_data_from_config_matrices <- function(y, A, X, config, theta_local_row = 0L) 
       x = 1,
       dims = c(n_theta, 1L),
       index1 = FALSE,
-      giveCsparse = TRUE
+      repr = "C"
     )
   } else {
     NULL

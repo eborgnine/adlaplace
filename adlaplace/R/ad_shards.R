@@ -104,7 +104,7 @@ ad_shards <- function(A, elgm_matrix, num_shards, min_groups = 0) {
   )) {
     loadings <- RSpectra::svds(ATp, k = 1)$v[, 1]
   } else {
-    if (max(dim(ATp) > 1e5)) {
+    if (max(dim(ATp)) > 1e5) {
       warning("ATp matrix is very large, consider installing the RSpectra package")
     }
     sv <- svd(ATp)
@@ -147,23 +147,23 @@ ad_shards <- function(A, elgm_matrix, num_shards, min_groups = 0) {
       stop("ad_shards: could not form unique cut breaks", call. = FALSE)
     }
     loadingsCut <- cut(loadings, groupCut)
-    theJ <- as.integer(factor(
+    shard_id <- as.integer(factor(
       loadingsCut, names(sort(table(loadingsCut), decreasing = TRUE))
     )) - 1L
   } else {
     # One shard per discrete group (after any largest-group split).
-    theJ <- as.integer(factor(
+    shard_id <- as.integer(factor(
       group_id, names(sort(table(group_id), decreasing = TRUE))
     )) - 1L
   }
 
-  theSd <- pmax(tapply(loadings, theJ, stats::sd), 0, na.rm = TRUE)
-  orderSd <- order(theSd, decreasing = TRUE) - 1L
-  theJ2 <- match(theJ, orderSd) - 1L
+  shard_sd <- pmax(tapply(loadings, shard_id, stats::sd), 0, na.rm = TRUE)
+  shard_order <- order(shard_sd, decreasing = TRUE) - 1L
+  shard_id_ordered <- match(shard_id, shard_order) - 1L
 
   groupMat <- Matrix::sparseMatrix(
     i = seq(0, len = length(loadings)),
-    j = theJ2,
+    j = shard_id_ordered,
     x = loadings,
     index1 = FALSE
   )

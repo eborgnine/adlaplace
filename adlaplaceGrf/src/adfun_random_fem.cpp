@@ -235,6 +235,22 @@ random_fem_ssq_sparsity(const ad_data &model) {
   return hessian;
 }
 
+CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)>
+random_fem_det_sparsity(const ad_data &model) {
+  const std::size_t idx_range = model.theta_index(0);
+  const std::size_t idx_sd = model.theta_index(1);
+
+  std::set<std::pair<std::size_t, std::size_t>> pairs;
+  pairs.insert({idx_range, idx_range});
+  pairs.insert({idx_sd, idx_sd});
+  pairs.insert({idx_range, idx_sd});
+  pairs.insert({idx_sd, idx_range});
+
+  CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> hessian;
+  set_sparse_rc_pairs(hessian, model.num_full, pairs);
+  return hessian;
+}
+
 template <int Alpha>
 SEXP create_ad_fun_random_fem_ssq(SEXP model, Rcpp::List config) {
   const ad_data ad_model(model);
@@ -293,8 +309,9 @@ SEXP create_ad_fun_random_fem_ssq_3(SEXP model, Rcpp::List config) {
 // [[Rcpp::export]]
 SEXP get_ad_fun_raw_parameters(SEXP model, Rcpp::List config, std::string name) {
   const ad_data ad_model(model);
-  GroupPack pack =
-      build_ad_fun_parameters(ad_model, config, resolve_fem_det(name));
+  GroupPack pack = build_ad_fun_parameters(
+      ad_model, config, resolve_fem_det(name),
+      random_fem_det_sparsity(ad_model));
   std::vector<GroupPack> packs;
   packs.push_back(std::move(pack));
   return make_ad_fun_ptr(packs_to_ad_fun(std::move(packs), ad_model.num_beta,

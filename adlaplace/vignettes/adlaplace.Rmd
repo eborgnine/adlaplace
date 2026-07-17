@@ -54,9 +54,9 @@ $$
 
 The linear predictor is $\eta = X\beta + A\gamma$, with two independent random-effect
 groups in $A$ and log-standard-deviation parameters for each group plus a global
-overdispersion parameter. Densities are implemented under `src/densities/` (e.g.
-`nbinom.cpp` for observations and hyperparameters, `random_diagonal.cpp` for
-random effects).
+overdispersion parameter. Densities are implemented in `src/densities.cpp` with
+headers under `src/include/adlaplace/densities.hpp` (e.g. negative binomial
+observation and hyperparameter terms, plus `random_diagonal` for random effects).
 
 ## Simulated data
 
@@ -244,7 +244,7 @@ vector.
 ```{r checkByShard}
 config$gamma <- rep(0.01, length(config$gamma))
 x_full <- c(config$beta, config$gamma, config$theta)
-shards <- seq.int(from = 0L, length.out = adlaplace::n_groups(ad_fun_plain))
+shards <- seq.int(from = 0L, length.out = adlaplace:::n_groups(ad_fun_plain))
 
 by_shard <- vapply(
   shards,
@@ -573,7 +573,7 @@ par(mfrow = c(4, 2), mar = c(2, 2, 2, 0), mgp = c(1, 0.5, 0))
 x_here <- res_mid$full_parameters
 Dpar_dens <- length(x_here) - 1
 Ngrid <- 11L
-shards <- seq.int(from = 0L, length.out = adlaplace::n_groups(ad_fun_plain))
+shards <- seq.int(from = 0L, length.out = adlaplace:::n_groups(ad_fun_plain))
 
 par_grid <- matrix(x_here, nrow = Ngrid, ncol = length(x_here), byrow = TRUE)
 Sx <- x_here[Dpar_dens] + seq(-0.1, 0.1, length.out = Ngrid)

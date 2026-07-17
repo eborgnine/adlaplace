@@ -29,7 +29,7 @@ setClass("hiwp",
   prototype = prototype(
     by = adlaplace::by_group(),
     init = numeric(0),
-    type = factor("random", levels = adlaplace:::.type_factor_levels)
+    type = factor("random", levels = adlaplace::.type_factor_levels)
   )
 )
 
@@ -39,7 +39,6 @@ setClass("hiwp",
 #' @param p Order of the integrated Wiener process (default: 2)
 #' @param ref_value Reference value for the basis
 #' @param knots Vector of knot locations
-#' @param range Range of the data (optional)
 #' @param by Grouping variable for hierarchical structure
 #' @param init Initial values for theta parameters
 #' @param lower Lower bounds for theta parameters
@@ -54,16 +53,20 @@ setClass("hiwp",
 #' # knots <- seq(0, 1, length.out = 5)
 #' # hiwp_term <- hiwp(x = "age", knots = knots, by = "group")
 hiwp <- function(
-  x, p = 2, ref_value = 0, knots, range = NULL,
+  x, p = 2, ref_value = 0, knots,
   by,
-  init = .my_theta_init,
-  lower = .my_theta_lower,
-  upper = .my_theta_upper,
-  parscale = .my_theta_parscale,
+  init = NULL,
+  lower = NULL,
+  upper = NULL,
+  parscale = NULL,
   boundary_is_random = TRUE,
   include_poly = TRUE,
   include_global = TRUE
 ) {
+  if (is.null(init)) init <- .my_theta_init
+  if (is.null(lower)) lower <- .my_theta_lower
+  if (is.null(upper)) upper <- .my_theta_upper
+  if (is.null(parscale)) parscale <- .my_theta_parscale
   init <- rep_len(init, 2 * p + 4)
   lower <- rep_len(lower, 2 * p + 4)
   upper <- rep_len(upper, 2 * p + 4)
@@ -144,7 +147,7 @@ hiwp <- function(
 #' @export
 setMethod("design", "hiwp", function(term, data) {
 
-  term <- adlaplace::add_by_levels(term, data)
+  term <- adlaplace:::add_by_levels(term, data)
 
   term_iwp <- methods::as(term, "iwp")
   A0 <- adlaplace::design(term_iwp, data)
@@ -196,7 +199,7 @@ setMethod("design", "hiwp", function(term, data) {
 #' @return A precision matrix for the HIWP term.
 #' @export
 setMethod("precision", "hiwp", function(term, data) {
-  term <- adlaplace::add_by_levels(term, data)
+  term <- adlaplace:::add_by_levels(term, data)
 
   iwp_precision <- precision(methods::as(term, "iwp"), data)
   result <- Matrix::.bdiag(replicate(length(term@by@levels), iwp_precision))
@@ -236,8 +239,7 @@ setMethod("theta_info", "hiwp", function(term) {
 #' @return NULL (HIWP terms don't have beta parameters).
 #' @export
 setMethod("beta_info", "hiwp", function(term, data) {
-  # HIWP terms don't have beta parameters
-  return(NULL)
+  NULL
 })
 
 #' @rdname hiwp-class

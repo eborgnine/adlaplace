@@ -40,7 +40,7 @@ setClass("hrpoly",
          prototype = list(
            by = adlaplace::by_group(),
            knots = numeric(0),
-           type = factor("random", levels = adlaplace:::.type_factor_levels),
+           type = factor("random", levels = adlaplace::.type_factor_levels),
            ad_fun = "random_diagonal",
            ad_kind = "random"
          )
@@ -65,11 +65,15 @@ hrpoly <- function(
   p = 1,
   ref_value = 0,
   by,
-  init = .my_theta_init,
-  lower = .my_theta_lower,
-  upper = .my_theta_upper,
-  parscale = .my_theta_parscale
+  init = NULL,
+  lower = NULL,
+  upper = NULL,
+  parscale = NULL
 ) {
+  if (is.null(init)) init <- .my_theta_init
+  if (is.null(lower)) lower <- .my_theta_lower
+  if (is.null(upper)) upper <- .my_theta_upper
+  if (is.null(parscale)) parscale <- .my_theta_parscale
   # Check all arguments are of length 1
   if (length(x) != 1) stop("x must be a single variable name")
   if (length(p) != 1) stop("p must be a single value")
@@ -112,7 +116,7 @@ hrpoly <- function(
 #' @return A design matrix for the hrpoly term.
 #' @export
 setMethod("design", "hrpoly", function(term, data) {
-  term <- adlaplace::add_by_levels(term, data)
+  term <- adlaplace:::add_by_levels(term, data)
 
   # Create an rpoly version of the term (without by slot)
   rpoly_term <- methods::new("rpoly",
@@ -123,11 +127,11 @@ setMethod("design", "hrpoly", function(term, data) {
     ref_value = term@ref_value,
     sd = rep_len(Inf, term@p.order)
   )
-  a_base <- design(rpoly_term, data)[,term@p.order]
+  a_base <- design(rpoly_term, data)[, term@p.order]
 
-  a_split = mapply(
+  a_split <- mapply(
     function(x, a_base, id) {
-      the_i = which(x==id)
+      the_i <- which(x == id)
       data.frame(
         i = the_i,
         j_orig = id,
@@ -135,21 +139,23 @@ setMethod("design", "hrpoly", function(term, data) {
       )
     },
     id = term@by@levels,
-    MoreArgs = list(x=data[[term@by@term]], a_base = a_base),
-    SIMPLIFY=FALSE
+    MoreArgs = list(x = data[[term@by@term]], a_base = a_base),
+    SIMPLIFY = FALSE
   )
-  a_df = do.call(rbind, a_split)
-  a_df$j = match(a_df$j_orig, term@by@levels)
+  a_df <- do.call(rbind, a_split)
+  a_df$j <- match(a_df$j_orig, term@by@levels)
 
-  result = Matrix::sparseMatrix(i=a_df$i, j=a_df$j, 
+  result <- Matrix::sparseMatrix(
+    i = a_df$i, j = a_df$j,
     x = a_df$x, dims = c(length(a_base), length(term@by@levels)),
     dimnames = list(NULL, paste0(
-    term@term,
-    "_hrpoly_",
-    term@p.order,
-    "_g",
-    term@by@labels
-  )))
+      term@term,
+      "_hrpoly_",
+      term@p.order,
+      "_g",
+      term@by@labels
+    ))
+  )
 
   result
 })
@@ -160,15 +166,15 @@ setMethod("design", "hrpoly", function(term, data) {
 #' @return A precision matrix for the hrpoly term.
 #' @export
 setMethod("precision", "hrpoly", function(term, data) {
-  term <- adlaplace::add_by_levels(term, data)
+  term <- adlaplace:::add_by_levels(term, data)
   if (term@p.order == 0) {
     return(NULL)
   }
 
-  result = Matrix::Diagonal(length(term@by@levels), 1)
-  dimnames(result) = list(
+  result <- Matrix::Diagonal(length(term@by@levels), 1)
+  dimnames(result) <- list(
     paste0(term@term, "_hrpoly_", term@p.order, "_g", term@by@labels)
-  )[c(1,1)]
+  )[c(1, 1)]
   result
 
 })
@@ -196,8 +202,7 @@ setMethod("theta_info", "hrpoly", function(term) {
 #' @return NULL (hrpoly terms don't have beta parameters).
 #' @export
 setMethod("beta_info", "hrpoly", function(term, data) {
-  # HRpoly terms don't have beta parameters (random effects only)
-  return(NULL)
+  NULL
 })
 
 #' @rdname hrpoly-class
@@ -206,7 +211,7 @@ setMethod("beta_info", "hrpoly", function(term, data) {
 #' @return A data frame containing random effects information for the hrpoly term.
 #' @export
 setMethod("random_info", "hrpoly", function(term, data) {
-  term <- adlaplace::add_by_levels(term, data)
+  term <- adlaplace:::add_by_levels(term, data)
   basis <- NA
 
   result <- expand.grid(

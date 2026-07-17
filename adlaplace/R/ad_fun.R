@@ -41,7 +41,7 @@ build_parallel_map <- function(n_shards, num_threads, owner_threads = NULL) {
     j = thread_ids,
     dims = c(n_shards, num_threads),
     index1 = TRUE,
-    giveCsparse = TRUE
+    repr = "C"
   )
   map
 }
@@ -101,9 +101,9 @@ new_ad_fun_from_ptr <- function(ptr, num_threads = 1L, info = list(), verbose = 
   }
   hessian_pack <- hessian_map(
     sparsity_list = sparsity,
-    Nbeta = n_beta,
-    Ngamma = n_gamma,
-    Ntheta = n_theta
+    n_beta = n_beta,
+    n_gamma = n_gamma,
+    n_theta = n_theta
   )
   chol_inner_list <- hessian_pack$chol_inner_list
   if (length(chol_inner_list) > 0L && !is.null(chol_inner_list$half_H_inv)) {
@@ -112,7 +112,7 @@ new_ad_fun_from_ptr <- function(ptr, num_threads = 1L, info = list(), verbose = 
       utils::flush.console()
     }
     hessian_pack$chol_inner_list$trace_columns <- trace_columns_from_pattern(
-      group_sparsity = lapply(sparsity, function(xx) xx$grad_inner),
+      group_sparsity = lapply(sparsity, function(shard) shard$grad_inner),
       n_beta = n_beta,
       n_gamma = n_gamma,
       half_H_inv_pat = chol_inner_list$half_H_inv
@@ -133,7 +133,7 @@ new_ad_fun_from_ptr <- function(ptr, num_threads = 1L, info = list(), verbose = 
   methods::new(
     "ad_fun",
     ptr = ptr,
-    group_sparsity = lapply(sparsity, function(xx) xx$grad_inner),
+    group_sparsity = lapply(sparsity, function(shard) shard$grad_inner),
     outer = hessian_pack$outer,
     inner = hessian_pack$inner,
     map_outer = hessian_pack$map_outer,

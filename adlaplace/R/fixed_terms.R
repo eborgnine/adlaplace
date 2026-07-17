@@ -69,23 +69,6 @@ setMethod("design", "intercept", function(term, data) {
     )
 })
 
-#' @describeIn intercept-class Creates precision matrix for intercept term
-#' @param term A intercept term object
-#' @param data A data frame containing the term variable
-#' @export
-setMethod("precision", "intercept", function(term, data) {
-  # intercept terms don't have precision matrices
-  NULL
-})
-
-#' @describeIn intercept-class Extracts theta parameter information for intercept term
-#' @param term A intercept term object
-#' @export
-setMethod("theta_info", "intercept", function(term) {
-  # intercept terms don't have random effects parameters
-  return(NULL)
-})
-
 #' @describeIn intercept-class Extracts beta parameter information for intercept term
 #' @param term A intercept term object
 #' @param data A data frame containing the term variable
@@ -103,14 +86,6 @@ setMethod("beta_info", "intercept", function(term, data) {
     upper = term@upper,
     parscale = term@parscale
   )
-})
-
-#' @describeIn intercept-class Extracts random effects information for intercept term
-#' @param term A intercept term object
-#' @param data A data frame containing the term variable
-#' @export
-setMethod("random_info", "intercept", function(term, data) {
-  NULL
 })
 
 #' Linear Model Term
@@ -196,23 +171,6 @@ setMethod("design", "linear", function(term, data) {
   res
 })
 
-#' @describeIn linear-class Creates precision matrix for linear term
-#' @param term A linear term object
-#' @param data A data frame containing the term variable
-#' @export
-setMethod("precision", "linear", function(term, data) {
-  # Linear terms don't have precision matrices
-  NULL
-})
-
-#' @describeIn linear-class Extracts theta parameter information for linear term
-#' @param term A linear term object
-#' @export
-setMethod("theta_info", "linear", function(term) {
-  # Linear terms don't have random effects parameters
-  return(NULL)
-})
-
 #' @describeIn linear-class Extracts beta parameter information for linear term
 #' @param term A linear term object
 #' @param data A data frame containing the term variable
@@ -234,14 +192,6 @@ setMethod("beta_info", "linear", function(term, data) {
   )
 
   return(result)
-})
-
-#' @describeIn linear-class Extracts random effects information for linear term
-#' @param term A linear term object
-#' @param data A data frame containing the term variable
-#' @export
-setMethod("random_info", "linear", function(term, data) {
-  NULL
 })
 
 #' Fixed Polynomial Model Term
@@ -338,25 +288,6 @@ setMethod("design", "fpoly", function(term, data) {
   D
 })
 
-#' @describeIn fpoly-class Precision method for fpoly objects
-#' @export
-#' @param term A `fpoly` term object.
-#' @param data A data frame containing the variables used in the term.
-#' @return NULL (fixed effects don't have precision matrices).
-setMethod("precision", "fpoly", function(term, data) {
-  # Fixed effects don't have precision matrices
-  NULL
-})
-
-#' @describeIn fpoly-class Theta info method for fpoly objects
-#' @export
-#' @param term A `fpoly` term object.
-#' @return NULL (fixed effects don't have random effects parameters).
-setMethod("theta_info", "fpoly", function(term) {
-  # Fixed effects don't have random effects parameters
-  return(NULL)
-})
-
 #' @describeIn fpoly-class Beta info method for fpoly objects
 #' @export
 #' @param term A `fpoly` term object.
@@ -381,12 +312,3 @@ setMethod("beta_info", "fpoly", function(term, data) {
   return(result)
 })
 
-#' @describeIn fpoly-class Random info method for fpoly objects
-#' @export
-#' @param term A `fpoly` term object.
-#' @param data A data frame containing the variables used in the term.
-#' @return NULL (fixed effects don't have random effects information).
-setMethod("random_info", "fpoly", function(term, data) {
-  # Fixed effects don't have random effects information
-  return(NULL)
-})

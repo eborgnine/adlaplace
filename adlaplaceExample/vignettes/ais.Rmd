@@ -10,6 +10,17 @@ vignette: >
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
+
+This vignette fits a skew-normal location model to body-mass index (BMI) from
+the Australian Institute of Sport (`ais`) dataset. We use the
+`adlaplaceExample` backend for the observation density and `adlaplace` for
+Laplace approximation, inner optimization, and outer profiling.
+
+## Data
+
+The `sn` package provides the original `ais` data; if it is not installed we
+build a small stand-in so the vignette still knits.
+
 ```{r}
 if (requireNamespace("sn", quietly = TRUE)) {
   data("ais", package = "sn")
@@ -22,6 +33,12 @@ if (requireNamespace("sn", quietly = TRUE)) {
   )
 }
 ```
+
+## Model and AD setup
+
+We specify a skew-normal response for `BMI` with an intercept, fixed effect of
+`sex`, and an independent random effect for `sport`. Observation shards are
+split across 100 groups for parallel derivative evaluation.
 
 ```{r}
 model_stuff <- adlaplace::model_data(
@@ -40,6 +57,13 @@ config <- list(
 )
 ```
 
+## Laplace log-likelihood at starting values
+
+`ad_fun()` composes the observation, parameter, and random-effect shards into
+a single callable object. `log_lik_laplace()` solves the inner problem for
+random effects and returns the profile log-likelihood, gradient, and fitted
+parameters at the initial outer vector.
+
 ```{r}
 ad_fun <- adlaplace::ad_fun(
   model_stuff,
@@ -57,7 +81,10 @@ res$neg_log_lik
 res$grad
 ```
 
+## Outer optimization
 
+The outer objective profiles out random effects via a cache. We evaluate the
+objective and gradient once at the start, then run a short L-BFGS-B fit.
 
 ```{r trustOptimOuterWrappers}
 cache <- new.env(parent = emptyenv())
@@ -93,6 +120,12 @@ adlaplace::format_parameters(
   info=ad_fun@info)$parameters
 ```
 
+## Fitted values and density overlay
+
+After refitting at the outer MLE, we store updated fixed effects, variance
+components, and random-effect modes, then overlay the fitted skew-normal
+density on the BMI histogram (when `sn` is available).
+
 ```{r}
 res <- adlaplace::log_lik_laplace(
   x = outer_fit$par,
@@ -126,6 +159,11 @@ if (requireNamespace("sn", quietly = TRUE)) {
 }
 ```
 
+## Derivative check along one parameter
+
+Finally we scan the fourth outer parameter and compare the analytic gradient
+to finite differences, along with inner-mode and Hessian-determinant
+sensitivities. This requires the suggested `abind` package.
 
 ```{r testLogLgrad}
 if (!requireNamespace("abind", quietly = TRUE)) {
@@ -177,5 +215,4 @@ plot(Sx, Sdet)
 plot(Sx, extra_df[Dpar, "d_det", ])
 lines(SxD, diff(Sdet) / diff(Sx))
 ```
-
 

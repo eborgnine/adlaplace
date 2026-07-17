@@ -1,39 +1,8 @@
 #' @include 000.R
+#' @include matern-geometry.R
 #' @include grf_bspline.R
 #' @include fem_precision.R
 NULL
-
-#' Resolve knot lines for matern()
-#'
-#' Accepts `list(x = ..., y = ...)` or a terra `SpatRaster`. For a raster,
-#' unique column-center x and row-center y coordinates become the axis knot
-#' lines.
-#'
-#' @param knots Knot specification.
-#' @return `list(x = ..., y = ...)` of numeric knot-line positions.
-#' @keywords internal
-#' @noRd
-matern_knots <- function(knots) {
-  if (inherits(knots, "SpatRaster")) {
-    if (!requireNamespace("terra", quietly = TRUE)) {
-      stop(
-        "terra is required for SpatRaster knots; install.packages(\"terra\")",
-        call. = FALSE
-      )
-    }
-    return(list(
-      x = terra::xFromCol(knots),
-      y = terra::yFromRow(knots)
-    ))
-  }
-  if (!is.list(knots) || is.null(knots$x) || is.null(knots$y)) {
-    stop(
-      "knots must be list(x = ..., y = ...) or a SpatRaster",
-      call. = FALSE
-    )
-  }
-  knots
-}
 
 #' Map Matern shape nu to B-spline degree / SPDE alpha (2D)
 #'
@@ -60,116 +29,6 @@ matern_fem_grams <- function(knots, degree) {
   fem <- grf_bspline_xy(mid_x, mid_y, knots = kn, degree = degree)
   fem$A <- NULL
   fem
-}
-
-#' Parse a single HEX-encoded WKB Point to (x, y)
-#' @keywords internal
-#' @noRd
-matern_xy_from_hex_point <- function(hex) {
-  hex <- gsub("\\s+", "", hex)
-  if (nchar(hex) < 42L || nchar(hex) %% 2L != 0L) {
-    stop("HEX geometry is not a valid WKB Point", call. = FALSE)
-  }
-  nib <- strsplit(hex, "", fixed = TRUE)[[1L]]
-  raw <- as.raw(as.integer(matrix(strtoi(nib, 16L), ncol = 2L, byrow = TRUE) %*%
-    c(16L, 1L)))
-  endian_flag <- as.integer(raw[1L])
-  endian <- if (identical(endian_flag, 1L)) "little" else "big"
-  type <- readBin(raw[2L:5L], what = "integer", n = 1L, size = 4L, endian = endian)
-  # Mask EWKB flags (SRID / Z / M)
-  type_base <- bitwAnd(as.integer(type), 255L)
-  if (!identical(type_base, 1L)) {
-    stop(
-      "HEX geometry parsing currently supports Point (type 1) only; got type ",
-      type_base,
-      call. = FALSE
-    )
-  }
-  offset <- 6L
-  if (bitwAnd(as.integer(type), as.integer(0x20000000)) != 0L) {
-    # EWKB SRID present
-    offset <- offset + 4L
-  }
-  xy <- readBin(
-    raw[offset:(offset + 15L)],
-    what = "double",
-    n = 2L,
-    size = 8L,
-    endian = endian
-  )
-  as.numeric(xy)
-}
-
-#' Extract 2D coordinates from a data-column geometry
-#'
-#' Supports an `n` by `2` numeric matrix/data.frame, a list of length-2
-#' numerics, WKT text (via terra), or HEX WKB Point strings.
-#'
-#' @param x Column contents.
-#' @return Numeric matrix with columns `x` and `y`.
-#' @keywords internal
-#' @noRd
-matern_column_xy <- function(x) {
-  if (is.data.frame(x)) {
-    x <- as.matrix(x)
-  }
-  if (is.matrix(x)) {
-    if (!is.numeric(x) || ncol(x) != 2L) {
-      stop(
-        "geometry matrix must be numeric with exactly 2 columns",
-        call. = FALSE
-      )
-    }
-    out <- cbind(x = as.numeric(x[, 1L]), y = as.numeric(x[, 2L]))
-  } else if (is.list(x) && !is.object(x)) {
-    if (!length(x) || !all(vapply(x, function(z) {
-      is.numeric(z) && length(z) >= 2L
-    }, logical(1)))) {
-      stop(
-        "geometry list-column entries must be numeric with at least 2 values",
-        call. = FALSE
-      )
-    }
-    out <- cbind(
-      x = vapply(x, function(z) as.numeric(z)[1L], numeric(1)),
-      y = vapply(x, function(z) as.numeric(z)[2L], numeric(1))
-    )
-  } else if (is.character(x)) {
-    is_wkt <- grepl(
-      "^(POINT|MULTIPOINT|LINESTRING|POLYGON|MULTI|GEOMETRY)",
-      x,
-      ignore.case = TRUE
-    )
-    if (all(is_wkt)) {
-      if (!requireNamespace("terra", quietly = TRUE)) {
-        stop(
-          "terra is required to parse WKT geometries; install.packages(\"terra\")",
-          call. = FALSE
-        )
-      }
-      v <- terra::vect(x)
-      if (!identical(terra::geomtype(v), "points")) {
-        stop("matern() currently supports point geometries only", call. = FALSE)
-      }
-      xy <- terra::crds(v)
-      out <- cbind(x = as.numeric(xy[, 1L]), y = as.numeric(xy[, 2L]))
-    } else {
-      # HEX WKB points (e.g. terra::as.data.frame(..., geom = "HEX"))
-      xy <- t(vapply(x, matern_xy_from_hex_point, numeric(2)))
-      out <- cbind(x = xy[, 1L], y = xy[, 2L])
-    }
-  } else {
-    stop(
-      "geometry column must be a 2-column matrix/data.frame, list of ",
-      "coordinates, WKT text, or HEX WKB points; got ",
-      paste(class(x), collapse = "/"),
-      call. = FALSE
-    )
-  }
-  if (any(!is.finite(out))) {
-    stop("matern() coordinates must be finite", call. = FALSE)
-  }
-  out
 }
 
 #' Matern FEM spatial random field term
@@ -210,7 +69,8 @@ setClass(
 
 #' @param x Name of the geometry / coordinate column in `data`.
 #' @param knots Knot lines as `list(x = ..., y = ...)` or a terra
-#'   `SpatRaster` (cell-center x/y become the knot lines).
+#'   `SpatRaster` (extent endpoints plus interior cell centers; see
+#'   [knots_from_spatraster()]).
 #' @param shape Matern smoothness nu (`1` or `2`). Default `1L` (SPDE alpha = 2,
 #'   quadratic B-splines). Use `2` for nu = 2 / cubic B-splines.
 #' @param init Initial values for `(range, sd)` on the natural scale, where
@@ -231,7 +91,7 @@ matern <- function(x,
                    lower = c(1e-9, 1e-9),
                    upper = c(Inf, Inf),
                    parscale = c(1, 1)) {
-  x <- adlaplace::strip_term_name(as.character(x))
+  x <- adlaplace:::strip_term_name(as.character(x))
   degree <- matern_shape_degree(shape)
   knots <- matern_knots(knots)
   fem <- matern_fem_grams(knots, degree = degree)
@@ -266,6 +126,7 @@ setMethod("extra_ad_fun", "matern", function(term) {
 })
 
 #' @keywords internal
+#' @noRd
 ensure_matern_fem <- function(term) {
   if (is.null(term@fem)) {
     stop("matern term is missing cached FEM ingredients (@fem)", call. = FALSE)

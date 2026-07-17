@@ -72,14 +72,14 @@ fit <- hnlm(
     data = london,
     config = list(
         transform_theta = TRUE,
-        num_threads = 8L,
-        num_shards = 100L,
+        num_threads = 2L,
+        num_shards = 50L,
         verbose = FALSE
     ),
     control = list(
-        maxit = 1000, trace = 3, REPORT = 1,
+        maxit = 200, trace = 0, REPORT = 1,
         factr = 1e3,
-        pgtol = 1e-12
+        pgtol = 1e-8
     )
 )
 ```
@@ -117,8 +117,8 @@ running outer optimization.
 ```{r for_dev}
 config_dev <- list(
     transform_theta = TRUE,
-    num_threads = 8L,
-    num_shards = 100L,
+    num_threads = 2L,
+    num_shards = 50L,
     verbose = FALSE
 )
 forres <- hnlm(
@@ -159,7 +159,7 @@ x_full <- c(
     forres$config$opt$init[seq(sz["beta"] + 1L, length.out = sz["theta"])]
 )
 
-shards <- seq.int(from = 0L, length.out = n_groups(forres$ad_fun@ptr))
+shards <- seq.int(from = 0L, length.out = adlaplace:::n_groups(forres$ad_fun@ptr))
 by_shard <- vapply(
     shards,
     function(s) joint_log_dens(forres$ad_fun, x_full, shards = s),
@@ -206,7 +206,7 @@ the Laplace output and model-data bundle:
 sim <- adlaplaceHgp::cond_sim_iwp(
     fit = lik,
     model_data = forres$model_data,
-    n = 100
+    n = 25
 )
 names(sim)
 # inspect assembled inputs:

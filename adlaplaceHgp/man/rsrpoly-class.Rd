@@ -19,7 +19,7 @@ rsrpoly(x, mult, p = 2, ref_value = 0, ref_mult = 0, sd = Inf)
 
 \S4method{theta_info}{rsrpoly}(term)
 
-\S4method{beta_info}{rsrpoly}(term)
+\S4method{beta_info}{rsrpoly}(term, data)
 
 \S4method{random_info}{rsrpoly}(term, data)
 }

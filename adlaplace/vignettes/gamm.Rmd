@@ -144,7 +144,7 @@ adlaplace::outer_gr(x = outer_fit$par, cache = cache, config = config, ad_fun = 
 ## check by shard
 
 ```{r checkByShard}
-shards <- seq.int(from = 0, length.out = adlaplace::n_groups(ad_fun@ptr))
+shards <- seq.int(from = 0, length.out = adlaplace:::n_groups(ad_fun@ptr))
 xx <- c(
   md$data$info$beta$init,
   rep(0, nrow(md$data$info$gamma)),
@@ -258,7 +258,7 @@ x_here <- c(
 )
 Dpar_dens <- 1 # length(x_here)
 Ngrid <- 11L
-shards <- seq.int(from = 0L, length.out = adlaplace::n_groups(ad_fun@ptr))
+shards <- seq.int(from = 0L, length.out = adlaplace:::n_groups(ad_fun@ptr))
 
 par_grid <- matrix(x_here, nrow = Ngrid, ncol = length(x_here), byrow = TRUE)
 Sx <- x_here[Dpar_dens] + 1 * seq(-1, 1, length.out = Ngrid)

@@ -1,1 +1,6 @@
+^.*\.Rproj$
+^\.Rproj\.user$
+^\.gitignore$
+^\.cursor$
 ^tests/testthat/_snaps$
+^.*\.tar\.gz$

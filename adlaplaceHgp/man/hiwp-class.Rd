@@ -16,12 +16,11 @@ hiwp(
   p = 2,
   ref_value = 0,
   knots,
-  range = NULL,
   by,
-  init = .my_theta_init,
-  lower = .my_theta_lower,
-  upper = .my_theta_upper,
-  parscale = .my_theta_parscale,
+  init = NULL,
+  lower = NULL,
+  upper = NULL,
+  parscale = NULL,
   boundary_is_random = TRUE,
   include_poly = TRUE,
   include_global = TRUE
@@ -45,8 +44,6 @@ hiwp(
 \item{ref_value}{Reference value for the basis}
 
 \item{knots}{Vector of knot locations}
-
-\item{range}{Range of the data (optional)}
 
 \item{by}{Grouping variable for hierarchical structure}
 

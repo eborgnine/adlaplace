@@ -20,16 +20,7 @@ apply_theta_log <- function(theta_info, cols = "init", active = TRUE) {
     rep(TRUE, nrow(out))
   }
   transform[is.na(transform)] <- TRUE
-  idx <- which(transform)
-  if (length(idx) == 0L) {
-    return(out)
-  }
-  for (col in cols) {
-    if (col %in% names(out)) {
-      out[idx, col] <- log(out[idx, col])
-    }
-  }
-  out
+  log_transform_columns(out, cols, which(transform))
 }
 
 #' @keywords internal
@@ -44,6 +35,258 @@ ensure_theta_transform <- function(theta_setup) {
     theta_setup$transform[is.na(theta_setup$transform)] <- TRUE
   }
   theta_setup
+}
+
+#' @keywords internal
+log_transform_columns <- function(df, cols, idx) {
+  if (length(idx) == 0L) {
+    return(df)
+  }
+  out <- df
+  for (col in cols) {
+    if (col %in% names(out)) {
+      out[idx, col] <- log(out[idx, col])
+    }
+  }
+  out
+}
+
+#' @keywords internal
+parse_data_setup_terms <- function(formula, verbose = FALSE) {
+  if (methods::is(formula, "formula")) {
+    return(collect_terms(formula, verbose = verbose))
+  }
+
+  terms <- formula
+  if (inherits(terms, "model")) {
+    terms <- list(terms)
+  }
+  inherits_seq <- unlist(lapply(terms, inherits, what = "model"))
+  if (!all(inherits_seq)) {
+    warning(
+      "formula must be of class formula or a list of objects which inherit class model"
+    )
+  }
+  terms
+}
+
+#' @keywords internal
+bind_design_matrices <- function(terms, data) {
+  terms <- lapply(terms, add_by_levels, data)
+  design_list <- lapply(terms, design, data = data)
+
+  terms_with_beta <- vapply(terms, function(t) methods::slot(t, "type") == "fixed", logical(1L))
+  terms_with_gamma <- vapply(terms, function(t) methods::slot(t, "type") == "random", logical(1L))
+
+  if (any(terms_with_beta)) {
+    x_matrix <- do.call(cbind, design_list[terms_with_beta])
+  } else {
+    x_matrix <- matrix(nrow = nrow(data), ncol = 0)
+  }
+
+  if (any(terms_with_gamma)) {
+    a_matrix <- do.call(cbind, design_list[terms_with_gamma])
+  } else {
+    a_matrix <- matrix(nrow = nrow(data), ncol = 0)
+  }
+
+  list(terms = terms, X = x_matrix, A = a_matrix)
+}
+
+#' @keywords internal
+empty_theta_setup <- function() {
+  data.frame(
+    term = character(),
+    model = character(),
+    label = character(),
+    init = numeric(),
+    lower = numeric(),
+    upper = numeric(),
+    parscale = numeric(),
+    type = factor(levels = .type_factor_levels),
+    transform = logical(0),
+    stringsAsFactors = FALSE
+  )
+}
+
+#' @keywords internal
+empty_beta_setup <- function() {
+  data.frame(
+    term = character(),
+    model = character(),
+    label = character(),
+    order = numeric(),
+    beta_label = character(),
+    init = numeric(),
+    lower = numeric(),
+    upper = numeric(),
+    parscale = numeric(),
+    stringsAsFactors = FALSE
+  )
+}
+
+#' @keywords internal
+empty_gamma_setup <- function() {
+  data.frame(
+    term = character(),
+    model = character(),
+    label = character(),
+    gamma_label = character(),
+    stringsAsFactors = FALSE
+  )
+}
+
+#' @keywords internal
+build_theta_setup <- function(terms) {
+  theta_info_list <- Filter(Negate(is.null), lapply(terms, theta_info))
+  # Normalize transform on each frame before rbind so mixed term types
+  # (different column sets) share a common transform column.
+  theta_info_list <- lapply(theta_info_list, ensure_theta_transform)
+  if (length(theta_info_list) == 0L) {
+    theta_setup <- empty_theta_setup()
+  } else {
+    theta_setup <- do.call(rbind, theta_info_list)
+  }
+  theta_setup <- ensure_theta_transform(theta_setup)
+  theta_setup$id <- seq.int(0, length.out = nrow(theta_setup))
+  theta_setup
+}
+
+#' @keywords internal
+reorder_setup_by_columns <- function(setup, matrix_cols, label_col, empty_warning) {
+  if (ncol(matrix_cols) == 0L || nrow(setup) == 0L) {
+    return(setup)
+  }
+  reorder <- match(colnames(matrix_cols), setup[[label_col]])
+  if (any(is.na(reorder))) {
+    warning(empty_warning)
+    reorder <- reorder[!is.na(reorder)]
+    if (length(reorder) == 0L) {
+      return(data.frame())
+    }
+  }
+  setup[reorder, , drop = FALSE]
+}
+
+#' @keywords internal
+build_beta_setup <- function(terms, data, x_matrix) {
+  beta_setup <- do.call(rbind, lapply(terms, beta_info, data = data))
+  if (is.null(beta_setup)) {
+    beta_setup <- empty_beta_setup()
+  }
+  reorder_setup_by_columns(
+    beta_setup,
+    x_matrix,
+    "beta_label",
+    "some beta labels not found in X matrix columns"
+  )
+}
+
+#' @keywords internal
+build_gamma_setup <- function(terms, data, a_matrix, theta_setup) {
+  random_info_list <- Filter(Negate(is.null), lapply(terms, random_info, data = data))
+  if (length(random_info_list) == 0L) {
+    gamma_setup <- empty_gamma_setup()
+  } else {
+    gamma_setup <- do.call(rbind, random_info_list)
+  }
+  gamma_setup$id <- seq.int(0, length.out = nrow(gamma_setup))
+  if (nrow(gamma_setup) > 0L && nrow(theta_setup) > 0L) {
+    gamma_setup$theta_id <- theta_setup[match(
+      gamma_setup$label, theta_setup$label
+    ), "id"]
+  }
+  gamma_setup <- reorder_setup_by_columns(
+    gamma_setup,
+    a_matrix,
+    "gamma_label",
+    paste(
+      "some random-effect column names were not found among gamma labels;",
+      "dropping unmatched random effects"
+    )
+  )
+  if (nrow(gamma_setup) > 0L && "gamma_label" %in% names(gamma_setup)) {
+    rownames(gamma_setup) <- gamma_setup$gamma_label
+  }
+  gamma_setup
+}
+
+#' @keywords internal
+extract_response <- function(terms, formula_in, data) {
+  obs_idx <- which(vapply(terms, function(t) {
+    methods::is(t, "model") && !is.na(t@ad_kind) &&
+      identical(t@ad_kind, "observations")
+  }, logical(1L)))
+
+  term_idx <- integer(0)
+  if (length(obs_idx) == 1L) {
+    term_idx <- obs_idx[1L]
+  } else if (length(obs_idx) > 1L) {
+    warning("multiple observation-density terms; using the first")
+    term_idx <- obs_idx[1L]
+  }
+
+  if (length(term_idx) == 1L) {
+    return(as.numeric(data[[terms[[term_idx]]@term]]))
+  }
+
+  if (methods::is(formula_in, "formula")) {
+    lhs <- formula_in[[2L]]
+    if (is.symbol(lhs)) {
+      lhs_name <- as.character(lhs)
+      if (lhs_name %in% names(data)) {
+        return(as.numeric(data[[lhs_name]]))
+      }
+      warning("response variable '", lhs_name, "' not found in data")
+      return(numeric(0))
+    }
+    warning("no response variable")
+    return(numeric(0))
+  }
+
+  warning("no response variable")
+  numeric(0)
+}
+
+#' @keywords internal
+empty_parameters_info <- function() {
+  data.frame(
+    term = character(),
+    model = character(),
+    label = character(),
+    init = numeric(),
+    lower = numeric(),
+    upper = numeric(),
+    parscale = numeric(),
+    type = factor(levels = .type_factor_levels),
+    transform = logical(0),
+    stringsAsFactors = FALSE
+  )
+}
+
+#' @keywords internal
+build_parameters_info <- function(beta_df, theta_df, names_common) {
+  beta_rows <- if (!is.null(beta_df) && nrow(beta_df) > 0L) {
+    out <- beta_df[, names_common, drop = FALSE]
+    out$transform <- FALSE
+    out
+  } else {
+    NULL
+  }
+  theta_rows <- if (nrow(theta_df) > 0L) {
+    cols <- intersect(c(names_common, "transform"), names(theta_df))
+    theta_df[, cols, drop = FALSE]
+  } else {
+    NULL
+  }
+  out <- do.call(rbind, Filter(Negate(is.null), list(beta_rows, theta_rows)))
+  if (is.null(out) || nrow(out) == 0L) {
+    return(empty_parameters_info())
+  }
+  rownames(out) <- NULL
+  transform <- out$transform
+  transform[is.na(transform)] <- FALSE
+  log_transform_columns(out, c("init", "lower", "upper"), which(transform))
 }
 
 #' Build design matrices and parameter metadata from a formula
@@ -62,217 +305,23 @@ ensure_theta_transform <- function(theta_setup) {
 #' @export
 data_setup <- function(formula, data, verbose = FALSE) {
   formula_in <- formula
-  if (methods::is(formula, "formula")) {
-    terms <- collect_terms(formula, verbose = verbose)
-  } else {
-    terms <- formula
-    if (inherits(terms, "model")) {
-      terms <- list(terms)
-    }
-    inherits_seq <- unlist(lapply(terms, inherits, what = "model"))
-    if (!all(inherits_seq)) {
-      warning(
-        "formula must be of class formula or a list of objects which inherit class model"
-      )
-    }
-  }
+  terms <- parse_data_setup_terms(formula, verbose = verbose)
+  design <- bind_design_matrices(terms, data)
+  terms <- design$terms
+  x_matrix <- design$X
+  a_matrix <- design$A
 
-  terms <- lapply(terms, add_by_levels, data)
-
-  design_list <- lapply(terms, design, data = data)
-
-  terms_with_gamma <- sapply(terms, methods::slot, "type") == "random"
-  terms_with_beta <- sapply(terms, methods::slot, "type") == "fixed"
-
-  if (any(terms_with_beta)) {
-    x_matrix <- do.call(cbind, design_list[terms_with_beta])
-  } else {
-    x_matrix <- matrix(nrow = nrow(data), ncol = 0)
-  }
-
-  if (any(terms_with_gamma)) {
-    a_matrix <- do.call(cbind, design_list[terms_with_gamma])
-  } else {
-    a_matrix <- matrix(nrow = nrow(data), ncol = 0)
-  }
-
-  theta_info_list <- Filter(Negate(is.null), lapply(terms, theta_info))
-  theta_info_list <- lapply(theta_info_list, function(df) {
-    if (!"transform" %in% names(df)) {
-      df$transform <- TRUE
-    } else {
-      df$transform[is.na(df$transform)] <- TRUE
-    }
-    df
-  })
-  if (length(theta_info_list) == 0L) {
-    theta_setup <- data.frame(
-      term = character(),
-      model = character(),
-      label = character(),
-      init = numeric(),
-      lower = numeric(),
-      upper = numeric(),
-      parscale = numeric(),
-      type = factor(levels = .type_factor_levels),
-      transform = logical(0),
-      stringsAsFactors = FALSE
-    )
-  } else {
-    theta_setup <- do.call(rbind, theta_info_list)
-  }
-  theta_setup <- ensure_theta_transform(theta_setup)
-
-  theta_setup$id <- seq.int(0, length.out = nrow(theta_setup))
-
-  beta_setup <- do.call(rbind, lapply(terms, beta_info, data = data))
-  if (is.null(beta_setup)) {
-    beta_setup <- data.frame(
-      term = character(),
-      model = character(),
-      label = character(),
-      order = numeric(),
-      beta_label = character(),
-      init = numeric(),
-      lower = numeric(),
-      upper = numeric(),
-      parscale = numeric(),
-      stringsAsFactors = FALSE
-    )
-  }
-
-  random_info_list <- Filter(Negate(is.null), lapply(terms, random_info, data = data))
-  if (length(random_info_list) == 0L) {
-    gamma_setup <- data.frame(
-      term = character(),
-      model = character(),
-      label = character(),
-      gamma_label = character(),
-      stringsAsFactors = FALSE
-    )
-  } else {
-    gamma_setup <- do.call(rbind, random_info_list)
-  }
-  gamma_setup$id <- seq.int(0, length.out = nrow(gamma_setup))
-  if (nrow(gamma_setup) > 0L && nrow(theta_setup) > 0L) {
-    gamma_setup$theta_id <- theta_setup[match(
-      gamma_setup$label, theta_setup$label
-    ), "id"]
-  }
-
-  if (ncol(x_matrix) > 0 && nrow(beta_setup) > 0) {
-    beta_reorder <- match(colnames(x_matrix), beta_setup$beta_label)
-    if (any(is.na(beta_reorder))) {
-      warning("some beta labels not found in X matrix columns")
-      beta_reorder <- beta_reorder[!is.na(beta_reorder)]
-      if (length(beta_reorder) == 0) {
-        beta_setup <- data.frame()
-      } else {
-        beta_setup <- beta_setup[beta_reorder, ]
-      }
-    } else {
-      beta_setup <- beta_setup[beta_reorder, ]
-    }
-  }
-
-  if (ncol(a_matrix) > 0 && nrow(gamma_setup) > 0) {
-    gamma_reorder <- match(colnames(a_matrix), gamma_setup$gamma_label)
-    if (any(is.na(gamma_reorder))) {
-      warning("problem with random names")
-      gamma_reorder <- gamma_reorder[!is.na(gamma_reorder)]
-      if (length(gamma_reorder) == 0) {
-        gamma_setup <- data.frame()
-      } else {
-        gamma_setup <- gamma_setup[gamma_reorder, ]
-      }
-    } else {
-      gamma_setup <- gamma_setup[gamma_reorder, ]
-    }
-  }
-  if (nrow(gamma_setup) > 0L && "gamma_label" %in% names(gamma_setup)) {
-    rownames(gamma_setup) <- gamma_setup$gamma_label
-  }
-
-  obs_idx <- which(vapply(terms, function(t) {
-    methods::is(t, "model") && !is.na(t@ad_kind) &&
-      identical(t@ad_kind, "observations")
-  }, logical(1L)))
-  y <- numeric(0)
-  term_idx <- integer(0)
-  if (length(obs_idx) == 1L) {
-    term_idx <- obs_idx[1L]
-  } else if (length(obs_idx) > 1L) {
-    warning("multiple observation-density terms; using the first")
-    term_idx <- obs_idx[1L]
-  }
-  if (length(term_idx) == 1L) {
-    y <- as.numeric(data[[terms[[term_idx]]@term]])
-  } else if (methods::is(formula_in, "formula")) {
-    lhs <- formula_in[[2L]]
-    if (is.symbol(lhs)) {
-      lhs_name <- as.character(lhs)
-      if (lhs_name %in% names(data)) {
-        y <- as.numeric(data[[lhs_name]])
-      } else {
-        warning("response variable '", lhs_name, "' not found in data")
-      }
-    } else {
-      warning("no response variable")
-    }
-  } else {
-    warning("no response variable")
-  }
+  theta_setup <- build_theta_setup(terms)
+  beta_setup <- build_beta_setup(terms, data, x_matrix)
+  gamma_setup <- build_gamma_setup(terms, data, a_matrix, theta_setup)
+  y <- extract_response(terms, formula_in, data)
 
   if (is.null(beta_setup)) {
     beta_theta_names <- names(theta_setup)
   } else {
     beta_theta_names <- intersect(colnames(beta_setup), colnames(theta_setup))
   }
-
   beta_theta_names <- setdiff(beta_theta_names, "order")
-
-  build_parameters_info <- function(beta_df, theta_df, names_common) {
-    beta_rows <- if (!is.null(beta_df) && nrow(beta_df) > 0L) {
-      out <- beta_df[, names_common, drop = FALSE]
-      out$transform <- FALSE
-      out
-    } else {
-      NULL
-    }
-    theta_rows <- if (nrow(theta_df) > 0L) {
-      cols <- intersect(c(names_common, "transform"), names(theta_df))
-      theta_df[, cols, drop = FALSE]
-    } else {
-      NULL
-    }
-    out <- do.call(rbind, Filter(Negate(is.null), list(beta_rows, theta_rows)))
-    if (is.null(out) || nrow(out) == 0L) {
-      return(data.frame(
-        term = character(),
-        model = character(),
-        label = character(),
-        init = numeric(),
-        lower = numeric(),
-        upper = numeric(),
-        parscale = numeric(),
-        type = factor(levels = .type_factor_levels),
-        transform = logical(0),
-        stringsAsFactors = FALSE
-      ))
-    }
-    rownames(out) <- NULL
-    transform <- out$transform
-    transform[is.na(transform)] <- FALSE
-    idx <- which(transform)
-    if (length(idx) > 0L) {
-      for (col in c("init", "lower", "upper")) {
-        if (col %in% names(out)) {
-          out[idx, col] <- log(out[idx, col])
-        }
-      }
-    }
-    out
-  }
 
   list(
     y = y,

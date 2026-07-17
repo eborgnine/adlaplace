@@ -38,7 +38,7 @@ test_that("c() combines shards for small GLMM", {
   ))
   expect_true(is(ad_ptr, "ad_fun_ptr"))
   expect_equal(
-    adlaplace::n_groups(ad_ptr),
+    adlaplace:::n_groups(ad_ptr),
     ncol(config$shards) + 2L
   )
   x <- c(config$beta, config$gamma, config$theta)
@@ -78,6 +78,6 @@ test_that("ad_fun_ptr obs-only builds observation groups only", {
     "data@ad_fun is required",
     fixed = TRUE
   )
-  expect_equal(adlaplace::n_groups(ad_obs), ncol(config$shards))
+  expect_equal(adlaplace:::n_groups(ad_obs), ncol(config$shards))
   expect_true(is(ad_obs, "ad_fun_ptr"))
 })

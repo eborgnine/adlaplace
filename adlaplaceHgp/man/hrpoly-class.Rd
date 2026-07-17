@@ -16,10 +16,10 @@ hrpoly(
   p = 1,
   ref_value = 0,
   by,
-  init = .my_theta_init,
-  lower = .my_theta_lower,
-  upper = .my_theta_upper,
-  parscale = .my_theta_parscale
+  init = NULL,
+  lower = NULL,
+  upper = NULL,
+  parscale = NULL
 )
 
 \S4method{design}{hrpoly}(term, data)

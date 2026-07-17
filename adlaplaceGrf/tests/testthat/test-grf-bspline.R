@@ -59,7 +59,7 @@ test_that("align_gram_to_pattern skips empty CSC columns", {
   p <- as.integer(c(0, 2, 2, 3))
   i <- as.integer(c(0, 1, 2))
   M <- Matrix::Diagonal(3)
-  x <- align_gram_to_pattern(M, p, i, n = 3L)
+  x <- adlaplaceGrf:::align_gram_to_pattern(M, p, i, n = 3L)
   expect_equal(length(x), 3L)
   expect_true(all(is.finite(x)))
 })

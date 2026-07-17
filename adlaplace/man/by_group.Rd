@@ -2,34 +2,25 @@
 % Please edit documentation in R/classes.R
 \name{by_group}
 \alias{by_group}
-\alias{add_by_levels}
 \title{By-Group Classes and Functions}
 \usage{
 by_group(term, data = NULL, levels = NULL)
-
-add_by_levels(term, data)
 }
 \arguments{
-\item{term}{A model term object (inherited from model class)}
+\item{term}{Character, the grouping variable name}
 
-\item{data}{A data frame containing the grouping variable}
+\item{data}{A data frame. If provided and levels is missing, unique values are
+extracted from data[[term]]}
 
 \item{levels}{Character vector of unique levels for the grouping variable.
 If missing and data is provided, unique values are extracted from data[[term]]}
 }
 \value{
 A by_group object
-
-The term with updated by_group levels
 }
 \description{
 Functions for creating and managing by_group objects for hierarchical
 model grouping information.
-
-Updates the by_group levels in a model term from data.
-If the term has no by slot, returns it unchanged.
-If levels are empty, they are populated from data.
-If levels exist, new values in data are added with a warning.
 }
 \examples{
 # Create with explicit levels

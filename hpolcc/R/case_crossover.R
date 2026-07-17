@@ -1,18 +1,40 @@
+#' Build a case-crossover design specification
+#'
+#' @param ... Named design options (\code{strat_vars}, \code{time_var},
+#'   \code{time_lag}, \code{time_size}, \code{scheme}).
+#' @return A list with case-crossover design settings.
+#' @keywords internal
+ccDesign <- function(...) {
+  cc_design <- list(
+    strat_vars = NULL,
+    time_var = NULL,
+    time_lag = 7,
+    time_size = 4,
+    scheme = "time stratified"
+  )
+
+  params <- list(...)
+  cc_design[names(params)] <- params
+
+  cc_design
+}
+
+#' Map observations to case-crossover strata
+#'
+#' @param cc_design A \code{ccDesign} list.
+#' @param data Data table with stratification variables.
+#' @param outcome Optional outcome variable name for stratum filtering.
+#' @return Sparse matrix mapping observations to retained strata.
+#' @keywords internal
 setStrata <- function(cc_design, data, outcome = NULL) {
-  if (is.null(cc_design$time_var) &
+  if (is.null(cc_design$time_var) &&
     is.null(cc_design$strat_vars)) {
-    stop("Provide statification (or time) variables.")
+    stop("Provide stratification (or time) variables.")
   }
-  if (!is.null(cc_design$time_var) &
+  if (!is.null(cc_design$time_var) &&
     cc_design$scheme != "time stratified") {
     stop("Only time stratified scheme is implemented...")
   }
-  # Now, the rows cc_days is run over with each possible case day within it.
-  # To allow bidirectional designs, include (shadow) parameter that
-  # force the TMB template to use only the first day as case day, and
-  # create a row for each case day.
-
-  #  theEnv = list2env(cc_design, envir = environment())
 
   if (is.null(cc_design$strat_vars)) {
     data$interaction <- as.numeric(factor(data$strat_vars[1]))
@@ -23,7 +45,6 @@ setStrata <- function(cc_design, data, outcome = NULL) {
       by = eval(cc_design$strat_vars),
       .SDcols = old_cols
     ]
-    # check
     table_interaction <- mean(table(data$interaction) <= 1)
     if (table_interaction > 0.5) {
       warning("more than half of strata only have one observation, might be missing the zeros in dataset?")
@@ -31,7 +52,6 @@ setStrata <- function(cc_design, data, outcome = NULL) {
   }
 
   if (!is.null(outcome)) {
-    # Summing by interaction for the outcome variable
     summaryDT <- data[, .(
       Noutcome = sum(get(outcome[1]), na.rm = TRUE),
       Ndays = .N
@@ -50,28 +70,8 @@ setStrata <- function(cc_design, data, outcome = NULL) {
 
   cc_matrix_sub <- cbind(i = whichToKeep, j = data$interaction_sub[whichToKeep])
 
-
-  cc_sparse <- Matrix::sparseMatrix(
+  Matrix::sparseMatrix(
     i = cc_matrix_sub[, "i"], j = cc_matrix_sub[, "j"],
     dims = c(nrow(data), max(cc_matrix_sub[, "j"]))
   )
-
-  return(cc_sparse)
-}
-
-
-ccDesign <- function(...) {
-  # default
-  cc_design <- list(
-    strat_vars = NULL,
-    time_var = NULL,
-    time_lag = 7,
-    time_size = 4,
-    scheme = "time stratified"
-  )
-
-  params <- list(...)
-  cc_design[names(params)] <- params
-
-  return(cc_design)
 }

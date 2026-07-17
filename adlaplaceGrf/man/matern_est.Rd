@@ -24,4 +24,3 @@ Evaluates the fitted Matern GRF on \code{eval_grid} under the Laplace
 approximation for the random effects (outer parameters fixed at the MLE).
 Returns a SpatRaster with layers \code{mean}, \code{sd}, and optionally \code{sim1} ... \code{simn}.
 }
-\keyword{internal}

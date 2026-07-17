@@ -123,7 +123,7 @@ Per-shard log densities sum to the joint log density at a fixed parameter vector
 
 ```{r checkByShard}
 x_full <- c(config$gamma, config$theta)
-shards <- seq.int(from = 0L, length.out = adlaplace::n_groups(ad_fun_plain))
+shards <- seq.int(from = 0L, length.out = adlaplace:::n_groups(ad_fun_plain))
 
 by_shard <- vapply(
   shards,
@@ -213,7 +213,7 @@ par(mfrow = c(4, 2), mar = c(2, 2, 2, 0), mgp = c(1, 0.5, 0))
 x_here <- inner_res$full_parameters
 Dpar_dens <- 96 # length(x_here) - 1L
 Ngrid <- 11L
-shards <- seq.int(from = 0L, length.out = adlaplace::n_groups(ad_fun_plain))
+shards <- seq.int(from = 0L, length.out = adlaplace:::n_groups(ad_fun_plain))
 
 par_grid <- matrix(x_here, nrow = Ngrid, ncol = length(x_here), byrow = TRUE)
 Sx <- x_here[Dpar_dens] + seq(-0.1, 0.1, length.out = Ngrid)

@@ -11,6 +11,13 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
+**Long-form lab notebook.** This vignette is intentionally detailed: it records
+end-to-end development checks (simulation, shard construction, derivative
+validation, inner Laplace solves, and outer optimization) rather than a minimal
+getting-started tutorial. Skim the section headings if you only need a quick
+overview; work through the chunks in order when reproducing or extending the
+example backend.
+
 This vignette walks through a hierarchical skew-normal model using the
 `adlaplaceExample` backend: simulate data, build an automatic-differentiation (AD)
 representation as **shards**, validate derivatives, solve the inner Laplace
@@ -265,7 +272,7 @@ vector.
 
 ```{r checkByShard}
 x_full <- c(config$beta, config$gamma, config$theta)
-shards <- seq.int(from = 0L, length.out = adlaplace::n_groups(ad_pack@ptr))
+shards <- seq.int(from = 0L, length.out = adlaplace:::n_groups(ad_pack@ptr))
 
 by_shard <- vapply(
   shards,
@@ -495,7 +502,7 @@ par(mfrow = c(2, 3), mar = c(2, 2, 2, 0), mgp = c(1, 0.5, 0))
 x_here <- res_mid$full_parameters
 Dpar_dens <- length(x_here) - 1
 Ngrid <- 11L
-shards <- seq.int(from = 0L, length.out = adlaplace::n_groups(ad_fun_plain))
+shards <- seq.int(from = 0L, length.out = adlaplace:::n_groups(ad_fun_plain))
 
 par_grid <- matrix(x_here, nrow = Ngrid, ncol = length(x_here), byrow = TRUE)
 Sx <- x_here[Dpar_dens] + seq(-0.1, 0.1, length.out = Ngrid)
@@ -625,18 +632,18 @@ ad_pack2 <- adlaplace::ad_fun(
 adlaplace::joint_log_dens(ad_extra, xx_all, negative = FALSE)
 adlaplace::joint_log_dens(ad_extra2, xx_all2, negative = FALSE)
 adlaplace::joint_log_dens(ad_pack2, xx_all2,
-  shards = adlaplace::n_groups(ad_pack2@ptr) - 1L,
+  shards = adlaplace:::n_groups(ad_pack2@ptr) - 1L,
   negative = FALSE
 )
 
 
 by_shard <- vapply(
-  seq.int(from = 0L, length.out = adlaplace::n_groups(ad_pack@ptr)),
+  seq.int(from = 0L, length.out = adlaplace:::n_groups(ad_pack@ptr)),
   function(s) adlaplace::joint_log_dens(ad_pack, xx_all, shards = s, negative = FALSE),
   numeric(1)
 )
 by_shard2 <- vapply(
-  seq.int(from = 0L, length.out = adlaplace::n_groups(ad_pack2@ptr)),
+  seq.int(from = 0L, length.out = adlaplace:::n_groups(ad_pack2@ptr)),
   function(s) adlaplace::joint_log_dens(ad_pack2, xx_all2, shards = s, negative = FALSE),
   numeric(1)
 )

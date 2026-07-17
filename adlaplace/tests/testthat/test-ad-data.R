@@ -140,7 +140,7 @@ test_that("beta_map and gamma_map default to diagonal maps from X and A", {
     x = 1,
     dims = c(2L, 3L),
     index1 = FALSE,
-    giveCsparse = TRUE
+    repr = "C"
   )
   X <- matrix(1, 2, 1)
   model <- adlaplace:::ad_data(y = c(1, 2), A = A, X = X, theta_map = Matrix::Diagonal(1L))
@@ -168,7 +168,7 @@ test_that("ad_data does not require theta inference", {
     x = 1,
     dims = c(1L, 1L),
     index1 = FALSE,
-    giveCsparse = TRUE
+    repr = "C"
   )
   expect_silent(suppressWarnings(adlaplace:::ad_data(y = 1, A = A, X = matrix(1, 1, 1))))
 })
@@ -180,7 +180,7 @@ test_that("validate_config_layout allows missing theta when theta_map empty", {
     x = 1,
     dims = c(2L, 2L),
     index1 = FALSE,
-    giveCsparse = TRUE
+    repr = "C"
   )
   model <- adlaplace:::ad_data(y = 1:2, A = A, X = matrix(1, 2, 2))
   config <- list(

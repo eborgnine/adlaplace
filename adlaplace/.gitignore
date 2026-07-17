@@ -1,17 +1,18 @@
 .DS_Store
 **/.DS_Store
-
-# Quarto vignette render outputs
-vignettes/*_files/
+.Rproj.user
+.Rhistory
+.RData
+*.tar.gz
+Rplots.pdf
 vignettes/*.html
+vignettes/*_files/
 vignettes/*.knit.md
-vignettes/*.R
-
-# testthat snapshot dir (only commit when expect_snapshot tests exist)
+src/*.o
+src/*.so
+src/*.dll
+src/Makevars
+src/Makevars.win
 tests/testthat/_snaps/
-
 .Rlibrary
 **/.Rlibrary
-
-src/include/cppad/local/
-src/include/cppad/core/

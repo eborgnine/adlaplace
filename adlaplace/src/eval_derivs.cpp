@@ -16,7 +16,7 @@ Rcpp::IntegerVector shards_vector(
 
 }  // namespace
 
-// [[Rcpp::export]]
+// [[Rcpp::export(name = ".joint_log_dens_cpp")]]
 double joint_log_dens(
   SEXP ad_fun,
   const Rcpp::NumericVector& x,
@@ -46,7 +46,7 @@ double joint_log_dens(
   return negative ? -total : total;
 }
 
-// [[Rcpp::export]]
+// [[Rcpp::export(name = ".grad_cpp")]]
 Rcpp::NumericVector grad(
   SEXP ad_fun,
   const Rcpp::NumericVector& x,
@@ -74,7 +74,7 @@ Rcpp::NumericVector grad(
   return grad_out;
 }
 
-// [[Rcpp::export]]
+// [[Rcpp::export(name = ".hessian_cpp")]]
 Rcpp::S4 hessian(
   SEXP ad_fun,
   const Rcpp::NumericVector& x,

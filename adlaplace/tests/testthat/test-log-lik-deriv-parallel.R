@@ -38,7 +38,7 @@ test_that("ad_fun assigns threads for multi-shard model", {
     adlaplace::ad_fun_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
   ))
   ad_fun <- adlaplace::ad_fun(ad_ptr, num_threads = 2L)
-  n <- adlaplace::n_groups(ad_fun@ptr)
+  n <- adlaplace:::n_groups(ad_fun@ptr)
   owners <- vapply(seq_len(n) - 1L, function(g) {
     adlaplace:::get_thread_owner(ad_fun@ptr, g)
   }, integer(1))
@@ -183,7 +183,7 @@ test_that("ad_fun_ptr has no thread assignment until ad_fun", {
   expect_false(adlaplace:::get_owner_thread_assigned(ptr, 0L))
 
   af <- adlaplace::ad_fun(ptr, num_threads = 2L)
-  n <- adlaplace::n_groups(af@ptr)
+  n <- adlaplace:::n_groups(af@ptr)
   owners <- vapply(seq_len(n) - 1L, function(g) {
     adlaplace:::get_thread_owner(af@ptr, g)
   }, integer(1))
@@ -215,7 +215,7 @@ test_that("ad_fun(ptr, num_threads = 1L) assigns all shards to thread 0", {
   )
   ptr <- adlaplace::ad_fun_ptr(as_shard(model, "observations", "nbinom_obs"), config1)
   af <- adlaplace::ad_fun(ptr, num_threads = 1L)
-  owners <- vapply(seq_len(adlaplace::n_groups(af@ptr)) - 1L, function(g) {
+  owners <- vapply(seq_len(adlaplace:::n_groups(af@ptr)) - 1L, function(g) {
     adlaplace:::get_thread_owner(af@ptr, g)
   }, integer(1))
   expect_true(all(owners == 0L))

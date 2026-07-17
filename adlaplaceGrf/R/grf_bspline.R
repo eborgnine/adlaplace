@@ -85,6 +85,7 @@ setMethod(
 
 #' Core assembly from numeric x, y and list knots
 #' @keywords internal
+#' @noRd
 grf_bspline_xy <- function(x, y, knots, degree = 2L) {
   degree <- as.integer(degree)
   if (degree < 2L) {
@@ -161,6 +162,7 @@ grf_bspline_xy <- function(x, y, knots, degree = 2L) {
 
 #' Sparse design matrix for tensor-product B-splines at (x, y)
 #' @keywords internal
+#' @noRd
 tensor_design <- function(x, y, knots_x, knots_y, degree) {
   Bx <- bspline_eval(knots_x, x, degree, 0L)
   By <- bspline_eval(knots_y, y, degree, 0L)

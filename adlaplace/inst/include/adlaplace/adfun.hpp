@@ -255,9 +255,9 @@ inline std::vector<GroupPack> build_ad_fun_obs(const ad_data &model,
   return result;
 }
 
-inline GroupPack build_ad_fun_parameters(const ad_data &model,
-                                         const Rcpp::List &config,
-                                         LogDensSingleDataFn log_dens) {
+inline GroupPack build_ad_fun_parameters(
+    const ad_data &model, const Rcpp::List &config, LogDensSingleDataFn log_dens,
+    const CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> &hessian = empty_sparse_rc()) {
 
   const Config cfg(config);
   validate_config_matches_model(cfg, model);
@@ -286,7 +286,7 @@ inline GroupPack build_ad_fun_parameters(const ad_data &model,
   if (cfg.verbose) {
     Rcpp::Rcout << "build_ad_fun_parameters: computing sparsity...\n";
   }
-  adpack_sparsity(ad_params_G, model.seq_gamma, pack, cfg.verbose);
+  adpack_sparsity(ad_params_G, model.seq_gamma, pack, cfg.verbose, hessian);
   return pack;
 }
 

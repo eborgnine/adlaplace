@@ -52,7 +52,7 @@ adlaplace_attach_hessian <- function(handle, hessian_pack) {
 #'
 #' @param handle External pointer of class \code{ad_fun_ptr}.
 #' @return Integer count of groups (shards).
-#' @export
+#' @keywords internal
 n_groups <- function(handle) {
     .Call(`_adlaplace_n_groups`, handle)
 }
@@ -155,15 +155,15 @@ create_ad_fun_random_mult <- function(model, config) {
     .Call(`_adlaplace_create_ad_fun_random_mult`, model, config)
 }
 
-joint_log_dens <- function(ad_fun, x, shards = NULL, negative = TRUE) {
+.joint_log_dens_cpp <- function(ad_fun, x, shards = NULL, negative = TRUE) {
     .Call(`_adlaplace_joint_log_dens`, ad_fun, x, shards, negative)
 }
 
-grad <- function(ad_fun, x, shards = NULL, inner = FALSE, negative = TRUE) {
+.grad_cpp <- function(ad_fun, x, shards = NULL, inner = FALSE, negative = TRUE) {
     .Call(`_adlaplace_grad`, ad_fun, x, shards, inner, negative)
 }
 
-hessian <- function(ad_fun, x, shards = NULL, inner = FALSE, verbose = FALSE, negative = TRUE) {
+.hessian_cpp <- function(ad_fun, x, shards = NULL, inner = FALSE, verbose = FALSE, negative = TRUE) {
     .Call(`_adlaplace_hessian`, ad_fun, x, shards, inner, verbose, negative)
 }
 
@@ -199,19 +199,15 @@ inner_opt <- function(parameters, gamma, ad_fun, control = NULL, deriv = FALSE, 
     .Call(`_adlaplace_inner_opt`, parameters, gamma, ad_fun, control, deriv, verbose)
 }
 
-fun_obj_fdfh <- function(parameters, gamma, ad_fun, inner = TRUE, verbose = FALSE) {
+.fun_obj_fdfh_cpp <- function(parameters, gamma, ad_fun, inner = TRUE, verbose = FALSE) {
     .Call(`_adlaplace_fun_obj_fdfh`, parameters, gamma, ad_fun, inner, verbose)
 }
 
-trace_hinv_t <- function(ad_fun, x, LinvPt, LinvPtColumns, verbose = FALSE) {
-    .Call(`_adlaplace_trace_hinv_t`, ad_fun, x, LinvPt, LinvPtColumns, verbose)
-}
-
-#' Whether this build of adlaplace was compiled with OpenMP
-#'
-#' @return Logical scalar.
-#' @keywords internal
 has_openmp <- function() {
     .Call(`_adlaplace_has_openmp`)
+}
+
+.trace_hinv_t_cpp <- function(ad_fun, x, LinvPt, LinvPtColumns, verbose = FALSE) {
+    .Call(`_adlaplace_trace_hinv_t`, ad_fun, x, LinvPt, LinvPtColumns, verbose)
 }
 

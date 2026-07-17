@@ -64,15 +64,6 @@ rpoly <- function(x, p = 2, ref_value = 0, sd = Inf) {
   )
 }
 
-#' @describeIn rpoly-class Theta info method for rpoly objects
-#' @export
-#' @param term A `rpoly` term object.
-#' @return NULL (random polynomial terms don't have theta info).
-setMethod("theta_info", "rpoly", function(term) {
-  # Random polynomial terms don't have theta info
-  return(NULL)
-})
-
 #' @describeIn rpoly-class Design method for rpoly objects
 #' @export
 #' @param term A `rpoly` term object.
@@ -144,12 +135,3 @@ setMethod("random_info", "rpoly", function(term, data) {
   return(result)
 })
 
-#' @describeIn rpoly-class Beta info method for rpoly objects
-#' @export
-#' @param term A `rpoly` term object.
-#' @param data A data frame containing the variables used in the term.
-#' @return NULL (random polynomial terms don't have beta info).
-setMethod("beta_info", "rpoly", function(term, data) {
-  # Random polynomial terms don't have beta info
-  return(NULL)
-})

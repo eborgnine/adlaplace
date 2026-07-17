@@ -36,11 +36,74 @@ model_data <- function(formula, data, verbose = FALSE, na_omit = TRUE) {
     data <- prepare_model_rows(data, the_terms, verbose = verbose)
   }
 
-  elgm_mats <- list()
+  elgm_mats <- collect_elgm_matrices(the_terms, data)
+  all_data <- data_setup(formula = formula_in, data = data, verbose = verbose)
+  the_terms <- all_data$terms
+
+  if (length(elgm_mats) == 1L) {
+    all_data$elgm_matrix <- elgm_mats[[1L]]
+  }
+
+  shard_counts <- count_model_shards(all_data)
+  observations <- list()
+  random <- list()
+  random_parameters <- list()
+
+  for (term_here in the_terms) {
+    if (!methods::is(term_here, "model")) {
+      warning(
+        "term does not inherit from class 'model'; skipping",
+        call. = FALSE
+      )
+      next
+    }
+
+    elgm_here <- elgm_mats[[term_here@term]]
+    kind <- term_here@ad_kind
+
+    if (identical(kind, "observations")) {
+      observations[[term_here@term]] <- build_observation_shard(
+        term_here,
+        all_data,
+        shard_counts,
+        elgm_here
+      )
+    }
+
+    if (identical(kind, "random")) {
+      random_shards <- build_random_shards(
+        term_here,
+        all_data,
+        shard_counts,
+        random
+      )
+      if (!is.null(random_shards$random)) {
+        random[[random_shards$name]] <- random_shards$random
+      }
+      if (!is.null(random_shards$parameter)) {
+        random_parameters[[random_shards$parameter_name]] <- random_shards$parameter
+      }
+    }
+  }
+
+  parameters <- build_parameter_shards(observations, random_parameters)
+
+  list(
+    data = all_data,
+    observations = observations,
+    parameters = parameters,
+    random = random,
+    terms = the_terms
+  )
+}
+
+#' @keywords internal
+collect_elgm_matrices <- function(terms, data) {
   obs_terms <- Filter(function(t) {
     methods::is(t, "model") && identical(t@ad_kind, "observations")
-  }, the_terms)
+  }, terms)
 
+  elgm_mats <- list()
   for (term in obs_terms) {
     term_class <- class(term)[1L]
     if (methods::hasMethod("elgm_matrix", term_class)) {
@@ -55,150 +118,170 @@ model_data <- function(formula, data, verbose = FALSE, na_omit = TRUE) {
       call. = FALSE
     )
   }
+  elgm_mats
+}
 
-  all_data <- data_setup(formula = formula_in, data = data, verbose = verbose)
-  the_terms <- all_data$terms
+#' @keywords internal
+count_model_shards <- function(all_data) {
+  list(
+    beta = max(c(0, nrow(all_data$info$beta))),
+    gamma = max(c(0, nrow(all_data$info$gamma))),
+    theta = max(c(0, nrow(all_data$info$theta)))
+  )
+}
 
-  if (length(elgm_mats) == 1L) {
-    all_data$elgm_matrix <- elgm_mats[[1L]]
+#' @keywords internal
+beta_gamma_maps <- function(all_data, counts) {
+  beta_map <- if (counts$beta > 0L && ncol(all_data$X) > 0L) {
+    list(
+      match(colnames(all_data$X), all_data$info$beta$beta_label),
+      as.integer(counts$beta)
+    )
+  } else {
+    counts$beta
   }
+  gamma_map <- if (counts$gamma > 0L && ncol(all_data$A) > 0L) {
+    list(
+      match(colnames(all_data$A), all_data$info$gamma$gamma_label),
+      as.integer(counts$gamma)
+    )
+  } else {
+    counts$gamma
+  }
+  list(beta_map = beta_map, gamma_map = gamma_map)
+}
 
-  n_beta <- max(c(0, nrow(all_data$info$beta))) # nrow might be NULL
-  n_gamma <- max(c(0, nrow(all_data$info$gamma)))
-  n_theta <- max(c(0, nrow(all_data$info$theta)))
-
-  observations <- list()
-  random <- list()
-  random_parameters <- list()
-
-  for (term_here in the_terms) {
-    if (!methods::is(term_here, "model")) {
-      warning("term doesnt appear to be a model")
-      next
-    }
-    ad_name <- term_here@ad_fun
-    kind <- term_here@ad_kind
-    elgm_here <- elgm_mats[[term_here@term]]
-
-    if (identical(kind, "observations")) {
-      beta_map <- if (n_beta > 0L && ncol(all_data$X) > 0L) {
-        list(
-          match(colnames(all_data$X), all_data$info$beta$beta_label),
-          as.integer(n_beta)
-        )
-      } else {
-        n_beta
-      }
-      gamma_map <- if (n_gamma > 0L && ncol(all_data$A) > 0L) {
-        list(
-          match(colnames(all_data$A), all_data$info$gamma$gamma_label),
-          as.integer(n_gamma)
-        )
-      } else {
-        n_gamma
-      }
-      observations[[term_here@term]] <- ad_data(
-        y = all_data$y,
-        A = all_data$A,
-        X = all_data$X,
-        beta_map = beta_map,
-        gamma_map = gamma_map,
-        theta_map = list(
-          grep(term_here@label, all_data$info$theta$label),
-          as.integer(n_theta)
-        ),
-        elgm_matrix = elgm_here,
-        ad_fun = ad_name,
-        ad_kind = "observations",
-        package = term_here@package,
-        weights = {
-          if (methods::is(term_here, "binomial") &&
-              length(term_here@size) == 1L &&
-              nzchar(term_here@size)) {
-            size_col <- term_here@size
-            if (!size_col %in% names(all_data$data)) {
-              stop(
-                "binomial size column '", size_col, "' not found in data",
-                call. = FALSE
-              )
-            }
-            as.numeric(all_data$data[[size_col]])
-          } else {
-            numeric(0)
-          }
-        }
+#' @keywords internal
+observation_weights <- function(term_here, data) {
+  if (methods::is(term_here, "binomial") &&
+      length(term_here@size) == 1L &&
+      nzchar(term_here@size)) {
+    size_col <- term_here@size
+    if (!size_col %in% names(data)) {
+      stop(
+        "binomial size column '", size_col, "' not found in data",
+        call. = FALSE
       )
     }
+    return(as.numeric(data[[size_col]]))
+  }
+  numeric(0)
+}
 
-    if (identical(kind, "random")) {
-      prec_mat <- precision(term_here, all_data$data)
-      if (!is.null(prec_mat)) {
-        # Key by @label, not @term: multiple random terms can share a grouping
-        # variable while still having distinct labels / gamma columns.
-        random_name <- term_here@label
-        if (random_name %in% names(random)) {
-          stop(
-            "duplicate random-term label '", random_name, "'; ",
-            "each random term needs a unique @label",
-            call. = FALSE
-          )
-        }
-        prec_payload <- if (is.list(prec_mat)) {
-          prec_mat
-        } else {
-          as.numeric(Matrix::diag(prec_mat))
-        }
-        theta_map_here <- list(
-          grep(term_here@label, all_data$info$theta$label),
-          as.integer(n_theta)
-        )
-        random[[random_name]] <- ad_data(
-          beta_map = n_beta,
-          gamma_map = list(
-            which(all_data$info$gamma$label == term_here@label),
-            n_gamma
-          ),
-          theta_map = theta_map_here,
-          ad_fun = ad_name,
-          ad_kind = "random",
-          package = term_here@package,
-          precision = prec_payload
-        )
-        extra_name <- extra_ad_fun(term_here)
-        if (is.character(extra_name) && length(extra_name) == 1L &&
-            nzchar(extra_name)) {
-          random_parameters[[paste0(random_name, "_det")]] <- ad_data(
-            beta_map = n_beta,
-            gamma_map = n_gamma,
-            theta_map = theta_map_here,
-            ad_fun = extra_name,
-            ad_kind = "parameters",
-            package = term_here@package,
-            precision = prec_payload
-          )
-        }
-      }
-    }
+#' @keywords internal
+theta_map_for_term <- function(term_label, theta_info, n_theta) {
+  list(
+    grep(term_label, theta_info$label),
+    as.integer(n_theta)
+  )
+}
+
+#' @keywords internal
+build_observation_shard <- function(term_here, all_data, counts, elgm_here) {
+  maps <- beta_gamma_maps(all_data, counts)
+  ad_data(
+    y = all_data$y,
+    A = all_data$A,
+    X = all_data$X,
+    beta_map = maps$beta_map,
+    gamma_map = maps$gamma_map,
+    theta_map = theta_map_for_term(
+      term_here@label,
+      all_data$info$theta,
+      counts$theta
+    ),
+    elgm_matrix = elgm_here,
+    ad_fun = term_here@ad_fun,
+    ad_kind = "observations",
+    package = term_here@package,
+    weights = observation_weights(term_here, all_data$data)
+  )
+}
+
+#' @keywords internal
+build_random_shards <- function(term_here, all_data, counts, random) {
+  prec_mat <- precision(term_here, all_data$data)
+  if (is.null(prec_mat)) {
+    return(list(random = NULL, parameter = NULL))
   }
 
+  random_name <- term_here@label
+  if (random_name %in% names(random)) {
+    stop(
+      "duplicate random-term label '", random_name, "'; ",
+      "each random term needs a unique @label",
+      call. = FALSE
+    )
+  }
+
+  prec_payload <- if (is.list(prec_mat)) {
+    prec_mat
+  } else {
+    as.numeric(Matrix::diag(prec_mat))
+  }
+  theta_map_here <- theta_map_for_term(
+    term_here@label,
+    all_data$info$theta,
+    counts$theta
+  )
+
+  random_shard <- ad_data(
+    beta_map = counts$beta,
+    gamma_map = list(
+      which(all_data$info$gamma$label == term_here@label),
+      counts$gamma
+    ),
+    theta_map = theta_map_here,
+    ad_fun = term_here@ad_fun,
+    ad_kind = "random",
+    package = term_here@package,
+    precision = prec_payload
+  )
+
+  extra_name <- extra_ad_fun(term_here)
+  parameter_shard <- NULL
+  parameter_name <- NULL
+  if (is.character(extra_name) && length(extra_name) == 1L && nzchar(extra_name)) {
+    parameter_name <- paste0(random_name, "_det")
+    parameter_shard <- ad_data(
+      beta_map = counts$beta,
+      gamma_map = counts$gamma,
+      theta_map = theta_map_here,
+      ad_fun = extra_name,
+      ad_kind = "parameters",
+      package = term_here@package,
+      precision = prec_payload
+    )
+  }
+
+  list(
+    name = random_name,
+    random = random_shard,
+    parameter_name = parameter_name,
+    parameter = parameter_shard
+  )
+}
+
+#' @keywords internal
+build_parameter_shards <- function(observations, random_parameters) {
   parameters <- Filter(
     Negate(is.null),
     lapply(
       observations,
-      function(xx) {
-        if (ncol(xx@theta_map) == 0L) {
+      function(obs_shard) {
+        if (ncol(obs_shard@theta_map) == 0L) {
           return(NULL)
         }
         ad_data(
-          y = xx@y,
-          theta_map = xx@theta_map,
-          beta_map = nrow(xx@beta_map),
-          gamma_map = nrow(xx@gamma_map),
-          elgm_matrix = xx@elgm_matrix,
-          ad_fun = parameter_ad_fun(xx@ad_fun),
+          y = obs_shard@y,
+          theta_map = obs_shard@theta_map,
+          beta_map = nrow(obs_shard@beta_map),
+          gamma_map = nrow(obs_shard@gamma_map),
+          elgm_matrix = obs_shard@elgm_matrix,
+          ad_fun = parameter_ad_fun(obs_shard@ad_fun),
           ad_kind = "parameters",
-          package = xx@package,
-          weights = xx@weights
+          package = obs_shard@package,
+          weights = obs_shard@weights
         )
       }
     )
@@ -213,12 +296,5 @@ model_data <- function(formula, data, verbose = FALSE, na_omit = TRUE) {
   if (length(random_parameters) > 0L) {
     parameters <- c(parameters, random_parameters)
   }
-
-  list(
-    data = all_data,
-    observations = observations,
-    random = random,
-    parameters = parameters,
-    terms = the_terms
-  )
+  parameters
 }

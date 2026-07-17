@@ -3,10 +3,10 @@ Type: Package
 Title: FEM Matern Gaussian Random Fields for Adlaplace
 Version: 0.5.0
 Authors@R: person(given = "Patrick", family = "Brown",
-    email = "patrick.brown@utoronto.ca",
+    email = "patrick.borgnine@gmail.com",
     role = c("aut", "cre", "cph"))
 Author: Patrick Brown [aut, cre, cph]
-Maintainer: Patrick Brown <patrick.brown@utoronto.ca>
+Maintainer: Patrick Brown <patrick.borgnine@gmail.com>
 Description: Tensor-product B-spline finite-element ingredients for Matern
     Gaussian random fields (mass, stiffness, and higher-order Grams) for use
     with the adlaplace Laplace approximation framework. Provides design and
@@ -31,9 +31,10 @@ Collate:
     'fem_chol.R'
     'fem_precision.R'
     'grams_1d.R'
+    'knots.R'
     'grf_bspline-terra.R'
     'grf_bspline.R'
-    'knots.R'
+    'matern-geometry.R'
     'matern.R'
     'matern_est.R'
     'zzz.R'

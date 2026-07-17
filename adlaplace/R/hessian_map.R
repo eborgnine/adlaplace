@@ -4,9 +4,9 @@
 #' and per-group maps from shard sparsity patterns.
 #'
 #' @param sparsity_list List of per-group sparsity shards from \code{ad_fun()}.
-#' @param Nbeta Number of fixed-effect parameters.
-#' @param Ngamma Number of random-effect parameters.
-#' @param Ntheta Number of variance parameters.
+#' @param n_beta Number of fixed-effect parameters.
+#' @param n_gamma Number of random-effect parameters.
+#' @param n_theta Number of variance parameters.
 #'
 #' @return A list with \code{outer}, \code{inner}, optional \code{chol_inner_list}
 #'   (symbolic LDL pattern for C++: \code{L1}, \code{Linv}, \code{perm},
@@ -18,76 +18,121 @@
 #'   \code{beta}/\code{gamma}/\code{theta}; consumed internally by
 #'   \code{ad_fun()}).
 #'
-#' @export
-hessian_map <- function(sparsity_list, Nbeta, Ngamma, Ntheta) {
-  if (Nbeta < 0L || Ngamma < 0L || Ntheta < 0L) {
-    stop("Nbeta, Ngamma, and Ntheta must be non-negative")
+#' @keywords internal
+hessian_map <- function(sparsity_list, n_beta, n_gamma, n_theta) {
+  if (n_beta < 0L || n_gamma < 0L || n_theta < 0L) {
+    stop("n_beta, n_gamma, and n_theta must be non-negative")
   }
 
   Ngroups <- length(sparsity_list)
-  Nparams <- Nbeta + Ngamma + Ntheta
-  Sgamma0 <- seq.int(Nbeta, length.out = Ngamma)
+  Nparams <- n_beta + n_gamma + n_theta
+  Sgamma0 <- seq.int(n_beta, length.out = n_gamma)
 
-  make_sparse_df <- function(shard_id, row, col) {
-    n <- length(col)
-    data.frame(
-      shard = rep.int(as.integer(shard_id), n),
-      row = as.integer(row),
-      col = as.integer(col),
-      local = seq.int(0L, length.out = n),
+  shard_frames <- hessian_map_shard_frames(sparsity_list, Ngroups)
+  sparsityOuter <- hessian_map_assign_outer_cells(
+    shard_frames$outer,
+    Nparams
+  )
+  sparsityInner <- hessian_map_assign_inner_cells(
+    shard_frames$inner,
+    Sgamma0,
+    n_gamma
+  )
+
+  outerMat <- sparsityOuter[!duplicated(sparsityOuter$cell), , drop = FALSE]
+  innerMat <- sparsityInner[!duplicated(sparsityInner$cell), , drop = FALSE]
+
+  hessian_outer <- hessian_map_build_outer_template(outerMat, Nparams)
+  hessian_inner <- hessian_map_build_inner_template(innerMat, n_gamma)
+  hessian_outer_map <- hessian_map_build_shard_map(sparsityOuter, Ngroups)
+  hessian_inner_map <- hessian_map_build_shard_map(sparsityInner, Ngroups)
+
+  result_map <- hessian_map_extract_maps(
+    hessian_outer_map,
+    hessian_inner_map,
+    hessian_inner
+  )
+  chol_result <- hessian_map_build_chol_inner(innerMat, n_gamma)
+
+  list(
+    outer = as_dgC(hessian_outer),
+    inner = as_dgC(hessian_inner),
+    chol_inner = chol_result$chol_inner,
+    chol_inner_list = chol_result$chol_inner_list,
+    map_outer = result_map$outer,
+    map_inner = result_map$inner,
+    sizes = c(beta = n_beta, gamma = n_gamma, theta = n_theta)
+  )
+}
+
+hessian_map_make_sparse_df <- function(shard_id, row, col) {
+  n <- length(col)
+  data.frame(
+    shard = rep.int(as.integer(shard_id), n),
+    row = as.integer(row),
+    col = as.integer(col),
+    local = seq.int(0L, length.out = n),
+    stringsAsFactors = FALSE
+  )
+}
+
+hessian_map_bind_sparse_df <- function(lst) {
+  lst <- lst[lengths(lst) > 0L]
+  if (length(lst) == 0L) {
+    return(data.frame(
+      shard = integer(0),
+      row = integer(0),
+      col = integer(0),
+      local = integer(0),
       stringsAsFactors = FALSE
-    )
+    ))
   }
+  do.call(rbind, lst)
+}
 
-  bind_sparse_df <- function(lst) {
-    lst <- lst[lengths(lst) > 0L]
-    if (length(lst) == 0L) {
-      return(data.frame(
-        shard = integer(0),
-        row = integer(0),
-        col = integer(0),
-        local = integer(0),
-        stringsAsFactors = FALSE
-      ))
-    }
-    do.call(rbind, lst)
-  }
-
+hessian_map_shard_frames <- function(sparsity_list, Ngroups) {
   list_outer <- vector("list", Ngroups)
   list_inner <- vector("list", Ngroups)
 
   for (D in seq_len(Ngroups)) {
     shard <- sparsity_list[[D]]
-    list_outer[[D]] <- make_sparse_df(
+    list_outer[[D]] <- hessian_map_make_sparse_df(
       shard_id = D - 1L,
       row = shard$row_hess,
       col = shard$col_hess
     )
-    list_inner[[D]] <- make_sparse_df(
+    list_inner[[D]] <- hessian_map_make_sparse_df(
       shard_id = D - 1L,
       row = shard$row_hess_inner,
       col = shard$col_hess_inner
     )
   }
 
-  sparsityOuter <- bind_sparse_df(list_outer)
-  sparsityInner <- bind_sparse_df(list_inner)
+  list(
+    outer = hessian_map_bind_sparse_df(list_outer),
+    inner = hessian_map_bind_sparse_df(list_inner)
+  )
+}
 
+hessian_map_assign_outer_cells <- function(sparsityOuter, Nparams) {
   sparsityOuter$cell <- sparsityOuter$row + sparsityOuter$col * Nparams
   sparsityOuter$cellSparse <- as.integer(factor(sparsityOuter$cell)) - 1L
+  sparsityOuter
+}
 
+hessian_map_assign_inner_cells <- function(sparsityInner, Sgamma0, n_gamma) {
   sparsityInner$rowInner <- match(sparsityInner$row, Sgamma0) - 1L
   sparsityInner$colInner <- match(sparsityInner$col, Sgamma0) - 1L
   if (anyNA(sparsityInner$rowInner) || anyNA(sparsityInner$colInner)) {
     stop("inner hessian index out of gamma range")
   }
-  sparsityInner$cell <- sparsityInner$rowInner + Ngamma * sparsityInner$colInner
+  sparsityInner$cell <- sparsityInner$rowInner + n_gamma * sparsityInner$colInner
   sparsityInner$cellSparse <- as.integer(factor(sparsityInner$cell)) - 1L
+  sparsityInner
+}
 
-  outerMat <- sparsityOuter[!duplicated(sparsityOuter$cell), , drop = FALSE]
-  innerMat <- sparsityInner[!duplicated(sparsityInner$cell), , drop = FALSE]
-
-  hessian_outer <- Matrix::sparseMatrix(
+hessian_map_build_outer_template <- function(outerMat, Nparams) {
+  Matrix::sparseMatrix(
     i = outerMat$row,
     j = outerMat$col,
     x = outerMat$cellSparse,
@@ -96,36 +141,37 @@ hessian_map <- function(sparsity_list, Nbeta, Ngamma, Ntheta) {
     index1 = FALSE,
     dims = c(Nparams, Nparams)
   )
+}
 
-  hessian_inner <- Matrix::sparseMatrix(
+hessian_map_build_inner_template <- function(innerMat, n_gamma) {
+  Matrix::sparseMatrix(
     i = innerMat$rowInner,
     j = innerMat$colInner,
     x = innerMat$cellSparse,
     repr = "C",
     symmetric = TRUE,
     index1 = FALSE,
-    dims = c(Ngamma, Ngamma)
+    dims = c(n_gamma, n_gamma)
   )
+}
 
-  hessian_outer_map <- Matrix::sparseMatrix(
-    i = sparsityOuter$cellSparse,
-    j = sparsityOuter$shard,
-    x = sparsityOuter$local,
+hessian_map_build_shard_map <- function(sparsity_df, Ngroups) {
+  Matrix::sparseMatrix(
+    i = sparsity_df$cellSparse,
+    j = sparsity_df$shard,
+    x = sparsity_df$local,
     index1 = FALSE,
     repr = "C",
-    dims = c(length(unique(sparsityOuter$cellSparse)), Ngroups)
+    dims = c(length(unique(sparsity_df$cellSparse)), Ngroups)
   )
+}
 
-  hessian_inner_map <- Matrix::sparseMatrix(
-    i = sparsityInner$cellSparse,
-    j = sparsityInner$shard,
-    x = sparsityInner$local,
-    index1 = FALSE,
-    repr = "C",
-    dims = c(length(unique(sparsityInner$cellSparse)), Ngroups)
-  )
-
-  result_map <- list(
+hessian_map_extract_maps <- function(
+  hessian_outer_map,
+  hessian_inner_map,
+  hessian_inner
+) {
+  list(
     outer = list(
       p = as.integer(hessian_outer_map@p),
       local = as.integer(hessian_outer_map@x),
@@ -139,9 +185,11 @@ hessian_map <- function(sparsity_list, Nbeta, Ngamma, Ntheta) {
       dims = c(length(hessian_inner@x), ncol(hessian_inner_map))
     )
   )
+}
 
+hessian_map_build_chol_inner <- function(innerMat, n_gamma) {
   chol_inner <- NULL
-  if (Ngamma > 0L && nrow(innerMat) > 0L) {
+  if (n_gamma > 0L && nrow(innerMat) > 0L) {
     chol_inner <- tryCatch(
       {
         dummy_x <- ifelse(innerMat$rowInner == innerMat$colInner, 10, 1)
@@ -151,7 +199,7 @@ hessian_map <- function(sparsity_list, Nbeta, Ngamma, Ntheta) {
           x = dummy_x,
           symmetric = TRUE,
           index1 = FALSE,
-          dims = c(Ngamma, Ngamma)
+          dims = c(n_gamma, n_gamma)
         )
         Matrix::Cholesky(hi_dummy, perm = TRUE, LDL = TRUE)
       },
@@ -165,7 +213,7 @@ hessian_map <- function(sparsity_list, Nbeta, Ngamma, Ntheta) {
     perm0 <- as.integer(chol_inner@perm)
     perm_inv <- as.integer(order(chol_inner@perm) - 1L)
     Linv <- methods::as(Matrix::solve(L), "nMatrix")
-    half_H_inv_pat <- Matrix::crossprod(Linv, Matrix::Diagonal(Ngamma, 1))
+    half_H_inv_pat <- Matrix::crossprod(Linv, Matrix::Diagonal(n_gamma, 1))
     half_H_inv_pat <- half_H_inv_pat[perm_inv + 1L, ]
     H_inv_pat <- Matrix::drop0(Matrix::triu(Matrix::tcrossprod(half_H_inv_pat), k = 0L))
     chol_inner_list <- list(
@@ -186,15 +234,7 @@ hessian_map <- function(sparsity_list, Nbeta, Ngamma, Ntheta) {
     )
   }
 
-  list(
-    outer = as_dgC(hessian_outer),
-    inner = as_dgC(hessian_inner),
-    chol_inner = chol_inner,
-    chol_inner_list = chol_inner_list,
-    map_outer = result_map$outer,
-    map_inner = result_map$inner,
-    sizes = c(beta = Nbeta, gamma = Ngamma, theta = Ntheta)
-  )
+  list(chol_inner = chol_inner, chol_inner_list = chol_inner_list)
 }
 
 #' Per-shard column indices into half_H_inv for trace_hinv_t
@@ -228,8 +268,8 @@ trace_columns_from_pattern <- function(
   seq_gamma0 <- seq.int(n_beta, length.out = n_gamma)
   which_columns_by_group1 <- lapply(
     group_sparsity,
-    function(xx, refmat) {
-      grad_inner_gamma <- match(xx, seq_gamma0)
+    function(grad_inner, refmat) {
+      grad_inner_gamma <- match(grad_inner, seq_gamma0)
       linv_here <- refmat[grad_inner_gamma, , drop = FALSE]
       which(diff(linv_here@p) > 0L) - 1L
     },

@@ -26,5 +26,5 @@ test_that("ad_fun_ptr dispatches to extension package via ad_data@package", {
 
   ptr <- adlaplace::ad_fun_ptr(obs, config)
   expect_true(inherits(ptr, "ad_fun_ptr"))
-  expect_true(adlaplace::n_groups(ptr) >= 1L)
+  expect_true(adlaplace:::n_groups(ptr) >= 1L)
 })

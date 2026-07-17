@@ -2,7 +2,7 @@
 #'
 #' @param x Character vector of term names.
 #' @return Character vector with surrounding quotes removed.
-#' @export
+#' @keywords internal
 strip_term_name <- function(x) {
   x <- as.character(x)
   gsub("^\"|\"$", "", x)

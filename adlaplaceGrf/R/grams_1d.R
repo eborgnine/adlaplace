@@ -1,5 +1,6 @@
 #' Gauss-Legendre nodes and weights on the reference interval
 #' @keywords internal
+#' @noRd
 gauss_legendre <- function(n) {
   n <- as.integer(n)
   if (n < 1L) stop("n must be positive")
@@ -20,6 +21,7 @@ gauss_legendre <- function(n) {
 
 #' Map GL nodes from the reference interval to an arbitrary interval
 #' @keywords internal
+#' @noRd
 gl_on_interval <- function(a, b, gl) {
   mid <- 0.5 * (a + b)
   half <- 0.5 * (b - a)
@@ -28,6 +30,7 @@ gl_on_interval <- function(a, b, gl) {
 
 #' Unique increasing knot breakpoints for an open knot vector
 #' @keywords internal
+#' @noRd
 knot_spans <- function(knots) {
   uk <- sort(unique(as.numeric(knots)))
   if (length(uk) < 2L) {
@@ -38,6 +41,7 @@ knot_spans <- function(knots) {
 
 #' Evaluate B-spline basis or derivatives via splineDesign (sparse)
 #' @keywords internal
+#' @noRd
 bspline_eval <- function(knots, x, degree, derivs = 0L) {
   ord <- as.integer(degree) + 1L
   splines::splineDesign(
@@ -55,6 +59,7 @@ bspline_eval <- function(knots, x, degree, derivs = 0L) {
 #' Assembles \eqn{M^{pq}_{ik} = \int B_i^{(p)} B_k^{(q)}\,dx} by Gauss-Legendre
 #' quadrature on each knot span.
 #' @keywords internal
+#' @noRd
 gram_1d <- function(knots, degree, deriv_a = 0L, deriv_b = 0L, n_quad = NULL) {
   degree <- as.integer(degree)
   deriv_a <- as.integer(deriv_a)

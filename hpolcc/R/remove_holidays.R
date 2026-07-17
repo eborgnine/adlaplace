@@ -6,14 +6,14 @@
 #' @param type A character string specifying the type of holiday removal. Options are "rm_none", "rm_all".
 #' @return A data frame with holidays removed according to the specified type.
 #' @export
-removeHolidays <- function(data, type = "rm_all") {
+remove_holidays <- function(data, type = "rm_all") {
   if (type == "rm_none") {
     return(data)
   }
 
-  date_var = grep("^[Dd]ate$", names(data), value=TRUE)
-  if (length(date_var) ==0 ) {
-    warning("no date variable")
+  date_var <- grep("^[Dd]ate$", names(data), value = TRUE)
+  if (length(date_var) == 0L) {
+    stop("no date column found", call. = FALSE)
   }
   years <- as.integer(format(data[[date_var]], "%Y"))
 

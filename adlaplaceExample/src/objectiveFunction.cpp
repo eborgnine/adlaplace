@@ -1,11 +1,33 @@
 #include <Rcpp.h>
 #include <cppad/cppad.hpp>
 #include <cmath>
+#include <utility>
 
 #include "adlaplace/ad_data.hpp"
 #include "adlaplace/eta.hpp"
 #include "adlaplace/rviews.hpp"
 #include "adlaplace/atomics.hpp"
+
+namespace {
+
+std::pair<std::size_t, std::size_t> obs_range(
+  const Config& config,
+  std::size_t ny,
+  std::size_t Dgroup) {
+
+  const bool have_shards = config.shards.ncol() > 0;
+  std::size_t startP = 0;
+  std::size_t endP = 0;
+  if (have_shards) {
+    startP = static_cast<std::size_t>(config.shards.p[Dgroup]);
+    endP = static_cast<std::size_t>(config.shards.p[Dgroup + 1]);
+  } else if (Dgroup == 0) {
+    endP = ny;
+  }
+  return {startP, endP};
+}
+
+}  // namespace
 
 CppAD::vector<CppAD::AD<double>> logDensObs(
   const CppAD::vector<CppAD::AD<double>>& x,
@@ -23,28 +45,12 @@ CppAD::vector<CppAD::AD<double>> logDensObs(
   CppAD::AD<double> omega_sqrt2 = omega * SQRTTWO;
   CppAD::AD<double> alpha = x[alpha_index];
 
-  const bool have_shards = config.shards.ncol() > 0;
   const size_t ny = model.y.size();
-  size_t startP = 0;
-  size_t endP = 0;
-  if (have_shards) {
-    startP = config.shards.p[Dgroup];
-    endP = config.shards.p[Dgroup + 1];
-  } else if (Dgroup == 0) {
-    endP = ny;
-  }
+  const auto range = obs_range(config, ny, Dgroup);
+  const bool have_shards = config.shards.ncol() > 0;
 
-  if (config.verbose && Dgroup < 1) {
-    Rcpp::Rcout << "logDensObs skewnormal_obs group " << Dgroup
-      << " startP " << startP << " endP " << endP << " ny " << ny
-      << " have_shards " << have_shards
-      << " omega index " << omega_index << " alpha index " << alpha_index
-      << " omega " << omega << " alpha " << alpha
-      << " transform_theta " << config.transform_theta << "\n";
-  }
-
-  for (size_t DI = startP; DI < endP; ++DI) {
-    const size_t Dobs = have_shards ? config.shards.i[DI] : DI;
+  for (size_t DI = range.first; DI < range.second; ++DI) {
+    const size_t Dobs = have_shards ? static_cast<size_t>(config.shards.i[DI]) : DI;
 
     const CppAD::AD<double> eta = eta_at(x, model, Dobs);
     CppAD::AD<double> z = (CppAD::AD<double>(model.y[Dobs]) - eta) / omega_sqrt2;

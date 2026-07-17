@@ -37,7 +37,7 @@ test_that("ad_fun chol_inner_list includes trace_columns", {
   af <- adlaplace::ad_fun(ad_ptr, num_threads = 1L)
   cil <- af@chol_inner_list
   n_gamma <- af@sizes["gamma"]
-  n_groups <- adlaplace::n_groups(af@ptr)
+  n_groups <- adlaplace:::n_groups(af@ptr)
 
   expect_true(!is.null(cil$trace_columns))
   expect_equal(unname(dim(cil$trace_columns)), c(unname(n_gamma), n_groups))

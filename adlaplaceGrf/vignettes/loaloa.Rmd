@@ -64,7 +64,8 @@ loaloa_for_fit <- geostatsp:::gm.dataSpatial(
 ## Knot lines
 
 Use a coarse knot raster over a buffered region around the villages; pass it
-directly as `knots` to `matern()` (cell centers become the knot lines).
+directly as `knots` to `matern()` (extent endpoints plus interior cell centers; see
+`knots_from_spatraster()`).
 (`geostatsp` / `terra` may mask `matern`, so call it with `::`.)
 
 
@@ -196,7 +197,7 @@ if (length(loaFit$parameters)) {
 ## Estimated field
 
 ```{r est}
-my_sim <- adlaplaceGrf:::matern_est(fit, loaloa_for_fit$grid, n = 10)
+my_sim <- matern_est(fit, loaloa_for_fit$grid, n = 10)
 ```
 
 Posterior mean and SD of the spatial field from both fits (glgm when available):

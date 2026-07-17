@@ -120,105 +120,46 @@ iwp <- function(
 }
 
 
-local_poly <- function(knots, refined_x, p) {
-  if (min(knots) >= 0) {
-    dif <- diff(knots)
-    nn <- length(refined_x)
-    n <- length(knots)
-    D <- matrix(0, nrow = nn, ncol = n - 1)
-    for (j in 1:nn) {
-      for (i in 1:(n - 1)) {
-        if (refined_x[j] <= knots[i]) {
-          D[j, i] <- 0
-        } else if (refined_x[j] <= knots[i + 1] & refined_x[j] >=
-          knots[i]) {
-          D[j, i] <- (1 / factorial(p)) * (refined_x[j] -
-            knots[i])^p
-        } else {
-          k <- 1:p
-          D[j, i] <- sum((dif[i]^k) * ((refined_x[j] -
-            knots[i + 1])^(p - k)) / (factorial(k) * factorial(p -
-            k)))
-        }
+local_poly_positive_axis <- function(knots, refined_x, p) {
+  dif <- diff(knots)
+  nn <- length(refined_x)
+  n <- length(knots)
+  D <- matrix(0, nrow = nn, ncol = n - 1)
+  for (j in 1:nn) {
+    for (i in 1:(n - 1)) {
+      if (refined_x[j] <= knots[i]) {
+        D[j, i] <- 0
+      } else if (refined_x[j] <= knots[i + 1] & refined_x[j] >= knots[i]) {
+        D[j, i] <- (1 / factorial(p)) * (refined_x[j] - knots[i])^p
+      } else {
+        k <- 1:p
+        D[j, i] <- sum(
+          (dif[i]^k) * ((refined_x[j] - knots[i + 1])^(p - k)) /
+            (factorial(k) * factorial(p - k))
+        )
       }
     }
-  } else if (max(knots) <= 0) {
-    refined_x_neg <- refined_x
-    refined_x_neg <- ifelse(refined_x < 0, -refined_x, 0)
-    knots_neg <- knots
-    knots_neg <- unique(sort(ifelse(knots < 0, -knots, 0)))
-    dif <- diff(knots_neg)
-    nn <- length(refined_x_neg)
-    n <- length(knots_neg)
-    D <- matrix(0, nrow = nn, ncol = n - 1)
-    for (j in 1:nn) {
-      for (i in 1:(n - 1)) {
-        if (refined_x_neg[j] <= knots_neg[i]) {
-          D[j, i] <- 0
-        } else if (refined_x_neg[j] <= knots_neg[i + 1] &
-          refined_x_neg[j] >= knots_neg[i]) {
-          D[j, i] <- (1 / factorial(p)) * (refined_x_neg[j] -
-            knots_neg[i])^p
-        } else {
-          k <- 1:p
-          D[j, i] <- sum((dif[i]^k) * ((refined_x_neg[j] -
-            knots_neg[i + 1])^(p - k)) / (factorial(k) *
-            factorial(p - k)))
-        }
-      }
-    }
-  } else {
-    refined_x_neg <- refined_x
-    refined_x_neg <- ifelse(refined_x < 0, -refined_x, 0)
-    knots_neg <- knots
-    knots_neg <- unique(sort(ifelse(knots < 0, -knots, 0)))
-    dif <- diff(knots_neg)
-    nn <- length(refined_x_neg)
-    n <- length(knots_neg)
-    D1 <- matrix(0, nrow = nn, ncol = n - 1)
-    for (j in 1:nn) {
-      for (i in 1:(n - 1)) {
-        if (refined_x_neg[j] <= knots_neg[i]) {
-          D1[j, i] <- 0
-        } else if (refined_x_neg[j] <= knots_neg[i + 1] &
-          refined_x_neg[j] >= knots_neg[i]) {
-          D1[j, i] <- (1 / factorial(p)) * (refined_x_neg[j] -
-            knots_neg[i])^p
-        } else {
-          k <- 1:p
-          D1[j, i] <- sum((dif[i]^k) * ((refined_x_neg[j] -
-            knots_neg[i + 1])^(p - k)) / (factorial(k) *
-            factorial(p - k)))
-        }
-      }
-    }
-    refined_x_pos <- refined_x
-    refined_x_pos <- ifelse(refined_x > 0, refined_x, 0)
-    knots_pos <- knots
-    knots_pos <- unique(sort(ifelse(knots > 0, knots, 0)))
-    dif <- diff(knots_pos)
-    nn <- length(refined_x_pos)
-    n <- length(knots_pos)
-    D2 <- matrix(0, nrow = nn, ncol = n - 1)
-    for (j in 1:nn) {
-      for (i in 1:(n - 1)) {
-        if (refined_x_pos[j] <= knots_pos[i]) {
-          D2[j, i] <- 0
-        } else if (refined_x_pos[j] <= knots_pos[i + 1] &
-          refined_x_pos[j] >= knots_pos[i]) {
-          D2[j, i] <- (1 / factorial(p)) * (refined_x_pos[j] -
-            knots_pos[i])^p
-        } else {
-          k <- 1:p
-          D2[j, i] <- sum((dif[i]^k) * ((refined_x_pos[j] -
-            knots_pos[i + 1])^(p - k)) / (factorial(k) *
-            factorial(p - k)))
-        }
-      }
-    }
-    D <- cbind(D1, D2)
   }
   D
+}
+
+local_poly <- function(knots, refined_x, p) {
+  if (min(knots) >= 0) {
+    local_poly_positive_axis(knots, refined_x, p)
+  } else if (max(knots) <= 0) {
+    knots_neg <- unique(sort(ifelse(knots < 0, -knots, 0)))
+    refined_x_neg <- ifelse(refined_x < 0, -refined_x, 0)
+    local_poly_positive_axis(knots_neg, refined_x_neg, p)
+  } else {
+    knots_neg <- unique(sort(ifelse(knots < 0, -knots, 0)))
+    refined_x_neg <- ifelse(refined_x < 0, -refined_x, 0)
+    knots_pos <- unique(sort(ifelse(knots > 0, knots, 0)))
+    refined_x_pos <- ifelse(refined_x > 0, refined_x, 0)
+    cbind(
+      local_poly_positive_axis(knots_neg, refined_x_neg, p),
+      local_poly_positive_axis(knots_pos, refined_x_pos, p)
+    )
+  }
 }
 
 compute_weights_precision <- function(knots) {
@@ -319,15 +260,6 @@ setMethod("theta_info", "iwp", function(term) {
     type = term@type
   )
   return(result)
-})
-
-#' @describeIn iwp-class Extracts beta parameter information for IWP term
-#' @param term An iwp term object
-#' @param data A data frame containing the term variable
-#' @export
-setMethod("beta_info", "iwp", function(term, data) {
-  # IWP terms don't have beta parameters
-  return(NULL)
 })
 
 #' @describeIn iwp-class Extracts random effects information for IWP term

@@ -46,24 +46,15 @@ hnlm <- function(
   ...
 ) {
   call <- match.call()
-  config_defaults <- list(
-    verbose = FALSE,
-    transform_theta = TRUE,
-    num_threads = 1L,
-    num_shards = 1000L
-  )
-  config_defaults <- config_defaults[
-    setdiff(names(config_defaults), names(config))
-  ]
-  config <- c(config, config_defaults)
+  config <- hnlm_merge_config(config)
 
-  if (methods::is(formula, "formula")) {
-    model_terms <- adlaplace::collect_terms(
+  model_terms <- if (methods::is(formula, "formula")) {
+    adlaplace::collect_terms(
       formula = stats::update.formula(formula, . ~ . - 1),
       verbose = config$verbose
     )
   } else {
-    model_terms <- formula
+    formula
   }
 
   resp_idx <- which(vapply(
@@ -108,47 +99,18 @@ hnlm <- function(
   if (verbose_orig) {
     cat("getting shards...")
   }
-
-  # Case-crossover shards are partitioned from the stratum (elgm) design, not
-  # the random-effects design alone, so they are built here and passed to
-  # adlaplace() via config$shards (which adlaplace() reuses when present).
-  config$shards <- adlaplace::ad_shards(
-    A = model_data$data$A,
-    elgm_matrix = model_data$data$elgm_matrix,
-    num_shards = config$num_shards,
-    min_groups = min(config$num_shards, config$num_threads * 4L)
-  )
+  config$shards <- hnlm_build_shards(model_data, config)
 
   if (for_dev) {
-    if (verbose_orig) {
-      cat("done.\n")
-      cat(
-        "getting AD fun, ",
-        paste(dim(config$shards), collapse = ","), "shards..."
-      )
-    }
-    ad_fun <- adlaplace::ad_fun(
-      x = model_data,
-      config,
-      num_threads = config$num_threads
-    )
-    if (verbose_orig) {
-      cat("done.\n")
-    }
-    return(structure(
-      list(
-        model_data = model_data,
-        config = config,
-        formula = formula,
-        data = model_data$data$data,
-        terms = model_data$terms,
-        control = control,
-        control_inner = control_inner,
-        cache = cache,
-        ad_fun = ad_fun,
-        call = call
-      ),
-      class = c("hnlm_dev", "hnlm", "list")
+    return(hnlm_dev_bundle(
+      model_data = model_data,
+      config = config,
+      formula = formula,
+      control = control,
+      control_inner = control_inner,
+      cache = cache,
+      call = call,
+      verbose_orig = verbose_orig
     ))
   }
 
@@ -156,24 +118,153 @@ hnlm <- function(
     if (verbose_orig) {
       cat("no gammas, only one layer of optimization\n")
     }
-    ad_fun <- adlaplace::ad_fun(
-      x = model_data,
-      config,
-      num_threads = config$num_threads
-    )
-    mle <- stats::optim(
-      par = config$opt$init,
-      fn = function(x) adlaplace::joint_log_dens(ad_fun, x),
-      gr = function(x) adlaplace::grad(ad_fun, x),
-      method = "L-BFGS-B",
-      lower = config$opt$lower,
-      upper = config$opt$upper,
-      control = control
-    )
-    mle$hessian <- adlaplace::hessian(ad_fun, mle$par)
-    return(mle)
+    return(hnlm_fit_flat(
+      model_data = model_data,
+      config = config,
+      control = control,
+      control_inner = control_inner,
+      cache = cache,
+      call = call
+    ))
   }
 
+  hnlm_fit_laplace(
+    model_data = model_data,
+    config = config,
+    control = control,
+    control_inner = control_inner,
+    cache = cache,
+    call = call,
+    verbose_orig = verbose_orig
+  )
+}
+
+#' @keywords internal
+hnlm_merge_config <- function(config) {
+  defaults <- list(
+    verbose = FALSE,
+    transform_theta = TRUE,
+    num_threads = 1L,
+    num_shards = 1000L,
+    num_sim = 500L
+  )
+  defaults <- defaults[setdiff(names(defaults), names(config))]
+  c(config, defaults)
+}
+
+#' @keywords internal
+hnlm_build_shards <- function(model_data, config) {
+  adlaplace::ad_shards(
+    A = model_data$data$A,
+    elgm_matrix = model_data$data$elgm_matrix,
+    num_shards = config$num_shards,
+    min_groups = min(config$num_shards, config$num_threads * 4L)
+  )
+}
+
+#' @keywords internal
+hnlm_dev_bundle <- function(
+  model_data,
+  config,
+  formula,
+  control,
+  control_inner,
+  cache,
+  call,
+  verbose_orig
+) {
+  if (verbose_orig) {
+    cat("done.\n")
+    cat(
+      "getting AD fun, ",
+      paste(dim(config$shards), collapse = ","), "shards..."
+    )
+  }
+  ad_fun <- adlaplace::ad_fun(
+    x = model_data,
+    config,
+    num_threads = config$num_threads
+  )
+  if (verbose_orig) {
+    cat("done.\n")
+  }
+  structure(
+    list(
+      model_data = model_data,
+      config = config,
+      formula = formula,
+      data = model_data$data$data,
+      terms = model_data$terms,
+      control = control,
+      control_inner = control_inner,
+      cache = cache,
+      ad_fun = ad_fun,
+      call = call
+    ),
+    class = c("hnlm_dev", "hnlm", "list")
+  )
+}
+
+#' @keywords internal
+hnlm_fit_flat <- function(
+  model_data,
+  config,
+  control,
+  control_inner,
+  cache,
+  call
+) {
+  ad_fun <- adlaplace::ad_fun(
+    x = model_data,
+    config,
+    num_threads = config$num_threads
+  )
+  optim_result <- stats::optim(
+    par = config$opt$init,
+    fn = function(x) adlaplace::joint_log_dens(ad_fun, x),
+    gr = function(x) adlaplace::grad(ad_fun, x),
+    method = "L-BFGS-B",
+    lower = config$opt$lower,
+    upper = config$opt$upper,
+    control = control
+  )
+  hessian_outer <- adlaplace::hessian(ad_fun, optim_result$par)
+  log_lik <- -optim_result$value
+
+  coefficients <- try(adlaplace::format_parameters(
+    info = ad_fun@info,
+    gamma = cache$gamma,
+    parameters = optim_result$par
+  ))
+  coefficients <- hnlm_attach_parameter_se(coefficients, hessian_outer)
+
+  hnlm_assemble(
+    coefficients = coefficients,
+    log_lik = log_lik,
+    optim_result = optim_result,
+    laplace = list(log_lik = log_lik),
+    hessian = list(outer = hessian_outer, inner = NULL, var_iid = NULL),
+    ad_fun = ad_fun,
+    sample = NULL,
+    call = call,
+    config = config,
+    model_data = model_data,
+    control = control,
+    control_inner = control_inner,
+    cache = cache
+  )
+}
+
+#' @keywords internal
+hnlm_fit_laplace <- function(
+  model_data,
+  config,
+  control,
+  control_inner,
+  cache,
+  call,
+  verbose_orig
+) {
   if (verbose_orig) {
     cat("optimizing initial, lower, upper\n")
     to_print <- do.call(cbind, config$opt)
@@ -182,11 +273,6 @@ hnlm <- function(
     cat("threads: ", config$num_threads, "\n")
   }
 
-  # Reuse the shared adlaplace() pipeline on the precomputed model_data: it
-  # tapes the AD shards once (reusing the case-crossover config$shards built
-  # above) and maximizes the Laplace-approximate marginal likelihood with
-  # optim(hessian = TRUE). The hpolcc-specific post-processing (conditional
-  # simulation, Woodbury var_iid) is layered on top of the returned fit below.
   fit <- adlaplace::adlaplace(
     formula = model_data,
     config = config,
@@ -201,37 +287,70 @@ hnlm <- function(
 
   ad_fun <- fit$ad_fun
   optim_result <- fit$optim
-  par_opt <- fit$optim$par
   cache$gamma <- fit$cache$gamma
   config$gamma <- fit$cache$gamma
   laplace <- fit$details
 
   coefficients <- try(adlaplace::format_parameters(
     info = ad_fun@info,
-    gamma = fit$cache$gamma, parameters = par_opt
+    gamma = fit$cache$gamma,
+    parameters = optim_result$par
   ))
 
   if (verbose_orig) {
     cat("hessian of parameters\n")
-  }
-
-
-  if (verbose_orig) {
     cat("conditional samples\n")
   }
-  sample <- try(adlaplaceHgp::cond_sim_iwp(
-    fit = laplace,
-    model_data = model_data,
-    n = c(config$num_sim, 500)[1]
-  ))
 
-  hessian <- list(outer = optim_result$hessian, inner = NULL, var_iid = NULL)
-  optim_result$hessian <- NULL
-  coefficients <- hnlm_attach_parameter_se(
-    coefficients, hessian$outer,
+  sample <- hnlm_build_simulation(laplace, model_data, config)
+  var_out <- hnlm_build_variance(
+    coefficients = coefficients,
+    laplace = laplace,
+    model_data = model_data,
+    hessian_outer = optim_result$hessian,
     vcov = fit$vcov
   )
+  optim_result$hessian <- NULL
 
+  hnlm_assemble(
+    coefficients = var_out$coefficients,
+    log_lik = laplace$log_lik,
+    optim_result = optim_result,
+    laplace = laplace,
+    hessian = var_out$hessian,
+    ad_fun = ad_fun,
+    sample = sample,
+    call = call,
+    config = config,
+    model_data = model_data,
+    control = control,
+    control_inner = control_inner,
+    cache = cache
+  )
+}
+
+#' @keywords internal
+hnlm_build_simulation <- function(laplace, model_data, config) {
+  try(adlaplaceHgp::cond_sim_iwp(
+    fit = laplace,
+    model_data = model_data,
+    n = config$num_sim
+  ))
+}
+
+#' @keywords internal
+hnlm_build_variance <- function(
+  coefficients,
+  laplace,
+  model_data,
+  hessian_outer,
+  vcov = NULL
+) {
+  hessian <- list(outer = hessian_outer, inner = NULL, var_iid = NULL)
+  coefficients <- hnlm_attach_parameter_se(
+    coefficients, hessian$outer,
+    vcov = vcov
+  )
 
   n_beta <- nrow(model_data$data$info$beta)
   if (!inherits(coefficients, "try-error") &&
@@ -268,17 +387,41 @@ hnlm <- function(
     }
   }
 
+  list(hessian = hessian, coefficients = coefficients)
+}
+
+#' @keywords internal
+hnlm_assemble <- function(
+  coefficients,
+  log_lik,
+  optim_result,
+  laplace,
+  hessian,
+  ad_fun,
+  sample,
+  call,
+  config,
+  model_data,
+  control,
+  control_inner,
+  cache
+) {
+  info <- if (methods::is(ad_fun, "ad_fun")) {
+    ad_fun@info
+  } else if (!is.null(model_data$data$info)) {
+    model_data$data$info
+  } else {
+    NULL
+  }
   structure(
     list(
       coefficients = coefficients,
-      log_lik = laplace$log_lik,
+      log_lik = log_lik,
       optim = optim_result,
       converged = isTRUE(optim_result$convergence == 0L),
       extra = laplace,
       hessian = hessian,
-      info = ad_fun@info,
-      # model_data = model_data,
-      #      ad_fun = ad_fun,
+      info = info,
       sample = sample,
       call = list(
         config = config,

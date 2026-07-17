@@ -5,7 +5,7 @@
 #include "adlaplace/runtime.hpp"
 #include "adlaplace/trace_hinv_t_runtime.hpp"
 
-// [[Rcpp::export]]
+// [[Rcpp::export(name = ".trace_hinv_t_cpp")]]
 Rcpp::NumericVector trace_hinv_t(
   SEXP ad_fun,
   const Rcpp::NumericVector& x,

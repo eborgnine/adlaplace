@@ -83,36 +83,6 @@ binomial <- function(x, size = NULL, link = "logit") {
   )
 }
 
-#' @describeIn binomial-class Design method (not used for observation density).
-#' @export
-setMethod("design", "binomial", function(term, data) {
-  NULL
-})
-
-#' @describeIn binomial-class Precision method (not used).
-#' @export
-setMethod("precision", "binomial", function(term, data) {
-  NULL
-})
-
-#' @describeIn binomial-class Theta info (binomial has no hyperparameters).
-#' @export
-setMethod("theta_info", "binomial", function(term) {
-  NULL
-})
-
-#' @describeIn binomial-class Beta info method (not used).
-#' @export
-setMethod("beta_info", "binomial", function(term, data) {
-  NULL
-})
-
-#' @describeIn binomial-class Random info method (not used).
-#' @export
-setMethod("random_info", "binomial", function(term, data) {
-  NULL
-})
-
 #' Gaussian observation model term
 #'
 #' @description Model term for the observation-level Gaussian log density
@@ -192,18 +162,6 @@ gaussian <- function(x,
   )
 }
 
-#' @describeIn gaussian-class Design method (not used for observation density).
-#' @export
-setMethod("design", "gaussian", function(term, data) {
-  NULL
-})
-
-#' @describeIn gaussian-class Precision method (not used).
-#' @export
-setMethod("precision", "gaussian", function(term, data) {
-  NULL
-})
-
 #' @describeIn gaussian-class Theta info for the residual standard deviation.
 #' @export
 setMethod("theta_info", "gaussian", function(term) {
@@ -218,18 +176,6 @@ setMethod("theta_info", "gaussian", function(term) {
     type = term@type,
     stringsAsFactors = FALSE
   )
-})
-
-#' @describeIn gaussian-class Beta info method (not used).
-#' @export
-setMethod("beta_info", "gaussian", function(term, data) {
-  NULL
-})
-
-#' @describeIn gaussian-class Random info method (not used).
-#' @export
-setMethod("random_info", "gaussian", function(term, data) {
-  NULL
 })
 
 #' Negative binomial observation model term
@@ -297,18 +243,6 @@ nbinom <- function(x,
   )
 }
 
-#' @describeIn nbinom-class Design method (not used for observation density).
-#' @export
-setMethod("design", "nbinom", function(term, data) {
-  NULL
-})
-
-#' @describeIn nbinom-class Precision method (not used).
-#' @export
-setMethod("precision", "nbinom", function(term, data) {
-  NULL
-})
-
 #' @describeIn nbinom-class Theta info for the overdispersion parameter.
 #' @export
 setMethod("theta_info", "nbinom", function(term) {
@@ -325,14 +259,3 @@ setMethod("theta_info", "nbinom", function(term) {
   )
 })
 
-#' @describeIn nbinom-class Beta info method (not used).
-#' @export
-setMethod("beta_info", "nbinom", function(term, data) {
-  NULL
-})
-
-#' @describeIn nbinom-class Random info method (not used).
-#' @export
-setMethod("random_info", "nbinom", function(term, data) {
-  NULL
-})

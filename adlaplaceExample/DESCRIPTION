@@ -14,11 +14,13 @@ License: MPL-2.0
 Depends: R (>= 4.1.0)
 LinkingTo: Rcpp, adlaplace, RcppEigen, trustOptim, RCppAD
 Imports: Rcpp, adlaplace, RCppAD, methods
-Suggests: trustOptim, abind, knitr, rmarkdown, testthat, sn, Matrix, pracma
+Suggests: trustOptim, abind, knitr, rmarkdown, testthat (>= 3.0.0), sn, Matrix, pracma
 VignetteBuilder: knitr
+Config/testthat/edition: 3
 Encoding: UTF-8
 RoxygenNote: 7.3.3
 Roxygen: list(markdown = TRUE)
+NeedsCompilation: yes
 Collate: 
     '000.R'
     'RcppExports.R'

@@ -42,7 +42,7 @@ test_random_shard <- function(data, config, gamma_ids, theta_id, Q,
     j = seq.int(0L, length.out = n_term),
     dims = c(n_gamma_full, n_term),
     index1 = FALSE,
-    giveCsparse = TRUE
+    repr = "C"
   )
   adlaplace:::ad_data(
     beta_map = Matrix::Matrix(nrow = length(config$beta), ncol = 0L),

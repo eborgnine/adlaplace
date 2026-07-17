@@ -1,3 +1,33 @@
+#' Resolve axis knot lines from a terra SpatRaster
+#'
+#' Canonical SpatRaster-to-knots rule used by [matern()] and
+#' [grf_bspline()] terra methods. Returns unique increasing knot-line
+#' positions on each axis for [axis_to_open_knots()]: raster extent
+#' endpoints (`xmin`, `xmax`, `ymin`, `ymax`) are always included;
+#' cell-center coordinates strictly inside the extent become interior knot
+#' lines.
+#'
+#' @param r A terra `SpatRaster` defining the knot grid.
+#' @param degree B-spline degree (unused; reserved for future grid rules).
+#' @return `list(x = ..., y = ...)` of numeric knot-line positions.
+#' @keywords internal
+#' @noRd
+knots_from_spatraster <- function(r, degree) {
+  if (!requireNamespace("terra", quietly = TRUE)) {
+    stop(
+      "terra is required for SpatRaster knots; install.packages(\"terra\")",
+      call. = FALSE
+    )
+  }
+  ext <- terra::ext(r)
+  xs <- terra::xFromCol(r, seq_len(terra::ncol(r)))
+  ys <- terra::yFromRow(r, seq_len(terra::nrow(r)))
+  list(
+    x = c(ext$xmin, xs[xs > ext$xmin & xs < ext$xmax], ext$xmax),
+    y = c(ext$ymin, ys[ys > ext$ymin & ys < ext$ymax], ext$ymax)
+  )
+}
+
 #' Build an open B-spline knot vector on an interval
 #'
 #' Boundary knots are repeated `degree + 1` times (open knot vector).
@@ -10,6 +40,7 @@
 #'   `range`.
 #' @return Numeric nondecreasing knot vector.
 #' @keywords internal
+#' @noRd
 open_knot_vector <- function(range, degree, n_interior = 5L, interior = NULL) {
   range <- range(as.numeric(range), na.rm = TRUE)
   if (length(range) != 2L || !is.finite(range[1]) || !is.finite(range[2])) {
@@ -48,6 +79,7 @@ open_knot_vector <- function(range, degree, n_interior = 5L, interior = NULL) {
 #' @param degree B-spline degree.
 #' @return Open knot vector with endpoints repeated `degree + 1` times.
 #' @keywords internal
+#' @noRd
 axis_to_open_knots <- function(t, degree) {
   t <- sort(unique(as.numeric(t)))
   if (length(t) < 2L || any(!is.finite(t))) {
@@ -69,6 +101,7 @@ axis_to_open_knots <- function(t, degree) {
 #' @param degree B-spline degree.
 #' @return `list(x = ..., y = ...)` of open knot vectors.
 #' @keywords internal
+#' @noRd
 resolve_knots_list <- function(knots, degree) {
   if (!is.list(knots) || is.null(knots$x) || is.null(knots$y)) {
     stop("knots must be list(x = ..., y = ...), e.g. list(x = seq(...), y = seq(...))")
@@ -88,6 +121,7 @@ resolve_knots_list <- function(knots, degree) {
 
 #' Number of B-spline basis functions for an open knot vector
 #' @keywords internal
+#' @noRd
 n_basis_knots <- function(knots, degree) {
   as.integer(length(knots) - (degree + 1L))
 }

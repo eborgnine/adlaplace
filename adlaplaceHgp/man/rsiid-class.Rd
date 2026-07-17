@@ -15,10 +15,10 @@ rsiid(
   x,
   mult,
   ref_mult = 0,
-  init = .my_theta_init,
-  lower = .my_theta_lower,
-  upper = .my_theta_upper,
-  parscale = .my_theta_parscale
+  init = NULL,
+  lower = NULL,
+  upper = NULL,
+  parscale = NULL
 )
 
 \S4method{design}{rsiid}(term, data)
@@ -27,7 +27,7 @@ rsiid(
 
 \S4method{theta_info}{rsiid}(term)
 
-\S4method{beta_info}{rsiid}(term)
+\S4method{beta_info}{rsiid}(term, data)
 
 \S4method{random_info}{rsiid}(term, data)
 }
