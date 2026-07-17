@@ -8,9 +8,14 @@ BREW_PREFIX=""
 
 UNAME_S="$(uname -s 2>/dev/null || echo unknown)"
 
-CXX_CMD="$(R CMD config CXX 2>/dev/null || echo c++)"
-CXXFLAGS_CMD="$(R CMD config CXXFLAGS 2>/dev/null || true)"
-CPPFLAGS_CMD="$(R CMD config CPPFLAGS 2>/dev/null || true)"
+# R CMD INSTALL/check set R_HOME; bare `R` is rejected there (R Installation §1.6).
+if [ -z "${R_HOME}" ]; then
+  R_HOME=`R RHOME`
+fi
+R_EXE="${R_HOME}/bin/R"
+CXX_CMD="$("${R_EXE}" CMD config CXX 2>/dev/null || echo c++)"
+CXXFLAGS_CMD="$("${R_EXE}" CMD config CXXFLAGS 2>/dev/null || true)"
+CPPFLAGS_CMD="$("${R_EXE}" CMD config CPPFLAGS 2>/dev/null || true)"
 
 # Probe scratch dirs go under TMPDIR (mktemp). Relative config.$$ in the
 # package tree is fragile during R CMD INSTALL / staged installs.

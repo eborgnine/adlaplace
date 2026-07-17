@@ -171,6 +171,7 @@ test_that("ad_fun works without config when layout is on ptr", {
 })
 
 test_that("ad_fun variadic ad_fun_ptr matches explicit c() composition", {
+  skip_if_not(adlaplace:::has_openmp(), "OpenMP not available in this build")
   set.seed(14)
   Nobs <- 30L
   X <- Matrix::Matrix(cbind(1, rbinom(Nobs, 1, prob = 0.5)))
@@ -229,6 +230,7 @@ test_that("ad_fun variadic ad_fun_ptr matches explicit c() composition", {
 })
 
 test_that("ad_fun variadic composition clears source pointers like c()", {
+  skip_if_not(adlaplace:::has_openmp(), "OpenMP not available in this build")
   set.seed(15)
   Nobs <- 20L
   X <- Matrix::Matrix(cbind(1, rbinom(Nobs, 1, prob = 0.5)))

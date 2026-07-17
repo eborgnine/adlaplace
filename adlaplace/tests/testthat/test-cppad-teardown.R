@@ -40,6 +40,7 @@ cppad_teardown_fixture <- function(num_threads = 2L) {
 }
 
 test_that("log_lik_laplace deriv=TRUE runs trace inside inner_opt (team teardown)", {
+  skip_if_not(adlaplace:::has_openmp(), "OpenMP not available in this build")
   fx <- cppad_teardown_fixture(num_threads = 2L)
   ll <- adlaplace::log_lik_laplace(
     x = c(fx$config$beta, fx$config$theta),
@@ -55,6 +56,7 @@ test_that("log_lik_laplace deriv=TRUE runs trace inside inner_opt (team teardown
 })
 
 test_that("back-to-back log_lik_laplace deriv=TRUE reuses CppAD team teardown", {
+  skip_if_not(adlaplace:::has_openmp(), "OpenMP not available in this build")
   fx <- cppad_teardown_fixture(num_threads = 2L)
   args <- list(
     x = c(fx$config$beta, fx$config$theta),

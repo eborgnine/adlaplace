@@ -1,4 +1,5 @@
 test_that("ad_fun assigns threads for multi-shard model", {
+  skip_if_not(adlaplace:::has_openmp(), "OpenMP not available in this build")
   set.seed(0)
   Nobs <- 120L
   Nrandom1 <- 4L
@@ -47,6 +48,7 @@ test_that("ad_fun assigns threads for multi-shard model", {
 })
 
 test_that("log_lik_laplace deriv=TRUE with multi-thread ad_fun", {
+  skip_if_not(adlaplace:::has_openmp(), "OpenMP not available in this build")
   set.seed(0)
   Nobs <- 120L
   Nrandom1 <- 4L
@@ -151,6 +153,7 @@ test_that("log_lik_laplace deriv=TRUE with serial threads", {
 })
 
 test_that("ad_fun_ptr has no thread assignment until ad_fun", {
+  skip_if_not(adlaplace:::has_openmp(), "OpenMP not available in this build")
   set.seed(1)
   Nobs <- 60L
   X <- Matrix::Matrix(cbind(1, stats::rbinom(Nobs, 1, 0.5)))

@@ -103,11 +103,13 @@ test_that("fun_obj_fdfh matches direct eval (serial, inner=FALSE)", {
 })
 
 test_that("fun_obj_fdfh matches direct eval (multi-thread, inner=TRUE)", {
+  skip_if_not(adlaplace:::has_openmp(), "OpenMP not available in this build")
   m <- build_fun_obj_test_model(num_threads = 2L)
   expect_fun_obj_parity(m, inner = TRUE)
 })
 
 test_that("fun_obj_fdfh matches direct eval (multi-thread, inner=FALSE)", {
+  skip_if_not(adlaplace:::has_openmp(), "OpenMP not available in this build")
   m <- build_fun_obj_test_model(num_threads = 2L)
   expect_fun_obj_parity(m, inner = FALSE)
 })

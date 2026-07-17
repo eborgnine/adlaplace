@@ -1,6 +1,7 @@
 test_that("model_data + OpenMP log_lik_laplace works", {
   # Runs under R CMD check (NOT_CRAN=true); skip interactive CRAN-like runs.
   skip_on_cran()
+  skip_if_not(adlaplace:::has_openmp(), "OpenMP not available in this build")
   set.seed(1L)
   n <- 80L
   dat <- data.frame(

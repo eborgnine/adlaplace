@@ -66,16 +66,19 @@ expect_inner_opt_finite <- function(fx) {
 }
 
 test_that("tape build -> ad_fun(2) -> inner_opt deriv=FALSE (mixed shards)", {
+  skip_if_not(adlaplace:::has_openmp(), "OpenMP not available in this build")
   fx <- build_transition_fixture(num_threads = 2L, include_random = TRUE)
   expect_inner_opt_finite(fx)
 })
 
 test_that("tape build -> ad_fun(2) -> inner_opt deriv=FALSE (obs + extra only)", {
+  skip_if_not(adlaplace:::has_openmp(), "OpenMP not available in this build")
   fx <- build_transition_fixture(num_threads = 2L, include_random = FALSE)
   expect_inner_opt_finite(fx)
 })
 
 test_that("back-to-back inner_opt after tape build does not crash", {
+  skip_if_not(adlaplace:::has_openmp(), "OpenMP not available in this build")
   fx <- build_transition_fixture(num_threads = 2L, include_random = TRUE)
   expect_inner_opt_finite(fx)
   expect_inner_opt_finite(fx)
