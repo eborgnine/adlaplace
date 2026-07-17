@@ -112,6 +112,7 @@ hrpoly <- function(
 #' @return A design matrix for the hrpoly term.
 #' @export
 setMethod("design", "hrpoly", function(term, data) {
+  term <- adlaplace::add_by_levels(term, data)
 
   # Create an rpoly version of the term (without by slot)
   rpoly_term <- methods::new("rpoly",
@@ -159,6 +160,7 @@ setMethod("design", "hrpoly", function(term, data) {
 #' @return A precision matrix for the hrpoly term.
 #' @export
 setMethod("precision", "hrpoly", function(term, data) {
+  term <- adlaplace::add_by_levels(term, data)
   if (term@p.order == 0) {
     return(NULL)
   }
@@ -204,6 +206,7 @@ setMethod("beta_info", "hrpoly", function(term, data) {
 #' @return A data frame containing random effects information for the hrpoly term.
 #' @export
 setMethod("random_info", "hrpoly", function(term, data) {
+  term <- adlaplace::add_by_levels(term, data)
   basis <- NA
 
   result <- expand.grid(
