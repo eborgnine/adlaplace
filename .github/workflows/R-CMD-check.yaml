@@ -1,7 +1,7 @@
 # Workflow derived from https://github.com/r-lib/actions/tree/v2/examples
 # Checks local packages in order:
 #   RCppAD → adlaplace → adlaplaceExample → adlaplaceHgp → adlaplaceGrf → hpolcc
-# Each package is checked twice per pass: plain, then --as-cran.
+# Per package: build+install, then check plain, then check --as-cran.
 # Jobs:
 #   - macOS: first pass without Homebrew libomp, then brew install libomp and re-check
 #   - Windows
@@ -72,26 +72,25 @@ jobs:
 
       # HTML knitr vignettes do not need TeX/TinyTeX (avoids Windows/macOS tlmgr PATH issues).
 
-      # Install the union of all packages' check deps once (pak skips what's already ok).
-      # Local packages are still built/checked later; installs use built .tar.gz
-      # (see .github/scripts/install-local-pkg.sh).
+      # Install pak + rcmdcheck only. Local packages are built/installed later in order.
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
-          packages: |
-            deps::RCppAD
-            deps::adlaplace
-            deps::adlaplaceExample
-            deps::adlaplaceHgp
-            deps::adlaplaceGrf
-            deps::hpolcc
-          extra-packages: any::rcmdcheck
-          needs: check
+          packages: any::rcmdcheck
+          install-quarto: false
+
+      # Union of DESCRIPTION deps across local packages, excluding the locals themselves.
+      - name: Install CRAN dependencies (exclude local packages)
+        run: Rscript .github/scripts/install-cran-deps.R
 
       # =====================================================================
       # Pass 1 (all jobs): macOS has no Homebrew libomp yet
+      # Per package: build+install → check plain → check --as-cran
       # =====================================================================
 
       # ----- RCppAD -----
+      - name: Build and install RCppAD
+        run: bash .github/scripts/install-local-pkg.sh RCppAD
+
       - name: Check RCppAD (plain)
         uses: r-lib/actions/check-r-package@v2
         with:
@@ -112,10 +111,10 @@ jobs:
           check-dir: '"check-as-cran"'
           artifact-name: ${{ matrix.config.id }}-pass1-RCppAD-as-cran
 
-      - name: Install RCppAD
-        run: bash .github/scripts/install-local-pkg.sh RCppAD
-
       # ----- adlaplace -----
+      - name: Build and install adlaplace
+        run: bash .github/scripts/install-local-pkg.sh adlaplace
+
       - name: Check adlaplace (plain)
         uses: r-lib/actions/check-r-package@v2
         with:
@@ -136,10 +135,10 @@ jobs:
           check-dir: '"check-as-cran"'
           artifact-name: ${{ matrix.config.id }}-pass1-adlaplace-as-cran
 
-      - name: Install adlaplace
-        run: bash .github/scripts/install-local-pkg.sh adlaplace
-
       # ----- adlaplaceExample -----
+      - name: Build and install adlaplaceExample
+        run: bash .github/scripts/install-local-pkg.sh adlaplaceExample
+
       - name: Check adlaplaceExample (plain)
         uses: r-lib/actions/check-r-package@v2
         with:
@@ -161,6 +160,9 @@ jobs:
           artifact-name: ${{ matrix.config.id }}-pass1-adlaplaceExample-as-cran
 
       # ----- adlaplaceHgp -----
+      - name: Build and install adlaplaceHgp
+        run: bash .github/scripts/install-local-pkg.sh adlaplaceHgp
+
       - name: Check adlaplaceHgp (plain)
         uses: r-lib/actions/check-r-package@v2
         with:
@@ -181,10 +183,10 @@ jobs:
           check-dir: '"check-as-cran"'
           artifact-name: ${{ matrix.config.id }}-pass1-adlaplaceHgp-as-cran
 
-      - name: Install adlaplaceHgp
-        run: bash .github/scripts/install-local-pkg.sh adlaplaceHgp
-
       # ----- adlaplaceGrf -----
+      - name: Build and install adlaplaceGrf
+        run: bash .github/scripts/install-local-pkg.sh adlaplaceGrf
+
       - name: Check adlaplaceGrf (plain)
         uses: r-lib/actions/check-r-package@v2
         with:
@@ -206,6 +208,9 @@ jobs:
           artifact-name: ${{ matrix.config.id }}-pass1-adlaplaceGrf-as-cran
 
       # ----- hpolcc -----
+      - name: Build and install hpolcc
+        run: bash .github/scripts/install-local-pkg.sh hpolcc
+
       - name: Check hpolcc (plain)
         uses: r-lib/actions/check-r-package@v2
         with:
@@ -227,21 +232,17 @@ jobs:
           artifact-name: ${{ matrix.config.id }}-pass1-hpolcc-as-cran
 
       # =====================================================================
-      # Pass 2 (macOS only): install libomp, rebuild, re-check
+      # Pass 2 (macOS only): install libomp, rebuild+install+check each package
       # =====================================================================
 
       - name: Install OpenMP (macOS, second pass)
         if: runner.os == 'macOS'
         run: brew install libomp
 
-      # Rebuild installed compiled deps so LinkingTo backends see OpenMP-enabled libs.
-      - name: Reinstall adlaplace with OpenMP
+      # ----- RCppAD (OpenMP) -----
+      - name: Build and install RCppAD with OpenMP
         if: runner.os == 'macOS'
-        run: bash .github/scripts/install-local-pkg.sh adlaplace
-
-      - name: Reinstall adlaplaceHgp
-        if: runner.os == 'macOS'
-        run: bash .github/scripts/install-local-pkg.sh adlaplaceHgp
+        run: bash .github/scripts/install-local-pkg.sh RCppAD
 
       - name: Check RCppAD with OpenMP (plain)
         if: runner.os == 'macOS'
@@ -265,6 +266,11 @@ jobs:
           check-dir: '"check-as-cran-omp"'
           artifact-name: macos-pass2-RCppAD-as-cran
 
+      # ----- adlaplace (OpenMP) -----
+      - name: Build and install adlaplace with OpenMP
+        if: runner.os == 'macOS'
+        run: bash .github/scripts/install-local-pkg.sh adlaplace
+
       - name: Check adlaplace with OpenMP (plain)
         if: runner.os == 'macOS'
         uses: r-lib/actions/check-r-package@v2
@@ -287,9 +293,10 @@ jobs:
           check-dir: '"check-as-cran-omp"'
           artifact-name: macos-pass2-adlaplace-as-cran
 
-      - name: Reinstall adlaplace after OpenMP check
+      # ----- adlaplaceExample (OpenMP) -----
+      - name: Build and install adlaplaceExample with OpenMP
         if: runner.os == 'macOS'
-        run: bash .github/scripts/install-local-pkg.sh adlaplace
+        run: bash .github/scripts/install-local-pkg.sh adlaplaceExample
 
       - name: Check adlaplaceExample with OpenMP (plain)
         if: runner.os == 'macOS'
@@ -313,6 +320,11 @@ jobs:
           check-dir: '"check-as-cran-omp"'
           artifact-name: macos-pass2-adlaplaceExample-as-cran
 
+      # ----- adlaplaceHgp (OpenMP) -----
+      - name: Build and install adlaplaceHgp with OpenMP
+        if: runner.os == 'macOS'
+        run: bash .github/scripts/install-local-pkg.sh adlaplaceHgp
+
       - name: Check adlaplaceHgp with OpenMP (plain)
         if: runner.os == 'macOS'
         uses: r-lib/actions/check-r-package@v2
@@ -335,9 +347,10 @@ jobs:
           check-dir: '"check-as-cran-omp"'
           artifact-name: macos-pass2-adlaplaceHgp-as-cran
 
-      - name: Reinstall adlaplaceHgp after OpenMP check
+      # ----- adlaplaceGrf (OpenMP) -----
+      - name: Build and install adlaplaceGrf with OpenMP
         if: runner.os == 'macOS'
-        run: bash .github/scripts/install-local-pkg.sh adlaplaceHgp
+        run: bash .github/scripts/install-local-pkg.sh adlaplaceGrf
 
       - name: Check adlaplaceGrf with OpenMP (plain)
         if: runner.os == 'macOS'
@@ -360,6 +373,11 @@ jobs:
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
           check-dir: '"check-as-cran-omp"'
           artifact-name: macos-pass2-adlaplaceGrf-as-cran
+
+      # ----- hpolcc (OpenMP) -----
+      - name: Build and install hpolcc with OpenMP
+        if: runner.os == 'macOS'
+        run: bash .github/scripts/install-local-pkg.sh hpolcc
 
       - name: Check hpolcc with OpenMP (plain)
         if: runner.os == 'macOS'
