@@ -14,12 +14,14 @@ has_cpp_compiler <- function() {
 
 rcppad_include_dir <- function() {
   # Source tree during development
-  if (file.exists("DESCRIPTION") && file.exists(file.path("inst", "include", "cppad", "cppad.hpp"))) {
+  if (file.exists("DESCRIPTION") &&
+      file.exists(file.path("inst", "include", "cppad", "cppad.hpp"))) {
     return(normalizePath(file.path("inst", "include"), mustWork = TRUE))
   }
   # Installed package: headers live under include/, not inst/include/
   installed <- system.file("include", package = "RCppAD", mustWork = FALSE)
-  if (nzchar(installed) && file.exists(file.path(installed, "cppad", "cppad.hpp"))) {
+  if (nzchar(installed) &&
+      file.exists(file.path(installed, "cppad", "cppad.hpp"))) {
     return(normalizePath(installed, mustWork = TRUE))
   }
   stop("Could not locate RCppAD include directory", call. = FALSE)
@@ -32,7 +34,6 @@ run_cppad_compile_smoke <- function() {
   dir.create(tmp)
   on.exit(unlink(tmp, recursive = TRUE), add = TRUE)
 
-  cpp <- file.path(tmp, "smoke.cpp")
   writeLines(
     c(
       "#include <cppad/cppad.hpp>",
@@ -42,38 +43,40 @@ run_cppad_compile_smoke <- function() {
       "  (void) y;",
       "}"
     ),
-    cpp
+    file.path(tmp, "smoke.cpp")
   )
 
-  # Run SHLIB from the temp dir so the .so lands next to smoke.cpp
-  status <- system2(
-    file.path(R.home("bin"), "R"),
-    c("CMD", "SHLIB", "smoke.cpp"),
-    stdout = TRUE,
-    stderr = TRUE,
-    env = c(
-      sprintf("PKG_CPPFLAGS=-I%s", shQuote(include, type = "cmd")),
-      "PKG_CXXFLAGS=-std=c++17",
-      "PKG_LIBS="
-    )
-  )
-  # system2 env= may not apply PKG_* to the child on all platforms; also write Makevars
-  makevars <- file.path(tmp, "Makevars")
+  # PKG_*FLAGS via Makevars in the temp dir (reliable across platforms).
   writeLines(
     c(
       paste0("PKG_CPPFLAGS=-I", include),
       "PKG_CXXFLAGS=-std=c++17"
     ),
-    makevars
+    file.path(tmp, "Makevars")
   )
+
   old_wd <- setwd(tmp)
   on.exit(setwd(old_wd), add = TRUE)
+
+  # Clear R_TESTS: during R CMD check it is set to startup.Rs (relative),
+  # and the child R would fail to source it from this tempdir.
+  old_r_tests <- Sys.getenv("R_TESTS", unset = NA_character_)
+  Sys.unsetenv("R_TESTS")
+  on.exit({
+    if (is.na(old_r_tests)) {
+      Sys.unsetenv("R_TESTS")
+    } else {
+      Sys.setenv(R_TESTS = old_r_tests)
+    }
+  }, add = TRUE)
+
   status <- system2(
     file.path(R.home("bin"), "R"),
     c("CMD", "SHLIB", "smoke.cpp"),
     stdout = TRUE,
     stderr = TRUE
   )
+
   so_candidates <- list.files(
     tmp,
     pattern = "\\.(so|dll|dylib)$",
