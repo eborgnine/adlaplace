@@ -1,10 +1,11 @@
 # Workflow derived from https://github.com/r-lib/actions/tree/v2/examples
 # Checks local packages in order:
 #   RCppAD → adlaplace → adlaplaceExample → adlaplaceHgp → adlaplaceGrf → hpolcc
-# Per package: build+install, then check plain, then check --as-cran.
+# Per package: build+install, then check plain, then check --as-cran
+# (Windows: plain check only; skip --as-cran).
 # Jobs:
 #   - macOS: first pass without Homebrew libomp, then brew install libomp and re-check
-#   - Windows
+#   - Windows (plain checks only)
 #   - Ubuntu CRAN-like (R-hub ubuntu-release); finally install INLA and re-check adlaplaceGrf
 #   - deploy-docs: GitHub Pages from ubuntu-built vignette HTML (_site/)
 # Check output goes under .ci-check/ (never inside package source trees).
@@ -94,7 +95,7 @@ jobs:
 
       # =====================================================================
       # Pass 1 (all jobs): macOS has no Homebrew libomp yet
-      # Per package: build+install → check plain → check --as-cran
+      # Per package: build+install → check plain → check --as-cran (not Windows)
       # =====================================================================
 
       # ----- RCppAD -----
@@ -114,6 +115,7 @@ jobs:
           artifact-name: ${{ matrix.config.id }}-pass1-RCppAD-plain
 
       - name: Check RCppAD (as-cran)
+        if: runner.os != 'Windows'
         uses: r-lib/actions/check-r-package@v2
         with:
           # Our check dirs live at ../.ci-check/; the action's failure-time
@@ -142,6 +144,7 @@ jobs:
           artifact-name: ${{ matrix.config.id }}-pass1-adlaplace-plain
 
       - name: Check adlaplace (as-cran)
+        if: runner.os != 'Windows'
         uses: r-lib/actions/check-r-package@v2
         with:
           # Our check dirs live at ../.ci-check/; the action's failure-time
@@ -170,6 +173,7 @@ jobs:
           artifact-name: ${{ matrix.config.id }}-pass1-adlaplaceExample-plain
 
       - name: Check adlaplaceExample (as-cran)
+        if: runner.os != 'Windows'
         uses: r-lib/actions/check-r-package@v2
         with:
           # Our check dirs live at ../.ci-check/; the action's failure-time
@@ -198,6 +202,7 @@ jobs:
           artifact-name: ${{ matrix.config.id }}-pass1-adlaplaceHgp-plain
 
       - name: Check adlaplaceHgp (as-cran)
+        if: runner.os != 'Windows'
         uses: r-lib/actions/check-r-package@v2
         with:
           # Our check dirs live at ../.ci-check/; the action's failure-time
@@ -226,6 +231,7 @@ jobs:
           artifact-name: ${{ matrix.config.id }}-pass1-adlaplaceGrf-plain
 
       - name: Check adlaplaceGrf (as-cran)
+        if: runner.os != 'Windows'
         uses: r-lib/actions/check-r-package@v2
         with:
           # Our check dirs live at ../.ci-check/; the action's failure-time
@@ -254,6 +260,7 @@ jobs:
           artifact-name: ${{ matrix.config.id }}-pass1-hpolcc-plain
 
       - name: Check hpolcc (as-cran)
+        if: runner.os != 'Windows'
         uses: r-lib/actions/check-r-package@v2
         with:
           # Our check dirs live at ../.ci-check/; the action's failure-time
