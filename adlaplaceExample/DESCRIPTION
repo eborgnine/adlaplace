@@ -1,7 +1,7 @@
 Package: adlaplaceExample
 Type: Package
 Title: Example Backend for 'adlaplace'
-Version: 0.5.0
+Version: 0.5.1
 Authors@R: person(given = "Patrick", family = "Brown",
     email = "patrick.borgnine@gmail.com",
     role = c("aut", "cre", "cph"))
