@@ -122,7 +122,7 @@ ADLAPLACE_SCRIPT_DIR="$(Rscript -e 'cat(system.file("scripts", package="adlaplac
 ```r
 library(adlaplaceExample)
 md <- model_data(y ~ skewnormal(x1) + iid(r1) + iid(r2), data = dat)
-ad_fun <- adlaplace::ad_fun(md, config, num_threads = 4L)
+ad_fun <- adlaplace::ad_fun(md, config, num_threads = 2L)
 ```
 
 User-supplied `config$beta`, `config$theta`, and `config$gamma` are preserved when

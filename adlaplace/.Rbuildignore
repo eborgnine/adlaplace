@@ -8,3 +8,6 @@
 ^vignettes/.*_files/
 ^vignettes/.*\.html$
 ^vignettes/.*\.knit\.md$
+^data-raw$
+^Rplots\.pdf$
+^.*\.tar\.gz$

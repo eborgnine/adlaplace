@@ -11,7 +11,7 @@ Depends: R (>= 3.5.0)
 Imports: Matrix (>= 1.2.18), Rcpp (>= 1.0.3), methods, data.table, stats,
     graphics
 Suggests: numDeriv, abind, quarto, trustOptim, testthat (>= 3.0.0), mvQuad,
-    mgcv
+    mgcv, MASS, nlme, sn, terra
 Config/testthat/edition: 3
 VignetteBuilder: quarto
 Enhances: RSpectra

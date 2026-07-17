@@ -1,11 +1,16 @@
 #' Germany oral cavity cancer (Besag-York-Mollie example)
 #'
-#' Disease-mapping data distributed with \pkg{INLA} (Besag, York, and Mollié 1991).
+#' Disease-mapping data distributed with \pkg{INLA} (Besag, York, and Mollie 1991).
 #' Counts \eqn{y_i} in 544 districts follow
 #' \eqn{y_i \sim \mathrm{Poisson}(E_i e^{\eta_i})} with a BYM spatial random
 #' effect. The bundled ICAR precision \code{Q_scaled} is the INLA
 #' \code{scale.model} version with sum-to-zero constraint; \code{prec} is the
 #' \code{random_mult} precision payload (\code{Q}, \code{log_det}, \code{rank}).
+#'
+#' District boundaries are not stored in this object (to avoid a hard
+#' dependency on \pkg{terra}). They ship as
+#' \code{system.file("extdata", "germany_map.gpkg", package = "adlaplace")}
+#' and can be loaded with \code{terra::vect(...)} when \pkg{terra} is installed.
 #'
 #' @format A list with:
 #' \describe{
@@ -19,7 +24,7 @@
 #' }
 #' @source \pkg{INLA} \code{Germany} data and \code{germany.graph}.
 #' @references
-#' Besag, J., York, J., and Mollié, A. (1991). Bayesian image restoration,
+#' Besag, J., York, J., and Mollie, A. (1991). Bayesian image restoration,
 #' with two applications in spatial statistics. \emph{Annals of the Institute
 #' of Statistical Mathematics}, 43(1), 1--20.
 #'

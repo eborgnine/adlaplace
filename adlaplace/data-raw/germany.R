@@ -110,12 +110,22 @@ germany <- list(
   E = as.numeric(Germany$E),
   region = as.integer(Germany$region),
   adj = adj,
+  Q_scaled = Q_scaled,
   prec = list(
     Q = Q_scaled,
     log_det = log_det_gen,
     rank = nrow(adj) - 1L
-  ),
-  map = terra::wrap(gmap)
+  )
 )
+
+# Spatial map ships separately (inst/extdata) so data/germany.rda does not
+# require terra at load time (R CMD check non-ASCII / S4 dependency).
+extdata <- "adlaplace/inst/extdata"
+dir.create(extdata, recursive = TRUE, showWarnings = FALSE)
+map_file <- file.path(extdata, "germany_map.gpkg")
+if (file.exists(map_file)) {
+  unlink(map_file)
+}
+terra::writeVector(gmap, map_file, overwrite = TRUE)
 
 save(germany, file = "adlaplace/data/germany.rda", compress = "xz")

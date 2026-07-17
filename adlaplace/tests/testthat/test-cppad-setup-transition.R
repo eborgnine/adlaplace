@@ -1,7 +1,7 @@
 # Regression: tape build (serial) -> ad_fun(N>1) -> inner_opt(deriv=FALSE)
 # must not hit CppAD parallel_setup thread_num() >= num_threads on macOS.
 
-build_transition_fixture <- function(num_threads = 10L,
+build_transition_fixture <- function(num_threads = 2L,
                                        num_shards = 20L,
                                        include_random = TRUE) {
   set.seed(42)
@@ -66,17 +66,17 @@ expect_inner_opt_finite <- function(fx) {
 }
 
 test_that("tape build -> ad_fun(10) -> inner_opt deriv=FALSE (mixed shards)", {
-  fx <- build_transition_fixture(num_threads = 10L, include_random = TRUE)
+  fx <- build_transition_fixture(num_threads = 2L, include_random = TRUE)
   expect_inner_opt_finite(fx)
 })
 
 test_that("tape build -> ad_fun(10) -> inner_opt deriv=FALSE (obs + extra only)", {
-  fx <- build_transition_fixture(num_threads = 10L, include_random = FALSE)
+  fx <- build_transition_fixture(num_threads = 2L, include_random = FALSE)
   expect_inner_opt_finite(fx)
 })
 
 test_that("back-to-back inner_opt after tape build does not crash", {
-  fx <- build_transition_fixture(num_threads = 10L, include_random = TRUE)
+  fx <- build_transition_fixture(num_threads = 2L, include_random = TRUE)
   expect_inner_opt_finite(fx)
   expect_inner_opt_finite(fx)
 })

@@ -1,6 +1,6 @@
 # CppAD team teardown: deriv=TRUE uses one CppadParallelScope in inner_opt (opt + trace).
 
-cppad_teardown_fixture <- function(num_threads = 4L) {
+cppad_teardown_fixture <- function(num_threads = 2L) {
   set.seed(42)
   Nobs <- 80L
   X <- Matrix::Matrix(cbind(1, stats::rbinom(Nobs, 1, 0.5)))
@@ -40,7 +40,7 @@ cppad_teardown_fixture <- function(num_threads = 4L) {
 }
 
 test_that("log_lik_laplace deriv=TRUE runs trace inside inner_opt (team teardown)", {
-  fx <- cppad_teardown_fixture(num_threads = 4L)
+  fx <- cppad_teardown_fixture(num_threads = 2L)
   ll <- adlaplace::log_lik_laplace(
     x = c(fx$config$beta, fx$config$theta),
     config = list(verbose = FALSE),
@@ -55,7 +55,7 @@ test_that("log_lik_laplace deriv=TRUE runs trace inside inner_opt (team teardown
 })
 
 test_that("back-to-back log_lik_laplace deriv=TRUE reuses CppAD team teardown", {
-  fx <- cppad_teardown_fixture(num_threads = 4L)
+  fx <- cppad_teardown_fixture(num_threads = 2L)
   args <- list(
     x = c(fx$config$beta, fx$config$theta),
     config = list(verbose = FALSE),

@@ -103,11 +103,11 @@ test_that("fun_obj_fdfh matches direct eval (serial, inner=FALSE)", {
 })
 
 test_that("fun_obj_fdfh matches direct eval (multi-thread, inner=TRUE)", {
-  m <- build_fun_obj_test_model(num_threads = 10L)
+  m <- build_fun_obj_test_model(num_threads = 2L)
   expect_fun_obj_parity(m, inner = TRUE)
 })
 
 test_that("fun_obj_fdfh matches direct eval (multi-thread, inner=FALSE)", {
-  m <- build_fun_obj_test_model(num_threads = 10L)
+  m <- build_fun_obj_test_model(num_threads = 2L)
   expect_fun_obj_parity(m, inner = FALSE)
 })

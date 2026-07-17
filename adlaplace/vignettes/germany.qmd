@@ -16,6 +16,13 @@ vignette: >
 library("Matrix")
 library("adlaplace")
 data("germany")
+# District polygons live in inst/extdata (not in data/germany.rda) so loading
+# the dataset does not require terra.
+if (requireNamespace("terra", quietly = TRUE)) {
+  germany$map <- terra::vect(
+    system.file("extdata", "germany_map.gpkg", package = "adlaplace")
+  )
+}
 ```
 
 ## Introduction
@@ -35,15 +42,12 @@ precision is rank-deficient.
 
 The `germany` object includes case and expected counts, the district adjacency
 matrix, the scaled ICAR precision `Q_scaled`, and the `prec` list for
-`random_mult`.
-
-
-
+`random_mult`. District boundaries are optional: when **terra** is available,
+`germany$map` is loaded from `inst/extdata/germany_map.gpkg` in the setup chunk.
 
 Latent vector $\gamma = (u_{\mathrm{struct}}, u_{\mathrm{iid}})$ has length
-$2n - 1$: structured effects on $n - 1$ areas (reference area `ref_id` fixed
-at zero) plus $n$ iid effects. Observations use `poisson_obs` with offset
-$\log E_i$.
+$2n$: structured and iid effects on $n$ areas. Observations use `poisson_obs`
+with offset $\log E_i$.
 
 ```{r shards}
 n <- length(germany$Y)
@@ -109,7 +113,7 @@ ptr_iid <- adlaplace::ad_fun_ptr(data = model_iid, config = config)
 ptr_struct <- adlaplace::ad_fun_ptr(data = model_struct, config = config)
 
 ad_fun_plain <- c(ptr_obs, ptr_struct, ptr_iid)
-ad_pack <- adlaplace::ad_fun(ad_fun_plain, num_threads = 4L)
+ad_pack <- adlaplace::ad_fun(ad_fun_plain, num_threads = 2L)
 ```
 
 
@@ -358,12 +362,20 @@ data.frame(
 ## Spatial effects
 
 ```{r maps, fig.height=4}
-par(mfrow = c(1, 1), mar = c(4, 4, 2, 1), mgp = c(2.2, 0.7, 0))
-plot(
-  seq_len(n), eta_hat,
-  type = "h", xlab = "district", ylab = expression(hat(eta)),
-  main = "Total spatial effect (adlaplace mode)"
-)
+if (!is.null(germany$map)) {
+  germany$map$eta_hat <- eta_hat
+  terra::plot(
+    germany$map, "eta_hat",
+    main = expression(hat(eta) ~ "(adlaplace mode)")
+  )
+} else {
+  par(mfrow = c(1, 1), mar = c(4, 4, 2, 1), mgp = c(2.2, 0.7, 0))
+  plot(
+    seq_len(n), eta_hat,
+    type = "h", xlab = "district", ylab = expression(hat(eta)),
+    main = "Total spatial effect (adlaplace mode; install terra for map)"
+  )
+}
 ```
 
 The structured (ICAR) component typically dominates; the unstructured component
