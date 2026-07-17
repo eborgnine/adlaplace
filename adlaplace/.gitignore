@@ -13,3 +13,5 @@ tests/testthat/_snaps/
 .Rlibrary
 **/.Rlibrary
 
+src/include/cppad/local/
+src/include/cppad/core/

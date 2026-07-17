@@ -21,24 +21,21 @@ library("adlaplace")
 ```
 
 ```{r gamm}
-if (requireNamespace("mgcv", quietly = TRUE)) {
-  set.seed(0)
-  dat <- mgcv::gamSim(6, n = 1000)
-  dat$f2 <- sqrt(dat$f2)
-  dat$f2 <- dat$f2 - dat$f2[which.min(abs(dat$x2 - 0.5))]
-  dat$mu <- exp(-1 + 0 * dat$x1 + dat$f2 +
-    rnorm(nlevels(dat$fac), sd = 0.25)[as.integer(dat$fac)])
-  nbinom_sd <- 0.25
-  dat$Z <- rgamma(nrow(dat), nbinom_sd^(-2), nbinom_sd^(-2))
-  dat$y <- rpois(nrow(dat), lambda = dat$mu * dat$Z)
-  b2 <- mgcv::gamm(y ~ x1 + s(x2),
-    family = mgcv::nb,
-    data = dat, random = list(fac = ~1)
-  )
-  # save(dat, b2, file = "adlaplace/data/gamm.RData")
-} else {
-  data("gamm", package = "adlaplace")
-}
+# Use packaged data for vignette builds (stable, no mgcv::gamm during render).
+# To regenerate locally:
+#   set.seed(0)
+#   dat <- mgcv::gamSim(6, n = 500)
+#   dat$f2 <- sqrt(dat$f2)
+#   dat$f2 <- dat$f2 - dat$f2[which.min(abs(dat$x2 - 0.5))]
+#   dat$mu <- exp(-1 + 0 * dat$x1 + dat$f2 +
+#     rnorm(nlevels(dat$fac), sd = 0.25)[as.integer(dat$fac)])
+#   nbinom_sd <- 0.25
+#   dat$Z <- rgamma(nrow(dat), nbinom_sd^(-2), nbinom_sd^(-2))
+#   dat$y <- rpois(nrow(dat), lambda = dat$mu * dat$Z)
+#   b2 <- mgcv::gamm(y ~ x1 + s(x2), family = mgcv::nb,
+#                    data = dat, random = list(fac = ~1))
+#   save(dat, b2, file = "data/gamm.RData")
+data("gamm", package = "adlaplace")
 ```
 
 
@@ -73,7 +70,10 @@ config <- list(
 
 
 ```{r ad_fun_create}
-config$num_threads <- 2L
+# Serial for vignette builds: OpenMP TLS can segfault under some macOS
+# libomp / dyn.load combinations when num_threads > 1 (quarto then dies
+# at log_lik with no R error message).
+config$num_threads <- 1L
 control_inner <- list(maxit = 100L, report.level = 0, report.freq = 0)
 ad_fun <- adlaplace::ad_fun(md, config, num_threads = config$num_threads)
 ```

@@ -3,6 +3,14 @@
 
 rm -f src/Makevars
 
+# CppAD std::cout shadows produced by configure (see src/include/cppad/README.md)
+rm -f src/include/cppad/local/var_op/atomic_op.hpp
+rm -f src/include/cppad/core/ad_fun.hpp
+rm -f src/include/cppad/core/fun_construct.hpp
+rmdir src/include/cppad/local/var_op 2>/dev/null || true
+rmdir src/include/cppad/local 2>/dev/null || true
+rmdir src/include/cppad/core 2>/dev/null || true
+
 # Quarto / knitr HTML vignette outputs (recreated by quarto render)
 rm -rf vignettes/*_files
 rm -f vignettes/*.html
