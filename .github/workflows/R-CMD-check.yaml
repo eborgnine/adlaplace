@@ -1,7 +1,8 @@
 # Workflow derived from https://github.com/r-lib/actions/tree/v2/examples
 # Checks local packages in order:
 #   RCppAD → adlaplace → adlaplaceExample → adlaplaceHgp → adlaplaceGrf → hpolcc
-# Each OS × R matrix cell runs twice: plain R CMD check and --as-cran.
+# Each package is checked twice in the same job: plain, then --as-cran.
+# Two jobs: ubuntu-latest and macos-latest.
 on:
   push:
     branches: [main, master]
@@ -16,16 +17,14 @@ jobs:
   R-CMD-check:
     runs-on: ${{ matrix.config.os }}
 
-    name: ${{ matrix.config.os }} (${{ matrix.config.r }}, ${{ matrix.config.check }})
+    name: ${{ matrix.config.os }} (${{ matrix.config.r }})
 
     strategy:
       fail-fast: false
       matrix:
         config:
-          - {os: macos-latest, r: 'release', check: plain, id: 'macos-plain'}
-          - {os: macos-latest, r: 'release', check: as-cran, id: 'macos-as-cran'}
-          - {os: ubuntu-latest, r: 'release', check: plain, id: 'ubuntu-plain'}
-          - {os: ubuntu-latest, r: 'release', check: as-cran, id: 'ubuntu-as-cran'}
+          - {os: macos-latest, r: 'release'}
+          - {os: ubuntu-latest, r: 'release'}
 
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
@@ -40,31 +39,6 @@ jobs:
         with:
           r-version: ${{ matrix.config.r }}
           use-public-rspm: true
-
-      - name: Set check args
-        id: check-args
-        run: |
-          if [ "${{ matrix.config.check }}" = "as-cran" ]; then
-            echo 'args=c("--no-manual", "--as-cran")' >> "$GITHUB_OUTPUT"
-          else
-            echo 'args=c("--no-manual")' >> "$GITHUB_OUTPUT"
-          fi
-
-      - uses: r-lib/actions/setup-r-dependencies@v2
-        with:
-          working-directory: RCppAD
-          extra-packages: any::rcmdcheck
-          needs: check
-
-      - uses: r-lib/actions/check-r-package@v2
-        with:
-          working-directory: RCppAD
-          upload-snapshots: true
-          args: ${{ steps.check-args.outputs.args }}
-          build_args: 'c("--no-manual")'
-
-      - name: Install RCppAD
-        run: R CMD INSTALL RCppAD
 
       - name: Install OpenMP
         if: runner.os == 'Linux'
@@ -83,73 +57,173 @@ jobs:
       - name: Install TinyTeX extras
         run: tlmgr install makeindex
 
+      # ----- RCppAD -----
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          working-directory: RCppAD
+          extra-packages: any::rcmdcheck
+          needs: check
+
+      - name: Check RCppAD (plain)
+        uses: r-lib/actions/check-r-package@v2
+        with:
+          working-directory: RCppAD
+          upload-snapshots: true
+          args: 'c("--no-manual")'
+          build_args: 'c("--no-manual")'
+          check-dir: '"check-plain"'
+          artifact-name: ${{ matrix.config.os }}-RCppAD-plain
+
+      - name: Check RCppAD (as-cran)
+        uses: r-lib/actions/check-r-package@v2
+        with:
+          working-directory: RCppAD
+          upload-snapshots: true
+          args: 'c("--no-manual", "--as-cran")'
+          build_args: 'c("--no-manual")'
+          check-dir: '"check-as-cran"'
+          artifact-name: ${{ matrix.config.os }}-RCppAD-as-cran
+
+      - name: Install RCppAD
+        run: R CMD INSTALL RCppAD
+
+      # ----- adlaplace -----
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
           working-directory: adlaplace
           extra-packages: any::rcmdcheck
           needs: check
 
-      - uses: r-lib/actions/check-r-package@v2
+      - name: Check adlaplace (plain)
+        uses: r-lib/actions/check-r-package@v2
         with:
           working-directory: adlaplace
           upload-snapshots: true
-          args: ${{ steps.check-args.outputs.args }}
+          args: 'c("--no-manual")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
+          check-dir: '"check-plain"'
+          artifact-name: ${{ matrix.config.os }}-adlaplace-plain
+
+      - name: Check adlaplace (as-cran)
+        uses: r-lib/actions/check-r-package@v2
+        with:
+          working-directory: adlaplace
+          upload-snapshots: true
+          args: 'c("--no-manual", "--as-cran")'
+          build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
+          check-dir: '"check-as-cran"'
+          artifact-name: ${{ matrix.config.os }}-adlaplace-as-cran
 
       - name: Install adlaplace
         run: R CMD INSTALL adlaplace
 
+      # ----- adlaplaceExample -----
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
           working-directory: adlaplaceExample
           extra-packages: any::rcmdcheck
           needs: check
 
-      - uses: r-lib/actions/check-r-package@v2
+      - name: Check adlaplaceExample (plain)
+        uses: r-lib/actions/check-r-package@v2
         with:
           working-directory: adlaplaceExample
           upload-snapshots: true
-          args: ${{ steps.check-args.outputs.args }}
+          args: 'c("--no-manual")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
+          check-dir: '"check-plain"'
+          artifact-name: ${{ matrix.config.os }}-adlaplaceExample-plain
 
+      - name: Check adlaplaceExample (as-cran)
+        uses: r-lib/actions/check-r-package@v2
+        with:
+          working-directory: adlaplaceExample
+          upload-snapshots: true
+          args: 'c("--no-manual", "--as-cran")'
+          build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
+          check-dir: '"check-as-cran"'
+          artifact-name: ${{ matrix.config.os }}-adlaplaceExample-as-cran
+
+      # ----- adlaplaceHgp -----
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
           working-directory: adlaplaceHgp
           extra-packages: any::rcmdcheck
           needs: check
 
-      - uses: r-lib/actions/check-r-package@v2
+      - name: Check adlaplaceHgp (plain)
+        uses: r-lib/actions/check-r-package@v2
         with:
           working-directory: adlaplaceHgp
           upload-snapshots: true
-          args: ${{ steps.check-args.outputs.args }}
+          args: 'c("--no-manual")'
           build_args: 'c("--no-manual")'
+          check-dir: '"check-plain"'
+          artifact-name: ${{ matrix.config.os }}-adlaplaceHgp-plain
+
+      - name: Check adlaplaceHgp (as-cran)
+        uses: r-lib/actions/check-r-package@v2
+        with:
+          working-directory: adlaplaceHgp
+          upload-snapshots: true
+          args: 'c("--no-manual", "--as-cran")'
+          build_args: 'c("--no-manual")'
+          check-dir: '"check-as-cran"'
+          artifact-name: ${{ matrix.config.os }}-adlaplaceHgp-as-cran
 
       - name: Install adlaplaceHgp
         run: R CMD INSTALL adlaplaceHgp
 
+      # ----- adlaplaceGrf -----
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
           working-directory: adlaplaceGrf
           extra-packages: any::rcmdcheck
           needs: check
 
-      - uses: r-lib/actions/check-r-package@v2
+      - name: Check adlaplaceGrf (plain)
+        uses: r-lib/actions/check-r-package@v2
         with:
           working-directory: adlaplaceGrf
           upload-snapshots: true
-          args: ${{ steps.check-args.outputs.args }}
+          args: 'c("--no-manual")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
+          check-dir: '"check-plain"'
+          artifact-name: ${{ matrix.config.os }}-adlaplaceGrf-plain
 
+      - name: Check adlaplaceGrf (as-cran)
+        uses: r-lib/actions/check-r-package@v2
+        with:
+          working-directory: adlaplaceGrf
+          upload-snapshots: true
+          args: 'c("--no-manual", "--as-cran")'
+          build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
+          check-dir: '"check-as-cran"'
+          artifact-name: ${{ matrix.config.os }}-adlaplaceGrf-as-cran
+
+      # ----- hpolcc -----
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
           working-directory: hpolcc
           extra-packages: any::rcmdcheck
           needs: check
 
-      - uses: r-lib/actions/check-r-package@v2
+      - name: Check hpolcc (plain)
+        uses: r-lib/actions/check-r-package@v2
         with:
           working-directory: hpolcc
           upload-snapshots: true
-          args: ${{ steps.check-args.outputs.args }}
+          args: 'c("--no-manual")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
+          check-dir: '"check-plain"'
+          artifact-name: ${{ matrix.config.os }}-hpolcc-plain
+
+      - name: Check hpolcc (as-cran)
+        uses: r-lib/actions/check-r-package@v2
+        with:
+          working-directory: hpolcc
+          upload-snapshots: true
+          args: 'c("--no-manual", "--as-cran")'
+          build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
+          check-dir: '"check-as-cran"'
+          artifact-name: ${{ matrix.config.os }}-hpolcc-as-cran
