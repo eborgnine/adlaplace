@@ -1,5 +1,5 @@
 #!/bin/sh
-# configure: backend extension package (sources adlaplace OpenMP detection)
+# configure: backend extension package (sources adlaplace OpenMP / visibility detection)
 
 set -eu
 
@@ -38,6 +38,7 @@ fi
 esc_sed () { printf '%s' "$1" | sed 's/[\/&]/\\&/g'; }
 
 sed \
+  -e "s/@VISIBILITY_CXXFLAGS@/$(esc_sed "$VISIBILITY_CXXFLAGS")/g" \
   -e "s/@ADLAPLACE_LIBS@/$(esc_sed "$ADLAPLACE_LIBS")/g" \
 "$infile" > "$outfile"
 

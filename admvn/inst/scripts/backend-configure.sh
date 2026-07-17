@@ -4,12 +4,14 @@
 OPENMP_CPPFLAGS=""
 OPENMP_CXXFLAGS=""
 OPENMP_LIBS=""
+VISIBILITY_CXXFLAGS=""
 BREW_PREFIX=""
 
 UNAME_S="$(uname -s 2>/dev/null || echo unknown)"
 
 # R CMD INSTALL/check set R_HOME; bare `R` is rejected there (R Installation §1.6).
-if [ -z "${R_HOME}" ]; then
+# Use ${R_HOME:-} so `set -u` configure wrappers do not fail when unset.
+if [ -z "${R_HOME:-}" ]; then
   R_HOME=`R RHOME`
 fi
 R_EXE="${R_HOME}/bin/R"
@@ -113,4 +115,13 @@ else
   else
     echo "configure: OpenMP not enabled (compiler does not accept -fopenmp)" >&2
   fi
+fi
+
+# ---- Symbol visibility (keep CppAD statics local to this DSO) ----
+# Only emit -fvisibility=hidden after a compiler probe (CRAN non-portable flags).
+if check_cxxflag "-fvisibility=hidden"; then
+  VISIBILITY_CXXFLAGS="-fvisibility=hidden"
+  echo "configure: using -fvisibility=hidden" >&2
+else
+  echo "configure: -fvisibility=hidden not supported; leaving default visibility" >&2
 fi

@@ -4,9 +4,10 @@
 #' @description Model term for the observation-level skew-normal log density
 #' registered as \code{skewnormal_obs}.
 #' @name skewnormal-class
-#' @aliases skewnormal
 #' @docType class
 #' @title Skew-normal observation term
+#' @param term A \code{skewnormal} object.
+#' @param data A data frame (unused for this observation term).
 #' @exportClass skewnormal
 #'
 #' @section Slots (inherited from \code{model}):
@@ -50,7 +51,7 @@ skewnormal <- function(x,
                        lower = c(1e-9, -Inf),
                        upper = c(Inf, Inf),
                        parscale = c(1, 1)) {
-  x <- adlaplace:::strip_term_name(as.character(x))
+  x <- adlaplace::strip_term_name(as.character(x))
   methods::new(
     "skewnormal",
     term = x,
