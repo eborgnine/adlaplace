@@ -34,47 +34,6 @@ sudo apt-get update
 sudo apt-get install -y libomp-dev g++
 ```
 
-### R packages
-
-Install CRAN dependencies first (or let `devtools` / `remotes` pull them):
-
-```r
-install.packages(c(
-  "Matrix", "Rcpp", "RcppEigen", "trustOptim",
-  "data.table", "timeDate"
-))
-```
-
-Then install **RCppAD** from this repo (not yet assumed on CRAN in local workflows).
-
-## Install from a local clone
-
-Clone the repo, then install **in this order** (`RCppAD` before anything that compiles against CppAD):
-
-```bash
-git clone https://github.com/eborgnine/adlaplace.git
-cd adlaplace
-```
-
-```r
-# From the repository root
-devtools::install("RCppAD", upgrade = "never")
-devtools::install("adlaplace", upgrade = "never")
-devtools::install("adlaplaceHgp", upgrade = "never")
-devtools::install("hpolcc", upgrade = "never")
-```
-
-Or with `R CMD INSTALL`:
-
-```bash
-R CMD INSTALL RCppAD
-R CMD INSTALL adlaplace
-R CMD INSTALL adlaplaceHgp
-R CMD INSTALL hpolcc
-```
-
-`configure` runs automatically during install and writes `src/Makevars` from `src/Makevars.in` (OpenMP detection only; CppAD comes from RCppAD).
-
 ## Install from R-universe (binaries)
 
 Pre-built packages are published at [eborgnine.r-universe.dev](https://eborgnine.r-universe.dev):

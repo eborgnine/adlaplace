@@ -20,7 +20,7 @@ library("adlaplace")
 ```
 
 ```{r gamm}
-# Use packaged data for vignette builds (stable, no mgcv::gamm during render).
+# Use packaged data for vignette builds (stable across renders).
 # To regenerate locally:
 #   set.seed(0)
 #   dat <- mgcv::gamSim(6, n = 500)
@@ -31,9 +31,7 @@ library("adlaplace")
 #   nbinom_sd <- 0.25
 #   dat$Z <- rgamma(nrow(dat), nbinom_sd^(-2), nbinom_sd^(-2))
 #   dat$y <- rpois(nrow(dat), lambda = dat$mu * dat$Z)
-#   b2 <- mgcv::gamm(y ~ x1 + s(x2), family = mgcv::nb,
-#                    data = dat, random = list(fac = ~1))
-#   save(dat, b2, file = "data/gamm.RData")
+#   save(dat, file = "data/gamm.RData")
 data("gamm", package = "adlaplace")
 ```
 
@@ -338,8 +336,4 @@ sim <- adlaplace::sim_fit(
 
 matplot(newx$x2, sim, type = "l", col = "#00000010", lty = 1)
 points(dat$x2, dat$f2, col = "red", cex = 0.1)
-
-sim_sumzero <- sim - matrix(apply(sim, 2, mean), nrow(sim), ncol(sim), byrow = TRUE)
-plot(b2$gam, col = "blue", select = 1)
-matlines(newx$x2, sim_sumzero, type = "l", col = "#00000002", lty = 1)
 ```

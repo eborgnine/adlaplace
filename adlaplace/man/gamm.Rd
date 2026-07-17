@@ -3,22 +3,20 @@
 \name{gamm}
 \alias{gamm}
 \alias{dat}
-\alias{b2}
-\title{Example GAMM data and fitted model}
+\title{Example GAMM simulation data}
 \format{
-This dataset loads two objects into the workspace:
-\describe{
-  \item{\code{dat}}{A data frame from \code{mgcv::gamSim(6, n = 200, scale = 0.2, dist = "poisson")}.}
-  \item{\code{b2}}{A fitted \code{mgcv::gamm} object from \code{y ~ s(x2)} with random intercept \code{fac}.}
+A data frame \code{dat} with 500 rows and columns from
+\code{mgcv::gamSim(6, n = 500)}, plus simulated negative-binomial responses
+used in the GAMM vignette (\code{y}, \code{f2}, \code{mu}, \code{Z}, etc.).
 }
-}
-\description{for vignette example}
+\description{Simulation data for the GAMM vignette example.}
 \source{
-Generated with \code{mgcv::gamSim()} and \code{mgcv::gamm()}.
+Generated with \code{mgcv::gamSim()} and a custom negative-binomial
+response; see the regeneration comments in \code{vignettes/gamm.Rmd}.
 }
 \examples{
 data("gamm", package = "adlaplace")
 exists("dat")
-exists("b2")
+nrow(dat)
 }
 \keyword{datasets}
