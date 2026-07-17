@@ -97,3 +97,4 @@ docs/paper/examples/bacteria/bacteria_files/libs/bootstrap/bootstrap.min.js
 docs/paper/examples/bacteria/bacteria_files/libs/clipboard/clipboard.min.js
 docs/paper/examples/bacteria/bacteria_files/libs/quarto-html/anchor.min.js
 docs/paper/examples/bacteria/bacteria_files/libs/quarto-html/popper.min.js
+.vscode/
