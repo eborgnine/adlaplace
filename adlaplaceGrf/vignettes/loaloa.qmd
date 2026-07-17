@@ -23,7 +23,6 @@ knitr::opts_chunk$set(
 )
 has_geostatsp <- requireNamespace("geostatsp", quietly = TRUE) &&
   requireNamespace("terra", quietly = TRUE)
-has_INLA <- has_geostatsp && requireNamespace("INLA", quietly = TRUE)
 ```
 
 ```{r pkgs}
@@ -217,7 +216,7 @@ sd_col <- mapmisc::colourScale(
   my_sim[[grep("sd", names(my_sim))]],
   style = "equal", digits = 2, breaks = 9
 )
-plot_compare <- has_INLA && exists("loaFit") && length(loaFit$parameters)
+plot_compare <- exists("loaFit") && length(loaFit$parameters)
 plot_alone <- !plot_compare
 ```
 
