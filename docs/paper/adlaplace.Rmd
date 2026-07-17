@@ -595,7 +595,7 @@ fit <- adlaplace(
 )
 ```
 
-The supplement \texttt{examples/bacteria/bacteria.qmd} gives the full
+The supplement \texttt{examples/bacteria/bacteria.Rmd} gives the full
 analysis and comparison code.  We compare against \code{glmmPQL}
 (penalized quasi-likelihood), \pkg{TMB} (exact Laplace, via
 \pkg{glmmTMB}), and \pkg{INLA} where available.
@@ -629,7 +629,7 @@ precision $\tau Q$ for fixed sparse $Q$, with the generalized
 log-determinant and rank of $Q$ passed as constants.  We reproduce the
 Germany oral-cavity-cancer example from \pkg{INLA}
 [@besag1991bym; @rue2009inla] using the low-level pipeline (no formula
-interface).  The supplement \texttt{examples/germany/germany.qmd} documents
+interface).  The supplement \texttt{examples/germany/germany.Rmd} documents
 the full assembly of observation and random-effect shards, the ICAR
 scaling with \pkg{INLA}'s utilities [@sorbye2014scaling], and the
 comparison plots.

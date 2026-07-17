@@ -1,12 +1,11 @@
 ---
 title: "Besag-York-Mollie disease mapping: Germany oral cavity cancer"
 author: "Patrick Brown"
-date: last-modified
-format:
-  html:
+date: "`r Sys.Date()`"
+output:
+  html_document:
     toc: true
-    toc-depth: 3
-    code-fold: false
+    toc_depth: 3
 ---
 
 ## Introduction
