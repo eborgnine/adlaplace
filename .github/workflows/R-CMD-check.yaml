@@ -104,6 +104,9 @@ jobs:
       - name: Check RCppAD (plain)
         uses: r-lib/actions/check-r-package@v2
         with:
+          # Our check dirs live at ../.ci-check/; the action's failure-time
+          # artifact upload cannot handle '..' in paths, so keep it off.
+          upload-results: never
           working-directory: RCppAD
           args: 'c("--no-manual")'
           build_args: 'c("--no-manual")'
@@ -113,6 +116,9 @@ jobs:
       - name: Check RCppAD (as-cran)
         uses: r-lib/actions/check-r-package@v2
         with:
+          # Our check dirs live at ../.ci-check/; the action's failure-time
+          # artifact upload cannot handle '..' in paths, so keep it off.
+          upload-results: never
           working-directory: RCppAD
           args: 'c("--no-manual", "--as-cran")'
           build_args: 'c("--no-manual")'
@@ -126,6 +132,9 @@ jobs:
       - name: Check adlaplace (plain)
         uses: r-lib/actions/check-r-package@v2
         with:
+          # Our check dirs live at ../.ci-check/; the action's failure-time
+          # artifact upload cannot handle '..' in paths, so keep it off.
+          upload-results: never
           working-directory: adlaplace
           args: 'c("--no-manual")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
@@ -135,6 +144,9 @@ jobs:
       - name: Check adlaplace (as-cran)
         uses: r-lib/actions/check-r-package@v2
         with:
+          # Our check dirs live at ../.ci-check/; the action's failure-time
+          # artifact upload cannot handle '..' in paths, so keep it off.
+          upload-results: never
           working-directory: adlaplace
           args: 'c("--no-manual", "--as-cran")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
@@ -148,6 +160,9 @@ jobs:
       - name: Check adlaplaceExample (plain)
         uses: r-lib/actions/check-r-package@v2
         with:
+          # Our check dirs live at ../.ci-check/; the action's failure-time
+          # artifact upload cannot handle '..' in paths, so keep it off.
+          upload-results: never
           working-directory: adlaplaceExample
           args: 'c("--no-manual")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
@@ -157,6 +172,9 @@ jobs:
       - name: Check adlaplaceExample (as-cran)
         uses: r-lib/actions/check-r-package@v2
         with:
+          # Our check dirs live at ../.ci-check/; the action's failure-time
+          # artifact upload cannot handle '..' in paths, so keep it off.
+          upload-results: never
           working-directory: adlaplaceExample
           args: 'c("--no-manual", "--as-cran")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
@@ -170,6 +188,9 @@ jobs:
       - name: Check adlaplaceHgp (plain)
         uses: r-lib/actions/check-r-package@v2
         with:
+          # Our check dirs live at ../.ci-check/; the action's failure-time
+          # artifact upload cannot handle '..' in paths, so keep it off.
+          upload-results: never
           working-directory: adlaplaceHgp
           args: 'c("--no-manual")'
           build_args: 'c("--no-manual")'
@@ -179,6 +200,9 @@ jobs:
       - name: Check adlaplaceHgp (as-cran)
         uses: r-lib/actions/check-r-package@v2
         with:
+          # Our check dirs live at ../.ci-check/; the action's failure-time
+          # artifact upload cannot handle '..' in paths, so keep it off.
+          upload-results: never
           working-directory: adlaplaceHgp
           args: 'c("--no-manual", "--as-cran")'
           build_args: 'c("--no-manual")'
@@ -192,6 +216,9 @@ jobs:
       - name: Check adlaplaceGrf (plain)
         uses: r-lib/actions/check-r-package@v2
         with:
+          # Our check dirs live at ../.ci-check/; the action's failure-time
+          # artifact upload cannot handle '..' in paths, so keep it off.
+          upload-results: never
           working-directory: adlaplaceGrf
           args: 'c("--no-manual")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
@@ -201,6 +228,9 @@ jobs:
       - name: Check adlaplaceGrf (as-cran)
         uses: r-lib/actions/check-r-package@v2
         with:
+          # Our check dirs live at ../.ci-check/; the action's failure-time
+          # artifact upload cannot handle '..' in paths, so keep it off.
+          upload-results: never
           working-directory: adlaplaceGrf
           args: 'c("--no-manual", "--as-cran")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
@@ -214,6 +244,9 @@ jobs:
       - name: Check hpolcc (plain)
         uses: r-lib/actions/check-r-package@v2
         with:
+          # Our check dirs live at ../.ci-check/; the action's failure-time
+          # artifact upload cannot handle '..' in paths, so keep it off.
+          upload-results: never
           working-directory: hpolcc
           args: 'c("--no-manual")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
@@ -223,6 +256,9 @@ jobs:
       - name: Check hpolcc (as-cran)
         uses: r-lib/actions/check-r-package@v2
         with:
+          # Our check dirs live at ../.ci-check/; the action's failure-time
+          # artifact upload cannot handle '..' in paths, so keep it off.
+          upload-results: never
           working-directory: hpolcc
           args: 'c("--no-manual", "--as-cran")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
@@ -246,6 +282,9 @@ jobs:
         if: runner.os == 'macOS'
         uses: r-lib/actions/check-r-package@v2
         with:
+          # Our check dirs live at ../.ci-check/; the action's failure-time
+          # artifact upload cannot handle '..' in paths, so keep it off.
+          upload-results: never
           working-directory: RCppAD
           args: 'c("--no-manual")'
           build_args: 'c("--no-manual")'
@@ -256,6 +295,9 @@ jobs:
         if: runner.os == 'macOS'
         uses: r-lib/actions/check-r-package@v2
         with:
+          # Our check dirs live at ../.ci-check/; the action's failure-time
+          # artifact upload cannot handle '..' in paths, so keep it off.
+          upload-results: never
           working-directory: RCppAD
           args: 'c("--no-manual", "--as-cran")'
           build_args: 'c("--no-manual")'
@@ -271,6 +313,9 @@ jobs:
         if: runner.os == 'macOS'
         uses: r-lib/actions/check-r-package@v2
         with:
+          # Our check dirs live at ../.ci-check/; the action's failure-time
+          # artifact upload cannot handle '..' in paths, so keep it off.
+          upload-results: never
           working-directory: adlaplace
           args: 'c("--no-manual")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
@@ -281,6 +326,9 @@ jobs:
         if: runner.os == 'macOS'
         uses: r-lib/actions/check-r-package@v2
         with:
+          # Our check dirs live at ../.ci-check/; the action's failure-time
+          # artifact upload cannot handle '..' in paths, so keep it off.
+          upload-results: never
           working-directory: adlaplace
           args: 'c("--no-manual", "--as-cran")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
@@ -296,6 +344,9 @@ jobs:
         if: runner.os == 'macOS'
         uses: r-lib/actions/check-r-package@v2
         with:
+          # Our check dirs live at ../.ci-check/; the action's failure-time
+          # artifact upload cannot handle '..' in paths, so keep it off.
+          upload-results: never
           working-directory: adlaplaceExample
           args: 'c("--no-manual")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
@@ -306,6 +357,9 @@ jobs:
         if: runner.os == 'macOS'
         uses: r-lib/actions/check-r-package@v2
         with:
+          # Our check dirs live at ../.ci-check/; the action's failure-time
+          # artifact upload cannot handle '..' in paths, so keep it off.
+          upload-results: never
           working-directory: adlaplaceExample
           args: 'c("--no-manual", "--as-cran")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
@@ -321,6 +375,9 @@ jobs:
         if: runner.os == 'macOS'
         uses: r-lib/actions/check-r-package@v2
         with:
+          # Our check dirs live at ../.ci-check/; the action's failure-time
+          # artifact upload cannot handle '..' in paths, so keep it off.
+          upload-results: never
           working-directory: adlaplaceHgp
           args: 'c("--no-manual")'
           build_args: 'c("--no-manual")'
@@ -331,6 +388,9 @@ jobs:
         if: runner.os == 'macOS'
         uses: r-lib/actions/check-r-package@v2
         with:
+          # Our check dirs live at ../.ci-check/; the action's failure-time
+          # artifact upload cannot handle '..' in paths, so keep it off.
+          upload-results: never
           working-directory: adlaplaceHgp
           args: 'c("--no-manual", "--as-cran")'
           build_args: 'c("--no-manual")'
@@ -346,6 +406,9 @@ jobs:
         if: runner.os == 'macOS'
         uses: r-lib/actions/check-r-package@v2
         with:
+          # Our check dirs live at ../.ci-check/; the action's failure-time
+          # artifact upload cannot handle '..' in paths, so keep it off.
+          upload-results: never
           working-directory: adlaplaceGrf
           args: 'c("--no-manual")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
@@ -356,6 +419,9 @@ jobs:
         if: runner.os == 'macOS'
         uses: r-lib/actions/check-r-package@v2
         with:
+          # Our check dirs live at ../.ci-check/; the action's failure-time
+          # artifact upload cannot handle '..' in paths, so keep it off.
+          upload-results: never
           working-directory: adlaplaceGrf
           args: 'c("--no-manual", "--as-cran")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
@@ -371,6 +437,9 @@ jobs:
         if: runner.os == 'macOS'
         uses: r-lib/actions/check-r-package@v2
         with:
+          # Our check dirs live at ../.ci-check/; the action's failure-time
+          # artifact upload cannot handle '..' in paths, so keep it off.
+          upload-results: never
           working-directory: hpolcc
           args: 'c("--no-manual")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
@@ -381,6 +450,9 @@ jobs:
         if: runner.os == 'macOS'
         uses: r-lib/actions/check-r-package@v2
         with:
+          # Our check dirs live at ../.ci-check/; the action's failure-time
+          # artifact upload cannot handle '..' in paths, so keep it off.
+          upload-results: never
           working-directory: hpolcc
           args: 'c("--no-manual", "--as-cran")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
@@ -416,6 +488,9 @@ jobs:
         if: ${{ matrix.config.id == 'ubuntu-cran' }}
         uses: r-lib/actions/check-r-package@v2
         with:
+          # Our check dirs live at ../.ci-check/; the action's failure-time
+          # artifact upload cannot handle '..' in paths, so keep it off.
+          upload-results: never
           working-directory: adlaplaceGrf
           args: 'c("--no-manual")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
@@ -426,6 +501,9 @@ jobs:
         if: ${{ matrix.config.id == 'ubuntu-cran' }}
         uses: r-lib/actions/check-r-package@v2
         with:
+          # Our check dirs live at ../.ci-check/; the action's failure-time
+          # artifact upload cannot handle '..' in paths, so keep it off.
+          upload-results: never
           working-directory: adlaplaceGrf
           args: 'c("--no-manual", "--as-cran")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'

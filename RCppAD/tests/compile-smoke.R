@@ -13,16 +13,19 @@ has_cpp_compiler <- function() {
 }
 
 rcppad_include_dir <- function() {
+  # Forward slashes everywhere: backslash paths get mangled by make/sh on
+  # Windows when written into Makevars.
   # Source tree during development
   if (file.exists("DESCRIPTION") &&
       file.exists(file.path("inst", "include", "cppad", "cppad.hpp"))) {
-    return(normalizePath(file.path("inst", "include"), mustWork = TRUE))
+    return(normalizePath(file.path("inst", "include"),
+                         winslash = "/", mustWork = TRUE))
   }
   # Installed package: headers live under include/, not inst/include/
   installed <- system.file("include", package = "RCppAD", mustWork = FALSE)
   if (nzchar(installed) &&
       file.exists(file.path(installed, "cppad", "cppad.hpp"))) {
-    return(normalizePath(installed, mustWork = TRUE))
+    return(normalizePath(installed, winslash = "/", mustWork = TRUE))
   }
   stop("Could not locate RCppAD include directory", call. = FALSE)
 }
@@ -49,7 +52,7 @@ run_cppad_compile_smoke <- function() {
   # PKG_*FLAGS via Makevars in the temp dir (reliable across platforms).
   writeLines(
     c(
-      paste0("PKG_CPPFLAGS=-I", include),
+      paste0("PKG_CPPFLAGS=-I\"", include, "\""),
       "PKG_CXXFLAGS=-std=c++17"
     ),
     file.path(tmp, "Makevars")
