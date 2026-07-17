@@ -110,7 +110,21 @@ fi
 
 # ---- OpenMP (optional; SystemRequirements lists OpenMP as recommended) ----
 # Soft-fail: leave OPENMP_* empty so the package installs serially.
-if [ "$UNAME_S" = "Darwin" ]; then
+#
+# Emscripten / WebR wasm: no omp.h; skip probes entirely. uname is still Linux
+# under emconfigure, and a failed em++ -fopenmp test can abort the install even
+# when the shell logic intends soft-fail.
+IS_WASM_TOOLCHAIN=0
+if [ -n "${EMSCRIPTEN:-}" ] || [ -n "${EMSDK:-}" ] || [ "${EMCONFIGURE_JS:-}" = "1" ]; then
+  IS_WASM_TOOLCHAIN=1
+fi
+case "$CXX_CMD" in
+  *em++*|*emcc*) IS_WASM_TOOLCHAIN=1 ;;
+esac
+
+if [ "$IS_WASM_TOOLCHAIN" = "1" ]; then
+  echo "configure: OpenMP not enabled (Emscripten/wasm toolchain; no libomp)" >&2
+elif [ "$UNAME_S" = "Darwin" ]; then
   if [ -n "$BREW_PREFIX" ] \
      && [ -f "$BREW_PREFIX/opt/libomp/include/omp.h" ] \
      && [ -f "$BREW_PREFIX/opt/libomp/lib/libomp.dylib" ]; then
@@ -121,7 +135,7 @@ if [ "$UNAME_S" = "Darwin" ]; then
       echo "configure: OpenMP enabled on macOS using dynamic Homebrew libomp" >&2
     else
       # Headers/dylib present: still enable flags. A failed probe can be
-      # transient (TMPDIR/noexec, PATH) but omitting -lomp breaks dyn.load.
+      # transient (TMPDIR/noexec, PATH) and omitting -lomp breaks dyn.load.
       echo "configure: WARNING: OpenMP link probe failed; enabling Homebrew libomp flags anyway" >&2
     fi
   else
