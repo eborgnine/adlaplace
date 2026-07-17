@@ -6,6 +6,8 @@
 #   - macOS: first pass without Homebrew libomp, then brew install libomp and re-check
 #   - Windows
 #   - Ubuntu CRAN-like (R-hub ubuntu-release); finally install INLA and re-check adlaplaceGrf
+#   - deploy-docs: GitHub Pages from ubuntu-built vignette HTML (_site/)
+# Check output goes under .ci-check/ (never inside package source trees).
 on:
   schedule:
     - cron: '0 2 * * 0'   # Sundays 02:00 UTC
@@ -15,6 +17,8 @@ name: R-CMD-check
 
 permissions:
   contents: read
+  pages: write
+  id-token: write
 
 jobs:
   R-CMD-check:
@@ -104,7 +108,7 @@ jobs:
           upload-snapshots: true
           args: 'c("--no-manual")'
           build_args: 'c("--no-manual")'
-          check-dir: '"check-plain"'
+          check-dir: '"../.ci-check/RCppAD-plain"'
           artifact-name: ${{ matrix.config.id }}-pass1-RCppAD-plain
 
       - name: Check RCppAD (as-cran)
@@ -114,7 +118,7 @@ jobs:
           upload-snapshots: true
           args: 'c("--no-manual", "--as-cran")'
           build_args: 'c("--no-manual")'
-          check-dir: '"check-as-cran"'
+          check-dir: '"../.ci-check/RCppAD-as-cran"'
           artifact-name: ${{ matrix.config.id }}-pass1-RCppAD-as-cran
 
       # ----- adlaplace -----
@@ -128,7 +132,7 @@ jobs:
           upload-snapshots: true
           args: 'c("--no-manual")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
-          check-dir: '"check-plain"'
+          check-dir: '"../.ci-check/adlaplace-plain"'
           artifact-name: ${{ matrix.config.id }}-pass1-adlaplace-plain
 
       - name: Check adlaplace (as-cran)
@@ -138,7 +142,7 @@ jobs:
           upload-snapshots: true
           args: 'c("--no-manual", "--as-cran")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
-          check-dir: '"check-as-cran"'
+          check-dir: '"../.ci-check/adlaplace-as-cran"'
           artifact-name: ${{ matrix.config.id }}-pass1-adlaplace-as-cran
 
       # ----- adlaplaceExample -----
@@ -152,7 +156,7 @@ jobs:
           upload-snapshots: true
           args: 'c("--no-manual")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
-          check-dir: '"check-plain"'
+          check-dir: '"../.ci-check/adlaplaceExample-plain"'
           artifact-name: ${{ matrix.config.id }}-pass1-adlaplaceExample-plain
 
       - name: Check adlaplaceExample (as-cran)
@@ -162,7 +166,7 @@ jobs:
           upload-snapshots: true
           args: 'c("--no-manual", "--as-cran")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
-          check-dir: '"check-as-cran"'
+          check-dir: '"../.ci-check/adlaplaceExample-as-cran"'
           artifact-name: ${{ matrix.config.id }}-pass1-adlaplaceExample-as-cran
 
       # ----- adlaplaceHgp -----
@@ -176,7 +180,7 @@ jobs:
           upload-snapshots: true
           args: 'c("--no-manual")'
           build_args: 'c("--no-manual")'
-          check-dir: '"check-plain"'
+          check-dir: '"../.ci-check/adlaplaceHgp-plain"'
           artifact-name: ${{ matrix.config.id }}-pass1-adlaplaceHgp-plain
 
       - name: Check adlaplaceHgp (as-cran)
@@ -186,7 +190,7 @@ jobs:
           upload-snapshots: true
           args: 'c("--no-manual", "--as-cran")'
           build_args: 'c("--no-manual")'
-          check-dir: '"check-as-cran"'
+          check-dir: '"../.ci-check/adlaplaceHgp-as-cran"'
           artifact-name: ${{ matrix.config.id }}-pass1-adlaplaceHgp-as-cran
 
       # ----- adlaplaceGrf -----
@@ -200,7 +204,7 @@ jobs:
           upload-snapshots: true
           args: 'c("--no-manual")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
-          check-dir: '"check-plain"'
+          check-dir: '"../.ci-check/adlaplaceGrf-plain"'
           artifact-name: ${{ matrix.config.id }}-pass1-adlaplaceGrf-plain
 
       - name: Check adlaplaceGrf (as-cran)
@@ -210,7 +214,7 @@ jobs:
           upload-snapshots: true
           args: 'c("--no-manual", "--as-cran")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
-          check-dir: '"check-as-cran"'
+          check-dir: '"../.ci-check/adlaplaceGrf-as-cran"'
           artifact-name: ${{ matrix.config.id }}-pass1-adlaplaceGrf-as-cran
 
       # ----- hpolcc -----
@@ -224,7 +228,7 @@ jobs:
           upload-snapshots: true
           args: 'c("--no-manual")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
-          check-dir: '"check-plain"'
+          check-dir: '"../.ci-check/hpolcc-plain"'
           artifact-name: ${{ matrix.config.id }}-pass1-hpolcc-plain
 
       - name: Check hpolcc (as-cran)
@@ -234,7 +238,7 @@ jobs:
           upload-snapshots: true
           args: 'c("--no-manual", "--as-cran")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
-          check-dir: '"check-as-cran"'
+          check-dir: '"../.ci-check/hpolcc-as-cran"'
           artifact-name: ${{ matrix.config.id }}-pass1-hpolcc-as-cran
 
       # =====================================================================
@@ -258,7 +262,7 @@ jobs:
           upload-snapshots: true
           args: 'c("--no-manual")'
           build_args: 'c("--no-manual")'
-          check-dir: '"check-plain-omp"'
+          check-dir: '"../.ci-check/RCppAD-plain-omp"'
           artifact-name: macos-pass2-RCppAD-plain
 
       - name: Check RCppAD with OpenMP (as-cran)
@@ -269,7 +273,7 @@ jobs:
           upload-snapshots: true
           args: 'c("--no-manual", "--as-cran")'
           build_args: 'c("--no-manual")'
-          check-dir: '"check-as-cran-omp"'
+          check-dir: '"../.ci-check/RCppAD-as-cran-omp"'
           artifact-name: macos-pass2-RCppAD-as-cran
 
       # ----- adlaplace (OpenMP) -----
@@ -285,7 +289,7 @@ jobs:
           upload-snapshots: true
           args: 'c("--no-manual")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
-          check-dir: '"check-plain-omp"'
+          check-dir: '"../.ci-check/adlaplace-plain-omp"'
           artifact-name: macos-pass2-adlaplace-plain
 
       - name: Check adlaplace with OpenMP (as-cran)
@@ -296,7 +300,7 @@ jobs:
           upload-snapshots: true
           args: 'c("--no-manual", "--as-cran")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
-          check-dir: '"check-as-cran-omp"'
+          check-dir: '"../.ci-check/adlaplace-as-cran-omp"'
           artifact-name: macos-pass2-adlaplace-as-cran
 
       # ----- adlaplaceExample (OpenMP) -----
@@ -312,7 +316,7 @@ jobs:
           upload-snapshots: true
           args: 'c("--no-manual")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
-          check-dir: '"check-plain-omp"'
+          check-dir: '"../.ci-check/adlaplaceExample-plain-omp"'
           artifact-name: macos-pass2-adlaplaceExample-plain
 
       - name: Check adlaplaceExample with OpenMP (as-cran)
@@ -323,7 +327,7 @@ jobs:
           upload-snapshots: true
           args: 'c("--no-manual", "--as-cran")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
-          check-dir: '"check-as-cran-omp"'
+          check-dir: '"../.ci-check/adlaplaceExample-as-cran-omp"'
           artifact-name: macos-pass2-adlaplaceExample-as-cran
 
       # ----- adlaplaceHgp (OpenMP) -----
@@ -339,7 +343,7 @@ jobs:
           upload-snapshots: true
           args: 'c("--no-manual")'
           build_args: 'c("--no-manual")'
-          check-dir: '"check-plain-omp"'
+          check-dir: '"../.ci-check/adlaplaceHgp-plain-omp"'
           artifact-name: macos-pass2-adlaplaceHgp-plain
 
       - name: Check adlaplaceHgp with OpenMP (as-cran)
@@ -350,7 +354,7 @@ jobs:
           upload-snapshots: true
           args: 'c("--no-manual", "--as-cran")'
           build_args: 'c("--no-manual")'
-          check-dir: '"check-as-cran-omp"'
+          check-dir: '"../.ci-check/adlaplaceHgp-as-cran-omp"'
           artifact-name: macos-pass2-adlaplaceHgp-as-cran
 
       # ----- adlaplaceGrf (OpenMP) -----
@@ -366,7 +370,7 @@ jobs:
           upload-snapshots: true
           args: 'c("--no-manual")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
-          check-dir: '"check-plain-omp"'
+          check-dir: '"../.ci-check/adlaplaceGrf-plain-omp"'
           artifact-name: macos-pass2-adlaplaceGrf-plain
 
       - name: Check adlaplaceGrf with OpenMP (as-cran)
@@ -377,7 +381,7 @@ jobs:
           upload-snapshots: true
           args: 'c("--no-manual", "--as-cran")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
-          check-dir: '"check-as-cran-omp"'
+          check-dir: '"../.ci-check/adlaplaceGrf-as-cran-omp"'
           artifact-name: macos-pass2-adlaplaceGrf-as-cran
 
       # ----- hpolcc (OpenMP) -----
@@ -393,7 +397,7 @@ jobs:
           upload-snapshots: true
           args: 'c("--no-manual")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
-          check-dir: '"check-plain-omp"'
+          check-dir: '"../.ci-check/hpolcc-plain-omp"'
           artifact-name: macos-pass2-hpolcc-plain
 
       - name: Check hpolcc with OpenMP (as-cran)
@@ -404,7 +408,7 @@ jobs:
           upload-snapshots: true
           args: 'c("--no-manual", "--as-cran")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
-          check-dir: '"check-as-cran-omp"'
+          check-dir: '"../.ci-check/hpolcc-as-cran-omp"'
           artifact-name: macos-pass2-hpolcc-as-cran
 
       # =====================================================================
@@ -433,7 +437,7 @@ jobs:
           upload-snapshots: true
           args: 'c("--no-manual")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
-          check-dir: '"check-plain-inla"'
+          check-dir: '"../.ci-check/adlaplaceGrf-plain-inla"'
           artifact-name: ubuntu-cran-adlaplaceGrf-inla-plain
 
       - name: Check adlaplaceGrf with INLA (as-cran)
@@ -444,5 +448,36 @@ jobs:
           upload-snapshots: true
           args: 'c("--no-manual", "--as-cran")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
-          check-dir: '"check-as-cran-inla"'
+          check-dir: '"../.ci-check/adlaplaceGrf-as-cran-inla"'
           artifact-name: ubuntu-cran-adlaplaceGrf-inla-as-cran
+
+      # =====================================================================
+      # Ubuntu only: stage vignette HTML for GitHub Pages
+      # =====================================================================
+
+      - name: Stage vignette site
+        if: ${{ matrix.config.id == 'ubuntu-cran' && success() }}
+        run: bash .github/scripts/stage-vignette-site.sh
+
+      - name: Setup Pages
+        if: ${{ matrix.config.id == 'ubuntu-cran' && success() }}
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        if: ${{ matrix.config.id == 'ubuntu-cran' && success() }}
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy-docs:
+    name: Deploy vignette site
+    needs: R-CMD-check
+    if: ${{ success() }}
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

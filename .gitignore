@@ -50,6 +50,9 @@ adlaplace_0.1.tar.gz
 hpolcc_0.2.0.tar.gz
 hpolcc_0.2.0.tar.gz
 *.Rcheck/
+.ci-check/
+/_site/
+_site/
 adlaplace.zip
 *.gz
 applications/india/indiaHpolCcD.bcf

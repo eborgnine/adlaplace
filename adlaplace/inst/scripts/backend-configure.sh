@@ -5,7 +5,6 @@ OPENMP_CPPFLAGS=""
 OPENMP_CXXFLAGS=""
 OPENMP_LIBS=""
 VISIBILITY_CXXFLAGS=""
-WARN_CXXFLAGS=""
 BREW_PREFIX=""
 
 UNAME_S="$(uname -s 2>/dev/null || echo unknown)"
@@ -149,28 +148,8 @@ else
   echo "configure: -fvisibility=hidden not supported; leaving default visibility" >&2
 fi
 
-# ---- Warning suppressions (Eigen / GCC 14 libstdc++ false positives) ----
-# Only on Windows: Eigen / GCC 14 libstdc++ false positives under Rtools.
-# Linux/macOS: omit — R --as-cran flags -Wno-* as non-portable suppressions.
-case "$UNAME_S" in
-  MINGW*|MSYS*|CYGWIN*)
-    if check_cxxflag "-Wno-uninitialized"; then
-      WARN_CXXFLAGS="$WARN_CXXFLAGS -Wno-uninitialized"
-    fi
-    if check_cxxflag "-Wno-maybe-uninitialized"; then
-      WARN_CXXFLAGS="$WARN_CXXFLAGS -Wno-maybe-uninitialized"
-    fi
-    WARN_CXXFLAGS="$(echo "$WARN_CXXFLAGS" | sed 's/^ *//')"
-    if [ -n "$WARN_CXXFLAGS" ]; then
-      echo "configure: warning suppressions: $WARN_CXXFLAGS" >&2
-    else
-      echo "configure: no Eigen-related -Wno-* flags enabled" >&2
-    fi
-    ;;
-  *)
-    echo "configure: skipping Eigen -Wno-* flags (non-Windows)" >&2
-    ;;
-esac
+# Do not add -Wno-* to PKG_CXXFLAGS: R CMD check flags them as non-portable
+# (including on Windows/Rtools), even when probed by configure.
 
 # ---- Link backends to adlaplace's shared library (.so / .dll) ----
 # Call set_adlaplace_libs from backend configure scripts after sourcing this file.

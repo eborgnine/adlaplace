@@ -3,6 +3,26 @@
 Laplace approximations for hierarchical models using CppAD (via the
 **RCppAD** R package) and trust-region optimization.
 
+## Install
+
+From [R-universe](https://eborgnine.r-universe.dev) (binaries when available):
+
+```r
+install.packages(
+  c("RCppAD", "adlaplace"),
+  repos = c("https://eborgnine.r-universe.dev", "https://cloud.r-project.org")
+)
+```
+
+## Vignettes
+
+Built HTML vignettes (from CI):
+
+- [Index](https://eborgnine.github.io/adlaplace/)
+- [Laplace Approximations with adlaplace](https://eborgnine.github.io/adlaplace/adlaplace/adlaplace.html)
+- [Germany BYM example](https://eborgnine.github.io/adlaplace/adlaplace/germany.html)
+- [GAMM examples](https://eborgnine.github.io/adlaplace/adlaplace/gamm.html)
+
 ## Dependencies
 
 - **RCppAD** — `Imports` + `LinkingTo`; provides `#include <cppad/cppad.hpp>`.

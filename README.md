@@ -75,9 +75,22 @@ R CMD INSTALL hpolcc
 
 `configure` runs automatically during install and writes `src/Makevars` from `src/Makevars.in` (OpenMP detection only; CppAD comes from RCppAD).
 
+## Install from R-universe (binaries)
+
+Pre-built packages are published at [eborgnine.r-universe.dev](https://eborgnine.r-universe.dev):
+
+```r
+install.packages(
+  c("RCppAD", "adlaplace", "adlaplaceHgp", "hpolcc"),
+  repos = c("https://eborgnine.r-universe.dev", "https://cloud.r-project.org")
+)
+```
+
+Other packages in this repo (`adlaplaceExample`, `adlaplaceGrf`, `admvn`) can be installed the same way. Prefer this over source installs when a binary is available for your platform.
+
 ## Install from GitHub
 
-Using [`remotes`](https://remotes.r-lib.org/) (or `devtools`):
+Using [`remotes`](https://remotes.r-lib.org/) (or `devtools`) when you need a source build from GitHub:
 
 ```r
 install.packages("remotes")
@@ -146,6 +159,21 @@ R CMD INSTALL .
 
 See [`RCppAD/README.md`](RCppAD/README.md). Do **not** download CppAD at `R CMD INSTALL` time.
 
+## Vignettes
+
+HTML vignettes are published by CI to GitHub Pages:
+
+[https://eborgnine.github.io/adlaplace/](https://eborgnine.github.io/adlaplace/)
+
+Examples:
+
+- [adlaplace overview](https://eborgnine.github.io/adlaplace/adlaplace/adlaplace.html)
+- [Germany BYM example](https://eborgnine.github.io/adlaplace/adlaplace/germany.html)
+- [GAMM examples](https://eborgnine.github.io/adlaplace/adlaplace/gamm.html)
+- [hpolcc](https://eborgnine.github.io/adlaplace/hpolcc/hpolcc.html)
+
+The site refreshes when the `R-CMD-check` workflow completes successfully (Sunday schedule or manual dispatch). Set the repo **Pages** source to **GitHub Actions** once if it is not already.
+
 ## Troubleshooting
 
 - **Missing `cppad/cppad.hpp`** — install **RCppAD** first (`R CMD INSTALL RCppAD`), then reinstall packages that `LinkingTo` it. Do not install system `cppad` / `libcppad-dev` for this repo.
@@ -158,5 +186,4 @@ See [`RCppAD/README.md`](RCppAD/README.md). Do **not** download CppAD at `R CMD 
 See each package’s `DESCRIPTION`:
 
 - `RCppAD` — EPL-2.0 or GPL-2+ (`License: file LICENSE`; vendored CppAD)
-- `adlaplace` — MPL-2.0
-- `hpolcc`, `adlaplaceHgp`, and most backends — GPL-3
+- `adlaplace`, `adlaplaceHgp`, `hpolcc`, and most backends — MPL-2.0

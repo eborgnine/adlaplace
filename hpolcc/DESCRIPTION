@@ -9,7 +9,7 @@ Description: Fits hierarchical functional case-crossover models for air
     pollution health effects, with hierarchical structures and case-crossover
     designs built on the adlaplace Laplace approximation framework.
 SystemRequirements: OpenMP
-License: GPL-3
+License: MPL-2.0
 Depends:
     R (>= 4.1.0),
     adlaplace (>= 0.5.0)

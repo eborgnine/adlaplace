@@ -10,7 +10,8 @@ locals <- c(
   "adlaplaceExample",
   "adlaplaceHgp",
   "adlaplaceGrf",
-  "hpolcc"
+  "hpolcc",
+  "admvn"
 )
 
 dep_types <- c("Depends", "Imports", "LinkingTo", "Suggests")

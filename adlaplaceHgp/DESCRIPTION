@@ -9,7 +9,7 @@ Description: Hierarchical and random-slope integrated Wiener process model terms
     for use with the adlaplace Laplace approximation framework. Provides
     hiwp, rsiwp, rsiid, rsfpoly, and rsrpoly constructors plus conditional
     simulation utilities for IWP-style smooths.
-License: GPL-3
+License: MPL-2.0
 Depends:
     R (>= 4.1.0),
     adlaplace (>= 0.5.0)

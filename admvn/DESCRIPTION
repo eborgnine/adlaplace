@@ -10,7 +10,7 @@ Description: Evaluates the cumulative distribution function of the multivariate
     gradient and Hessian with respect to the upper integration limits computed
     via CppAD automatic differentiation. Also provides the SUN(3,3) density
     with gradient and Hessian with respect to a block-Cholesky parameter vector.
-License: GPL-3
+License: MPL-2.0
 Depends: R (>= 4.1.0)
 Imports: Rcpp (>= 1.0.3), RCppAD
 LinkingTo: Rcpp, RCppAD

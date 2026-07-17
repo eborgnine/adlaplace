@@ -13,7 +13,7 @@ Description: Tensor-product B-spline finite-element ingredients for Matern
     Gram matrix construction on regular grids, with optional terra SpatRaster /
     SpatVector input, and AD tape builders for random_fem_ssq_* / random_fem_det_*.
 SystemRequirements: OpenMP
-License: GPL-3
+License: MPL-2.0
 Depends:
     R (>= 4.1.0),
     adlaplace (>= 0.5.0)
