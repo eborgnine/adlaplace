@@ -53,6 +53,17 @@ if [ -z "${ADLAPLACE_LIBS:-}" ]; then
     echo "configure: linking to $ADLAPLACE_LIBS (Windows x64 fallback)" >&2
   fi
 fi
+# Never link a host ELF .so into a wasm SIDE_MODULE (even if installed script is old).
+_is_wasm=0
+if [ -n "${EMSCRIPTEN:-}" ] || [ -n "${EMSDK:-}" ] || [ "${EMCONFIGURE_JS:-}" = "1" ] \
+   || [ "${IS_WASM_TOOLCHAIN:-0}" = "1" ]; then
+  _is_wasm=1
+fi
+case "${CXX_CMD:-}" in *em++*|*emcc*) _is_wasm=1 ;; esac
+if [ "$_is_wasm" = "1" ] && [ -n "${ADLAPLACE_LIBS:-}" ]; then
+  echo "configure: clearing ADLAPLACE_LIBS for Emscripten/wasm (was: $ADLAPLACE_LIBS)" >&2
+  ADLAPLACE_LIBS=""
+fi
 
 infile="src/Makevars.in"
 # Unix: src/Makevars; Windows configure.win sets MAKEVARS_OUT=src/Makevars.win

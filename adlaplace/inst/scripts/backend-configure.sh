@@ -182,6 +182,13 @@ fi
 ADLAPLACE_LIBS=""
 set_adlaplace_libs () {
   ADLAPLACE_LIBS=""
+  # WebR/emconfigure: system.file() finds the host (x86_64) adlaplace.so, which
+  # wasm-ld cannot link ("unknown file type"). Leave PKG_LIBS empty; SIDE_MODULE
+  # builds use --unresolved-symbols=import-dynamic for cross-module symbols.
+  if [ "${IS_WASM_TOOLCHAIN:-0}" = "1" ]; then
+    echo "configure: skipping host adlaplace.so link (Emscripten/wasm)" >&2
+    return 0
+  fi
   ADLAPLACE_LIBDIR="$("$RSCRIPT" -e 'p <- system.file("libs", package="adlaplace"); if (nzchar(p)) cat(p)' 2>/dev/null || true)"
   if [ -z "$ADLAPLACE_LIBDIR" ]; then
     echo "configure: WARNING: adlaplace libs directory not found" >&2
