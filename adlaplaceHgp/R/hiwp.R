@@ -69,7 +69,7 @@ hiwp <- function(
   upper <- rep_len(upper, 2 * p + 4)
   parscale <- rep_len(parscale, 2 * p + 4)
 
-  ref_value <- adlaplace:::ref_align(ref_value, knots)
+  ref_value <- adlaplace::ref_align(ref_value, knots)
 
   the_f <- stats::as.formula(paste0("~ 0 + ", x), env=new.env())
   result <- list()

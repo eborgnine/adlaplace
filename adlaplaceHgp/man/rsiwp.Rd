@@ -47,6 +47,8 @@ rsiwp(
 \item{boundary_is_random}{Whether boundary should be treated as random.}
 
 \item{include_poly}{Whether to include polynomial terms.}
+
+\item{include_linear}{Whether to include a linear (fixed) term in \code{mult}.}
 }
 \value{
 A list containing the \code{rsiwp} term object and optionally polynomial terms.

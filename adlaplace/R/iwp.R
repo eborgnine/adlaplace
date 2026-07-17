@@ -255,8 +255,9 @@ compute_weights_precision <- function(knots) {
 #' @examples
 #' # Align reference value to nearest knot
 #' knots <- c(10, 20, 30, 40, 50)
-#' adlaplace:::ref_align(23, knots) # Returns 20
+#' adlaplace::ref_align(23, knots) # Returns 20
 #'
+#' @export
 #' @keywords internal
 ref_align <- function(ref_value, knots) {
   knots[which.min(abs(knots - ref_value))]

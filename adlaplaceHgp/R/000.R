@@ -1,3 +1,4 @@
+#' @import Matrix
 #' @importFrom adlaplace design precision theta_info beta_info random_info
 #' @importFrom adlaplace by_group add_by_levels
 #' @importFrom adlaplace iwp iid rpoly fpoly

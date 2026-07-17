@@ -65,6 +65,7 @@ methods::setAs(
 #' @param parscale Parameter scales for optimization.
 #' @param boundary_is_random Whether boundary should be treated as random.
 #' @param include_poly Whether to include polynomial terms.
+#' @param include_linear Whether to include a linear (fixed) term in \code{mult}.
 #' @return A list containing the `rsiwp` term object and optionally polynomial terms.
 #' @export
 rsiwp <- function(
@@ -101,7 +102,7 @@ rsiwp <- function(
   result <- list()
   iwp_name <- paste("rsiwp", x, sep = "_")
 
-  ref_value <- adlaplace:::ref_align(ref_value, knots)
+  ref_value <- adlaplace::ref_align(ref_value, knots)
 
 
   rsiwp_label <- paste(c(x, mult, "rsiwp"), collapse = "_")
