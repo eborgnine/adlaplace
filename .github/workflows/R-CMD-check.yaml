@@ -53,6 +53,12 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      # Windows checkout often drops Unix +x; R CMD build warns and "corrects" otherwise.
+      - name: Ensure configure/cleanup are executable
+        run: |
+          find . -maxdepth 2 \( -name configure -o -name cleanup -o -name configure.win -o -name cleanup.win \) \
+            -type f -exec chmod +x {} +
+
       # Host jobs only: R-hub images already ship R (and usually pandoc).
       - uses: r-lib/actions/setup-pandoc@v2
         if: ${{ matrix.config.container == null }}

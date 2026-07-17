@@ -39,12 +39,17 @@ check_cxxflag () {
   cat > "$tmpdir/conftest.cpp" <<'EOF'
 int main() { return 0; }
 EOF
+  # Capture stderr: Clang accepts unknown -Wno-* with exit 0 but still warns
+  # (e.g. -Wno-maybe-uninitialized), which R CMD check treats as significant.
+  log="$tmpdir/conftest.log"
   if eval "$CXX_CMD $CPPFLAGS_CMD $CXXFLAGS_CMD $flag -c $tmpdir/conftest.cpp -o $tmpdir/conftest.o" \
-       >/dev/null 2>&1; then
+       >"$log" 2>&1 \
+     && ! grep -Eqi 'unknown warning option|Wunknown-warning-option' "$log"; then
     rm -rf "$tmpdir"
     return 0
   fi
   echo "configure: C++ flag probe failed for '$flag':" >&2
+  cat "$log" >&2 || true
   eval "$CXX_CMD $CPPFLAGS_CMD $CXXFLAGS_CMD $flag -c $tmpdir/conftest.cpp -o $tmpdir/conftest.o" >&2 || true
   rm -rf "$tmpdir"
   return 1
@@ -145,19 +150,27 @@ else
 fi
 
 # ---- Warning suppressions (Eigen / GCC 14 libstdc++ false positives) ----
-# Probe only; do not hardcode -Wno-* in committed Makevars (CRAN non-portable).
-if check_cxxflag "-Wno-uninitialized"; then
-  WARN_CXXFLAGS="$WARN_CXXFLAGS -Wno-uninitialized"
-fi
-if check_cxxflag "-Wno-maybe-uninitialized"; then
-  WARN_CXXFLAGS="$WARN_CXXFLAGS -Wno-maybe-uninitialized"
-fi
-WARN_CXXFLAGS="$(echo "$WARN_CXXFLAGS" | sed 's/^ *//')"
-if [ -n "$WARN_CXXFLAGS" ]; then
-  echo "configure: warning suppressions: $WARN_CXXFLAGS" >&2
-else
-  echo "configure: no Eigen-related -Wno-* flags enabled" >&2
-fi
+# Only on Windows: Eigen / GCC 14 libstdc++ false positives under Rtools.
+# Linux/macOS: omit — R --as-cran flags -Wno-* as non-portable suppressions.
+case "$UNAME_S" in
+  MINGW*|MSYS*|CYGWIN*)
+    if check_cxxflag "-Wno-uninitialized"; then
+      WARN_CXXFLAGS="$WARN_CXXFLAGS -Wno-uninitialized"
+    fi
+    if check_cxxflag "-Wno-maybe-uninitialized"; then
+      WARN_CXXFLAGS="$WARN_CXXFLAGS -Wno-maybe-uninitialized"
+    fi
+    WARN_CXXFLAGS="$(echo "$WARN_CXXFLAGS" | sed 's/^ *//')"
+    if [ -n "$WARN_CXXFLAGS" ]; then
+      echo "configure: warning suppressions: $WARN_CXXFLAGS" >&2
+    else
+      echo "configure: no Eigen-related -Wno-* flags enabled" >&2
+    fi
+    ;;
+  *)
+    echo "configure: skipping Eigen -Wno-* flags (non-Windows)" >&2
+    ;;
+esac
 
 # ---- Link backends to adlaplace's shared library (.so / .dll) ----
 # Call set_adlaplace_libs from backend configure scripts after sourcing this file.

@@ -13,6 +13,9 @@ if [ ! -d "$pkg" ]; then
   exit 1
 fi
 
+# Windows checkout may omit +x even when git records 100755.
+chmod +x "$pkg/configure" "$pkg/cleanup" "$pkg/configure.win" "$pkg/cleanup.win" 2>/dev/null || true
+
 R CMD build "$pkg" --no-manual --no-build-vignettes
 tarball=$(ls -t "${pkg}"_*.tar.gz | head -n 1)
 if [ -z "$tarball" ] || [ ! -f "$tarball" ]; then
