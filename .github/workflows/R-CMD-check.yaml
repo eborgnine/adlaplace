@@ -1,3 +1,97 @@
+# Workflow derived from https://github.com/r-lib/actions/tree/v2/examples
+# Checks local packages in order: RCppAD → adlaplace → adlaplaceExample
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
 name: R-CMD-check
 
+permissions:
+  contents: read
 
+jobs:
+  R-CMD-check:
+    runs-on: ${{ matrix.config.os }}
+
+    name: ${{ matrix.config.os }} (${{ matrix.config.r }})
+
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - {os: macos-latest, r: 'release'}
+          - {os: ubuntu-latest, r: 'release'}
+
+    env:
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      R_KEEP_PKG_SOURCE: yes
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-pandoc@v2
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: ${{ matrix.config.r }}
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          working-directory: RCppAD
+          extra-packages: any::rcmdcheck
+          needs: check
+
+      - uses: r-lib/actions/check-r-package@v2
+        with:
+          working-directory: RCppAD
+          upload-snapshots: true
+          build_args: 'c("--no-manual")'
+
+      - name: Install RCppAD
+        run: R CMD INSTALL RCppAD
+
+      - name: Install OpenMP
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libomp-dev
+
+      - name: Install OpenMP
+        if: runner.os == 'macOS'
+        run: brew install libomp
+
+      - uses: quarto-dev/quarto-actions/setup@v2
+
+      - uses: r-lib/actions/setup-tinytex@v2
+
+      - name: Install TinyTeX extras
+        run: tlmgr install makeindex
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          working-directory: adlaplace
+          extra-packages: any::rcmdcheck
+          needs: check
+
+      - uses: r-lib/actions/check-r-package@v2
+        with:
+          working-directory: adlaplace
+          upload-snapshots: true
+          build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
+
+      - name: Install adlaplace
+        run: R CMD INSTALL adlaplace
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          working-directory: adlaplaceExample
+          extra-packages: any::rcmdcheck
+          needs: check
+
+      - uses: r-lib/actions/check-r-package@v2
+        with:
+          working-directory: adlaplaceExample
+          upload-snapshots: true
+          build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
