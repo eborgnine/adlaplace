@@ -41,7 +41,7 @@ test_that("ad_fun assigns threads for multi-shard model", {
   owners <- vapply(seq_len(n) - 1L, function(g) {
     adlaplace:::get_thread_owner(ad_fun@ptr, g)
   }, integer(1))
-  expect_equal(owners, (seq_len(n) - 1L) %% 10L)
+  expect_equal(owners, (seq_len(n) - 1L) %% 2L)
   x <- c(config$beta, config$gamma, config$theta)
   expect_true(is.finite(adlaplace::joint_log_dens(ad_fun, x, negative = FALSE)))
 })
@@ -184,7 +184,7 @@ test_that("ad_fun_ptr has no thread assignment until ad_fun", {
   owners <- vapply(seq_len(n) - 1L, function(g) {
     adlaplace:::get_thread_owner(af@ptr, g)
   }, integer(1))
-  expect_equal(owners, (seq_len(n) - 1L) %% 10L)
+  expect_equal(owners, (seq_len(n) - 1L) %% 2L)
   expect_true(all(vapply(seq_len(n) - 1L, function(g) {
     adlaplace:::get_owner_thread_assigned(af@ptr, g)
   }, logical(1))))
