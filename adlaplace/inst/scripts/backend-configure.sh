@@ -162,8 +162,20 @@ else
   echo "configure: -fvisibility=hidden not supported; leaving default visibility" >&2
 fi
 
-# Do not add -Wno-* to PKG_CXXFLAGS: R CMD check flags them as non-portable
-# (including on Windows/Rtools), even when probed by configure.
+# ---- Windows warning suppressions ----
+# Avoid -Wno-* on Unix (CRAN non-portable-flag NOTE). On Windows/Rtools45
+# GCC 14, Eigen + std::move false positives in bits/move.h become "significant
+# warnings" during R CMD INSTALL; suppress only there.
+WARN_CXXFLAGS=""
+case "${MAKEVARS_OUT:-}" in
+  *Makevars.win) WARN_CXXFLAGS="-Wno-uninitialized" ;;
+esac
+case "$UNAME_S" in
+  MINGW*|MSYS*|CYGWIN*) WARN_CXXFLAGS="-Wno-uninitialized" ;;
+esac
+if [ -n "$WARN_CXXFLAGS" ]; then
+  echo "configure: Windows: adding $WARN_CXXFLAGS (Eigen/libstdc++ false positives)" >&2
+fi
 
 # ---- Link backends to adlaplace's shared library (.so / .dll) ----
 # Call set_adlaplace_libs from backend configure scripts after sourcing this file.

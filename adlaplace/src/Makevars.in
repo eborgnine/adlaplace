@@ -4,7 +4,7 @@
 # CppAD headers come from LinkingTo: RCppAD (R adds -I automatically).
 # Eigen headers come from LinkingTo: RcppEigen.
 PKG_CPPFLAGS = -I../inst/include -I../src/include @OPENMP_CPPFLAGS@ -DEIGEN_DONT_PARALLELIZE
-PKG_CXXFLAGS = @OPENMP_CXXFLAGS@ @DEBUG_CXXFLAGS@
+PKG_CXXFLAGS = @OPENMP_CXXFLAGS@ @DEBUG_CXXFLAGS@ @WARN_CXXFLAGS@
 PKG_LIBS     = @OPENMP_LIBS@
 
 all: $(SHLIB) strippedLib
