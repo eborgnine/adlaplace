@@ -101,7 +101,7 @@ fit <- adlaplace::adlaplace(
   data = loaloa_df,
   num_shards = 20L,
   control = list(maxit = 200, trace = 3, REPORT = 1),
-  config = list(num_threads = 4L),
+  config = list(num_threads = 2L),
   verbose = FALSE
 )
 fit$optim$convergence
@@ -216,7 +216,6 @@ plot_alone <- !plot_compare
 ```
 
 ```{r plot-surfaces-compare, fig.width=8, fig.height=8, fig.cap="Posterior mean and SD of the spatial field (glgm vs adlaplace)."}
-
 data("worldMap", package = "mapmisc")
 worldMap <- terra::unwrap(worldMap)
 worldMap <- terra::crop(worldMap, terra::ext(c(-2, 10, -10, 5) * 1e6))
