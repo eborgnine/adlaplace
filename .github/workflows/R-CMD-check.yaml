@@ -1,8 +1,11 @@
 # Workflow derived from https://github.com/r-lib/actions/tree/v2/examples
 # Checks local packages in order:
 #   RCppAD → adlaplace → adlaplaceExample → adlaplaceHgp → adlaplaceGrf → hpolcc
-# Each package is checked twice in the same job: plain, then --as-cran.
-# Two jobs: ubuntu-latest and macos-latest.
+# Each package is checked twice per pass: plain, then --as-cran.
+# Jobs:
+#   - macOS: first pass without Homebrew libomp, then brew install libomp and re-check
+#   - Windows
+#   - Ubuntu CRAN-like (R-hub ubuntu-release)
 on:
   push:
     branches: [main, master]
@@ -16,15 +19,27 @@ permissions:
 jobs:
   R-CMD-check:
     runs-on: ${{ matrix.config.os }}
+    container: ${{ matrix.config.container }}
 
-    name: ${{ matrix.config.os }} (${{ matrix.config.r }})
+    name: ${{ matrix.config.label }}
 
     strategy:
       fail-fast: false
       matrix:
         config:
-          - {os: macos-latest, r: 'release'}
-          - {os: ubuntu-latest, r: 'release'}
+          - os: macos-latest
+            r: 'release'
+            id: macos
+            label: 'macos-latest (no OpenMP, then OpenMP)'
+          - os: windows-latest
+            r: 'release'
+            id: windows
+            label: 'windows-latest (release)'
+          - os: ubuntu-latest
+            r: 'release'
+            id: ubuntu-cran
+            label: 'ubuntu-release (CRAN-like)'
+            container: ghcr.io/r-hub/containers/ubuntu-release:latest
 
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
@@ -33,22 +48,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Host jobs only: R-hub images already ship R (and usually pandoc).
       - uses: r-lib/actions/setup-pandoc@v2
+        if: ${{ matrix.config.container == null }}
 
       - uses: r-lib/actions/setup-r@v2
+        if: ${{ matrix.config.container == null }}
         with:
           r-version: ${{ matrix.config.r }}
           use-public-rspm: true
 
-      - name: Install OpenMP
-        if: runner.os == 'Linux'
+      # macOS: deliberately skip libomp for the first pass (configure soft-fails).
+      - name: Install OpenMP (CRAN-like container)
+        if: ${{ matrix.config.container != null }}
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libomp-dev
-
-      - name: Install OpenMP
-        if: runner.os == 'macOS'
-        run: brew install libomp
+          apt-get update
+          apt-get install -y --no-install-recommends libomp-dev
 
       - uses: quarto-dev/quarto-actions/setup@v2
 
@@ -56,6 +71,10 @@ jobs:
 
       - name: Install TinyTeX extras
         run: tlmgr install makeindex
+
+      # =====================================================================
+      # Pass 1 (all jobs): macOS has no Homebrew libomp yet
+      # =====================================================================
 
       # ----- RCppAD -----
       - uses: r-lib/actions/setup-r-dependencies@v2
@@ -72,7 +91,7 @@ jobs:
           args: 'c("--no-manual")'
           build_args: 'c("--no-manual")'
           check-dir: '"check-plain"'
-          artifact-name: ${{ matrix.config.os }}-RCppAD-plain
+          artifact-name: ${{ matrix.config.id }}-pass1-RCppAD-plain
 
       - name: Check RCppAD (as-cran)
         uses: r-lib/actions/check-r-package@v2
@@ -82,7 +101,7 @@ jobs:
           args: 'c("--no-manual", "--as-cran")'
           build_args: 'c("--no-manual")'
           check-dir: '"check-as-cran"'
-          artifact-name: ${{ matrix.config.os }}-RCppAD-as-cran
+          artifact-name: ${{ matrix.config.id }}-pass1-RCppAD-as-cran
 
       - name: Install RCppAD
         run: R CMD INSTALL RCppAD
@@ -102,7 +121,7 @@ jobs:
           args: 'c("--no-manual")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
           check-dir: '"check-plain"'
-          artifact-name: ${{ matrix.config.os }}-adlaplace-plain
+          artifact-name: ${{ matrix.config.id }}-pass1-adlaplace-plain
 
       - name: Check adlaplace (as-cran)
         uses: r-lib/actions/check-r-package@v2
@@ -112,7 +131,7 @@ jobs:
           args: 'c("--no-manual", "--as-cran")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
           check-dir: '"check-as-cran"'
-          artifact-name: ${{ matrix.config.os }}-adlaplace-as-cran
+          artifact-name: ${{ matrix.config.id }}-pass1-adlaplace-as-cran
 
       - name: Install adlaplace
         run: R CMD INSTALL adlaplace
@@ -132,7 +151,7 @@ jobs:
           args: 'c("--no-manual")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
           check-dir: '"check-plain"'
-          artifact-name: ${{ matrix.config.os }}-adlaplaceExample-plain
+          artifact-name: ${{ matrix.config.id }}-pass1-adlaplaceExample-plain
 
       - name: Check adlaplaceExample (as-cran)
         uses: r-lib/actions/check-r-package@v2
@@ -142,7 +161,7 @@ jobs:
           args: 'c("--no-manual", "--as-cran")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
           check-dir: '"check-as-cran"'
-          artifact-name: ${{ matrix.config.os }}-adlaplaceExample-as-cran
+          artifact-name: ${{ matrix.config.id }}-pass1-adlaplaceExample-as-cran
 
       # ----- adlaplaceHgp -----
       - uses: r-lib/actions/setup-r-dependencies@v2
@@ -159,7 +178,7 @@ jobs:
           args: 'c("--no-manual")'
           build_args: 'c("--no-manual")'
           check-dir: '"check-plain"'
-          artifact-name: ${{ matrix.config.os }}-adlaplaceHgp-plain
+          artifact-name: ${{ matrix.config.id }}-pass1-adlaplaceHgp-plain
 
       - name: Check adlaplaceHgp (as-cran)
         uses: r-lib/actions/check-r-package@v2
@@ -169,7 +188,7 @@ jobs:
           args: 'c("--no-manual", "--as-cran")'
           build_args: 'c("--no-manual")'
           check-dir: '"check-as-cran"'
-          artifact-name: ${{ matrix.config.os }}-adlaplaceHgp-as-cran
+          artifact-name: ${{ matrix.config.id }}-pass1-adlaplaceHgp-as-cran
 
       - name: Install adlaplaceHgp
         run: R CMD INSTALL adlaplaceHgp
@@ -189,7 +208,7 @@ jobs:
           args: 'c("--no-manual")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
           check-dir: '"check-plain"'
-          artifact-name: ${{ matrix.config.os }}-adlaplaceGrf-plain
+          artifact-name: ${{ matrix.config.id }}-pass1-adlaplaceGrf-plain
 
       - name: Check adlaplaceGrf (as-cran)
         uses: r-lib/actions/check-r-package@v2
@@ -199,7 +218,7 @@ jobs:
           args: 'c("--no-manual", "--as-cran")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
           check-dir: '"check-as-cran"'
-          artifact-name: ${{ matrix.config.os }}-adlaplaceGrf-as-cran
+          artifact-name: ${{ matrix.config.id }}-pass1-adlaplaceGrf-as-cran
 
       # ----- hpolcc -----
       - uses: r-lib/actions/setup-r-dependencies@v2
@@ -216,7 +235,7 @@ jobs:
           args: 'c("--no-manual")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
           check-dir: '"check-plain"'
-          artifact-name: ${{ matrix.config.os }}-hpolcc-plain
+          artifact-name: ${{ matrix.config.id }}-pass1-hpolcc-plain
 
       - name: Check hpolcc (as-cran)
         uses: r-lib/actions/check-r-package@v2
@@ -226,4 +245,161 @@ jobs:
           args: 'c("--no-manual", "--as-cran")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
           check-dir: '"check-as-cran"'
-          artifact-name: ${{ matrix.config.os }}-hpolcc-as-cran
+          artifact-name: ${{ matrix.config.id }}-pass1-hpolcc-as-cran
+
+      # =====================================================================
+      # Pass 2 (macOS only): install libomp, rebuild, re-check
+      # =====================================================================
+
+      - name: Install OpenMP (macOS, second pass)
+        if: runner.os == 'macOS'
+        run: brew install libomp
+
+      # Rebuild installed compiled deps so LinkingTo backends see OpenMP-enabled libs.
+      - name: Reinstall adlaplace with OpenMP
+        if: runner.os == 'macOS'
+        run: R CMD INSTALL adlaplace
+
+      - name: Reinstall adlaplaceHgp
+        if: runner.os == 'macOS'
+        run: R CMD INSTALL adlaplaceHgp
+
+      - name: Check RCppAD with OpenMP (plain)
+        if: runner.os == 'macOS'
+        uses: r-lib/actions/check-r-package@v2
+        with:
+          working-directory: RCppAD
+          upload-snapshots: true
+          args: 'c("--no-manual")'
+          build_args: 'c("--no-manual")'
+          check-dir: '"check-plain-omp"'
+          artifact-name: macos-pass2-RCppAD-plain
+
+      - name: Check RCppAD with OpenMP (as-cran)
+        if: runner.os == 'macOS'
+        uses: r-lib/actions/check-r-package@v2
+        with:
+          working-directory: RCppAD
+          upload-snapshots: true
+          args: 'c("--no-manual", "--as-cran")'
+          build_args: 'c("--no-manual")'
+          check-dir: '"check-as-cran-omp"'
+          artifact-name: macos-pass2-RCppAD-as-cran
+
+      - name: Check adlaplace with OpenMP (plain)
+        if: runner.os == 'macOS'
+        uses: r-lib/actions/check-r-package@v2
+        with:
+          working-directory: adlaplace
+          upload-snapshots: true
+          args: 'c("--no-manual")'
+          build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
+          check-dir: '"check-plain-omp"'
+          artifact-name: macos-pass2-adlaplace-plain
+
+      - name: Check adlaplace with OpenMP (as-cran)
+        if: runner.os == 'macOS'
+        uses: r-lib/actions/check-r-package@v2
+        with:
+          working-directory: adlaplace
+          upload-snapshots: true
+          args: 'c("--no-manual", "--as-cran")'
+          build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
+          check-dir: '"check-as-cran-omp"'
+          artifact-name: macos-pass2-adlaplace-as-cran
+
+      - name: Reinstall adlaplace after OpenMP check
+        if: runner.os == 'macOS'
+        run: R CMD INSTALL adlaplace
+
+      - name: Check adlaplaceExample with OpenMP (plain)
+        if: runner.os == 'macOS'
+        uses: r-lib/actions/check-r-package@v2
+        with:
+          working-directory: adlaplaceExample
+          upload-snapshots: true
+          args: 'c("--no-manual")'
+          build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
+          check-dir: '"check-plain-omp"'
+          artifact-name: macos-pass2-adlaplaceExample-plain
+
+      - name: Check adlaplaceExample with OpenMP (as-cran)
+        if: runner.os == 'macOS'
+        uses: r-lib/actions/check-r-package@v2
+        with:
+          working-directory: adlaplaceExample
+          upload-snapshots: true
+          args: 'c("--no-manual", "--as-cran")'
+          build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
+          check-dir: '"check-as-cran-omp"'
+          artifact-name: macos-pass2-adlaplaceExample-as-cran
+
+      - name: Check adlaplaceHgp with OpenMP (plain)
+        if: runner.os == 'macOS'
+        uses: r-lib/actions/check-r-package@v2
+        with:
+          working-directory: adlaplaceHgp
+          upload-snapshots: true
+          args: 'c("--no-manual")'
+          build_args: 'c("--no-manual")'
+          check-dir: '"check-plain-omp"'
+          artifact-name: macos-pass2-adlaplaceHgp-plain
+
+      - name: Check adlaplaceHgp with OpenMP (as-cran)
+        if: runner.os == 'macOS'
+        uses: r-lib/actions/check-r-package@v2
+        with:
+          working-directory: adlaplaceHgp
+          upload-snapshots: true
+          args: 'c("--no-manual", "--as-cran")'
+          build_args: 'c("--no-manual")'
+          check-dir: '"check-as-cran-omp"'
+          artifact-name: macos-pass2-adlaplaceHgp-as-cran
+
+      - name: Reinstall adlaplaceHgp after OpenMP check
+        if: runner.os == 'macOS'
+        run: R CMD INSTALL adlaplaceHgp
+
+      - name: Check adlaplaceGrf with OpenMP (plain)
+        if: runner.os == 'macOS'
+        uses: r-lib/actions/check-r-package@v2
+        with:
+          working-directory: adlaplaceGrf
+          upload-snapshots: true
+          args: 'c("--no-manual")'
+          build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
+          check-dir: '"check-plain-omp"'
+          artifact-name: macos-pass2-adlaplaceGrf-plain
+
+      - name: Check adlaplaceGrf with OpenMP (as-cran)
+        if: runner.os == 'macOS'
+        uses: r-lib/actions/check-r-package@v2
+        with:
+          working-directory: adlaplaceGrf
+          upload-snapshots: true
+          args: 'c("--no-manual", "--as-cran")'
+          build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
+          check-dir: '"check-as-cran-omp"'
+          artifact-name: macos-pass2-adlaplaceGrf-as-cran
+
+      - name: Check hpolcc with OpenMP (plain)
+        if: runner.os == 'macOS'
+        uses: r-lib/actions/check-r-package@v2
+        with:
+          working-directory: hpolcc
+          upload-snapshots: true
+          args: 'c("--no-manual")'
+          build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
+          check-dir: '"check-plain-omp"'
+          artifact-name: macos-pass2-hpolcc-plain
+
+      - name: Check hpolcc with OpenMP (as-cran)
+        if: runner.os == 'macOS'
+        uses: r-lib/actions/check-r-package@v2
+        with:
+          working-directory: hpolcc
+          upload-snapshots: true
+          args: 'c("--no-manual", "--as-cran")'
+          build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
+          check-dir: '"check-as-cran-omp"'
+          artifact-name: macos-pass2-hpolcc-as-cran
