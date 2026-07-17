@@ -120,7 +120,6 @@ mu <- 2
 tau <- 0.2
 mu_vec <- rep(mu, K)
 alpha <- mu_vec / sum(mu_vec)
-alpha_params <- mu_vec / tau^2
 
 U <- rgamma(N, shape = tau^(-2), rate = tau^(-2))
 c(mean(U), sd(U))
@@ -135,14 +134,12 @@ mu_vec <- rep(mu, K)
 alpha_norm <- mu_vec / sum(mu_vec)
 alpha <- alpha_norm / tau^2
 
-log_dens_with_gammas <- log_dens_simplified <-
-  log_dens_package <- rep(NA, ncol(cc_matrix))
+log_dens_with_gammas <- log_dens_simplified <- rep(NA, ncol(cc_matrix))
 
 for (D in 1:ncol(cc_matrix)) {
   # Extract the indices where the column has non-zero values
   indices_here <- which(cc_matrix[, D] == 1)
   y_here <- y[indices_here]
-  sum_y_here <- sum(y_here)
 
   # Simplified log density using the sum formula
   # Handle zeros correctly by filtering them out for the sum
@@ -165,33 +162,12 @@ for (D in 1:ncol(cc_matrix)) {
     lgamma(sum(y_here) + sum(alpha)) +
     sum(lgamma(y_here + alpha)) -
     sum(lgamma(alpha)) - sum(lgamma(y_here + 1))
-
-  # Using the extraDistr package
-  if (requireNamespace("extraDistr", quietly = TRUE)) {
-    # Correct parameterization for extraDistr::ddirmnom
-    # alpha should be the concentration parameters, not mu/tau^2
-    # For Dirichlet-multinomial with mean probabilities mu and concentration 1/tau^2:
-    # This gives mean probabilities mu
-    log_dens_package[D] <- extraDistr::ddirmnom(
-      x = matrix(y_here, nrow = 1, ncol = length(y_here)),
-      size = sum(y_here),
-      alpha = matrix(alpha_params, nrow = 1, ncol = length(y_here)),
-      log = TRUE
-    )
-  }
 }
 ```
 
 ```{r plot}
-matplot(log_dens_simplified,
-  cbind(log_dens_with_gammas, log_dens_package),
-  col = c("red", "black"), cex = c(2, 1),
-  pch = c(1, 2), ylab=""
+plot(log_dens_simplified, log_dens_with_gammas,
+  xlab = "simplified", ylab = "gammas"
 )
 abline(0, 1)
-legend("topleft",
-  col = c("red", "black"),
-  pch = c(1, 2), legend = c("gammas", "package"),
-  bty = "n"
-)
 ```
