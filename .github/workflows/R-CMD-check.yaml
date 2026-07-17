@@ -51,7 +51,7 @@ jobs:
         shell: bash
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       # Host jobs only: R-hub images already ship R (and usually pandoc).
       - uses: r-lib/actions/setup-pandoc@v2
@@ -70,12 +70,7 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends libomp-dev curl ca-certificates
 
-      - uses: r-lib/actions/setup-tinytex@v2
-
-      # Use R's tinytex wrapper: bare `tlmgr` is often missing from bash PATH on Windows.
-      - name: Install TinyTeX extras
-        shell: Rscript {0}
-        run: tinytex::tlmgr_install("makeindex")
+      # HTML knitr vignettes do not need TeX/TinyTeX (avoids Windows/macOS tlmgr PATH issues).
 
       # Install the union of all packages' check deps once (pak skips what's already ok).
       # Local packages are still built/checked later; installs use built .tar.gz
