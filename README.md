@@ -11,7 +11,7 @@ This repository is a monorepo. The packages most users need are:
 | [`adlaplaceHgp`](adlaplaceHgp/) | IWP / hierarchical GP terms (`iwp`, `hiwp`, …) |
 | [`hpolcc`](hpolcc/) | Hierarchical case-crossover models (`hnlm`, `dirichlet_multinom`) |
 
-Related packages in the same tree: `adlaplaceExample` (custom-density backend example), `adlaplaceGrf` (FEM Matérn), `admvn` (MVN / SUN AD utilities). All compiled packages that use CppAD depend on **RCppAD**.
+Related packages in the same tree: `adlaplaceExample` (custom-density backend example), `adlaplaceFem` (FEM Matérn), `admvn` (MVN / SUN AD utilities). All compiled packages that use CppAD depend on **RCppAD**.
 
 ## Install from R-universe (binaries)
 
@@ -24,7 +24,7 @@ install.packages(
 )
 ```
 
-Other packages in this repo (`adlaplaceExample`, `adlaplaceGrf`) can be installed the same way. Prefer this over source installs when a binary is available for your platform.
+Other packages in this repo (`adlaplaceExample`, `adlaplaceFem`) can be installed the same way. Prefer this over source installs when a binary is available for your platform.
 
 ## Quick check
 

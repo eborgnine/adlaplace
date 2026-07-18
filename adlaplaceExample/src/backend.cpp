@@ -7,7 +7,7 @@
 // in order, are:
 //
 //   1. declarations of your log-density functions,
-//   2. #include "adlaplace/eval_impl.hpp" -- exactly once, so CppAD tape
+//   2. #include "adlaplace/eval_impl.hpp" and register_impl.hpp -- exactly once, so CppAD tape
 //      *evaluation* runs in this DSO (macOS requires taping and evaluation
 //      in the same shared object),
 //   3. ADLAPLACE_DEFINE_BACKEND(<unique_factory_name>) -- exports a shard
@@ -39,6 +39,7 @@ CppAD::vector<CppAD::AD<double>> logDensExtra(
   const Config& config);
 
 #include "adlaplace/eval_impl.hpp"
+#include "adlaplace/register_impl.hpp"
 
 ADLAPLACE_DEFINE_BACKEND(adlaplace_example_make_shard)
 

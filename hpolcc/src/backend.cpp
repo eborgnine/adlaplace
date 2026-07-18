@@ -15,6 +15,7 @@ CppAD::vector<CppAD::AD<double>> logDensExtra(
   const Config& config);
 
 #include "adlaplace/eval_impl.hpp"
+#include "adlaplace/register_impl.hpp"
 
 ADLAPLACE_DEFINE_BACKEND(hpolcc_make_shard)
 

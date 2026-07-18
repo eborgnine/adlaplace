@@ -1,92 +1,107 @@
-PKGS := adlaplace adlaplaceExample hpolcc admvn
-ADLAPLACE_DIR := adlaplace
-ADLAPLACE_EXAMPLE_DIR := adlaplaceExample
-HPOLCC_DIR := hpolcc
+# Build and install monorepo packages in dependency order.
+#
+#   make            # document, build, and install everything
+#   make adlaplace  # one package (deps are installed first)
+#   make check      # R CMD check each package's .tar.gz (run make first)
+#   make crancheck  # same with --as-cran
+#   make clean      # cleanup scripts + src/*.o,src/*.so
+#
+# Order: RCppAD → adlaplace → {Example, Hgp, Fem, admvn} → hpolcc
+# (hpolcc needs adlaplaceHgp; backends need adlaplace headers.)
+
+INSTALL_ORDER := RCppAD adlaplace adlaplaceExample adlaplaceHgp adlaplaceFem admvn hpolcc
 
 .DEFAULT_GOAL := all
 
-.PHONY: all clean $(PKGS) dirichlet_multinom.pdf
+.PHONY: all install check crancheck clean $(INSTALL_ORDER) dirichlet_multinom.pdf
 
-all:
-	 R -e "devtools::document(\"adlaplace\")" ;
-	 R CMD build --no-build-vignettes adlaplace; 
-	 R -e "devtools::document(\"hpolcc\")";
-	 R CMD build --no-build-vignettes hpolcc 
+# Avoid concurrent R CMD INSTALL locking the same library when using make -j.
+.NOTPARALLEL: $(INSTALL_ORDER)
 
+all: install
+
+install: $(INSTALL_ORDER)
+
+# --- dependency edges -------------------------------------------------------
+
+adlaplace: RCppAD
+adlaplaceExample: adlaplace
+adlaplaceHgp: adlaplace
+adlaplaceFem: adlaplace
+admvn: RCppAD
+hpolcc: adlaplace adlaplaceHgp
+
+# --- per-package: cleanup → attributes → roxygen → build → install ----------
+
+$(INSTALL_ORDER):
+	@echo ""
+	@echo "==> $@"
+	@if [ -f "$@/cleanup" ]; then \
+		echo "==> cleanup"; \
+		(cd "$@" && sh ./cleanup); \
+	fi
+	@if [ -d "$@/src" ] && ls "$@"/src/*.cpp >/dev/null 2>&1; then \
+		echo "==> Rcpp::compileAttributes"; \
+		Rscript -e "Rcpp::compileAttributes('$@')"; \
+	fi
+	@echo "==> roxygen2::roxygenize"
+	@Rscript -e "roxygen2::roxygenize('$@')"
+	@echo "==> R CMD build"
+	@R CMD build --no-build-vignettes "$@"
+	@PKG="$$(sed -n 's/^Package:[[:space:]]*//p' "$@/DESCRIPTION" | head -n 1)"; \
+	VERSION="$$(sed -n 's/^Version:[[:space:]]*//p' "$@/DESCRIPTION" | head -n 1)"; \
+	TARBALL="$${PKG}_$${VERSION}.tar.gz"; \
+	test -f "$$TARBALL" || { echo "Expected tarball $$TARBALL not found"; exit 1; }; \
+	echo "==> R CMD INSTALL $$TARBALL"; \
+	R CMD INSTALL "$$TARBALL"
+
+# --- check all built tarballs -----------------------------------------------
+
+define require_tarballs
+	missing=0; \
+	for pkg in $(INSTALL_ORDER); do \
+		PKG="$$(sed -n 's/^Package:[[:space:]]*//p' "$$pkg/DESCRIPTION" | head -n 1)"; \
+		VERSION="$$(sed -n 's/^Version:[[:space:]]*//p' "$$pkg/DESCRIPTION" | head -n 1)"; \
+		TARBALL="$${PKG}_$${VERSION}.tar.gz"; \
+		if [ ! -f "$$TARBALL" ]; then \
+			echo "Missing $$TARBALL (run 'make' first)"; \
+			missing=1; \
+		fi; \
+	done; \
+	if [ "$$missing" -ne 0 ]; then exit 1; fi
+endef
+
+define check_tarballs
+	for pkg in $(INSTALL_ORDER); do \
+		PKG="$$(sed -n 's/^Package:[[:space:]]*//p' "$$pkg/DESCRIPTION" | head -n 1)"; \
+		VERSION="$$(sed -n 's/^Version:[[:space:]]*//p' "$$pkg/DESCRIPTION" | head -n 1)"; \
+		TARBALL="$${PKG}_$${VERSION}.tar.gz"; \
+		echo ""; \
+		echo "==> R CMD check $(1) $$TARBALL"; \
+		R CMD check $(1) "$$TARBALL" || exit 1; \
+	done
+endef
+
+check:
+	@$(require_tarballs)
+	@$(call check_tarballs,)
+
+crancheck:
+	@$(require_tarballs)
+	@$(call check_tarballs,--as-cran)
+
+# --- housekeeping -----------------------------------------------------------
 
 clean:
 	@echo "==> Cleaning package build artifacts (cleanup scripts + src objects)"
-	@for pkg in $(PKGS); do \
+	@for pkg in $(INSTALL_ORDER); do \
 		if [ -f "$$pkg/cleanup" ]; then \
 			echo "==> $$pkg/cleanup"; \
 			(cd "$$pkg" && sh ./cleanup); \
 		fi; \
 	done
 	@find . -type f \( -name '*.o' -o -name '*.so' \) -path '*/src/*' -delete
-
-
-
-adlaplace:
-	@echo "==> Running cleanup for adlaplace"
-	cd $(ADLAPLACE_DIR) && ./cleanup
-	@echo "==> Running compileAttributes for adlaplace from $(ADLAPLACE_DIR)"
-	Rscript -e "Rcpp::compileAttributes('$(ADLAPLACE_DIR)')"
-	@echo "==> Running roxygen2 for adlaplace from $(ADLAPLACE_DIR)"
-	Rscript -e "roxygen2::roxygenize('$(ADLAPLACE_DIR)')"
-	@echo "==> Building package adlaplace from $(ADLAPLACE_DIR)"
-	R CMD build --no-build-vignettes $(ADLAPLACE_DIR)
-	@PKG="$$(sed -n 's/^Package:[[:space:]]*//p' $(ADLAPLACE_DIR)/DESCRIPTION | head -n 1)"; \
-	VERSION="$$(sed -n 's/^Version:[[:space:]]*//p' $(ADLAPLACE_DIR)/DESCRIPTION | head -n 1)"; \
-	TARBALL="$${PKG}_$${VERSION}.tar.gz"; \
-	test -f "$$TARBALL" || { echo "Expected tarball $$TARBALL not found"; exit 1; }; \
-	echo "==> Built $$TARBALL (installation skipped)"
-
-adlaplaceExample: adlaplace
-	@echo "==> Running cleanup for adlaplaceExample"
-	cd $(ADLAPLACE_EXAMPLE_DIR) && ./cleanup
-	@echo "==> Running compileAttributes for adlaplaceExample from $(ADLAPLACE_EXAMPLE_DIR)"
-	Rscript -e "Rcpp::compileAttributes('$(ADLAPLACE_EXAMPLE_DIR)')"
-	@echo "==> Running roxygen2 for adlaplaceExample from $(ADLAPLACE_EXAMPLE_DIR)"
-	Rscript -e "roxygen2::roxygenize('$(ADLAPLACE_EXAMPLE_DIR)')"
-	@echo "==> Building package adlaplaceExample from $(ADLAPLACE_EXAMPLE_DIR)"
-	R CMD build --no-build-vignettes $(ADLAPLACE_EXAMPLE_DIR)
-	@PKG="$$(sed -n 's/^Package:[[:space:]]*//p' $(ADLAPLACE_EXAMPLE_DIR)/DESCRIPTION | head -n 1)"; \
-	VERSION="$$(sed -n 's/^Version:[[:space:]]*//p' $(ADLAPLACE_EXAMPLE_DIR)/DESCRIPTION | head -n 1)"; \
-	TARBALL="$${PKG}_$${VERSION}.tar.gz"; \
-	test -f "$$TARBALL" || { echo "Expected tarball $$TARBALL not found"; exit 1; }; \
-	echo "==> Built $$TARBALL (skipping installation)"
-
-hpolcc: adlaplace
-	@echo "==> Running cleanup for hpolcc"
-	cd $(HPOLCC_DIR) && ./cleanup
-	@echo "==> Running compileAttributes for hpolcc from $(HPOLCC_DIR)"
-	Rscript -e "Rcpp::compileAttributes('$(HPOLCC_DIR)')"
-	@echo "==> Running roxygen2 for hpolcc from $(HPOLCC_DIR)"
-	Rscript -e "roxygen2::roxygenize('$(HPOLCC_DIR)')"
-	@echo "==> Building package hpolcc from $(HPOLCC_DIR)"
-	R CMD build --no-build-vignettes $(HPOLCC_DIR)
-	@PKG="$$(sed -n 's/^Package:[[:space:]]*//p' $(HPOLCC_DIR)/DESCRIPTION | head -n 1)"; \
-	VERSION="$$(sed -n 's/^Version:[[:space:]]*//p' $(HPOLCC_DIR)/DESCRIPTION | head -n 1)"; \
-	TARBALL="$${PKG}_$${VERSION}.tar.gz"; \
-	test -f "$$TARBALL" || { echo "Expected tarball $$TARBALL not found"; exit 1; }; \
-	echo "==> Built $$TARBALL"
-
-admvn:
-	@echo "==> Running cleanup for admvn"
-	cd admvn && ./cleanup
-	@echo "==> Running configure for admvn"
-	cd admvn && ./configure
-	@echo "==> Running compileAttributes for admvn from admvn"
-	Rscript -e "Rcpp::compileAttributes('admvn')"
-	@echo "==> Running roxygen2 for admvn from admvn"
-	Rscript -e "roxygen2::roxygenize('admvn')"
-	@echo "==> Building package admvn from admvn"
-	R CMD build --no-build-vignettes admvn
-	@PKG="$$(sed -n 's/^Package:[[:space:]]*//p' admvn/DESCRIPTION | head -n 1)"; \
-	VERSION="$$(sed -n 's/^Version:[[:space:]]*//p' admvn/DESCRIPTION | head -n 1)"; \
-	TARBALL="$${PKG}_$${VERSION}.tar.gz"; \
-	test -f "$$TARBALL" || { echo "Expected tarball $$TARBALL not found"; exit 1; }; \
-	echo "==> Built $$TARBALL (installation skipped)"
+	@rm -f $(foreach p,$(INSTALL_ORDER),$(p)_*.tar.gz)
 
 dirichlet_multinom.pdf: hpolcc/vignettes/dirichlet_multinom.Rmd
 	pandoc hpolcc/vignettes/dirichlet_multinom.Rmd -o dirichlet_multinom.pdf

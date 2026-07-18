@@ -8,6 +8,8 @@
 #define ADLAPLACE_MATH_LOG_ERFC_DEFINE
 #include "adlaplace/atomics.hpp"
 
+#include "adlaplace/register_impl.hpp"
+
 extern adlaplace_shard* adlaplace_make_shard(GroupPack&&);
 
 static LogDensObsFn resolve_obs_density(const std::string& name) {
@@ -33,48 +35,6 @@ void adlaplace_init_atomics() {
 
   adlaplace_init_lgamma_atomic();
   adlaplace_init_log_erfc_atomic();
-}
-
-void ad_fun_destroy(ad_fun* groups) {
-  if (!groups) return;
-  for (adlaplace_shard* shard : groups->fun) {
-    delete shard;
-  }
-  delete groups;
-}
-
-void adfun_finalizer(SEXP ext) {
-  ad_fun* groups = static_cast<ad_fun*>(R_ExternalPtrAddr(ext));
-  ad_fun_destroy(groups);
-  R_ClearExternalPtr(ext);
-}
-
-SEXP make_ad_fun_ptr(ad_fun* groups) {
-  SEXP handle = R_MakeExternalPtr(static_cast<void*>(groups), R_NilValue, R_NilValue);
-  R_RegisterCFinalizerEx(handle, adfun_finalizer, TRUE);
-  Rf_setAttrib(handle, R_ClassSymbol, Rf_mkString("ad_fun_ptr"));
-  return handle;
-}
-
-ad_fun* packs_to_ad_fun(
-  std::vector<GroupPack>&& packs,
-  std::size_t n_beta,
-  std::size_t n_theta,
-  ShardFactory factory) {
-
-  if (!factory) {
-    Rcpp::stop("packs_to_ad_fun: factory is NULL");
-  }
-
-  auto* groups = new ad_fun();
-  groups->fun.reserve(packs.size());
-  for (size_t g = 0; g < packs.size(); ++g) {
-    packs[g].shard_index = g;
-    packs[g].n_beta = n_beta;
-    packs[g].n_theta = n_theta;
-    groups->fun.push_back(factory(std::move(packs[g])));
-  }
-  return groups;
 }
 
 static adlaplace_shard* first_shard(ad_fun* groups) {
@@ -103,6 +63,13 @@ ad_fun* combine_ad_fun(const std::vector<ad_fun*>& parts) {
 
   for (ad_fun* part : parts) {
     if (!part) continue;
+    if (part->abi_version != ADLAPLACE_ABI_VERSION) {
+      Rcpp::stop(
+        "ad_fun ABI mismatch (got %d, need %d): rebuild the extension package against this adlaplace",
+        part->abi_version,
+        ADLAPLACE_ABI_VERSION
+      );
+    }
     for (adlaplace_shard* shard : part->fun) {
       if (!shard) continue;
       shard->pack.shard_index = shard_index++;
@@ -117,6 +84,7 @@ ad_fun* combine_ad_fun(const std::vector<ad_fun*>& parts) {
   }
 
   auto* groups = new ad_fun();
+  groups->abi_version = ADLAPLACE_ABI_VERSION;
   groups->fun.reserve(merged.size());
   for (size_t g = 0; g < merged.size(); ++g) {
     groups->fun.push_back(merged_factories[g](std::move(merged[g])));

@@ -1,7 +1,7 @@
 Package: adlaplaceExample
 Type: Package
 Title: Example Backend for 'adlaplace'
-Version: 0.5.2
+Version: 0.5.3
 Authors@R: person(given = "Patrick", family = "Brown",
     email = "patrick.borgnine@gmail.com",
     role = c("aut", "cre", "cph"))
@@ -13,7 +13,7 @@ SystemRequirements: OpenMP
 License: MPL-2.0
 Depends: R (>= 4.1.0)
 LinkingTo: Rcpp, adlaplace, RcppEigen, trustOptim, RCppAD
-Imports: Rcpp, adlaplace, RCppAD, methods
+Imports: Rcpp, adlaplace (>= 0.5.3), RCppAD, methods
 Suggests: trustOptim, abind, knitr, rmarkdown, testthat (>= 3.0.0), sn, Matrix, pracma
 VignetteBuilder: knitr
 Config/testthat/edition: 3

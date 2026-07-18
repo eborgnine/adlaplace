@@ -9,7 +9,7 @@ locals <- c(
   "adlaplace",
   "adlaplaceExample",
   "adlaplaceHgp",
-  "adlaplaceGrf",
+  "adlaplaceFem",
   "hpolcc",
   "admvn"
 )

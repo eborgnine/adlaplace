@@ -10,6 +10,11 @@
 #include "adlaplace/ad_data.hpp"
 #include "adlaplace/rviews.hpp"
 
+// Bump when GroupPack / adlaplace_shard / ad_fun layout or the backend
+// registration contract changes. packs_to_ad_fun stamps this into ad_fun;
+// adlaplace checks it when consuming a backend-built handle.
+#define ADLAPLACE_ABI_VERSION 1
+
 // Symbolic LDL pattern from hessian_map()$chol_inner_list (L1, Linv, perm,
 // half_H_inv, H_inv).
 struct CholPattern {
@@ -144,6 +149,7 @@ using ad_vector = std::vector<adlaplace_shard*>;
 using hessian_template = Eigen::SparseMatrix<int, Eigen::ColMajor, int>;
 
 struct ad_fun {
+  int abi_version = ADLAPLACE_ABI_VERSION;
   ad_vector fun;
   hessian_template hessian_outer;
   hessian_template hessian_inner;

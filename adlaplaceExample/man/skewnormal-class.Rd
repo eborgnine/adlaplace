@@ -30,7 +30,6 @@ Model term for the observation-level skew-normal log density
 registered as \code{skewnormal_obs}.
 }
 \section{Functions}{
-
 \itemize{
 \item \code{design(skewnormal)}: Design method (not used for observation density).
 
@@ -45,8 +44,7 @@ Scale \code{omega} uses \code{transform = TRUE} (log scale when
 
 \item \code{random_info(skewnormal)}: Random info method (not used).
 
-}
-}
+}}
 \section{Slots (inherited from \code{model})}{
 
 \describe{
@@ -55,3 +53,4 @@ Scale \code{omega} uses \code{transform = TRUE} (log scale when
 \item{\code{package}}{Character scalar \code{"adlaplaceExample"}.}
 }
 }
+

@@ -9,7 +9,7 @@ rm -rf "$SITE"
 mkdir -p "$SITE"
 
 # Packages with vignettes that are checked in CI (plain check-dir).
-CHECKED_PKGS=(adlaplace adlaplaceExample hpolcc adlaplaceGrf)
+CHECKED_PKGS=(adlaplace adlaplaceExample hpolcc adlaplaceFem)
 
 copy_doc_dir() {
   local pkg=$1

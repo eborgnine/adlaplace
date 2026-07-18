@@ -36,6 +36,7 @@ ad_fun* clone_ad_fun(const ad_fun* src) {
   }
 
   ad_fun* copy = new ad_fun();
+  copy->abi_version = src->abi_version;
   copy->fun.reserve(packs.size());
   for (size_t g = 0; g < packs.size(); ++g) {
     copy->fun.push_back(factories[g](std::move(packs[g])));
@@ -125,7 +126,18 @@ void ad_fun_attach_hessians_from_list(
 
 namespace {
 
+static void check_ad_fun_abi(const ad_fun& backend) {
+  if (backend.abi_version != ADLAPLACE_ABI_VERSION) {
+    Rcpp::stop(
+      "ad_fun ABI mismatch (got %d, need %d): rebuild the extension package against this adlaplace",
+      backend.abi_version,
+      ADLAPLACE_ABI_VERSION
+    );
+  }
+}
+
 static void validate_ad_fun_eval(const ad_fun& backend) {
+  check_ad_fun_abi(backend);
   if (backend.fun.empty()) {
     Rcpp::stop("ad_fun has no AD shards");
   }
@@ -192,6 +204,7 @@ ad_fun* ad_fun_from_handle(SEXP handle) {
   if (!backend) {
     Rcpp::stop("ad_fun external pointer is NULL (cleared?)");
   }
+  check_ad_fun_abi(*backend);
   return backend;
 }
 

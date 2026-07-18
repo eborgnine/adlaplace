@@ -11,7 +11,8 @@ dsun(
   deriv = 0L,
   n_points = 1021L,
   n_shifts = 8L,
-  seed = 1L
+  seed = 1L,
+  n_threads = 1L
 )
 }
 \arguments{
@@ -28,6 +29,10 @@ observations.}
 
 \item{n_points, n_shifts, seed}{Quasi-Monte Carlo settings for the orthant
 probabilities in the SUN density.}
+
+\item{n_threads}{Number of OpenMP threads for parallel shard evaluation.
+Defaults to \code{1}. Use \code{0} in \code{$eval()} to reuse the value
+stored when the tape was built.}
 }
 \value{
 A list with \code{value} and \code{error}. If \code{deriv >= 1},

@@ -1,6 +1,6 @@
 # Workflow derived from https://github.com/r-lib/actions/tree/v2/examples
 # Checks local packages in order:
-#   RCppAD → adlaplace → adlaplaceExample → adlaplaceHgp → hpolcc → adlaplaceGrf
+#   RCppAD → adlaplace → adlaplaceExample → adlaplaceHgp → hpolcc → adlaplaceFem
 # Per package: build+install, then one of:
 #   - --as-cran: Windows and macOS without OpenMP
 #   - plain (non --as-cran): Ubuntu and macOS with OpenMP
@@ -8,7 +8,7 @@
 #   - macOS without Homebrew libomp (--as-cran; configure soft-fails OpenMP)
 #   - macOS with Homebrew libomp (plain)
 #   - Windows (--as-cran)
-#   - Ubuntu CRAN-like (plain; installs INLA before adlaplaceGrf)
+#   - Ubuntu CRAN-like (plain; installs INLA before adlaplaceFem)
 #   - deploy-docs: GitHub Pages from ubuntu-built vignette HTML (_site/)
 # Check output goes under .ci-check/ (never inside package source trees).
 on:
@@ -119,6 +119,11 @@ jobs:
       # =====================================================================
 
       # ----- RCppAD -----
+      # Soft notice only (does not fail): compare vendored CppAD to coin-or/CppAD releases.
+      - name: Check for newer upstream CppAD
+        if: ${{ matrix.config.id == 'ubuntu-cran' }}
+        run: bash .github/scripts/check-cppad-upstream.sh
+
       - name: Build and install RCppAD
         run: bash .github/scripts/install-local-pkg.sh RCppAD
 
@@ -268,7 +273,7 @@ jobs:
           check-dir: '"../.ci-check/hpolcc-as-cran"'
           artifact-name: ${{ matrix.config.id }}-hpolcc-as-cran
 
-      # ----- adlaplaceGrf (Ubuntu: with INLA; macOS/Windows: without) -----
+      # ----- adlaplaceFem (Ubuntu: with INLA; macOS/Windows: without) -----
       # INLA pulls in units (and friends); the R-hub image does not ship udunits2.
       - name: Install INLA system dependencies
         if: ${{ matrix.config.id == 'ubuntu-cran' }}
@@ -290,34 +295,34 @@ jobs:
           )
           stopifnot(requireNamespace("INLA"))
 
-      - name: Build and install adlaplaceGrf
-        run: bash .github/scripts/install-local-pkg.sh adlaplaceGrf
+      - name: Build and install adlaplaceFem
+        run: bash .github/scripts/install-local-pkg.sh adlaplaceFem
 
-      - name: Check adlaplaceGrf (plain)
+      - name: Check adlaplaceFem (plain)
         if: ${{ matrix.config.check_plain }}
         uses: r-lib/actions/check-r-package@v2
         with:
           # Our check dirs live at ../.ci-check/; the action's failure-time
           # artifact upload cannot handle '..' in paths, so keep it off.
           upload-results: never
-          working-directory: adlaplaceGrf
+          working-directory: adlaplaceFem
           args: 'c("--no-manual")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
-          check-dir: '"../.ci-check/adlaplaceGrf-plain"'
-          artifact-name: ${{ matrix.config.id }}-adlaplaceGrf-plain
+          check-dir: '"../.ci-check/adlaplaceFem-plain"'
+          artifact-name: ${{ matrix.config.id }}-adlaplaceFem-plain
 
-      - name: Check adlaplaceGrf (as-cran)
+      - name: Check adlaplaceFem (as-cran)
         if: ${{ matrix.config.check_as_cran }}
         uses: r-lib/actions/check-r-package@v2
         with:
           # Our check dirs live at ../.ci-check/; the action's failure-time
           # artifact upload cannot handle '..' in paths, so keep it off.
           upload-results: never
-          working-directory: adlaplaceGrf
+          working-directory: adlaplaceFem
           args: 'c("--no-manual", "--as-cran")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
-          check-dir: '"../.ci-check/adlaplaceGrf-as-cran"'
-          artifact-name: ${{ matrix.config.id }}-adlaplaceGrf-as-cran
+          check-dir: '"../.ci-check/adlaplaceFem-as-cran"'
+          artifact-name: ${{ matrix.config.id }}-adlaplaceFem-as-cran
 
       # =====================================================================
       # Ubuntu only: stage vignette HTML for GitHub Pages

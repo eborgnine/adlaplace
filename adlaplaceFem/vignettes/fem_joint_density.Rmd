@@ -1,0 +1,213 @@
+---
+title: "FEM Matérn joint density with adlaplace"
+author: "Patrick Brown"
+date: "`r Sys.Date()`"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+vignette: >
+  %\VignetteIndexEntry{FEM Matérn joint density with adlaplace}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup}
+library(adlaplace)
+library(adlaplaceFem)
+library(Matrix)
+```
+
+This vignette builds a tiny tensor-product B-spline FEM Matérn field,
+wires it into `adlaplace` via `random_fem_ssq_2` (quadratic form) and
+`random_fem_det_2` (log-determinant), and evaluates the joint
+log-density, gradient, and Hessian. Optimization is deferred.
+
+## FEM ingredients
+
+```{r fem}
+set.seed(1)
+knots_list <- list(
+  x = seq(0, 1, length.out = 5),
+  y = seq(0, 1, length.out = 5)
+)
+sites_eval <- do.call(expand.grid, knots_list)
+fem <- fem_bspline(sites_eval, knots_list, degree = 2L)
+prec <- fem_precision_payload(fem, alpha = 2L)
+nr <- nrow(fem$C)
+c(n_obs = nrow(sites_eval), n_basis = nr, nnz_Q = length(prec$Q_i))
+```
+
+## Hierarchical toy model
+
+Gaussian observations $y \mid w \sim N(Aw, \sigma^2 I)$ with FEM prior on the
+spline weights $w$. The prior splits into a random shard
+(`random_fem_ssq_2`) and a parameters shard (`random_fem_det_2`).
+Hyperparameters are $(\log\sigma, \log\rho, \log\sigma_w)$ where $\rho$ is the
+practical range and $\sigma_w$ is the field SD.
+
+```{r model}
+A <- fem$A
+n <- nrow(A)
+sigma <- 0.4
+nu <- 1
+kappa <- 2
+range <- sqrt(8 * nu) / kappa
+sd_w <- 1
+w_true <- rnorm(nr, sd = 0.2)
+y <- as.numeric(A %*% w_true + rnorm(n, sd = sigma))
+
+# Parameter layout: gamma (nr), theta = (log_sigma, log_range, log_sd)
+theta_obs <- Matrix::sparseMatrix(i = 1L, j = 1L, dims = c(3L, 1L))
+theta_fem <- Matrix::sparseMatrix(
+  i = c(2L, 3L), j = c(1L, 2L), x = c(1, 1), dims = c(3L, 2L)
+)
+
+obs <- adlaplace::ad_data(
+  y = y,
+  A = A,
+  gamma_map = Matrix::Diagonal(nr),
+  theta_map = theta_obs,
+  ad_kind = "observations",
+  ad_fun = "gaussian_obs"
+)
+extra <- adlaplace::ad_data(
+  obs,
+  ad_kind = "parameters",
+  ad_fun = "gaussian_extra"
+)
+rand_ssq <- adlaplace::ad_data(
+  gamma_map = Matrix::Diagonal(nr),
+  theta_map = theta_fem,
+  ad_kind = "random",
+  ad_fun = "random_fem_ssq_2",
+  package = "adlaplaceFem",
+  precision = prec
+)
+rand_det <- adlaplace::ad_data(
+  beta_map = 0L,
+  gamma_map = nr,
+  theta_map = theta_fem,
+  ad_kind = "parameters",
+  ad_fun = "random_fem_det_2",
+  package = "adlaplaceFem",
+  precision = prec
+)
+
+config <- list(
+  gamma = rep(0, nr),
+  theta = c(log(sigma), log(range), log(sd_w)),
+  transform_theta = TRUE
+)
+ptr <- c(
+  ad_fun_ptr(obs, config),
+  ad_fun_ptr(extra, config),
+  ad_fun_ptr(rand_ssq, config),
+  ad_fun_ptr(rand_det, config)
+)
+```
+
+## Joint density, gradient, and Hessian
+
+```{r eval}
+w <- rnorm(nr, sd = 0.1)
+x <- c(w, log(sigma), log(range), log(sd_w))
+dens <- joint_log_dens(ptr, x, negative = FALSE)
+g <- grad(ptr, x, inner = FALSE, negative = FALSE)
+H <- hessian(ptr, x, inner = FALSE, negative = FALSE)
+c(
+  log_dens = dens,
+  grad_norm = sqrt(sum(as.numeric(g)^2)),
+  hess_nrow = nrow(H),
+  hess_nnz = length(H@x)
+)
+```
+
+## Finite-difference checks
+
+Along one coordinate (here $\log\rho$), compare the AD gradient to a
+finite difference of the joint log-density, and AD Hessian entries to
+finite differences of the AD gradient — the same check as in the
+**adlaplace** vignette.
+
+```{r deriv-check, fig.height=5}
+par(mfrow = c(2, 2), mar = c(2.5, 2.5, 1.5, 0.5), mgp = c(1.4, 0.5, 0.5))
+
+Dpar <- length(x) - 1L # log range
+Ngrid <- 11L
+par_grid <- matrix(x, nrow = Ngrid, ncol = length(x), byrow = TRUE)
+Sx <- x[Dpar] + seq(-0.15, 0.15, length.out = Ngrid)
+SxD <- Sx[-1] - diff(Sx) / 2
+par_grid[, Dpar] <- Sx
+x_list <- split(par_grid, row(par_grid))
+
+dens_scan <- vapply(
+  x_list,
+  joint_log_dens,
+  numeric(1),
+  ad_fun = ptr,
+  negative = FALSE
+)
+
+grad_scan <- do.call(
+  cbind,
+  lapply(x_list, grad, ad_fun = ptr, inner = FALSE, negative = FALSE)
+)
+
+plot(Sx, dens_scan, type = "l", xlab = expression(log(rho)), ylab = "log dens")
+plot(Sx, grad_scan[Dpar, ], type = "l", xlab = expression(log(rho)), ylab = "AD gradient")
+points(SxD, diff(dens_scan) / diff(Sx), pch = 16)
+legend("topright", c("AD", "finite diff"), lty = c(1, NA), pch = c(NA, 16), bty = "n")
+
+hes_scan <- array(NA_real_, dim = c(length(x), length(x), Ngrid))
+for (i in seq_len(Ngrid)) {
+  hes_scan[, , i] <- as.matrix(hessian(
+    ptr, x_list[[i]],
+    inner = FALSE, negative = FALSE
+  ))
+}
+grad_slope <- apply(grad_scan, 1, diff) / mean(diff(Sx))
+
+# Hessian row for log range vs a weight and vs log sd
+for (Dpar2 in c(1L, length(x))) {
+  plot(
+    Sx, hes_scan[Dpar, Dpar2, ],
+    type = "l",
+    xlab = expression(log(rho)),
+    ylab = paste0("H[", Dpar, ",", Dpar2, "]"),
+    ylim = range(c(hes_scan[Dpar, Dpar2, ], grad_slope[, Dpar2]), na.rm = TRUE)
+  )
+  points(SxD, grad_slope[, Dpar2], pch = 16)
+}
+```
+
+Pointwise central differences at the base `x` summarize agreement across all
+coordinates:
+
+```{r deriv-summary}
+eps <- 1e-5
+g_fd <- vapply(seq_along(x), function(i) {
+  xp <- xm <- x
+  xp[i] <- xp[i] + eps
+  xm[i] <- xm[i] - eps
+  (joint_log_dens(ptr, xp, negative = FALSE) -
+    joint_log_dens(ptr, xm, negative = FALSE)) / (2 * eps)
+}, numeric(1))
+
+# FD Hessian column for log range from AD gradients
+j <- Dpar
+H_fd_j <- vapply(seq_along(x), function(i) {
+  xp <- xm <- x
+  xp[i] <- xp[i] + eps
+  xm[i] <- xm[i] - eps
+  gp <- as.numeric(grad(ptr, xp, inner = FALSE, negative = FALSE))
+  gm <- as.numeric(grad(ptr, xm, inner = FALSE, negative = FALSE))
+  (gp[j] - gm[j]) / (2 * eps)
+}, numeric(1))
+
+c(
+  max_abs_grad_diff = max(abs(as.numeric(g) - g_fd)),
+  max_abs_hess_col_diff = max(abs(as.numeric(H[, j]) - H_fd_j))
+)
+```
+
+No outer optimization is performed here; that will appear in a later vignette.

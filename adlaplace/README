@@ -43,7 +43,7 @@ Built HTML vignettes (from CI):
 Public headers for backend packages live in `inst/include/adlaplace/`.
 Private engine headers are in `src/include/adlaplace/`.
 
-Backend packages (e.g. `adlaplaceExample`, `adlaplaceGrf`, `hpolcc`) should
+Backend packages (e.g. `adlaplaceExample`, `adlaplaceFem`, `hpolcc`) should
 also `LinkingTo` / `Imports` **RCppAD**, and typically link against the
 installed `adlaplace` shared library.
 

@@ -1,0 +1,42 @@
+Package: adlaplaceFem
+Type: Package
+Title: Finite Element Approximations for Adlaplace
+Version: 0.5.3
+Authors@R: person(given = "Patrick", family = "Brown",
+    email = "patrick.borgnine@gmail.com",
+    role = c("aut", "cre", "cph"))
+Author: Patrick Brown [aut, cre, cph]
+Maintainer: Patrick Brown <patrick.borgnine@gmail.com>
+Description: Finite-element approximations for hierarchical models with the
+    adlaplace Laplace approximation framework. Currently provides tensor-product
+    B-spline FEM ingredients for Matern Gaussian random fields (mass, stiffness,
+    and higher-order Grams), design and Gram matrix construction on regular grids,
+    optional terra SpatRaster / SpatVector input, and AD tape builders for
+    random_fem_ssq_* / random_fem_det_*.
+SystemRequirements: OpenMP
+License: MPL-2.0
+Depends:
+    R (>= 4.1.0),
+    adlaplace (>= 0.5.3)
+Imports: methods, stats, Matrix, splines, Rcpp, RCppAD
+LinkingTo: Rcpp, adlaplace, RcppEigen, trustOptim, Matrix, RCppAD
+Suggests: terra, testthat (>= 3.0.0), geostatsp, knitr, rmarkdown, mapmisc
+Config/testthat/edition: 3
+VignetteBuilder: knitr
+Encoding: UTF-8
+RoxygenNote: 7.3.3
+Roxygen: list(markdown = TRUE)
+Collate:
+    '000.R'
+    'RcppExports.R'
+    'fem_bspline-terra.R'
+    'fem_bspline.R'
+    'fem_chol.R'
+    'fem_precision.R'
+    'grams_1d.R'
+    'knots.R'
+    'matern-geometry.R'
+    'matern.R'
+    'matern_est.R'
+    'zzz.R'
+NeedsCompilation: yes
