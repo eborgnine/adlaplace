@@ -24,6 +24,7 @@ double joint_log_dens(
   bool negative = true) {
 
   ::ad_fun* backend = resolve_ad_fun_eval(ad_fun);
+  adlaplace_require_serial_dens_handle(*backend);
   const size_t n_shards = backend->fun.size();
   const size_t Nparams = backend->fun[0]->pack.x.size();
   if (static_cast<size_t>(x.size()) != Nparams) {
@@ -55,6 +56,7 @@ Rcpp::NumericVector grad(
   bool negative = true) {
 
   ::ad_fun* backend = resolve_ad_fun_eval(ad_fun);
+  adlaplace_require_serial_dens_handle(*backend);
   const size_t Nparams = x.size();
   const size_t n_shards = backend->fun.size();
   const std::vector<size_t> shard_idx =
@@ -83,6 +85,7 @@ Rcpp::S4 hessian(
   const bool verbose = false,
   bool negative = true) {
   ::ad_fun* backend = resolve_ad_fun_eval(ad_fun);
+  adlaplace_require_serial_dens_handle(*backend);
 
   const size_t Nparams = x.size();
   const size_t n_shards = backend->fun.size();

@@ -67,3 +67,13 @@ and \code{hessian()} match \code{inner_opt()} (negative log-density). Set
 same \code{x}.
 }
 
+\section{Thread affinity}{
+
+These are **serial debug** APIs. They error if the handle was built with
+\code{ad_fun(..., num_threads > 1)}. Use a plain \code{ad_fun_ptr} (or
+\code{ad_fun(..., num_threads = 1)}), or \code{\link{clone_ad_fun_ptr}()}
+before assigning multi-thread affinity. Parallel evaluation uses
+\code{\link{fun_obj_fdfh}} / \code{\link{inner_opt}} /
+\code{\link{log_lik_laplace}} on the affined handle.
+}
+

@@ -28,7 +28,11 @@ ad_fun* clone_ad_fun(const ad_fun* src) {
       n_theta = shard->pack.n_theta;
     }
     factories.push_back(shard->factory ? shard->factory : adlaplace_make_shard);
-    packs.push_back(clone_group_pack(shard->pack));
+    GroupPack pack = clone_group_pack(shard->pack);
+    // Dens-safe clone: clear OpenMP affinity from multi-thread ad_fun().
+    pack.owner_thread = 0;
+    pack.owner_thread_assigned = false;
+    packs.push_back(std::move(pack));
   }
 
   if (packs.empty()) {
@@ -41,8 +45,8 @@ ad_fun* clone_ad_fun(const ad_fun* src) {
   for (size_t g = 0; g < packs.size(); ++g) {
     copy->fun.push_back(factories[g](std::move(packs[g])));
   }
-  copy->configured_num_threads = src->configured_num_threads;
-  copy->num_threads_configured = src->num_threads_configured;
+  copy->configured_num_threads = 1;
+  copy->num_threads_configured = false;
   return copy;
 }
 

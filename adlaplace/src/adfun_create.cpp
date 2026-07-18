@@ -159,7 +159,7 @@ int get_thread_owner(SEXP handle, int group) {
 Rcpp::IntegerVector get_configured_num_threads(SEXP handle) {
   ad_fun* groups = ad_fun_from_handle(handle);
   if (!groups->num_threads_configured) {
-    return Rcpp::IntegerVector(NA_INTEGER);
+    return Rcpp::IntegerVector::create(NA_INTEGER);
   }
   return Rcpp::IntegerVector::create(
     static_cast<int>(groups->configured_num_threads)

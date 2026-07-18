@@ -70,6 +70,8 @@ config <- list(
 config$num_threads <- 2L
 control_inner <- list(maxit = 100L, report.level = 0, report.freq = 0)
 ad_fun <- adlaplace::ad_fun(md, config, num_threads = config$num_threads)
+# Serial dens/grad/hess: clone clears multi-thread affinity.
+dens_ptr <- adlaplace::clone_ad_fun_ptr(ad_fun@ptr)
 ```
 
 
@@ -139,7 +141,7 @@ adlaplace::outer_gr(x = outer_fit$par, cache = cache, config = config, ad_fun = 
 ## check by shard
 
 ```{r checkByShard}
-shards <- seq.int(from = 0, length.out = adlaplace:::n_groups(ad_fun@ptr))
+shards <- seq.int(from = 0, length.out = adlaplace:::n_groups(dens_ptr))
 xx <- c(
   md$data$info$beta$init,
   rep(0, nrow(md$data$info$gamma)),
@@ -150,7 +152,7 @@ xx <- c(
 by_shard <- mapply(
   adlaplace::joint_log_dens,
   shards = shards,
-  MoreArgs = list(x = xx, ad_fun = ad_fun, negative = FALSE),
+  MoreArgs = list(x = xx, ad_fun = dens_ptr, negative = FALSE),
   SIMPLIFY = TRUE
 )
 by_shard[seq(to = length(by_shard), length.out = 5)]
@@ -253,7 +255,7 @@ x_here <- c(
 )
 Dpar_dens <- 1 # length(x_here)
 Ngrid <- 11L
-shards <- seq.int(from = 0L, length.out = adlaplace:::n_groups(ad_fun@ptr))
+shards <- seq.int(from = 0L, length.out = adlaplace:::n_groups(dens_ptr))
 
 par_grid <- matrix(x_here, nrow = Ngrid, ncol = length(x_here), byrow = TRUE)
 Sx <- x_here[Dpar_dens] + 1 * seq(-1, 1, length.out = Ngrid)
@@ -264,7 +266,7 @@ x_list <- split(par_grid, row(par_grid))
 dens <- mapply(
   adlaplace::joint_log_dens,
   x = x_list,
-  MoreArgs = list(ad_fun = ad_fun, negative = FALSE)
+  MoreArgs = list(ad_fun = dens_ptr, negative = FALSE)
 )
 
 grad <- do.call(
@@ -272,7 +274,7 @@ grad <- do.call(
   lapply(
     x_list,
     adlaplace::grad,
-    ad_fun = ad_fun,
+    ad_fun = dens_ptr,
     inner = FALSE,
     shards = shards,
     negative = FALSE
@@ -291,7 +293,7 @@ hes <- array(
 )
 for (i in seq_len(Ngrid)) {
   hes[, , i] <- as.matrix(adlaplace::hessian(
-    ad_fun,
+    dens_ptr,
     x_list[[i]],
     inner = FALSE,
     shards = shards,

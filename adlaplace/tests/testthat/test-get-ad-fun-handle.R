@@ -208,19 +208,26 @@ test_that("ad_fun variadic ad_fun_ptr matches explicit c() composition", {
     adlaplace::ad_fun_ptr(random_shard, config),
     adlaplace::ad_fun_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
   ))
+  dens_explicit <- adlaplace::clone_ad_fun_ptr(ad_ptr_explicit)
   af_explicit <- adlaplace::ad_fun(ad_ptr_explicit, num_threads = 2L)
 
-  af_variadic <- adlaplace::ad_fun(
-    adlaplace::ad_fun_ptr(as_shard(model, "observations", "nbinom_obs"), config),
-    adlaplace::ad_fun_ptr(random_shard, config),
-    adlaplace::ad_fun_ptr(as_shard(model, "parameters", "nbinom_extra"), config),
-    num_threads = 2L
+  make_three <- function() {
+    list(
+      adlaplace::ad_fun_ptr(as_shard(model, "observations", "nbinom_obs"), config),
+      adlaplace::ad_fun_ptr(random_shard, config),
+      adlaplace::ad_fun_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
+    )
+  }
+  dens_variadic <- do.call(c, make_three())
+  af_variadic <- do.call(
+    adlaplace::ad_fun,
+    c(make_three(), list(num_threads = 2L))
   )
 
   x <- c(config$beta, config$gamma, config$theta)
   expect_equal(
-    adlaplace::joint_log_dens(af_explicit, x, negative = FALSE),
-    adlaplace::joint_log_dens(af_variadic, x, negative = FALSE)
+    adlaplace::joint_log_dens(dens_explicit, x, negative = FALSE),
+    adlaplace::joint_log_dens(dens_variadic, x, negative = FALSE)
   )
   expect_equal(
     as.matrix(af_explicit@parallel_map),
@@ -257,11 +264,19 @@ test_that("ad_fun variadic composition clears source pointers like c()", {
 
   obs <- adlaplace::ad_fun_ptr(as_shard(model, "observations", "nbinom_obs"), config)
   extra <- adlaplace::ad_fun_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
+  dens_ptr <- c(
+    adlaplace::clone_ad_fun_ptr(obs),
+    adlaplace::clone_ad_fun_ptr(extra)
+  )
   af <- adlaplace::ad_fun(obs, extra, num_threads = 2L)
   x <- c(config$beta, config$gamma, config$theta)
 
   expect_true(is(af, "ad_fun"))
-  expect_true(is.finite(adlaplace::joint_log_dens(af, x, negative = FALSE)))
+  expect_true(is.finite(adlaplace::joint_log_dens(dens_ptr, x, negative = FALSE)))
+  expect_error(
+    adlaplace::joint_log_dens(af, x, negative = FALSE),
+    "serial debug APIs|num_threads"
+  )
   expect_error(
     adlaplace::joint_log_dens(obs, x, negative = FALSE),
     "NULL|cleared|invalid",

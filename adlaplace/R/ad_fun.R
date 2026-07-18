@@ -327,6 +327,14 @@ setMethod("ad_fun", signature = c(x = "list"), function(x, config, num_threads =
 #' \code{negative = FALSE} for the joint log density and its derivatives at the
 #' same \code{x}.
 #'
+#' @section Thread affinity:
+#' These are **serial debug** APIs. They error if the handle was built with
+#' \code{ad_fun(..., num_threads > 1)}. Use a plain \code{ad_fun_ptr} (or
+#' \code{ad_fun(..., num_threads = 1)}), or \code{\link{clone_ad_fun_ptr}()}
+#' before assigning multi-thread affinity. Parallel evaluation uses
+#' \code{\link{fun_obj_fdfh}} / \code{\link{inner_opt}} /
+#' \code{\link{log_lik_laplace}} on the affined handle.
+#'
 #' @name adlaplace_cpp
 #' @return See individual functions.
 NULL

@@ -98,6 +98,9 @@ c.ad_fun_ptr <- function(x, ...) {
 #' sparsity patterns). Hessian templates are not copied; call \code{\link{ad_fun}}
 #' on the clone to attach maps. The source handle is left unchanged, unlike
 #' \code{\link{c.ad_fun_ptr}} which moves shards and clears the inputs.
+#' OpenMP thread affinity from a prior \code{ad_fun(..., num_threads > 1)} is
+#' cleared on the clone so \code{\link{joint_log_dens}} / \code{\link{grad}} /
+#' \code{\link{hessian}} remain available as serial debug APIs.
 #'
 #' @param x An \code{ad_fun_ptr} object.
 #' @return A new \code{ad_fun_ptr}.

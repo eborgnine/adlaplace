@@ -37,14 +37,19 @@ test_that("ad_fun assigns threads for multi-shard model", {
     adlaplace::ad_fun_ptr(random_shard, config),
     adlaplace::ad_fun_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
   ))
+  x <- c(config$beta, config$gamma, config$theta)
+  dens_ptr <- adlaplace::clone_ad_fun_ptr(ad_ptr)
+  expect_true(is.finite(adlaplace::joint_log_dens(dens_ptr, x, negative = FALSE)))
   ad_fun <- adlaplace::ad_fun(ad_ptr, num_threads = 2L)
   n <- adlaplace:::n_groups(ad_fun@ptr)
   owners <- vapply(seq_len(n) - 1L, function(g) {
     adlaplace:::get_thread_owner(ad_fun@ptr, g)
   }, integer(1))
   expect_equal(owners, (seq_len(n) - 1L) %% 2L)
-  x <- c(config$beta, config$gamma, config$theta)
-  expect_true(is.finite(adlaplace::joint_log_dens(ad_fun, x, negative = FALSE)))
+  expect_error(
+    adlaplace::joint_log_dens(ad_fun, x, negative = FALSE),
+    "serial debug APIs|num_threads"
+  )
 })
 
 test_that("log_lik_laplace deriv=TRUE with multi-thread ad_fun", {

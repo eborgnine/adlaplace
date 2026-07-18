@@ -258,27 +258,30 @@ range(cmp$sn - cmp$ad)
 
 ## Combining shards
 
-Shard handles are combined with `c()`. This uses move semantics: after
-`ad_fun()` is called, the individual `ad_fun_ptr` objects are cleared and must
-not be reused.
+Shard handles are combined with `c()`. Clone before multi-thread `ad_fun()` so
+serial dens stays on a plain handle; after `ad_fun()` the moved inputs must not
+be reused.
 
 ```{r adShards_combined}
 ad_fun_plain <- c(ad_fun_obs, ad_fun_r1, ad_fun_r2, ad_fun_extra)
-ad_pack <- adlaplace::ad_fun(ad_fun_plain, num_threads = config$num_threads)
+ad_pack <- adlaplace::ad_fun(
+  adlaplace::clone_ad_fun_ptr(ad_fun_plain),
+  num_threads = config$num_threads
+)
 ```
 
 The per-shard log densities sum to the joint log density at a fixed parameter
-vector.
+vector (serial dens on the plain handle).
 
 ```{r checkByShard}
 x_full <- c(config$beta, config$gamma, config$theta)
-shards <- seq.int(from = 0L, length.out = adlaplace:::n_groups(ad_pack@ptr))
+shards <- seq.int(from = 0L, length.out = adlaplace:::n_groups(ad_fun_plain))
 
 by_shard <- vapply(
   shards,
   function(s) {
     adlaplace::joint_log_dens(
-      ad_pack, x_full,
+      ad_fun_plain, x_full,
       shards = s, negative = FALSE
     )
   },
@@ -638,8 +641,8 @@ adlaplace::joint_log_dens(ad_pack2, xx_all2,
 
 
 by_shard <- vapply(
-  seq.int(from = 0L, length.out = adlaplace:::n_groups(ad_pack@ptr)),
-  function(s) adlaplace::joint_log_dens(ad_pack, xx_all, shards = s, negative = FALSE),
+  seq.int(from = 0L, length.out = adlaplace:::n_groups(ad_fun_plain)),
+  function(s) adlaplace::joint_log_dens(ad_fun_plain, xx_all, shards = s, negative = FALSE),
   numeric(1)
 )
 by_shard2 <- vapply(

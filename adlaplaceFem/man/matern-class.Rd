@@ -38,8 +38,7 @@ matern(
 \item{x}{Name of the geometry / coordinate column in \code{data}.}
 
 \item{knots}{Knot lines as \code{list(x = ..., y = ...)} or a terra
-\code{SpatRaster} (extent endpoints plus interior cell centers; see
-\code{\link[=knots_from_spatraster]{knots_from_spatraster()}}).}
+\code{SpatRaster} (extent endpoints plus interior cell centers).}
 
 \item{shape}{Matern smoothness nu (\code{1} or \code{2}). Default \code{1L} (SPDE alpha = 2,
 quadratic B-splines). Use \code{2} for nu = 2 / cubic B-splines.}

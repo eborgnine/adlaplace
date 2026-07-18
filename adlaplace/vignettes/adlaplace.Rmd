@@ -226,20 +226,25 @@ cmp
 
 ## Combining shards
 
-Shard handles are combined with `c()`. This uses move semantics: after
-`ad_fun()` is called, the individual `ad_fun_ptr` objects are cleared and must
-not be reused.
+Shard handles are combined with `c()`. This uses move semantics: the individual
+`ad_fun_ptr` inputs to `c()` are cleared and must not be reused. Keep a plain
+combined ptr for serial debug dens/grad/hess, and pass a
+`clone_ad_fun_ptr()` into `ad_fun(..., num_threads > 1)` so multi-thread
+affinity does not attach to the plain handle.
 
 ```{r adShards_combined}
 ad_fun_plain <- c(
   ad_fun_obs, ad_fun_extra,
   ad_fun_r1, ad_fun_r2
 )
-ad_pack <- adlaplace::ad_fun(ad_fun_plain, num_threads = 2L)
+ad_pack <- adlaplace::ad_fun(
+  adlaplace::clone_ad_fun_ptr(ad_fun_plain),
+  num_threads = 2L
+)
 ```
 
 The per-shard log densities sum to the joint log density at a fixed parameter
-vector.
+vector. Serial dens uses `ad_fun_plain`; parallel `fun_obj_fdfh` uses `ad_pack`.
 
 ```{r checkByShard}
 config$gamma <- rep(0.01, length(config$gamma))
@@ -267,7 +272,6 @@ by_shard[seq(1, min(c(5, length(by_shard))))]
 c(
   sum(by_shard),
   adlaplace::joint_log_dens(ad_fun_plain, x_full, negative = TRUE),
-  adlaplace::joint_log_dens(ad_pack, x_full, negative = TRUE),
   res_fdf$f
 )
 ```
@@ -330,7 +334,7 @@ inner_res <- adlaplace::inner_opt(
   deriv = TRUE,
   verbose = TRUE
 )
-adlaplace::joint_log_dens(ad_pack, x_full, negative = TRUE)
+adlaplace::joint_log_dens(ad_fun_plain, x_full, negative = TRUE)
 
 
 inner_res$opt$fval
@@ -349,14 +353,17 @@ approximation to the marginal log likelihood. With `deriv = TRUE`, it also
 returns the profile gradient and third-order trace terms used in the
 determinant correction.
 
-OpenMP shard affinity is fixed when you call `ad_fun(ad_fun_plain, num_threads = …)`
+OpenMP shard affinity is fixed when you call `ad_fun(..., num_threads = …)`
 (`owner_thread = shard_index %% num_threads`); `log_lik_laplace()` does not change it.
 The same assignment is used for inner optimization, outer derivatives when
 `deriv = TRUE`, and the profile trace (`trace_hinv_t` logic, same OpenMP shard
 groups). `inner_opt()` uses one OpenMP/CppAD parallel session for trust-region
 inner optimization, outer `get_fdfh`, and trace evaluation when `deriv = TRUE`.
-`ad_fun_ptr()` and `joint_log_dens()` on a plain
-ptr do not use threads. For serial runs only, use `ad_fun(..., num_threads = 1L)`.
+`joint_log_dens()` / `grad()` / `hessian()` are serial debug APIs: they error on
+handles with `num_threads > 1`. Keep dens on a plain `ad_fun_ptr` (or
+`clone_ad_fun_ptr()` of an affined handle, which clears affinity), and use
+`fun_obj_fdfh` / `inner_opt` / `log_lik_laplace` on the multi-thread `ad_fun`.
+For a single-thread `ad_fun` that also allows dens, use `num_threads = 1L`.
 
 For thread-affinity diagnostics, reinstall from a fresh tarball with
 `PKG_CXXFLAGS="-DDEBUG" R CMD INSTALL adlaplace_*.tar.gz` (use `R CMD INSTALL --clean`
@@ -664,6 +671,9 @@ config2 <- list(
   )
 )
 ad_fun2 <- ad_fun(md, config2, num_threads = 2L)
+# Serial dens for mean_mvquad: clone clears multi-thread affinity, then
+# ad_fun(..., num_threads = 1) rebuilds templates on a dens-safe handle.
+ad_fun2_dens <- ad_fun(clone_ad_fun_ptr(ad_fun2@ptr), num_threads = 1L)
 
 md$observations$y@XTp[, 1:5]
 data_obs@XTp[, 1:5]
@@ -688,7 +698,7 @@ rbind(log_lik2$grad, res_deriv$grad[param_remap])
 Posterior mean of the random effects can be approximated with sparse nested
 Gauss–Hermite quadrature (`mvQuad`): nodes are drawn from the Laplace proposal
 `N(hat(gamma), H^{-1})` and reweighted by `joint_log_dens` relative to that
-Gaussian.
+Gaussian. Use a dens-safe clone when the fit handle has `num_threads > 1`.
 
 ```{r meanEstimation}
 library(mvQuad)
@@ -696,7 +706,7 @@ mean_estimate <- mean_mvquad(
   parameters = log_lik2$parameters,
   mode = log_lik2$opt$solution,
   cov = log_lik2$extra$hessian$H_inv,
-  ad_fun = ad_fun2,
+  ad_fun = ad_fun2_dens,
   n = 3
 )
 quantile(mean_estimate - log_lik2$opt$solution)

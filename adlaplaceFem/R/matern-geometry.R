@@ -1,8 +1,7 @@
 #' Resolve knot lines for matern()
 #'
 #' Accepts `list(x = ..., y = ...)` or a terra `SpatRaster`. For a raster,
-#' [knots_from_spatraster()] supplies axis knot lines (extent endpoints plus
-#' interior cell centers).
+#' axis knot lines are the extent endpoints plus interior cell centers.
 #'
 #' @param knots Knot specification.
 #' @return `list(x = ..., y = ...)` of numeric knot-line positions.

@@ -69,8 +69,7 @@ setClass(
 
 #' @param x Name of the geometry / coordinate column in `data`.
 #' @param knots Knot lines as `list(x = ..., y = ...)` or a terra
-#'   `SpatRaster` (extent endpoints plus interior cell centers; see
-#'   [knots_from_spatraster()]).
+#'   `SpatRaster` (extent endpoints plus interior cell centers).
 #' @param shape Matern smoothness nu (`1` or `2`). Default `1L` (SPDE alpha = 2,
 #'   quadratic B-splines). Use `2` for nu = 2 / cubic B-splines.
 #' @param init Initial values for `(range, sd)` on the natural scale, where

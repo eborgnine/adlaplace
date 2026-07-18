@@ -38,10 +38,13 @@ build_fun_obj_test_model <- function(num_threads) {
     adlaplace::ad_fun_ptr(random_shard, config),
     adlaplace::ad_fun_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
   ))
+  # Plain dens handle before multi-thread ad_fun() mutates affinity on ad_ptr.
+  dens_ptr <- adlaplace::clone_ad_fun_ptr(ad_ptr)
   ad_fun <- adlaplace::ad_fun(ad_ptr, num_threads = num_threads)
   gamma <- stats::rnorm(n_gamma, sd = 0.1)
   list(
     ad_fun = ad_fun,
+    dens_ptr = dens_ptr,
     config = config,
     n_beta = n_beta,
     n_gamma = n_gamma,
@@ -63,12 +66,12 @@ expect_fun_obj_parity <- function(m, inner) {
 
   expect_equal(
     fo$f,
-    adlaplace::joint_log_dens(m$ad_fun, m$x_full, negative = TRUE),
+    adlaplace::joint_log_dens(m$dens_ptr, m$x_full, negative = TRUE),
     tolerance = 1e-8
   )
 
   grad_ref <- adlaplace::grad(
-    m$ad_fun,
+    m$dens_ptr,
     m$x_full,
     inner = inner,
     negative = TRUE
@@ -80,7 +83,7 @@ expect_fun_obj_parity <- function(m, inner) {
   expect_equal(fo$grad, grad_ref, tolerance = 1e-8)
 
   hess_ref <- adlaplace::hessian(
-    m$ad_fun,
+    m$dens_ptr,
     m$x_full,
     inner = inner,
     negative = TRUE

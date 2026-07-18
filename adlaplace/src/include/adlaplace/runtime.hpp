@@ -49,6 +49,18 @@ inline void adlaplace_require_owner_threads_assigned(const ad_fun& backend) {
   }
 }
 
+// Serial debug dens/grad/hessian: reject multi-thread handles from ad_fun(N>1).
+inline void adlaplace_require_serial_dens_handle(const ad_fun& backend) {
+  if (backend.configured_num_threads > 1) {
+    Rcpp::stop(
+      "joint_log_dens/grad/hessian are serial debug APIs; this handle has "
+      "num_threads=%d from ad_fun(). Use clone_ad_fun_ptr() before ad_fun(), "
+      "or call dens on that plain ptr (or ad_fun with num_threads=1).",
+      static_cast<int>(backend.configured_num_threads)
+    );
+  }
+}
+
 inline std::vector<std::vector<std::size_t>> thread_groups_from_backend(ad_fun& backend) {
   const std::size_t n = backend.fun.size();
   std::vector<std::size_t> owners(n);

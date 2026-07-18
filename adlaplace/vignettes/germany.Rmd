@@ -112,7 +112,10 @@ ptr_iid <- adlaplace::ad_fun_ptr(data = model_iid, config = config)
 ptr_struct <- adlaplace::ad_fun_ptr(data = model_struct, config = config)
 
 ad_fun_plain <- c(ptr_obs, ptr_struct, ptr_iid)
-ad_pack <- adlaplace::ad_fun(ad_fun_plain, num_threads = 2L)
+ad_pack <- adlaplace::ad_fun(
+  adlaplace::clone_ad_fun_ptr(ad_fun_plain),
+  num_threads = 2L
+)
 ```
 
 
@@ -142,7 +145,6 @@ res_fdf <- adlaplace::fun_obj_fdfh(
 c(
   sum(by_shard),
   adlaplace::joint_log_dens(ad_fun_plain, x_full, negative = TRUE),
-  adlaplace::joint_log_dens(ad_pack, x_full, negative = TRUE),
   res_fdf$f
 )
 ```
