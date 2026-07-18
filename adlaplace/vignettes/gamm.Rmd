@@ -232,7 +232,7 @@ points(SxD, diff(Sdet) / diff(Sx), pch = 16)
 
 hessian_outer <- Matrix::forceSymmetric(res_mid$extra$hessian$outer)
 hessian_ad <- adlaplace::hessian(
-  ad_fun,
+  dens_ptr,
   res_mid$full_parameters,
   inner = FALSE,
   negative = TRUE
