@@ -29,8 +29,6 @@ gaussian(
 \item{parscale}{Parameter scale for optimization.}
 
 \item{term}{A model term object (S4 methods).}
-
-\item{data}{A data frame containing the variables (S4 methods).}
 }
 \value{
 A \code{gaussian} object (or a \code{stats::family} when called

@@ -77,7 +77,7 @@ struct TrustControl {
 #include <Rcpp.h>
 #include <Rinternals.h>
 
-#include <Eigen/Sparse>
+#include <Eigen/SparseCore>
 #include <numeric>
 #include <vector>
 

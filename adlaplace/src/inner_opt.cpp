@@ -3,9 +3,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
-// Eigen
-#include <Eigen/OrderingMethods>
-#include <Eigen/Sparse>
+// Eigen (SparseCholesky pulls SparseCore + OrderingMethods)
 #include <Eigen/SparseCholesky>
 
 // Rcpp

@@ -2,7 +2,7 @@
 #define ADLAPLACE_CHOL_UPDATE_HPP
 
 #include <Rcpp.h>
-#include <Eigen/Sparse>
+#include <Eigen/SparseCore>
 
 #include "adlaplace/backend.hpp"
 #include "adlaplace/chol_update_impl.hpp"

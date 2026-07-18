@@ -14,10 +14,6 @@ binomial(x, size = NULL, link = "logit")
 \item{size}{Optional column name for the number of trials per observation.}
 
 \item{link}{Link passed to \code{stats::binomial()} in the fallback case.}
-
-\item{term}{A model term object (S4 methods).}
-
-\item{data}{A data frame containing the variables (S4 methods).}
 }
 \value{
 A \code{binomial} object (or a \code{stats::family} when called

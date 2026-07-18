@@ -59,8 +59,6 @@ setClass(
 #' @param x Outcome variable name (counts of successes; 0/1 when Bernoulli).
 #' @param size Optional column name for the number of trials per observation.
 #' @param link Link passed to \code{stats::binomial()} in the fallback case.
-#' @param term A model term object (S4 methods).
-#' @param data A data frame containing the variables (S4 methods).
 #' @return A \code{binomial} object (or a \code{stats::family} when called
 #'   with no response variable).
 #' @export
@@ -137,7 +135,6 @@ setClass(
 #' @param upper Upper bound for the residual standard deviation.
 #' @param parscale Parameter scale for optimization.
 #' @param term A model term object (S4 methods).
-#' @param data A data frame containing the variables (S4 methods).
 #' @return A \code{gaussian} object (or a \code{stats::family} when called
 #'   with no arguments).
 #' @export
@@ -222,7 +219,6 @@ setClass(
 #' @param upper Upper bound for the overdispersion parameter.
 #' @param parscale Parameter scale for optimization.
 #' @param term A model term object (S4 methods).
-#' @param data A data frame containing the variables (S4 methods).
 #' @return A \code{nbinom} object.
 #' @export
 nbinom <- function(x,

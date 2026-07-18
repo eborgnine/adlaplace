@@ -3,7 +3,7 @@
 
 #include <cppad/cppad.hpp>
 #include <Rcpp.h>
-#include <Eigen/Sparse>
+#include <Eigen/SparseCore>
 #include <cstddef>
 #include <vector>
 
