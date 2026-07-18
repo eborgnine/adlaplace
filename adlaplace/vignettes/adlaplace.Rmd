@@ -14,8 +14,6 @@ vignette: >
 ```{r setup, include=FALSE}
 library("Matrix")
 library("adlaplace")
-# 2 threads when this build has OpenMP; otherwise serial.
-num_threads <- if (adlaplace::has_openmp()) 2L else 1L
 ```
 
 This vignette walks through a hierarchical negative-binomial model: simulate data,
@@ -237,7 +235,7 @@ ad_fun_plain <- c(
   ad_fun_obs, ad_fun_extra,
   ad_fun_r1, ad_fun_r2
 )
-ad_pack <- adlaplace::ad_fun(ad_fun_plain, num_threads = num_threads)
+ad_pack <- adlaplace::ad_fun(ad_fun_plain, num_threads = 2L)
 ```
 
 The per-shard log densities sum to the joint log density at a fixed parameter
@@ -665,7 +663,7 @@ config2 <- list(
     num_shards = 100
   )
 )
-ad_fun2 <- ad_fun(md, config2, num_threads = num_threads)
+ad_fun2 <- ad_fun(md, config2, num_threads = 2L)
 
 md$observations$y@XTp[, 1:5]
 data_obs@XTp[, 1:5]

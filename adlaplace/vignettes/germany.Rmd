@@ -14,8 +14,6 @@ vignette: >
 ```{r setup, include=FALSE}
 library("Matrix")
 library("adlaplace")
-# 2 threads when this build has OpenMP; otherwise serial.
-num_threads <- if (adlaplace::has_openmp()) 2L else 1L
 data("germany")
 # District polygons live in inst/extdata (not in data/germany.rda) so loading
 # the dataset does not require terra.
@@ -114,7 +112,7 @@ ptr_iid <- adlaplace::ad_fun_ptr(data = model_iid, config = config)
 ptr_struct <- adlaplace::ad_fun_ptr(data = model_struct, config = config)
 
 ad_fun_plain <- c(ptr_obs, ptr_struct, ptr_iid)
-ad_pack <- adlaplace::ad_fun(ad_fun_plain, num_threads = num_threads)
+ad_pack <- adlaplace::ad_fun(ad_fun_plain, num_threads = 2L)
 ```
 
 
