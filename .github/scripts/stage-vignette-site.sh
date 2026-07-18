@@ -9,7 +9,7 @@ rm -rf "$SITE"
 mkdir -p "$SITE"
 
 # Packages with vignettes that are checked in CI (plain check-dir).
-CHECKED_PKGS=(adlaplace adlaplaceExample adlaplaceGrf hpolcc)
+CHECKED_PKGS=(adlaplace adlaplaceExample hpolcc adlaplaceGrf)
 
 copy_doc_dir() {
   local pkg=$1
@@ -38,7 +38,6 @@ stage_from_check() {
   local candidates=(
     "${ROOT}/.ci-check/${pkg}-plain/${pkg}.Rcheck/${pkg}/doc"
     "${ROOT}/.ci-check/${pkg}-as-cran/${pkg}.Rcheck/${pkg}/doc"
-    "${ROOT}/.ci-check/${pkg}-plain-inla/${pkg}.Rcheck/${pkg}/doc"
   )
   local doc
   for doc in "${candidates[@]}"; do

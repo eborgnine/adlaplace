@@ -1,13 +1,14 @@
 # Workflow derived from https://github.com/r-lib/actions/tree/v2/examples
 # Checks local packages in order:
-#   RCppAD → adlaplace → adlaplaceExample → adlaplaceHgp → adlaplaceGrf → hpolcc
-# Per package: build+install, then check plain, then check --as-cran
-# (Windows: plain check only; skip --as-cran).
+#   RCppAD → adlaplace → adlaplaceExample → adlaplaceHgp → hpolcc → adlaplaceGrf
+# Per package: build+install, then one of:
+#   - --as-cran: Windows and macOS without OpenMP
+#   - plain (non --as-cran): Ubuntu and macOS with OpenMP
 # Jobs:
-#   - macOS without Homebrew libomp (configure soft-fails OpenMP)
-#   - macOS with Homebrew libomp
-#   - Windows (plain checks only)
-#   - Ubuntu CRAN-like (R-hub ubuntu-release); finally install INLA and re-check adlaplaceGrf
+#   - macOS without Homebrew libomp (--as-cran; configure soft-fails OpenMP)
+#   - macOS with Homebrew libomp (plain)
+#   - Windows (--as-cran)
+#   - Ubuntu CRAN-like (plain; installs INLA before adlaplaceGrf)
 #   - deploy-docs: GitHub Pages from ubuntu-built vignette HTML (_site/)
 # Check output goes under .ci-check/ (never inside package source trees).
 on:
@@ -36,24 +37,32 @@ jobs:
           - os: macos-latest
             r: 'release'
             id: macos-no-omp
-            label: 'macos-latest (no OpenMP)'
+            label: 'macos-latest (no OpenMP, --as-cran)'
             openmp: false
+            check_plain: false
+            check_as_cran: true
           - os: macos-latest
             r: 'release'
             id: macos-omp
-            label: 'macos-latest (OpenMP)'
+            label: 'macos-latest (OpenMP, plain)'
             openmp: true
+            check_plain: true
+            check_as_cran: false
           - os: windows-latest
             r: 'release'
             id: windows
-            label: 'windows-latest (release)'
+            label: 'windows-latest (--as-cran)'
             openmp: false
+            check_plain: false
+            check_as_cran: true
           - os: ubuntu-latest
             r: 'release'
             id: ubuntu-cran
-            label: 'ubuntu-release (CRAN-like)'
+            label: 'ubuntu-release (plain)'
             container: ghcr.io/r-hub/containers/ubuntu-release:latest
             openmp: true
+            check_plain: true
+            check_as_cran: false
 
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
@@ -106,7 +115,7 @@ jobs:
         run: Rscript .github/scripts/install-cran-deps.R
 
       # =====================================================================
-      # Per package: build+install → check plain → check --as-cran (not Windows)
+      # Per package: build+install → plain or --as-cran (see matrix check_* flags)
       # =====================================================================
 
       # ----- RCppAD -----
@@ -114,6 +123,7 @@ jobs:
         run: bash .github/scripts/install-local-pkg.sh RCppAD
 
       - name: Check RCppAD (plain)
+        if: ${{ matrix.config.check_plain }}
         uses: r-lib/actions/check-r-package@v2
         with:
           # Our check dirs live at ../.ci-check/; the action's failure-time
@@ -126,7 +136,7 @@ jobs:
           artifact-name: ${{ matrix.config.id }}-RCppAD-plain
 
       - name: Check RCppAD (as-cran)
-        if: runner.os != 'Windows'
+        if: ${{ matrix.config.check_as_cran }}
         uses: r-lib/actions/check-r-package@v2
         with:
           # Our check dirs live at ../.ci-check/; the action's failure-time
@@ -143,6 +153,7 @@ jobs:
         run: bash .github/scripts/install-local-pkg.sh adlaplace
 
       - name: Check adlaplace (plain)
+        if: ${{ matrix.config.check_plain }}
         uses: r-lib/actions/check-r-package@v2
         with:
           # Our check dirs live at ../.ci-check/; the action's failure-time
@@ -155,7 +166,7 @@ jobs:
           artifact-name: ${{ matrix.config.id }}-adlaplace-plain
 
       - name: Check adlaplace (as-cran)
-        if: runner.os != 'Windows'
+        if: ${{ matrix.config.check_as_cran }}
         uses: r-lib/actions/check-r-package@v2
         with:
           # Our check dirs live at ../.ci-check/; the action's failure-time
@@ -172,6 +183,7 @@ jobs:
         run: bash .github/scripts/install-local-pkg.sh adlaplaceExample
 
       - name: Check adlaplaceExample (plain)
+        if: ${{ matrix.config.check_plain }}
         uses: r-lib/actions/check-r-package@v2
         with:
           # Our check dirs live at ../.ci-check/; the action's failure-time
@@ -184,7 +196,7 @@ jobs:
           artifact-name: ${{ matrix.config.id }}-adlaplaceExample-plain
 
       - name: Check adlaplaceExample (as-cran)
-        if: runner.os != 'Windows'
+        if: ${{ matrix.config.check_as_cran }}
         uses: r-lib/actions/check-r-package@v2
         with:
           # Our check dirs live at ../.ci-check/; the action's failure-time
@@ -201,6 +213,7 @@ jobs:
         run: bash .github/scripts/install-local-pkg.sh adlaplaceHgp
 
       - name: Check adlaplaceHgp (plain)
+        if: ${{ matrix.config.check_plain }}
         uses: r-lib/actions/check-r-package@v2
         with:
           # Our check dirs live at ../.ci-check/; the action's failure-time
@@ -213,7 +226,7 @@ jobs:
           artifact-name: ${{ matrix.config.id }}-adlaplaceHgp-plain
 
       - name: Check adlaplaceHgp (as-cran)
-        if: runner.os != 'Windows'
+        if: ${{ matrix.config.check_as_cran }}
         uses: r-lib/actions/check-r-package@v2
         with:
           # Our check dirs live at ../.ci-check/; the action's failure-time
@@ -225,40 +238,12 @@ jobs:
           check-dir: '"../.ci-check/adlaplaceHgp-as-cran"'
           artifact-name: ${{ matrix.config.id }}-adlaplaceHgp-as-cran
 
-      # ----- adlaplaceGrf -----
-      - name: Build and install adlaplaceGrf
-        run: bash .github/scripts/install-local-pkg.sh adlaplaceGrf
-
-      - name: Check adlaplaceGrf (plain)
-        uses: r-lib/actions/check-r-package@v2
-        with:
-          # Our check dirs live at ../.ci-check/; the action's failure-time
-          # artifact upload cannot handle '..' in paths, so keep it off.
-          upload-results: never
-          working-directory: adlaplaceGrf
-          args: 'c("--no-manual")'
-          build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
-          check-dir: '"../.ci-check/adlaplaceGrf-plain"'
-          artifact-name: ${{ matrix.config.id }}-adlaplaceGrf-plain
-
-      - name: Check adlaplaceGrf (as-cran)
-        if: runner.os != 'Windows'
-        uses: r-lib/actions/check-r-package@v2
-        with:
-          # Our check dirs live at ../.ci-check/; the action's failure-time
-          # artifact upload cannot handle '..' in paths, so keep it off.
-          upload-results: never
-          working-directory: adlaplaceGrf
-          args: 'c("--no-manual", "--as-cran")'
-          build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
-          check-dir: '"../.ci-check/adlaplaceGrf-as-cran"'
-          artifact-name: ${{ matrix.config.id }}-adlaplaceGrf-as-cran
-
       # ----- hpolcc -----
       - name: Build and install hpolcc
         run: bash .github/scripts/install-local-pkg.sh hpolcc
 
       - name: Check hpolcc (plain)
+        if: ${{ matrix.config.check_plain }}
         uses: r-lib/actions/check-r-package@v2
         with:
           # Our check dirs live at ../.ci-check/; the action's failure-time
@@ -271,7 +256,7 @@ jobs:
           artifact-name: ${{ matrix.config.id }}-hpolcc-plain
 
       - name: Check hpolcc (as-cran)
-        if: runner.os != 'Windows'
+        if: ${{ matrix.config.check_as_cran }}
         uses: r-lib/actions/check-r-package@v2
         with:
           # Our check dirs live at ../.ci-check/; the action's failure-time
@@ -283,10 +268,7 @@ jobs:
           check-dir: '"../.ci-check/hpolcc-as-cran"'
           artifact-name: ${{ matrix.config.id }}-hpolcc-as-cran
 
-      # =====================================================================
-      # Linux CRAN-like only: install INLA, re-check adlaplaceGrf (vignettes)
-      # =====================================================================
-
+      # ----- adlaplaceGrf (Ubuntu: with INLA; macOS/Windows: without) -----
       # INLA pulls in units (and friends); the R-hub image does not ship udunits2.
       - name: Install INLA system dependencies
         if: ${{ matrix.config.id == 'ubuntu-cran' }}
@@ -308,8 +290,11 @@ jobs:
           )
           stopifnot(requireNamespace("INLA"))
 
-      - name: Check adlaplaceGrf with INLA (plain)
-        if: ${{ matrix.config.id == 'ubuntu-cran' }}
+      - name: Build and install adlaplaceGrf
+        run: bash .github/scripts/install-local-pkg.sh adlaplaceGrf
+
+      - name: Check adlaplaceGrf (plain)
+        if: ${{ matrix.config.check_plain }}
         uses: r-lib/actions/check-r-package@v2
         with:
           # Our check dirs live at ../.ci-check/; the action's failure-time
@@ -318,11 +303,11 @@ jobs:
           working-directory: adlaplaceGrf
           args: 'c("--no-manual")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
-          check-dir: '"../.ci-check/adlaplaceGrf-plain-inla"'
-          artifact-name: ubuntu-cran-adlaplaceGrf-inla-plain
+          check-dir: '"../.ci-check/adlaplaceGrf-plain"'
+          artifact-name: ${{ matrix.config.id }}-adlaplaceGrf-plain
 
-      - name: Check adlaplaceGrf with INLA (as-cran)
-        if: ${{ matrix.config.id == 'ubuntu-cran' }}
+      - name: Check adlaplaceGrf (as-cran)
+        if: ${{ matrix.config.check_as_cran }}
         uses: r-lib/actions/check-r-package@v2
         with:
           # Our check dirs live at ../.ci-check/; the action's failure-time
@@ -331,8 +316,8 @@ jobs:
           working-directory: adlaplaceGrf
           args: 'c("--no-manual", "--as-cran")'
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
-          check-dir: '"../.ci-check/adlaplaceGrf-as-cran-inla"'
-          artifact-name: ubuntu-cran-adlaplaceGrf-inla-as-cran
+          check-dir: '"../.ci-check/adlaplaceGrf-as-cran"'
+          artifact-name: ${{ matrix.config.id }}-adlaplaceGrf-as-cran
 
       # =====================================================================
       # Ubuntu only: stage vignette HTML for GitHub Pages
