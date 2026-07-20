@@ -9,7 +9,7 @@
 # Order: RCppAD → adlaplace → {Example, Hgp, Fem, admvn} → hpolcc
 # (hpolcc needs adlaplaceHgp; backends need adlaplace headers.)
 
-INSTALL_ORDER := RCppAD adlaplace adlaplaceExample adlaplaceHgp adlaplaceFem admvn hpolcc
+INSTALL_ORDER := RCppAD adlaplace adlaplaceExample adlaplaceHgp adlaplaceFem hpolcc
 
 .DEFAULT_GOAL := all
 

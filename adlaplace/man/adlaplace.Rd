@@ -30,7 +30,8 @@ Not needed when \code{formula} is already a \code{model_data} result.}
 \item{config}{List of backend options merged over the defaults
 \code{list(transform_theta = TRUE, verbose = verbose)}. When
 \code{config$shards} is missing it is filled by
-\code{ad_shards(A, num_shards = num_shards)}.}
+\code{ad_shards(A, num_shards = num_shards)}, or with
+\code{elgm_matrix} when the model data includes one (e.g. case-crossover).}
 
 \item{num_threads}{Positive integer, OpenMP thread count for the AD handle.}
 

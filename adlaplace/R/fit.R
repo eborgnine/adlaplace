@@ -20,7 +20,8 @@ NULL
 #' @param config List of backend options merged over the defaults
 #'   \code{list(transform_theta = TRUE, verbose = verbose)}. When
 #'   \code{config$shards} is missing it is filled by
-#'   \code{ad_shards(A, num_shards = num_shards)}.
+#'   \code{ad_shards(A, num_shards = num_shards)}, or with
+#'   \code{elgm_matrix} when the model data includes one (e.g. case-crossover).
 #' @param num_threads Positive integer, OpenMP thread count for the AD handle.
 #' @param num_shards Target number of observation shards for
 #'   \code{\link{ad_shards}()}.
@@ -102,7 +103,20 @@ adlaplace <- function(
   if (is.null(config$shards)) {
     A <- md$data$A
     if (!is.null(A) && ncol(A) > 0L) {
-      config$shards <- ad_shards(A, num_shards = num_shards)
+      elgm <- md$data$elgm_matrix
+      if (!is.null(elgm) && methods::is(elgm, "Matrix") && ncol(elgm) > 0L) {
+        config$shards <- ad_shards(
+          A,
+          elgm_matrix = elgm,
+          num_shards = num_shards,
+          min_groups = min(
+            as.integer(num_shards),
+            as.integer(num_threads) * 4L
+          )
+        )
+      } else {
+        config$shards <- ad_shards(A, num_shards = num_shards)
+      }
     }
   }
   if (is.null(config$num_threads)) {

@@ -2,12 +2,12 @@
 # Checks local packages in order:
 #   RCppAD → adlaplace → adlaplaceExample → adlaplaceHgp → hpolcc → adlaplaceFem
 # Per package: build+install, then one of:
-#   - --as-cran: Windows and macOS without OpenMP
-#   - plain (non --as-cran): Ubuntu and macOS with OpenMP
+#   - --as-cran: macOS without OpenMP
+#   - plain (non --as-cran): Windows, Ubuntu, and macOS with OpenMP
 # Jobs:
 #   - macOS without Homebrew libomp (--as-cran; configure soft-fails OpenMP)
 #   - macOS with Homebrew libomp (plain)
-#   - Windows (--as-cran)
+#   - Windows (plain)
 #   - Ubuntu CRAN-like (plain; installs INLA before adlaplaceFem)
 #   - deploy-docs: GitHub Pages from ubuntu-built vignette HTML (_site/)
 # Check output goes under .ci-check/ (never inside package source trees).
@@ -51,10 +51,10 @@ jobs:
           - os: windows-latest
             r: 'release'
             id: windows
-            label: 'windows-latest (--as-cran)'
+            label: 'windows-latest (plain)'
             openmp: false
-            check_plain: false
-            check_as_cran: true
+            check_plain: true
+            check_as_cran: false
           - os: ubuntu-latest
             r: 'release'
             id: ubuntu-cran
