@@ -51,7 +51,7 @@ skewnormal <- function(x,
                        lower = c(1e-9, -Inf),
                        upper = c(Inf, Inf),
                        parscale = c(1, 1)) {
-  x <- adlaplace:::strip_term_name(as.character(x))
+  x <- adlaplace::strip_term_name(as.character(x))
   methods::new(
     "skewnormal",
     term = x,

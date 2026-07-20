@@ -55,7 +55,7 @@ dirichlet_multinom <- function(x,
                                lower = 0,
                                upper = Inf,
                                parscale = 1) {
-  x <- adlaplace:::strip_term_name(as.character(x))
+  x <- adlaplace::strip_term_name(as.character(x))
   by <- as.character(by)
   methods::new(
     "dirichlet_multinom",
