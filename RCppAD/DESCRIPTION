@@ -1,7 +1,7 @@
 Package: RCppAD
 Type: Package
 Title: CppAD C++ Header Files for Automatic Differentiation
-Version: 20260000.0-1
+Version: 20260000.0-2
 Authors@R: c(
     person(given = "Patrick", family = "Brown",
            email = "patrick.borgnine@gmail.com", role = c("aut", "cre")),

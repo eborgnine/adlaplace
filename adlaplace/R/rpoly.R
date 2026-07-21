@@ -1,4 +1,3 @@
-#' @include 000.R
 #' Random Polynomial Model Term
 #'
 #' @description Creates and manages random polynomial model terms.

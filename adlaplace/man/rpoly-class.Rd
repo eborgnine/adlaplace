@@ -42,6 +42,9 @@ A data frame containing random effects information for the random polynomial ter
 \description{
 Creates and manages random polynomial model terms.
 }
+\details{
+Random Polynomial Model Term
+}
 \section{Functions}{
 \itemize{
 \item \code{design(rpoly)}: Design method for rpoly objects
