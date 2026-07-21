@@ -54,7 +54,9 @@ test_that("summary and vcov use outer Hessian", {
   expect_equal(nrow(sm$coefficients), nrow(fit$coefficients$parameters))
   expect_true("mle" %in% names(sm$coefficients))
   expect_true("se" %in% names(sm$coefficients))
-  expect_true(all(is.finite(sm$coefficients$se)))
+  # Natural-scale SEs for log-transformed parameters are left as NA.
+  non_log <- !(sm$coefficients$log %in% TRUE)
+  expect_true(all(is.finite(sm$coefficients$se[non_log])))
   expect_equal(sm$coefficients$mle, fit$coefficients$parameters$mle)
   expect_output(print(sm), "Parameters:")
 })

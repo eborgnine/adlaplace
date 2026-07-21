@@ -286,10 +286,14 @@ hnlm_fit_laplace <- function(
   )
 
   ad_fun <- fit$ad_fun
-  optim_result <- fit$optim
+  # adlaplace_fit stores the outer optim result and vcov under details.
+  laplace <- fit$details
+  optim_result <- laplace$outer_opt
+  if (is.null(optim_result)) {
+    stop("adlaplace() result missing details$outer_opt", call. = FALSE)
+  }
   cache$gamma <- fit$cache$gamma
   config$gamma <- fit$cache$gamma
-  laplace <- fit$details
 
   coefficients <- try(adlaplace::format_parameters(
     info = ad_fun@info,
@@ -308,7 +312,7 @@ hnlm_fit_laplace <- function(
     laplace = laplace,
     model_data = model_data,
     hessian_outer = optim_result$hessian,
-    vcov = fit$vcov
+    vcov = laplace$vcov
   )
   optim_result$hessian <- NULL
 
