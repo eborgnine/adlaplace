@@ -158,8 +158,8 @@ test_that("H_inv dsCMatrix with coupled random-effect groups (vignette-like)", {
     control = list(maxit = 5L, report.level = 0, report.freq = 0),
     deriv = TRUE
   )
-  H_inv <- ll$extra$hessian$H_inv
-  H_inner <- ll$extra$hessian$inner
+  H_inv <- ll$hessian$H_inv
+  H_inner <- ll$hessian$inner
   expect_true(inherits(H_inv, "dsCMatrix"))
   expect_equal(H_inv@uplo, "U")
   expect_true(max(abs(as.matrix(H_inv) - as.matrix(Matrix::solve(H_inner)))) < 1e-5)
@@ -170,7 +170,7 @@ test_that("H_inv dsCMatrix with coupled random-effect groups (vignette-like)", {
   seq_gamma1 <- seq.int(n_beta + 1L, length.out = n_gamma)
   dU_check <- -Matrix::solve(
     H_inner,
-    ll$extra$hessian$outer[seq_gamma1, -seq_gamma1, drop = FALSE]
+    ll$hessian$outer[seq_gamma1, -seq_gamma1, drop = FALSE]
   )
-  expect_true(max(abs(as.matrix(dU_check - ll$extra$dU))) < 1e-5)
+  expect_true(max(abs(as.matrix(dU_check - ll$gradient$outer$dU))) < 1e-5)
 })

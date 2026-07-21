@@ -14,15 +14,15 @@ test_that("model_data skewnormal theta has selective transform column", {
     verbose = FALSE
   )
   theta <- md$data$info$theta
-  expect_true("transform" %in% names(theta))
-  expect_false(any(is.na(theta$transform)))
+  expect_true("log" %in% names(theta))
+  expect_false(any(is.na(theta$log)))
 
   alpha_row <- grepl("_alpha$", theta$label)
   omega_row <- grepl("_omega$", theta$label)
   sd_row <- theta$model == "iid"
-  expect_true(all(theta$transform[sd_row]))
-  expect_true(all(theta$transform[omega_row]))
-  expect_false(any(theta$transform[alpha_row]))
+  expect_true(all(theta$log[sd_row]))
+  expect_true(all(theta$log[omega_row]))
+  expect_false(any(theta$log[alpha_row]))
 })
 
 test_that("ad_fun(model_data) leaves alpha untransformed in config theta", {

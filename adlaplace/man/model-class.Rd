@@ -33,6 +33,9 @@ and \code{by_labels} slots.
 
 \item{\code{parscale}}{Numeric vector of parameter scales for optimization}
 
+\item{\code{log}}{Logical; optimize/tape each theta on the log scale (recycled to
+the number of thetas for multi-parameter terms).}
+
 \item{\code{type}}{Factor indicating term type ("fixed", "random", or "response")}
 
 \item{\code{ad_fun}}{Registered AD density name for \code{ad_fun_ptr()}, or \code{NA}

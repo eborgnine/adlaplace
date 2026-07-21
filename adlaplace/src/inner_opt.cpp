@@ -404,7 +404,7 @@ InnerOptResult inner_opt(const std::vector<double> &parameters,
 //' @param verbose Logical; if \code{TRUE}, print thread/shard diagnostics.
 //'
 //' @return A list with \code{log_lik}, \code{neg_log_lik}, \code{parameters},
-//'   \code{full_parameters}, \code{opt}, \code{gradient}
+//'   \code{full_parameters}, \code{inner_opt}, \code{gradient}
 //'   (list \code{inner}/\code{outer}), and \code{hessian}
 //'   (list \code{inner}/\code{outer}/\code{chol_inner}/\code{half_log_det};
 //'   with \code{deriv=TRUE} also \code{half_H_inv}, \code{H_inv}, \code{trace3}).
@@ -456,7 +456,7 @@ Rcpp::List inner_opt(const Rcpp::NumericVector parameters,
         Rcpp::Named("neg_log_lik") = Rcpp::wrap(result.neg_log_lik),
         Rcpp::Named("parameters") = Rcpp::wrap(result.parameters),
         Rcpp::Named("full_parameters") = Rcpp::wrap(result.full_parameters),
-        Rcpp::Named("opt") = Rcpp::List::create(
+        Rcpp::Named("inner_opt") = Rcpp::List::create(
             Rcpp::Named("fval") = Rcpp::wrap(result.fval),
             Rcpp::Named("solution") = Rcpp::wrap(result.solution),
             Rcpp::Named("iterations") = Rcpp::wrap(result.iterations),

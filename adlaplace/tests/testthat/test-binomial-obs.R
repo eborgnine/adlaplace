@@ -72,7 +72,7 @@ test_that("adlaplace() fits binomial GLMM on bacteria data", {
     num_shards = 20L,
     control = list(maxit = 300L)
   )
-  expect_identical(fit$optim$convergence, 0L)
+  expect_identical(fit$details$outer_opt$convergence, 0L)
 
   est <- coef(fit)
   expect_gt(est[["intercept"]], 1)

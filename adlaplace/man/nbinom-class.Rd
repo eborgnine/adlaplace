@@ -12,7 +12,8 @@ nbinom(
   init = .my_theta_init,
   lower = .my_theta_lower,
   upper = .my_theta_upper,
-  parscale = .my_theta_parscale
+  parscale = .my_theta_parscale,
+  log = TRUE
 )
 
 \S4method{theta_info}{nbinom}(term)
@@ -27,6 +28,8 @@ nbinom(
 \item{upper}{Upper bound for the overdispersion parameter.}
 
 \item{parscale}{Parameter scale for optimization.}
+
+\item{log}{Whether theta is optimized on the log scale.}
 
 \item{term}{A model term object (S4 methods).}
 }

@@ -40,9 +40,10 @@ CppAD::AD<double> log_theta_ad(
   const ad_data& model,
   const Config& config) {
 
-  const std::size_t theta_index = model.theta_index(0);
-  const CppAD::AD<double> thetaIn = x[theta_index];
-  return config.transform_theta ? thetaIn : CppAD::log(thetaIn);
+  const std::size_t t_global = model.theta_index(0);
+  const std::size_t t_row = t_global - model.num_beta - model.num_gamma;
+  const CppAD::AD<double> thetaIn = x[t_global];
+  return transform_theta_at(config, t_row) ? thetaIn : CppAD::log(thetaIn);
 }
 
 }  // namespace
@@ -290,9 +291,11 @@ CppAD::AD<double> tau_sq_from_x(
   const ad_data& model,
   const Config& config) {
 
-  const std::size_t tau_index = model.theta_index(0);
-  const CppAD::AD<double> tau_in = x[tau_index];
-  const CppAD::AD<double> tau = config.transform_theta ? CppAD::exp(tau_in) : tau_in;
+  const std::size_t t_global = model.theta_index(0);
+  const std::size_t t_row = t_global - model.num_beta - model.num_gamma;
+  const CppAD::AD<double> tau_in = x[t_global];
+  const CppAD::AD<double> tau =
+    transform_theta_at(config, t_row) ? CppAD::exp(tau_in) : tau_in;
   return tau * tau;
 }
 

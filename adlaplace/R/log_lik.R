@@ -60,7 +60,7 @@ outer_fn <- function(
     verbose = isTRUE(config$verbose)
   )
 
-  assign("gamma", result$opt$solution, cache)
+  assign("gamma", result$inner_opt$solution, cache)
   result$neg_log_lik
 }
 
@@ -80,8 +80,8 @@ outer_gr <- function(
     ad_fun = ad_fun,
     deriv = TRUE, ...
   )
-  assign("gamma", result$opt$solution, cache)
-  result$grad
+  assign("gamma", result$inner_opt$solution, cache)
+  result$deriv$d_neg_log_lik
 }
 
 #' Log-likelihood with inner Laplace optimization
@@ -121,17 +121,17 @@ outer_gr <- function(
 #' contain \code{beta}, \code{gamma}, or \code{theta} when \code{ad_fun} is
 #' supplied.
 #'
-#' When \code{deriv=FALSE}, the return value is the \code{\link{inner_opt}()} list
-#' (profile likelihood, nested \code{gradient} and \code{hessian}, and \code{opt}).
-#' When \code{deriv=TRUE}, the same list is augmented with \code{grad},
-#' \code{deriv}, and \code{extra} from the internal profile-derivative helper.
+#' When \code{deriv=FALSE}, the return value mirrors \code{\link{inner_opt}()}
+#' with \code{inner_opt}, top-level \code{gradient}, and \code{hessian}.
+#' When \code{deriv=TRUE}, the same list is augmented with \code{deriv} and
+#' profile-derivative pieces in \code{gradient$outer}.
 #'
-#' @return A list. With \code{deriv=FALSE}, same as \code{\link{inner_opt}}. With
-#' \code{deriv=TRUE}, additionally:
+#' @return A list. With \code{deriv=FALSE}, same structure as
+#' \code{\link{inner_opt}} (without \code{parameters}). With \code{deriv=TRUE},
+#' additionally:
 #' \describe{
-#'   \item{grad}{Gradient of \code{neg_log_lik} w.r.t. outer \code{x}.}
 #'   \item{deriv}{Data frame of profile derivative pieces.}
-#'   \item{extra}{Intermediate objects (\code{dU}, \code{trace3}, Cholesky factors).}
+#'   \item{gradient$outer$dU, gradient$outer$trace3}{Intermediate profile objects.}
 #' }
 #'
 #' @note The Laplace approximation assumes the inner Hessian is positive definite
@@ -206,8 +206,7 @@ log_lik_laplace <- function(
     deriv = deriv,
     verbose = isTRUE(config[["verbose"]])
   )
-  result <- result_inner[setdiff(names(result_inner), c("gradient", "hessian"))]
-  result$extra <- result_inner[c("gradient", "hessian")]
+  result <- restructure_laplace_result(result_inner, control_inner = control)
 
   if (!deriv) {
     return(result)
@@ -215,14 +214,49 @@ log_lik_laplace <- function(
 
   the_deriv <- log_lik_deriv(
     full_parameters = result$full_parameters,
-    hessian_pack = result$extra$hessian,
-    grad = result$extra$gradient$outer,
+    hessian_pack = result$hessian,
+    grad = result$gradient$outer$grad,
     ad_fun = ad_fun,
     verbose = isTRUE(config[["verbose"]])
   )
-  result <- c(result, the_deriv[setdiff(names(the_deriv), "extra")])
-  result$extra <- c(result$extra, the_deriv$extra)
+
+  if (!is.null(the_deriv$extra$half_H_inv)) {
+    result$hessian$half_H_inv <- the_deriv$extra$half_H_inv
+  }
+  if (!is.null(the_deriv$extra$H_inv)) {
+    result$hessian$H_inv <- the_deriv$extra$H_inv
+  }
+  result$gradient$outer$trace3 <- the_deriv$extra$trace3
+  result$gradient$outer$dU <- the_deriv$extra$dU
+  if (!is.null(result$hessian$trace3)) {
+    result$hessian$trace3 <- NULL
+  }
+
+  result$deriv <- the_deriv$deriv
   result
+}
+
+#' @noRd
+restructure_laplace_result <- function(result_inner, control_inner = NULL) {
+  keep <- setdiff(
+    names(result_inner),
+    c("parameters", "opt", "inner_opt", "gradient", "hessian")
+  )
+  out <- result_inner[keep]
+  inner <- result_inner$inner_opt
+  if (is.null(inner) && !is.null(result_inner$opt)) {
+    inner <- result_inner$opt
+  }
+  out$inner_opt <- inner
+  if (!is.null(control_inner)) {
+    out$inner_opt$control_inner <- control_inner
+  }
+  out$gradient <- list(
+    inner = result_inner$gradient$inner,
+    outer = list(grad = result_inner$gradient$outer)
+  )
+  out$hessian <- result_inner$hessian
+  out
 }
 
 log_lik_deriv <- function(
@@ -311,9 +345,7 @@ log_lik_deriv <- function(
   result$deriv$d_neg_log_lik <-
     -result$deriv$grad_theta +
     result$deriv$d_det - result$deriv$grad_u
-  result$grad <- result$deriv$d_neg_log_lik
   result$deriv$d_log_lik <- -result$deriv$d_neg_log_lik
-
 
   result
 }
@@ -325,7 +357,7 @@ log_lik_deriv <- function(
 #' when \code{deriv = TRUE}, or reconstructs it from \code{hessian$chol_inner}.
 #'
 #' @param laplace Output of \code{log_lik_laplace(..., deriv = TRUE)} (or
-#'   \code{inner_opt(..., deriv = TRUE)} with the same \code{extra$hessian} layout).
+#'   \code{inner_opt(..., deriv = TRUE)} with the same \code{hessian} layout).
 #'
 #' @return A sparse or dense matrix \eqn{H^{-1/2}} with \code{nrow = Ngamma}.
 #'
@@ -336,22 +368,28 @@ laplace_half_H_inv <- function(laplace) {
     stop("laplace must be a list (output of log_lik_laplace)", call. = FALSE)
   }
 
-  half_h <- laplace$extra$half_H_inv
+  half_h <- laplace$hessian$half_H_inv
   if (is.null(half_h) && is.list(laplace$extra)) {
-    half_h <- laplace$extra$extra$half_H_inv
+    half_h <- laplace$extra$half_H_inv
+    if (is.null(half_h)) {
+      half_h <- laplace$extra$extra$half_H_inv
+    }
   }
   if (!is.null(half_h)) {
     return(half_h)
   }
 
   chol_inner <- NULL
-  if (is.list(laplace$extra) && is.list(laplace$extra$hessian)) {
+  if (is.list(laplace$hessian)) {
+    chol_inner <- laplace$hessian$chol_inner
+  }
+  if (is.null(chol_inner) && is.list(laplace$extra) && is.list(laplace$extra$hessian)) {
     chol_inner <- laplace$extra$hessian$chol_inner
   }
   if (is.null(chol_inner)) {
     stop(
-      "laplace must contain extra$half_H_inv (from log_lik_laplace(..., deriv = TRUE)) ",
-      "or extra$hessian$chol_inner",
+      "laplace must contain hessian$half_H_inv (from log_lik_laplace(..., deriv = TRUE)) ",
+      "or hessian$chol_inner",
       call. = FALSE
     )
   }

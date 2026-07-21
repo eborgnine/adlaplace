@@ -44,14 +44,18 @@ setClass(
 #' @param lower Lower bounds for \code{omega} and \code{alpha}.
 #' @param upper Upper bounds for \code{omega} and \code{alpha}.
 #' @param parscale Parameter scales for optimization.
+#' @param log Whether each theta is optimized on the log scale (length 2:
+#'   \code{omega}, \code{alpha}).
 #' @return A \code{skewnormal} object.
 #' @export
 skewnormal <- function(x,
                        init = c(0.1, 0.1),
                        lower = c(1e-9, -Inf),
                        upper = c(Inf, Inf),
-                       parscale = c(1, 1)) {
+                       parscale = c(1, 1),
+                       log = c(TRUE, FALSE)) {
   x <- adlaplace::strip_term_name(as.character(x))
+  log <- rep_len(log, 2L)
   methods::new(
     "skewnormal",
     term = x,
@@ -60,7 +64,8 @@ skewnormal <- function(x,
     init = init,
     lower = lower,
     upper = upper,
-    parscale = parscale
+    parscale = parscale,
+    log = log
   )
 }
 
@@ -78,10 +83,11 @@ setMethod("precision", "skewnormal", function(term, data) {
 
 #' @describeIn skewnormal-class Theta info for skew-normal parameters.
 #'
-#' Scale \code{omega} uses \code{transform = TRUE} (log scale when
-#' \code{config$transform_theta} is \code{TRUE}); shape \code{alpha} is untransformed.
+#' Scale \code{omega} uses \code{log = TRUE} (log scale when
+#' \code{config$transform_theta} is not \code{FALSE}); shape \code{alpha} is untransformed.
 #' @export
 setMethod("theta_info", "skewnormal", function(term) {
+  n <- length(term@init)
   data.frame(
     term = term@term,
     model = "skewnormal",
@@ -91,7 +97,7 @@ setMethod("theta_info", "skewnormal", function(term) {
     upper = term@upper,
     parscale = term@parscale,
     type = term@type,
-    transform = c(TRUE, FALSE),
+    log = rep_len(term@log, n),
     stringsAsFactors = FALSE
   )
 })

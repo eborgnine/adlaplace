@@ -78,6 +78,8 @@ setClass(
 #'   Matern field. Internally converted to SPDE `(kappa, tau)`.
 #' @param lower,upper Bounds for `(range, sd)`.
 #' @param parscale Optimization scales for `(range, sd)`.
+#' @param log Whether each theta is optimized on the log scale (recycled to
+#'   `(range, sd)`).
 #' @param term A [`matern-class`] term.
 #' @param data Model data frame (passed by adlaplace generics).
 #' @return A `matern` term object.
@@ -89,7 +91,8 @@ matern <- function(x,
                    init = c(1, 1),
                    lower = c(1e-9, 1e-9),
                    upper = c(Inf, Inf),
-                   parscale = c(1, 1)) {
+                   parscale = c(1, 1),
+                   log = TRUE) {
   x <- adlaplace::strip_term_name(as.character(x))
   degree <- matern_shape_degree(shape)
   knots <- matern_knots(knots)
@@ -100,6 +103,7 @@ matern <- function(x,
   } else {
     "random_fem_ssq_2"
   }
+  log <- rep_len(log, 2L)
   methods::new(
     "matern",
     term = x,
@@ -109,6 +113,7 @@ matern <- function(x,
     lower = as.numeric(lower),
     upper = as.numeric(upper),
     parscale = as.numeric(parscale),
+    log = log,
     p.order = degree,
     ad_fun = ad_fun,
     ad_kind = "random",
@@ -190,9 +195,10 @@ setMethod("random_info", "matern", function(term, data) {
 })
 
 #' @describeIn matern-class Theta info for practical `range = sqrt(8*nu)/kappa`
-#'   and field `sd` (log scale when `transform_theta` is TRUE).
+#'   and field `sd` (log scale when `term@log` is TRUE).
 #' @export
 setMethod("theta_info", "matern", function(term) {
+  n <- length(term@init)
   data.frame(
     term = term@term,
     model = "matern",
@@ -202,7 +208,7 @@ setMethod("theta_info", "matern", function(term) {
     upper = term@upper,
     parscale = term@parscale,
     type = term@type,
-    transform = TRUE,
+    log = rep_len(term@log, n),
     stringsAsFactors = FALSE
   )
 })

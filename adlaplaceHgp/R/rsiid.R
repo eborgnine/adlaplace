@@ -52,12 +52,14 @@ methods::setAs(
 #' @param lower Lower bounds for beta parameters.
 #' @param upper Upper bounds for beta parameters.
 #' @param parscale Parameter scales for optimization.
+#' @param log Whether theta is optimized on the log scale.
 #' @return A `rsiid` term object.
 #' @export
 rsiid <- function(
   x, mult, ref_mult = 0,
   init = NULL, lower = NULL,
-  upper = NULL, parscale = NULL
+  upper = NULL, parscale = NULL,
+  log = TRUE
 ) {
   if (!missing(ref_mult) && length(ref_mult) != 1) {
     stop("ref_mult must be a single value")
@@ -74,7 +76,8 @@ rsiid <- function(
     mult = mult,
     ref_mult = ref_mult,
     formula = stats::as.formula(paste0("~ 0 + ", x), env = new.env()),
-    init = init, lower = lower, upper = upper, parscale = parscale
+    init = init, lower = lower, upper = upper, parscale = parscale,
+    log = log
   ))
   names(result) <- result[[1]]@term
   result
@@ -130,7 +133,8 @@ setMethod("theta_info", "rsiid", function(term) {
     lower = term@lower,
     upper = term@upper,
     parscale = term@parscale,
-    type = term@type
+    type = term@type,
+    log = term@log
   )
   return(result)
 })

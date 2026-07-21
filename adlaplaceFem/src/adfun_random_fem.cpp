@@ -100,10 +100,16 @@ void fem_kappa_tau2(const CppAD::vector<CppAD::AD<double>> &x,
                     const ad_data &model, const Config &config,
                     CppAD::AD<double> &k2, CppAD::AD<double> &k4,
                     CppAD::AD<double> &k6, CppAD::AD<double> &tau2) {
-  CppAD::AD<double> log_range = x[model.theta_index(0)];
-  CppAD::AD<double> log_sd = x[model.theta_index(1)];
-  if (!config.transform_theta) {
+  const std::size_t t0_global = model.theta_index(0);
+  const std::size_t t0_row = t0_global - model.num_beta - model.num_gamma;
+  const std::size_t t1_global = model.theta_index(1);
+  const std::size_t t1_row = t1_global - model.num_beta - model.num_gamma;
+  CppAD::AD<double> log_range = x[t0_global];
+  CppAD::AD<double> log_sd = x[t1_global];
+  if (!transform_theta_at(config, t0_row)) {
     log_range = CppAD::log(log_range);
+  }
+  if (!transform_theta_at(config, t1_row)) {
     log_sd = CppAD::log(log_sd);
   }
   const CppAD::AD<double> range = CppAD::exp(log_range);

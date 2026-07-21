@@ -19,8 +19,7 @@ Description: Provides the CppAD C++ header library for automatic
     std::exit.
 License: file LICENSE
 License_is_FOSS: yes
-URL: https://github.com/coin-or/CppAD
-BugReports: https://github.com/patrickbrowns/adlaplace/issues
+URL: https://github.com/eborgnine/adlaplace/
 Depends: R (>= 3.5.0)
 NeedsCompilation: no
 Encoding: UTF-8

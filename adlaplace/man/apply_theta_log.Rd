@@ -18,6 +18,6 @@ A copy of \code{theta_info} with selected entries logged.
 }
 \description{
 When \code{active} is \code{TRUE}, logs values in \code{cols} for rows where
-\code{theta_info$transform} is \code{TRUE}. Missing or \code{NA} \code{transform}
+\code{theta_info$log} is \code{TRUE}. Missing or \code{NA} \code{log}
 entries default to \code{TRUE}.
 }

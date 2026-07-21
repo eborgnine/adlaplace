@@ -18,7 +18,8 @@ rsiid(
   init = NULL,
   lower = NULL,
   upper = NULL,
-  parscale = NULL
+  parscale = NULL,
+  log = TRUE
 )
 
 \S4method{design}{rsiid}(term, data)
@@ -45,6 +46,8 @@ rsiid(
 \item{upper}{Upper bounds for beta parameters.}
 
 \item{parscale}{Parameter scales for optimization.}
+
+\item{log}{Whether theta is optimized on the log scale.}
 
 \item{term}{A rsiid term object}
 

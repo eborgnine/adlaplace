@@ -15,7 +15,8 @@ iid(
   init = .my_theta_init,
   lower = .my_theta_lower,
   upper = .my_theta_upper,
-  parscale = .my_theta_parscale
+  parscale = .my_theta_parscale,
+  log = TRUE
 )
 
 \S4method{design}{iid}(term, data)
@@ -36,6 +37,8 @@ iid(
 \item{upper}{Upper bound for theta parameter.}
 
 \item{parscale}{Parameter scale for optimization.}
+
+\item{log}{Whether theta is optimized on the log scale.}
 
 \item{term}{An iid term object}
 

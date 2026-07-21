@@ -131,8 +131,8 @@ test_that("inner_opt deriv exports Linv matching chol_inner_list pattern", {
     control = list(maxit = 3L, report.level = 0, report.freq = 0),
     deriv = TRUE
   )
-  expect_true(!is.null(laplace$extra$hessian$chol_inner$Linv))
-  expect_true(!is.null(laplace$extra$half_H_inv))
+  expect_true(!is.null(laplace$hessian$chol_inner$Linv))
+  expect_true(!is.null(laplace$hessian$half_H_inv))
 })
 
 test_that("ad_fun works without config when layout is on ptr", {

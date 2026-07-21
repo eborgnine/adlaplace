@@ -18,9 +18,9 @@ mean_mvquad(
 \arguments{
 \item{parameters}{Outer \eqn{(\beta, \theta)} at the Laplace fit.}
 
-\item{mode}{Inner mode \eqn{\hat\gamma} (e.g. \code{laplace$opt$solution}).}
+\item{mode}{Inner mode \eqn{\hat\gamma} (e.g. \code{laplace$inner_opt$solution}).}
 
-\item{cov}{\eqn{H^{-1}} for the inner block (e.g. \code{laplace$extra$hessian$H_inv}).}
+\item{cov}{\eqn{H^{-1}} for the inner block (e.g. \code{laplace$hessian$H_inv}).}
 
 \item{ad_fun}{\code{ad_fun} object for \code{joint_log_dens}.}
 

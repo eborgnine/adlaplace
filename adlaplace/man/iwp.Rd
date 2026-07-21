@@ -14,6 +14,7 @@ iwp(
   lower = .my_theta_lower,
   upper = .my_theta_upper,
   parscale = .my_theta_parscale,
+  log = TRUE,
   boundary_is_random = TRUE,
   include_poly = TRUE
 )
@@ -36,6 +37,8 @@ iwp(
 \item{upper}{Upper bounds for theta parameters.}
 
 \item{parscale}{Parameter scales for optimization.}
+
+\item{log}{Whether theta is optimized on the log scale.}
 
 \item{boundary_is_random}{Whether boundary should be treated as random.}
 

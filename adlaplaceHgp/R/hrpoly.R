@@ -58,6 +58,7 @@ setClass("hrpoly",
 #' @param lower Lower bound for theta parameter.
 #' @param upper Upper bound for theta parameter.
 #' @param parscale Parameter scale for optimization.
+#' @param log Whether theta is optimized on the log scale.
 #' @return An `hrpoly` term object.
 #' @export
 hrpoly <- function(
@@ -68,7 +69,8 @@ hrpoly <- function(
   init = NULL,
   lower = NULL,
   upper = NULL,
-  parscale = NULL
+  parscale = NULL,
+  log = TRUE
 ) {
   if (is.null(init)) init <- .my_theta_init
   if (is.null(lower)) lower <- .my_theta_lower
@@ -104,7 +106,8 @@ hrpoly <- function(
     init = init,
     lower = lower,
     upper = upper,
-    parscale = parscale
+    parscale = parscale,
+    log = log
     # type is already set in prototype
   )
 }
@@ -191,7 +194,8 @@ setMethod("theta_info", "hrpoly", function(term) {
     lower = term@lower,
     upper = term@upper,
     parscale = term@parscale,
-    type = term@type
+    type = term@type,
+    log = term@log
   )
   return(result)
 })

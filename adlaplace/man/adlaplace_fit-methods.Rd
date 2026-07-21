@@ -62,7 +62,7 @@
 Standard accessor methods for objects of class \code{"adlaplace_fit"}
 returned by \code{\link{adlaplace}()}. Estimates are stored on the
 optimization scale (log scale for parameters with
-\code{par_info$transform = TRUE}, e.g. standard deviations); methods with a
+\code{par_info$log = TRUE}, e.g. standard deviations); methods with a
 \code{transform} argument report the natural scale by exponentiating and, for
 standard errors, applying the delta method.
 }

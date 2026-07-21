@@ -55,8 +55,9 @@ test_that("mean_mvquad smoke on small Laplace fit", {
     adlaplace::ad_fun_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
   ))
   af <- adlaplace::ad_fun(ad_ptr, num_threads = 1L)
+  x_outer <- c(config$beta, config$theta)
   ll <- adlaplace::log_lik_laplace(
-    x = c(config$beta, config$theta),
+    x = x_outer,
     config = config,
     gamma = config$gamma,
     ad_fun = af,
@@ -65,9 +66,9 @@ test_that("mean_mvquad smoke on small Laplace fit", {
   )
 
   est <- adlaplace::mean_mvquad(
-    parameters = ll$parameters,
-    mode = ll$opt$solution,
-    cov = ll$extra$hessian$H_inv,
+    parameters = x_outer,
+    mode = ll$inner_opt$solution,
+    cov = ll$hessian$H_inv,
     ad_fun = af,
     n = 3L
   )
@@ -76,8 +77,8 @@ test_that("mean_mvquad smoke on small Laplace fit", {
 
   expect_error(
     adlaplace::mean_mvquad(
-      parameters = ll$parameters,
-      mode = ll$opt$solution,
+      parameters = x_outer,
+      mode = ll$inner_opt$solution,
       ad_fun = af,
       n = 3L
     ),

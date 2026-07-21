@@ -27,6 +27,6 @@ test_that("model_data + OpenMP log_lik_laplace works", {
     deriv = TRUE
   )
   expect_true(is.finite(res$log_lik))
-  expect_equal(length(res$grad), length(md$data$info$parameters$init))
-  expect_true(all(is.finite(res$grad)))
+  expect_equal(length(res$deriv$d_neg_log_lik), length(md$data$info$parameters$init))
+  expect_true(all(is.finite(res$deriv$d_neg_log_lik)))
 })

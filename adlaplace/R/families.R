@@ -134,6 +134,7 @@ setClass(
 #' @param lower Lower bound for the residual standard deviation.
 #' @param upper Upper bound for the residual standard deviation.
 #' @param parscale Parameter scale for optimization.
+#' @param log Whether theta is optimized on the log scale.
 #' @param term A model term object (S4 methods).
 #' @return A \code{gaussian} object (or a \code{stats::family} when called
 #'   with no arguments).
@@ -142,7 +143,8 @@ gaussian <- function(x,
                      init = 1,
                      lower = .my_theta_lower,
                      upper = .my_theta_upper,
-                     parscale = .my_theta_parscale) {
+                     parscale = .my_theta_parscale,
+                     log = TRUE) {
   if (missing(x)) {
     return(stats::gaussian())
   }
@@ -155,7 +157,8 @@ gaussian <- function(x,
     init = init,
     lower = lower,
     upper = upper,
-    parscale = parscale
+    parscale = parscale,
+    log = log
   )
 }
 
@@ -171,6 +174,7 @@ setMethod("theta_info", "gaussian", function(term) {
     upper = term@upper,
     parscale = term@parscale,
     type = term@type,
+    log = term@log,
     stringsAsFactors = FALSE
   )
 })
@@ -218,6 +222,7 @@ setClass(
 #' @param lower Lower bound for the overdispersion parameter.
 #' @param upper Upper bound for the overdispersion parameter.
 #' @param parscale Parameter scale for optimization.
+#' @param log Whether theta is optimized on the log scale.
 #' @param term A model term object (S4 methods).
 #' @return A \code{nbinom} object.
 #' @export
@@ -225,7 +230,8 @@ nbinom <- function(x,
                    init = .my_theta_init,
                    lower = .my_theta_lower,
                    upper = .my_theta_upper,
-                   parscale = .my_theta_parscale) {
+                   parscale = .my_theta_parscale,
+                   log = TRUE) {
   x <- strip_term_name(as.character(x))
   methods::new(
     "nbinom",
@@ -235,7 +241,8 @@ nbinom <- function(x,
     init = init,
     lower = lower,
     upper = upper,
-    parscale = parscale
+    parscale = parscale,
+    log = log
   )
 }
 
@@ -251,6 +258,7 @@ setMethod("theta_info", "nbinom", function(term) {
     upper = term@upper,
     parscale = term@parscale,
     type = term@type,
+    log = term@log,
     stringsAsFactors = FALSE
   )
 })

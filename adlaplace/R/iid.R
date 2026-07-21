@@ -23,6 +23,7 @@ setClass("iid",
 #' @param lower Lower bound for theta parameter.
 #' @param upper Upper bound for theta parameter.
 #' @param parscale Parameter scale for optimization.
+#' @param log Whether theta is optimized on the log scale.
 #' @return An `iid` term object (in a named list).
 #' @rdname iid-class
 #' @export
@@ -30,7 +31,8 @@ iid <- function(x,
                 init = .my_theta_init,
                 lower = .my_theta_lower,
                 upper = .my_theta_upper,
-                parscale = .my_theta_parscale) {
+                parscale = .my_theta_parscale,
+                log = TRUE) {
   x <- strip_term_name(as.character(x))
   result <- list(methods::new("iid",
     term = x,
@@ -39,7 +41,8 @@ iid <- function(x,
     init = init,
     lower = lower,
     upper = upper,
-    parscale = parscale
+    parscale = parscale,
+    log = log
   ))
   names(result) <- result[[1]]@term
   result
@@ -114,7 +117,8 @@ setMethod("theta_info", "iid", function(term) {
     init = term@init,
     lower = term@lower, upper = term@upper,
     parscale = term@parscale,
-    type = term@type
+    type = term@type,
+    log = term@log
   )
   return(result)
 })

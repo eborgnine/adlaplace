@@ -89,8 +89,8 @@ format_parameters <- function(
 
   out_parameters <- info$parameters
   theta_mle <- fp[seq(to = length(fp), length.out = n_theta)]
-  if ("transform" %in% names(info$theta)) {
-    idx <- which(info$theta$transform %in% TRUE)
+  if ("log" %in% names(info$theta)) {
+    idx <- which(info$theta$log %in% TRUE)
     if (length(idx) > 0L) {
       theta_mle[idx] <- exp(theta_mle[idx])
     }

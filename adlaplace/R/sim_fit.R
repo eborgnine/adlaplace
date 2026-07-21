@@ -1,18 +1,29 @@
 #' @noRd
 chol_inner_from_fit <- function(fit) {
-  chol_inner <- fit$extra$hessian$chol_inner
-  if (is.null(chol_inner) && !is.null(fit$hessian)) {
-    chol_inner <- fit$hessian$chol_inner
+  chol_inner <- fit$hessian$chol_inner
+  if (is.null(chol_inner) && is.list(fit$extra) && is.list(fit$extra$hessian)) {
+    chol_inner <- fit$extra$hessian$chol_inner
   }
   if (is.null(chol_inner)) {
     stop(
       "fit must contain inner Cholesky factor in ",
-      "$extra$hessian$chol_inner (from log_lik_laplace()) ",
-      "or $hessian$chol_inner (from inner_opt())",
+      "$hessian$chol_inner (from log_lik_laplace()) ",
+      "or $extra$hessian$chol_inner (legacy layout)",
       call. = FALSE
     )
   }
   chol_inner
+}
+
+#' @noRd
+outer_par_from_fit <- function(fit) {
+  if (!is.null(fit$outer_opt$par)) {
+    return(fit$outer_opt$par)
+  }
+  stop(
+    "fit must contain outer_opt$par (e.g. from adlaplace()$details)",
+    call. = FALSE
+  )
 }
 
 #' Simulate linear predictors on a new covariate grid
@@ -32,9 +43,10 @@ chol_inner_from_fit <- function(fit) {
 #'
 #' @export
 sim_fit <- function(x, data, fit, n = 500L) {
+  outer_par <- outer_par_from_fit(fit)
   gamma_sims <- rmvnldl(
     n,
-    mean = fit$opt$solution,
+    mean = fit$inner_opt$solution,
     chol_prec = chol_inner_from_fit(fit)
   )
   n_draws <- nrow(gamma_sims)
@@ -64,7 +76,7 @@ sim_fit <- function(x, data, fit, n = 500L) {
           return(
             as.matrix(
               design_here[, beta_here$beta_label, drop = FALSE] %*%
-                fit$parameters[par_id]
+                outer_par[par_id]
             )
           )
         }

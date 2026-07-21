@@ -4,7 +4,15 @@
 \alias{dirichlet_multinom}
 \title{Dirichlet-multinomial case-crossover response term}
 \usage{
-dirichlet_multinom(x, by, init = 0.001, lower = 0, upper = Inf, parscale = 1)
+dirichlet_multinom(
+  x,
+  by,
+  init = 0.001,
+  lower = 0,
+  upper = Inf,
+  parscale = 1,
+  log = TRUE
+)
 }
 \arguments{
 \item{x}{Outcome variable name.}
@@ -18,6 +26,8 @@ dirichlet_multinom(x, by, init = 0.001, lower = 0, upper = Inf, parscale = 1)
 \item{upper}{Upper bound for \code{sd}.}
 
 \item{parscale}{Parameter scale for optimization.}
+
+\item{log}{Whether theta is optimized on the log scale.}
 }
 \value{
 A \code{dirichlet_multinom} object.

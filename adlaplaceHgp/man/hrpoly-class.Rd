@@ -19,7 +19,8 @@ hrpoly(
   init = NULL,
   lower = NULL,
   upper = NULL,
-  parscale = NULL
+  parscale = NULL,
+  log = TRUE
 )
 
 \S4method{design}{hrpoly}(term, data)
@@ -48,6 +49,8 @@ hrpoly(
 \item{upper}{Upper bound for theta parameter.}
 
 \item{parscale}{Parameter scale for optimization.}
+
+\item{log}{Whether theta is optimized on the log scale.}
 
 \item{term}{An \code{hrpoly} term object.}
 

@@ -1,7 +1,7 @@
 #' Apply log transform to selected theta columns
 #'
 #' When \code{active} is \code{TRUE}, logs values in \code{cols} for rows where
-#' \code{theta_info$transform} is \code{TRUE}. Missing or \code{NA} \code{transform}
+#' \code{theta_info$log} is \code{TRUE}. Missing or \code{NA} \code{log}
 #' entries default to \code{TRUE}.
 #'
 #' @param theta_info Data frame from \code{info$theta} (see \code{\link{data_setup}}).
@@ -14,25 +14,25 @@ apply_theta_log <- function(theta_info, cols = "init", active = TRUE) {
     return(theta_info)
   }
   out <- theta_info
-  transform <- if ("transform" %in% names(out)) {
-    out$transform
+  log <- if ("log" %in% names(out)) {
+    out$log
   } else {
     rep(TRUE, nrow(out))
   }
-  transform[is.na(transform)] <- TRUE
-  log_transform_columns(out, cols, which(transform))
+  log[is.na(log)] <- TRUE
+  log_transform_columns(out, cols, which(log))
 }
 
 #' @keywords internal
-ensure_theta_transform <- function(theta_setup) {
+ensure_theta_log <- function(theta_setup) {
   if (nrow(theta_setup) == 0L) {
-    theta_setup$transform <- logical(0)
+    theta_setup$log <- logical(0)
     return(theta_setup)
   }
-  if (!"transform" %in% names(theta_setup)) {
-    theta_setup$transform <- TRUE
+  if (!"log" %in% names(theta_setup)) {
+    theta_setup$log <- TRUE
   } else {
-    theta_setup$transform[is.na(theta_setup$transform)] <- TRUE
+    theta_setup$log[is.na(theta_setup$log)] <- TRUE
   }
   theta_setup
 }
@@ -104,7 +104,7 @@ empty_theta_setup <- function() {
     upper = numeric(),
     parscale = numeric(),
     type = factor(levels = .type_factor_levels),
-    transform = logical(0),
+    log = logical(0),
     stringsAsFactors = FALSE
   )
 }
@@ -139,15 +139,15 @@ empty_gamma_setup <- function() {
 #' @keywords internal
 build_theta_setup <- function(terms) {
   theta_info_list <- Filter(Negate(is.null), lapply(terms, theta_info))
-  # Normalize transform on each frame before rbind so mixed term types
-  # (different column sets) share a common transform column.
-  theta_info_list <- lapply(theta_info_list, ensure_theta_transform)
+  # Normalize log on each frame before rbind so mixed term types
+  # (different column sets) share a common log column.
+  theta_info_list <- lapply(theta_info_list, ensure_theta_log)
   if (length(theta_info_list) == 0L) {
     theta_setup <- empty_theta_setup()
   } else {
     theta_setup <- do.call(rbind, theta_info_list)
   }
-  theta_setup <- ensure_theta_transform(theta_setup)
+  theta_setup <- ensure_theta_log(theta_setup)
   theta_setup$id <- seq.int(0, length.out = nrow(theta_setup))
   theta_setup
 }
@@ -259,7 +259,7 @@ empty_parameters_info <- function() {
     upper = numeric(),
     parscale = numeric(),
     type = factor(levels = .type_factor_levels),
-    transform = logical(0),
+    log = logical(0),
     stringsAsFactors = FALSE
   )
 }
@@ -268,13 +268,13 @@ empty_parameters_info <- function() {
 build_parameters_info <- function(beta_df, theta_df, names_common) {
   beta_rows <- if (!is.null(beta_df) && nrow(beta_df) > 0L) {
     out <- beta_df[, names_common, drop = FALSE]
-    out$transform <- FALSE
+    out$log <- FALSE
     out
   } else {
     NULL
   }
   theta_rows <- if (nrow(theta_df) > 0L) {
-    cols <- intersect(c(names_common, "transform"), names(theta_df))
+    cols <- intersect(c(names_common, "log"), names(theta_df))
     theta_df[, cols, drop = FALSE]
   } else {
     NULL
@@ -284,9 +284,9 @@ build_parameters_info <- function(beta_df, theta_df, names_common) {
     return(empty_parameters_info())
   }
   rownames(out) <- NULL
-  transform <- out$transform
-  transform[is.na(transform)] <- FALSE
-  log_transform_columns(out, c("init", "lower", "upper"), which(transform))
+  log <- out$log
+  log[is.na(log)] <- FALSE
+  log_transform_columns(out, c("init", "lower", "upper"), which(log))
 }
 
 #' Build design matrices and parameter metadata from a formula
@@ -295,13 +295,13 @@ build_parameters_info <- function(beta_df, theta_df, names_common) {
 #' @param data Data frame.
 #' @param verbose Print parsing messages.
 #' @return List with \code{terms}, \code{y}, \code{A}, \code{X}, \code{data}, \code{info}.
-#'   The \code{info$theta} data frame includes a logical \code{transform} column:
+#'   The \code{info$theta} data frame includes a logical \code{log} column:
 #'   \code{TRUE} means the parameter is stored on the log scale when
 #'   \code{config$transform_theta} is \code{TRUE} (default for all rows unless a
 #'   model term sets otherwise). \code{info$parameters} stacks \code{beta} and
-#'   \code{theta} rows with the same \code{transform} column (\code{FALSE} for
+#'   \code{theta} rows with the same \code{log} column (\code{FALSE} for
 #'   fixed effects); \code{init}, \code{lower}, and \code{upper} are already on
-#'   the optimization (log) scale where \code{transform} is \code{TRUE}.
+#'   the optimization (log) scale where \code{log} is \code{TRUE}.
 #' @export
 data_setup <- function(formula, data, verbose = FALSE) {
   formula_in <- formula

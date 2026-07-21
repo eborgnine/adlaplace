@@ -184,7 +184,7 @@ create_ad_fun_random_mult <- function(model, config) {
 #' @param verbose Logical; if \code{TRUE}, print thread/shard diagnostics.
 #'
 #' @return A list with \code{log_lik}, \code{neg_log_lik}, \code{parameters},
-#'   \code{full_parameters}, \code{opt}, \code{gradient}
+#'   \code{full_parameters}, \code{inner_opt}, \code{gradient}
 #'   (list \code{inner}/\code{outer}), and \code{hessian}
 #'   (list \code{inner}/\code{outer}/\code{chol_inner}/\code{half_log_det};
 #'   with \code{deriv=TRUE} also \code{half_H_inv}, \code{H_inv}, \code{trace3}).

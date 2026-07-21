@@ -29,12 +29,13 @@ random_diagonal_impl(const CppAD::vector<CppAD::AD<double>> &x,
                   static_cast<int>(Q.size()), static_cast<int>(Ngamma));
   }
 
-  const std::size_t theta_index = model.theta_index(0);
+  const std::size_t t_global = model.theta_index(0);
+  const std::size_t t_row = t_global - model.num_beta - model.num_gamma;
   CppAD::AD<double> logSd;
-  if (config.transform_theta) {
-    logSd = x[theta_index];
+  if (transform_theta_at(config, t_row)) {
+    logSd = x[t_global];
   } else {
-    logSd = CppAD::log(x[theta_index]);
+    logSd = CppAD::log(x[t_global]);
   }
 
   CppAD::AD<double> precision = CppAD::exp(-2 * logSd);
@@ -54,7 +55,7 @@ random_diagonal_impl(const CppAD::vector<CppAD::AD<double>> &x,
                            CppAD::AD<double>(Ngamma * ONEHALFLOGTWOPI);
 
   if (config.verbose) {
-    Rcpp::Rcout << "theta index " << theta_index << " logVariance " << logSd
+    Rcpp::Rcout << "theta index " << t_global << " logVariance " << logSd
                 << " precision " << precision << "\n";
     Rcpp::Rcout << "random_diagonal n_gamma " << Ngamma << " qDet " << qDet
                 << " qpart " << qpart << "\n";
@@ -165,12 +166,13 @@ random_mult(const CppAD::vector<CppAD::AD<double>> &x, const ad_data &model,
   const double rank = model.mult_precision_rank();
   const double log_det = model.mult_precision_log_det();
 
-  const std::size_t theta_index = model.theta_index(0);
+  const std::size_t t_global = model.theta_index(0);
+  const std::size_t t_row = t_global - model.num_beta - model.num_gamma;
   CppAD::AD<double> logSd;
-  if (config.transform_theta) {
-    logSd = x[theta_index];
+  if (transform_theta_at(config, t_row)) {
+    logSd = x[t_global];
   } else {
-    logSd = CppAD::log(x[theta_index]);
+    logSd = CppAD::log(x[t_global]);
   }
   const CppAD::AD<double> tau = CppAD::exp(-2 * logSd);
 
@@ -197,7 +199,7 @@ random_mult(const CppAD::vector<CppAD::AD<double>> &x, const ad_data &model,
 
   if (config.verbose) {
     Rcpp::Rcout << "random_mult n_gamma " << n_term << " rank " << rank
-                << " log_det " << log_det << " theta index " << theta_index
+                << " log_det " << log_det << " theta index " << t_global
                 << "\n";
   }
 

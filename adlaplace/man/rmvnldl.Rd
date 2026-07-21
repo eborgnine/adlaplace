@@ -20,7 +20,7 @@ and \code{perm}. Ignored when \code{fit} is supplied.}
 
 \item{fit}{Optional \code{"adlaplace_fit"} object. When supplied, overrides
 \code{mean} and \code{chol_prec} with \code{fit$gamma} and
-\code{fit$details$extra$hessian$chol_inner}.}
+\code{fit$details$hessian$chol_inner}.}
 }
 \value{
 An \code{n}-by-\code{p} matrix; each row is one draw. When

@@ -24,14 +24,14 @@ test_that("adlaplace() fits a nbinom GLMM and methods work", {
   )
 
   expect_s3_class(fit, "adlaplace_fit")
-  expect_true(is.finite(fit$logLik))
-  expect_identical(fit$optim$convergence, 0L)
+  expect_true(is.finite(as.numeric(logLik(fit))))
+  expect_identical(fit$details$outer_opt$convergence, 0L)
 
   co <- coef(fit)
   expect_true(all(is.finite(co)))
   expect_equal(length(co), nrow(fit$par_info))
   # transformed parameters reported on the natural (positive) scale
-  expect_true(all(co[fit$par_info$transform %in% TRUE] > 0))
+  expect_true(all(co[fit$par_info$log %in% TRUE] > 0))
   # rough recovery of the fixed effects (matched by label, order-free)
   beta_labels <- fit$par_info$label[
     seq_len(nrow(fit$model_data$data$info$beta))
@@ -61,8 +61,13 @@ test_that("adlaplace() fits a nbinom GLMM and methods work", {
 
   sm <- summary(fit)
   expect_s3_class(sm, "summary.adlaplace_fit")
-  expect_true(all(is.finite(sm$fixed[, "Std. Error"])))
-  expect_output(print(sm), "Fixed effects")
+  log_idx <- fit$par_info$log %in% TRUE
+  se <- sm$coefficients[, "Std. Error"]
+  expect_true(all(is.finite(se[!log_idx])))
+  if (any(log_idx)) {
+    expect_true(all(is.na(se[log_idx])))
+  }
+  expect_output(print(sm), "Coefficients")
   expect_output(print(fit), "Coefficients")
 })
 
@@ -75,7 +80,7 @@ test_that("adlaplace() with hessian = FALSE has no vcov", {
     hessian = FALSE,
     control = list(maxit = 50L)
   )
-  expect_null(fit$vcov)
+  expect_null(fit$details$vcov)
   expect_error(vcov(fit), "hessian = TRUE")
   expect_true(all(is.na(confint(fit))))
 })

@@ -32,7 +32,7 @@ test_that("sim_fit returns expected structure on small GLMM", {
   expect_true(inherits(sims, "Matrix"))
   expect_equal(dim(sims), c(2L, 12L))
   expect_true(all(is.finite(sims)))
-  expect_true(!is.null(fit$details$extra$hessian$chol_inner))
+  expect_true(!is.null(fit$details$hessian$chol_inner))
 })
 
 test_that("sim_fit rejects non-model_data input", {

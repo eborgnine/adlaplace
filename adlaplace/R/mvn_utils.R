@@ -29,7 +29,7 @@ as_ldl_list <- function(chol_prec) {
   }
   stop(
     "chol_prec must be a CHMfactor, Cholesky (LDL), or a list with L1, D, perm and perm_inv ",
-    "(as in log_lik_laplace()$extra$hessian$chol_inner or inner_opt()$hessian$chol_inner)"
+    "(as in log_lik_laplace()$hessian$chol_inner or inner_opt()$hessian$chol_inner)"
   )
 }
 
@@ -63,7 +63,7 @@ half_H_inv_from_ldl <- function(ldl) {
 #'   and \code{perm}. Ignored when \code{fit} is supplied.
 #' @param fit Optional \code{"adlaplace_fit"} object. When supplied, overrides
 #'   \code{mean} and \code{chol_prec} with \code{fit$gamma} and
-#'   \code{fit$details$extra$hessian$chol_inner}.
+#'   \code{fit$details$hessian$chol_inner}.
 #'
 #' @return An \code{n}-by-\code{p} matrix; each row is one draw. When
 #'   \code{n = 1}, a length-\code{p} vector. Column / element names come from
@@ -80,10 +80,13 @@ half_H_inv_from_ldl <- function(ldl) {
 rmvnldl <- function(n, mean = 0, chol_prec, fit) {
   if (!missing(fit)) {
     mean <- fit$gamma
-    chol_prec <- fit$details$extra$hessian$chol_inner
+    chol_prec <- fit$details$hessian$chol_inner
+    if (is.null(chol_prec) && is.list(fit$details$extra)) {
+      chol_prec <- fit$details$extra$hessian$chol_inner
+    }
     if (is.null(mean) || is.null(chol_prec)) {
       stop(
-        "fit must provide $gamma and $details$extra$hessian$chol_inner",
+        "fit must provide $gamma and $details$hessian$chol_inner",
         call. = FALSE
       )
     }
@@ -142,8 +145,8 @@ full_parameters_from_gamma <- function(gamma_row, parameters, n_beta, n_theta) {
 #' covariance) and correcting with \code{\link{joint_log_dens}}.
 #'
 #' @param parameters Outer \eqn{(\beta, \theta)} at the Laplace fit.
-#' @param mode Inner mode \eqn{\hat\gamma} (e.g. \code{laplace$opt$solution}).
-#' @param cov \eqn{H^{-1}} for the inner block (e.g. \code{laplace$extra$hessian$H_inv}).
+#' @param mode Inner mode \eqn{\hat\gamma} (e.g. \code{laplace$inner_opt$solution}).
+#' @param cov \eqn{H^{-1}} for the inner block (e.g. \code{laplace$hessian$H_inv}).
 #' @param ad_fun \code{ad_fun} object for \code{joint_log_dens}.
 #' @param n Quadrature level passed to \pkg{mvQuad} \code{createNIGrid}.
 #' @param type mvQuad rule (default \code{"nHN"}).

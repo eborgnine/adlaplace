@@ -127,7 +127,7 @@ struct CscPattern {
 
 struct Config {
   bool verbose;
-  bool transform_theta;
+  std::vector<unsigned char> transform_theta;
   int num_threads;
 
   std::vector<double> beta, gamma, theta;
@@ -233,9 +233,39 @@ inline void adlaplace_assign_numeric_vec(
   out.assign(nv.begin(), nv.end());
 }
 
+inline std::vector<unsigned char> adlaplace_read_transform_theta(
+  const Rcpp::List& cfg) {
+  std::vector<unsigned char> out;
+  if (!cfg.containsElementNamed("transform_theta") ||
+      Rf_isNull(cfg["transform_theta"])) {
+    return out;
+  }
+  Rcpp::LogicalVector lv = cfg["transform_theta"];
+  const R_xlen_t n = lv.size();
+  if (n == 0) {
+    return out;
+  }
+  if (n == 1) {
+    out.push_back(static_cast<unsigned char>(lv[0] ? 1 : 0));
+    return out;
+  }
+  out.resize(static_cast<std::size_t>(n));
+  for (R_xlen_t k = 0; k < n; ++k) {
+    out[static_cast<std::size_t>(k)] = static_cast<unsigned char>(lv[k] ? 1 : 0);
+  }
+  return out;
+}
+
+inline bool transform_theta_at(const Config& config, std::size_t theta_row) {
+  if (config.transform_theta.empty()) return false;
+  if (config.transform_theta.size() == 1) return config.transform_theta[0] != 0;
+  if (theta_row >= config.transform_theta.size()) return false;
+  return config.transform_theta[theta_row] != 0;
+}
+
 inline Config::Config(const Rcpp::List& cfg)
   : verbose(adlaplace_get_bool(cfg, "verbose", false)),
-    transform_theta(adlaplace_get_bool(cfg, "transform_theta", false)),
+    transform_theta(adlaplace_read_transform_theta(cfg)),
     num_threads(adlaplace_get_int(cfg, "num_threads", 1))
 {
   adlaplace_assign_numeric_vec(beta, cfg, "beta");

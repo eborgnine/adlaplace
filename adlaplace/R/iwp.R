@@ -1,7 +1,3 @@
-#' @include 000.R
-#' @include rpoly.R
-NULL
-
 setClass("iwp",
   slots = list(),
   contains = "model",
@@ -44,6 +40,7 @@ NULL
 #' @param lower Lower bounds for theta parameters.
 #' @param upper Upper bounds for theta parameters.
 #' @param parscale Parameter scales for optimization.
+#' @param log Whether theta is optimized on the log scale.
 #' @param boundary_is_random Whether boundary should be treated as random.
 #' @param include_poly Whether to include polynomial terms.
 #' @return A list containing the `iwp` term object and optionally polynomial terms.
@@ -61,6 +58,7 @@ iwp <- function(
   lower = .my_theta_lower,
   upper = .my_theta_upper,
   parscale = .my_theta_parscale,
+  log = TRUE,
   boundary_is_random = TRUE,
   include_poly = TRUE
 ) {
@@ -73,6 +71,7 @@ iwp <- function(
   if (length(lower) != 1) stop("lower must be a single value")
   if (length(upper) != 1) stop("upper must be a single value")
   if (length(parscale) != 1) stop("parscale must be a single value")
+  if (length(log) != 1) stop("log must be a single value")
   if (length(knots) < 2) stop("knots must have length >= 2")
   if (length(boundary_is_random) != 1) stop("boundary_is_random must be a single value")
   if (length(include_poly) != 1) stop("include_poly must be a single value")
@@ -94,7 +93,8 @@ iwp <- function(
     init = init[1],
     lower = lower[1],
     upper = upper[1],
-    parscale = parscale[1]
+    parscale = parscale[1],
+    log = log[1]
     # type is already set in prototype, no need to repeat
   )
   if (p == 1) {
@@ -258,7 +258,8 @@ setMethod("theta_info", "iwp", function(term) {
     init = term@init,
     lower = term@lower, upper = term@upper,
     parscale = term@parscale,
-    type = term@type
+    type = term@type,
+    log = term@log
   )
   return(result)
 })

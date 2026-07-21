@@ -64,7 +64,7 @@ test_that("bare response defaults to gaussian and adlaplace() fits it", {
     num_shards = 5L,
     control = list(maxit = 100L)
   )
-  expect_identical(fit$optim$convergence, 0L)
+  expect_identical(fit$details$outer_opt$convergence, 0L)
   co <- coef(fit)
   labels <- names(co)
   expect_equal(
@@ -82,7 +82,7 @@ test_that("bare response defaults to gaussian and adlaplace() fits it", {
   # agreement with lme4-style reference: compare against stats::lm on
   # group-demeaned data is overkill; just check logLik is finite and
   # the residual SD beats a null model fit
-  expect_true(is.finite(fit$logLik))
+  expect_true(is.finite(as.numeric(logLik(fit))))
 })
 
 test_that("gaussian() with no arguments falls back to stats::gaussian", {

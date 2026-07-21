@@ -7,7 +7,7 @@ NULL
 #' Standard accessor methods for objects of class \code{"adlaplace_fit"}
 #' returned by \code{\link{adlaplace}()}. Estimates are stored on the
 #' optimization scale (log scale for parameters with
-#' \code{par_info$transform = TRUE}, e.g. standard deviations); methods with a
+#' \code{par_info$log = TRUE}, e.g. standard deviations); methods with a
 #' \code{transform} argument report the natural scale by exponentiating and, for
 #' standard errors, applying the delta method.
 #'
@@ -26,20 +26,23 @@ NULL
 NULL
 
 .fit_transform_idx <- function(object) {
-  which(object$par_info$transform %in% TRUE)
+  which(object$par_info$log %in% TRUE)
 }
 
 .fit_se <- function(object) {
-  if (is.null(object$vcov)) {
-    return(rep(NA_real_, length(object$par)))
+  vc <- object$details$vcov
+  npar <- nrow(object$par_info)
+  if (is.null(vc)) {
+    return(rep(NA_real_, npar))
   }
-  sqrt(diag(object$vcov))
+  sqrt(pmax(0, diag(vc)))
 }
 
 #' @rdname adlaplace_fit-methods
 #' @export
 coef.adlaplace_fit <- function(object, transform = TRUE, ...) {
-  est <- object$par
+  est <- object$par_info$mle_internal
+  names(est) <- object$par_info$label
   if (transform) {
     idx <- .fit_transform_idx(object)
     est[idx] <- exp(est[idx])
@@ -50,7 +53,7 @@ coef.adlaplace_fit <- function(object, transform = TRUE, ...) {
 #' @rdname adlaplace_fit-methods
 #' @export
 vcov.adlaplace_fit <- function(object, transform = FALSE, ...) {
-  vc <- object$vcov
+  vc <- object$details$vcov
   if (is.null(vc)) {
     stop(
       "no outer Hessian available; refit with hessian = TRUE",
@@ -58,9 +61,10 @@ vcov.adlaplace_fit <- function(object, transform = FALSE, ...) {
     )
   }
   if (transform) {
-    d <- rep(1, length(object$par))
+    est <- object$par_info$mle_internal
+    d <- rep(1, length(est))
     idx <- .fit_transform_idx(object)
-    d[idx] <- exp(object$par[idx])
+    d[idx] <- exp(est[idx])
     vc <- vc * tcrossprod(d)
   }
   vc
@@ -70,8 +74,8 @@ vcov.adlaplace_fit <- function(object, transform = FALSE, ...) {
 #' @export
 logLik.adlaplace_fit <- function(object, ...) {
   structure(
-    object$logLik,
-    df = length(object$par),
+    object$details$log_lik,
+    df = nrow(object$par_info),
     nobs = object$nobs,
     class = "logLik"
   )
@@ -88,7 +92,8 @@ nobs.adlaplace_fit <- function(object, ...) {
 confint.adlaplace_fit <- function(
   object, parm, level = 0.95, transform = TRUE, ...
 ) {
-  est <- object$par
+  est <- object$par_info$mle_internal
+  names(est) <- object$par_info$label
   se <- .fit_se(object)
   zq <- stats::qnorm(1 - (1 - level) / 2)
   ci <- cbind(est - zq * se, est + zq * se)
@@ -115,7 +120,8 @@ fitted.adlaplace_fit <- function(object, ...) {
   eta <- rep(0, object$nobs)
   if (n_beta > 0L) {
     eta <- eta + as.vector(
-      object$model_data$data$X %*% object$optim$par[seq_len(n_beta)]
+      object$model_data$data$X %*%
+        object$par_info$mle_internal[seq_len(n_beta)]
     )
   }
   A <- object$model_data$data$A
@@ -152,14 +158,14 @@ print.adlaplace_fit <- function(
   cat("\nCoefficients (natural scale):\n")
   print(round(coef(x), digits))
   cat(
-    "\nLog-likelihood:", format(x$logLik, digits = digits),
-    "  df:", length(x$par),
+    "\nLog-likelihood:", format(as.numeric(logLik(x)), digits = digits),
+    "  df:", nrow(x$par_info),
     "  n:", x$nobs,
     "  random effects:", length(x$gamma),
     "\n"
   )
-  if (!identical(x$optim$convergence, 0L)) {
-    cat("optim convergence code:", x$optim$convergence, "\n")
+  if (!identical(x$details$outer_opt$convergence, 0L)) {
+    cat("optim convergence code:", x$details$outer_opt$convergence, "\n")
   }
   invisible(x)
 }
@@ -168,56 +174,33 @@ print.adlaplace_fit <- function(
 #' @method summary adlaplace_fit
 #' @export
 summary.adlaplace_fit <- function(object, level = 0.95, ...) {
-  info <- object$model_data$data$info
-  n_beta <- max(c(0L, nrow(info$beta)))
-  est <- object$par
-  se <- .fit_se(object)
+  par <- object$par_info
   zq <- stats::qnorm(1 - (1 - level) / 2)
+  log_idx <- par$log %in% TRUE
 
-  fixed <- NULL
-  idx_beta <- seq_len(n_beta)
-  if (n_beta > 0L) {
-    z <- est[idx_beta] / se[idx_beta]
-    fixed <- cbind(
-      Estimate = est[idx_beta],
-      `Std. Error` = se[idx_beta],
-      `z value` = z,
-      `Pr(>|z|)` = 2 * stats::pnorm(-abs(z))
-    )
-    rownames(fixed) <- names(est)[idx_beta]
-  }
+  lo <- par$mle_internal - zq * par$se_internal
+  hi <- par$mle_internal + zq * par$se_internal
+  lo[log_idx] <- exp(lo[log_idx])
+  hi[log_idx] <- exp(hi[log_idx])
 
-  dispersion <- NULL
-  idx_theta <- setdiff(seq_along(est), idx_beta)
-  if (length(idx_theta) > 0L) {
-    tr <- object$par_info$transform[idx_theta] %in% TRUE
-    lo <- est[idx_theta] - zq * se[idx_theta]
-    hi <- est[idx_theta] + zq * se[idx_theta]
-    nat <- est[idx_theta]
-    nat_se <- se[idx_theta]
-    nat[tr] <- exp(nat[tr])
-    nat_se[tr] <- nat[tr] * se[idx_theta][tr]
-    lo[tr] <- exp(lo[tr])
-    hi[tr] <- exp(hi[tr])
-    dispersion <- cbind(
-      Estimate = nat,
-      `Std. Error` = nat_se,
-      lower = lo,
-      upper = hi
-    )
-    rownames(dispersion) <- names(est)[idx_theta]
-  }
+  coefficients <- cbind(
+    Estimate = par$mle,
+    `Std. Error` = ifelse(log_idx, NA_real_, par$se_internal),
+    lower = lo,
+    upper = hi
+  )
+  rownames(coefficients) <- par$label
 
+  grad <- object$details$deriv$d_neg_log_lik
   out <- list(
     call = object$call,
-    fixed = fixed,
-    dispersion = dispersion,
-    logLik = object$logLik,
-    df = length(est),
+    coefficients = coefficients,
+    logLik = as.numeric(logLik(object)),
+    df = nrow(par),
     nobs = object$nobs,
     n_random = length(object$gamma),
-    convergence = object$optim$convergence,
-    max_grad = suppressWarnings(max(abs(object$details$grad))),
+    convergence = object$details$outer_opt$convergence,
+    max_grad = if (!is.null(grad)) suppressWarnings(max(abs(grad))) else NA_real_,
     level = level
   )
   class(out) <- "summary.adlaplace_fit"
@@ -244,21 +227,13 @@ print.summary.adlaplace_fit <- function(
     "  max|gradient|:", format(x$max_grad, digits = 3L),
     "\n\n"
   )
-  if (!is.null(x$fixed)) {
-    cat("Fixed effects:\n")
-    stats::printCoefmat(x$fixed, digits = digits, signif.stars = FALSE)
-    cat("\n")
-  }
-  if (!is.null(x$dispersion)) {
-    cat(
-      "Variance and dispersion parameters (natural scale, ",
-      format(100 * x$level, trim = TRUE), "% CI):\n",
-      sep = ""
-    )
-    print(round(x$dispersion, digits))
-    cat("\n")
-  }
-  cat("Random effects:", x$n_random, "coefficients\n")
+  cat(
+    "Coefficients (natural scale, ",
+    format(100 * x$level, trim = TRUE), "% CI):\n",
+    sep = ""
+  )
+  print(round(x$coefficients, digits))
+  cat("\nRandom effects:", x$n_random, "coefficients\n")
   invisible(x)
 }
 

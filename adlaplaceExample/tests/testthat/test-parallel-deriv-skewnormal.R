@@ -98,7 +98,7 @@ test_that("serial log_lik_laplace deriv=TRUE with mixed-DSO skewnormal", {
     deriv = TRUE
   )
   expect_true(is.finite(ll$log_lik))
-  expect_true(all(is.finite(ll$grad)))
+  expect_true(all(is.finite(ll$deriv$d_neg_log_lik)))
   expect_true(all(is.finite(ll$extra$trace3)))
 })
 
@@ -115,7 +115,7 @@ test_that("parallel log_lik_laplace deriv=TRUE with mixed-DSO skewnormal", {
     deriv = TRUE
   )
   expect_true(is.finite(ll$log_lik))
-  expect_true(all(is.finite(ll$grad)))
+  expect_true(all(is.finite(ll$deriv$d_neg_log_lik)))
   expect_true(all(is.finite(ll$extra$trace3)))
 })
 

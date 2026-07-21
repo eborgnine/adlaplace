@@ -1,4 +1,13 @@
-test_that("laplace_half_H_inv finds half_H_inv in nested extra", {
+test_that("laplace_half_H_inv finds half_H_inv in hessian", {
+  p <- 4L
+  half <- Matrix::Diagonal(p, 0.5)
+  laplace <- list(
+    hessian = list(half_H_inv = half)
+  )
+  expect_equal(adlaplace::laplace_half_H_inv(laplace), half)
+})
+
+test_that("laplace_half_H_inv finds half_H_inv in nested extra (legacy)", {
   p <- 4L
   half <- Matrix::Diagonal(p, 0.5)
   laplace <- list(
@@ -18,7 +27,7 @@ test_that("laplace_half_H_inv finds half_H_inv at top of extra", {
   expect_equal(adlaplace::laplace_half_H_inv(laplace), half)
 })
 
-test_that("laplace_half_H_inv rebuilds from chol_inner", {
+test_that("laplace_half_H_inv rebuilds from hessian chol_inner", {
   skip_if_not_installed("trustOptim")
   set.seed(0)
   p <- 3L
@@ -27,9 +36,7 @@ test_that("laplace_half_H_inv rebuilds from chol_inner", {
   )
   chol <- Matrix::Cholesky(H, LDL = TRUE, perm = TRUE)
   laplace <- list(
-    extra = list(
-      hessian = list(chol_inner = chol)
-    )
+    hessian = list(chol_inner = chol)
   )
   half <- adlaplace::laplace_half_H_inv(laplace)
   expect_equal(nrow(half), p)
@@ -85,5 +92,5 @@ test_that("laplace_half_H_inv works on log_lik_laplace deriv output", {
   )
   half <- adlaplace::laplace_half_H_inv(laplace)
   expect_equal(nrow(half), Nrandom)
-  expect_true(!is.null(laplace$extra$half_H_inv))
+  expect_true(!is.null(laplace$hessian$half_H_inv))
 })

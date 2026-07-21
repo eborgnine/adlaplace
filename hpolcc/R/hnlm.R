@@ -356,7 +356,10 @@ hnlm_build_variance <- function(
   if (!inherits(coefficients, "try-error") &&
     !is.null(coefficients$gamma) &&
     nrow(coefficients$gamma) > 0L) {
-    h_pack <- laplace$extra$hessian
+    h_pack <- laplace$hessian
+    if (is.null(h_pack) && is.list(laplace$extra)) {
+      h_pack <- laplace$extra$hessian
+    }
     if (is.list(h_pack) && !is.null(h_pack$inner)) {
       hessian$inner <- h_pack$inner
     } else if (is.list(h_pack) && !is.null(h_pack$H)) {

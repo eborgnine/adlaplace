@@ -46,6 +46,7 @@ setClass(
 #' @param lower Lower bound for \code{sd}.
 #' @param upper Upper bound for \code{sd}.
 #' @param parscale Parameter scale for optimization.
+#' @param log Whether theta is optimized on the log scale.
 #' @return A \code{dirichlet_multinom} object.
 #' @export
 dirichlet_multinom <- function(x,
@@ -53,7 +54,8 @@ dirichlet_multinom <- function(x,
                                init = 1e-3,
                                lower = 0,
                                upper = Inf,
-                               parscale = 1) {
+                               parscale = 1,
+                               log = TRUE) {
   x <- strip_term_name(as.character(x))
   by <- as.character(by)
   methods::new(
@@ -65,6 +67,7 @@ dirichlet_multinom <- function(x,
     lower = lower,
     upper = upper,
     parscale = parscale,
+    log = log,
     by = by
   )
 }
@@ -136,7 +139,7 @@ setMethod("theta_info", "dirichlet_multinom", function(term) {
     upper = term@upper,
     parscale = term@parscale,
     type = term@type,
-    transform = TRUE,
+    log = term@log,
     stringsAsFactors = FALSE
   )
 })

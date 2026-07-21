@@ -80,13 +80,13 @@ Empty means all ones.}
 }
 \value{
 List with \code{terms}, \code{y}, \code{A}, \code{X}, \code{data}, \code{info}.
-  The \code{info$theta} data frame includes a logical \code{transform} column:
+  The \code{info$theta} data frame includes a logical \code{log} column:
   \code{TRUE} means the parameter is stored on the log scale when
   \code{config$transform_theta} is \code{TRUE} (default for all rows unless a
   model term sets otherwise). \code{info$parameters} stacks \code{beta} and
-  \code{theta} rows with the same \code{transform} column (\code{FALSE} for
+  \code{theta} rows with the same \code{log} column (\code{FALSE} for
   fixed effects); \code{init}, \code{lower}, and \code{upper} are already on
-  the optimization (log) scale where \code{transform} is \code{TRUE}.
+  the optimization (log) scale where \code{log} is \code{TRUE}.
 }
 \description{
 Build design matrices and parameter metadata from a formula

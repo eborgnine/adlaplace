@@ -19,7 +19,8 @@ matern(
   init = c(1, 1),
   lower = c(1e-09, 1e-09),
   upper = c(Inf, Inf),
-  parscale = c(1, 1)
+  parscale = c(1, 1),
+  log = TRUE
 )
 
 \S4method{extra_ad_fun}{matern}(term)
@@ -51,6 +52,9 @@ Matern field. Internally converted to SPDE \verb{(kappa, tau)}.}
 \item{lower, upper}{Bounds for \verb{(range, sd)}.}
 
 \item{parscale}{Optimization scales for \verb{(range, sd)}.}
+
+\item{log}{Whether each theta is optimized on the log scale (recycled to
+\verb{(range, sd)}).}
 
 \item{term}{A \code{\linkS4class{matern}} term.}
 
@@ -86,7 +90,7 @@ coordinates in \code{data[[term@term]]}.
 \item \code{random_info(matern)}: Random-effect metadata (one row per basis weight).
 
 \item \code{theta_info(matern)}: Theta info for practical \code{range = sqrt(8*nu)/kappa}
-and field \code{sd} (log scale when \code{transform_theta} is TRUE).
+and field \code{sd} (log scale when \code{term@log} is TRUE).
 
 \item \code{beta_info(matern)}: Beta info (none).
 

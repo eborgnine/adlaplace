@@ -9,7 +9,8 @@ skewnormal(
   init = c(0.1, 0.1),
   lower = c(1e-09, -Inf),
   upper = c(Inf, Inf),
-  parscale = c(1, 1)
+  parscale = c(1, 1),
+  log = c(TRUE, FALSE)
 )
 }
 \arguments{
@@ -22,6 +23,9 @@ skewnormal(
 \item{upper}{Upper bounds for \code{omega} and \code{alpha}.}
 
 \item{parscale}{Parameter scales for optimization.}
+
+\item{log}{Whether each theta is optimized on the log scale (length 2:
+\code{omega}, \code{alpha}).}
 }
 \value{
 A \code{skewnormal} object.

@@ -37,8 +37,8 @@ registered as \code{skewnormal_obs}.
 
 \item \code{theta_info(skewnormal)}: Theta info for skew-normal parameters.
 
-Scale \code{omega} uses \code{transform = TRUE} (log scale when
-\code{config$transform_theta} is \code{TRUE}); shape \code{alpha} is untransformed.
+Scale \code{omega} uses \code{log = TRUE} (log scale when
+\code{config$transform_theta} is not \code{FALSE}); shape \code{alpha} is untransformed.
 
 \item \code{beta_info(skewnormal)}: Beta info method (not used).
 

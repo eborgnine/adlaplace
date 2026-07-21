@@ -8,7 +8,7 @@ laplace_half_H_inv(laplace)
 }
 \arguments{
 \item{laplace}{Output of \code{log_lik_laplace(..., deriv = TRUE)} (or
-\code{inner_opt(..., deriv = TRUE)} with the same \code{extra$hessian} layout).}
+\code{inner_opt(..., deriv = TRUE)} with the same \code{hessian} layout).}
 }
 \value{
 A sparse or dense matrix \eqn{H^{-1/2}} with \code{nrow = Ngamma}.

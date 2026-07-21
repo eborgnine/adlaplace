@@ -61,17 +61,17 @@ matern_est <- function(fit, eval_grid, n = 0L) {
 
   layers <- cbind(mean = mu, sd = sdv)
   if (n > 0L) {
-    chol_inner <- fit$details$extra$hessian$chol_inner
+    chol_inner <- fit$details$hessian$chol_inner
     if (is.null(chol_inner)) {
       stop(
-        "fit$details must contain extra$hessian$chol_inner ",
+        "fit$details must contain hessian$chol_inner ",
         "(from log_lik_laplace with deriv = TRUE)",
         call. = FALSE
       )
     }
     g_sims <- adlaplace::rmvnldl(
       n,
-      mean = fit$details$opt$solution,
+      mean = fit$details$inner_opt$solution,
       chol_prec = chol_inner
     )
     if (n == 1L) {

@@ -90,7 +90,7 @@ test_that("ad_fun and derivatives run on small GLMM data", {
     deriv = TRUE
   )
   expect_true(is.finite(ll_deriv$log_lik))
-  expect_equal(length(ll_deriv$grad), length(config$beta) + length(config$theta))
+  expect_equal(length(ll_deriv$deriv$d_neg_log_lik), length(config$beta) + length(config$theta))
 })
 
 test_that("model_data builds data for iwp formula", {

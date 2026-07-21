@@ -61,20 +61,15 @@ observed information used by \code{\link{vcov.adlaplace_fit}},
 An object of class \code{"adlaplace_fit"}: a list with components
 \describe{
   \item{call, formula}{The matched call and model formula.}
-  \item{par}{Named outer parameter estimates on the optimization scale
-    (log scale where \code{par_info$transform} is \code{TRUE}).}
-  \item{par_info}{Parameter metadata table (\code{info$parameters}).}
-  \item{vcov}{Inverse of the numerically differentiated Hessian of the
-    negative log likelihood (optimization scale), or \code{NULL}.}
+  \item{par_info}{Parameter table with \code{mle}, \code{se},
+    \code{mle_internal}, \code{se_internal}, bounds, and \code{log}.}
   \item{gamma}{Named random-effect modes at the optimum.}
-  \item{logLik, nobs}{Laplace-approximate marginal log likelihood and the
-    number of observations.}
-  \item{optim}{Full \code{\link[stats]{optim}} result, including
-    \code{hessian} when requested.}
-  \item{details}{Result of \code{\link{log_lik_laplace}(deriv = TRUE)} at
-    the optimum (gradient, Cholesky factors, inner solution).}
-  \item{model_data, ad_fun, config, control_inner, cache}{Objects needed by
-    the accessor methods and for warm restarts.}
+  \item{nobs}{Number of observations.}
+  \item{details}{Laplace evaluation at the optimum, including
+    \code{outer_opt}, \code{inner_opt}, \code{vcov}, \code{log_lik},
+    \code{gradient}, and \code{hessian}.}
+  \item{model_data, ad_fun, config, cache}{Objects needed by the accessor
+    methods and for warm restarts.}
 }
 }
 \description{

@@ -62,6 +62,7 @@ methods::setAs(
 #' @param lower Lower bounds for theta parameters.
 #' @param upper Upper bounds for theta parameters.
 #' @param parscale Parameter scales for optimization.
+#' @param log Whether theta is optimized on the log scale.
 #' @param boundary_is_random Whether boundary should be treated as random.
 #' @param include_poly Whether to include polynomial terms.
 #' @param include_linear Whether to include a linear (fixed) term in \code{mult}.
@@ -78,6 +79,7 @@ rsiwp <- function(
   lower = NULL,
   upper = NULL,
   parscale = NULL,
+  log = TRUE,
   boundary_is_random = TRUE,
   include_poly = TRUE,
   include_linear = TRUE
@@ -95,6 +97,7 @@ rsiwp <- function(
   if (length(lower) != 1) stop("lower must be a single value")
   if (length(upper) != 1) stop("upper must be a single value")
   if (length(parscale) != 1) stop("parscale must be a single value")
+  if (length(log) != 1) stop("log must be a single value")
   if (length(knots) < 2) stop("knots must have length >= 2")
   if (length(boundary_is_random) != 1) stop("boundary_is_random must be a single value")
   if (length(include_poly) != 1) stop("include_poly must be a single value")
@@ -118,7 +121,8 @@ rsiwp <- function(
     init = init[1],
     lower = lower[1],
     upper = upper[1],
-    parscale = parscale[1]
+    parscale = parscale[1],
+    log = log[1]
     # type is already set in prototype, no need to repeat
   )
   if (p == 1) {
@@ -200,7 +204,8 @@ setMethod("theta_info", "rsiwp", function(term) {
     init = term@init,
     lower = term@lower, upper = term@upper,
     parscale = term@parscale,
-    type = term@type
+    type = term@type,
+    log = term@log
   )
   return(result)
 })

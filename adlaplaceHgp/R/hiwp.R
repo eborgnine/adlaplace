@@ -44,6 +44,7 @@ setClass("hiwp",
 #' @param lower Lower bounds for theta parameters
 #' @param upper Upper bounds for theta parameters
 #' @param parscale Parameter scales for optimization
+#' @param log Whether theta is optimized on the log scale (recycled like \code{init}).
 #' @param boundary_is_random Whether boundary should be treated as random
 #' @param include_poly Whether to include polynomial terms
 #' @param include_global Whether to include global component
@@ -59,6 +60,7 @@ hiwp <- function(
   lower = NULL,
   upper = NULL,
   parscale = NULL,
+  log = TRUE,
   boundary_is_random = TRUE,
   include_poly = TRUE,
   include_global = TRUE
@@ -71,6 +73,7 @@ hiwp <- function(
   lower <- rep_len(lower, 2 * p + 4)
   upper <- rep_len(upper, 2 * p + 4)
   parscale <- rep_len(parscale, 2 * p + 4)
+  log <- rep_len(log, 2 * p + 4)
 
   ref_value <- adlaplace::ref_align(ref_value, knots)
 
@@ -89,7 +92,8 @@ hiwp <- function(
     init = init[1],
     lower = lower[1],
     upper = upper[1],
-    parscale = parscale[1]
+    parscale = parscale[1],
+    log = log[1]
   )
   if (include_global) {
     iwp_name <- paste(c(x, "iwp"), collapse = "_")
@@ -103,7 +107,8 @@ hiwp <- function(
       init = init[2],
       lower = lower[2],
       upper = upper[2],
-      parscale = parscale[2]
+      parscale = parscale[2],
+      log = log[2]
     )
   }
   if (include_poly) {
@@ -115,7 +120,8 @@ hiwp <- function(
         init = init[2 + D_poly],
         lower = lower[2 + D_poly],
         upper = upper[2 + D_poly],
-        parscale = parscale[2 + D_poly]
+        parscale = parscale[2 + D_poly],
+        log = log[2 + D_poly]
       )
     }
   }
@@ -227,7 +233,8 @@ setMethod("theta_info", "hiwp", function(term) {
     lower = term@lower,
     upper = term@upper,
     parscale = term@parscale,
-    type = term@type
+    type = term@type,
+    log = term@log
   )
 
   result

@@ -54,7 +54,12 @@ hnlm_attach_parameter_se <- function(coefficients, hessian_outer, vcov = NULL) {
   se_opt <- sqrt(pmax(0, diag(V)))
   params <- coefficients$parameters
   se <- se_opt
-  if ("transform" %in% names(params)) {
+  if ("log" %in% names(params)) {
+    idx <- which(params$log %in% TRUE)
+    if (length(idx) > 0L) {
+      se[idx] <- NA_real_
+    }
+  } else if ("transform" %in% names(params)) {
     idx <- which(params$transform %in% TRUE)
     if (length(idx) > 0L) {
       se[idx] <- params$mle[idx] * se_opt[idx]

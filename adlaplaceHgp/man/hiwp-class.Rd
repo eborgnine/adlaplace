@@ -21,6 +21,7 @@ hiwp(
   lower = NULL,
   upper = NULL,
   parscale = NULL,
+  log = TRUE,
   boundary_is_random = TRUE,
   include_poly = TRUE,
   include_global = TRUE
@@ -54,6 +55,8 @@ hiwp(
 \item{upper}{Upper bounds for theta parameters}
 
 \item{parscale}{Parameter scales for optimization}
+
+\item{log}{Whether theta is optimized on the log scale (recycled like \code{init}).}
 
 \item{boundary_is_random}{Whether boundary should be treated as random}
 

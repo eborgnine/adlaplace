@@ -46,12 +46,12 @@ Other backends must export a compatible \code{ad_fun()} builder and \code{inner_
 the output (gradient, intermediate derivatives).}
 }
 \value{
-A list. With \code{deriv=FALSE}, same as \code{\link{inner_opt}}. With
-\code{deriv=TRUE}, additionally:
+A list. With \code{deriv=FALSE}, same structure as
+\code{\link{inner_opt}} (without \code{parameters}). With \code{deriv=TRUE},
+additionally:
 \describe{
-  \item{grad}{Gradient of \code{neg_log_lik} w.r.t. outer \code{x}.}
   \item{deriv}{Data frame of profile derivative pieces.}
-  \item{extra}{Intermediate objects (\code{dU}, \code{trace3}, Cholesky factors).}
+  \item{gradient$outer$dU, gradient$outer$trace3}{Intermediate profile objects.}
 }
 }
 \description{
@@ -68,10 +68,10 @@ sizes are read from \code{ad_fun@sizes}; \code{config} is not required to
 contain \code{beta}, \code{gamma}, or \code{theta} when \code{ad_fun} is
 supplied.
 
-When \code{deriv=FALSE}, the return value is the \code{\link{inner_opt}()} list
-(profile likelihood, nested \code{gradient} and \code{hessian}, and \code{opt}).
-When \code{deriv=TRUE}, the same list is augmented with \code{grad},
-\code{deriv}, and \code{extra} from the internal profile-derivative helper.
+When \code{deriv=FALSE}, the return value mirrors \code{\link{inner_opt}()}
+with \code{inner_opt}, top-level \code{gradient}, and \code{hessian}.
+When \code{deriv=TRUE}, the same list is augmented with \code{deriv} and
+profile-derivative pieces in \code{gradient$outer}.
 }
 \note{
 The Laplace approximation assumes the inner Hessian is positive definite

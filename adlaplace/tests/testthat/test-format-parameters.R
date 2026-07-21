@@ -34,7 +34,7 @@ test_that("format_parameters maps full_parameters onto info tables", {
   expect_equal(out$parameters$mle[seq_len(n_beta)], fp[seq_len(n_beta)])
   expect_equal(out$gamma$mode, fp[seq(n_beta + 1L, length.out = n_gamma)])
 
-  theta_idx <- which(info$theta$transform)
+  theta_idx <- which(info$theta$log)
   if (length(theta_idx) > 0L) {
     expect_equal(
       out$parameters$mle[n_beta + theta_idx],

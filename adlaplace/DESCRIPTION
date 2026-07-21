@@ -1,7 +1,7 @@
 Package: adlaplace
 Type: Package
 Title: Laplace Approximations Using Automatic Differentiation
-Version: 0.5.3
+Version: 0.5.4
 Authors@R: person(given="Patrick", family="Brown", email="patrick.borgnine@gmail.com", role=c("aut","cre","cph"))
 Maintainer: Patrick Brown <patrick.borgnine@gmail.com>
 Description: Computes Laplace approximations for hierarchical models using
@@ -40,10 +40,10 @@ Collate:
     'germany-data.R'
     'hessian_map.R'
     'iid.R'
-    'rpoly.R'
     'iwp.R'
     'london-data.R'
     'mvn_utils.R'
     'prepare_model_rows.R'
+    'rpoly.R'
     'zzz.R'
 LazyData: true

@@ -103,8 +103,8 @@ test_that("log_lik_laplace deriv=TRUE with multi-thread ad_fun", {
     deriv = TRUE
   )
   expect_true(is.finite(ll_deriv$log_lik))
-  expect_equal(length(ll_deriv$grad), n_beta + length(config$theta))
-  expect_true(all(is.finite(ll_deriv$grad)))
+  expect_equal(length(ll_deriv$deriv$d_neg_log_lik), n_beta + length(config$theta))
+  expect_true(all(is.finite(ll_deriv$deriv$d_neg_log_lik)))
   expect_true(all(is.finite(ll_deriv$extra$trace3)))
 })
 
@@ -153,8 +153,8 @@ test_that("log_lik_laplace deriv=TRUE with serial threads", {
     deriv = TRUE
   )
   expect_true(is.finite(ll_deriv$log_lik))
-  expect_equal(length(ll_deriv$grad), n_beta + length(config$theta))
-  expect_true(all(is.finite(ll_deriv$grad)))
+  expect_equal(length(ll_deriv$deriv$d_neg_log_lik), n_beta + length(config$theta))
+  expect_true(all(is.finite(ll_deriv$deriv$d_neg_log_lik)))
 })
 
 test_that("ad_fun_ptr has no thread assignment until ad_fun", {

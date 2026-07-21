@@ -134,6 +134,8 @@ setClass(
 #' @slot lower Numeric vector of lower bounds
 #' @slot upper Numeric vector of upper bounds
 #' @slot parscale Numeric vector of parameter scales for optimization
+#' @slot log Logical; optimize/tape each theta on the log scale (recycled to
+#'   the number of thetas for multi-parameter terms).
 #' @slot type Factor indicating term type ("fixed", "random", or "response")
 #' @slot ad_fun Registered AD density name for \code{ad_fun_ptr()}, or \code{NA}
 #'   when the term does not map to a density shard.
@@ -155,6 +157,7 @@ setClass(
     lower = "numeric",
     upper = "numeric",
     parscale = "numeric",
+    log = "logical",
     type = "factor",
     ad_fun = "character",
     ad_kind = "character",
@@ -171,6 +174,7 @@ setClass(
     lower = numeric(0),
     upper = numeric(0),
     parscale = numeric(0),
+    log = TRUE,
     type = factor("fixed", levels = .type_factor_levels),
     ad_fun = NA_character_,
     ad_kind = NA_character_,

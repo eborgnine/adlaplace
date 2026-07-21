@@ -200,6 +200,6 @@ test_that("log_lik_laplace deriv uses trace from inner_opt", {
     deriv = TRUE
   )
   expect_true(is.finite(ll$log_lik))
-  expect_equal(length(ll$grad), length(config$beta) + length(config$theta))
+  expect_equal(length(ll$deriv$d_neg_log_lik), length(config$beta) + length(config$theta))
   expect_true(is.finite(sum(ll$deriv$d_log_lik)))
 })
