@@ -86,7 +86,7 @@ res <- adlaplace::log_lik_laplace(
 )
 res$parameters
 res$log_lik
-res$grad
+res$deriv$d_neg_log_lik
 ```
 
 
@@ -194,14 +194,14 @@ res_scan <- lapply(
 )
 
 SnegLik <- vapply(res_scan, `[[`, numeric(1), "neg_log_lik")
-Sdet <- vapply(res_scan, function(r) r$extra$hessian$half_log_det, numeric(1))
-grad_mat <- do.call(rbind, lapply(res_scan, `[[`, "grad"))
+Sdet <- vapply(res_scan, function(r) r$hessian$half_log_det, numeric(1))
+grad_mat <- do.call(rbind, lapply(res_scan, function(r) r$deriv$d_neg_log_lik))
 extra_df <- do.call(abind::abind, c(lapply(res_scan, `[[`, "deriv"), along = 3))
 dU <- do.call(
   abind::abind,
-  c(lapply(res_scan, function(r) as.matrix(r$extra$dU)), along = 3)
+  c(lapply(res_scan, function(r) as.matrix(r$gradient$outer$dU)), along = 3)
 )
-u_hat <- do.call(rbind, lapply(res_scan, function(r) r$opt$solution))
+u_hat <- do.call(rbind, lapply(res_scan, function(r) r$inner_opt$solution))
 
 res_mid <- res_scan[[(Ngrid + 1L) %/% 2L]]
 
@@ -230,7 +230,7 @@ plot(
 )
 points(SxD, diff(Sdet) / diff(Sx), pch = 16)
 
-hessian_outer <- Matrix::forceSymmetric(res_mid$extra$hessian$outer)
+hessian_outer <- Matrix::forceSymmetric(res_mid$hessian$outer)
 hessian_ad <- adlaplace::hessian(
   dens_ptr,
   res_mid$full_parameters,

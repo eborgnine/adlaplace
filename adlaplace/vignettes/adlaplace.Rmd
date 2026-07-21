@@ -337,10 +337,10 @@ inner_res <- adlaplace::inner_opt(
 adlaplace::joint_log_dens(ad_fun_plain, x_full, negative = TRUE)
 
 
-inner_res$opt$fval
+inner_res$inner_opt$fval
 
 plot(
-  inner_res$opt$solution, gamma,
+  inner_res$inner_opt$solution, gamma,
   xlab = "estimated", ylab = "true"
 )
 abline(0, 1, col = "red", lty = 2)
@@ -391,12 +391,12 @@ res_deriv <- adlaplace::log_lik_laplace(
 data.frame(
   log_lik = c(res_noderiv$log_lik, res_deriv$log_lik),
   neg_log_lik = c(res_noderiv$neg_log_lik, res_deriv$neg_log_lik),
-  inner_fval = c(res_deriv$opt$fval, res_deriv$opt$fval),
+  inner_fval = c(res_deriv$inner_opt$fval, res_deriv$inner_opt$fval),
   row.names = c("deriv = FALSE", "deriv = TRUE")
 )
 
-summary(res_deriv$extra$trace3)
-res_deriv$grad
+summary(res_deriv$gradient$outer$trace3)
+res_deriv$deriv$d_neg_log_lik
 ```
 
 ## Outer optimization
@@ -481,14 +481,14 @@ res_scan <- lapply(
 )
 
 SnegLik <- vapply(res_scan, `[[`, numeric(1), "neg_log_lik")
-Sdet <- vapply(res_scan, function(r) r$extra$hessian$half_log_det, numeric(1))
-grad_mat <- do.call(rbind, lapply(res_scan, `[[`, "grad"))
+Sdet <- vapply(res_scan, function(r) r$hessian$half_log_det, numeric(1))
+grad_mat <- do.call(rbind, lapply(res_scan, function(r) r$deriv$d_neg_log_lik))
 extra_df <- do.call(abind::abind, c(lapply(res_scan, `[[`, "deriv"), along = 3))
 dU <- do.call(
   abind::abind,
-  c(lapply(res_scan, function(r) as.matrix(r$extra$dU)), along = 3)
+  c(lapply(res_scan, function(r) as.matrix(r$gradient$outer$dU)), along = 3)
 )
-u_hat <- do.call(rbind, lapply(res_scan, function(r) r$opt$solution))
+u_hat <- do.call(rbind, lapply(res_scan, function(r) r$inner_opt$solution))
 
 res_mid <- res_scan[[(Ngrid + 1L) %/% 2L]]
 
@@ -516,7 +516,7 @@ plot(
 )
 points(SxD, diff(Sdet) / diff(Sx), pch = 16)
 
-hessian_outer <- Matrix::forceSymmetric(res_mid$extra$hessian$outer)
+hessian_outer <- Matrix::forceSymmetric(res_mid$hessian$outer)
 hessian_plain <- adlaplace::hessian(
   ad_fun_plain,
   res_mid$full_parameters,
@@ -535,23 +535,23 @@ seq_gamma1 <- seq.int(
 )
 #  dU <- -Hstuff$H_inv %*% hessian_pack$outer[seq_gamma1, -seq_gamma1]
 dU_check <- -solve(
-  res_mid$extra$hessian$inner,
-  res_mid$extra$hessian$outer[seq_gamma1, -seq_gamma1]
+  res_mid$hessian$inner,
+  res_mid$hessian$outer[seq_gamma1, -seq_gamma1]
 )
 dU_check2 <- -
-  res_mid$extra$hessian$H_inv %*%
-  res_mid$extra$hessian$outer[seq_gamma1, -seq_gamma1]
+  res_mid$hessian$H_inv %*%
+  res_mid$hessian$outer[seq_gamma1, -seq_gamma1]
 
-quantile(abs(dU_check - res_mid$extra$dU))
+quantile(abs(dU_check - res_mid$gradient$outer$dU))
 quantile(abs(dU_check - dU_check2))
-quantile(abs(dU_check2 - res_mid$extra$dU))
+quantile(abs(dU_check2 - res_mid$gradient$outer$dU))
 
-quantile(as.matrix(solve(res_mid$extra$hessian$inner)) - as.matrix(res_mid$extra$hessian$H_inv))
-quantile(as.matrix(solve(res_mid$extra$hessian$inner)) - Matrix::tcrossprod(res_mid$extra$hessian$half_H_inv))
-quantile(as.matrix(res_mid$extra$hessian$H_inv) - Matrix::tcrossprod(res_mid$extra$hessian$half_H_inv))
+quantile(as.matrix(solve(res_mid$hessian$inner)) - as.matrix(res_mid$hessian$H_inv))
+quantile(as.matrix(solve(res_mid$hessian$inner)) - Matrix::tcrossprod(res_mid$hessian$half_H_inv))
+quantile(as.matrix(res_mid$hessian$H_inv) - Matrix::tcrossprod(res_mid$hessian$half_H_inv))
 
 
-(as.matrix(solve(res_mid$extra$hessian$inner)) - as.matrix(res_mid$extra$hessian$H_inv))[1:5, 1:5]
+(as.matrix(solve(res_mid$hessian$inner)) - as.matrix(res_mid$hessian$H_inv))[1:5, 1:5]
 
 
 par(mfrow = c(1, 1))
@@ -678,7 +678,7 @@ ad_fun2_dens <- ad_fun(clone_ad_fun_ptr(ad_fun2@ptr), num_threads = 1L)
 md$observations$y@XTp[, 1:5]
 data_obs@XTp[, 1:5]
 
-md$data$info$parameters[, c("term", "model", "label", "init", "transform")]
+md$data$info$parameters[, c("term", "model", "label", "init", "log")]
 data_obs@theta_map
 
 param_remap <- c(2, 1, 5, 3, 4)
@@ -689,7 +689,7 @@ log_lik2 <- log_lik_laplace(
   deriv = TRUE
 )
 c(log_lik2$log_lik, res_deriv$log_lik)
-rbind(log_lik2$grad, res_deriv$grad[param_remap])
+rbind(log_lik2$deriv$d_neg_log_lik, res_deriv$deriv$d_neg_log_lik[param_remap])
 ```
 
 
@@ -704,12 +704,12 @@ Gaussian. Use a dens-safe clone when the fit handle has `num_threads > 1`.
 library(mvQuad)
 mean_estimate <- mean_mvquad(
   parameters = log_lik2$parameters,
-  mode = log_lik2$opt$solution,
-  cov = log_lik2$extra$hessian$H_inv,
+  mode = log_lik2$inner_opt$solution,
+  cov = log_lik2$hessian$H_inv,
   ad_fun = ad_fun2_dens,
   n = 3
 )
-quantile(mean_estimate - log_lik2$opt$solution)
-plot(log_lik2$opt$solution, mean_estimate)
+quantile(mean_estimate - log_lik2$inner_opt$solution)
+plot(log_lik2$inner_opt$solution, mean_estimate)
 abline(0, 1, col = "red", lty = 2)
 ```

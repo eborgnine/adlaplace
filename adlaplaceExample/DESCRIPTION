@@ -18,10 +18,10 @@ Suggests: trustOptim, abind, knitr, rmarkdown, testthat (>= 3.0.0), sn, Matrix, 
 VignetteBuilder: knitr
 Config/testthat/edition: 3
 Encoding: UTF-8
-RoxygenNote: 7.3.3
 Roxygen: list(markdown = TRUE)
 NeedsCompilation: yes
 Collate: 
     '000.R'
     'RcppExports.R'
     'skewnormal.R'
+Config/roxygen2/version: 8.0.0

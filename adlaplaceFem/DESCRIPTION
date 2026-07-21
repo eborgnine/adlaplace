@@ -24,7 +24,6 @@ Suggests: terra, testthat (>= 3.0.0), geostatsp, knitr, rmarkdown, mapmisc
 Config/testthat/edition: 3
 VignetteBuilder: knitr
 Encoding: UTF-8
-RoxygenNote: 7.3.3
 Roxygen: list(markdown = TRUE)
 Collate:
     '000.R'
@@ -40,3 +39,4 @@ Collate:
     'matern_est.R'
     'zzz.R'
 NeedsCompilation: yes
+Config/roxygen2/version: 8.0.0

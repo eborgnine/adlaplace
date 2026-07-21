@@ -240,7 +240,7 @@ log_lik_laplace <- function(
 restructure_laplace_result <- function(result_inner, control_inner = NULL) {
   keep <- setdiff(
     names(result_inner),
-    c("parameters", "opt", "inner_opt", "gradient", "hessian")
+    c("opt", "inner_opt", "gradient", "hessian")
   )
   out <- result_inner[keep]
   inner <- result_inner$inner_opt

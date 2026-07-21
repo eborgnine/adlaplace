@@ -220,8 +220,8 @@ lik <- log_lik_laplace(
 )
 
 lik$neg_log_lik
-lik$grad
-head(lik$opt$solution)
+lik$deriv$d_neg_log_lik
+head(lik$inner_opt$solution)
 ```
 
 `neg_log_lik` is the negative profile log-likelihood after inner optimization

@@ -20,8 +20,12 @@ outer_par_from_fit <- function(fit) {
   if (!is.null(fit$outer_opt$par)) {
     return(fit$outer_opt$par)
   }
+  if (!is.null(fit$parameters)) {
+    return(fit$parameters)
+  }
   stop(
-    "fit must contain outer_opt$par (e.g. from adlaplace()$details)",
+    "fit must contain outer_opt$par (e.g. from adlaplace()$details) ",
+    "or parameters (e.g. from log_lik_laplace())",
     call. = FALSE
   )
 }

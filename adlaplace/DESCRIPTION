@@ -17,7 +17,6 @@ VignetteBuilder: knitr
 LinkingTo: Rcpp, RcppEigen, trustOptim, Matrix, RCppAD
 Encoding: UTF-8
 SystemRequirements: OpenMP
-RoxygenNote: 7.3.3
 NeedsCompilation: yes
 Collate:
     'RcppExports.R'
@@ -47,3 +46,4 @@ Collate:
     'rpoly.R'
     'zzz.R'
 LazyData: true
+Config/roxygen2/version: 8.0.0

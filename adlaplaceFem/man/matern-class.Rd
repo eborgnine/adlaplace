@@ -56,7 +56,7 @@ Matern field. Internally converted to SPDE \verb{(kappa, tau)}.}
 \item{log}{Whether each theta is optimized on the log scale (recycled to
 \verb{(range, sd)}).}
 
-\item{term}{A \code{\linkS4class{matern}} term.}
+\item{term}{A \code{\link[=matern-class]{matern}} term.}
 
 \item{data}{Model data frame (passed by adlaplace generics).}
 }
@@ -68,11 +68,11 @@ Formula term for a 2D Matern GRF via tensor-product B-spline FEM, wired to
 adlaplaceFem kernels \code{random_fem_ssq_2} / \code{random_fem_det_2} (shape nu = 1)
 or \code{random_fem_ssq_3} / \code{random_fem_det_3} (nu = 2). The quadratic form is a
 random shard; the log-determinant is a parameters companion via
-\code{\link[adlaplace:model-generics]{adlaplace::extra_ad_fun()}}.
-The first argument is a \strong{column name} in \code{data} (like \code{\link[adlaplace:iid-class]{adlaplace::iid()}}):
+\code{\link[adlaplace:extra_ad_fun]{adlaplace::extra_ad_fun()}}.
+The first argument is a \strong{column name} in \code{data} (like \code{\link[adlaplace:iid]{adlaplace::iid()}}):
 that column holds observation locations as a 2-column matrix, WKT text, or
 HEX WKB points. Knot lines are supplied at construction; the observation
-design matrix is built later in \code{\link[adlaplace:model-generics]{adlaplace::design()}} from \code{data}.
+design matrix is built later in \code{\link[adlaplace:design]{design()}} from \code{data}.
 }
 \details{
 In 2D, B-spline degree and SPDE order alpha equal \code{shape + 1}.
