@@ -78,7 +78,7 @@ res <- adlaplace::log_lik_laplace(
 )
 res$parameters
 res$neg_log_lik
-res$grad
+res$deriv$d_neg_log_lik
 ```
 
 ## Outer optimization
@@ -88,7 +88,7 @@ objective and gradient once at the start, then run a short L-BFGS-B fit.
 
 ```{r trustOptimOuterWrappers}
 cache <- new.env(parent = emptyenv())
-cache$gamma <- res$opt$solution
+cache$gamma <- res$inner_opt$solution
 
 x0 <- model_stuff$data$info$parameters$init
 
@@ -116,8 +116,9 @@ outer_fit$par
 outer_fit$value
 
 adlaplace::format_parameters(
-  parameters = outer_fit$par,gamma = cache$gamma,
-  info=ad_fun@info)$parameters
+  parameters = outer_fit$par, gamma = cache$gamma,
+  info = ad_fun@info
+)$parameters
 ```
 
 ## Fitted values and density overlay
@@ -133,15 +134,15 @@ res <- adlaplace::log_lik_laplace(
   config = modifyList(config, list(verbose = FALSE)),
   deriv = TRUE
 )
-res$grad
-model_stuff$data$info$gamma$mode <- res$opt$solution
+res$deriv$d_neg_log_lik
+model_stuff$data$info$gamma$mode <- res$inner_opt$solution
 model_stuff$data$info$beta$mle <- res$parameters[seq(1, nrow(model_stuff$data$info$beta))]
 
 model_stuff$data$info$theta$mle <- res$parameters[-(1:nrow(model_stuff$data$info$beta))]
 model_stuff$data$info$theta[
-  model_stuff$data$info$theta$transform, "mle"
+  model_stuff$data$info$theta$log, "mle"
 ] <-
-  exp(model_stuff$data$info$theta[model_stuff$data$info$theta$transform, "mle"])
+  exp(model_stuff$data$info$theta[model_stuff$data$info$theta$log, "mle"])
 ```
 
 ```{r}
@@ -189,14 +190,14 @@ res <- lapply(
 )
 
 SnegLik <- vapply(res, `[[`, numeric(1), "neg_log_lik")
-Sdet <- vapply(res, function(r) r$extra$hessian$half_log_det, numeric(1))
-grad_mat <- do.call(rbind, lapply(res, `[[`, "grad"))
+Sdet <- vapply(res, function(r) r$hessian$half_log_det, numeric(1))
+grad_mat <- do.call(rbind, lapply(res, function(r) r$deriv$d_neg_log_lik))
 extra_df <- do.call(abind::abind, c(lapply(res, `[[`, "deriv"), along = 3))
 dU <- do.call(
   abind::abind,
-  c(lapply(res, function(r) as.matrix(r$extra$dU)), along = 3)
+  c(lapply(res, function(r) as.matrix(r$gradient$outer$dU)), along = 3)
 )
-u_hat <- do.call(rbind, lapply(res, function(r) r$opt$solution))
+u_hat <- do.call(rbind, lapply(res, function(r) r$inner_opt$solution))
 
 par(mfrow = c(3, 2), mar = c(2, 2, 2, 0), mgp = c(1, 0.5, 0))
 plot(Sx, SnegLik)

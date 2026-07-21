@@ -318,7 +318,7 @@ inner_res <- adlaplace::inner_opt(
 )
 
 plot(
-  inner_res$opt$solution, gamma,
+  inner_res$inner_opt$solution, gamma,
   xlab = "estimated", ylab = "true",
   main = "Inner mode vs simulated gamma"
 )
@@ -350,11 +350,12 @@ res_deriv <- adlaplace::log_lik_laplace(
 data.frame(
   log_lik = c(res_noderiv$log_lik, res_deriv$log_lik),
   neg_log_lik = c(res_noderiv$neg_log_lik, res_deriv$neg_log_lik),
-  inner_fval = c(res_deriv$opt$fval, res_deriv$opt$fval),
+  inner_fval = c(res_deriv$inner_opt$fval, res_deriv$inner_opt$fval),
   row.names = c("deriv = FALSE", "deriv = TRUE")
 )
 
-res_deriv$grad
+summary(res_deriv$gradient$outer$trace3)
+res_deriv$deriv$d_neg_log_lik
 ```
 
 ## Outer optimization
@@ -444,14 +445,14 @@ res_scan <- lapply(
 )
 
 SnegLik <- vapply(res_scan, `[[`, numeric(1), "neg_log_lik")
-Sdet <- vapply(res_scan, function(r) r$extra$hessian$half_log_det, numeric(1))
-grad_mat <- do.call(rbind, lapply(res_scan, `[[`, "grad"))
+Sdet <- vapply(res_scan, function(r) r$hessian$half_log_det, numeric(1))
+grad_mat <- do.call(rbind, lapply(res_scan, function(r) r$deriv$d_neg_log_lik))
 extra_df <- do.call(abind::abind, c(lapply(res_scan, `[[`, "deriv"), along = 3))
 dU <- do.call(
   abind::abind,
-  c(lapply(res_scan, function(r) as.matrix(r$extra$dU)), along = 3)
+  c(lapply(res_scan, function(r) as.matrix(r$gradient$outer$dU)), along = 3)
 )
-u_hat <- do.call(rbind, lapply(res_scan, function(r) r$opt$solution))
+u_hat <- do.call(rbind, lapply(res_scan, function(r) r$inner_opt$solution))
 
 res_mid <- res_scan[[(Ngrid + 1L) %/% 2L]]
 
@@ -483,7 +484,7 @@ plot(
 )
 points(SxD, diff_here, pch = 16)
 
-hessian_outer <- Matrix::forceSymmetric(res_mid$extra$hessian$outer)
+hessian_outer <- Matrix::forceSymmetric(res_mid$hessian$outer)
 hessian_plain <- adlaplace::hessian(
   ad_fun_plain,
   res_mid$full_parameters,
@@ -586,7 +587,8 @@ md <- adlaplace::model_data(
 )
 
 
-md$data$info$theta[, c("label", "transform", "id")]
+md$data$info$parameters[, c("term", "model", "label", "init", "log")]
+md$data$info$theta[, c("label", "log", "id")]
 md$observations$y@theta_map
 data_obs@theta_map
 names(thetaOrig)
@@ -669,5 +671,5 @@ log_lik2 <- adlaplace::log_lik_laplace(
   deriv = TRUE
 )
 c(log_lik2$log_lik, log_lik1$log_lik)
-rbind(log_lik2$grad, log_lik1$grad[param_remap])
+rbind(log_lik2$deriv$d_neg_log_lik, log_lik1$deriv$d_neg_log_lik[param_remap])
 ```
