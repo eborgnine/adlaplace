@@ -54,7 +54,7 @@ test_that("ad_fun builds from hnlm for_dev model_data bundle", {
 test_that("ad_fun builds from hnlm for_dev with no fixed effects", {
   skip_if_not_installed("adlaplace")
   td <- make_hpolcc_test_data()
-  formula <- hpolcc::dirichlet_multinom(
+  formula <- adlaplace::dirichlet_multinom(
     count,
     by = c("year", "region", "date")
   ) ~ adlaplace::iid(date)

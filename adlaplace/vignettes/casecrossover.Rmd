@@ -1,12 +1,12 @@
 ---
-title: "Case-crossover models with hpolcc"
+title: "Case-crossover models with adlaplace"
 author: "Patrick Brown"
 date: "`r Sys.Date()`"
 output:
   rmarkdown::html_vignette:
     toc: true
 vignette: >
-  %\VignetteIndexEntry{Case-crossover models with hpolcc}
+  %\VignetteIndexEntry{Case-crossover models with adlaplace}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -20,22 +20,16 @@ PM10 in London (2002–2006), using the example dataset from
 Strata are defined by day-of-week within month and year via
 `dirichlet_multinom(..., by = "year_month_dow")`. PM10 enters through an
 integrated Wiener process smooth (`iwp(pm10, ...)`), with relative humidity as
-a linear fixed effect. Fitting is done with `adlaplace::adlaplace()`; the
-`dirichlet_multinom` observation density is provided by **hpolcc**.
+a linear fixed effect. Fitting is done with `adlaplace()`.
 
 ```{r setup, include=FALSE}
-# adlaplace must load before hpolcc/data.table so CppAD OpenMP setup runs first
 library(adlaplace)
-library(hpolcc)
-library(data.table)
 ```
 
 ## Data
 
 ```{r data}
-london <- fread(system.file("extdata", "london.csv", package = "hpolcc"))
-london$date <- as.Date(ISOdate(london$year, london$month, london$day))
-london$year_month_dow <- format(london$date, "%Y-%m-%a")
+data("london", package = "adlaplace")
 head(london)
 quantile(london$pm10, na.rm = TRUE)
 quantile(london$tmean, na.rm = TRUE)
@@ -50,7 +44,7 @@ right-hand side.
 london$temp_div10 <- london$tmean / 10
 cc_formula <- dirichlet_multinom(
     all,
-    by = "year_month_dow",
+    by = c("year", "month", "dow"),
     init = 0.2,
     parscale = 5
 ) ~ 0 + rh + iwp(
@@ -93,25 +87,38 @@ summary(fit)
 
 
 ```{r plot_results}
-sample <- adlaplaceHgp::cond_sim_iwp(
-    fit = fit$details,
-    model_data = fit$model_data,
-    n = 200
-)
+num_sim <- 200L
+num_grid <- 101L
+gamma_sims <- rmvnldl(n = num_sim, fit = fit)
+
+smooth_vars <- unique(fit$model_data$data$info$gamma$term)
+
+
 par(mfrow = c(1, 2), mar = c(2.25, 2.25, 0, 0), bty = "l", mgp = c(1, 0.5, 0))
-for (D in names(sample$sim)) {
-    the_xlim <- range(london[[D]], na.rm = TRUE)
-    sample_in_xlim <- sample$sim[[D]][
-        sample$x[[D]] > min(the_xlim) &
-            sample$x[[D]] < max(the_xlim),
-    ]
-    matplot(sample$x[[D]], sample$sim[[D]],
+for (D in smooth_vars) {
+    sim_here <- sim_random(
+        D,
+        fit = fit, gamma_sims = gamma_sims, num_grid = num_grid
+    )
+    rr <- exp(sim_here$sim)
+    if (requireNamespace("GET", quietly = TRUE)) {
+        q <- GET::central_region(
+            GET::create_curve_set(list(obs = rr)),
+            coverage = 0.8
+        )[, c("lo", "central", "hi")]
+    } else {
+        q <- t(apply(rr, 1, quantile, probs = c(0.1, 0.5, 0.9)))
+    }
+
+
+    matplot(
+        sim_here$x, rr,
         type = "l", lty = 1, col = "#00000010",
         xlab = D, ylab = "RR", xaxs = "i", yaxs = "i",
-        xlim = the_xlim,
-        ylim = quantile(sample_in_xlim, prob = c(0.005, 0.99))
+        ylim = quantile(rr, prob = c(0.005, 0.95))
     )
-    matlines(sample$x[[D]], sample$envelope$common[[D]], lty = c(2, 1, 2), col = "red")
+
+    matlines(sim_here$x, q, lty = c(2, 1, 2), col = "red")
 }
 ```
 
@@ -219,17 +226,3 @@ head(lik$opt$solution)
 
 `neg_log_lik` is the negative profile log-likelihood after inner optimization
 over random effects.
-
-Conditional simulations of IWP smooths use `adlaplaceHgp::cond_sim_iwp()` with
-the Laplace output and model-data bundle:
-
-```{r cond-sim}
-sim <- adlaplaceHgp::cond_sim_iwp(
-    fit = lik,
-    model_data = md,
-    n = 25
-)
-names(sim)
-# inspect assembled inputs:
-# str(adlaplaceHgp::cond_sim_iwp_inputs(lik, md))
-```

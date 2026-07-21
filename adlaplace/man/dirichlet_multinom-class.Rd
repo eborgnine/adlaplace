@@ -35,6 +35,9 @@ Sparse \code{ngCMatrix} mapping observations to strata columns.
 Model term for the case-crossover Dirichlet-multinomial log density
 registered as \code{dirichlet_multinomial}.
 }
+\details{
+Dirichlet-multinomial case-crossover response term
+}
 \section{Functions}{
 \itemize{
 \item \code{elgm_matrix(dirichlet_multinom)}: Case-crossover stratum map for AD shards.
@@ -59,9 +62,9 @@ registered as \code{dirichlet_multinomial}.
 \section{Slots (inherited from \code{model})}{
 
 \describe{
-\item{\code{ad_fun}}{Character scalar \code{"dirichlet_multinomial"}.}
-\item{\code{ad_kind}}{Character scalar \code{"observations"}.}
-\item{\code{package}}{Character scalar \code{"hpolcc"}.}
+  \item{\code{ad_fun}}{Character scalar \code{"dirichlet_multinomial"}.}
+  \item{\code{ad_kind}}{Character scalar \code{"observations"}.}
+  \item{\code{package}}{Character scalar \code{"adlaplace"}.}
 }
 }
 

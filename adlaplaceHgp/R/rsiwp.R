@@ -101,14 +101,12 @@ rsiwp <- function(
 
   the_f <- stats::as.formula(paste0("~ 0 + ", x), env = new.env())
   result <- list()
-  iwp_name <- paste("rsiwp", x, sep = "_")
 
   ref_value <- adlaplace::ref_align(ref_value, knots)
 
-
   rsiwp_label <- paste(c(x, mult, "rsiwp"), collapse = "_")
 
-  result[[iwp_name]] <- methods::new("rsiwp",
+  result[[rsiwp_label]] <- methods::new("rsiwp",
     term = x,
     label = rsiwp_label,
     mult = mult,

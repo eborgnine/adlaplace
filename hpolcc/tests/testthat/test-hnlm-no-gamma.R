@@ -32,7 +32,7 @@ test_that("hnlm_assemble builds a proper hnlm object for the flat path", {
 test_that("hnlm() takes the flat branch when gamma is empty", {
   skip_if_not_installed("adlaplace")
   td <- make_hpolcc_test_data()
-  formula <- hpolcc::dirichlet_multinom(
+  formula <- adlaplace::dirichlet_multinom(
     count,
     by = c("year", "region", "date")
   ) ~ hum

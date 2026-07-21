@@ -10,11 +10,10 @@ License: MPL-2.0
 Depends: R (>= 3.5.0)
 Imports: Matrix (>= 1.2.18), Rcpp (>= 1.0.3), methods, data.table, stats,
     graphics, RCppAD
-Suggests: numDeriv, abind, knitr, rmarkdown, trustOptim, testthat (>= 3.0.0),
-    mvQuad, mgcv, MASS, nlme, sn, terra
+Suggests: abind, knitr, rmarkdown, trustOptim, testthat (>= 3.0.0),
+    mvQuad, mgcv, MASS, nlme, sn, terra, GET, extraDistr, RSpectra
 Config/testthat/edition: 3
 VignetteBuilder: knitr
-Enhances: RSpectra
 LinkingTo: Rcpp, RcppEigen, trustOptim, Matrix, RCppAD
 Encoding: UTF-8
 SystemRequirements: OpenMP
@@ -28,6 +27,7 @@ Collate:
     'ad_fun_ptr.R'
     'ad_shards.R'
     'data_setup.R'
+    'dirichlet_multinom.R'
     'effects.R'
     'families.R'
     'model_data.R'
@@ -42,6 +42,7 @@ Collate:
     'iid.R'
     'rpoly.R'
     'iwp.R'
+    'london-data.R'
     'mvn_utils.R'
     'prepare_model_rows.R'
     'zzz.R'

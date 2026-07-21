@@ -121,3 +121,119 @@ sim_fit <- function(x, data, fit, n = 500L) {
 
   eta
 }
+
+#' Simulate a random-effect contribution for one covariate
+#'
+#' Builds a prediction grid for variable \code{x}, forms the design matrix for
+#' all random terms on that variable, and multiplies by Laplace draws of the
+#' random effects. Intended for plotting smooths (\code{iwp} / \code{rpoly})
+#' and similar random contributions from an \code{\link{adlaplace}} fit.
+#'
+#' @param x Character scalar: name of the covariate / grouping variable.
+#' @param fit An \code{"adlaplace_fit"} from \code{\link{adlaplace}}.
+#' @param new_x Optional one-column data frame of prediction points for
+#'   \code{x}. When missing, a grid is built from term knots via
+#'   \code{\link[base]{pretty}} (or from unique \code{basis} levels in
+#'   \code{fit$model_data$data$info$gamma} when there are no knots, e.g. IID).
+#' @param gamma_sims Optional matrix of random-effect draws (rows = draws,
+#'   columns named by gamma labels). When missing, drawn with
+#'   \code{\link{rmvnldl}(n = num_sim, fit = fit)}.
+#' @param num_grid Target length for the default \code{pretty} grid.
+#' @param num_sim Number of draws when \code{gamma_sims} is missing.
+#'
+#' @return A list with \code{x} (numeric or character grid) and \code{sim}
+#'   (an \code{length(x)} by \code{nrow(gamma_sims)} matrix of linear-predictor
+#'   contributions on that grid).
+#'
+#' @details
+#' Only terms with \code{type == "random"} whose \code{@term} equals \code{x}
+#' are included (so companion \code{rpoly} bases for an \code{iwp} are included,
+#' while fixed \code{fpoly} bases are not). Column names of the design must
+#' match columns of \code{gamma_sims}.
+#'
+#' IID prediction grids use factor levels stored in the gamma info table; levels
+#' not present at fit time are not invented here.
+#'
+#' @seealso \code{\link{rmvnldl}}, \code{\link{sim_fit}}, \code{\link{design}}
+#' @export
+sim_random <- function(
+  x,
+  fit,
+  new_x,
+  gamma_sims,
+  num_grid = 101L,
+  num_sim = 100L
+) {
+  if (!is.character(x) || length(x) != 1L || !nzchar(x)) {
+    stop("`x` must be a non-empty character scalar", call. = FALSE)
+  }
+  if (is.null(fit$model_data) || is.null(fit$model_data$terms)) {
+    stop("`fit` must be an adlaplace_fit with $model_data$terms", call. = FALSE)
+  }
+
+  terms <- fit$model_data$terms
+  term_seq <- vapply(terms, methods::slot, character(1L), "term")
+
+  terms_here <- terms[term_seq == x]
+  terms_here <- Filter(
+    function(tt) identical(as.character(tt@type), "random"),
+    terms_here
+  )
+  if (!length(terms_here)) {
+    stop("no random terms found for variable '", x, "'", call. = FALSE)
+  }
+
+  if (missing(gamma_sims)) {
+    gamma_sims <- rmvnldl(n = num_sim, fit = fit)
+  }
+  if (is.null(colnames(gamma_sims))) {
+    stop("`gamma_sims` must have column names (gamma labels)", call. = FALSE)
+  }
+
+  if (missing(new_x)) {
+    knots_list <- lapply(terms, methods::slot, "knots")
+    knots_here <- unlist(knots_list[term_seq == x], use.names = FALSE)
+    if (length(knots_here)) {
+      grid <- pretty(knots_here, n = num_grid)
+    } else {
+      gamma_info <- fit$model_data$data$info$gamma
+      grid <- sort(unique(gamma_info[gamma_info$term == x, "basis"]))
+      if (!length(grid)) {
+        stop(
+          "no knots or gamma basis levels found for variable '", x, "'",
+          call. = FALSE
+        )
+      }
+    }
+    new_x <- stats::setNames(data.frame(grid, stringsAsFactors = FALSE), x)
+  } else {
+    if (!is.data.frame(new_x) || !(x %in% names(new_x))) {
+      stop("`new_x` must be a data frame containing column '", x, "'",
+        call. = FALSE
+      )
+    }
+  }
+
+  design_list <- lapply(terms_here, design, data = new_x)
+  design_list <- Filter(Negate(is.null), design_list)
+  if (!length(design_list)) {
+    stop("design() returned no columns for variable '", x, "'", call. = FALSE)
+  }
+  new_design <- do.call(cbind, design_list)
+  new_design <- as.matrix(new_design)
+
+  missing_cols <- setdiff(colnames(new_design), colnames(gamma_sims))
+  if (length(missing_cols)) {
+    stop(
+      "design columns not found in gamma_sims: ",
+      paste(missing_cols, collapse = ", "),
+      call. = FALSE
+    )
+  }
+
+  sim_here <- tcrossprod(
+    new_design,
+    gamma_sims[, colnames(new_design), drop = FALSE]
+  )
+  list(x = new_x[[x]], sim = sim_here)
+}

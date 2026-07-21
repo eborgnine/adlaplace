@@ -8,28 +8,24 @@ Authors@R: person(given = "Patrick", family = "Brown",
 Description: Fits hierarchical functional case-crossover models for air
     pollution health effects, with hierarchical structures and case-crossover
     designs built on the adlaplace Laplace approximation framework.
-SystemRequirements: OpenMP
 License: MPL-2.0
 Depends:
     R (>= 4.1.0),
     adlaplace (>= 0.5.3)
-LinkingTo: Rcpp, adlaplace, RcppEigen, trustOptim, RCppAD
-Imports: Rcpp, Matrix, data.table, methods, timeDate, stats, adlaplaceHgp, RCppAD
-Suggests: GET, WoodburyMatrix, testthat (>= 3.0.0), rmarkdown, knitr, trustOptim
+Imports: Matrix, data.table, methods, timeDate, stats, adlaplaceHgp, RCppAD
+Suggests: GET, WoodburyMatrix, testthat (>= 3.0.0), trustOptim
 Enhances: extraDistr
-VignetteBuilder: knitr
 Config/testthat/edition: 3
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 Collate:
     '000.R'
-    'RcppExports.R'
     'case_crossover.R'
-    'dirichlet_multinom.R'
+    'dirichlet_multinom-reexports.R'
     'hnlm-methods.R'
     'hnlm.R'
     'remove_holidays.R'
     'zzz.R'
-NeedsCompilation: yes
+NeedsCompilation: no
 Config/roxygen2/version: 8.0.0
 RoxygenNote: 7.3.3

@@ -13,7 +13,7 @@ make_hpolcc_test_data <- function(n_strata = 6L, n_per = 4L) {
   data$year <- 2002L
   list(
     data = data,
-    formula = hpolcc::dirichlet_multinom(
+    formula = adlaplace::dirichlet_multinom(
       count,
       by = c("year", "region", "date")
     ) ~ hum + adlaplace::iid(date)

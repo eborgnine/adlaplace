@@ -4,12 +4,4 @@
 .Rhistory
 .RData
 *.tar.gz
-vignettes/*.html
-vignettes/*_files/
-vignettes/*.knit.md
-src/*.o
-src/*.so
-src/*.dll
-src/Makevars
-src/Makevars.win
 tests/testthat/_snaps/

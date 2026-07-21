@@ -3,13 +3,5 @@
 ^\.gitignore$
 ^hpolcc\.Rcheck$
 ^.*\.tar\.gz$
-^vignettes/.*\.html$
-^vignettes/.*_files$
-^vignettes/.*\.knit\.md$
 ^\.cursor$
-^src/Makevars$
-^src/Makevars\.win$
-^src/.*\.o$
-^src/.*\.so$
-^src/.*\.dll$
 ^tests/testthat/_snaps$

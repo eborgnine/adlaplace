@@ -55,35 +55,65 @@ half_H_inv_from_ldl <- function(ldl) {
 #'
 #' @param n Number of samples.
 #' @param mean Mean vector \eqn{\mu} (length \code{length(D)}).
+#'   When \code{mean} is named, those names are attached to the draws.
+#'   Ignored when \code{fit} is supplied.
 #' @param chol_prec Either a \code{CHMfactor}, \code{Cholesky}, or \code{dCHMsimpl}
 #'   from \code{Matrix::Cholesky(..., LDL = TRUE)}, or a list like
 #'   \code{res$hessian$chol_inner} with components \code{L1}, \code{D},
-#'   and \code{perm}.
+#'   and \code{perm}. Ignored when \code{fit} is supplied.
+#' @param fit Optional \code{"adlaplace_fit"} object. When supplied, overrides
+#'   \code{mean} and \code{chol_prec} with \code{fit$gamma} and
+#'   \code{fit$details$extra$hessian$chol_inner}.
 #'
-#' @return An \code{n}-by-\code{p} matrix; each row is one draw.
+#' @return An \code{n}-by-\code{p} matrix; each row is one draw. When
+#'   \code{n = 1}, a length-\code{p} vector. Column / element names come from
+#'   \code{names(mean)} when present and of length \code{p}.
 #'
 #' @details
 #' Uses \eqn{H^{-1/2} = P^\top L^{-1} D^{-1/2}} (same as \code{reformat_chol()}
 #' in \code{log_lik_deriv}), and \code{rnorm} only:
 #' \eqn{x = \mu + H^{-1/2} z}, \eqn{z \sim N(0, I)}.
 #'
-#' @seealso \code{\link[Matrix]{Cholesky}}, \code{\link{log_lik_laplace}}
+#' @seealso \code{\link[Matrix]{Cholesky}}, \code{\link{log_lik_laplace}},
+#'   \code{\link{adlaplace}}
 #' @export
-rmvnldl <- function(n, mean = 0, chol_prec) {
+rmvnldl <- function(n, mean = 0, chol_prec, fit) {
+  if (!missing(fit)) {
+    mean <- fit$gamma
+    chol_prec <- fit$details$extra$hessian$chol_inner
+    if (is.null(mean) || is.null(chol_prec)) {
+      stop(
+        "fit must provide $gamma and $details$extra$hessian$chol_inner",
+        call. = FALSE
+      )
+    }
+  } else if (missing(chol_prec)) {
+    stop("either fit or chol_prec must be supplied", call. = FALSE)
+  }
+
   ldl <- as_ldl_list(chol_prec)
   half_H_inv <- half_H_inv_from_ldl(ldl)
 
   p <- length(ldl$D)
   n <- as.integer(n)
+  nm <- names(mean)
   mu <- rep_len(as.numeric(mean), p)
 
   z <- matrix(stats::rnorm(p * n), nrow = p, ncol = n)
   draws <- as.matrix(mu + half_H_inv %*% z)
 
   if (n == 1L) {
-    as.vector(draws)
+    out <- as.vector(draws)
+    if (length(nm) == p) {
+      names(out) <- nm
+    }
+    out
   } else {
-    t(draws)
+    out <- t(draws)
+    if (length(nm) == p) {
+      colnames(out) <- nm
+    }
+    out
   }
 }
 

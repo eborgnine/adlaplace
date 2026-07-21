@@ -38,3 +38,41 @@ test_that("rmvnldl with n = 1 returns a length-p vector", {
   expect_equal(length(x), 2L)
   expect_true(all(is.finite(x)))
 })
+
+test_that("rmvnldl propagates names(mean) to draws", {
+  H <- diag(2, 3)
+  chol_list <- list(
+    L1 = Matrix::Diagonal(3, 1),
+    D = diag(H),
+    perm = 0:2,
+    perm_inv = 0:2
+  )
+  mu <- c(a = 0.1, b = -0.2, c = 0.3)
+  set.seed(4)
+  mat <- rmvnldl(5L, mean = mu, chol_prec = chol_list)
+  expect_equal(colnames(mat), names(mu))
+  set.seed(5)
+  vec <- rmvnldl(1L, mean = mu, chol_prec = chol_list)
+  expect_equal(names(vec), names(mu))
+})
+
+test_that("rmvnldl fit= overrides mean and chol_prec", {
+  H <- diag(2, 3)
+  chol_list <- list(
+    L1 = Matrix::Diagonal(3, 1),
+    D = diag(H),
+    perm = 0:2,
+    perm_inv = 0:2
+  )
+  mu <- c(a = 0.1, b = -0.2, c = 0.3)
+  fit <- list(
+    gamma = mu,
+    details = list(extra = list(hessian = list(chol_inner = chol_list)))
+  )
+  set.seed(6)
+  from_fit <- rmvnldl(4L, fit = fit)
+  set.seed(6)
+  from_args <- rmvnldl(4L, mean = mu, chol_prec = chol_list)
+  expect_equal(from_fit, from_args)
+  expect_equal(colnames(from_fit), names(mu))
+})

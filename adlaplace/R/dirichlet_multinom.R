@@ -1,4 +1,3 @@
-#' @include 000.R
 #' Dirichlet-multinomial case-crossover response term
 #'
 #' @description Model term for the case-crossover Dirichlet-multinomial log density
@@ -15,7 +14,7 @@
 #' \describe{
 #'   \item{\code{ad_fun}}{Character scalar \code{"dirichlet_multinomial"}.}
 #'   \item{\code{ad_kind}}{Character scalar \code{"observations"}.}
-#'   \item{\code{package}}{Character scalar \code{"hpolcc"}.}
+#'   \item{\code{package}}{Character scalar \code{"adlaplace"}.}
 #' }
 NULL
 
@@ -31,10 +30,10 @@ setClass(
     lower = 0,
     upper = Inf,
     parscale = 1,
-    type = factor("response", levels = adlaplace::.type_factor_levels),
+    type = factor("response", levels = .type_factor_levels),
     ad_fun = "dirichlet_multinomial",
     ad_kind = "observations",
-    package = "hpolcc",
+    package = "adlaplace",
     by = character(0)
   )
 )
@@ -55,7 +54,7 @@ dirichlet_multinom <- function(x,
                                lower = 0,
                                upper = Inf,
                                parscale = 1) {
-  x <- adlaplace::strip_term_name(as.character(x))
+  x <- strip_term_name(as.character(x))
   by <- as.character(by)
   methods::new(
     "dirichlet_multinom",
@@ -81,8 +80,36 @@ setMethod("elgm_matrix", "dirichlet_multinom", function(term, data) {
   if (!length(term@by)) {
     stop("dirichlet_multinom(..., by = ...) is required", call. = FALSE)
   }
-  cc_design <- ccDesign(strat_vars = term@by)
-  setStrata(cc_design, data.table::as.data.table(data), outcome = term@term)
+  missing_by <- setdiff(term@by, names(data))
+  if (length(missing_by)) {
+    stop(
+      "by variables not in data: ", paste(missing_by, collapse = ", "),
+      call. = FALSE
+    )
+  }
+
+  interaction <- as.integer(
+    interaction(data[term@by], drop = TRUE, lex.order = FALSE)
+  )
+  if (mean(table(interaction) <= 1L) > 0.5) {
+    warning(
+      "more than half of strata only have one observation, ",
+      "might be missing the zeros in dataset?"
+    )
+  }
+
+  outcome <- as.numeric(data[[term@term[[1L]]]])
+  n_outcome <- as.numeric(rowsum(outcome, group = interaction, na.rm = TRUE))
+  n_days <- as.integer(tabulate(interaction))
+  keep <- which(n_outcome > 0 & n_days > 1L)
+  interaction_sub <- match(interaction, keep)
+  which_keep <- which(!is.na(interaction_sub))
+
+  Matrix::sparseMatrix(
+    i = which_keep,
+    j = interaction_sub[which_keep],
+    dims = c(nrow(data), length(keep))
+  )
 })
 
 #' @describeIn dirichlet_multinom-class Design method (not used).

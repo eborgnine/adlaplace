@@ -103,5 +103,5 @@ clean:
 	@find . -type f \( -name '*.o' -o -name '*.so' \) -path '*/src/*' -delete
 	@rm -f $(foreach p,$(INSTALL_ORDER),$(p)_*.tar.gz)
 
-dirichlet_multinom.pdf: hpolcc/vignettes/dirichlet_multinom.Rmd
-	pandoc hpolcc/vignettes/dirichlet_multinom.Rmd -o dirichlet_multinom.pdf
+dirichlet_multinom.pdf: adlaplace/vignettes/dirichlet_multinom.Rmd
+	pandoc adlaplace/vignettes/dirichlet_multinom.Rmd -o dirichlet_multinom.pdf

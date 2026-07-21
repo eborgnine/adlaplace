@@ -80,13 +80,13 @@ iwp <- function(
   x <- strip_term_name(as.character(x))
   the_f <- stats::as.formula(paste0("~ 0 + ", x), env = new.env())
   result <- list()
-  iwp_name <- paste("iwp", x, sep = "_")
+  iwp_name <- paste(c(x, "iwp"), collapse = "_")
 
   ref_value <- ref_align(ref_value, knots)
 
   result[[iwp_name]] <- methods::new("iwp",
     term = x,
-    label = paste(c(x, "iwp"), collapse = "_"),
+    label = iwp_name,
     formula = the_f,
     p.order = as.integer(p),
     ref_value = ref_value,
@@ -101,14 +101,15 @@ iwp <- function(
     include_poly <- FALSE
   }
   if (include_poly) {
-    poly_name <- paste(c(x, "poly"), collapse = "_")
     if (boundary_is_random) {
+      poly_name <- paste(c(x, "rpoly"), collapse = "_")
       result[[poly_name]] <- rpoly(
         x = x,
         p = p - 1,
         ref_value = ref_value
       )
     } else {
+      poly_name <- paste(c(x, "fpoly"), collapse = "_")
       result[[poly_name]] <- fpoly(
         x = x,
         p = p - 1,

@@ -40,4 +40,15 @@ CppAD::vector<CppAD::AD<double>> poisson_obs(
   const Config& config,
   size_t Dgroup);
 
+CppAD::vector<CppAD::AD<double>> dirichlet_multinomial(
+  const CppAD::vector<CppAD::AD<double>>& x,
+  const ad_data& model,
+  const Config& config,
+  size_t Dgroup);
+
+CppAD::vector<CppAD::AD<double>> dirichlet_multinomial_extra(
+  const CppAD::vector<CppAD::AD<double>>& x,
+  const ad_data& model,
+  const Config& config);
+
 #endif

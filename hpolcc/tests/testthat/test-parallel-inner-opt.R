@@ -1,4 +1,4 @@
-# Mixed-DSO dirichlet_multinom: obs/extra in hpolcc.so, random (iid) in adlaplace.so.
+# Dirichlet-multinom obs/extra live in adlaplace.so; random (iid) also in adlaplace.so.
 
 test_that("parallel log_lik_laplace deriv=FALSE via hnlm for_dev bundle", {
   skip_if_not_installed("adlaplace")

@@ -4,20 +4,28 @@
 \alias{rmvnldl}
 \title{Simulate from a multivariate normal using LDL of the precision matrix}
 \usage{
-rmvnldl(n, mean = 0, chol_prec)
+rmvnldl(n, mean = 0, chol_prec, fit)
 }
 \arguments{
 \item{n}{Number of samples.}
 
-\item{mean}{Mean vector \eqn{\mu} (length \code{length(D)}).}
+\item{mean}{Mean vector \eqn{\mu} (length \code{length(D)}).
+When \code{mean} is named, those names are attached to the draws.
+Ignored when \code{fit} is supplied.}
 
 \item{chol_prec}{Either a \code{CHMfactor}, \code{Cholesky}, or \code{dCHMsimpl}
 from \code{Matrix::Cholesky(..., LDL = TRUE)}, or a list like
 \code{res$hessian$chol_inner} with components \code{L1}, \code{D},
-and \code{perm}.}
+and \code{perm}. Ignored when \code{fit} is supplied.}
+
+\item{fit}{Optional \code{"adlaplace_fit"} object. When supplied, overrides
+\code{mean} and \code{chol_prec} with \code{fit$gamma} and
+\code{fit$details$extra$hessian$chol_inner}.}
 }
 \value{
-An \code{n}-by-\code{p} matrix; each row is one draw.
+An \code{n}-by-\code{p} matrix; each row is one draw. When
+  \code{n = 1}, a length-\code{p} vector. Column / element names come from
+  \code{names(mean)} when present and of length \code{p}.
 }
 \description{
 Draws \eqn{n} samples from \eqn{N(\mu, H^{-1})} where \eqn{H} is the
@@ -30,5 +38,6 @@ in \code{log_lik_deriv}), and \code{rnorm} only:
 \eqn{x = \mu + H^{-1/2} z}, \eqn{z \sim N(0, I)}.
 }
 \seealso{
-\code{\link[Matrix]{Cholesky}}, \code{\link{log_lik_laplace}}
+\code{\link[Matrix]{Cholesky}}, \code{\link{log_lik_laplace}},
+  \code{\link{adlaplace}}
 }
