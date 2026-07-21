@@ -256,7 +256,7 @@ jobs:
           upload-results: never
           working-directory: hpolcc
           args: 'c("--no-manual")'
-          build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
+          build_args: 'c("--no-manual")'
           check-dir: '"../.ci-check/hpolcc-plain"'
           artifact-name: ${{ matrix.config.id }}-hpolcc-plain
 
@@ -269,7 +269,7 @@ jobs:
           upload-results: never
           working-directory: hpolcc
           args: 'c("--no-manual", "--as-cran")'
-          build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
+          build_args: 'c("--no-manual")'
           check-dir: '"../.ci-check/hpolcc-as-cran"'
           artifact-name: ${{ matrix.config.id }}-hpolcc-as-cran
 
