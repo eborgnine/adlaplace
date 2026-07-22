@@ -143,7 +143,10 @@ Rcpp::List dsun_fun_eval_cpp(
 // [[Rcpp::export]]
 int dsun_n_threads_default_cpp() {
 #ifdef _OPENMP
-  return omp_get_max_threads();
+  // Prefer hardware concurrency over omp_get_max_threads(), which tracks the
+  // last omp_set_num_threads() (often 1 after CppAD parallel teardown).
+  const int n = omp_get_num_procs();
+  return n > 0 ? n : 1;
 #else
   return 1;
 #endif

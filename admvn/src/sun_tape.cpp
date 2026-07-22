@@ -616,9 +616,12 @@ int resolve_n_threads(int n_threads, int bundle_default) {
     n_threads = 1;
   }
 #ifdef _OPENMP
-  const int max_threads = omp_get_max_threads();
-  if (n_threads > max_threads) {
-    n_threads = max_threads;
+  // Cap by hardware concurrency, not omp_get_max_threads(). The latter
+  // reflects the last omp_set_num_threads() call; CppadParallelScope teardown
+  // sets that to 1, which would permanently serialize later requests.
+  const int max_procs = omp_get_num_procs();
+  if (max_procs > 0 && n_threads > max_procs) {
+    n_threads = max_procs;
   }
 #else
   n_threads = 1;
