@@ -63,8 +63,8 @@ optimization.
 
 ```{r tape, eval = requireNamespace("sn", quietly = TRUE)}
 # Modest QMC: gradients do not differentiate through QMC.
-qmc_n_points <- 600L
-qmc_n_shifts <- 6L
+qmc_n_points <- 800L
+qmc_n_shifts <- 8L
 
 build_time <- system.time({
   tape <- dsun_fun(
@@ -117,7 +117,7 @@ optim_ctrl <- list(
   fnscale = -1,
   maxit = 500,
   parscale = parscale,
-  REPORT = 10,
+  REPORT = 1,
   trace = 1
 )
 
@@ -152,7 +152,7 @@ fit_trust_time <- system.time({
   fit_trust <- sun_mle(
     tape,
     start_params,
-    control = list(maxit = 500, report.freq = 10L, report.level = 2L)
+    control = list(maxit = 500, report.freq = 1L, report.level = 4L)
   )
 })
 fit_trust$value
@@ -186,10 +186,14 @@ fit_sn$value
 ```
 
 ```{r compare, eval = requireNamespace("sn", quietly = TRUE)}
-# Final log-likelihood, iteration / evaluation count, and wall time.
+# Score every fit with the same sn::dsun log-likelihood at that method's MLE.
+sn_ll_at <- function(par) {
+  sum(sn::dsun(ysim, dp = make_sun_params(par), log = TRUE))
+}
+
 compare <- data.frame(
   method = c("ad_optim", "sn_dsun"),
-  loglik = c(fit_ad$value, fit_sn$value),
+  sn_loglik = c(sn_ll_at(fit_ad$par), sn_ll_at(fit_sn$par)),
   iterations = c(
     unname(fit_ad$counts[["gradient"]]),
     unname(fit_sn$counts[["function"]])
@@ -204,7 +208,7 @@ if (exists("fit_trust")) {
   compare <- rbind(
     data.frame(
       method = "ad_trustOptim",
-      loglik = fit_trust$value,
+      sn_loglik = sn_ll_at(fit_trust$par),
       iterations = as.numeric(fit_trust$iterations),
       elapsed_sec = unname(fit_trust_time["elapsed"]),
       stringsAsFactors = FALSE
@@ -216,8 +220,7 @@ rownames(compare) <- NULL
 compare
 ```
 
-Small differences between fits are expected: `admvn` approximates the SUN
-orthant probabilities with quasi-Monte Carlo, while `sn` uses its own CDF
-routine. For `ad_optim` / `sn_dsun`, `iterations` is the reported gradient or
-function count from `optim`; for `ad_trustOptim` it is the trust-region
-iteration count.
+`sn_loglik` is \(\sum_i \log f_{\mathtt{sn}}(y_i;\hat\theta)\) at each method's
+reported parameter estimate, so the fits are scored on one common density.
+For `ad_optim` / `sn_dsun`, `iterations` is the reported gradient or function
+count from `optim`; for `ad_trustOptim` it is the trust-region iteration count.
