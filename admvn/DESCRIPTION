@@ -6,7 +6,8 @@ Authors@R: person(given = "Patrick", family = "Brown",
     email = "patrick.brown@gmail.com",
     role = c("aut", "cre", "cph"))
 Description: Evaluates the cumulative distribution function of the multivariate
-    normal distribution using Genz's quasi-Monte Carlo algorithm, with
+    normal distribution using specialized bivariate/trivariate algorithms for
+    dimension <= 3 and Genz quasi-Monte Carlo for higher dimensions, with
     gradient and Hessian with respect to the upper integration limits computed
     via CppAD automatic differentiation. Also provides the SUN(3,3) density
     with gradient and Hessian with respect to a block-Cholesky parameter vector.
@@ -14,7 +15,8 @@ License: MPL-2.0
 Depends: R (>= 4.1.0)
 Imports: Rcpp (>= 1.0.3), RCppAD
 LinkingTo: Rcpp, RCppAD, RcppEigen, trustOptim
-Suggests: mvtnorm, numDeriv, sn, trustOptim, testthat (>= 3.0.0), knitr, rmarkdown
+Suggests: mvtnorm, mnormt, numDeriv, sn, trustOptim, testthat (>= 3.0.0),
+    knitr, rmarkdown
 VignetteBuilder: knitr
 Config/testthat/edition: 3
 Encoding: UTF-8

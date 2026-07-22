@@ -28,8 +28,8 @@ struct MvnTape {
   std::vector<std::vector<std::vector<double>>> qmc_w;
   std::size_t n_points = 0;
   std::size_t n_shifts = 0;
-  // When true, skip CppAD tape build; values use compiled QMC and gradients
-  // use analytic formulas (n <= 3, lower = -Inf).
+  // When true, skip CppAD tape build; values use specialized d<=3 CDF
+  // (fallback QMC) and gradients use analytic formulas (lower = -Inf).
   bool value_only = false;
 
   CppAD::ADFun<double> fun;

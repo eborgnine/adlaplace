@@ -468,6 +468,54 @@ double eval_mvn_value_double(
   const GenzPack& genz,
   double* error_out) {
 
+  const std::size_t n = tape.n;
+  // sn/mnormt-style specialized CDF for d <= 3, lower = -Inf.
+  // Bounds and R are formed in the same index order as genz.ch.
+  if (n >= 1 && n <= 3 && genz.scale.size() == n && genz.ch.size() == n) {
+    bool lower_ok = (tape.lower.size() == n);
+    for (std::size_t i = 0; lower_ok && i < n; ++i) {
+      const double lo = tape.lower[i];
+      if (!((!std::isfinite(lo) && lo < 0.0) || lo <= -1e20)) {
+        lower_ok = false;
+      }
+    }
+    if (lower_ok) {
+      std::vector<double> h(n);
+      std::vector<std::vector<double>> R(n, std::vector<double>(n, 0.0));
+      bool ok = true;
+      for (std::size_t i = 0; i < n && ok; ++i) {
+        // value_only SUN atomics pass unpermuted (original-order) genz;
+        // taped pmvn() passes permuted genz.ch with original-order scale.
+        const int j = tape.value_only ? static_cast<int>(i) : tape.perm[i];
+        const double scale = genz.scale[static_cast<std::size_t>(j)];
+        if (!(scale > 0.0) || genz.ch[i].size() != n) {
+          ok = false;
+          break;
+        }
+        h[i] = (upper[static_cast<std::size_t>(j)] -
+                mean[static_cast<std::size_t>(j)]) /
+               scale;
+        for (std::size_t k = 0; k <= i; ++k) {
+          double rij = 0.0;
+          for (std::size_t t = 0; t <= k; ++t) {
+            rij += genz.ch[i][t] * genz.ch[k][t];
+          }
+          R[i][k] = rij;
+          R[k][i] = rij;
+        }
+      }
+      if (ok) {
+        const double p_spec = pmvn_cdf_std(h, R);
+        if (std::isfinite(p_spec)) {
+          if (error_out != nullptr) {
+            *error_out = 0.0;
+          }
+          return p_spec;
+        }
+      }
+    }
+  }
+
   const std::vector<double> bs = make_bs(upper, mean, tape.perm, genz.scale);
   const std::vector<double> as = make_as(tape.lower, mean, tape.perm, genz.scale);
   double p = 0.0;

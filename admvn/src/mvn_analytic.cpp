@@ -36,7 +36,37 @@ inline double pnorm0(double x) {
   return R::pnorm(x, 0.0, 1.0, 1, 0);
 }
 
+// 16-point Gauss-Legendre nodes/weights on (-1, 1).
+const double kGl16X[8] = {
+  0.095012509837637440185, 0.281603550779258913230, 0.458016777657227386342,
+  0.617876244402643748447, 0.755404408355003033895, 0.865631202387831743880,
+  0.944575023073232576078, 0.989400934991649932596
+};
+const double kGl16W[8] = {
+  0.189450610455068496285, 0.182603415044923588867, 0.169156519395002538189,
+  0.149595988816576732081, 0.124628971255533872052, 0.095158511682492784810,
+  0.062253523938647892863, 0.027152459411754094852
+};
+
+inline double clamp01(double p) {
+  if (p < 0.0) {
+    return 0.0;
+  }
+  if (p > 1.0) {
+    return 1.0;
+  }
+  return p;
+}
+
+inline double finite_or_clip(double x) {
+  if (std::isfinite(x)) {
+    return x;
+  }
+  return x > 0.0 ? 8.0 : -8.0;
+}
+
 // Phi_2(h,k;r) = int_{-inf}^h phi(x) Phi((k-r x)/sqrt(1-r^2)) dx
+// (Drezner/Genz-style Gauss-Legendre; sn/mnormt bivariate path).
 double pbvnorm(double h, double k, double r) {
   r = clamp_cor(r);
   if ((!std::isfinite(h) && h < 0.0) || (!std::isfinite(k) && k < 0.0)) {
@@ -55,38 +85,75 @@ double pbvnorm(double h, double k, double r) {
     return std::max(0.0, pnorm0(h) + pnorm0(k) - 1.0);
   }
 
-  const double hh = std::isfinite(h) ? h : (h > 0.0 ? 8.0 : -8.0);
-  const double kk = std::isfinite(k) ? k : (k > 0.0 ? 8.0 : -8.0);
-  const double s = std::sqrt(1.0 - r * r);
-
-  static const double xgl[8] = {
-    0.0950125098376374, 0.2816035507792589, 0.4580167776572274, 0.6178762444026438,
-    0.7554044083550030, 0.8656312023878318, 0.9445750230732326, 0.9894009349916499
-  };
-  static const double wgl[8] = {
-    0.1894506104550685, 0.1826034150449236, 0.1691565193950025, 0.1495959888165767,
-    0.1246289712555397, 0.0951585116824928, 0.0622535239386479, 0.0271524594117541
-  };
+  const double hh = finite_or_clip(h);
+  const double kk = finite_or_clip(k);
+  const double s = std::sqrt(std::max(1.0 - r * r, 1e-16));
 
   const double lo = std::min(-8.0, hh - 8.0);
   const double mid = 0.5 * (hh + lo);
   const double half = 0.5 * (hh - lo);
   double acc = 0.0;
   for (int i = 0; i < 8; ++i) {
-    const double x1 = mid + half * xgl[i];
-    const double x2 = mid - half * xgl[i];
-    acc += wgl[i] * (
+    const double x1 = mid + half * kGl16X[i];
+    const double x2 = mid - half * kGl16X[i];
+    acc += kGl16W[i] * (
       dnorm0(x1) * pnorm0((kk - r * x1) / s) +
       dnorm0(x2) * pnorm0((kk - r * x2) / s));
   }
-  acc *= half;
-  if (acc < 0.0) {
+  return clamp01(acc * half);
+}
+
+// Phi_3(h; R) via int_{-inf}^{h1} phi(x) Phi_2(h2|x, h3|x; r23|1) dx
+// (same reduction used by specialized trivariate normal CDF routines).
+double ptvnorm(
+  double h1, double h2, double h3,
+  double r12, double r13, double r23) {
+
+  if ((!std::isfinite(h1) && h1 < 0.0) ||
+      (!std::isfinite(h2) && h2 < 0.0) ||
+      (!std::isfinite(h3) && h3 < 0.0)) {
     return 0.0;
   }
-  if (acc > 1.0) {
+  if (!std::isfinite(h1) && h1 > 0.0 &&
+      !std::isfinite(h2) && h2 > 0.0 &&
+      !std::isfinite(h3) && h3 > 0.0) {
     return 1.0;
   }
-  return acc;
+
+  r12 = clamp_cor(r12);
+  r13 = clamp_cor(r13);
+  r23 = clamp_cor(r23);
+
+  // Degenerate / nearly singular pairwise correlations.
+  if (std::abs(r12) > 0.99999 && std::abs(r13) > 0.99999 && std::abs(r23) > 0.99999) {
+    if (r12 > 0.0 && r13 > 0.0 && r23 > 0.0) {
+      return pnorm0(std::min(h1, std::min(h2, h3)));
+    }
+  }
+
+  const double hh = finite_or_clip(h1);
+  const double lo = std::min(-8.0, hh - 8.0);
+  const double mid = 0.5 * (hh + lo);
+  const double half = 0.5 * (hh - lo);
+
+  auto integrand = [&](double x) {
+    const double v2 = std::max(1.0 - r12 * r12, 1e-16);
+    const double v3 = std::max(1.0 - r13 * r13, 1e-16);
+    const double s2 = std::sqrt(v2);
+    const double s3 = std::sqrt(v3);
+    const double a2 = (h2 - r12 * x) / s2;
+    const double a3 = (h3 - r13 * x) / s3;
+    const double cov = r23 - r12 * r13;
+    const double rho = clamp_cor(cov / (s2 * s3));
+    return dnorm0(x) * pbvnorm(a2, a3, rho);
+  };
+
+  double acc = 0.0;
+  for (int i = 0; i < 8; ++i) {
+    acc += kGl16W[i] * (integrand(mid + half * kGl16X[i]) +
+                        integrand(mid - half * kGl16X[i]));
+  }
+  return clamp01(acc * half);
 }
 
 double dbvnorm(double x, double y, double r) {
@@ -256,6 +323,56 @@ bool fill_upper_mean_grad(
 }
 
 }  // namespace
+
+double pmvn_cdf_std(
+  const std::vector<double>& h,
+  const std::vector<std::vector<double>>& R) {
+
+  const std::size_t n = h.size();
+  if (n == 0 || n > 3 || R.size() != n) {
+    return std::numeric_limits<double>::quiet_NaN();
+  }
+  for (std::size_t i = 0; i < n; ++i) {
+    if (R[i].size() != n) {
+      return std::numeric_limits<double>::quiet_NaN();
+    }
+  }
+
+  if (n == 1) {
+    return pnorm0(h[0]);
+  }
+  if (n == 2) {
+    return pbvnorm(h[0], h[1], R[0][1]);
+  }
+  // n == 3
+  return ptvnorm(h[0], h[1], h[2], R[0][1], R[0][2], R[1][2]);
+}
+
+double pmvn_cdf_special(
+  const std::vector<double>& upper,
+  const std::vector<double>& mean,
+  const std::vector<std::vector<double>>& sigma,
+  const std::vector<double>& lower) {
+
+  const std::size_t n = upper.size();
+  if (n == 0 || n > 3 || mean.size() != n || sigma.size() != n ||
+      !all_lower_neg_inf(lower, n)) {
+    return std::numeric_limits<double>::quiet_NaN();
+  }
+  for (std::size_t i = 0; i < n; ++i) {
+    if (sigma[i].size() != n || !(sigma[i][i] > 0.0)) {
+      return std::numeric_limits<double>::quiet_NaN();
+    }
+  }
+
+  std::vector<double> scale;
+  const std::vector<std::vector<double>> R = corr_from_sigma(sigma, scale);
+  std::vector<double> h(n);
+  for (std::size_t i = 0; i < n; ++i) {
+    h[i] = (upper[i] - mean[i]) / scale[i];
+  }
+  return pmvn_cdf_std(h, R);
+}
 
 bool analytic_mvn_upper_mean_grad(
   const std::vector<double>& upper,

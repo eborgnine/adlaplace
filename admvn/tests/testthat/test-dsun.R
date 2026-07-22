@@ -31,8 +31,9 @@ test_that("dsun log-density matches sn::dsun", {
   set.seed(1)
   x <- sn::rsun(8, dp = dp)
   sn_val <- sum(sn::dsun(x, dp = dp, log = TRUE))
-  adv <- admvn::dsun(x, par, log = TRUE, deriv = 0L, n_points = 2500L, n_shifts = 12L)
-  expect_equal(adv$value, sn_val, tolerance = 0.05)
+  # d<=3 orthants use specialized CDF; QMC budget is irrelevant for values.
+  adv <- admvn::dsun(x, par, log = TRUE, deriv = 0L, n_points = 64L, n_shifts = 2L)
+  expect_equal(adv$value, sn_val, tolerance = 1e-4)
   expect_null(adv$gradient)
 })
 

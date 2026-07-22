@@ -150,9 +150,29 @@ test_that("univariate pmvn matches pnorm", {
   expect_equal(out$gradient, dnorm(0.5 / sd) / sd)
 })
 
-test_that("compiled double QMC value matches taped Forward path", {
-  # Public pmvn() now uses the compiled double value path; cross-check against
-  # a reusable tape that still records the CppAD graph (non-value_only).
+test_that("specialized bivariate/trivariate CDF matches mnormt::pmnorm", {
+  skip_if_not_installed("mnormt")
+  set.seed(11)
+  # bivariate
+  sigma2 <- matrix(c(1.2, 0.4, 0.4, 0.9), 2, 2)
+  upper2 <- c(0.3, -0.2)
+  mean2 <- c(0.1, 0.0)
+  a2 <- pmvn(upper2, lower = rep(-Inf, 2), mean = mean2, sigma = sigma2)
+  b2 <- mnormt::pmnorm(upper2, mean2, sigma2)
+  expect_equal(a2$value, as.numeric(b2), tolerance = 5e-6)
+
+  # trivariate
+  A <- matrix(rnorm(9), 3, 3)
+  sigma3 <- crossprod(A) + diag(3)
+  upper3 <- rnorm(3)
+  mean3 <- rnorm(3)
+  a3 <- pmvn(upper3, lower = rep(-Inf, 3), mean = mean3, sigma = sigma3)
+  b3 <- mnormt::pmnorm(upper3, mean3, sigma3)
+  expect_equal(a3$value, as.numeric(b3), tolerance = 5e-5)
+})
+
+test_that("compiled double value matches taped Forward path", {
+  # Specialized d=2 CDF is used for both; values should still agree.
   sigma <- matrix(c(1, 0.25, 0.25, 1.1), 2, 2)
   upper <- c(0.3, -0.1)
   lower <- c(-Inf, -Inf)
