@@ -91,7 +91,7 @@ c(
 `tape$optim_fns()` returns cached `fn`/`gr` that share one `deriv = 1`
 evaluation per new parameter value.
 
-```{r mle-admvn, eval = requireNamespace("sn", quietly = TRUE)}
+```{r setup}
 start_params <- true_params
 start_params[] <- c(
   xi1 = 0.2, xi2 = -0.1, xi3 = 0.1,
@@ -113,7 +113,9 @@ lower <- c(
 upper <- rep(Inf, length(lower))
 
 obj <- tape$optim_fns()
+```
 
+```{r mle-admvn, eval = requireNamespace("sn", quietly = TRUE)}
 fit_ad_time <- system.time({
   fit_ad <- optim(
     start_params,
