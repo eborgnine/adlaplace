@@ -49,49 +49,12 @@ stage_from_check() {
   return 1
 }
 
-stage_from_build() {
-  local pkg=$1
-  local pkgdir="${ROOT}/${pkg}"
-  if [ ! -d "$pkgdir" ]; then
-    echo "warning: package directory missing: ${pkg}" >&2
-    return 1
-  fi
-  echo "building ${pkg} with vignettes for site staging"
-  (
-    cd "$ROOT"
-    chmod +x "${pkg}/configure" "${pkg}/cleanup" "${pkg}/configure.win" "${pkg}/cleanup.win" 2>/dev/null || true
-    R CMD build "$pkg" --no-manual
-  )
-  local tarball
-  tarball=$(ls -t "${ROOT}/${pkg}"_*.tar.gz | head -n 1)
-  if [ -z "$tarball" ] || [ ! -f "$tarball" ]; then
-    echo "warning: tarball not found for ${pkg}" >&2
-    return 1
-  fi
-  local tmp
-  tmp=$(mktemp -d)
-  tar -xzf "$tarball" -C "$tmp"
-  rm -f "$tarball"
-  if copy_doc_dir "$pkg" "${tmp}/${pkg}/inst/doc"; then
-    rm -rf "$tmp"
-    return 0
-  fi
-  echo "warning: no inst/doc HTML in ${pkg} tarball" >&2
-  rm -rf "$tmp"
-  return 1
-}
-
 staged=()
 for pkg in "${CHECKED_PKGS[@]}"; do
   if stage_from_check "$pkg"; then
     staged+=("$pkg")
   fi
 done
-
-# admvn is not in the check matrix; build vignettes into a tarball.
-if stage_from_build admvn; then
-  staged+=(admvn)
-fi
 
 if [ "${#staged[@]}" -eq 0 ]; then
   echo "error: no vignette HTML staged" >&2
