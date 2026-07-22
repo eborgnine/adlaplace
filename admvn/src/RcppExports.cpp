@@ -83,6 +83,21 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// pmvn_domain_grad_cpp
+Rcpp::NumericVector pmvn_domain_grad_cpp(Rcpp::NumericVector upper, Rcpp::NumericVector mean, Rcpp::NumericVector scale, Rcpp::NumericMatrix ch, Rcpp::Nullable<Rcpp::NumericVector> lower);
+RcppExport SEXP _admvn_pmvn_domain_grad_cpp(SEXP upperSEXP, SEXP meanSEXP, SEXP scaleSEXP, SEXP chSEXP, SEXP lowerSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type upper(upperSEXP);
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type mean(meanSEXP);
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type scale(scaleSEXP);
+    Rcpp::traits::input_parameter< Rcpp::NumericMatrix >::type ch(chSEXP);
+    Rcpp::traits::input_parameter< Rcpp::Nullable<Rcpp::NumericVector> >::type lower(lowerSEXP);
+    rcpp_result_gen = Rcpp::wrap(pmvn_domain_grad_cpp(upper, mean, scale, ch, lower));
+    return rcpp_result_gen;
+END_RCPP
+}
 // dsun_cpp
 Rcpp::List dsun_cpp(Rcpp::NumericMatrix x, Rcpp::NumericVector par, bool log_scale, int deriv, int n_points, int n_shifts, unsigned int seed, int n_threads);
 RcppExport SEXP _admvn_dsun_cpp(SEXP xSEXP, SEXP parSEXP, SEXP log_scaleSEXP, SEXP derivSEXP, SEXP n_pointsSEXP, SEXP n_shiftsSEXP, SEXP seedSEXP, SEXP n_threadsSEXP) {
@@ -163,6 +178,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_admvn_pmvn_fun_create_cpp", (DL_FUNC) &_admvn_pmvn_fun_create_cpp, 7},
     {"_admvn_pmvn_fun_perm_cpp", (DL_FUNC) &_admvn_pmvn_fun_perm_cpp, 1},
     {"_admvn_pmvn_fun_eval_cpp", (DL_FUNC) &_admvn_pmvn_fun_eval_cpp, 5},
+    {"_admvn_pmvn_domain_grad_cpp", (DL_FUNC) &_admvn_pmvn_domain_grad_cpp, 5},
     {"_admvn_dsun_cpp", (DL_FUNC) &_admvn_dsun_cpp, 8},
     {"_admvn_dsun_fun_create_cpp", (DL_FUNC) &_admvn_dsun_fun_create_cpp, 6},
     {"_admvn_dsun_fun_eval_cpp", (DL_FUNC) &_admvn_dsun_fun_eval_cpp, 5},

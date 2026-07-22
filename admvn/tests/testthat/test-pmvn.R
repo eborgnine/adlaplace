@@ -150,6 +150,40 @@ test_that("univariate pmvn matches pnorm", {
   expect_equal(out$gradient, dnorm(0.5 / sd) / sd)
 })
 
+test_that("analytic domain grads for upper and scale match finite differences", {
+  # Domain treats (scale, chol(R)) as independent; free chol perturbations that
+  # break unit-diagonal R are not the SUN outer-tape path (which re-cov2cors).
+  set.seed(3)
+  A <- matrix(rnorm(9), 3, 3)
+  sigma0 <- crossprod(A) + diag(3)
+  scale0 <- sqrt(diag(sigma0))
+  L0 <- t(chol(cov2cor(sigma0)))
+  upper0 <- c(0.4, -0.1, 0.2)
+  mean0 <- c(0.1, 0.0, -0.05)
+  g <- admvn:::pmvn_domain_grad_cpp(upper0, mean0, scale0, L0)
+  n <- 3L
+  f_val <- function(upper, scale) {
+    R <- L0 %*% t(L0)
+    sigma <- diag(scale) %*% R %*% diag(scale)
+    pmvn(upper, lower = rep(-Inf, 3), mean = mean0, sigma = sigma)$value
+  }
+  h <- 1e-6
+  for (j in 1:3) {
+    uu <- ud <- upper0
+    uu[j] <- upper0[j] + h
+    ud[j] <- upper0[j] - h
+    fd <- (f_val(uu, scale0) - f_val(ud, scale0)) / (2 * h)
+    expect_equal(g[j], fd, tolerance = 5e-5)
+  }
+  for (j in 1:3) {
+    su <- sd <- scale0
+    su[j] <- scale0[j] + h
+    sd[j] <- scale0[j] - h
+    fd <- (f_val(upper0, su) - f_val(upper0, sd)) / (2 * h)
+    expect_equal(g[2L * n + j], fd, tolerance = 5e-5)
+  }
+})
+
 test_that("specialized bivariate/trivariate CDF matches mnormt::pmnorm", {
   skip_if_not_installed("mnormt")
   set.seed(11)

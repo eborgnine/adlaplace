@@ -57,6 +57,76 @@ public:
     return true;
   }
 
+  // Dense Jacobian sparsity: every selected domain input affects Phi.
+  // Without this, for_jac_sparsity can omit parameters that only enter
+  // through the orthant CDF (SUN L*, a, b, c), yielding exact zero grads.
+  bool jac_sparsity(
+    size_t call_id,
+    bool dependency,
+    const CppAD::vector<bool>& ident_zero_x,
+    const CppAD::vector<bool>& select_x,
+    const CppAD::vector<bool>& select_y,
+    CppAD::sparse_rc<CppAD::vector<size_t>>& pattern_out) override {
+    (void)call_id;
+    (void)dependency;
+    (void)ident_zero_x;
+    const size_t n = select_x.size();
+    const size_t m = select_y.size();
+    size_t nnz = 0;
+    if (m > 0 && select_y[0]) {
+      for (size_t j = 0; j < n; ++j) {
+        nnz += select_x[j];
+      }
+    }
+    pattern_out.resize(m, n, nnz);
+    size_t k = 0;
+    if (m > 0 && select_y[0]) {
+      for (size_t j = 0; j < n; ++j) {
+        if (select_x[j]) {
+          pattern_out.set(k++, 0, j);
+        }
+      }
+    }
+    return true;
+  }
+
+  bool hes_sparsity(
+    size_t call_id,
+    const CppAD::vector<bool>& ident_zero_x,
+    const CppAD::vector<bool>& select_x,
+    const CppAD::vector<bool>& select_y,
+    CppAD::sparse_rc<CppAD::vector<size_t>>& pattern_out) override {
+    (void)call_id;
+    (void)ident_zero_x;
+    const size_t n = select_x.size();
+    size_t nnz = 0;
+    if (select_y.size() > 0 && select_y[0]) {
+      for (size_t i = 0; i < n; ++i) {
+        if (!select_x[i]) {
+          continue;
+        }
+        for (size_t j = i; j < n; ++j) {
+          nnz += select_x[j];
+        }
+      }
+    }
+    pattern_out.resize(n, n, nnz);
+    size_t k = 0;
+    if (select_y.size() > 0 && select_y[0]) {
+      for (size_t i = 0; i < n; ++i) {
+        if (!select_x[i]) {
+          continue;
+        }
+        for (size_t j = i; j < n; ++j) {
+          if (select_x[j]) {
+            pattern_out.set(k++, i, j);
+          }
+        }
+      }
+    }
+    return true;
+  }
+
   bool forward(
     size_t call_id,
     const CppAD::vector<bool>& select_y,

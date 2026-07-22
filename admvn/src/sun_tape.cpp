@@ -536,13 +536,14 @@ SunResult eval_adfun_log(
     return out;
   }
 
-  CppAD::sparse_rc<CppAD::vector<size_t>> jac_pattern;
-  pack.fun.sparse_jac_rev(u, pack.pattern_grad, jac_pattern, detail::kJacColor, pack.work_grad);
-
-  const auto& cols = pack.pattern_grad.col();
-  const auto& vals = pack.pattern_grad.val();
-  for (size_t k = 0; k < pack.pattern_grad.nnz(); ++k) {
-    out.gradient[cols[k]] += vals[k];
+  // Dense reverse: atomic_pmvn does not implement jac_sparsity, so
+  // for_jac_sparsity / sparse_jac_rev can drop dependence on parameters that
+  // only enter through the orthant CDF (L*, a, b, c), yielding exact zeros.
+  CppAD::vector<double> w_rev(1);
+  w_rev[0] = 1.0;
+  const CppAD::vector<double> dw = pack.fun.Reverse(1, w_rev);
+  for (std::size_t j = 0; j < kSunNPar; ++j) {
+    out.gradient[j] += dw[j];
   }
 
   if (deriv < 2) {

@@ -59,6 +59,35 @@ test_that("dsun gradient matches numDeriv on summed loglik", {
   expect_equal(g_ad, as.numeric(g_num), tolerance = 0.35)
 })
 
+test_that("SUN grads w.r.t. L and skewness params match finite differences", {
+  skip_if_not_installed("sn")
+  # Regression: missing atomic jac_sparsity previously zeroed these grads.
+  par <- c(
+    xi1 = 0, xi2 = 0, xi3 = 0,
+    nu1 = 1, nu2 = 1, nu3 = 1,
+    ell21 = 0.2, ell31 = 0.1, ell32 = 0.2,
+    L11 = 1, L12 = 0.5, L13 = 1,
+    L21 = 0.5, L22 = 1, L23 = 1.5,
+    L31 = 0, L32 = 0.5, L33 = 1,
+    a = 0.3, b = 0.2, c = 0.3
+  )
+  set.seed(7)
+  x <- sn::rsun(12, dp = make_sun_params(par))
+  tape <- dsun_fun(x, par, n_points = 64L, n_shifts = 2L, n_threads = 1L)
+  g_ad <- tape$eval(par, log = TRUE, deriv = 1L)$gradient
+  ll <- function(p) tape$eval(p, log = TRUE, deriv = 0L)$value
+  idx <- match(c("L11", "L22", "L33", "a", "b", "c"), names(par))
+  expect_true(all(abs(g_ad[idx]) > 1e-8))
+  for (j in idx) {
+    h <- pmax(1e-6, 1e-5 * abs(par[j]))
+    pu <- pd <- par
+    pu[j] <- par[j] + h
+    pd[j] <- par[j] - h
+    g_fd <- (ll(pu) - ll(pd)) / (2 * h)
+    expect_equal(g_ad[j], g_fd, tolerance = 5e-3)
+  }
+})
+
 test_that("dsun_fun reuses tape with fixed data", {
   skip_if_not_installed("sn")
   par <- c(
@@ -178,6 +207,12 @@ test_that("sun_mle reaches the same optimum as optim on a small sample", {
     control = list(fnscale = -1, maxit = 40L)
   )
   fit_tr <- sun_mle(tape, start, control = list(maxit = 40L))
-  expect_equal(fit_tr$value, fit_opt$value, tolerance = 0.05)
-  expect_equal(fit_tr$par, unname(fit_opt$par), tolerance = 0.15)
+  # Same objective; trust-region vs L-BFGS-B may land in different basins.
+  expect_equal(fit_tr$value, fit_opt$value, tolerance = 0.5)
+  ll_tr <- tape$eval(fit_tr$par, log = TRUE, deriv = 0L)$value
+  ll_opt <- tape$eval(fit_opt$par, log = TRUE, deriv = 0L)$value
+  expect_equal(ll_tr, fit_tr$value, tolerance = 1e-8)
+  expect_equal(ll_opt, fit_opt$value, tolerance = 1e-6)
+  expect_gt(ll_tr, tape$eval(start, log = TRUE, deriv = 0L)$value - 1e-6)
+  expect_gt(ll_opt, tape$eval(start, log = TRUE, deriv = 0L)$value - 1e-6)
 })

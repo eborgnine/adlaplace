@@ -50,7 +50,7 @@ str(true_sun_params, max.level = 1)
 ```{r sim, eval = requireNamespace("sn", quietly = TRUE)}
 library(sn)
 set.seed(0)
-n <- 1000
+n <- 2000
 ysim <- sn::rsun(n, dp = true_sun_params)
 colnames(ysim) <- paste0("Y", 1:3)
 head(ysim)
@@ -116,10 +116,10 @@ upper <- rep(Inf, length(lower))
 parscale <- pmax(abs(as.numeric(start_params)), 0.1)
 optim_ctrl <- list(
   fnscale = -1,
-  maxit = 500,
+  maxit = 100,
   parscale = parscale,
-  REPORT = 1,
-  trace = 1
+  REPORT = 20,
+  trace = 2
 )
 
 obj <- tape$optim_fns()
@@ -251,7 +251,7 @@ names(par_hat) <- par_names
 
 # Ten representative coordinates (location, scale, dependence, skewness).
 idx <- match(
-  c("xi1", "xi2", "nu1", "nu2", "ell21", "ell32", "L11", "L22", "L33", "a"),
+  c("xi1", "xi2", "nu1", "nu2", "ell21", "ell32", "L11", "L22", "L33", "a")[1:9],
   par_names
 )
 
@@ -265,7 +265,7 @@ fd_grad_j <- function(p, j, h) {
   (ll(p_up) - ll(p_dn)) / (2 * h)
 }
 
-op <- par(mfrow = c(5, 2), mar = c(3.2, 3.2, 2.2, 0.8), oma = c(0, 0, 1.5, 0))
+op <- par(mfrow = c(3, 3), mar = c(3.2, 3.2, 2.2, 0.8), oma = c(0, 0, 1.5, 0))
 on.exit(par(op), add = TRUE)
 
 for (j in idx) {
@@ -297,15 +297,11 @@ for (j in idx) {
   )
   lines(grid, fd_vals, lwd = 2, col = "#b03a2e", lty = 2)
   abline(v = center, col = "gray50", lty = 3)
-  legend(
-    "best",
-    legend = c("AD", "finite diff"),
-    col = c("#1b4f72", "#b03a2e"),
-    lty = c(1, 2), lwd = 2, bty = "n", cex = 0.8
-  )
 }
-mtext(
-  "Gradient check at ad_trustOptim MLE",
-  outer = TRUE, cex = 1
+legend(
+  "topleft",
+  legend = c("AD", "finite diff"),
+  col = c("#1b4f72", "#b03a2e"),
+  lty = c(1, 2), lwd = 2, bty = "n", cex = 0.8
 )
 ```

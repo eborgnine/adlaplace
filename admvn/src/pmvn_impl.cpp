@@ -1,7 +1,10 @@
 #include <Rcpp.h>
 #include <cppad/cppad.hpp>
 
+#include "mvn_analytic.hpp"
 #include "mvn_tape.hpp"
+
+#include <limits>
 
 namespace {
 
@@ -202,4 +205,38 @@ Rcpp::List pmvn_fun_eval_cpp(
   admvn::MvnResult res = admvn::eval_mvn_tape(
     holder->tape, upper_v, mean_v, sigma_v, inner);
   return result_to_list(res, !inner);
+}
+
+// [[Rcpp::export]]
+Rcpp::NumericVector pmvn_domain_grad_cpp(
+  Rcpp::NumericVector upper,
+  Rcpp::NumericVector mean,
+  Rcpp::NumericVector scale,
+  Rcpp::NumericMatrix ch,
+  Rcpp::Nullable<Rcpp::NumericVector> lower = R_NilValue) {
+
+  const std::size_t n = static_cast<std::size_t>(upper.size());
+  admvn::GenzPack genz;
+  genz.scale = as_vector(scale);
+  genz.ch.assign(n, std::vector<double>(n, 0.0));
+  for (std::size_t i = 0; i < n; ++i) {
+    for (std::size_t j = 0; j <= i; ++j) {
+      genz.ch[i][j] = ch(static_cast<int>(i), static_cast<int>(j));
+    }
+  }
+  admvn::MvnTape tape;
+  tape.n = n;
+  tape.n_domain = admvn::domain_size(n);
+  if (lower.isNotNull()) {
+    tape.lower = as_vector(lower.get());
+    if (tape.lower.size() == 1) {
+      tape.lower.assign(n, tape.lower[0]);
+    }
+  } else {
+    tape.lower.assign(n, -std::numeric_limits<double>::infinity());
+  }
+  tape.value_only = true;
+  std::vector<double> g = admvn::eval_mvn_domain_grad_auto(
+    tape, as_vector(upper), as_vector(mean), genz);
+  return Rcpp::NumericVector(g.begin(), g.end());
 }

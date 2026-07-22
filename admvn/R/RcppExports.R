@@ -21,6 +21,10 @@ pmvn_fun_eval_cpp <- function(ptr, upper, mean = NULL, sigma = NULL, inner = TRU
     .Call(`_admvn_pmvn_fun_eval_cpp`, ptr, upper, mean, sigma, inner)
 }
 
+pmvn_domain_grad_cpp <- function(upper, mean, scale, ch, lower = NULL) {
+    .Call(`_admvn_pmvn_domain_grad_cpp`, upper, mean, scale, ch, lower)
+}
+
 dsun_cpp <- function(x, par, log_scale = TRUE, deriv = 0L, n_points = 1021L, n_shifts = 8L, seed = 1L, n_threads = 1L) {
     .Call(`_admvn_dsun_cpp`, x, par, log_scale, deriv, n_points, n_shifts, seed, n_threads)
 }
