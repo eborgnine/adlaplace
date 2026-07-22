@@ -22,11 +22,11 @@ setClass("rsrpoly",
     ref_mult = "numeric",
     sd = "numeric"
   ),
-  contains = "model",
+  contains = "model_term",
   prototype = prototype(
     knots = numeric(0),
     sd = numeric(0),
-    type = factor("random", levels = adlaplace::.type_factor_levels)
+    model_role = factor("random", levels = adlaplace::.model_role_levels)
   )
 )
 
@@ -55,7 +55,7 @@ rsrpoly <- function(x, mult, p = 2, ref_value = 0, ref_mult = 0, sd = Inf) {
   }
 
   methods::new("rsrpoly",
-    term = x,
+    name = x,
     mult = mult,
     formula = stats::as.formula(paste0("~ 0 + ", x), env = new.env()),
     p.order = as.integer(p),
@@ -82,13 +82,13 @@ setMethod("design", "rsrpoly", function(term, data) {
   }
 
   a_matrix <- stats::poly(
-    data[[term@term]] - term@ref_value,
+    data[[term@name]] - term@ref_value,
     raw = TRUE, degree = term@p.order
   )
   a_matrix <- a_matrix[, 1:ncol(a_matrix), drop = FALSE]
   a_matrix <- a_matrix * mult_vec
   colnames(a_matrix) <- paste(
-    term@term, term@mult,
+    term@name, term@mult,
     "rsrpoly", 1:ncol(a_matrix),
     sep = "_"
   )
@@ -104,7 +104,7 @@ setMethod("design", "rsrpoly", function(term, data) {
 setMethod("precision", "rsrpoly", function(term, data) {
   the_sd <- term@sd
   names(the_sd) <- paste(
-    term@term, term@mult, "rsrpoly",
+    term@name, term@mult, "rsrpoly",
     seq.int(from = 1, length.out = term@p.order),
     sep = "_"
   )
@@ -140,9 +140,9 @@ setMethod("random_info", "rsrpoly", function(term, data) {
   order <- seq_len(term@p.order)
 
   result <- expand.grid(
-    term = term@term,
+    term = term@name,
     model = "rsrpoly",
-    label = paste(c(term@term, term@mult, "rsrpoly"), collapse = "_"),
+    label = paste(c(term@name, term@mult, "rsrpoly"), collapse = "_"),
     by = NA,
     basis = NA,
     order = order,

@@ -3,54 +3,54 @@
 
 #' Build raw AD handle for observation shards only
 #'
-#' @param model An \code{ad_data} S4 object.
+#' @param model An \code{density_data} S4 object.
 #' @param config Model configuration list.
 #' @param name Registered observation density name (e.g. \code{"nbinom_obs"}).
-#' @return External pointer of class \code{ad_fun_ptr}.
+#' @return External pointer of class \code{ad_pack_ptr}.
 #' @keywords internal
-get_ad_fun_raw_obs <- function(model, config, name) {
-    .Call(`_adlaplace_get_ad_fun_raw_obs`, model, config, name)
+get_ad_pack_raw_obs <- function(model, config, name) {
+    .Call(`_adlaplace_get_ad_pack_raw_obs`, model, config, name)
 }
 
 #' Build raw AD handle for a parameters shard
 #'
-#' @param model An \code{ad_data} S4 object.
+#' @param model An \code{density_data} S4 object.
 #' @param config Model configuration list.
 #' @param name Registered parameters density name (e.g. \code{"nbinom_extra"}).
-#' @return External pointer of class \code{ad_fun_ptr}.
+#' @return External pointer of class \code{ad_pack_ptr}.
 #' @keywords internal
-get_ad_fun_raw_parameters <- function(model, config, name) {
-    .Call(`_adlaplace_get_ad_fun_raw_parameters`, model, config, name)
+get_ad_pack_raw_parameters <- function(model, config, name) {
+    .Call(`_adlaplace_get_ad_pack_raw_parameters`, model, config, name)
 }
 
 #' Merge partial AD handles into one raw handle
 #'
-#' Concatenates shards from \code{\link{ad_fun_ptr}} (or other partial
+#' Concatenates shards from \code{\link{ad_pack_ptr}} (or other partial
 #' builders) in list order. Does not attach \code{hessian_map}; use
-#' \code{\link{ad_fun}} when templates are needed.
+#' \code{\link{ad_pack}} when templates are needed.
 #'
-#' @param handles List of external pointers (\code{ad_fun_ptr}).
-#' @return Combined external pointer of class \code{ad_fun_ptr}.
-#' @seealso \code{\link{ad_fun_ptr}}, \code{\link{ad_fun}}
+#' @param handles List of external pointers (\code{ad_pack_ptr}).
+#' @return Combined external pointer of class \code{ad_pack_ptr}.
+#' @seealso \code{\link{ad_pack_ptr}}, \code{\link{ad_pack}}
 #' @keywords internal
-c_ad_fun_ptr <- function(handles) {
-    .Call(`_adlaplace_c_ad_fun_ptr`, handles)
+c_ad_pack_ptr <- function(handles) {
+    .Call(`_adlaplace_c_ad_pack_ptr`, handles)
 }
 
-#' Attach hessian_map() result to an ad_fun handle
+#' Attach hessian_map() result to an ad_pack handle
 #'
-#' Copies outer/inner templates and maps into the C++ \code{ad_fun} handle.
+#' Copies outer/inner templates and maps into the C++ \code{ad_pack} handle.
 #'
-#' @param handle External pointer of class \code{ad_fun_ptr}.
+#' @param handle External pointer of class \code{ad_pack_ptr}.
 #' @param hessian_pack List returned by \code{hessian_map()}.
 #' @keywords internal
 adlaplace_attach_hessian <- function(handle, hessian_pack) {
     invisible(.Call(`_adlaplace_adlaplace_attach_hessian`, handle, hessian_pack))
 }
 
-#' Number of AD shards in an \code{ad_fun_ptr} handle
+#' Number of AD shards in an \code{ad_pack_ptr} handle
 #'
-#' @param handle External pointer of class \code{ad_fun_ptr}.
+#' @param handle External pointer of class \code{ad_pack_ptr}.
 #' @return Integer count of groups (shards).
 #' @keywords internal
 n_groups <- function(handle) {
@@ -61,7 +61,7 @@ n_groups <- function(handle) {
 #'
 #' Layout and sparsity sizes for one AD shard
 #'
-#' @param handle External pointer of class \code{ad_fun_ptr}.
+#' @param handle External pointer of class \code{ad_pack_ptr}.
 #' @param group 0-based group index.
 #' @return List with \code{n_inner}, \code{n_outer}, \code{n_beta}, \code{n_theta},
 #'   and \code{nnz_grad_*}, \code{nnz_hes_*}.
@@ -72,7 +72,7 @@ get_sizes <- function(handle, group) {
 
 #' Sparse index patterns for one AD shard
 #'
-#' @param handle External pointer of class \code{ad_fun_ptr}.
+#' @param handle External pointer of class \code{ad_pack_ptr}.
 #' @param group 0-based group index.
 #' @return List with \code{grad}, \code{grad_inner}, \code{row_hess}, \code{col_hess}, etc.
 #' @keywords internal
@@ -82,7 +82,7 @@ get_sparse_pattern <- function(handle, group) {
 
 #' Build-time owner thread for one AD shard
 #'
-#' @param handle External pointer of class \code{ad_fun_ptr}.
+#' @param handle External pointer of class \code{ad_pack_ptr}.
 #' @param group 0-based group index.
 #' @return Integer owner thread id recorded when the shard was prewarmed.
 #' @keywords internal
@@ -90,10 +90,10 @@ get_thread_owner <- function(handle, group) {
     .Call(`_adlaplace_get_thread_owner`, handle, group)
 }
 
-#' Configured \code{num_threads} from \code{ad_fun()} thread assignment
+#' Configured \code{num_threads} from \code{ad_pack()} thread assignment
 #'
-#' @param handle External pointer of class \code{ad_fun_ptr}.
-#' @return Integer \code{num_threads} if \code{ad_fun()} assigned threads; otherwise \code{NA}.
+#' @param handle External pointer of class \code{ad_pack_ptr}.
+#' @return Integer \code{num_threads} if \code{ad_pack()} assigned threads; otherwise \code{NA}.
 #' @keywords internal
 get_configured_num_threads <- function(handle) {
     .Call(`_adlaplace_get_configured_num_threads`, handle)
@@ -101,7 +101,7 @@ get_configured_num_threads <- function(handle) {
 
 #' Whether a shard has an assigned OpenMP owner thread
 #'
-#' @param handle External pointer of class \code{ad_fun_ptr}.
+#' @param handle External pointer of class \code{ad_pack_ptr}.
 #' @param group 0-based group index.
 #' @return Logical scalar.
 #' @keywords internal
@@ -112,72 +112,72 @@ get_owner_thread_assigned <- function(handle, group) {
 #' Assign OpenMP owner threads to all shards
 #'
 #' Sets \code{owner_thread = shard_index \% num_threads} on every shard.
-#' Called from \code{ad_fun()} after \code{c()}. Required before parallel
+#' Called from \code{ad_pack()} after \code{c()}. Required before parallel
 #' \code{inner_opt} / \code{trace_hinv_t}.
 #'
-#' @param handle External pointer of class \code{ad_fun_ptr}.
+#' @param handle External pointer of class \code{ad_pack_ptr}.
 #' @param num_threads Positive integer thread count.
 #' @keywords internal
 assign_owner_threads <- function(handle, num_threads) {
     invisible(.Call(`_adlaplace_assign_owner_threads`, handle, num_threads))
 }
 
-#' Deep copy of an \code{ad_fun_ptr} handle
+#' Deep copy of an \code{ad_pack_ptr} handle
 #'
 #' Clones CppAD tapes and sparsity patterns into a new external pointer.
-#' The source handle is unchanged (unlike \code{c()} on \code{ad_fun_ptr}, which moves
+#' The source handle is unchanged (unlike \code{c()} on \code{ad_pack_ptr}, which moves
 #' shards and clears sources).
 #'
-#' @param handle External pointer of class \code{ad_fun_ptr}.
-#' @return New \code{ad_fun_ptr} with independent C++ state.
+#' @param handle External pointer of class \code{ad_pack_ptr}.
+#' @return New \code{ad_pack_ptr} with independent C++ state.
 #' @keywords internal
-clone_ad_fun_ptr_ <- function(handle) {
-    .Call(`_adlaplace_clone_ad_fun_ptr_impl`, handle)
+clone_ad_pack_ptr_ <- function(handle) {
+    .Call(`_adlaplace_clone_ad_pack_ptr_impl`, handle)
 }
 
 #' Build raw AD handle for a random_diagonal shard
 #'
-#' @param model An \code{ad_data} S4 object with \code{precision} slot set.
+#' @param model An \code{density_data} S4 object with \code{precision} slot set.
 #' @param config Model configuration list.
-#' @return External pointer of class \code{ad_fun_ptr}.
+#' @return External pointer of class \code{ad_pack_ptr}.
 #' @keywords internal
-create_ad_fun_random_diagonal <- function(model, config) {
-    .Call(`_adlaplace_create_ad_fun_random_diagonal`, model, config)
+create_ad_shard_random_diagonal <- function(model, config) {
+    .Call(`_adlaplace_create_ad_shard_random_diagonal`, model, config)
 }
 
 #' Build raw AD handle for a random_mult shard
 #'
-#' @param model An \code{ad_data} S4 object with \code{precision} slot set.
+#' @param model An \code{density_data} S4 object with \code{precision} slot set.
 #' @param config Model configuration list.
-#' @return External pointer of class \code{ad_fun_ptr}.
+#' @return External pointer of class \code{ad_pack_ptr}.
 #' @keywords internal
-create_ad_fun_random_mult <- function(model, config) {
-    .Call(`_adlaplace_create_ad_fun_random_mult`, model, config)
+create_ad_shard_random_mult <- function(model, config) {
+    .Call(`_adlaplace_create_ad_shard_random_mult`, model, config)
 }
 
-.joint_log_dens_cpp <- function(ad_fun, x, shards = NULL, negative = TRUE) {
-    .Call(`_adlaplace_joint_log_dens`, ad_fun, x, shards, negative)
+.joint_log_dens_cpp <- function(ad_pack, x, ad_shards = NULL, negative = TRUE) {
+    .Call(`_adlaplace_joint_log_dens`, ad_pack, x, ad_shards, negative)
 }
 
-.grad_cpp <- function(ad_fun, x, shards = NULL, inner = FALSE, negative = TRUE) {
-    .Call(`_adlaplace_grad`, ad_fun, x, shards, inner, negative)
+.grad_cpp <- function(ad_pack, x, ad_shards = NULL, inner = FALSE, negative = TRUE) {
+    .Call(`_adlaplace_grad`, ad_pack, x, ad_shards, inner, negative)
 }
 
-.hessian_cpp <- function(ad_fun, x, shards = NULL, inner = FALSE, verbose = FALSE, negative = TRUE) {
-    .Call(`_adlaplace_hessian`, ad_fun, x, shards, inner, verbose, negative)
+.hessian_cpp <- function(ad_pack, x, ad_shards = NULL, inner = FALSE, verbose = FALSE, negative = TRUE) {
+    .Call(`_adlaplace_hessian`, ad_pack, x, ad_shards, inner, verbose, negative)
 }
 
 #' Inner optimization over gamma using trust-region CG (sparse)
 #'
 #' Runs the inner optimization over \eqn{\gamma} using the
 #' \pkg{trustOptim} sparse trust-region CG solver on a pre-built
-#' \code{\link{ad_fun}} handle.
+#' \code{\link{ad_pack}} handle.
 #'
 #' @param parameters Numeric vector of fixed outer parameters
 #'   (\code{beta}, \code{theta}; length \code{Nbeta+Ntheta}).
 #' @param gamma Numeric vector of starting values for inner parameters
 #'   (\code{gamma}; length \code{Ngamma}).
-#' @param ad_fun \code{ad_fun} S4 object from \code{\link{ad_fun}}.
+#' @param ad_pack \code{ad_pack} S4 object from \code{\link{ad_pack}}.
 #' @param control List of trust-region control parameters (see \pkg{trustOptim}).
 #' @param deriv Logical; if \code{TRUE}, also return outer gradient/Hessian
 #'   pieces and Cholesky-based quantities at the inner mode.
@@ -195,12 +195,12 @@ create_ad_fun_random_mult <- function(model, config) {
 #' \pkg{trustOptim}.
 #'
 #' @export
-inner_opt <- function(parameters, gamma, ad_fun, control = NULL, deriv = FALSE, verbose = FALSE) {
-    .Call(`_adlaplace_inner_opt`, parameters, gamma, ad_fun, control, deriv, verbose)
+inner_opt <- function(parameters, gamma, ad_pack, control = NULL, deriv = FALSE, verbose = FALSE) {
+    .Call(`_adlaplace_inner_opt`, parameters, gamma, ad_pack, control, deriv, verbose)
 }
 
-.fun_obj_fdfh_cpp <- function(parameters, gamma, ad_fun, inner = TRUE, verbose = FALSE) {
-    .Call(`_adlaplace_fun_obj_fdfh`, parameters, gamma, ad_fun, inner, verbose)
+.fun_obj_fdfh_cpp <- function(parameters, gamma, ad_pack, inner = TRUE, verbose = FALSE) {
+    .Call(`_adlaplace_fun_obj_fdfh`, parameters, gamma, ad_pack, inner, verbose)
 }
 
 #' Whether this build was compiled with OpenMP support.
@@ -223,7 +223,7 @@ warm_openmp_runtime <- function() {
     invisible(.Call(`_adlaplace_warm_openmp_runtime`))
 }
 
-.trace_hinv_t_cpp <- function(ad_fun, x, LinvPt, LinvPtColumns, verbose = FALSE) {
-    .Call(`_adlaplace_trace_hinv_t`, ad_fun, x, LinvPt, LinvPtColumns, verbose)
+.trace_hinv_t_cpp <- function(ad_pack, x, LinvPt, LinvPtColumns, verbose = FALSE) {
+    .Call(`_adlaplace_trace_hinv_t`, ad_pack, x, LinvPt, LinvPtColumns, verbose)
 }
 

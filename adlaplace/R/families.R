@@ -15,7 +15,7 @@
 #'
 #' @section Slots (inherited from \code{model}):
 #' \describe{
-#'   \item{\code{ad_fun}}{Character scalar \code{"binomial_obs"}.}
+#'   \item{\code{ad_pack}}{Character scalar \code{"binomial_obs"}.}
 #'   \item{\code{ad_kind}}{Character scalar \code{"observations"}.}
 #' }
 #' @section Slots:
@@ -27,7 +27,7 @@ NULL
 setClass(
   "binomial",
   slots = c(size = "character"),
-  contains = "model",
+  contains = "model_term",
   prototype = prototype(
     knots = numeric(0),
     ref_value = numeric(0),
@@ -36,8 +36,8 @@ setClass(
     lower = numeric(0),
     upper = numeric(0),
     parscale = numeric(0),
-    type = factor("response", levels = .type_factor_levels),
-    ad_fun = "binomial_obs",
+    model_role = factor("response", levels = .model_role_levels),
+    density = "binomial_obs",
     ad_kind = "observations",
     size = character(0)
   )
@@ -74,7 +74,7 @@ binomial <- function(x, size = NULL, link = "logit") {
   }
   methods::new(
     "binomial",
-    term = x,
+    name = x,
     label = paste(x, "binomial", sep = "_"),
     formula = stats::as.formula(paste(x, "~."), env = new.env()),
     size = size_col
@@ -96,14 +96,14 @@ binomial <- function(x, size = NULL, link = "logit") {
 #'
 #' @section Slots (inherited from \code{model}):
 #' \describe{
-#'   \item{\code{ad_fun}}{Character scalar \code{"gaussian_obs"}.}
+#'   \item{\code{ad_pack}}{Character scalar \code{"gaussian_obs"}.}
 #'   \item{\code{ad_kind}}{Character scalar \code{"observations"}.}
 #' }
 NULL
 
 setClass(
   "gaussian",
-  contains = "model",
+  contains = "model_term",
   prototype = prototype(
     knots = numeric(0),
     ref_value = numeric(0),
@@ -112,8 +112,8 @@ setClass(
     lower = numeric(0),
     upper = numeric(0),
     parscale = numeric(0),
-    type = factor("response", levels = .type_factor_levels),
-    ad_fun = "gaussian_obs",
+    model_role = factor("response", levels = .model_role_levels),
+    density = "gaussian_obs",
     ad_kind = "observations"
   )
 )
@@ -151,7 +151,7 @@ gaussian <- function(x,
   x <- strip_term_name(as.character(x))
   methods::new(
     "gaussian",
-    term = x,
+    name = x,
     label = paste(x, "gaussian_sd", sep = "_"),
     formula = stats::as.formula(paste(x, "~."), env = new.env()),
     init = init,
@@ -166,14 +166,14 @@ gaussian <- function(x,
 #' @export
 setMethod("theta_info", "gaussian", function(term) {
   data.frame(
-    term = term@term,
+    term = term@name,
     model = "gaussian",
     label = term@label,
     init = term@init,
     lower = term@lower,
     upper = term@upper,
     parscale = term@parscale,
-    type = term@type,
+    model_role = term@model_role,
     log = term@log,
     stringsAsFactors = FALSE
   )
@@ -191,14 +191,14 @@ setMethod("theta_info", "gaussian", function(term) {
 #'
 #' @section Slots (inherited from \code{model}):
 #' \describe{
-#'   \item{\code{ad_fun}}{Character scalar \code{"nbinom_obs"}.}
+#'   \item{\code{ad_pack}}{Character scalar \code{"nbinom_obs"}.}
 #'   \item{\code{ad_kind}}{Character scalar \code{"observations"}.}
 #' }
 NULL
 
 setClass(
   "nbinom",
-  contains = "model",
+  contains = "model_term",
   prototype = prototype(
     knots = numeric(0),
     ref_value = numeric(0),
@@ -207,8 +207,8 @@ setClass(
     lower = numeric(0),
     upper = numeric(0),
     parscale = numeric(0),
-    type = factor("response", levels = .type_factor_levels),
-    ad_fun = "nbinom_obs",
+    model_role = factor("response", levels = .model_role_levels),
+    density = "nbinom_obs",
     ad_kind = "observations"
   )
 )
@@ -235,7 +235,7 @@ nbinom <- function(x,
   x <- strip_term_name(as.character(x))
   methods::new(
     "nbinom",
-    term = x,
+    name = x,
     label = paste(x, "nbinom_sd", sep = "_"),
     formula = stats::as.formula(paste(x, "~."), env = new.env()),
     init = init,
@@ -250,14 +250,14 @@ nbinom <- function(x,
 #' @export
 setMethod("theta_info", "nbinom", function(term) {
   data.frame(
-    term = term@term,
+    term = term@name,
     model = "nbinom",
     label = term@label,
     init = term@init,
     lower = term@lower,
     upper = term@upper,
     parscale = term@parscale,
-    type = term@type,
+    model_role = term@model_role,
     log = term@log,
     stringsAsFactors = FALSE
   )

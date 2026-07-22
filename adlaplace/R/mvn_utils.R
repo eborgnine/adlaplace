@@ -147,7 +147,7 @@ full_parameters_from_gamma <- function(gamma_row, parameters, n_beta, n_theta) {
 #' @param parameters Outer \eqn{(\beta, \theta)} at the Laplace fit.
 #' @param mode Inner mode \eqn{\hat\gamma} (e.g. \code{laplace$inner_opt$solution}).
 #' @param cov \eqn{H^{-1}} for the inner block (e.g. \code{laplace$hessian$H_inv}).
-#' @param ad_fun \code{ad_fun} object for \code{joint_log_dens}.
+#' @param ad_pack \code{ad_pack} object for \code{joint_log_dens}.
 #' @param n Quadrature level passed to \pkg{mvQuad} \code{createNIGrid}.
 #' @param type mvQuad rule (default \code{"nHN"}).
 #' @param ndConstruction mvQuad grid construction (default \code{"sparse"}).
@@ -168,7 +168,7 @@ full_parameters_from_gamma <- function(gamma_row, parameters, n_beta, n_theta) {
 mean_mvquad <- function(parameters,
                         mode,
                         cov,
-                        ad_fun,
+                        ad_pack,
                         n = 3L,
                         type = "nHN",
                         ndConstruction = "sparse",
@@ -176,8 +176,8 @@ mean_mvquad <- function(parameters,
   if (!requireNamespace("mvQuad", quietly = TRUE)) {
     stop("Package 'mvQuad' is required for mean_mvquad()", call. = FALSE)
   }
-  if (!is(ad_fun, "ad_fun")) {
-    stop("ad_fun must be an ad_fun object", call. = FALSE)
+  if (!is(ad_pack, "ad_pack")) {
+    stop("ad_pack must be an ad_pack object", call. = FALSE)
   }
   if (missing(parameters) || is.null(parameters)) {
     stop("parameters is required (outer beta and theta)", call. = FALSE)
@@ -189,7 +189,7 @@ mean_mvquad <- function(parameters,
     stop("cov is required (inner Laplace covariance H_inv)", call. = FALSE)
   }
 
-  sz <- ad_fun@sizes
+  sz <- ad_pack@sizes
   n_beta <- as.integer(sz["beta"])
   n_gamma <- as.integer(sz["gamma"])
   n_theta <- as.integer(sz["theta"])
@@ -199,7 +199,7 @@ mean_mvquad <- function(parameters,
 
   if (length(mode) != n_gamma) {
     stop(
-      "length(mode) (", length(mode), ") must equal ad_fun@sizes['gamma'] (",
+      "length(mode) (", length(mode), ") must equal ad_pack@sizes['gamma'] (",
       n_gamma, ")",
       call. = FALSE
     )
@@ -269,7 +269,7 @@ mean_mvquad <- function(parameters,
         n_beta,
         n_theta
       )
-      log_p <- joint_log_dens(ad_fun, full, negative = FALSE)
+      log_p <- joint_log_dens(ad_pack, full, negative = FALSE)
       log_q <- log_mvn_density(gamma_row, mode, chol_cov)
       log_p - log_q
     },

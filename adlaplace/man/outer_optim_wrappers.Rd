@@ -6,9 +6,9 @@
 \alias{outer_gr}
 \title{Outer objective and gradient wrappers}
 \usage{
-outer_fn(x, config, cache, ad_fun, control_inner = list(), ...)
+outer_fn(x, config, cache, ad_pack, control_inner = list(), ...)
 
-outer_gr(x, config, cache, ad_fun, control_inner = list(), ...)
+outer_gr(x, config, cache, ad_pack, control_inner = list(), ...)
 }
 \arguments{
 \item{x}{Numeric outer parameter vector \code{c(beta, theta)}.}
@@ -18,10 +18,10 @@ outer_gr(x, config, cache, ad_fun, control_inner = list(), ...)
 \item{cache}{An \code{\link[base]{environment}} used to warm-start and store the inner
 \code{gamma} solution. If \code{cache$gamma} is missing or the wrong length,
 it is initialized from \code{config$gamma} (if present) or zeros of length
-\code{ad_fun@sizes["gamma"]}. Both functions update \code{cache$gamma} after
+\code{ad_pack@sizes["gamma"]}. Both functions update \code{cache$gamma} after
 each evaluation.}
 
-\item{ad_fun}{\code{ad_fun} object from \code{\link{ad_fun}}.}
+\item{ad_pack}{\code{ad_pack} object from \code{\link{ad_pack}}.}
 
 \item{control_inner}{A list of control options forwarded to the \code{control}
 argument of \code{\link{log_lik_laplace}} for the inner optimization.}
@@ -51,10 +51,10 @@ the inner problem over \code{gamma} via \code{\link{log_lik_laplace}} and update
 \dontrun{
 cache <- new.env(parent = emptyenv())
 cache$gamma <- rep(0, nrow(data$ATp))
-ad_fun <- ad_fun(data, config)
+ad_pack <- ad_pack(data, config)
 
-val <- outer_fn(x = x0, data = data, config = config, cache = cache, ad_fun = ad_fun)
-gr <- outer_gr(x = x0, data = data, config = config, cache = cache, ad_fun = ad_fun)
+val <- outer_fn(x = x0, data = data, config = config, cache = cache, ad_pack = ad_pack)
+gr <- outer_gr(x = x0, data = data, config = config, cache = cache, ad_pack = ad_pack)
 }
 
 }

@@ -7,13 +7,13 @@
 #' @export
 setClass("iid",
   slots = list(),
-  contains = "model",
+  contains = "model_term",
   prototype = prototype(
     ref_value = numeric(0),
     p.order = as.integer(0),
     knots = numeric(0),
-    type = factor("random", levels = .type_factor_levels),
-    ad_fun = "random_diagonal",
+    model_role = factor("random", levels = .model_role_levels),
+    density = "random_diagonal",
     ad_kind = "random"
   )
 )
@@ -35,7 +35,7 @@ iid <- function(x,
                 log = TRUE) {
   x <- strip_term_name(as.character(x))
   result <- list(methods::new("iid",
-    term = x,
+    name = x,
     label = paste(x, "iid", sep = "_"),
     formula = stats::as.formula(paste0("~ 0 + ", x), env = new.env()),
     init = init,
@@ -44,7 +44,7 @@ iid <- function(x,
     parscale = parscale,
     log = log
   ))
-  names(result) <- result[[1]]@term
+  names(result) <- result[[1]]@name
   result
 }
 
@@ -53,11 +53,11 @@ iid <- function(x,
 #' @param data A data frame containing the term variable
 #' @export
 setMethod("design", "iid", function(term, data) {
-  if (is.numeric(data[[term@term]])) {
-    data[[term@term]] <- factor(data[[term@term]])
+  if (is.numeric(data[[term@name]])) {
+    data[[term@name]] <- factor(data[[term@name]])
   }
   result <- methods::as(Matrix::sparse.model.matrix(term@formula, data), "TsparseMatrix")
-  colnames(result) <- gsub(paste0("^", term@term), paste0(term@term, "_iid_"), colnames(result))
+  colnames(result) <- gsub(paste0("^", term@name), paste0(term@name, "_iid_"), colnames(result))
   result
 })
 
@@ -67,7 +67,7 @@ setMethod("design", "iid", function(term, data) {
 #' @export
 setMethod("precision", "iid", function(term, data) {
   # Identity matrix for iid terms
-  term_here <- data[[term@term]]
+  term_here <- data[[term@name]]
   if (is.factor(term_here)) {
     n <- nlevels(term_here)
     labels_here <- levels(term_here)
@@ -77,7 +77,7 @@ setMethod("precision", "iid", function(term, data) {
   }
   result <- Matrix::Diagonal(n, 1)
   result@x <- rep(1, n)
-  dimnames(result) <- list(paste0(term@term, "_iid_", labels_here))[c(1, 1)]
+  dimnames(result) <- list(paste0(term@name, "_iid_", labels_here))[c(1, 1)]
   result
 })
 
@@ -86,7 +86,7 @@ setMethod("precision", "iid", function(term, data) {
 #' @param data A data frame containing the term variable
 #' @export
 setMethod("random_info", "iid", function(term, data) {
-  term_values <- data[[term@term]]
+  term_values <- data[[term@name]]
   basis_labels <- if (is.factor(term_values)) {
     levels(term_values)
   } else {
@@ -94,7 +94,7 @@ setMethod("random_info", "iid", function(term, data) {
   }
 
   result <- data.frame(
-    term = term@term,
+    term = term@name,
     model = "iid",
     label = term@label,
     by = NA,
@@ -112,12 +112,12 @@ setMethod("random_info", "iid", function(term, data) {
 #' @export
 setMethod("theta_info", "iid", function(term) {
   result <- data.frame(
-    term = term@term, model = "iid",
+    term = term@name, model = "iid",
     label = term@label,
     init = term@init,
     lower = term@lower, upper = term@upper,
     parscale = term@parscale,
-    type = term@type,
+    model_role = term@model_role,
     log = term@log
   )
   return(result)

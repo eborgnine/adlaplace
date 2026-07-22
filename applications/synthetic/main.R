@@ -82,7 +82,7 @@ fit <- hnlm(
   config = list(
     transform_theta = TRUE,
     num_threads = 4L,
-    num_shards = 100L,
+    num_groups = 100L,
     num_sim = 200L,
     verbose = FALSE
   ),
@@ -101,7 +101,7 @@ sim <- adlaplaceHgp::cond_sim_iwp(
   fit = fit$extra,
   model_data = list(
     terms = fit$call$terms,
-    data = list(info = fit$info)
+    term_data = list(info = fit$info)
   ),
   newx = newx,
   n = 500,

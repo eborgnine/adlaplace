@@ -14,7 +14,7 @@ sim_random(x, fit, new_x, gamma_sims, num_grid = 101L, num_sim = 100L)
 \item{new_x}{Optional one-column data frame of prediction points for
 \code{x}. When missing, a grid is built from term knots via
 \code{\link[base]{pretty}} (or from unique \code{basis} levels in
-\code{fit$model_data$data$info$gamma} when there are no knots, e.g. IID).}
+\code{fit$model_data$term_data$info$gamma} when there are no knots, e.g. IID).}
 
 \item{gamma_sims}{Optional matrix of random-effect draws (rows = draws,
 columns named by gamma labels). When missing, drawn with
@@ -36,7 +36,7 @@ random effects. Intended for plotting smooths (\code{iwp} / \code{rpoly})
 and similar random contributions from an \code{\link{adlaplace}} fit.
 }
 \details{
-Only terms with \code{type == "random"} whose \code{@term} equals \code{x}
+Only terms with \code{model_role == "random"} whose \code{@name} equals \code{x}
 are included (so companion \code{rpoly} bases for an \code{iwp} are included,
 while fixed \code{fpoly} bases are not). Column names of the design must
 match columns of \code{gamma_sims}.

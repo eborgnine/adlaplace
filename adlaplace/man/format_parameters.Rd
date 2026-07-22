@@ -30,5 +30,5 @@ A list with data frames \code{parameters} and \code{gamma}, or
 }
 \description{
 Maps flat Laplace parameter vectors onto labeled tables from \code{info}
-(as stored on \code{ad_fun@info} or \code{model_data()$data$info}).
+(as stored on \code{ad_pack@info} or \code{model_data()$term_data$info}).
 }

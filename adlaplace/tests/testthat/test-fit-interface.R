@@ -18,7 +18,7 @@ test_that("adlaplace() fits a nbinom GLMM and methods work", {
   fit <- adlaplace(
     nbinom(y, lower = 1e-9, init = 0.15) ~ x + iid(g, init = 0.3),
     data = dat,
-    num_shards = 10L,
+    num_groups = 10L,
     control = list(maxit = 100L),
     verbose = FALSE
   )
@@ -34,7 +34,7 @@ test_that("adlaplace() fits a nbinom GLMM and methods work", {
   expect_true(all(co[fit$par_info$log %in% TRUE] > 0))
   # rough recovery of the fixed effects (matched by label, order-free)
   beta_labels <- fit$par_info$label[
-    seq_len(nrow(fit$model_data$data$info$beta))
+    seq_len(nrow(fit$model_data$term_data$info$beta))
   ]
   int_label <- grep("intercept", beta_labels, value = TRUE)[1]
   x_label <- setdiff(beta_labels, int_label)[1]
@@ -76,7 +76,7 @@ test_that("adlaplace() with hessian = FALSE has no vcov", {
   fit <- adlaplace(
     nbinom(y, lower = 1e-9, init = 0.15) ~ x + iid(g, init = 0.3),
     data = dat,
-    num_shards = 5L,
+    num_groups = 5L,
     hessian = FALSE,
     control = list(maxit = 50L)
   )

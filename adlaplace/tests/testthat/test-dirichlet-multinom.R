@@ -21,8 +21,8 @@ test_that("model_data attaches elgm_matrix for dirichlet_multinom", {
     na_omit = TRUE,
     verbose = FALSE
   )
-  expect_gt(ncol(md$data$elgm_matrix), 0L)
+  expect_gt(ncol(md$term_data$elgm_matrix), 0L)
   expect_gt(ncol(md$observations$count@elgm_matrix), 0L)
-  expect_identical(md$parameters$count_extra@ad_fun, "dirichlet_multinomial_extra")
+  expect_identical(md$parameters$count_extra@density, "dirichlet_multinomial_extra")
   expect_identical(md$observations$count@package, "adlaplace")
 })

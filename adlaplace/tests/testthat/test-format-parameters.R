@@ -17,7 +17,7 @@ test_that("format_parameters maps full_parameters onto info tables", {
     data = dat,
     verbose = FALSE
   )
-  info <- md$data$info
+  info <- md$term_data$info
   n_beta <- nrow(info$beta)
   n_gamma <- nrow(info$gamma)
   n_theta <- nrow(info$theta)
@@ -51,7 +51,7 @@ test_that("format_parameters matches parameters + gamma input", {
     data = dat,
     verbose = FALSE
   )
-  info <- md$data$info
+  info <- md$term_data$info
   n_beta <- nrow(info$beta)
   n_gamma <- nrow(info$gamma)
   n_theta <- nrow(info$theta)
@@ -73,7 +73,7 @@ test_that("format_parameters matches parameters + gamma input", {
   expect_equal(out_split$gamma$mode, out_full$gamma$mode)
 })
 
-test_that("ad_fun from model_data stores info slot", {
+test_that("ad_pack from model_data stores info slot", {
   skip_if_not_installed("mgcv")
   dat <- mgcv::gamSim(6, n = 80, scale = 0.2, dist = "poisson")
   md <- adlaplace::model_data(
@@ -81,20 +81,20 @@ test_that("ad_fun from model_data stores info slot", {
     data = dat,
     verbose = FALSE
   )
-  af <- adlaplace::ad_fun(
+  af <- adlaplace::ad_pack(
     md,
     config = list(
       transform_theta = TRUE,
-      num_shards = 4L,
+      num_groups = 4L,
       num_threads = 1L,
       verbose = FALSE
     )
   )
   expect_true("info" %in% methods::slotNames(af))
-  expect_equal(af@info, md$data$info)
+  expect_equal(af@info, md$term_data$info)
 })
 
-test_that("ad_fun from ptr has empty info", {
+test_that("ad_pack from ptr has empty info", {
   skip_if_not_installed("mgcv")
   dat <- mgcv::gamSim(6, n = 80, scale = 0.2, dist = "poisson")
   md <- adlaplace::model_data(
@@ -103,15 +103,15 @@ test_that("ad_fun from ptr has empty info", {
     verbose = FALSE
   )
   config <- list(
-    beta = md$data$info$beta$init,
-    theta = md$data$info$theta$init,
-    gamma = rep(0, nrow(md$data$info$gamma)),
+    beta = md$term_data$info$beta$init,
+    theta = md$term_data$info$theta$init,
+    gamma = rep(0, nrow(md$term_data$info$gamma)),
     transform_theta = TRUE,
     verbose = FALSE
   )
-  config$theta <- adlaplace::apply_theta_log(md$data$info$theta, cols = "init")$init
+  config$theta <- adlaplace::apply_theta_log(md$term_data$info$theta, cols = "init")$init
   shards <- unname(c(md$observations, md$random, md$parameters))
-  ptr <- do.call(c, lapply(shards, adlaplace::ad_fun_ptr, config = config))
-  af <- adlaplace::ad_fun(ptr)
+  ptr <- do.call(c, lapply(shards, adlaplace::ad_pack_ptr, config = config))
+  af <- adlaplace::ad_pack(ptr)
   expect_identical(af@info, list())
 })

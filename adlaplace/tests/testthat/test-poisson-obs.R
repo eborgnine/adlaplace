@@ -21,9 +21,9 @@ test_that("poisson_obs matches dpois with an offset", {
     theta = numeric(0),
     transform_theta = TRUE,
     offset = offset,
-    shards = adlaplace::ad_shards(A, num_shards = 3L)
+    obs_groups = adlaplace::obs_groups(A, num_groups = 3L)
   )
-  model <- adlaplace:::ad_data(
+  model <- adlaplace:::density_data(
     y = y,
     A = A,
     X = X,
@@ -31,9 +31,9 @@ test_that("poisson_obs matches dpois with an offset", {
       i = integer(0), j = integer(0), dims = c(0L, 1L)
     ),
     ad_kind = "observations",
-    ad_fun = "poisson_obs"
+    density = "poisson_obs"
   )
-  ptr <- adlaplace::ad_fun_ptr(model, config)
+  ptr <- adlaplace::ad_pack_ptr(model, config)
 
   x <- c(beta, gamma)
   manual <- sum(stats::dpois(y, exp(eta + offset), log = TRUE))
@@ -76,7 +76,7 @@ test_that("poisson_obs without offset and without shards", {
     beta = beta, gamma = gamma, theta = numeric(0),
     transform_theta = TRUE
   )
-  model <- adlaplace:::ad_data(
+  model <- adlaplace:::density_data(
     y = y,
     A = A,
     X = X,
@@ -84,9 +84,9 @@ test_that("poisson_obs without offset and without shards", {
       i = integer(0), j = integer(0), dims = c(0L, 1L)
     ),
     ad_kind = "observations",
-    ad_fun = "poisson_obs"
+    density = "poisson_obs"
   )
-  ptr <- adlaplace::ad_fun_ptr(model, config)
+  ptr <- adlaplace::ad_pack_ptr(model, config)
   expect_equal(
     adlaplace::joint_log_dens(ptr, c(beta, gamma), negative = FALSE),
     sum(stats::dpois(y, exp(eta), log = TRUE)),

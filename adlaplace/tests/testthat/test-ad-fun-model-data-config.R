@@ -1,4 +1,4 @@
-test_that("ad_fun(model_data) keeps user-supplied config beta and theta", {
+test_that("ad_pack(model_data) keeps user-supplied config beta and theta", {
   skip_if_not_installed("adlaplaceExample")
   skip_if_not_installed("sn")
 
@@ -26,16 +26,16 @@ test_that("ad_fun(model_data) keeps user-supplied config beta and theta", {
 
   config_default <- list(
     transform_theta = TRUE,
-    shards = adlaplace::ad_shards(md$data$A, num_shards = 4L),
+    obs_groups = adlaplace::obs_groups(md$term_data$A, num_groups = 4L),
     verbose = FALSE
   )
   config_custom <- modifyList(config_default, list(beta = custom_beta, theta = custom_theta))
 
-  ad_default <- adlaplace::ad_fun(md, config_default, num_threads = 1L)
-  ad_custom <- adlaplace::ad_fun(md, config_custom, num_threads = 1L)
+  ad_default <- adlaplace::ad_pack(md, config_default, num_threads = 1L)
+  ad_custom <- adlaplace::ad_pack(md, config_custom, num_threads = 1L)
 
-  x_default <- c(md$data$info$beta$init, rep(0, nrow(md$data$info$gamma)), md$data$info$theta$init)
-  x_custom <- c(custom_beta, rep(0, nrow(md$data$info$gamma)), custom_theta)
+  x_default <- c(md$term_data$info$beta$init, rep(0, nrow(md$term_data$info$gamma)), md$term_data$info$theta$init)
+  x_custom <- c(custom_beta, rep(0, nrow(md$term_data$info$gamma)), custom_theta)
 
   ld_default <- adlaplace::joint_log_dens(ad_default, x_default, negative = FALSE)
   ld_custom <- adlaplace::joint_log_dens(ad_custom, x_custom, negative = FALSE)

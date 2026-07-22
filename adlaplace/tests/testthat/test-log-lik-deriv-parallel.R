@@ -1,4 +1,4 @@
-test_that("ad_fun assigns threads for multi-shard model", {
+test_that("ad_pack assigns threads for multi-shard model", {
   skip_if_not(adlaplace:::has_openmp(), "OpenMP not available in this build")
   set.seed(0)
   Nobs <- 120L
@@ -14,7 +14,7 @@ test_that("ad_fun assigns threads for multi-shard model", {
     theta = c(-1, -1, -1),
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    shards = adlaplace::ad_shards(Amat, num_shards = 40L),
+    obs_groups = adlaplace::obs_groups(Amat, num_groups = 40L),
     verbose = FALSE,
     package = "adlaplace"
   )
@@ -33,26 +33,26 @@ test_that("ad_fun assigns threads for multi-shard model", {
     Q = rep(1, ncol(Amat))
   )
   ad_ptr <- do.call(c, list(
-    adlaplace::ad_fun_ptr(as_shard(model, "observations", "nbinom_obs"), config),
-    adlaplace::ad_fun_ptr(random_shard, config),
-    adlaplace::ad_fun_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
+    adlaplace::ad_pack_ptr(as_shard(model, "observations", "nbinom_obs"), config),
+    adlaplace::ad_pack_ptr(random_shard, config),
+    adlaplace::ad_pack_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
   ))
   x <- c(config$beta, config$gamma, config$theta)
-  dens_ptr <- adlaplace::clone_ad_fun_ptr(ad_ptr)
+  dens_ptr <- adlaplace::clone_ad_pack_ptr(ad_ptr)
   expect_true(is.finite(adlaplace::joint_log_dens(dens_ptr, x, negative = FALSE)))
-  ad_fun <- adlaplace::ad_fun(ad_ptr, num_threads = 2L)
-  n <- adlaplace:::n_groups(ad_fun@ptr)
+  ad_pack <- adlaplace::ad_pack(ad_ptr, num_threads = 2L)
+  n <- adlaplace:::n_groups(ad_pack@ptr)
   owners <- vapply(seq_len(n) - 1L, function(g) {
-    adlaplace:::get_thread_owner(ad_fun@ptr, g)
+    adlaplace:::get_thread_owner(ad_pack@ptr, g)
   }, integer(1))
   expect_equal(owners, (seq_len(n) - 1L) %% 2L)
   expect_error(
-    adlaplace::joint_log_dens(ad_fun, x, negative = FALSE),
+    adlaplace::joint_log_dens(ad_pack, x, negative = FALSE),
     "serial debug APIs|num_threads"
   )
 })
 
-test_that("log_lik_laplace deriv=TRUE with multi-thread ad_fun", {
+test_that("log_lik_laplace deriv=TRUE with multi-thread ad_pack", {
   skip_if_not(adlaplace:::has_openmp(), "OpenMP not available in this build")
   set.seed(0)
   Nobs <- 120L
@@ -68,7 +68,7 @@ test_that("log_lik_laplace deriv=TRUE with multi-thread ad_fun", {
     theta = c(-1, -1, -1),
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    shards = adlaplace::ad_shards(Amat, num_shards = 40L),
+    obs_groups = adlaplace::obs_groups(Amat, num_groups = 40L),
     verbose = FALSE,
     package = "adlaplace"
   )
@@ -88,17 +88,17 @@ test_that("log_lik_laplace deriv=TRUE with multi-thread ad_fun", {
     Q = rep(1, ncol(Amat))
   )
   ad_ptr <- do.call(c, list(
-    adlaplace::ad_fun_ptr(as_shard(model, "observations", "nbinom_obs"), config),
-    adlaplace::ad_fun_ptr(random_shard, config),
-    adlaplace::ad_fun_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
+    adlaplace::ad_pack_ptr(as_shard(model, "observations", "nbinom_obs"), config),
+    adlaplace::ad_pack_ptr(random_shard, config),
+    adlaplace::ad_pack_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
   ))
-  ad_fun <- adlaplace::ad_fun(ad_ptr, num_threads = 2L)
+  ad_pack <- adlaplace::ad_pack(ad_ptr, num_threads = 2L)
 
   ll_deriv <- adlaplace::log_lik_laplace(
     x = c(config$beta, config$theta),
     config = list(verbose = FALSE),
     gamma = config$gamma,
-    ad_fun = ad_fun,
+    ad_pack = ad_pack,
     control = list(maxit = 6L, report.level = 0, report.freq = 0),
     deriv = TRUE
   )
@@ -118,7 +118,7 @@ test_that("log_lik_laplace deriv=TRUE with serial threads", {
     theta = c(-1, -1),
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    shards = adlaplace::ad_shards(Amat, num_shards = 16L),
+    obs_groups = adlaplace::obs_groups(Amat, num_groups = 16L),
     verbose = FALSE,
     package = "adlaplace"
   )
@@ -138,17 +138,17 @@ test_that("log_lik_laplace deriv=TRUE with serial threads", {
     Q = rep(1, ncol(Amat))
   )
   ad_ptr <- do.call(c, list(
-    adlaplace::ad_fun_ptr(as_shard(model, "observations", "nbinom_obs"), config),
-    adlaplace::ad_fun_ptr(random_shard, config),
-    adlaplace::ad_fun_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
+    adlaplace::ad_pack_ptr(as_shard(model, "observations", "nbinom_obs"), config),
+    adlaplace::ad_pack_ptr(random_shard, config),
+    adlaplace::ad_pack_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
   ))
-  ad_fun <- adlaplace::ad_fun(ad_ptr, num_threads = 1L)
+  ad_pack <- adlaplace::ad_pack(ad_ptr, num_threads = 1L)
 
   ll_deriv <- adlaplace::log_lik_laplace(
     x = c(config$beta, config$theta),
     config = list(verbose = FALSE),
     gamma = config$gamma,
-    ad_fun = ad_fun,
+    ad_pack = ad_pack,
     control = list(maxit = 6L, report.level = 0, report.freq = 0),
     deriv = TRUE
   )
@@ -157,7 +157,7 @@ test_that("log_lik_laplace deriv=TRUE with serial threads", {
   expect_true(all(is.finite(ll_deriv$deriv$d_neg_log_lik)))
 })
 
-test_that("ad_fun_ptr has no thread assignment until ad_fun", {
+test_that("ad_pack_ptr has no thread assignment until ad_pack", {
   skip_if_not(adlaplace:::has_openmp(), "OpenMP not available in this build")
   set.seed(1)
   Nobs <- 60L
@@ -168,7 +168,7 @@ test_that("ad_fun_ptr has no thread assignment until ad_fun", {
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    shards = adlaplace::ad_shards(Amat, num_shards = 20L),
+    obs_groups = adlaplace::obs_groups(Amat, num_groups = 20L),
     verbose = FALSE
   )
   model <- test_ad_data(
@@ -178,16 +178,16 @@ test_that("ad_fun_ptr has no thread assignment until ad_fun", {
     config = config10,
     theta_local_row = 0L
   )
-  ptr_obs <- adlaplace::ad_fun_ptr(as_shard(model, "observations", "nbinom_obs"), config10)
+  ptr_obs <- adlaplace::ad_pack_ptr(as_shard(model, "observations", "nbinom_obs"), config10)
   expect_false(adlaplace:::get_owner_thread_assigned(ptr_obs, 0L))
 
   ptr <- do.call(c, list(
     ptr_obs,
-    adlaplace::ad_fun_ptr(as_shard(model, "parameters", "nbinom_extra"), config10)
+    adlaplace::ad_pack_ptr(as_shard(model, "parameters", "nbinom_extra"), config10)
   ))
   expect_false(adlaplace:::get_owner_thread_assigned(ptr, 0L))
 
-  af <- adlaplace::ad_fun(ptr, num_threads = 2L)
+  af <- adlaplace::ad_pack(ptr, num_threads = 2L)
   n <- adlaplace:::n_groups(af@ptr)
   owners <- vapply(seq_len(n) - 1L, function(g) {
     adlaplace:::get_thread_owner(af@ptr, g)
@@ -198,7 +198,7 @@ test_that("ad_fun_ptr has no thread assignment until ad_fun", {
   }, logical(1))))
 })
 
-test_that("ad_fun(ptr, num_threads = 1L) assigns all shards to thread 0", {
+test_that("ad_pack(ptr, num_threads = 1L) assigns all shards to thread 0", {
   set.seed(2)
   Nobs <- 40L
   X <- Matrix::Matrix(cbind(1, stats::rbinom(Nobs, 1, 0.5)))
@@ -208,7 +208,7 @@ test_that("ad_fun(ptr, num_threads = 1L) assigns all shards to thread 0", {
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    shards = adlaplace::ad_shards(Amat, num_shards = 12L),
+    obs_groups = adlaplace::obs_groups(Amat, num_groups = 12L),
     verbose = FALSE
   )
   model <- test_ad_data(
@@ -218,8 +218,8 @@ test_that("ad_fun(ptr, num_threads = 1L) assigns all shards to thread 0", {
     config = config1,
     theta_local_row = 0L
   )
-  ptr <- adlaplace::ad_fun_ptr(as_shard(model, "observations", "nbinom_obs"), config1)
-  af <- adlaplace::ad_fun(ptr, num_threads = 1L)
+  ptr <- adlaplace::ad_pack_ptr(as_shard(model, "observations", "nbinom_obs"), config1)
+  af <- adlaplace::ad_pack(ptr, num_threads = 1L)
   owners <- vapply(seq_len(adlaplace:::n_groups(af@ptr)) - 1L, function(g) {
     adlaplace:::get_thread_owner(af@ptr, g)
   }, integer(1))
@@ -229,7 +229,7 @@ test_that("ad_fun(ptr, num_threads = 1L) assigns all shards to thread 0", {
     x = c(config1$beta, config1$theta),
     config = list(verbose = FALSE),
     gamma = config1$gamma,
-    ad_fun = af,
+    ad_pack = af,
     control = list(maxit = 5L, report.level = 0, report.freq = 0),
     deriv = TRUE
   )

@@ -1,9 +1,9 @@
 #include <Rcpp.h>
 #include <Rinternals.h>
 
-#include "adlaplace/ad_data.hpp"
-#include "adlaplace/adfun.hpp"
-#include "adlaplace/adfun_random.hpp"
+#include "adlaplace/density_data.hpp"
+#include "adlaplace/ad_pack.hpp"
+#include "adlaplace/ad_pack_random.hpp"
 #include "adlaplace/atomics.hpp"
 #include "adlaplace/register.hpp"
 #include "adlaplace/rviews.hpp"
@@ -13,13 +13,13 @@
 #include <utility>
 #include <vector>
 
-extern adlaplace_shard *adlaplace_make_shard(GroupPack &&);
+extern ad_shard *adlaplace_make_ad_shard(AdTape &&);
 
 namespace {
 
 CppAD::vector<CppAD::AD<double>>
 random_diagonal_impl(const CppAD::vector<CppAD::AD<double>> &x,
-                     const ad_data &model, const NumVecView &Q,
+                     const density_data &model, const NumVecView &Q,
                      const std::vector<std::size_t> &gamma_indices,
                      const Config &config) {
 
@@ -67,7 +67,7 @@ random_diagonal_impl(const CppAD::vector<CppAD::AD<double>> &x,
 }
 
 CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)>
-random_diagonal_sparsity(const ad_data &model) {
+random_diagonal_sparsity(const density_data &model) {
 
   const std::vector<std::size_t> gamma_indices =
       model.all_gamma_global_indices();
@@ -89,7 +89,7 @@ random_diagonal_sparsity(const ad_data &model) {
 }
 
 CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)>
-random_mult_sparsity(const ad_data &model) {
+random_mult_sparsity(const density_data &model) {
 
   const DgCView Q = model.mult_precision_Q();
   const std::size_t theta_index = model.theta_index(0);
@@ -139,7 +139,7 @@ random_mult_sparsity(const ad_data &model) {
 } // namespace
 
 CppAD::vector<CppAD::AD<double>>
-random_diagonal(const CppAD::vector<CppAD::AD<double>> &x, const ad_data &model,
+random_diagonal(const CppAD::vector<CppAD::AD<double>> &x, const density_data &model,
                 const Config &config) {
 
   if (Rf_isNull(model.precision)) {
@@ -152,7 +152,7 @@ random_diagonal(const CppAD::vector<CppAD::AD<double>> &x, const ad_data &model,
 }
 
 CppAD::vector<CppAD::AD<double>>
-random_mult(const CppAD::vector<CppAD::AD<double>> &x, const ad_data &model,
+random_mult(const CppAD::vector<CppAD::AD<double>> &x, const density_data &model,
             const Config &config) {
 
   const DgCView Q = model.mult_precision_Q();
@@ -211,40 +211,40 @@ random_mult(const CppAD::vector<CppAD::AD<double>> &x, const ad_data &model,
 
 //' Build raw AD handle for a random_diagonal shard
 //'
-//' @param model An \code{ad_data} S4 object with \code{precision} slot set.
+//' @param model An \code{density_data} S4 object with \code{precision} slot set.
 //' @param config Model configuration list.
-//' @return External pointer of class \code{ad_fun_ptr}.
+//' @return External pointer of class \code{ad_pack_ptr}.
 //' @keywords internal
 // [[Rcpp::export]]
-SEXP create_ad_fun_random_diagonal(SEXP model, Rcpp::List config) {
-  const ad_data ad_model(model);
+SEXP create_ad_shard_random_diagonal(SEXP model, Rcpp::List config) {
+  const density_data ad_model(model);
   CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> hes_pat =
       random_diagonal_sparsity(ad_model);
-  GroupPack pack =
+  AdTape pack =
       build_ad_fun_random(ad_model, config, random_diagonal, hes_pat);
-  std::vector<GroupPack> packs;
+  std::vector<AdTape> packs;
   packs.push_back(std::move(pack));
-  ad_fun *groups = packs_to_ad_fun(std::move(packs), ad_model.num_beta,
-                                   ad_model.num_theta, adlaplace_make_shard);
-  return make_ad_fun_ptr(groups);
+  ad_pack *groups = packs_to_ad_fun(std::move(packs), ad_model.num_beta,
+                                   ad_model.num_theta, adlaplace_make_ad_shard);
+  return make_ad_pack_ptr(groups);
 }
 
 //' Build raw AD handle for a random_mult shard
 //'
-//' @param model An \code{ad_data} S4 object with \code{precision} slot set.
+//' @param model An \code{density_data} S4 object with \code{precision} slot set.
 //' @param config Model configuration list.
-//' @return External pointer of class \code{ad_fun_ptr}.
+//' @return External pointer of class \code{ad_pack_ptr}.
 //' @keywords internal
 // [[Rcpp::export]]
-SEXP create_ad_fun_random_mult(SEXP model, Rcpp::List config) {
-  const ad_data ad_model(model);
+SEXP create_ad_shard_random_mult(SEXP model, Rcpp::List config) {
+  const density_data ad_model(model);
   CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> hes_pat =
       random_mult_sparsity(ad_model);
-  GroupPack pack =
+  AdTape pack =
       build_ad_fun_random(ad_model, config, random_mult, hes_pat);
-  std::vector<GroupPack> packs;
+  std::vector<AdTape> packs;
   packs.push_back(std::move(pack));
-  ad_fun *groups = packs_to_ad_fun(std::move(packs), ad_model.num_beta,
-                                   ad_model.num_theta, adlaplace_make_shard);
-  return make_ad_fun_ptr(groups);
+  ad_pack *groups = packs_to_ad_fun(std::move(packs), ad_model.num_beta,
+                                   ad_model.num_theta, adlaplace_make_ad_shard);
+  return make_ad_pack_ptr(groups);
 }

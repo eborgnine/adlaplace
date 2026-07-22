@@ -48,7 +48,7 @@ Scale \code{omega} uses \code{log = TRUE} (log scale when
 \section{Slots (inherited from \code{model})}{
 
 \describe{
-\item{\code{ad_fun}}{Character scalar \code{"skewnormal_obs"}.}
+\item{\code{ad_pack}}{Character scalar \code{"skewnormal_obs"}.}
 \item{\code{ad_kind}}{Character scalar \code{"observations"}.}
 \item{\code{package}}{Character scalar \code{"adlaplaceExample"}.}
 }

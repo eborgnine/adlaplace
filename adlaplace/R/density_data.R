@@ -1,9 +1,9 @@
 #' @include classes.R
 NULL
 
-#' Parameter-block row counts for an \code{ad_data}
+#' Parameter-block row counts for an \code{density_data}
 #'
-#' @param x An \code{ad_data} object.
+#' @param x An \code{density_data} object.
 #' @param ... Unused; for S4 generic compatibility.
 #' @return Named list with \code{n_beta}, \code{n_gamma}, and \code{n_theta}.
 #' @export
@@ -11,7 +11,7 @@ setGeneric("sizes", function(x, ...) standardGeneric("sizes"))
 
 #' @rdname sizes
 #' @export
-setMethod("sizes", "ad_data", function(x) {
+setMethod("sizes", "density_data", function(x) {
   list(
     n_beta = nrow(x@beta_map),
     n_gamma = nrow(x@gamma_map),
@@ -20,7 +20,7 @@ setMethod("sizes", "ad_data", function(x) {
 })
 
 #' @keywords internal
-validate_ad_data_dims <- function(y, A, X) {
+validate_density_data_dims <- function(y, A, X) {
   n_obs <- length(y)
   if (n_obs == 0L) {
     if (!is.null(A) && (nrow(A) != 0L || ncol(A) != 0L)) {
@@ -41,7 +41,7 @@ validate_ad_data_dims <- function(y, A, X) {
 }
 
 #' @keywords internal
-validate_ad_data_maps <- function(data, kind) {
+validate_density_data_maps <- function(data, kind) {
   layout <- sizes(data)
   if (identical(kind, "parameters")) {
     if (layout$n_theta == 0L || ncol(data@theta_map) == 0L) {
@@ -56,7 +56,7 @@ validate_ad_data_maps <- function(data, kind) {
     }
   } else if (identical(kind, "observations")) {
     if (length(data@y) == 0L) {
-      stop("observation shards require non-empty y on ad_data")
+      stop("observation shards require non-empty y on density_data")
     }
   }
   invisible(layout)
@@ -84,17 +84,17 @@ resolve_gamma_start <- function(config, cache = NULL, num_gamma, gamma = missing
   rep(0, num_gamma)
 }
 
-#' Fill missing \code{config$gamma} before \code{ad_fun_ptr()} tape build.
+#' Fill missing \code{config$gamma} before \code{ad_pack_ptr()} tape build.
 #' @keywords internal
 normalize_config_for_ptr <- function(config, data, kind = NULL) {
   layout <- sizes(data)
   if (identical(kind, "random")) {
     return(config)
   }
-  if (identical(kind, "observations") && is.null(config[["shards"]])) {
+  if (identical(kind, "observations") && is.null(config[["obs_groups"]])) {
     n_obs <- length(data@y)
     if (n_obs > 0L) {
-      config$shards <- default_obs_shards(n_obs)
+      config$obs_groups <- default_obs_groups(n_obs)
     }
   }
   if (is.null(config[["beta"]])) {
@@ -351,12 +351,12 @@ design_Tp <- function(M, n_obs, what = "M") {
   as_dgC(Matrix::t(M))
 }
 
-#' Build \code{ad_data} from designs and \code{config} layout sizes.
+#' Build \code{density_data} from designs and \code{config} layout sizes.
 #'
 #' Used by examples with a plain data list (\code{y}, \code{A}, \code{X}).
 #'
 #' @keywords internal
-ad_data_from_config_matrices <- function(y, A, X, config, theta_local_row = 0L) {
+density_data_from_config_matrices <- function(y, A, X, config, theta_local_row = 0L) {
   n_gamma <- if (!is.null(config[["gamma"]])) {
     length(config[["gamma"]])
   } else if (!is.null(A) && ncol(A) > 0L) {
@@ -386,7 +386,7 @@ ad_data_from_config_matrices <- function(y, A, X, config, theta_local_row = 0L) 
   } else {
     NULL
   }
-  ad_data(
+  density_data(
     y = y,
     A = A,
     X = X,
@@ -396,26 +396,26 @@ ad_data_from_config_matrices <- function(y, A, X, config, theta_local_row = 0L) 
 }
 
 #' @keywords internal
-ad_data_from_mats <- function(y = numeric(0),
+density_data_from_mats <- function(y = numeric(0),
                               A = NULL,
                               X = NULL,
                               beta_map = NULL,
                               gamma_map = NULL,
                               theta_map = NULL,
                               elgm_matrix = NULL,
-                              ad_fun = NA_character_,
+                              density = NA_character_,
                               ad_kind = NA_character_,
                               package = NA_character_,
                               precision = NULL,
                               weights = numeric(0)) {
   n_obs <- length(y)
-  validate_ad_data_dims(y, A, X)
+  validate_density_data_dims(y, A, X)
   ATp <- design_Tp(A, n_obs, "A")
   XTp <- design_Tp(X, n_obs, "X")
-  if (length(ad_fun) != 1L || is.na(ad_fun) || !nzchar(ad_fun)) {
-    ad_fun <- NA_character_
+  if (length(density) != 1L || is.na(density) || !nzchar(density)) {
+    density <- NA_character_
   } else {
-    ad_fun <- as.character(ad_fun)
+    density <- as.character(density)
   }
   if (length(ad_kind) != 1L || is.na(ad_kind) || !nzchar(ad_kind)) {
     ad_kind <- NA_character_
@@ -423,7 +423,7 @@ ad_data_from_mats <- function(y = numeric(0),
     ad_kind <- as.character(ad_kind)
   }
   if (length(package) != 1L || is.na(package) || !nzchar(package)) {
-    if (!is.na(ad_kind) && nzchar(ad_kind) && !is.na(ad_fun) && nzchar(ad_fun)) {
+    if (!is.na(ad_kind) && nzchar(ad_kind) && !is.na(density) && nzchar(density)) {
       package <- "adlaplace"
     } else {
       package <- NA_character_
@@ -478,7 +478,7 @@ ad_data_from_mats <- function(y = numeric(0),
     )
   }
   methods::new(
-    "ad_data",
+    "density_data",
     y = as.numeric(y),
     ATp = ATp,
     XTp = XTp,
@@ -486,7 +486,7 @@ ad_data_from_mats <- function(y = numeric(0),
     gamma_map = gamma_map,
     theta_map = theta_map,
     elgm_matrix = elgm_matrix,
-    ad_fun = ad_fun,
+    density = density,
     ad_kind = ad_kind,
     package = package,
     precision = precision,
@@ -495,9 +495,9 @@ ad_data_from_mats <- function(y = numeric(0),
 }
 
 #' @include classes.R
-#' @describeIn data_setup Construct an ad_data object
+#' @describeIn density_data Construct a density_data object
 #'
-#' @param y Response vector (default empty), or an existing \code{ad_data} object
+#' @param y Response vector (default empty), or an existing \code{density_data} object
 #'   to recast as another shard.
 #' @param A Random-effects design matrix (\code{nrow(A) = length(y)}; any
 #'   \code{Matrix} class).
@@ -528,27 +528,27 @@ ad_data_from_mats <- function(y = numeric(0),
 #'   \code{j}. If \code{NULL}, defaults to an empty matrix.
 #' @param elgm_matrix Optional ELGM map (any \code{Matrix}; coerced to
 #'   \code{ngCMatrix}). If \code{NULL}, defaults to \code{Matrix::Matrix(nrow = length(y), ncol = 0)}.
-#' @param ad_fun Registered AD density name for this shard (optional).
+#' @param density Registered AD density name for this shard (optional).
 #' @param ad_kind Shard kind (\code{"observations"}, \code{"parameters"}, \code{"random"}; optional).
 #' @param package Package recording AD tapes for this shard (optional).
 #' @param precision Optional precision payload (any R object).
 #' @param weights Optional per-observation weights (e.g. binomial trial counts).
 #'   Empty means all ones.
 #' @export
-ad_data <- function(y = missing(),
+density_data <- function(y = missing(),
                     A = NULL,
                     X = NULL,
                     beta_map = NULL,
                     gamma_map = NULL,
                     theta_map = NULL,
                     elgm_matrix = NULL,
-                    ad_fun = NA_character_,
+                    density = NA_character_,
                     ad_kind = NA_character_,
                     package = NA_character_,
                     precision = NULL,
                     weights = numeric(0)) {
   if (missing(y)) {
-    return(ad_data_from_mats(
+    return(density_data_from_mats(
       y = numeric(0),
       A = A,
       X = X,
@@ -556,33 +556,33 @@ ad_data <- function(y = missing(),
       gamma_map = gamma_map,
       theta_map = theta_map,
       elgm_matrix = elgm_matrix,
-      ad_fun = ad_fun,
+      density = density,
       ad_kind = ad_kind,
       package = package,
       precision = precision,
       weights = weights
     ))
   }
-  if (is(y, "ad_data")) {
-    if (missing(ad_kind) && missing(ad_fun) && missing(package)) {
+  if (is(y, "density_data")) {
+    if (missing(ad_kind) && missing(density) && missing(package)) {
       stop(
-        "recasting ad_data requires ad_kind, ad_fun, and/or package",
+        "recasting density_data requires ad_kind, density, and/or package",
         call. = FALSE
       )
     }
     kind <- if (missing(ad_kind)) y@ad_kind else as.character(ad_kind)
-    fun <- if (missing(ad_fun)) y@ad_fun else as.character(ad_fun)
+    fun <- if (missing(density)) y@density else as.character(density)
     if (length(kind) != 1L || is.na(kind) || !nzchar(kind)) {
       stop("ad_kind must be a non-empty string", call. = FALSE)
     }
     if (length(fun) != 1L || is.na(fun) || !nzchar(fun)) {
-      stop("ad_fun must be a non-empty string", call. = FALSE)
+      stop("density must be a non-empty string", call. = FALSE)
     }
     pkg <- if (missing(package)) y@package else as.character(package)
     prec <- if (missing(precision)) y@precision else precision
     wts <- if (missing(weights)) y@weights else as.numeric(weights)
     out <- methods::new(
-      "ad_data",
+      "density_data",
       y = y@y,
       ATp = y@ATp,
       XTp = y@XTp,
@@ -590,16 +590,16 @@ ad_data <- function(y = missing(),
       gamma_map = y@gamma_map,
       theta_map = y@theta_map,
       elgm_matrix = y@elgm_matrix,
-      ad_fun = fun,
+      density = fun,
       ad_kind = kind,
       package = pkg,
       precision = prec,
       weights = wts
     )
-    validate_ad_data_maps(out, kind)
+    validate_density_data_maps(out, kind)
     return(out)
   }
-  ad_data_from_mats(
+  density_data_from_mats(
     y = y,
     A = A,
     X = X,
@@ -607,7 +607,7 @@ ad_data <- function(y = missing(),
     gamma_map = gamma_map,
     theta_map = theta_map,
     elgm_matrix = elgm_matrix,
-    ad_fun = ad_fun,
+    density = density,
     ad_kind = ad_kind,
     package = package,
     precision = precision,

@@ -1,4 +1,4 @@
-test_that("ad_fun chol_inner_list includes trace_columns", {
+test_that("ad_pack chol_inner_list includes trace_columns", {
   set.seed(2)
   Nobs <- 20L
   X <- Matrix::Matrix(cbind(1, rbinom(Nobs, 1, prob = 0.5)))
@@ -12,7 +12,7 @@ test_that("ad_fun chol_inner_list includes trace_columns", {
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    shards = adlaplace::ad_shards(Amat, num_shards = 4L),
+    obs_groups = adlaplace::obs_groups(Amat, num_groups = 4L),
     num_threads = 1L,
     verbose = FALSE
   )
@@ -30,11 +30,11 @@ test_that("ad_fun chol_inner_list includes trace_columns", {
     Q = rep(1, ncol(Amat))
   )
   ad_ptr <- do.call(c, list(
-    adlaplace::ad_fun_ptr(as_shard(model, "observations", "nbinom_obs"), config),
-    adlaplace::ad_fun_ptr(random_shard, config),
-    adlaplace::ad_fun_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
+    adlaplace::ad_pack_ptr(as_shard(model, "observations", "nbinom_obs"), config),
+    adlaplace::ad_pack_ptr(random_shard, config),
+    adlaplace::ad_pack_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
   ))
-  af <- adlaplace::ad_fun(ad_ptr, num_threads = 1L)
+  af <- adlaplace::ad_pack(ad_ptr, num_threads = 1L)
   cil <- af@chol_inner_list
   n_gamma <- af@sizes["gamma"]
   n_groups <- adlaplace:::n_groups(af@ptr)
@@ -58,7 +58,7 @@ test_that("trace_columns matches legacy log_lik_deriv column builder", {
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    shards = adlaplace::ad_shards(Amat, num_shards = 8L),
+    obs_groups = adlaplace::obs_groups(Amat, num_groups = 8L),
     num_threads = 1L,
     verbose = FALSE
   )
@@ -76,11 +76,11 @@ test_that("trace_columns matches legacy log_lik_deriv column builder", {
     Q = rep(1, ncol(Amat))
   )
   ad_ptr <- do.call(c, list(
-    adlaplace::ad_fun_ptr(as_shard(model, "observations", "nbinom_obs"), config),
-    adlaplace::ad_fun_ptr(random_shard, config),
-    adlaplace::ad_fun_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
+    adlaplace::ad_pack_ptr(as_shard(model, "observations", "nbinom_obs"), config),
+    adlaplace::ad_pack_ptr(random_shard, config),
+    adlaplace::ad_pack_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
   ))
-  af <- adlaplace::ad_fun(ad_ptr, num_threads = 1L)
+  af <- adlaplace::ad_pack(ad_ptr, num_threads = 1L)
   n_beta <- af@sizes["beta"]
   n_gamma <- af@sizes["gamma"]
 
@@ -107,7 +107,7 @@ test_that("inner_opt trace3 matches standalone trace_hinv_t", {
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    shards = adlaplace::ad_shards(Amat, num_shards = 4L),
+    obs_groups = adlaplace::obs_groups(Amat, num_groups = 4L),
     num_threads = 1L,
     verbose = FALSE
   )
@@ -125,16 +125,16 @@ test_that("inner_opt trace3 matches standalone trace_hinv_t", {
     Q = rep(1, ncol(Amat))
   )
   ad_ptr <- do.call(c, list(
-    adlaplace::ad_fun_ptr(as_shard(model, "observations", "nbinom_obs"), config),
-    adlaplace::ad_fun_ptr(random_shard, config),
-    adlaplace::ad_fun_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
+    adlaplace::ad_pack_ptr(as_shard(model, "observations", "nbinom_obs"), config),
+    adlaplace::ad_pack_ptr(random_shard, config),
+    adlaplace::ad_pack_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
   ))
-  af <- adlaplace::ad_fun(ad_ptr, num_threads = 1L)
+  af <- adlaplace::ad_pack(ad_ptr, num_threads = 1L)
 
   io <- adlaplace::inner_opt(
     parameters = c(config$beta, config$theta),
     gamma = config$gamma,
-    ad_fun = af,
+    ad_pack = af,
     control = list(maxit = 5L, report.level = 0, report.freq = 0),
     deriv = TRUE,
     verbose = FALSE
@@ -143,7 +143,7 @@ test_that("inner_opt trace3 matches standalone trace_hinv_t", {
   expect_true(all(is.finite(io$hessian$trace3)))
 
   legacy <- adlaplace::trace_hinv_t(
-    ad_fun = af,
+    ad_pack = af,
     x = io$full_parameters,
     LinvPt = io$hessian$half_H_inv,
     LinvPtColumns = af@chol_inner_list$trace_columns,
@@ -166,7 +166,7 @@ test_that("log_lik_laplace deriv uses trace from inner_opt", {
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    shards = adlaplace::ad_shards(Amat, num_shards = 8L),
+    obs_groups = adlaplace::obs_groups(Amat, num_groups = 8L),
     num_threads = 1L,
     verbose = FALSE
   )
@@ -184,18 +184,18 @@ test_that("log_lik_laplace deriv uses trace from inner_opt", {
     Q = rep(1, ncol(Amat))
   )
   ad_ptr <- do.call(c, list(
-    adlaplace::ad_fun_ptr(as_shard(model, "observations", "nbinom_obs"), config),
-    adlaplace::ad_fun_ptr(random_shard, config),
-    adlaplace::ad_fun_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
+    adlaplace::ad_pack_ptr(as_shard(model, "observations", "nbinom_obs"), config),
+    adlaplace::ad_pack_ptr(random_shard, config),
+    adlaplace::ad_pack_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
   ))
-  af <- adlaplace::ad_fun(ad_ptr, num_threads = 1L)
+  af <- adlaplace::ad_pack(ad_ptr, num_threads = 1L)
   x <- c(config$beta, config$gamma, config$theta)
 
   ll <- adlaplace::log_lik_laplace(
     x = c(config$beta, config$theta),
     config = config,
     gamma = config$gamma,
-    ad_fun = af,
+    ad_pack = af,
     control = list(maxit = 5L, report.level = 0, report.freq = 0),
     deriv = TRUE
   )

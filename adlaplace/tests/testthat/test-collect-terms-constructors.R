@@ -21,7 +21,7 @@ test_that("constructor formulas parse via collect_terms", {
       methods::is(x, "nbinom")
     }, logical(1L)))
     expect_length(nbinom_idx, 1L)
-    expect_equal(terms[[nbinom_idx]]@ad_fun, "nbinom_obs")
+    expect_equal(terms[[nbinom_idx]]@density, "nbinom_obs")
     expect_equal(terms[[nbinom_idx]]@lower, 1e-9)
   })
 })

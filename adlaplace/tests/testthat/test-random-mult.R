@@ -10,13 +10,13 @@ test_that("random_mult matches the dense GMRF log density", {
   Q <- methods::as(methods::as(Q, "generalMatrix"), "CsparseMatrix")
   log_det <- as.numeric(Matrix::determinant(Q, logarithm = TRUE)$modulus)
 
-  model <- adlaplace:::ad_data(
+  model <- adlaplace:::density_data(
     gamma_map = Matrix::sparseMatrix(
       i = seq_len(nr), j = seq_len(nr), x = 1, dims = c(nr, nr)
     ),
     theta_map = c(1L, 1L),
     ad_kind = "random",
-    ad_fun = "random_mult",
+    density = "random_mult",
     precision = list(Q = Q, log_det = log_det, rank = nr)
   )
   log_sd <- log(0.7)
@@ -25,7 +25,7 @@ test_that("random_mult matches the dense GMRF log density", {
     theta = log_sd,
     transform_theta = TRUE
   )
-  ptr <- adlaplace::ad_fun_ptr(model, config)
+  ptr <- adlaplace::ad_pack_ptr(model, config)
 
   u <- rnorm(nr)
   x <- c(u, log_sd)
@@ -71,18 +71,18 @@ test_that("random_mult handles an intrinsic (rank-deficient) structure matrix", 
     "CsparseMatrix"
   )
 
-  model <- adlaplace:::ad_data(
+  model <- adlaplace:::density_data(
     gamma_map = Matrix::sparseMatrix(
       i = seq_len(nr), j = seq_len(nr), x = 1, dims = c(nr, nr)
     ),
     theta_map = c(1L, 1L),
     ad_kind = "random",
-    ad_fun = "random_mult",
+    density = "random_mult",
     precision = list(Q = Q, log_det = log_det_gen, rank = nr - 1L)
   )
   log_sd <- log(1.3)
   config <- list(gamma = rep(0, nr), theta = log_sd, transform_theta = TRUE)
-  ptr <- adlaplace::ad_fun_ptr(model, config)
+  ptr <- adlaplace::ad_pack_ptr(model, config)
 
   set.seed(3)
   u <- rnorm(nr)
@@ -114,27 +114,27 @@ test_that("random_mult rejects malformed precision payloads", {
   )
   config <- list(gamma = rep(0, nr), theta = 0, transform_theta = TRUE)
 
-  model_no_q <- adlaplace:::ad_data(
+  model_no_q <- adlaplace:::density_data(
     gamma_map = gamma_map,
     theta_map = c(1L, 1L),
     ad_kind = "random",
-    ad_fun = "random_mult",
+    density = "random_mult",
     precision = list(log_det = 0, rank = nr)
   )
   expect_error(
-    adlaplace::ad_fun_ptr(model_no_q, config),
+    adlaplace::ad_pack_ptr(model_no_q, config),
     "must contain Q"
   )
 
-  model_vec <- adlaplace:::ad_data(
+  model_vec <- adlaplace:::density_data(
     gamma_map = gamma_map,
     theta_map = c(1L, 1L),
     ad_kind = "random",
-    ad_fun = "random_mult",
+    density = "random_mult",
     precision = rep(1, nr)
   )
   expect_error(
-    adlaplace::ad_fun_ptr(model_vec, config),
+    adlaplace::ad_pack_ptr(model_vec, config),
     "list"
   )
 })

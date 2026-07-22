@@ -9,7 +9,7 @@ adlaplace(
   data,
   config = list(),
   num_threads = 1L,
-  num_shards = 100L,
+  num_groups = 100L,
   control = list(),
   control_inner = list(maxit = 100L, report.level = 0, report.freq = 0),
   method = "L-BFGS-B",
@@ -29,14 +29,14 @@ Not needed when \code{formula} is already a \code{model_data} result.}
 
 \item{config}{List of backend options merged over the defaults
 \code{list(transform_theta = TRUE, verbose = verbose)}. When
-\code{config$shards} is missing it is filled by
-\code{ad_shards(A, num_shards = num_shards)}, or with
+\code{config$obs_groups} is missing it is filled by
+\code{obs_groups(A, num_groups = num_groups)}, or with
 \code{elgm_matrix} when the model data includes one (e.g. case-crossover).}
 
 \item{num_threads}{Positive integer, OpenMP thread count for the AD handle.}
 
-\item{num_shards}{Target number of observation shards for
-\code{\link{ad_shards}()}.}
+\item{num_groups}{Target number of observation shards for
+\code{\link{obs_groups}()}.}
 
 \item{control}{List of \code{\link[stats]{optim}} control options, merged
 over the defaults \code{list(maxit = 200L, parscale = <from terms>)}.}
@@ -68,14 +68,14 @@ An object of class \code{"adlaplace_fit"}: a list with components
   \item{details}{Laplace evaluation at the optimum, including
     \code{outer_opt}, \code{inner_opt}, \code{vcov}, \code{log_lik},
     \code{gradient}, and \code{hessian}.}
-  \item{model_data, ad_fun, config, cache}{Objects needed by the accessor
+  \item{model_data, ad_pack, config, cache}{Objects needed by the accessor
     methods and for warm restarts.}
 }
 }
 \description{
 One-call interface to the \pkg{adlaplace} pipeline: parse the formula with
 \code{\link{model_data}()}, partition observations into AD shards with
-\code{\link{ad_shards}()}, build the AD handle with \code{\link{ad_fun}()},
+\code{\link{obs_groups}()}, build the AD handle with \code{\link{ad_pack}()},
 maximize the Laplace-approximate marginal likelihood with
 \code{\link[stats]{optim}()} using the exact profile gradient
 (\code{\link{outer_fn}} / \code{\link{outer_gr}}), and return a fitted-model

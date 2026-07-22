@@ -7,7 +7,7 @@
 get_owner_thread_assigned(handle, group)
 }
 \arguments{
-\item{handle}{External pointer of class \code{ad_fun_ptr}.}
+\item{handle}{External pointer of class \code{ad_pack_ptr}.}
 
 \item{group}{0-based group index.}
 }

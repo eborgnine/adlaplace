@@ -12,7 +12,7 @@ A list with:
   \item{region}{District index (length 544).}
   \item{adj}{District adjacency matrix (\code{dgCMatrix}, 544 x 544).}
   \item{Q_scaled}{Scaled ICAR precision (\code{dgCMatrix}).}
-  \item{prec}{List passed to \code{ad_fun = "random_mult"}: \code{Q},
+  \item{prec}{List passed to \code{density = "random_mult"}: \code{Q},
     \code{log_det}, and \code{rank}.}
 }
 }

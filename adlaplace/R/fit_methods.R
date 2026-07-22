@@ -115,16 +115,16 @@ confint.adlaplace_fit <- function(
 #' @rdname adlaplace_fit-methods
 #' @export
 fitted.adlaplace_fit <- function(object, ...) {
-  info <- object$model_data$data$info
+  info <- object$model_data$term_data$info
   n_beta <- max(c(0L, nrow(info$beta)))
   eta <- rep(0, object$nobs)
   if (n_beta > 0L) {
     eta <- eta + as.vector(
-      object$model_data$data$X %*%
+      object$model_data$term_data$X %*%
         object$par_info$mle_internal[seq_len(n_beta)]
     )
   }
-  A <- object$model_data$data$A
+  A <- object$model_data$term_data$A
   if (!is.null(A) && ncol(A) > 0L) {
     eta <- eta + as.vector(A %*% object$gamma)
   }
@@ -245,12 +245,12 @@ print.summary.adlaplace_fit <- function(
 #' @export
 plot.adlaplace_fit <- function(x, k = 200L, draws = 100L, ...) {
   smooth_terms <- Filter(
-    function(tt) methods::is(tt, "model") && length(tt@knots) > 1L,
+    function(tt) methods::is(tt, "model_term") && length(tt@knots) > 1L,
     x$model_data$terms
   )
   if (length(smooth_terms) > 0L) {
     for (tt in smooth_terms) {
-      v <- tt@term
+      v <- tt@name
       rng <- range(tt@knots)
       newx <- data.frame(seq(rng[1], rng[2], length.out = k))
       names(newx) <- v

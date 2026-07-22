@@ -9,7 +9,7 @@ test_that("sim_random works for iwp + rpoly terms", {
   fit <- adlaplace(
     y ~ 0 + iwp(x, p = 2, knots = seq(0, 1, by = 0.2), init = 0.2),
     data = dat,
-    num_shards = 4L,
+    num_groups = 4L,
     control = list(maxit = 60L),
     verbose = FALSE
   )
@@ -44,7 +44,7 @@ test_that("sim_random works for iid terms", {
   fit <- adlaplace(
     nbinom(y, lower = 1e-9, init = 0.15) ~ x + iid(g, init = 0.3),
     data = dat,
-    num_shards = 4L,
+    num_groups = 4L,
     control = list(maxit = 60L),
     verbose = FALSE
   )
@@ -68,7 +68,7 @@ test_that("sim_random errors for unknown variable", {
   fit <- adlaplace(
     nbinom(y, lower = 1e-9, init = 0.15) ~ x + iid(g, init = 0.3),
     data = dat,
-    num_shards = 3L,
+    num_groups = 3L,
     control = list(maxit = 40L),
     verbose = FALSE
   )

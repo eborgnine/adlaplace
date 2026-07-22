@@ -8,13 +8,13 @@
 \alias{beta_info}
 \alias{random_info}
 \alias{elgm_matrix}
-\alias{design,model-method}
-\alias{precision,model-method}
-\alias{theta_info,model-method}
-\alias{beta_info,model-method}
-\alias{random_info,model-method}
-\alias{extra_ad_fun}
-\alias{extra_ad_fun,model-method}
+\alias{design,model_term-method}
+\alias{precision,model_term-method}
+\alias{theta_info,model_term-method}
+\alias{beta_info,model_term-method}
+\alias{random_info,model_term-method}
+\alias{extra_density}
+\alias{extra_density,model_term-method}
 \title{Model Term Generics}
 \usage{
 design(term, data)
@@ -29,19 +29,19 @@ random_info(term, data)
 
 elgm_matrix(term, data)
 
-\S4method{design}{model}(term, data)
+\S4method{design}{model_term}(term, data)
 
-\S4method{precision}{model}(term, data)
+\S4method{precision}{model_term}(term, data)
 
-\S4method{theta_info}{model}(term)
+\S4method{theta_info}{model_term}(term)
 
-\S4method{beta_info}{model}(term, data)
+\S4method{beta_info}{model_term}(term, data)
 
-\S4method{random_info}{model}(term, data)
+\S4method{random_info}{model_term}(term, data)
 
-extra_ad_fun(term)
+extra_density(term)
 
-\S4method{extra_ad_fun}{model}(term)
+\S4method{extra_density}{model_term}(term)
 }
 \arguments{
 \item{term}{A model term object.}

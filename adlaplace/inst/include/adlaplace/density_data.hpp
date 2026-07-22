@@ -7,7 +7,7 @@
 #include <vector>
 #include <cstddef>
 
-struct ad_data {
+struct density_data {
   DgCView beta_map;
   DgCView gamma_map;
   DgCView theta_map;
@@ -33,7 +33,7 @@ struct ad_data {
   // Global parameter indices for gamma (beta + 0..num_gamma-1).
   std::vector<int> seq_gamma;
 
-  explicit ad_data(SEXP data_sexp);
+  explicit density_data(SEXP data_sexp);
 
   std::size_t theta_index(int col = 0) const;
   std::vector<std::size_t> gamma_global_indices(int col = 0) const;
@@ -98,9 +98,9 @@ inline std::vector<std::size_t> build_map_global_lookup(
 
 }  // namespace adlaplace_detail
 
-inline ad_data::ad_data(SEXP data_sexp) {
-  if (!Rf_inherits(data_sexp, "ad_data")) {
-    Rcpp::stop("expected S4 object of class ad_data");
+inline density_data::density_data(SEXP data_sexp) {
+  if (!Rf_inherits(data_sexp, "density_data")) {
+    Rcpp::stop("expected S4 object of class density_data");
   }
 
   beta_map = DgCView(Rcpp::as<Rcpp::S4>(ad_data_slot(data_sexp, "beta_map")));
@@ -166,14 +166,14 @@ inline ad_data::ad_data(SEXP data_sexp) {
   }
 }
 
-inline std::size_t ad_data::theta_index(int col) const {
+inline std::size_t density_data::theta_index(int col) const {
   if (col < 0 || col >= static_cast<int>(theta_global.size())) {
     return num_beta + num_gamma;
   }
   return theta_global[static_cast<std::size_t>(col)];
 }
 
-inline std::vector<std::size_t> ad_data::gamma_global_indices(int col) const {
+inline std::vector<std::size_t> density_data::gamma_global_indices(int col) const {
   std::vector<std::size_t> out;
   if (col < 0 || col >= static_cast<int>(gamma_global.size())) {
     return out;
@@ -186,7 +186,7 @@ inline std::vector<std::size_t> ad_data::gamma_global_indices(int col) const {
   return out;
 }
 
-inline std::vector<std::size_t> ad_data::all_gamma_global_indices() const {
+inline std::vector<std::size_t> density_data::all_gamma_global_indices() const {
   std::vector<std::size_t> out;
   out.reserve(gamma_global.size());
   for (std::size_t g : gamma_global) {
@@ -197,7 +197,7 @@ inline std::vector<std::size_t> ad_data::all_gamma_global_indices() const {
   return out;
 }
 
-inline DgCView ad_data::mult_precision_Q() const {
+inline DgCView density_data::mult_precision_Q() const {
   if (Rf_isNull(precision) || TYPEOF(precision) != VECSXP) {
     Rcpp::stop(
         "random_mult precision must be list(Q = <dgCMatrix>, log_det, rank)");
@@ -214,7 +214,7 @@ inline DgCView ad_data::mult_precision_Q() const {
   return DgCView(Rcpp::as<Rcpp::S4>(q_sexp));
 }
 
-inline double ad_data::mult_precision_rank() const {
+inline double density_data::mult_precision_rank() const {
   const int n_term = gamma_map.ncol();
   if (Rf_isNull(precision) || TYPEOF(precision) != VECSXP) {
     return static_cast<double>(n_term);
@@ -225,7 +225,7 @@ inline double ad_data::mult_precision_rank() const {
     : static_cast<double>(n_term);
 }
 
-inline double ad_data::mult_precision_log_det() const {
+inline double density_data::mult_precision_log_det() const {
   if (Rf_isNull(precision) || TYPEOF(precision) != VECSXP) {
     return 0.0;
   }
@@ -237,7 +237,7 @@ inline double ad_data::mult_precision_log_det() const {
 
 inline void validate_config_matches_model(
   const Config& cfg,
-  const ad_data& data,
+  const density_data& data,
   bool check_gamma = true) {
   if (cfg.beta.size() != data.num_beta) {
     Rcpp::stop(

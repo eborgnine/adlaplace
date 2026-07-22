@@ -4,7 +4,7 @@
 \name{matern-class}
 \alias{matern-class}
 \alias{matern}
-\alias{extra_ad_fun,matern-method}
+\alias{extra_density,matern-method}
 \alias{design,matern-method}
 \alias{precision,matern-method}
 \alias{random_info,matern-method}
@@ -23,7 +23,7 @@ matern(
   log = TRUE
 )
 
-\S4method{extra_ad_fun}{matern}(term)
+\S4method{extra_density}{matern}(term)
 
 \S4method{design}{matern}(term, data)
 
@@ -68,7 +68,7 @@ Formula term for a 2D Matern GRF via tensor-product B-spline FEM, wired to
 adlaplaceFem kernels \code{random_fem_ssq_2} / \code{random_fem_det_2} (shape nu = 1)
 or \code{random_fem_ssq_3} / \code{random_fem_det_3} (nu = 2). The quadratic form is a
 random shard; the log-determinant is a parameters companion via
-\code{\link[adlaplace:model-generics]{adlaplace::extra_ad_fun()}}.
+\code{\link[adlaplace:model-generics]{adlaplace::extra_density()}}.
 The first argument is a \strong{column name} in \code{data} (like \code{\link[adlaplace:iid-class]{adlaplace::iid()}}):
 that column holds observation locations as a 2-column matrix, WKT text, or
 HEX WKB points. Knot lines are supplied at construction; the observation
@@ -79,11 +79,11 @@ In 2D, B-spline degree and SPDE order alpha equal \code{shape + 1}.
 }
 \section{Functions}{
 \itemize{
-\item \code{extra_ad_fun(matern)}: Companion parameters density for the FEM
+\item \code{extra_density(matern)}: Companion parameters density for the FEM
 log-determinant shard.
 
 \item \code{design(matern)}: Design matrix of B-spline basis evaluations at
-coordinates in \code{data[[term@term]]}.
+coordinates in \code{data[[term@name]]}.
 
 \item \code{precision(matern)}: FEM precision payload for \verb{random_fem_*}.
 

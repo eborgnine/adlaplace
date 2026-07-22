@@ -163,7 +163,7 @@ res_pm_temp <- hnlm(
   config = list(
     transform_theta = TRUE,
     num_threads = parallel::detectCores(),
-    num_shards = 1e4,
+    num_groups = 1e4,
     num_sim = 500,
     verbose = TRUE
   ),
@@ -362,11 +362,11 @@ knitr::kable(
 ```
 
 ```{r derivJointDens, eval=FALSE}
-# Requires an hnlm(for_dev = TRUE) bundle with ad_fun; fitted objects store extra only.
+# Requires an hnlm(for_dev = TRUE) bundle with ad_pack; fitted objects store extra only.
 library(adlaplace)
 
-ad_fun <- res$ad_fun
-sz <- ad_fun@sizes
+ad_pack <- res$ad_pack
+sz <- ad_pack@sizes
 
 x_joint <- res$extra$full_parameters
 x_joint[seq(sz["beta"] + 1L, length.out = sz["gamma"])] <- 0.1
@@ -381,7 +381,7 @@ parDf[Dpar, ] <- Sx
 
 dens1 <- vapply(
   seq_len(Npar),
-  function(j) joint_log_dens(ad_fun, parDf[[j]], negative = FALSE),
+  function(j) joint_log_dens(ad_pack, parDf[[j]], negative = FALSE),
   numeric(1)
 )
 
@@ -390,7 +390,7 @@ plot(Sx, dens1, xlab = sprintf("x[%d]", Dpar), ylab = "joint_log_dens")
 
 grad1 <- sapply(
   seq_len(Npar),
-  function(j) grad(ad_fun, parDf[[j]], inner = FALSE, negative = FALSE),
+  function(j) grad(ad_pack, parDf[[j]], inner = FALSE, negative = FALSE),
   simplify = "matrix"
 )
 
@@ -407,7 +407,7 @@ max_abs_err
 
 hess1 <- lapply(
   seq_len(Npar),
-  function(j) as.matrix(hessian(ad_fun, parDf[[j]], inner = FALSE, negative = FALSE))
+  function(j) as.matrix(hessian(ad_pack, parDf[[j]], inner = FALSE, negative = FALSE))
 )
 hess1b <- do.call(abind::abind, c(hess1, list(along = 3)))[Dpar, , ]
 
@@ -431,7 +431,7 @@ gamma_start <- res$call$cache$gamma
 ll1 <- log_lik_laplace(
   x = x_outer,
   gamma = gamma_start,
-  ad_fun = res$ad_fun,
+  ad_pack = res$ad_pack,
   config = res$call$config,
   deriv = TRUE,
   control = list(report.level = 4, maxit = 5000, report.freq = 2)
@@ -451,7 +451,7 @@ res2 <- lapply(
     log_lik_laplace(
       x = parDf[[j]],
       gamma = gamma_start,
-      ad_fun = res$ad_fun,
+      ad_pack = res$ad_pack,
       config = res$call$config,
       deriv = TRUE,
       control = list(report.level = 0, maxit = 5000)
@@ -518,7 +518,7 @@ res_pm_temp_nt <- hnlm(
   config = list(
     transform_theta = FALSE,
     num_threads = parallel::detectCores(),
-    num_shards = 1e4,
+    num_groups = 1e4,
     num_sim = 500,
     verbose = TRUE
   ),

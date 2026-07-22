@@ -44,11 +44,11 @@ fit_dev <- hnlm(
   dirichlet_multinom(count, by = c("year", "region", "date")) ~
     hum + iid(date),
   data = td,
-  config = list(num_threads = 1L, num_shards = 2L),
+  config = list(num_threads = 1L, num_groups = 2L),
   for_dev = TRUE
 )
 joint_log_dens(
-  fit_dev$ad_fun,
+  fit_dev$ad_pack,
   c(fit_dev$config$opt$init[1], fit_dev$cache$gamma, fit_dev$config$opt$init[-1])
 )
 ```

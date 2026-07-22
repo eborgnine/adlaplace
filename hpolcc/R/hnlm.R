@@ -12,7 +12,7 @@
 #'       log-scale hyperparameters.}
 #'     \item{\code{num_threads}}{OpenMP threads for inner optimization and
 #'       derivative evaluation (default \code{1L}).}
-#'     \item{\code{num_shards}}{Target number of observation shards for
+#'     \item{\code{num_groups}}{Target number of observation shards for
 #'       parallel evaluation (default \code{1000L}).}
 #'     \item{\code{num_sim}}{Number of conditional simulation draws from
 #'       \code{adlaplaceHgp::cond_sim_iwp} (default \code{500}).}
@@ -81,7 +81,7 @@ hnlm <- function(
 
   if (config$verbose) {
     cat("number per strata\n")
-    print(table(diff(model_data$data$elgm_matrix@p)))
+    print(table(diff(model_data$term_data$elgm_matrix@p)))
     cat("\ncollecting terms\n")
   }
 
@@ -89,17 +89,17 @@ hnlm <- function(
   config$verbose <- config$verbose > 1L
 
   config$opt <- as.list(
-    model_data$data$info$parameters[c("init", "lower", "upper", "parscale")]
+    model_data$term_data$info$parameters[c("init", "lower", "upper", "parscale")]
   )
   control$parscale <- config$opt$parscale
 
   cache <- new.env(parent = emptyenv())
-  cache$gamma <- rep(0, nrow(model_data$data$info$gamma))
+  cache$gamma <- rep(0, nrow(model_data$term_data$info$gamma))
 
   if (verbose_orig) {
     cat("getting shards...")
   }
-  config$shards <- hnlm_build_shards(model_data, config)
+  config$obs_groups <- hnlm_build_shards(model_data, config)
 
   if (for_dev) {
     return(hnlm_dev_bundle(
@@ -145,7 +145,7 @@ hnlm_merge_config <- function(config) {
     verbose = FALSE,
     transform_theta = TRUE,
     num_threads = 1L,
-    num_shards = 1000L,
+    num_groups = 1000L,
     num_sim = 500L
   )
   defaults <- defaults[setdiff(names(defaults), names(config))]
@@ -154,11 +154,11 @@ hnlm_merge_config <- function(config) {
 
 #' @keywords internal
 hnlm_build_shards <- function(model_data, config) {
-  adlaplace::ad_shards(
-    A = model_data$data$A,
-    elgm_matrix = model_data$data$elgm_matrix,
-    num_shards = config$num_shards,
-    min_groups = min(config$num_shards, config$num_threads * 4L)
+  adlaplace::obs_groups(
+    A = model_data$term_data$A,
+    elgm_matrix = model_data$term_data$elgm_matrix,
+    num_groups = config$num_groups,
+    min_groups = min(config$num_groups, config$num_threads * 4L)
   )
 }
 
@@ -177,10 +177,10 @@ hnlm_dev_bundle <- function(
     cat("done.\n")
     cat(
       "getting AD fun, ",
-      paste(dim(config$shards), collapse = ","), "shards..."
+      paste(dim(config$obs_groups), collapse = ","), "shards..."
     )
   }
-  ad_fun <- adlaplace::ad_fun(
+  ad_pack <- adlaplace::ad_pack(
     x = model_data,
     config,
     num_threads = config$num_threads
@@ -193,12 +193,12 @@ hnlm_dev_bundle <- function(
       model_data = model_data,
       config = config,
       formula = formula,
-      data = model_data$data$data,
+      data = model_data$term_data$data,
       terms = model_data$terms,
       control = control,
       control_inner = control_inner,
       cache = cache,
-      ad_fun = ad_fun,
+      ad_pack = ad_pack,
       call = call
     ),
     class = c("hnlm_dev", "hnlm", "list")
@@ -214,25 +214,25 @@ hnlm_fit_flat <- function(
   cache,
   call
 ) {
-  ad_fun <- adlaplace::ad_fun(
+  ad_pack <- adlaplace::ad_pack(
     x = model_data,
     config,
     num_threads = config$num_threads
   )
   optim_result <- stats::optim(
     par = config$opt$init,
-    fn = function(x) adlaplace::joint_log_dens(ad_fun, x),
-    gr = function(x) adlaplace::grad(ad_fun, x),
+    fn = function(x) adlaplace::joint_log_dens(ad_pack, x),
+    gr = function(x) adlaplace::grad(ad_pack, x),
     method = "L-BFGS-B",
     lower = config$opt$lower,
     upper = config$opt$upper,
     control = control
   )
-  hessian_outer <- adlaplace::hessian(ad_fun, optim_result$par)
+  hessian_outer <- adlaplace::hessian(ad_pack, optim_result$par)
   log_lik <- -optim_result$value
 
   coefficients <- try(adlaplace::format_parameters(
-    info = ad_fun@info,
+    info = ad_pack@info,
     gamma = cache$gamma,
     parameters = optim_result$par
   ))
@@ -244,7 +244,7 @@ hnlm_fit_flat <- function(
     optim_result = optim_result,
     laplace = list(log_lik = log_lik),
     hessian = list(outer = hessian_outer, inner = NULL, var_iid = NULL),
-    ad_fun = ad_fun,
+    ad_pack = ad_pack,
     sample = NULL,
     call = call,
     config = config,
@@ -268,7 +268,7 @@ hnlm_fit_laplace <- function(
   if (verbose_orig) {
     cat("optimizing initial, lower, upper\n")
     to_print <- do.call(cbind, config$opt)
-    rownames(to_print) <- model_data$data$info$parameters$label
+    rownames(to_print) <- model_data$term_data$info$parameters$label
     print(to_print)
     cat("threads: ", config$num_threads, "\n")
   }
@@ -277,7 +277,7 @@ hnlm_fit_laplace <- function(
     formula = model_data,
     config = config,
     num_threads = config$num_threads,
-    num_shards = config$num_shards,
+    num_groups = config$num_groups,
     control = control,
     control_inner = control_inner,
     method = "L-BFGS-B",
@@ -285,7 +285,7 @@ hnlm_fit_laplace <- function(
     verbose = verbose_orig
   )
 
-  ad_fun <- fit$ad_fun
+  ad_pack <- fit$ad_pack
   # adlaplace_fit stores the outer optim result and vcov under details.
   laplace <- fit$details
   optim_result <- laplace$outer_opt
@@ -296,7 +296,7 @@ hnlm_fit_laplace <- function(
   config$gamma <- fit$cache$gamma
 
   coefficients <- try(adlaplace::format_parameters(
-    info = ad_fun@info,
+    info = ad_pack@info,
     gamma = fit$cache$gamma,
     parameters = optim_result$par
   ))
@@ -322,7 +322,7 @@ hnlm_fit_laplace <- function(
     optim_result = optim_result,
     laplace = laplace,
     hessian = var_out$hessian,
-    ad_fun = ad_fun,
+    ad_pack = ad_pack,
     sample = sample,
     call = call,
     config = config,
@@ -356,7 +356,7 @@ hnlm_build_variance <- function(
     vcov = vcov
   )
 
-  n_beta <- nrow(model_data$data$info$beta)
+  n_beta <- nrow(model_data$term_data$info$beta)
   if (!inherits(coefficients, "try-error") &&
     !is.null(coefficients$gamma) &&
     nrow(coefficients$gamma) > 0L) {
@@ -404,7 +404,7 @@ hnlm_assemble <- function(
   optim_result,
   laplace,
   hessian,
-  ad_fun,
+  ad_pack,
   sample,
   call,
   config,
@@ -413,10 +413,10 @@ hnlm_assemble <- function(
   control_inner,
   cache
 ) {
-  info <- if (methods::is(ad_fun, "ad_fun")) {
-    ad_fun@info
-  } else if (!is.null(model_data$data$info)) {
-    model_data$data$info
+  info <- if (methods::is(ad_pack, "ad_pack")) {
+    ad_pack@info
+  } else if (!is.null(model_data$term_data$info)) {
+    model_data$term_data$info
   } else {
     NULL
   }

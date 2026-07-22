@@ -62,33 +62,33 @@ theta_fem <- Matrix::sparseMatrix(
   i = c(2L, 3L), j = c(1L, 2L), x = c(1, 1), dims = c(3L, 2L)
 )
 
-obs <- adlaplace::ad_data(
+obs <- adlaplace::density_data(
   y = y,
   A = A,
   gamma_map = Matrix::Diagonal(nr),
   theta_map = theta_obs,
   ad_kind = "observations",
-  ad_fun = "gaussian_obs"
+  density = "gaussian_obs"
 )
-extra <- adlaplace::ad_data(
+extra <- adlaplace::density_data(
   obs,
   ad_kind = "parameters",
-  ad_fun = "gaussian_extra"
+  density = "gaussian_extra"
 )
-rand_ssq <- adlaplace::ad_data(
+rand_ssq <- adlaplace::density_data(
   gamma_map = Matrix::Diagonal(nr),
   theta_map = theta_fem,
   ad_kind = "random",
-  ad_fun = "random_fem_ssq_2",
+  density = "random_fem_ssq_2",
   package = "adlaplaceFem",
   precision = prec
 )
-rand_det <- adlaplace::ad_data(
+rand_det <- adlaplace::density_data(
   beta_map = 0L,
   gamma_map = nr,
   theta_map = theta_fem,
   ad_kind = "parameters",
-  ad_fun = "random_fem_det_2",
+  density = "random_fem_det_2",
   package = "adlaplaceFem",
   precision = prec
 )
@@ -99,10 +99,10 @@ config <- list(
   transform_theta = TRUE
 )
 ptr <- c(
-  ad_fun_ptr(obs, config),
-  ad_fun_ptr(extra, config),
-  ad_fun_ptr(rand_ssq, config),
-  ad_fun_ptr(rand_det, config)
+  ad_pack_ptr(obs, config),
+  ad_pack_ptr(extra, config),
+  ad_pack_ptr(rand_ssq, config),
+  ad_pack_ptr(rand_det, config)
 )
 ```
 
@@ -144,13 +144,13 @@ dens_scan <- vapply(
   x_list,
   joint_log_dens,
   numeric(1),
-  ad_fun = ptr,
+  ad_pack = ptr,
   negative = FALSE
 )
 
 grad_scan <- do.call(
   cbind,
-  lapply(x_list, grad, ad_fun = ptr, inner = FALSE, negative = FALSE)
+  lapply(x_list, grad, ad_pack = ptr, inner = FALSE, negative = FALSE)
 )
 
 plot(Sx, dens_scan, type = "l", xlab = expression(log(rho)), ylab = "log dens")

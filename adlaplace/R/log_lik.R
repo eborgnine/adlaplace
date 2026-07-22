@@ -12,7 +12,7 @@
 #'
 #' @param x Numeric outer parameter vector \code{c(beta, theta)}.
 #' @param config Configuration list passed to \code{\link{log_lik_laplace}}.
-#' @param ad_fun \code{ad_fun} object from \code{\link{ad_fun}}.
+#' @param ad_pack \code{ad_pack} object from \code{\link{ad_pack}}.
 #' @param ... Additional arguments forwarded to \code{\link{log_lik_laplace}}
 #'   (for example \code{data} or \code{package}).
 #' @param control_inner A list of control options forwarded to the \code{control}
@@ -20,7 +20,7 @@
 #' @param cache An \code{\link[base]{environment}} used to warm-start and store the inner
 #'   \code{gamma} solution. If \code{cache$gamma} is missing or the wrong length,
 #'   it is initialized from \code{config$gamma} (if present) or zeros of length
-#'   \code{ad_fun@sizes["gamma"]}. Both functions update \code{cache$gamma} after
+#'   \code{ad_pack@sizes["gamma"]}. Both functions update \code{cache$gamma} after
 #'   each evaluation.
 #'
 #' @return
@@ -35,26 +35,26 @@
 #' \dontrun{
 #' cache <- new.env(parent = emptyenv())
 #' cache$gamma <- rep(0, nrow(data$ATp))
-#' ad_fun <- ad_fun(data, config)
+#' ad_pack <- ad_pack(data, config)
 #'
-#' val <- outer_fn(x = x0, data = data, config = config, cache = cache, ad_fun = ad_fun)
-#' gr <- outer_gr(x = x0, data = data, config = config, cache = cache, ad_fun = ad_fun)
+#' val <- outer_fn(x = x0, data = data, config = config, cache = cache, ad_pack = ad_pack)
+#' gr <- outer_gr(x = x0, data = data, config = config, cache = cache, ad_pack = ad_pack)
 #' }
 #'
 #' @name outer_optim_wrappers
 #' @rdname outer_optim_wrappers
 #' @export
 outer_fn <- function(
-  x, config, cache, ad_fun, control_inner = list(), ...
+  x, config, cache, ad_pack, control_inner = list(), ...
 ) {
   assign("last_par_fn", x, cache)
-  num_gamma <- as.integer(ad_fun@sizes["gamma"])
+  num_gamma <- as.integer(ad_pack@sizes["gamma"])
   cache$gamma <- resolve_gamma_start(config, cache, num_gamma)
 
   result <- adlaplace::inner_opt(
     parameters = x,
     gamma = cache$gamma,
-    ad_fun = ad_fun,
+    ad_pack = ad_pack,
     control = control_inner,
     deriv = FALSE,
     verbose = isTRUE(config$verbose)
@@ -67,17 +67,17 @@ outer_fn <- function(
 #' @rdname outer_optim_wrappers
 #' @export
 outer_gr <- function(
-  x, config, cache, ad_fun, control_inner = list(), ...
+  x, config, cache, ad_pack, control_inner = list(), ...
 ) {
   assign("last_par_gr", x, cache)
-  num_gamma <- as.integer(ad_fun@sizes["gamma"])
+  num_gamma <- as.integer(ad_pack@sizes["gamma"])
   cache$gamma <- resolve_gamma_start(config, cache, num_gamma)
 
   result <- adlaplace::log_lik_laplace(
     x = x, config = config,
     gamma = cache$gamma,
     control = control_inner,
-    ad_fun = ad_fun,
+    ad_pack = ad_pack,
     deriv = TRUE, ...
   )
   assign("gamma", result$inner_opt$solution, cache)
@@ -93,32 +93,32 @@ outer_gr <- function(
 #' selected backend package (by default \pkg{adlaplace}).
 #'
 #' @param x Numeric vector of outer parameters (\code{beta}, then \code{theta}).
-#'   Length must equal \code{num_beta + num_theta} from \code{ad_fun@sizes}.
+#'   Length must equal \code{num_beta + num_theta} from \code{ad_pack@sizes}.
 #' @param config A list of backend options (\code{verbose}, \code{package}, etc.).
-#'   When \code{ad_fun} is missing, must also include \code{beta}, \code{gamma},
-#'   and \code{theta} so \code{ad_fun()} can be built from \code{data}.
+#'   When \code{ad_pack} is missing, must also include \code{beta}, \code{gamma},
+#'   and \code{theta} so \code{ad_pack()} can be built from \code{data}.
 #' @param gamma Optional numeric vector of starting values for the inner
 #'   parameter \code{gamma}. If missing, uses \code{config$gamma} when present,
-#'   otherwise a zero vector of length \code{ad_fun@sizes["gamma"]}.
+#'   otherwise a zero vector of length \code{ad_pack@sizes["gamma"]}.
 #' @param control List of control parameters passed *as-is* to the backend inner
 #'   optimizer (e.g., \code{report.level}, \code{report.freq}). See backend
 #'   documentation (e.g., \pkg{trustOptim}) for supported options.
-#' @param ad_fun Optional \code{ad_fun} object from \code{\link{ad_fun}}.
+#' @param ad_pack Optional \code{ad_pack} object from \code{\link{ad_pack}}.
 #'   This is a single backend handle (no separate inner/outer handles). If
 #'   missing, it will be constructed automatically using \code{data}.
-#' @param data Optional data list used to build \code{ad_fun} when \code{ad_fun}
+#' @param data Optional data list used to build \code{ad_pack} when \code{ad_pack}
 #'   is not supplied.
 #' @param package Character scalar naming the backend package to use for
-#'   \code{ad_fun()} and \code{inner_opt()}. Defaults to \code{"adlaplace"}.
-#'   Other backends must export a compatible \code{ad_fun()} builder and \code{inner_opt()}.
+#'   \code{ad_pack()} and \code{inner_opt()}. Defaults to \code{"adlaplace"}.
+#'   Other backends must export a compatible \code{ad_pack()} builder and \code{inner_opt()}.
 #' @param deriv Logical scalar. If \code{TRUE}, include derivative quantities in
 #'   the output (gradient, intermediate derivatives).
 #'
 #' @details
 #' The default \pkg{adlaplace} backend uses a single AD handle. This function
-#' passes that handle to \code{inner_opt(..., ad_fun = ad_fun)}. Parameter block
-#' sizes are read from \code{ad_fun@sizes}; \code{config} is not required to
-#' contain \code{beta}, \code{gamma}, or \code{theta} when \code{ad_fun} is
+#' passes that handle to \code{inner_opt(..., ad_pack = ad_pack)}. Parameter block
+#' sizes are read from \code{ad_pack@sizes}; \code{config} is not required to
+#' contain \code{beta}, \code{gamma}, or \code{theta} when \code{ad_pack} is
 #' supplied.
 #'
 #' When \code{deriv=FALSE}, the return value mirrors \code{\link{inner_opt}()}
@@ -139,7 +139,7 @@ outer_gr <- function(
 #'   non-invertible Hessian, \code{log_lik_laplace()} issues a warning or error.
 #'
 #' @seealso
-#' \code{\link{ad_fun}}, \code{\link{inner_opt}}
+#' \code{\link{ad_pack}}, \code{\link{inner_opt}}
 #'
 #' @export
 log_lik_laplace <- function(
@@ -147,25 +147,25 @@ log_lik_laplace <- function(
   config = list(),
   gamma,
   control = list(report.level = 4, report.freq = 1),
-  ad_fun,
+  ad_pack,
   data,
   package = c(config[["package"]], "adlaplace")[1L],
   deriv = FALSE
 ) {
-  if (missing(ad_fun)) {
+  if (missing(ad_pack)) {
     if (missing(data)) {
-      stop("at least one of data and ad_fun must be supplied", call. = FALSE)
+      stop("at least one of data and ad_pack must be supplied", call. = FALSE)
     }
-    ad_fun <- adlaplace::ad_fun(data, config)
+    ad_pack <- adlaplace::ad_pack(data, config)
   }
 
-  if (!is(ad_fun, "ad_fun")) {
-    stop("ad_fun must be an ad_fun object", call. = FALSE)
+  if (!is(ad_pack, "ad_pack")) {
+    stop("ad_pack must be an ad_pack object", call. = FALSE)
   }
-  sz <- ad_fun@sizes
+  sz <- ad_pack@sizes
   if (length(sz) < 3L || any(is.na(sz[c("beta", "gamma", "theta")]))) {
     stop(
-      "ad_fun@sizes must contain finite beta, gamma, and theta",
+      "ad_pack@sizes must contain finite beta, gamma, and theta",
       call. = FALSE
     )
   }
@@ -202,7 +202,7 @@ log_lik_laplace <- function(
     parameters = x,
     gamma = gamma_use,
     control = control,
-    ad_fun = ad_fun,
+    ad_pack = ad_pack,
     deriv = deriv,
     verbose = isTRUE(config[["verbose"]])
   )
@@ -216,7 +216,7 @@ log_lik_laplace <- function(
     full_parameters = result$full_parameters,
     hessian_pack = result$hessian,
     grad = result$gradient$outer$grad,
-    ad_fun = ad_fun,
+    ad_pack = ad_pack,
     verbose = isTRUE(config[["verbose"]])
   )
 
@@ -263,16 +263,16 @@ log_lik_deriv <- function(
   full_parameters,
   hessian_pack,
   grad,
-  ad_fun,
+  ad_pack,
   verbose = FALSE
 ) {
-  if (!is(ad_fun, "ad_fun")) {
-    stop("ad_fun must be an ad_fun object", call. = FALSE)
+  if (!is(ad_pack, "ad_pack")) {
+    stop("ad_pack must be an ad_pack object", call. = FALSE)
   }
-  sz <- ad_fun@sizes
+  sz <- ad_pack@sizes
   if (length(sz) < 3L || any(is.na(sz[c("beta", "gamma", "theta")]))) {
     stop(
-      "ad_fun@sizes must contain finite beta, gamma, and theta",
+      "ad_pack@sizes must contain finite beta, gamma, and theta",
       call. = FALSE
     )
   }

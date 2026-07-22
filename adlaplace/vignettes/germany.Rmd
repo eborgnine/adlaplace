@@ -64,56 +64,56 @@ config <- list(
   gamma = rep(0, n_gamma),
   theta = log(c(1e-2, 0.1)),
   offset = log(germany$E),
-  shards = adlaplace::ad_shards(A_obs, num_shards = 2L),
+  obs_groups = adlaplace::obs_groups(A_obs, num_groups = 2L),
   verbose = FALSE
 )
 
-data_obs <- adlaplace:::ad_data(
+data_obs <- adlaplace:::density_data(
   y = germany$Y,
   A = A_obs,
   X = X_obs,
   theta_map = n_theta,
   ad_kind = "observations",
-  ad_fun = "poisson_obs"
+  density = "poisson_obs"
 )
 
-model_struct <- adlaplace:::ad_data(
+model_struct <- adlaplace:::density_data(
   gamma_map = Matrix::sparseMatrix(
     i = seq_len(n), j = seq_len(n), x = 1,
     dims = c(n_gamma, n)
   ),
   theta_map = c(1L, n_theta),
   ad_kind = "random",
-  ad_fun = "random_mult",
+  density = "random_mult",
   precision = germany$prec
 )
 
 
-model_iid <- adlaplace:::ad_data(
+model_iid <- adlaplace:::density_data(
   gamma_map = Matrix::sparseMatrix(
     i = seq.int(n + 1L, length.out = n), j = seq_len(n), x = 1,
     dims = c(n_gamma, n)
   ),
   theta_map = c(2L, n_theta),
   ad_kind = "random",
-  ad_fun = "random_diagonal",
+  density = "random_diagonal",
   precision = rep(1, n)
 )
 ```
 
 ## Building AD shards
 
-Each model piece is taped separately with `ad_fun_ptr()`. The `random_mult`
+Each model piece is taped separately with `ad_pack_ptr()`. The `random_mult`
 shard for the ICAR term is the slowest step.
 
 ```{r ad_pack}
-ptr_obs <- adlaplace::ad_fun_ptr(data = data_obs, config = config)
-ptr_iid <- adlaplace::ad_fun_ptr(data = model_iid, config = config)
-ptr_struct <- adlaplace::ad_fun_ptr(data = model_struct, config = config)
+ptr_obs <- adlaplace::ad_pack_ptr(data = data_obs, config = config)
+ptr_iid <- adlaplace::ad_pack_ptr(data = model_iid, config = config)
+ptr_struct <- adlaplace::ad_pack_ptr(data = model_struct, config = config)
 
 ad_fun_plain <- c(ptr_obs, ptr_struct, ptr_iid)
-ad_pack <- adlaplace::ad_fun(
-  adlaplace::clone_ad_fun_ptr(ad_fun_plain),
+ad_pack <- adlaplace::ad_pack(
+  adlaplace::clone_ad_pack_ptr(ad_fun_plain),
   num_threads = 2L
 )
 ```
@@ -131,7 +131,7 @@ shards <- seq.int(from = 0L, length.out = adlaplace:::n_groups(ad_fun_plain))
 by_shard <- vapply(
   shards,
   function(s) {
-    adlaplace::joint_log_dens(ad_fun_plain, x_full, shards = s, negative = TRUE)
+    adlaplace::joint_log_dens(ad_fun_plain, x_full, ad_shards = s, negative = TRUE)
   },
   numeric(1)
 )
@@ -158,14 +158,14 @@ full model.
 log_all <- adlaplace::joint_log_dens(ad_fun_plain, x_full, negative = TRUE)
 log_sub <- adlaplace::joint_log_dens(
   ad_fun_plain, x_full,
-  shards = 0:2, negative = TRUE
+  ad_shards = 0:2, negative = TRUE
 )
 
 grad_all <- adlaplace::grad(ad_fun_plain, x_full, negative = TRUE)
-grad_sub <- adlaplace::grad(ad_fun_plain, x_full, shards = 0:2, negative = TRUE)
+grad_sub <- adlaplace::grad(ad_fun_plain, x_full, ad_shards = 0:2, negative = TRUE)
 
 hess_all <- adlaplace::hessian(ad_fun_plain, x_full, negative = TRUE)
-hess_sub <- adlaplace::hessian(ad_fun_plain, x_full, shards = 0:2, negative = TRUE)
+hess_sub <- adlaplace::hessian(ad_fun_plain, x_full, ad_shards = 0:2, negative = TRUE)
 
 rbind(
   log_diff = log_all - res_fdf$f,
@@ -187,7 +187,7 @@ x_outer <- config$theta
 inner_res <- adlaplace::inner_opt(
   parameters = log(c(1e-1, 1e-1)),
   gamma = config$gamma,
-  ad_fun = ad_pack,
+  ad_pack = ad_pack,
   control = list(
     maxit = 1000L,
     report.level = 4,
@@ -210,78 +210,43 @@ The same finite-difference idea applies to the full joint log density
 $-\log p(\gamma, \theta \mid y)$ and its AD gradient and Hessian.
 
 ```{r derivJointDens, fig.height=5}
+# Finite-difference points should fall on the AD lines.
 par(mfrow = c(4, 2), mar = c(2, 2, 2, 0), mgp = c(1, 0.5, 0))
 
 x_here <- inner_res$full_parameters
-Dpar_dens <- 96 # length(x_here) - 1L
-Ngrid <- 11L
+Dpar_dens <- 96L
 shards <- seq.int(from = 0L, length.out = adlaplace:::n_groups(ad_fun_plain))
 
-par_grid <- matrix(x_here, nrow = Ngrid, ncol = length(x_here), byrow = TRUE)
-Sx <- x_here[Dpar_dens] + seq(-0.1, 0.1, length.out = Ngrid)
-SxD <- Sx[-1] - diff(Sx) / 2
-par_grid[, Dpar_dens] <- Sx
-x_list <- split(par_grid, row(par_grid))
-
-dens <- vapply(
-  x_list,
-  adlaplace::joint_log_dens,
-  numeric(1),
-  ad_fun = ad_fun_plain,
-  shards = shards,
+scan_j <- deriv_scan_joint(
+  ad_fun_plain,
+  x = x_here,
+  index = Dpar_dens,
+  width = 0.1,
+  n = 11L,
+  ad_shards = shards,
   negative = FALSE
 )
 
-rbind(
-  dens[1:5],
-  dens[seq(to = length(dens), length.out = 5)]
-)
+plot(scan_j$grid, scan_j$grad[, Dpar_dens], type = "l", ylab = "AD gradient")
+points(scan_j$mid, scan_j$fd_value, pch = 16)
+legend("topright", legend = c("AD", "finite diff"),
+       lty = c(1, NA), pch = c(NA, 16), bty = "n")
 
-grad <- do.call(
-  cbind,
-  lapply(
-    x_list,
-    adlaplace::grad,
-    ad_fun = ad_fun_plain,
-    inner = FALSE,
-    shards = shards,
-    negative = FALSE
-  )
-)
-
-plot(Sx, grad[Dpar_dens, ], type = "l", ylab = "AD gradient")
-points(SxD, diff(dens) / diff(Sx), pch = 16)
-legend("topright", legend = c("AD", "finite diff"), lty = c(1, NA), pch = c(NA, 1), bty = "n")
-
-hes <- array(
-  dim = c(length(x_here), length(x_here), Ngrid),
-  dimnames = list(NULL, NULL, NULL)
-)
-for (i in seq_len(Ngrid)) {
-  hes[, , i] <- as.matrix(adlaplace::hessian(
-    ad_fun_plain,
-    x_list[[i]],
-    inner = FALSE,
-    shards = shards,
-    negative = FALSE
-  ))
-}
-
-grad_slope <- apply(grad, 1, diff) / mean(diff(Sx))
-s_par2 <- sort(unique(c(Dpar_dens + 0:5, Dpar_dens + length(germany$Y), seq(to = length(x_here), length.out = 5))))
+s_par2 <- sort(unique(c(
+  Dpar_dens + 0:5,
+  Dpar_dens + length(germany$Y),
+  seq(to = length(x_here), length.out = 5)
+)))
 s_par2 <- s_par2[seq(1, min(c(prod(par("mfrow")) - 1L, length(s_par2))))]
 for (Dpar2 in s_par2) {
   plot(
-    Sx, hes[Dpar_dens, Dpar2, ],
+    scan_j$grid, scan_j$hess_row[, Dpar2],
     type = "l",
     ylab = paste0("H[", Dpar_dens, ",", Dpar2, "]"),
-    ylim = range(c(hes[Dpar_dens, Dpar2, ], grad_slope[, Dpar2]), na.rm = TRUE)
+    ylim = range(c(scan_j$hess_row[, Dpar2], scan_j$fd_grad[, Dpar2]), na.rm = TRUE)
   )
-  points(SxD, grad_slope[, Dpar2], pch = 16)
+  points(scan_j$mid, scan_j$fd_grad[, Dpar2], pch = 16)
 }
-
-hes_sub <- hes[1:length(config$gamma), 1:length(config$gamma), ]
-hes_eval <- apply(hes_sub, 3, eigen)
 ```
 
 ## Profile likelihood
@@ -292,14 +257,14 @@ approximation to the marginal log likelihood.
 ```{r testLogLik}
 res_noderiv <- adlaplace::log_lik_laplace(
   x = x_outer,
-  ad_fun = ad_pack,
+  ad_pack = ad_pack,
   config = config,
   deriv = FALSE
 )
 
 res_deriv <- adlaplace::log_lik_laplace(
   x = x_outer,
-  ad_fun = ad_pack,
+  ad_pack = ad_pack,
   config = config,
   deriv = TRUE
 )
@@ -337,7 +302,7 @@ opt <- optim(
   lower = rep(-15, n_theta),
   control = list(maxit = 200L, factr = 1e3, trace = 1, REPORT = 1),
   config = config,
-  ad_fun = ad_pack,
+  ad_pack = ad_pack,
   cache = cache,
   control_inner = control_inner
 )
@@ -345,7 +310,7 @@ opt <- optim(
 res <- adlaplace::log_lik_laplace(
   x = opt$par,
   gamma = cache$gamma,
-  ad_fun = ad_pack,
+  ad_pack = ad_pack,
   config = config,
   control = control_inner,
   deriv = FALSE

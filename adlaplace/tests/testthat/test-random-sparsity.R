@@ -13,13 +13,13 @@ expected_diagonal_inner_pattern <- function(nr) {
 
 test_that("random_diagonal analytic sparsity is diagonal", {
   nr <- 5L
-  model <- adlaplace:::ad_data(
+  model <- adlaplace:::density_data(
     gamma_map = Matrix::sparseMatrix(
       i = seq_len(nr), j = seq_len(nr), x = 1, dims = c(nr, nr)
     ),
     theta_map = c(1L, 1L),
     ad_kind = "random",
-    ad_fun = "random_diagonal",
+    density = "random_diagonal",
     precision = rep(2, nr)
   )
   config <- list(
@@ -28,7 +28,7 @@ test_that("random_diagonal analytic sparsity is diagonal", {
     theta = log(0.2),
     transform_theta = TRUE
   )
-  ptr <- adlaplace::ad_fun_ptr(model, config)
+  ptr <- adlaplace::ad_pack_ptr(model, config)
   pat <- adlaplace:::get_sparse_pattern(ptr, 0L)
 
   exp_outer <- expected_diagonal_outer_pattern(nr)
@@ -55,17 +55,17 @@ test_that("random_mult inner sparsity follows Q upper triangle (not CppAD conser
     symmetric = TRUE
   )
   Q <- methods::as(methods::as(Q, "generalMatrix"), "CsparseMatrix")
-  model <- adlaplace:::ad_data(
+  model <- adlaplace:::density_data(
     gamma_map = Matrix::sparseMatrix(
       i = seq_len(nr), j = seq_len(nr), x = 1, dims = c(nr, nr)
     ),
     theta_map = c(1L, 1L),
     ad_kind = "random",
-    ad_fun = "random_mult",
+    density = "random_mult",
     precision = list(Q = Q, log_det = 0, rank = nr)
   )
   config <- list(gamma = rep(0, nr), theta = log(0.7), transform_theta = TRUE)
-  ptr <- adlaplace::ad_fun_ptr(model, config)
+  ptr <- adlaplace::ad_pack_ptr(model, config)
   pat <- adlaplace:::get_sparse_pattern(ptr, 0L)
 
   Qc <- Matrix::summary(Q)

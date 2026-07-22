@@ -12,7 +12,7 @@ fem_precision_payload(fem, alpha = 2L)
 \item{alpha}{\code{2} or \code{3}.}
 }
 \value{
-List for \code{ad_data@precision}: Grams, chol pattern, and Q CSC
+List for \code{density_data@precision}: Grams, chol pattern, and Q CSC
 coefficients aligned for on-tape assembly.
 }
 \description{

@@ -16,7 +16,7 @@ effective_num_threads <- function(num_threads) {
 build_parallel_map <- function(n_shards, num_threads, owner_threads = NULL) {
   num_threads <- effective_num_threads(num_threads)
   if (n_shards < 1L) {
-    stop("ad_fun pointer has no shards", call. = FALSE)
+    stop("ad_pack pointer has no shards", call. = FALSE)
   }
 
   shard_ids <- seq_len(n_shards)
@@ -47,15 +47,15 @@ build_parallel_map <- function(n_shards, num_threads, owner_threads = NULL) {
 }
 
 #' @keywords internal
-new_ad_fun_from_ptr <- function(ptr, num_threads = 1L, info = list(), verbose = FALSE) {
-  if (!is(ptr, "ad_fun_ptr")) {
-    stop("ptr must be an ad_fun_ptr external pointer")
+new_ad_pack_from_ptr <- function(ptr, num_threads = 1L, info = list(), verbose = FALSE) {
+  if (!is(ptr, "ad_pack_ptr")) {
+    stop("ptr must be an ad_pack_ptr external pointer")
   }
   num_threads <- effective_num_threads(num_threads)
   n_shards <- n_groups(ptr)
   if (verbose) {
     cat(
-      "ad_fun: attaching Hessian templates (",
+      "ad_pack: attaching Hessian templates (",
       n_shards, " AD group(s), ",
       num_threads, " thread(s))...\n",
       sep = ""
@@ -126,12 +126,12 @@ new_ad_fun_from_ptr <- function(ptr, num_threads = 1L, info = list(), verbose = 
   adlaplace_attach_hessian(ptr, hessian_pack)
 
   if (verbose) {
-    cat("ad_fun: Hessian attach complete.\n")
+    cat("ad_pack: Hessian attach complete.\n")
     utils::flush.console()
   }
 
   methods::new(
-    "ad_fun",
+    "ad_pack",
     ptr = ptr,
     group_sparsity = lapply(sparsity, function(shard) shard$grad_inner),
     outer = hessian_pack$outer,
@@ -148,76 +148,76 @@ new_ad_fun_from_ptr <- function(ptr, num_threads = 1L, info = list(), verbose = 
 
 #' Build AD function with Hessian templates
 #'
-#' @param x One of: an \code{ad_fun_ptr}, an \code{ad_data} shard with
-#'   \code{ad_kind}/\code{ad_fun} set, or a \code{model_data()} bundle (list
+#' @param x One of: an \code{ad_pack_ptr}, an \code{density_data} shard with
+#'   \code{ad_kind}/\code{ad_pack} set, or a \code{model_data()} bundle (list
 #'   with \code{observations}, \code{random}, \code{parameters}).
-#' @param config Model configuration list. Required for \code{ad_data} and
-#'   \code{model_data}; unused for \code{ad_fun_ptr}. For \code{model_data},
-#'   \code{beta}, \code{gamma}, and \code{theta} are filled from \code{x$data$info}
+#' @param config Model configuration list. Required for \code{density_data} and
+#'   \code{model_data}; unused for \code{ad_pack_ptr}. For \code{model_data},
+#'   \code{beta}, \code{gamma}, and \code{theta} are filled from \code{x$term_data$info}
 #'   when omitted (only \code{shards}, \code{transform_theta}, etc. are needed).
 #'   When \code{config$num_threads} is set, it overrides the \code{num_threads}
-#'   argument for \code{ad_data} and \code{model_data} methods.
+#'   argument for \code{density_data} and \code{model_data} methods.
 #' @param num_threads Positive integer; OpenMP thread count for \code{inner_opt}
 #'   and parallel \code{trace_hinv_t}. Shards are assigned
 #'   \code{owner_thread = shard_index \% num_threads} at attach time.
 #'   Default \code{1L} (serial).
-#' @param ... For \code{ad_fun_ptr} input, optional additional
-#'   \code{ad_fun_ptr} shards to combine before attaching templates.
-#' @return Object of class \code{ad_fun}.
+#' @param ... For \code{ad_pack_ptr} input, optional additional
+#'   \code{ad_pack_ptr} shards to combine before attaching templates.
+#' @return Object of class \code{ad_pack}.
 #' @export
-setGeneric("ad_fun", function(x, config = NULL, num_threads = 1L, ...) {
-  standardGeneric("ad_fun")
+setGeneric("ad_pack", function(x, config = NULL, num_threads = 1L, ...) {
+  standardGeneric("ad_pack")
 })
 
-#' @rdname ad_fun
+#' @rdname ad_pack
 #' @export
-setMethod("ad_fun", signature = c(x = "ad_fun_ptr"), function(x, config = NULL, num_threads = 1L, ...) {
+setMethod("ad_pack", signature = c(x = "ad_pack_ptr"), function(x, config = NULL, num_threads = 1L, ...) {
   extras <- list(...)
   verbose <- FALSE
   if (!is.null(config)) {
-    if (is.list(config) && !is(config, "ad_fun_ptr")) {
+    if (is.list(config) && !is(config, "ad_pack_ptr")) {
       # a genuine config list: only verbose is used at attach time
       verbose <- isTRUE(config[["verbose"]])
     } else {
-      # positional shorthand ad_fun(ptr1, ptr2, ...): treat as extra shard
+      # positional shorthand ad_pack(ptr1, ptr2, ...): treat as extra shard
       extras <- c(list(config), extras)
     }
   }
   if (length(extras) > 0L) {
-    if (!all(vapply(extras, function(ptr) is(ptr, "ad_fun_ptr"), logical(1)))) {
-      stop("additional arguments must be ad_fun_ptr", call. = FALSE)
+    if (!all(vapply(extras, function(ptr) is(ptr, "ad_pack_ptr"), logical(1)))) {
+      stop("additional arguments must be ad_pack_ptr", call. = FALSE)
     }
     if (verbose) {
-      cat("ad_fun: merging ", 1L + length(extras), " raw handle(s)...\n", sep = "")
+      cat("ad_pack: merging ", 1L + length(extras), " raw handle(s)...\n", sep = "")
       utils::flush.console()
     }
     x <- do.call(c, c(list(x), extras))
   }
-  new_ad_fun_from_ptr(x, num_threads = num_threads, verbose = verbose)
+  new_ad_pack_from_ptr(x, num_threads = num_threads, verbose = verbose)
 })
 
-#' @rdname ad_fun
+#' @rdname ad_pack
 #' @export
-setMethod("ad_fun",
-  signature = c(x = "ad_data"),
+setMethod("ad_pack",
+  signature = c(x = "density_data"),
   function(x, config, num_threads = 1L, ...) {
     if (missing(config) || is.null(config)) {
-      stop("config is required for ad_fun(ad_data, config)", call. = FALSE)
+      stop("config is required for ad_pack(density_data, config)", call. = FALSE)
     }
     if (!is.null(config$num_threads)) {
       num_threads <- config$num_threads
     }
-    ad_fun(
-      ad_fun_ptr(x, config),
+    ad_pack(
+      ad_pack_ptr(x, config),
       num_threads = num_threads,
       config = config
     )
   }
 )
 
-#' @rdname ad_fun
+#' @rdname ad_pack
 #' @export
-setMethod("ad_fun", signature = c(x = "list"), function(x, config, num_threads = 1L, ...) {
+setMethod("ad_pack", signature = c(x = "list"), function(x, config, num_threads = 1L, ...) {
   if (!is_model_data_bundle(x)) {
     stop(
       "list `x` must be a bundle from model_data() with ",
@@ -226,18 +226,18 @@ setMethod("ad_fun", signature = c(x = "list"), function(x, config, num_threads =
     )
   }
   if (missing(config) || is.null(config)) {
-    stop("config is required for ad_fun(model_data, config)", call. = FALSE)
+    stop("config is required for ad_pack(model_data, config)", call. = FALSE)
   }
   if (!is.null(config$num_threads)) {
     num_threads <- config$num_threads
   }
   defaults <- list(
-    beta = init_from_info_block(x$data$info$beta),
-    theta = init_from_info_block(x$data$info$theta),
-    gamma = rep(0, nrow(x$data$info$gamma))
+    beta = init_from_info_block(x$term_data$info$beta),
+    theta = init_from_info_block(x$term_data$info$theta),
+    gamma = rep(0, nrow(x$term_data$info$gamma))
   )
   config_build <- utils::modifyList(defaults, config)
-  theta_info <- x$data$info$theta
+  theta_info <- x$term_data$info$theta
   n_theta <- nrow(theta_info)
   force_no_log <- identical(config_build$transform_theta, FALSE)
   log_flags <- if (force_no_log) {
@@ -271,13 +271,13 @@ setMethod("ad_fun", signature = c(x = "list"), function(x, config, num_threads =
   shard_names <- names(shard_list)
   n_shards <- length(shard_list)
   if (verbose) {
-    obs_groups <- if (!is.null(config_build$shards)) {
-      ncol(config_build$shards)
+    obs_groups <- if (!is.null(config_build$obs_groups)) {
+      ncol(config_build$obs_groups)
     } else {
       NA_integer_
     }
     cat(
-      "ad_fun: building ", n_shards, " density shard(s)",
+      "ad_pack: building ", n_shards, " density shard(s)",
       if (!is.na(obs_groups)) paste0(" (", obs_groups, " observation group(s) per obs shard)") else "",
       "...\n",
       sep = ""
@@ -291,10 +291,10 @@ setMethod("ad_fun", signature = c(x = "list"), function(x, config, num_threads =
     if (verbose) {
       cat(
         "  [", i, "/", n_shards, "] ",
-        ad_fun_shard_label(shard, shard_name),
+        ad_shard_label(shard, shard_name),
         " (CppAD tape",
-        if (identical(shard@ad_kind, "observations") && !is.null(config_build$shards)) {
-          paste0(", ", ncol(config_build$shards), " groups")
+        if (identical(shard@ad_kind, "observations") && !is.null(config_build$obs_groups)) {
+          paste0(", ", ncol(config_build$obs_groups), " groups")
         } else {
           ""
         },
@@ -303,32 +303,32 @@ setMethod("ad_fun", signature = c(x = "list"), function(x, config, num_threads =
       )
       utils::flush.console()
     }
-    ptrs[[i]] <- ad_fun_ptr(shard, config = config_build)
+    ptrs[[i]] <- ad_pack_ptr(shard, config = config_build)
     if (verbose) {
       cat("  [", i, "/", n_shards, "] done (", n_groups(ptrs[[i]]), " AD group(s)).\n", sep = "")
       utils::flush.console()
     }
   }
   if (verbose) {
-    cat("ad_fun: merging density handles...\n")
+    cat("ad_pack: merging density handles...\n")
     utils::flush.console()
   }
-  new_ad_fun_from_ptr(
+  new_ad_pack_from_ptr(
     do.call(c, ptrs),
     num_threads = num_threads,
-    info = x$data$info,
+    info = x$term_data$info,
     verbose = verbose
   )
 })
 
 #' C++ backend entry points
 #'
-#' Low-level entry points exposed to R. Accept an \code{ad_fun} S4 object
-#' (via \code{@ptr}) or a raw \code{ad_fun_ptr}.
+#' Low-level entry points exposed to R. Accept an \code{ad_pack} S4 object
+#' (via \code{@ptr}) or a raw \code{ad_pack_ptr}.
 #'
-#' @param ad_fun An \code{ad_fun} S4 object or \code{ad_fun_ptr} handle.
+#' @param ad_pack An \code{ad_pack} S4 object or \code{ad_pack_ptr} handle.
 #' @param x Numeric parameter vector of length \code{Nparams}.
-#' @param shards Optional integer vector of 0-based shard indices; \code{NULL} or
+#' @param ad_shards Optional integer vector of 0-based shard indices; \code{NULL} or
 #'   \code{integer(0)} evaluates all shards.
 #' @param negative Logical (default \code{TRUE}). If \code{TRUE}, return the
 #'   **negative** log density \eqn{-\ell(x)} and its derivatives (minimization /
@@ -351,8 +351,8 @@ setMethod("ad_fun", signature = c(x = "list"), function(x, config, num_threads =
 #'
 #' @section Thread affinity:
 #' These are **serial debug** APIs. They error if the handle was built with
-#' \code{ad_fun(..., num_threads > 1)}. Use a plain \code{ad_fun_ptr} (or
-#' \code{ad_fun(..., num_threads = 1)}), or \code{\link{clone_ad_fun_ptr}()}
+#' \code{ad_pack(..., num_threads > 1)}. Use a plain \code{ad_pack_ptr} (or
+#' \code{ad_pack(..., num_threads = 1)}), or \code{\link{clone_ad_pack_ptr}()}
 #' before assigning multi-thread affinity. Parallel evaluation uses
 #' \code{\link{fun_obj_fdfh}} / \code{\link{inner_opt}} /
 #' \code{\link{log_lik_laplace}} on the affined handle.
@@ -363,34 +363,34 @@ NULL
 
 #' @rdname adlaplace_cpp
 #' @export
-joint_log_dens <- function(ad_fun, x, shards = NULL, negative = TRUE) {
-  ptr <- if (isS4(ad_fun) && methods::.hasSlot(ad_fun, "ptr")) ad_fun@ptr else ad_fun
-  .Call(`_adlaplace_joint_log_dens`, ptr, x, shards, negative)
+joint_log_dens <- function(ad_pack, x, ad_shards = NULL, negative = TRUE) {
+  ptr <- if (isS4(ad_pack) && methods::.hasSlot(ad_pack, "ptr")) ad_pack@ptr else ad_pack
+  .Call(`_adlaplace_joint_log_dens`, ptr, x, ad_shards, negative)
 }
 
 #' @rdname adlaplace_cpp
 #' @export
-grad <- function(ad_fun, x, shards = NULL, inner = FALSE, negative = TRUE) {
-  ptr <- if (isS4(ad_fun) && methods::.hasSlot(ad_fun, "ptr")) ad_fun@ptr else ad_fun
-  .Call(`_adlaplace_grad`, ptr, x, shards, inner, negative)
+grad <- function(ad_pack, x, ad_shards = NULL, inner = FALSE, negative = TRUE) {
+  ptr <- if (isS4(ad_pack) && methods::.hasSlot(ad_pack, "ptr")) ad_pack@ptr else ad_pack
+  .Call(`_adlaplace_grad`, ptr, x, ad_shards, inner, negative)
 }
 
 #' @rdname adlaplace_cpp
 #' @export
-hessian <- function(ad_fun, x, shards = NULL, inner = FALSE, verbose = FALSE, negative = TRUE) {
-  ptr <- if (isS4(ad_fun) && methods::.hasSlot(ad_fun, "ptr")) ad_fun@ptr else ad_fun
-  .Call(`_adlaplace_hessian`, ptr, x, shards, inner, verbose, negative)
+hessian <- function(ad_pack, x, ad_shards = NULL, inner = FALSE, verbose = FALSE, negative = TRUE) {
+  ptr <- if (isS4(ad_pack) && methods::.hasSlot(ad_pack, "ptr")) ad_pack@ptr else ad_pack
+  .Call(`_adlaplace_hessian`, ptr, x, ad_shards, inner, verbose, negative)
 }
 
 #' @rdname adlaplace_cpp
 #' @export
-trace_hinv_t <- function(ad_fun, x, LinvPt, LinvPtColumns, verbose = FALSE) {
-  ptr <- if (isS4(ad_fun) && methods::.hasSlot(ad_fun, "ptr")) ad_fun@ptr else ad_fun
+trace_hinv_t <- function(ad_pack, x, LinvPt, LinvPtColumns, verbose = FALSE) {
+  ptr <- if (isS4(ad_pack) && methods::.hasSlot(ad_pack, "ptr")) ad_pack@ptr else ad_pack
   .Call("_adlaplace_trace_hinv_t", ptr, x, LinvPt, LinvPtColumns, verbose)
 }
 
 #' @rdname adlaplace_cpp
 #' @export
-fun_obj_fdfh <- function(ad_fun, parameters, gamma, inner = TRUE, verbose = FALSE) {
-  .Call(`_adlaplace_fun_obj_fdfh`, parameters, gamma, ad_fun, inner, verbose)
+fun_obj_fdfh <- function(ad_pack, parameters, gamma, inner = TRUE, verbose = FALSE) {
+  .Call(`_adlaplace_fun_obj_fdfh`, parameters, gamma, ad_pack, inner, verbose)
 }

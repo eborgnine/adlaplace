@@ -3,7 +3,7 @@
 
 // Public helpers for random_* AD fun builders (diagonal / mult / FEM backends).
 
-#include "adlaplace/adfun.hpp"
+#include "adlaplace/ad_pack.hpp"
 #include "adlaplace/backend.hpp"
 #include "adlaplace/rviews.hpp"
 
@@ -29,8 +29,8 @@ inline void set_sparse_rc_pairs(
   }
 }
 
-inline GroupPack build_ad_fun_random(
-    const ad_data &model, const Rcpp::List &config, LogDensSingleRandomFn log_dens,
+inline AdTape build_ad_fun_random(
+    const density_data &model, const Rcpp::List &config, LogDensSingleRandomFn log_dens,
     const CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> &hessian = empty_sparse_rc()) {
 
   const Config cfg(config);
@@ -65,7 +65,7 @@ inline GroupPack build_ad_fun_random(
 
   CppAD::ADFun<double> fun(ad_params, result_here);
 
-  GroupPack pack;
+  AdTape pack;
   pack.fun = std::move(fun);
   pack.owner_thread_assigned = false;
   if (cfg.verbose) {

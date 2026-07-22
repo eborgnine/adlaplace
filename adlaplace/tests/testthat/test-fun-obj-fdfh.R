@@ -13,7 +13,7 @@ build_fun_obj_test_model <- function(num_threads) {
     theta = c(-1, -1, -1),
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    shards = adlaplace::ad_shards(Amat, num_shards = 40L),
+    obs_groups = adlaplace::obs_groups(Amat, num_groups = 40L),
     verbose = FALSE,
     package = "adlaplace"
   )
@@ -34,16 +34,16 @@ build_fun_obj_test_model <- function(num_threads) {
     Q = rep(1, ncol(Amat))
   )
   ad_ptr <- do.call(c, list(
-    adlaplace::ad_fun_ptr(as_shard(model, "observations", "nbinom_obs"), config),
-    adlaplace::ad_fun_ptr(random_shard, config),
-    adlaplace::ad_fun_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
+    adlaplace::ad_pack_ptr(as_shard(model, "observations", "nbinom_obs"), config),
+    adlaplace::ad_pack_ptr(random_shard, config),
+    adlaplace::ad_pack_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
   ))
-  # Plain dens handle before multi-thread ad_fun() mutates affinity on ad_ptr.
-  dens_ptr <- adlaplace::clone_ad_fun_ptr(ad_ptr)
-  ad_fun <- adlaplace::ad_fun(ad_ptr, num_threads = num_threads)
+  # Plain dens handle before multi-thread ad_pack() mutates affinity on ad_ptr.
+  dens_ptr <- adlaplace::clone_ad_pack_ptr(ad_ptr)
+  ad_pack <- adlaplace::ad_pack(ad_ptr, num_threads = num_threads)
   gamma <- stats::rnorm(n_gamma, sd = 0.1)
   list(
-    ad_fun = ad_fun,
+    ad_pack = ad_pack,
     dens_ptr = dens_ptr,
     config = config,
     n_beta = n_beta,
@@ -56,7 +56,7 @@ build_fun_obj_test_model <- function(num_threads) {
 
 expect_fun_obj_parity <- function(m, inner) {
   fo <- adlaplace::fun_obj_fdfh(
-    m$ad_fun,
+    m$ad_pack,
     m$parameters,
     m$gamma,
     inner = inner

@@ -1,8 +1,8 @@
-# Regression: tape build (serial) -> ad_fun(N>1) -> inner_opt(deriv=FALSE)
+# Regression: tape build (serial) -> ad_pack(N>1) -> inner_opt(deriv=FALSE)
 # must not hit CppAD parallel_setup thread_num() >= num_threads on macOS.
 
 build_transition_fixture <- function(num_threads = 2L,
-                                       num_shards = 20L,
+                                       num_groups = 20L,
                                        include_random = TRUE) {
   set.seed(42)
   Nobs <- 80L
@@ -16,7 +16,7 @@ build_transition_fixture <- function(num_threads = 2L,
     theta = c(-1, -1),
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    shards = adlaplace::ad_shards(Amat, num_shards = num_shards),
+    obs_groups = adlaplace::obs_groups(Amat, num_groups = num_groups),
     verbose = FALSE,
     package = "adlaplace"
   )
@@ -28,8 +28,8 @@ build_transition_fixture <- function(num_threads = 2L,
     theta_local_row = 1L
   )
   ptrs <- list(
-    adlaplace::ad_fun_ptr(as_shard(model, "observations", "nbinom_obs"), config),
-    adlaplace::ad_fun_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
+    adlaplace::ad_pack_ptr(as_shard(model, "observations", "nbinom_obs"), config),
+    adlaplace::ad_pack_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
   )
   if (include_random) {
     random_shard <- test_random_shard(
@@ -40,14 +40,14 @@ build_transition_fixture <- function(num_threads = 2L,
       Q = rep(1, ncol(Amat))
     )
     ptrs <- c(
-      list(adlaplace::ad_fun_ptr(random_shard, config)),
+      list(adlaplace::ad_pack_ptr(random_shard, config)),
       ptrs
     )
   }
-  ad_fun <- adlaplace::ad_fun(do.call(c, ptrs), num_threads = num_threads)
+  ad_pack <- adlaplace::ad_pack(do.call(c, ptrs), num_threads = num_threads)
   list(
     config = config,
-    ad_fun = ad_fun,
+    ad_pack = ad_pack,
     parameters = c(config$beta, config$theta),
     gamma = config$gamma
   )
@@ -57,7 +57,7 @@ expect_inner_opt_finite <- function(fx) {
   result <- adlaplace::inner_opt(
     parameters = fx$parameters,
     gamma = fx$gamma,
-    ad_fun = fx$ad_fun,
+    ad_pack = fx$ad_pack,
     control = list(maxit = 5L, report.level = 0, report.freq = 0),
     deriv = FALSE
   )
@@ -65,13 +65,13 @@ expect_inner_opt_finite <- function(fx) {
   invisible(result)
 }
 
-test_that("tape build -> ad_fun(2) -> inner_opt deriv=FALSE (mixed shards)", {
+test_that("tape build -> ad_pack(2) -> inner_opt deriv=FALSE (mixed shards)", {
   skip_if_not(adlaplace:::has_openmp(), "OpenMP not available in this build")
   fx <- build_transition_fixture(num_threads = 2L, include_random = TRUE)
   expect_inner_opt_finite(fx)
 })
 
-test_that("tape build -> ad_fun(2) -> inner_opt deriv=FALSE (obs + extra only)", {
+test_that("tape build -> ad_pack(2) -> inner_opt deriv=FALSE (obs + extra only)", {
   skip_if_not(adlaplace:::has_openmp(), "OpenMP not available in this build")
   fx <- build_transition_fixture(num_threads = 2L, include_random = FALSE)
   expect_inner_opt_finite(fx)

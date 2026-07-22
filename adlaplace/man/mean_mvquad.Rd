@@ -8,7 +8,7 @@ mean_mvquad(
   parameters,
   mode,
   cov,
-  ad_fun,
+  ad_pack,
   n = 3L,
   type = "nHN",
   ndConstruction = "sparse",
@@ -22,7 +22,7 @@ mean_mvquad(
 
 \item{cov}{\eqn{H^{-1}} for the inner block (e.g. \code{laplace$hessian$H_inv}).}
 
-\item{ad_fun}{\code{ad_fun} object for \code{joint_log_dens}.}
+\item{ad_pack}{\code{ad_pack} object for \code{joint_log_dens}.}
 
 \item{n}{Quadrature level passed to \pkg{mvQuad} \code{createNIGrid}.}
 

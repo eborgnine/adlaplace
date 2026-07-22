@@ -7,13 +7,13 @@
 assign_owner_threads(handle, num_threads)
 }
 \arguments{
-\item{handle}{External pointer of class \code{ad_fun_ptr}.}
+\item{handle}{External pointer of class \code{ad_pack_ptr}.}
 
 \item{num_threads}{Positive integer thread count.}
 }
 \description{
 Sets \code{owner_thread = shard_index \% num_threads} on every shard.
-Called from \code{ad_fun()} after \code{c()}. Required before parallel
+Called from \code{ad_pack()} after \code{c()}. Required before parallel
 \code{inner_opt} / \code{trace_hinv_t}.
 }
 \keyword{internal}

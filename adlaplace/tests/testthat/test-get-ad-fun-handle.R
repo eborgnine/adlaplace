@@ -1,4 +1,4 @@
-test_that("ad_fun attaches hessian_map to combined handle", {
+test_that("ad_pack attaches hessian_map to combined handle", {
   set.seed(4)
   Nobs <- 30L
   X <- Matrix::Matrix(cbind(1, rbinom(Nobs, 1, prob = 0.5)))
@@ -12,7 +12,7 @@ test_that("ad_fun attaches hessian_map to combined handle", {
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    shards = adlaplace::ad_shards(Amat, num_shards = 8L),
+    obs_groups = adlaplace::obs_groups(Amat, num_groups = 8L),
     num_threads = 1L,
     verbose = FALSE
   )
@@ -30,11 +30,11 @@ test_that("ad_fun attaches hessian_map to combined handle", {
     Q = rep(1, ncol(Amat))
   )
   ad_ptr <- do.call(c, list(
-    adlaplace::ad_fun_ptr(as_shard(model, "observations", "nbinom_obs"), config),
-    adlaplace::ad_fun_ptr(random_shard, config),
-    adlaplace::ad_fun_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
+    adlaplace::ad_pack_ptr(as_shard(model, "observations", "nbinom_obs"), config),
+    adlaplace::ad_pack_ptr(random_shard, config),
+    adlaplace::ad_pack_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
   ))
-  af <- adlaplace::ad_fun(ad_ptr, num_threads = 1L)
+  af <- adlaplace::ad_pack(ad_ptr, num_threads = 1L)
   x <- c(config$beta, config$gamma, config$theta)
   expect_equal(
     adlaplace::joint_log_dens(af, x, negative = FALSE),
@@ -46,7 +46,7 @@ test_that("ad_fun attaches hessian_map to combined handle", {
   )
   inner_res <- adlaplace::inner_opt(
     c(config$beta, config$theta), config$gamma,
-    ad_fun = af,
+    ad_pack = af,
     control = list(maxit = 3L, report.level = 0, report.freq = 0),
     deriv = FALSE
   )
@@ -86,7 +86,7 @@ test_that("inner_opt deriv exports Linv matching chol_inner_list pattern", {
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    shards = adlaplace::ad_shards(Amat, num_shards = 8L),
+    obs_groups = adlaplace::obs_groups(Amat, num_groups = 8L),
     num_threads = 1L,
     verbose = FALSE
   )
@@ -104,14 +104,14 @@ test_that("inner_opt deriv exports Linv matching chol_inner_list pattern", {
     Q = rep(1, ncol(Amat))
   )
   ad_ptr <- do.call(c, list(
-    adlaplace::ad_fun_ptr(as_shard(model, "observations", "nbinom_obs"), config),
-    adlaplace::ad_fun_ptr(random_shard, config),
-    adlaplace::ad_fun_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
+    adlaplace::ad_pack_ptr(as_shard(model, "observations", "nbinom_obs"), config),
+    adlaplace::ad_pack_ptr(random_shard, config),
+    adlaplace::ad_pack_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
   ))
-  af <- adlaplace::ad_fun(ad_ptr, num_threads = 1L)
+  af <- adlaplace::ad_pack(ad_ptr, num_threads = 1L)
   inner_deriv <- adlaplace::inner_opt(
     c(config$beta, config$theta), config$gamma,
-    ad_fun = af,
+    ad_pack = af,
     control = list(maxit = 3L, report.level = 0, report.freq = 0),
     deriv = TRUE
   )
@@ -127,7 +127,7 @@ test_that("inner_opt deriv exports Linv matching chol_inner_list pattern", {
     x = c(config$beta, config$theta),
     config = list(verbose = FALSE),
     gamma = config$gamma,
-    ad_fun = af,
+    ad_pack = af,
     control = list(maxit = 3L, report.level = 0, report.freq = 0),
     deriv = TRUE
   )
@@ -135,7 +135,7 @@ test_that("inner_opt deriv exports Linv matching chol_inner_list pattern", {
   expect_true(!is.null(laplace$hessian$half_H_inv))
 })
 
-test_that("ad_fun works without config when layout is on ptr", {
+test_that("ad_pack works without config when layout is on ptr", {
   set.seed(5)
   Nobs <- 25L
   X <- Matrix::Matrix(cbind(1, rbinom(Nobs, 1, prob = 0.5)))
@@ -149,7 +149,7 @@ test_that("ad_fun works without config when layout is on ptr", {
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    shards = adlaplace::ad_shards(Amat, num_shards = 6L),
+    obs_groups = adlaplace::obs_groups(Amat, num_groups = 6L),
     verbose = FALSE
   )
   model <- test_ad_data(
@@ -158,19 +158,19 @@ test_that("ad_fun works without config when layout is on ptr", {
     X = X,
     config = config
   )
-  ad_ptr <- adlaplace::ad_fun_ptr(
+  ad_ptr <- adlaplace::ad_pack_ptr(
     as_shard(model, "observations", "nbinom_obs"),
     config
   )
-  af <- adlaplace::ad_fun(ad_ptr, num_threads = 1L)
+  af <- adlaplace::ad_pack(ad_ptr, num_threads = 1L)
   sz <- adlaplace:::get_sizes(ad_ptr, 0L)
-  expect_true(methods::is(af, "ad_fun"))
+  expect_true(methods::is(af, "ad_pack"))
   expect_equal(af@sizes[["beta"]], sz$n_beta)
   expect_equal(af@sizes[["gamma"]], sz$n_outer - sz$n_beta - sz$n_theta)
   expect_equal(af@sizes[["theta"]], sz$n_theta)
 })
 
-test_that("ad_fun variadic ad_fun_ptr matches explicit c() composition", {
+test_that("ad_pack variadic ad_pack_ptr matches explicit c() composition", {
   skip_if_not(adlaplace:::has_openmp(), "OpenMP not available in this build")
   set.seed(14)
   Nobs <- 30L
@@ -185,7 +185,7 @@ test_that("ad_fun variadic ad_fun_ptr matches explicit c() composition", {
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    shards = adlaplace::ad_shards(Amat, num_shards = 8L),
+    obs_groups = adlaplace::obs_groups(Amat, num_groups = 8L),
     num_threads = 2L,
     verbose = FALSE
   )
@@ -204,23 +204,23 @@ test_that("ad_fun variadic ad_fun_ptr matches explicit c() composition", {
   )
 
   ad_ptr_explicit <- do.call(c, list(
-    adlaplace::ad_fun_ptr(as_shard(model, "observations", "nbinom_obs"), config),
-    adlaplace::ad_fun_ptr(random_shard, config),
-    adlaplace::ad_fun_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
+    adlaplace::ad_pack_ptr(as_shard(model, "observations", "nbinom_obs"), config),
+    adlaplace::ad_pack_ptr(random_shard, config),
+    adlaplace::ad_pack_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
   ))
-  dens_explicit <- adlaplace::clone_ad_fun_ptr(ad_ptr_explicit)
-  af_explicit <- adlaplace::ad_fun(ad_ptr_explicit, num_threads = 2L)
+  dens_explicit <- adlaplace::clone_ad_pack_ptr(ad_ptr_explicit)
+  af_explicit <- adlaplace::ad_pack(ad_ptr_explicit, num_threads = 2L)
 
   make_three <- function() {
     list(
-      adlaplace::ad_fun_ptr(as_shard(model, "observations", "nbinom_obs"), config),
-      adlaplace::ad_fun_ptr(random_shard, config),
-      adlaplace::ad_fun_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
+      adlaplace::ad_pack_ptr(as_shard(model, "observations", "nbinom_obs"), config),
+      adlaplace::ad_pack_ptr(random_shard, config),
+      adlaplace::ad_pack_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
     )
   }
   dens_variadic <- do.call(c, make_three())
   af_variadic <- do.call(
-    adlaplace::ad_fun,
+    adlaplace::ad_pack,
     c(make_three(), list(num_threads = 2L))
   )
 
@@ -236,7 +236,7 @@ test_that("ad_fun variadic ad_fun_ptr matches explicit c() composition", {
   expect_equal(af_explicit@sizes, af_variadic@sizes)
 })
 
-test_that("ad_fun variadic composition clears source pointers like c()", {
+test_that("ad_pack variadic composition clears source pointers like c()", {
   skip_if_not(adlaplace:::has_openmp(), "OpenMP not available in this build")
   set.seed(15)
   Nobs <- 20L
@@ -251,7 +251,7 @@ test_that("ad_fun variadic composition clears source pointers like c()", {
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    shards = adlaplace::ad_shards(Amat, num_shards = 5L),
+    obs_groups = adlaplace::obs_groups(Amat, num_groups = 5L),
     num_threads = 2L,
     verbose = FALSE
   )
@@ -262,16 +262,16 @@ test_that("ad_fun variadic composition clears source pointers like c()", {
     config = config
   )
 
-  obs <- adlaplace::ad_fun_ptr(as_shard(model, "observations", "nbinom_obs"), config)
-  extra <- adlaplace::ad_fun_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
+  obs <- adlaplace::ad_pack_ptr(as_shard(model, "observations", "nbinom_obs"), config)
+  extra <- adlaplace::ad_pack_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
   dens_ptr <- c(
-    adlaplace::clone_ad_fun_ptr(obs),
-    adlaplace::clone_ad_fun_ptr(extra)
+    adlaplace::clone_ad_pack_ptr(obs),
+    adlaplace::clone_ad_pack_ptr(extra)
   )
-  af <- adlaplace::ad_fun(obs, extra, num_threads = 2L)
+  af <- adlaplace::ad_pack(obs, extra, num_threads = 2L)
   x <- c(config$beta, config$gamma, config$theta)
 
-  expect_true(is(af, "ad_fun"))
+  expect_true(is(af, "ad_pack"))
   expect_true(is.finite(adlaplace::joint_log_dens(dens_ptr, x, negative = FALSE)))
   expect_error(
     adlaplace::joint_log_dens(af, x, negative = FALSE),
@@ -289,7 +289,7 @@ test_that("ad_fun variadic composition clears source pointers like c()", {
   )
 })
 
-test_that("ad_fun variadic input validates additional arguments", {
+test_that("ad_pack variadic input validates additional arguments", {
   set.seed(16)
   Nobs <- 10L
   X <- Matrix::Matrix(cbind(1, rbinom(Nobs, 1, prob = 0.5)))
@@ -303,7 +303,7 @@ test_that("ad_fun variadic input validates additional arguments", {
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    shards = adlaplace::ad_shards(Amat, num_shards = 3L),
+    obs_groups = adlaplace::obs_groups(Amat, num_groups = 3L),
     verbose = FALSE
   )
   model <- test_ad_data(
@@ -312,11 +312,11 @@ test_that("ad_fun variadic input validates additional arguments", {
     X = X,
     config = config
   )
-  obs <- adlaplace::ad_fun_ptr(as_shard(model, "observations", "nbinom_obs"), config)
+  obs <- adlaplace::ad_pack_ptr(as_shard(model, "observations", "nbinom_obs"), config)
 
   expect_error(
-    adlaplace::ad_fun(obs, 1L),
-    "additional arguments must be ad_fun_ptr",
+    adlaplace::ad_pack(obs, 1L),
+    "additional arguments must be ad_pack_ptr",
     fixed = TRUE
   )
 })

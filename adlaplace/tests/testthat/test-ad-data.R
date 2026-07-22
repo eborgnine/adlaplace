@@ -1,28 +1,28 @@
-test_that("ad_data recasts shard from existing ad_data", {
-  obs <- adlaplace:::ad_data(
+test_that("density_data recasts shard from existing density_data", {
+  obs <- adlaplace:::density_data(
     y = 1:3,
     beta_map = 2L,
     gamma_map = 3L,
     theta_map = c(3L, 3L),
     ad_kind = "observations",
-    ad_fun = "nbinom_obs"
+    density = "nbinom_obs"
   )
-  extra <- adlaplace::ad_data(
+  extra <- adlaplace::density_data(
     obs,
     ad_kind = "parameters",
-    ad_fun = "nbinom_extra"
+    density = "nbinom_extra"
   )
   expect_identical(extra@y, obs@y)
   expect_identical(extra@beta_map, obs@beta_map)
   expect_identical(extra@gamma_map, obs@gamma_map)
   expect_identical(extra@theta_map, obs@theta_map)
   expect_equal(extra@ad_kind, "parameters")
-  expect_equal(extra@ad_fun, "nbinom_extra")
+  expect_equal(extra@density, "nbinom_extra")
   expect_false(identical(extra, obs))
 })
 
 test_that("length-1 integer map args become zero-column matrices", {
-  model <- adlaplace:::ad_data(
+  model <- adlaplace:::density_data(
     beta_map = 2L,
     gamma_map = 3L,
     theta_map = 1L
@@ -35,7 +35,7 @@ test_that("length-1 integer map args become zero-column matrices", {
 })
 
 test_that("length-2 map shorthand builds one-column maps", {
-  model <- adlaplace:::ad_data(
+  model <- adlaplace:::density_data(
     beta_map = c(1L, 2L),
     theta_map = c(2L, 3L)
   )
@@ -50,17 +50,17 @@ test_that("length-2 map shorthand builds one-column maps", {
 
 test_that("length-2 map shorthand validates row index", {
   expect_error(
-    adlaplace:::ad_data(theta_map = c(0L, 1L)),
+    adlaplace:::density_data(theta_map = c(0L, 1L)),
     "row index"
   )
   expect_error(
-    adlaplace:::ad_data(theta_map = c(4L, 3L)),
+    adlaplace:::density_data(theta_map = c(4L, 3L)),
     "row index"
   )
 })
 
 test_that("list(indices, nrow) shorthand builds one-to-one columns", {
-  model <- adlaplace:::ad_data(
+  model <- adlaplace:::density_data(
     gamma_map = list(c(1L, 3L), 4L)
   )
   expect_equal(nrow(model@gamma_map), 4L)
@@ -70,22 +70,22 @@ test_that("list(indices, nrow) shorthand builds one-to-one columns", {
 
 test_that("list(indices, nrow) shorthand validates shape and values", {
   expect_error(
-    adlaplace:::ad_data(theta_map = list(c(1L, 2L), c(3L, 4L))),
+    adlaplace:::density_data(theta_map = list(c(1L, 2L), c(3L, 4L))),
     "second element must be scalar nrow"
   )
   expect_error(
-    adlaplace:::ad_data(theta_map = list(c(1.5), 3L)),
+    adlaplace:::density_data(theta_map = list(c(1.5), 3L)),
     "indices must be finite integers"
   )
   expect_error(
-    adlaplace:::ad_data(theta_map = list(c(4L), 3L)),
+    adlaplace:::density_data(theta_map = list(c(4L), 3L)),
     "indices must be between 1 and nrow"
   )
 })
 
-test_that("random_diagonal ad_fun_ptr accepts numeric precision vector", {
+test_that("random_diagonal ad_pack_ptr accepts numeric precision vector", {
   nr <- 4L
-  model <- adlaplace:::ad_data(
+  model <- adlaplace:::density_data(
     gamma_map = Matrix::sparseMatrix(
       i = seq_len(nr),
       j = seq_len(nr),
@@ -94,7 +94,7 @@ test_that("random_diagonal ad_fun_ptr accepts numeric precision vector", {
     ),
     theta_map = c(1L, 1L),
     ad_kind = "random",
-    ad_fun = "random_diagonal",
+    density = "random_diagonal",
     precision = rep(2, nr)
   )
   config <- list(
@@ -103,13 +103,13 @@ test_that("random_diagonal ad_fun_ptr accepts numeric precision vector", {
     theta = 0.1,
     transform_theta = FALSE
   )
-  ptr <- adlaplace::ad_fun_ptr(model, config)
-  expect_true(is(ptr, "ad_fun_ptr"))
+  ptr <- adlaplace::ad_pack_ptr(model, config)
+  expect_true(is(ptr, "ad_pack_ptr"))
 })
 
-test_that("random_diagonal ad_fun_ptr errors when precision is NULL", {
+test_that("random_diagonal ad_pack_ptr errors when precision is NULL", {
   nr <- 4L
-  model <- adlaplace:::ad_data(
+  model <- adlaplace:::density_data(
     gamma_map = Matrix::sparseMatrix(
       i = seq_len(nr),
       j = seq_len(nr),
@@ -118,7 +118,7 @@ test_that("random_diagonal ad_fun_ptr errors when precision is NULL", {
     ),
     theta_map = c(1L, 1L),
     ad_kind = "random",
-    ad_fun = "random_diagonal",
+    density = "random_diagonal",
     precision = NULL
   )
   config <- list(
@@ -128,7 +128,7 @@ test_that("random_diagonal ad_fun_ptr errors when precision is NULL", {
     transform_theta = FALSE
   )
   expect_error(
-    adlaplace::ad_fun_ptr(model, config),
+    adlaplace::ad_pack_ptr(model, config),
     "precision is required"
   )
 })
@@ -143,7 +143,7 @@ test_that("beta_map and gamma_map default to diagonal maps from X and A", {
     repr = "C"
   )
   X <- matrix(1, 2, 1)
-  model <- adlaplace:::ad_data(y = c(1, 2), A = A, X = X, theta_map = Matrix::Diagonal(1L))
+  model <- adlaplace:::density_data(y = c(1, 2), A = A, X = X, theta_map = Matrix::Diagonal(1L))
   expect_equal(sizes(model)$n_beta, 1L)
   expect_equal(sizes(model)$n_gamma, 3L)
   expect_equal(ncol(model@beta_map), 1L)
@@ -151,7 +151,7 @@ test_that("beta_map and gamma_map default to diagonal maps from X and A", {
 })
 
 test_that("theta_map defaults to empty map when omitted", {
-  model <- adlaplace:::ad_data(
+  model <- adlaplace:::density_data(
     y = 1:4,
     A = matrix(0, 4, 4),
     X = matrix(0, 4, 2)
@@ -161,7 +161,7 @@ test_that("theta_map defaults to empty map when omitted", {
   expect_equal(ncol(model@theta_map), 0L)
 })
 
-test_that("ad_data does not require theta inference", {
+test_that("density_data does not require theta inference", {
   A <- Matrix::sparseMatrix(
     i = 0L,
     j = 0L,
@@ -170,7 +170,7 @@ test_that("ad_data does not require theta inference", {
     index1 = FALSE,
     repr = "C"
   )
-  expect_silent(suppressWarnings(adlaplace:::ad_data(y = 1, A = A, X = matrix(1, 1, 1))))
+  expect_silent(suppressWarnings(adlaplace:::density_data(y = 1, A = A, X = matrix(1, 1, 1))))
 })
 
 test_that("validate_config_layout allows missing theta when theta_map empty", {
@@ -182,7 +182,7 @@ test_that("validate_config_layout allows missing theta when theta_map empty", {
     index1 = FALSE,
     repr = "C"
   )
-  model <- adlaplace:::ad_data(y = 1:2, A = A, X = matrix(1, 2, 2))
+  model <- adlaplace:::density_data(y = 1:2, A = A, X = matrix(1, 2, 2))
   config <- list(
     beta = rep(0, 2),
     gamma = rep(0, 2)

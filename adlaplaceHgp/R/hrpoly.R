@@ -36,12 +36,12 @@ setClass("hrpoly",
          representation = representation(
            by = "by_group"
          ),
-         contains = "model",
+         contains = "model_term",
          prototype = list(
            by = adlaplace::by_group(),
            knots = numeric(0),
-           type = factor("random", levels = adlaplace::.type_factor_levels),
-           ad_fun = "random_diagonal",
+           model_role = factor("random", levels = adlaplace::.model_role_levels),
+           density = "random_diagonal",
            ad_kind = "random"
          )
 )
@@ -97,7 +97,7 @@ hrpoly <- function(
   # If by is already a by_group, use as is
 
   methods::new("hrpoly",
-    term = x,
+    name = x,
     label = paste(c(x, "hrpoly", p), collapse = "_"),
     formula = stats::as.formula(paste0("~ 0 + ", x), env = new.env()),
     p.order = as.integer(p),
@@ -123,8 +123,8 @@ setMethod("design", "hrpoly", function(term, data) {
 
   # Create an rpoly version of the term (without by slot)
   rpoly_term <- methods::new("rpoly",
-    term = term@term,
-    label = paste(term@term, "rpoly", sep = "_"),
+    name = term@name,
+    label = paste(term@name, "rpoly", sep = "_"),
     formula = term@formula,
     p.order = term@p.order,
     ref_value = term@ref_value,
@@ -152,7 +152,7 @@ setMethod("design", "hrpoly", function(term, data) {
     i = a_df$i, j = a_df$j,
     x = a_df$x, dims = c(length(a_base), length(term@by@levels)),
     dimnames = list(NULL, paste0(
-      term@term,
+      term@name,
       "_hrpoly_",
       term@p.order,
       "_g",
@@ -176,7 +176,7 @@ setMethod("precision", "hrpoly", function(term, data) {
 
   result <- Matrix::Diagonal(length(term@by@levels), 1)
   dimnames(result) <- list(
-    paste0(term@term, "_hrpoly_", term@p.order, "_g", term@by@labels)
+    paste0(term@name, "_hrpoly_", term@p.order, "_g", term@by@labels)
   )[c(1, 1)]
   result
 
@@ -188,13 +188,13 @@ setMethod("precision", "hrpoly", function(term, data) {
 #' @export
 setMethod("theta_info", "hrpoly", function(term) {
   result <- data.frame(
-    term = term@term, model = "hrpoly", 
+    term = term@name, model = "hrpoly", 
     label = term@label,
     init = term@init,
     lower = term@lower,
     upper = term@upper,
     parscale = term@parscale,
-    type = term@type,
+    model_role = term@model_role,
     log = term@log
   )
   return(result)
@@ -219,7 +219,7 @@ setMethod("random_info", "hrpoly", function(term, data) {
   basis <- NA
 
   result <- expand.grid(
-    term = term@term,
+    term = term@name,
     model = "hrpoly",
     label = term@label,
     by = term@by@levels,

@@ -113,7 +113,7 @@ Rcpp::S4 csc_to_dgCMatrix(const std::vector<int> &p, const std::vector<int> &i,
 
 // Numeric LDL from chol_update (x on L1 pattern, d on diagonal); pattern from
 // chol_inner_list.
-Rcpp::List chol_inner_numeric(const ad_fun &backend,
+Rcpp::List chol_inner_numeric(const ad_pack &backend,
                               const std::vector<double> &x,
                               const std::vector<double> &d,
                               const std::vector<double> &linv_x,
@@ -160,7 +160,7 @@ struct InnerOptResult {
 };
 
 InnerOptResult inner_opt(const std::vector<double> &parameters,
-                         const std::vector<double> &gamma, ad_fun &backend,
+                         const std::vector<double> &gamma, ad_pack &backend,
                          const TrustControl &control, bool deriv,
                          bool verbose) {
   adlaplace_require_owner_threads_assigned(backend);
@@ -391,13 +391,13 @@ InnerOptResult inner_opt(const std::vector<double> &parameters,
 //'
 //' Runs the inner optimization over \eqn{\gamma} using the
 //' \pkg{trustOptim} sparse trust-region CG solver on a pre-built
-//' \code{\link{ad_fun}} handle.
+//' \code{\link{ad_pack}} handle.
 //'
 //' @param parameters Numeric vector of fixed outer parameters
 //'   (\code{beta}, \code{theta}; length \code{Nbeta+Ntheta}).
 //' @param gamma Numeric vector of starting values for inner parameters
 //'   (\code{gamma}; length \code{Ngamma}).
-//' @param ad_fun \code{ad_fun} S4 object from \code{\link{ad_fun}}.
+//' @param ad_pack \code{ad_pack} S4 object from \code{\link{ad_pack}}.
 //' @param control List of trust-region control parameters (see \pkg{trustOptim}).
 //' @param deriv Logical; if \code{TRUE}, also return outer gradient/Hessian
 //'   pieces and Cholesky-based quantities at the inner mode.
@@ -417,14 +417,14 @@ InnerOptResult inner_opt(const std::vector<double> &parameters,
 //' @export
 // [[Rcpp::export]]
 Rcpp::List inner_opt(const Rcpp::NumericVector parameters,
-                     const Rcpp::NumericVector gamma, const Rcpp::S4 &ad_fun,
+                     const Rcpp::NumericVector gamma, const Rcpp::S4 &ad_pack,
                      SEXP control = R_NilValue, bool deriv = false,
                      bool verbose = false) {
   try {
     const Rcpp::List control_list(
         Rf_isNull(control) ? Rcpp::List() : Rcpp::as<Rcpp::List>(control));
     const TrustControl control_c(control_list);
-    ::ad_fun *backend = resolve_ad_fun_laplace(ad_fun);
+    ::ad_pack *backend = resolve_ad_pack_laplace(ad_pack);
 
     std::vector<double> parameters_vec(parameters.begin(), parameters.end());
     std::vector<double> gamma_vec(gamma.begin(), gamma.end());
@@ -478,10 +478,10 @@ Rcpp::List inner_opt(const Rcpp::NumericVector parameters,
 // [[Rcpp::export(name = ".fun_obj_fdfh_cpp")]]
 Rcpp::List fun_obj_fdfh(const Rcpp::NumericVector &parameters,
                         const Rcpp::NumericVector &gamma,
-                        const Rcpp::S4 &ad_fun, bool inner = true,
+                        const Rcpp::S4 &ad_pack, bool inner = true,
                         bool verbose = false) {
 
-  ::ad_fun *backend = resolve_ad_fun_laplace(ad_fun);
+  ::ad_pack *backend = resolve_ad_pack_laplace(ad_pack);
   adlaplace_require_owner_threads_assigned(*backend);
 
   const std::vector<std::vector<std::size_t>> thread_groups =
@@ -540,7 +540,7 @@ Rcpp::List fun_obj_fdfh(const Rcpp::NumericVector &parameters,
                 << ", threads = " << num_threads
                 << ", shards = " << backend->fun.size()
                 << ", nvars = " << nvars_opt << "\n";
-    Rcpp::Rcout << "  ad_fun configured_num_threads = "
+    Rcpp::Rcout << "  ad_pack configured_num_threads = "
                 << backend->configured_num_threads << "\n";
     Rcpp::Rcout << "  thread_groups:";
     for (int t = 0; t < num_threads; ++t) {

@@ -12,7 +12,7 @@ test_that("hessian_map chol_inner_list includes half_H_inv and H_inv patterns", 
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    shards = adlaplace::ad_shards(Amat, num_shards = 4L),
+    obs_groups = adlaplace::obs_groups(Amat, num_groups = 4L),
     num_threads = 1L,
     verbose = FALSE
   )
@@ -30,11 +30,11 @@ test_that("hessian_map chol_inner_list includes half_H_inv and H_inv patterns", 
     Q = rep(1, ncol(Amat))
   )
   ad_ptr <- do.call(c, list(
-    adlaplace::ad_fun_ptr(as_shard(model, "observations", "nbinom_obs"), config),
-    adlaplace::ad_fun_ptr(random_shard, config),
-    adlaplace::ad_fun_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
+    adlaplace::ad_pack_ptr(as_shard(model, "observations", "nbinom_obs"), config),
+    adlaplace::ad_pack_ptr(random_shard, config),
+    adlaplace::ad_pack_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
   ))
-  af <- adlaplace::ad_fun(ad_ptr, num_threads = 1L)
+  af <- adlaplace::ad_pack(ad_ptr, num_threads = 1L)
   cil <- af@chol_inner_list
   expect_true(!is.null(cil$half_H_inv))
   expect_true(!is.null(cil$H_inv))
@@ -59,7 +59,7 @@ test_that("inner_opt deriv half_H_inv and H_inv match R reference", {
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    shards = adlaplace::ad_shards(Amat, num_shards = 8L),
+    obs_groups = adlaplace::obs_groups(Amat, num_groups = 8L),
     num_threads = 1L,
     verbose = FALSE
   )
@@ -77,14 +77,14 @@ test_that("inner_opt deriv half_H_inv and H_inv match R reference", {
     Q = rep(1, ncol(Amat))
   )
   ad_ptr <- do.call(c, list(
-    adlaplace::ad_fun_ptr(as_shard(model, "observations", "nbinom_obs"), config),
-    adlaplace::ad_fun_ptr(random_shard, config),
-    adlaplace::ad_fun_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
+    adlaplace::ad_pack_ptr(as_shard(model, "observations", "nbinom_obs"), config),
+    adlaplace::ad_pack_ptr(random_shard, config),
+    adlaplace::ad_pack_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
   ))
-  af <- adlaplace::ad_fun(ad_ptr, num_threads = 1L)
+  af <- adlaplace::ad_pack(ad_ptr, num_threads = 1L)
   inner_deriv <- adlaplace::inner_opt(
     c(config$beta, config$theta), config$gamma,
-    ad_fun = af,
+    ad_pack = af,
     control = list(maxit = 3L, report.level = 0, report.freq = 0),
     deriv = TRUE
   )
@@ -123,7 +123,7 @@ test_that("H_inv dsCMatrix with coupled random-effect groups (vignette-like)", {
     theta = c(-1, -1, -1),
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    shards = adlaplace::ad_shards(Amat, num_shards = 40L),
+    obs_groups = adlaplace::obs_groups(Amat, num_groups = 40L),
     num_threads = 1L,
     verbose = FALSE,
     package = "adlaplace"
@@ -145,16 +145,16 @@ test_that("H_inv dsCMatrix with coupled random-effect groups (vignette-like)", {
     Q = rep(1, ncol(Amat))
   )
   ad_ptr <- do.call(c, list(
-    adlaplace::ad_fun_ptr(as_shard(model, "observations", "nbinom_obs"), config),
-    adlaplace::ad_fun_ptr(random_shard, config),
-    adlaplace::ad_fun_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
+    adlaplace::ad_pack_ptr(as_shard(model, "observations", "nbinom_obs"), config),
+    adlaplace::ad_pack_ptr(random_shard, config),
+    adlaplace::ad_pack_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
   ))
-  af <- adlaplace::ad_fun(ad_ptr, num_threads = 1L)
+  af <- adlaplace::ad_pack(ad_ptr, num_threads = 1L)
   ll <- adlaplace::log_lik_laplace(
     x = c(config$beta, config$theta),
     config = list(verbose = FALSE),
     gamma = config$gamma,
-    ad_fun = af,
+    ad_pack = af,
     control = list(maxit = 5L, report.level = 0, report.freq = 0),
     deriv = TRUE
   )

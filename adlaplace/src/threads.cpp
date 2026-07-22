@@ -153,7 +153,7 @@ std::vector<ThreadMismatch> &mismatch_log() {
 
 bool adlaplace_debug_enabled() { return true; }
 
-bool adlaplace_shard_thread_ok(const GroupPack &pack) {
+bool adlaplace_shard_thread_ok(const AdTape &pack) {
   if (!pack.owner_thread_assigned) {
     return true;
   }
@@ -226,7 +226,7 @@ void adlaplace_debug_print_load_banner() {
 
 bool adlaplace_debug_enabled() { return false; }
 
-bool adlaplace_shard_thread_ok(const GroupPack &) { return true; }
+bool adlaplace_shard_thread_ok(const AdTape &) { return true; }
 
 void adlaplace_debug_note_grad_mismatch(double *, std::size_t) {}
 

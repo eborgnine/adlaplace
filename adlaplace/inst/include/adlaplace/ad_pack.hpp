@@ -8,12 +8,12 @@
 #include <string>
 #include <vector>
 
-#include "adlaplace/ad_data.hpp"
+#include "adlaplace/density_data.hpp"
 #include "adlaplace/backend.hpp"
 #include "adlaplace/rviews.hpp"
 
 inline CPPAD_TESTVECTOR(double)
-    make_ad_params_seed(const Config &cfg, const ad_data &model) {
+    make_ad_params_seed(const Config &cfg, const density_data &model) {
 
   CPPAD_TESTVECTOR(double) ad_params_G(model.num_full);
   for (std::size_t d = 0; d < model.num_beta; ++d) {
@@ -42,7 +42,7 @@ inline const CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> &empty_sparse_rc() {
 }
 
 inline void
-adpack_discover_grad(GroupPack &gp,
+adpack_discover_grad(AdTape &gp,
                      CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> &grad,
                      const std::size_t n_params) {
 
@@ -61,7 +61,7 @@ adpack_discover_grad(GroupPack &gp,
 }
 
 inline void
-adpack_discover_hessian(GroupPack &gp,
+adpack_discover_hessian(AdTape &gp,
                         CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> &hessian,
                         const std::size_t n_params) {
 
@@ -76,7 +76,7 @@ adpack_discover_hessian(GroupPack &gp,
 }
 
 inline void adpack_sparsity(const CPPAD_TESTVECTOR(double) & x,
-                            const std::vector<int> &subset, GroupPack &gp,
+                            const std::vector<int> &subset, AdTape &gp,
                             const bool verbose = false,
                             const CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)>
                                 &hessian = empty_sparse_rc()) {
@@ -201,9 +201,9 @@ inline void adpack_sparsity(const CPPAD_TESTVECTOR(double) & x,
                     HESS_COLOR, gp.work_inner_hess);
 }
 
-inline size_t count_obs_shards(const ad_data &model, const Rcpp::List &config) {
+inline size_t count_obs_shards(const density_data &model, const Rcpp::List &config) {
   const Config cfg(config);
-  size_t ng = cfg.shards.ncol();
+  size_t ng = cfg.obs_groups.ncol();
   if (ng == 0) {
     if (model.y.size() > 0) {
       ng = 1;
@@ -214,7 +214,7 @@ inline size_t count_obs_shards(const ad_data &model, const Rcpp::List &config) {
   return ng > 0 ? ng : 1;
 }
 
-inline std::vector<GroupPack> build_ad_fun_obs(const ad_data &model,
+inline std::vector<AdTape> build_ad_fun_obs(const density_data &model,
                                                const Rcpp::List &config,
                                                LogDensObsFn log_dens) {
 
@@ -226,7 +226,7 @@ inline std::vector<GroupPack> build_ad_fun_obs(const ad_data &model,
     Rcpp::Rcout << "build_ad_fun_obs groups " << ng << "\n";
   }
 
-  std::vector<GroupPack> result(ng);
+  std::vector<AdTape> result(ng);
   const CPPAD_TESTVECTOR(double) ad_params_G = make_ad_params_seed(cfg, model);
 
   for (size_t d = 0; d < ng; ++d) {
@@ -255,8 +255,8 @@ inline std::vector<GroupPack> build_ad_fun_obs(const ad_data &model,
   return result;
 }
 
-inline GroupPack build_ad_fun_parameters(
-    const ad_data &model, const Rcpp::List &config, LogDensSingleDataFn log_dens,
+inline AdTape build_ad_fun_parameters(
+    const density_data &model, const Rcpp::List &config, LogDensSingleDataFn log_dens,
     const CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> &hessian = empty_sparse_rc()) {
 
   const Config cfg(config);
@@ -280,7 +280,7 @@ inline GroupPack build_ad_fun_parameters(
 
   CppAD::ADFun<double> fun(ad_params, result_here);
 
-  GroupPack pack;
+  AdTape pack;
   pack.fun = std::move(fun);
   pack.owner_thread_assigned = false;
   if (cfg.verbose) {

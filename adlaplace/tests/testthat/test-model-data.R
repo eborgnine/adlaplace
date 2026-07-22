@@ -3,10 +3,10 @@ test_that("model_data captures y from plain formula LHS", {
   expect_no_warning({
     md <- adlaplace::model_data(y ~ linear(x1), data = dat)
   })
-  expect_equal(md$data$y, as.numeric(dat$y))
+  expect_equal(md$term_data$y, as.numeric(dat$y))
   # bare response defaults to a gaussian observation term
   expect_true(length(md$observations) == 1L)
-  expect_identical(md$observations[[1]]@ad_fun, "gaussian_obs")
+  expect_identical(md$observations[[1]]@density, "gaussian_obs")
   expect_identical(names(md$parameters), "y_extra")
 })
 
@@ -28,14 +28,14 @@ test_that("model_data captures y from explicit observations term", {
     verbose = FALSE
   )
 
-  expect_equal(length(md$data$y), nrow(dat))
+  expect_equal(length(md$term_data$y), nrow(dat))
   expect_true(length(md$observations) >= 1L)
 })
 
-test_that("data_setup warns when no response/observations term is present", {
+test_that("term_data_setup warns when no response/observations term is present", {
   dat <- data.frame(y = 1:5, x1 = 1:5)
   expect_warning(
-    adlaplace:::data_setup(list(adlaplace::linear("x1")), data = dat),
+    adlaplace:::term_data_setup(list(adlaplace::linear("x1")), data = dat),
     "no response variable"
   )
 })
@@ -57,13 +57,13 @@ test_that("model_data na_omit drops rows with NA covariates", {
     data = dat,
     na_omit = TRUE
   )
-  expect_equal(nrow(md$data$data), 2L)
+  expect_equal(nrow(md$term_data$data), 2L)
 })
 
 test_that("model_data na_omit=FALSE keeps all rows", {
   dat <- data.frame(y = 1:3, x1 = 1:3, unused = c(1, NA, 3))
   md <- adlaplace::model_data(y ~ adlaplace::linear(x1), data = dat, na_omit = FALSE)
-  expect_equal(nrow(md$data$data), 3L)
+  expect_equal(nrow(md$term_data$data), 3L)
   md2 <- adlaplace::model_data(y ~ adlaplace::linear(x1), data = dat, na_omit = TRUE)
-  expect_equal(nrow(md2$data$data), 3L)
+  expect_equal(nrow(md2$term_data$data), 3L)
 })

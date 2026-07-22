@@ -39,7 +39,7 @@ The linear predictor is $\eta = X\beta + A\gamma$, with two independent random-e
 groups in $A$, log-standard-deviation parameters for each group, plus skew-normal
 scale $\omega$ (log scale when `transform_theta = TRUE`) and shape $\alpha$.
 Densities are implemented in `src/objectiveFunction.cpp`; tapes for custom shards
-are built via `adlaplace::ad_fun_ptr()` using the `package` slot on each `ad_data`
+are built via `adlaplace::ad_pack_ptr()` using the `package` slot on each `density_data`
 shard (`adlaplaceExample` for obs/extra, `adlaplace` for built-in random effects).
 
 ## Simulated data
@@ -100,7 +100,7 @@ config <- list(
   theta = c(log(thetaOrig[setdiff(names(thetaOrig), "alpha")]), thetaOrig["alpha"]),
   transform_theta = TRUE,
   gamma = rep(0, ncol(Amat)),
-  shards = adlaplace::ad_shards(Amat, num_shards = 100),
+  obs_groups = adlaplace::obs_groups(Amat, num_groups = 100),
   num_threads = 4L,
   verbose = FALSE
 )
@@ -112,9 +112,9 @@ n_theta <- length(config$theta)
 
 ## Building AD shards
 
-Each model piece is compiled separately with `ad_fun_ptr()`. The full model has
+Each model piece is compiled separately with `ad_pack_ptr()`. The full model has
 four shards: observation likelihood, hyperparameter (extra) terms, and one shard
-per random-effect group. Shards are merged later with `ad_fun()`.
+per random-effect group. Shards are merged later with `ad_pack()`.
 
 ### Observations and hyperparameters
 
@@ -122,7 +122,7 @@ The observation shard uses $\omega$ and $\alpha$ (last two $\theta$ components).
 The extra shard contributes the $-\sum_i \log\omega$ normalization terms.
 
 ```{r adShards_obs}
-data_obs <- adlaplace::ad_data(
+data_obs <- adlaplace::density_data(
   y = y,
   A = Amat,
   X = X,
@@ -133,21 +133,21 @@ data_obs <- adlaplace::ad_data(
     which(names(thetaOrig) == "alpha")
   ), n_theta),
   ad_kind = "observations",
-  ad_fun = "skewnormal_obs",
+  density = "skewnormal_obs",
   package = "adlaplaceExample"
 )
 
-data_extra <- adlaplace::ad_data(
+data_extra <- adlaplace::density_data(
   y = data_obs@y,
   beta_map = data_obs@beta_map,
   gamma_map = data_obs@gamma_map,
   theta_map = data_obs@theta_map,
   ad_kind = "parameters",
-  ad_fun = "skewnormal_extra",
+  density = "skewnormal_extra",
   package = "adlaplaceExample"
 )
-ad_fun_obs <- adlaplace::ad_fun_ptr(data = data_obs, config = config)
-ad_fun_extra <- adlaplace::ad_fun_ptr(data = data_extra, config = config)
+ad_fun_obs <- adlaplace::ad_pack_ptr(data = data_obs, config = config)
+ad_fun_extra <- adlaplace::ad_pack_ptr(data = data_extra, config = config)
 ```
 
 ### Random effects
@@ -158,7 +158,7 @@ Each group gets a diagonal normal prior with its own $\theta$ index.
 nr1 <- Nrandom1
 nr2 <- Nrandom2
 
-model_r1 <- adlaplace::ad_data(
+model_r1 <- adlaplace::density_data(
   beta_map = n_beta,
   gamma_map = Matrix::sparseMatrix(
     i = seq_len(nr1),
@@ -167,13 +167,13 @@ model_r1 <- adlaplace::ad_data(
   ),
   theta_map = c(1L, n_theta),
   ad_kind = "random",
-  ad_fun = "random_diagonal",
+  density = "random_diagonal",
   package = "adlaplace",
   precision = rep(1, nr1)
 )
-ad_fun_r1 <- adlaplace::ad_fun_ptr(data = model_r1, config = config)
+ad_fun_r1 <- adlaplace::ad_pack_ptr(data = model_r1, config = config)
 
-model_r2 <- adlaplace::ad_data(
+model_r2 <- adlaplace::density_data(
   beta_map = n_beta,
   gamma_map = Matrix::sparseMatrix(
     i = seq.int(nr1 + 1L, length.out = nr2),
@@ -182,11 +182,11 @@ model_r2 <- adlaplace::ad_data(
   ),
   theta_map = c(2L, n_theta),
   ad_kind = "random",
-  ad_fun = "random_diagonal",
+  density = "random_diagonal",
   package = "adlaplace",
   precision = rep(1, nr2)
 )
-ad_fun_r2 <- adlaplace::ad_fun_ptr(data = model_r2, config = config)
+ad_fun_r2 <- adlaplace::ad_pack_ptr(data = model_r2, config = config)
 ```
 
 ## Observation likelihood check
@@ -258,14 +258,14 @@ range(cmp$sn - cmp$ad)
 
 ## Combining shards
 
-Shard handles are combined with `c()`. Clone before multi-thread `ad_fun()` so
-serial dens stays on a plain handle; after `ad_fun()` the moved inputs must not
+Shard handles are combined with `c()`. Clone before multi-thread `ad_pack()` so
+serial dens stays on a plain handle; after `ad_pack()` the moved inputs must not
 be reused.
 
 ```{r adShards_combined}
 ad_fun_plain <- c(ad_fun_obs, ad_fun_r1, ad_fun_r2, ad_fun_extra)
-ad_pack <- adlaplace::ad_fun(
-  adlaplace::clone_ad_fun_ptr(ad_fun_plain),
+ad_pack <- adlaplace::ad_pack(
+  adlaplace::clone_ad_pack_ptr(ad_fun_plain),
   num_threads = config$num_threads
 )
 ```
@@ -282,7 +282,7 @@ by_shard <- vapply(
   function(s) {
     adlaplace::joint_log_dens(
       ad_fun_plain, x_full,
-      shards = s, negative = FALSE
+      ad_shards = s, negative = FALSE
     )
   },
   numeric(1)
@@ -307,7 +307,7 @@ x_outer <- c(config$beta, config$theta)
 inner_res <- adlaplace::inner_opt(
   parameters = x_outer,
   gamma = config$gamma,
-  ad_fun = ad_pack,
+  ad_pack = ad_pack,
   control = list(
     maxit = 100,
     report.level = 0,
@@ -335,14 +335,14 @@ determinant correction.
 ```{r testLogLik}
 res_noderiv <- adlaplace::log_lik_laplace(
   x = x_outer,
-  ad_fun = ad_pack,
+  ad_pack = ad_pack,
   config = config,
   deriv = FALSE
 )
 
 res_deriv <- adlaplace::log_lik_laplace(
   x = x_outer,
-  ad_fun = ad_pack,
+  ad_pack = ad_pack,
   config = config,
   deriv = TRUE
 )
@@ -388,7 +388,7 @@ common_optim_args <- c(
     method = "L-BFGS-B",
     control = optim_control,
     config = config,
-    ad_fun = ad_pack,
+    ad_pack = ad_pack,
     cache = cache,
     control_inner = control_inner
   ),
@@ -438,7 +438,7 @@ par_grid[, Dpar] <- Sx
 res_scan <- lapply(
   split(par_grid, row(par_grid)),
   adlaplace::log_lik_laplace,
-  ad_fun = ad_pack,
+  ad_pack = ad_pack,
   config = config,
   deriv = TRUE,
   gamma = cache$gamma
@@ -518,8 +518,7 @@ dens <- vapply(
   x_list,
   adlaplace::joint_log_dens,
   numeric(1),
-  ad_fun = ad_fun_plain,
-  shards = shards,
+  ad_pack = ad_fun_plain, ad_shards = shards,
   negative = FALSE
 )
 
@@ -528,9 +527,8 @@ grad <- do.call(
   lapply(
     x_list,
     adlaplace::grad,
-    ad_fun = ad_fun_plain,
-    inner = FALSE,
-    shards = shards,
+    ad_pack = ad_fun_plain,
+    inner = FALSE, ad_shards = shards,
     negative = FALSE
   )
 )
@@ -548,7 +546,7 @@ for (i in seq_len(Ngrid)) {
     ad_fun_plain,
     x_list[[i]],
     inner = FALSE,
-    shards = shards,
+    ad_shards = shards,
     negative = FALSE
   ))
 }
@@ -587,8 +585,8 @@ md <- adlaplace::model_data(
 )
 
 
-md$data$info$parameters[, c("term", "model", "label", "init", "log")]
-md$data$info$theta[, c("label", "log", "id")]
+md$term_data$info$parameters[, c("term", "model", "label", "init", "log")]
+md$term_data$info$theta[, c("label", "log", "id")]
 md$observations$y@theta_map
 data_obs@theta_map
 names(thetaOrig)
@@ -602,9 +600,9 @@ xx_remap <- res_deriv$parameters[param_remap]
 
 config2 <- list(
   transform_theta = TRUE,
-  shards = adlaplace::ad_shards(
-    md$data$A,
-    num_shards = 100
+  obs_groups = adlaplace::obs_groups(
+    md$term_data$A,
+    num_groups = 100
   ),
   beta = xx_remap[seq_len(n_beta)],
   theta = xx_remap[-seq_len(n_beta)],
@@ -626,9 +624,9 @@ xx_all2 <- c(
   xx_remap[-seq_len(n_beta)]
 )
 
-ad_extra <- adlaplace::ad_fun_ptr(data = data_extra, config = config)
-ad_extra2 <- adlaplace::ad_fun_ptr(data = md$parameters$y_extra, config = config2)
-ad_pack2 <- adlaplace::ad_fun(
+ad_extra <- adlaplace::ad_pack_ptr(data = data_extra, config = config)
+ad_extra2 <- adlaplace::ad_pack_ptr(data = md$parameters$y_extra, config = config2)
+ad_pack2 <- adlaplace::ad_pack(
   md,
   config2,
   num_threads = 1L
@@ -637,19 +635,19 @@ ad_pack2 <- adlaplace::ad_fun(
 adlaplace::joint_log_dens(ad_extra, xx_all, negative = FALSE)
 adlaplace::joint_log_dens(ad_extra2, xx_all2, negative = FALSE)
 adlaplace::joint_log_dens(ad_pack2, xx_all2,
-  shards = adlaplace:::n_groups(ad_pack2@ptr) - 1L,
+  ad_shards = adlaplace:::n_groups(ad_pack2@ptr) - 1L,
   negative = FALSE
 )
 
 
 by_shard <- vapply(
   seq.int(from = 0L, length.out = adlaplace:::n_groups(ad_fun_plain)),
-  function(s) adlaplace::joint_log_dens(ad_fun_plain, xx_all, shards = s, negative = FALSE),
+  function(s) adlaplace::joint_log_dens(ad_fun_plain, xx_all, ad_shards = s, negative = FALSE),
   numeric(1)
 )
 by_shard2 <- vapply(
   seq.int(from = 0L, length.out = adlaplace:::n_groups(ad_pack2@ptr)),
-  function(s) adlaplace::joint_log_dens(ad_pack2, xx_all2, shards = s, negative = FALSE),
+  function(s) adlaplace::joint_log_dens(ad_pack2, xx_all2, ad_shards = s, negative = FALSE),
   numeric(1)
 )
 
@@ -661,13 +659,13 @@ adlaplace::joint_log_dens(ad_pack2, xx_all2, negative = FALSE)
 log_lik1 <- adlaplace::log_lik_laplace(
   x = res_deriv$parameters,
   config = config,
-  ad_fun = ad_pack,
+  ad_pack = ad_pack,
   deriv = TRUE
 )
 log_lik2 <- adlaplace::log_lik_laplace(
   x = xx_remap,
   config = config2,
-  ad_fun = ad_pack2,
+  ad_pack = ad_pack2,
   deriv = TRUE
 )
 c(log_lik2$log_lik, log_lik1$log_lik)

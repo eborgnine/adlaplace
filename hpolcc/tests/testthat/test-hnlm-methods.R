@@ -7,7 +7,7 @@ test_that("hnlm S3 methods work on fitted object", {
     data = td$data,
     config = list(
       verbose = FALSE,
-      num_shards = 4L,
+      num_groups = 4L,
       num_threads = 1L
     ),
     control = list(maxit = 3L, trace = 0),
@@ -37,7 +37,7 @@ test_that("summary and vcov use outer Hessian", {
     data = td$data,
     config = list(
       verbose = FALSE,
-      num_shards = 4L,
+      num_groups = 4L,
       num_threads = 1L
     ),
     control = list(maxit = 5L, trace = 0),
@@ -67,7 +67,7 @@ test_that("coef and logLik fail on for_dev bundle", {
   dev <- hpolcc::hnlm(
     formula = td$formula,
     data = td$data,
-    config = list(verbose = FALSE, num_shards = 2L, num_threads = 1L),
+    config = list(verbose = FALSE, num_groups = 2L, num_threads = 1L),
     for_dev = TRUE
   )
   expect_error(stats::coef(dev), "fitted")

@@ -32,7 +32,7 @@ test_that("mean_mvquad smoke on small Laplace fit", {
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    shards = adlaplace::ad_shards(Amat, num_shards = 4L),
+    obs_groups = adlaplace::obs_groups(Amat, num_groups = 4L),
     num_threads = 1L,
     verbose = FALSE
   )
@@ -50,17 +50,17 @@ test_that("mean_mvquad smoke on small Laplace fit", {
     Q = rep(1, ncol(Amat))
   )
   ad_ptr <- do.call(c, list(
-    adlaplace::ad_fun_ptr(as_shard(model, "observations", "nbinom_obs"), config),
-    adlaplace::ad_fun_ptr(random_shard, config),
-    adlaplace::ad_fun_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
+    adlaplace::ad_pack_ptr(as_shard(model, "observations", "nbinom_obs"), config),
+    adlaplace::ad_pack_ptr(random_shard, config),
+    adlaplace::ad_pack_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
   ))
-  af <- adlaplace::ad_fun(ad_ptr, num_threads = 1L)
+  af <- adlaplace::ad_pack(ad_ptr, num_threads = 1L)
   x_outer <- c(config$beta, config$theta)
   ll <- adlaplace::log_lik_laplace(
     x = x_outer,
     config = config,
     gamma = config$gamma,
-    ad_fun = af,
+    ad_pack = af,
     control = list(maxit = 5L, report.level = 0, report.freq = 0),
     deriv = TRUE
   )
@@ -69,7 +69,7 @@ test_that("mean_mvquad smoke on small Laplace fit", {
     parameters = x_outer,
     mode = ll$inner_opt$solution,
     cov = ll$hessian$H_inv,
-    ad_fun = af,
+    ad_pack = af,
     n = 3L
   )
   expect_equal(length(est), ncol(Amat))
@@ -79,7 +79,7 @@ test_that("mean_mvquad smoke on small Laplace fit", {
     adlaplace::mean_mvquad(
       parameters = x_outer,
       mode = ll$inner_opt$solution,
-      ad_fun = af,
+      ad_pack = af,
       n = 3L
     ),
     "cov is required"

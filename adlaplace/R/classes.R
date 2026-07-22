@@ -1,10 +1,10 @@
 #' Valid model type factor levels
 #'
-#' Character vector of allowed levels for the \code{type} slot on
-#' \code{model} objects.
+#' Character vector of allowed levels for the \code{model_role} slot on
+#' \code{model_term} objects.
 #'
 #' @export
-.type_factor_levels <- c("fixed", "random", "response")
+.model_role_levels <- c("fixed", "random", "response")
 
 NULL
 
@@ -23,7 +23,7 @@ NULL
 #' @slot theta_map Theta parameter map (\code{ngCMatrix}). Column \code{j}
 #'   selects global theta row \code{r} for this shard's theta component \code{j}.
 #' @slot elgm_matrix Optional exposure-lag map (\code{ngCMatrix}; empty by default).
-#' @slot ad_fun Registered AD density name for this shard.
+#' @slot density Registered AD density name for this shard.
 #' @slot ad_kind Shard kind (\code{"observations"}, \code{"parameters"}, \code{"random"}).
 #' @slot package Package name whose shared library records tapes for this shard
 #'   (defaults to \code{"adlaplace"} when missing).
@@ -31,9 +31,9 @@ NULL
 #' @slot weights Optional per-observation weights (e.g. binomial trial counts).
 #'   Empty means all ones.
 #' @importClassesFrom Matrix Matrix ngCMatrix
-#' @exportClass ad_data
+#' @exportClass density_data
 setClass(
-  "ad_data",
+  "density_data",
   slots = c(
     y = "numeric",
     ATp = "Matrix",
@@ -42,7 +42,7 @@ setClass(
     gamma_map = "ngCMatrix",
     theta_map = "ngCMatrix",
     elgm_matrix = "ngCMatrix",
-    ad_fun = "character",
+    density = "character",
     ad_kind = "character",
     package = "character",
     precision = "ANY",
@@ -53,12 +53,12 @@ setClass(
   )
 )
 
-# External pointer class set in C++; register before the ad_fun slot type.
-methods::setOldClass("ad_fun_ptr")
+# External pointer class set in C++; register before the ad_pack slot type.
+methods::setOldClass("ad_pack_ptr")
 
 #' AD function with Hessian templates attached
 #'
-#' @slot ptr Raw combined handle (\code{ad_fun_ptr}).
+#' @slot ptr Raw combined handle (\code{ad_pack_ptr}).
 #' @slot group_sparsity Per-group inner gradient sparsity patterns.
 #' @slot outer Outer Hessian template (\code{dgCMatrix}).
 #' @slot inner Inner-gamma Hessian template (\code{dgCMatrix}).
@@ -72,14 +72,14 @@ methods::setOldClass("ad_fun_ptr")
 #'   \code{trace_columns} (per-shard column indices for \code{trace_hinv_t}).
 #' @slot sizes Named numeric vector \code{beta}/\code{gamma}/\code{theta}.
 #' @slot info List of parameter metadata (\code{beta}, \code{gamma},
-#'   \code{theta}, \code{parameters}); populated from \code{model_data()$data$info}
+#'   \code{theta}, \code{parameters}); populated from \code{model_data()$term_data$info}
 #'   when the handle is built from a model-data bundle, otherwise empty.
 #' @importClassesFrom Matrix dgCMatrix ngCMatrix
-#' @exportClass ad_fun
+#' @exportClass ad_pack
 setClass(
-  "ad_fun",
+  "ad_pack",
   slots = c(
-    ptr = "ad_fun_ptr",
+    ptr = "ad_pack_ptr",
     group_sparsity = "list",
     outer = "dgCMatrix",
     inner = "dgCMatrix",
@@ -124,7 +124,7 @@ setClass(
 #' Subclasses that need hierarchical grouping should include a \code{by} slot
 #' (either \code{character} or \code{by_group} type) and optionally \code{by_levels}
 #' and \code{by_labels} slots.
-#' @slot term Character vector of length 1, the term name
+#' @slot name Character vector of length 1, the term name
 #' @slot label Character scalar term label reused across metadata builders.
 #' @slot formula Formula object for the term
 #' @slot knots Numeric vector of knot locations (for spline terms)
@@ -136,18 +136,17 @@ setClass(
 #' @slot parscale Numeric vector of parameter scales for optimization
 #' @slot log Logical; optimize/tape each theta on the log scale (recycled to
 #'   the number of thetas for multi-parameter terms).
-#' @slot type Factor indicating term type ("fixed", "random", or "response")
-#' @slot ad_fun Registered AD density name for \code{ad_fun_ptr()}, or \code{NA}
+#' @slot model_role Factor indicating term role ("fixed", "random", or "response")
+#' @slot density Registered AD density name for \code{ad_pack_ptr()}, or \code{NA}
 #'   when the term does not map to a density shard.
-#' @slot ad_kind Shard kind passed to \code{ad_fun_ptr()} (\code{"observations"},
+#' @slot ad_kind Shard kind passed to \code{ad_pack_ptr()} (\code{"observations"},
 #'   \code{"parameters"}, \code{"random"}, or \code{NA}).
 #' @slot package Package whose \code{.so} records AD tapes for this term
 #'   (default \code{"adlaplace"} for built-in densities).
-#' @exportClass model
-setClass(
-  "model",
+#' @exportClass model_term
+setClass("model_term",
   slots = list(
-    term = "character",
+    name = "character",
     label = "character",
     formula = "formula",
     knots = "numeric",
@@ -158,13 +157,13 @@ setClass(
     upper = "numeric",
     parscale = "numeric",
     log = "logical",
-    type = "factor",
-    ad_fun = "character",
+    model_role = "factor",
+    density = "character",
     ad_kind = "character",
     package = "character"
   ),
   prototype = prototype(
-    term = character(0),
+    name = character(0),
     label = character(0),
     formula = formula(),
     knots = numeric(0),
@@ -175,8 +174,8 @@ setClass(
     upper = numeric(0),
     parscale = numeric(0),
     log = TRUE,
-    type = factor("fixed", levels = .type_factor_levels),
-    ad_fun = NA_character_,
+    model_role = factor("fixed", levels = .model_role_levels),
+    density = NA_character_,
     ad_kind = NA_character_,
     package = "adlaplace"
   )
@@ -212,31 +211,31 @@ setGeneric("elgm_matrix", function(term, data) standardGeneric("elgm_matrix"))
 
 #' @rdname model-generics
 #' @export
-setMethod("design", "model", function(term, data) {
+setMethod("design", "model_term", function(term, data) {
   NULL
 })
 
 #' @rdname model-generics
 #' @export
-setMethod("precision", "model", function(term, data) {
+setMethod("precision", "model_term", function(term, data) {
   NULL
 })
 
 #' @rdname model-generics
 #' @export
-setMethod("theta_info", "model", function(term) {
+setMethod("theta_info", "model_term", function(term) {
   NULL
 })
 
 #' @rdname model-generics
 #' @export
-setMethod("beta_info", "model", function(term, data) {
+setMethod("beta_info", "model_term", function(term, data) {
   NULL
 })
 
 #' @rdname model-generics
 #' @export
-setMethod("random_info", "model", function(term, data) {
+setMethod("random_info", "model_term", function(term, data) {
   NULL
 })
 
@@ -250,11 +249,11 @@ setMethod("random_info", "model", function(term, data) {
 #' @return Character density name, or \code{NULL}.
 #' @rdname model-generics
 #' @export
-setGeneric("extra_ad_fun", function(term) standardGeneric("extra_ad_fun"))
+setGeneric("extra_density", function(term) standardGeneric("extra_density"))
 
 #' @rdname model-generics
 #' @export
-setMethod("extra_ad_fun", "model", function(term) {
+setMethod("extra_density", "model_term", function(term) {
   NULL
 })
 

@@ -1,6 +1,6 @@
 # Mixed-DSO skew-normal: obs/extra in adlaplaceExample.so, random in adlaplace.so.
 
-build_skewnormal_ad_fun <- function(num_threads = 4L, num_shards = 20L) {
+build_skewnormal_ad_fun <- function(num_threads = 4L, num_groups = 20L) {
   skip_if_not_installed("sn")
 
   set.seed(42)
@@ -25,7 +25,7 @@ build_skewnormal_ad_fun <- function(num_threads = 4L, num_shards = 20L) {
     theta = c(log(thetaOrig[c("sd1", "sd2", "omega")]), thetaOrig["alpha"]),
     transform_theta = TRUE,
     gamma = gamma,
-    shards = adlaplace::ad_shards(Amat, num_shards = num_shards),
+    obs_groups = adlaplace::obs_groups(Amat, num_groups = num_groups),
     num_threads = as.integer(num_threads),
     verbose = FALSE
   )
@@ -37,7 +37,7 @@ build_skewnormal_ad_fun <- function(num_threads = 4L, num_shards = 20L) {
   obs_theta_idx <- (n_theta - 1L):n_theta
   rand_theta_idx <- seq_len(n_theta - 2L)
 
-  obs_shard <- adlaplace::ad_data(
+  obs_shard <- adlaplace::density_data(
     y = y,
     A = Amat,
     X = X,
@@ -45,36 +45,36 @@ build_skewnormal_ad_fun <- function(num_threads = 4L, num_shards = 20L) {
     gamma_map = Matrix::Diagonal(n_gamma),
     theta_map = list(obs_theta_idx, n_theta),
     ad_kind = "observations",
-    ad_fun = "skewnormal_obs",
+    density = "skewnormal_obs",
     package = "adlaplaceExample"
   )
-  random_shard <- adlaplace::ad_data(
+  random_shard <- adlaplace::density_data(
     beta_map = n_beta,
     gamma_map = Matrix::Diagonal(n_gamma),
     theta_map = list(rand_theta_idx, n_theta),
     ad_kind = "random",
-    ad_fun = "random_diagonal",
+    density = "random_diagonal",
     precision = rep(1, n_gamma)
   )
-  extra_shard <- adlaplace::ad_data(
+  extra_shard <- adlaplace::density_data(
     y = y,
     beta_map = n_beta,
     gamma_map = n_gamma,
     theta_map = list(obs_theta_idx, n_theta),
     ad_kind = "parameters",
-    ad_fun = "skewnormal_extra",
+    density = "skewnormal_extra",
     package = "adlaplaceExample"
   )
 
   ptrs <- c(
-    adlaplace::ad_fun_ptr(obs_shard, config),
-    adlaplace::ad_fun_ptr(random_shard, config),
-    adlaplace::ad_fun_ptr(extra_shard, config)
+    adlaplace::ad_pack_ptr(obs_shard, config),
+    adlaplace::ad_pack_ptr(random_shard, config),
+    adlaplace::ad_pack_ptr(extra_shard, config)
   )
 
   list(
     config = config,
-    ad_fun = adlaplace::ad_fun(ptrs, num_threads = num_threads)
+    ad_pack = adlaplace::ad_pack(ptrs, num_threads = num_threads)
   )
 }
 
@@ -88,12 +88,12 @@ skip_parallel_on_macos <- function() {
 
 test_that("serial log_lik_laplace deriv=TRUE with mixed-DSO skewnormal", {
   skip_if_not_installed("sn")
-  fx <- build_skewnormal_ad_fun(num_threads = 1L, num_shards = 20L)
+  fx <- build_skewnormal_ad_fun(num_threads = 1L, num_groups = 20L)
   ll <- adlaplace::log_lik_laplace(
     x = c(fx$config$beta, fx$config$theta),
     config = list(verbose = FALSE),
     gamma = fx$config$gamma,
-    ad_fun = fx$ad_fun,
+    ad_pack = fx$ad_pack,
     control = list(maxit = 5L, report.level = 0, report.freq = 0),
     deriv = TRUE
   )
@@ -105,12 +105,12 @@ test_that("serial log_lik_laplace deriv=TRUE with mixed-DSO skewnormal", {
 test_that("parallel log_lik_laplace deriv=TRUE with mixed-DSO skewnormal", {
   skip_if_not_installed("sn")
   skip_parallel_on_macos()
-  fx <- build_skewnormal_ad_fun(num_threads = 4L, num_shards = 20L)
+  fx <- build_skewnormal_ad_fun(num_threads = 4L, num_groups = 20L)
   ll <- adlaplace::log_lik_laplace(
     x = c(fx$config$beta, fx$config$theta),
     config = list(verbose = FALSE),
     gamma = fx$config$gamma,
-    ad_fun = fx$ad_fun,
+    ad_pack = fx$ad_pack,
     control = list(maxit = 5L, report.level = 0, report.freq = 0),
     deriv = TRUE
   )
@@ -122,12 +122,12 @@ test_that("parallel log_lik_laplace deriv=TRUE with mixed-DSO skewnormal", {
 test_that("back-to-back parallel deriv=TRUE reuses trace prep on mixed-DSO skewnormal", {
   skip_if_not_installed("sn")
   skip_parallel_on_macos()
-  fx <- build_skewnormal_ad_fun(num_threads = 4L, num_shards = 20L)
+  fx <- build_skewnormal_ad_fun(num_threads = 4L, num_groups = 20L)
   args <- list(
     x = c(fx$config$beta, fx$config$theta),
     config = list(verbose = FALSE),
     gamma = fx$config$gamma,
-    ad_fun = fx$ad_fun,
+    ad_pack = fx$ad_pack,
     control = list(maxit = 4L, report.level = 0, report.freq = 0),
     deriv = TRUE
   )

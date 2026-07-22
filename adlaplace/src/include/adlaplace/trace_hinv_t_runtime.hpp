@@ -12,13 +12,13 @@
 
 namespace adlaplace_trace {
 
-inline void reset_shard_adfun_taylor(GroupPack& gp) {
+inline void reset_shard_adfun_taylor(AdTape& gp) {
   gp.fun.capacity_order(0);
 }
 
-inline void trace_hinv_t_reset_shards(ad_fun& backend) {
+inline void trace_hinv_t_reset_shards(ad_pack& backend) {
   for (std::size_t s = 0; s < backend.fun.size(); ++s) {
-    GroupPack& gp = shard_handle(&backend, s)->pack;
+    AdTape& gp = shard_handle(&backend, s)->pack;
     reset_shard_adfun_taylor(gp);
     gp.trace.direction.clear();
     gp.trace.direction_zeros.clear();
@@ -27,7 +27,7 @@ inline void trace_hinv_t_reset_shards(ad_fun& backend) {
 }
 
 inline std::vector<double> trace_hinv_t_parallel(
-  ad_fun& backend,
+  ad_pack& backend,
   const std::vector<double>& x,
   const std::vector<int>& LinvPt_p,
   const std::vector<int>& LinvPt_i,
@@ -75,7 +75,7 @@ inline std::vector<double> trace_hinv_t_parallel(
     const std::vector<std::size_t>& shard_group =
       thread_groups[static_cast<std::size_t>(tid)];
     for (std::size_t s : shard_group) {
-      adlaplace_shard* shard = shard_handle(&backend, s);
+      ad_shard* shard = shard_handle(&backend, s);
       shard->assign_memory();
       shard->trace_hinv_t(
         x.data(),
@@ -109,7 +109,7 @@ inline std::vector<double> trace_hinv_t_parallel(
 }
 
 inline std::vector<double> trace_hinv_t_impl(
-  ad_fun& backend,
+  ad_pack& backend,
   const std::vector<double>& x,
   const std::vector<int>& LinvPt_p,
   const std::vector<int>& LinvPt_i,

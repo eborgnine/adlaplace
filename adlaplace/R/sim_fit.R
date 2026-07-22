@@ -57,9 +57,9 @@ sim_fit <- function(x, data, fit, n = 500L) {
   n_grid <- nrow(x)
 
   if (is_model_data_bundle(data)) {
-    info <- data$data$info
-    term_list <- data$data$terms
-  } else if (is(data, "ad_data") && is.list(data@precision) && !is.null(data@precision$info)) {
+    info <- data$term_data$info
+    term_list <- data$term_data$terms
+  } else if (is(data, "density_data") && is.list(data@precision) && !is.null(data@precision$info)) {
     info <- data@precision$info
     term_list <- list()
   } else {
@@ -69,7 +69,7 @@ sim_fit <- function(x, data, fit, n = 500L) {
   design_list <- lapply(
     term_list,
     function(term) {
-      if (!any(term@term %in% names(x))) {
+      if (!any(term@name %in% names(x))) {
         return(NULL)
       }
       beta_here <- beta_info(term, data = x)
@@ -150,7 +150,7 @@ sim_fit <- function(x, data, fit, n = 500L) {
 #' @param new_x Optional one-column data frame of prediction points for
 #'   \code{x}. When missing, a grid is built from term knots via
 #'   \code{\link[base]{pretty}} (or from unique \code{basis} levels in
-#'   \code{fit$model_data$data$info$gamma} when there are no knots, e.g. IID).
+#'   \code{fit$model_data$term_data$info$gamma} when there are no knots, e.g. IID).
 #' @param gamma_sims Optional matrix of random-effect draws (rows = draws,
 #'   columns named by gamma labels). When missing, drawn with
 #'   \code{\link{rmvnldl}(n = num_sim, fit = fit)}.
@@ -162,7 +162,7 @@ sim_fit <- function(x, data, fit, n = 500L) {
 #'   contributions on that grid).
 #'
 #' @details
-#' Only terms with \code{type == "random"} whose \code{@term} equals \code{x}
+#' Only terms with \code{model_role == "random"} whose \code{@name} equals \code{x}
 #' are included (so companion \code{rpoly} bases for an \code{iwp} are included,
 #' while fixed \code{fpoly} bases are not). Column names of the design must
 #' match columns of \code{gamma_sims}.
@@ -188,11 +188,11 @@ sim_random <- function(
   }
 
   terms <- fit$model_data$terms
-  term_seq <- vapply(terms, methods::slot, character(1L), "term")
+  term_seq <- vapply(terms, methods::slot, character(1L), "name")
 
   terms_here <- terms[term_seq == x]
   terms_here <- Filter(
-    function(tt) identical(as.character(tt@type), "random"),
+    function(tt) identical(as.character(tt@model_role), "random"),
     terms_here
   )
   if (!length(terms_here)) {
@@ -212,7 +212,7 @@ sim_random <- function(
     if (length(knots_here)) {
       grid <- pretty(knots_here, n = num_grid)
     } else {
-      gamma_info <- fit$model_data$data$info$gamma
+      gamma_info <- fit$model_data$term_data$info$gamma
       grid <- sort(unique(gamma_info[gamma_info$term == x, "basis"]))
       if (!length(grid)) {
         stop(

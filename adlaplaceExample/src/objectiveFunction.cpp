@@ -3,7 +3,7 @@
 #include <cmath>
 #include <utility>
 
-#include "adlaplace/ad_data.hpp"
+#include "adlaplace/density_data.hpp"
 #include "adlaplace/eta.hpp"
 #include "adlaplace/rviews.hpp"
 #include "adlaplace/atomics.hpp"
@@ -15,12 +15,12 @@ std::pair<std::size_t, std::size_t> obs_range(
   std::size_t ny,
   std::size_t Dgroup) {
 
-  const bool have_shards = config.shards.ncol() > 0;
+  const bool have_shards = config.obs_groups.ncol() > 0;
   std::size_t startP = 0;
   std::size_t endP = 0;
   if (have_shards) {
-    startP = static_cast<std::size_t>(config.shards.p[Dgroup]);
-    endP = static_cast<std::size_t>(config.shards.p[Dgroup + 1]);
+    startP = static_cast<std::size_t>(config.obs_groups.p[Dgroup]);
+    endP = static_cast<std::size_t>(config.obs_groups.p[Dgroup + 1]);
   } else if (Dgroup == 0) {
     endP = ny;
   }
@@ -31,7 +31,7 @@ std::pair<std::size_t, std::size_t> obs_range(
 
 CppAD::vector<CppAD::AD<double>> logDensObs(
   const CppAD::vector<CppAD::AD<double>>& x,
-  const ad_data& model,
+  const density_data& model,
   const Config& config,
   const size_t Dgroup)
 {
@@ -49,10 +49,10 @@ CppAD::vector<CppAD::AD<double>> logDensObs(
 
   const size_t ny = model.y.size();
   const auto range = obs_range(config, ny, Dgroup);
-  const bool have_shards = config.shards.ncol() > 0;
+  const bool have_shards = config.obs_groups.ncol() > 0;
 
   for (size_t DI = range.first; DI < range.second; ++DI) {
-    const size_t Dobs = have_shards ? static_cast<size_t>(config.shards.i[DI]) : DI;
+    const size_t Dobs = have_shards ? static_cast<size_t>(config.obs_groups.i[DI]) : DI;
 
     const CppAD::AD<double> eta = eta_at(x, model, Dobs);
     CppAD::AD<double> z = (CppAD::AD<double>(model.y[Dobs]) - eta) / omega_sqrt2;
@@ -68,7 +68,7 @@ CppAD::vector<CppAD::AD<double>> logDensObs(
 
 CppAD::vector<CppAD::AD<double>> logDensExtra(
   const CppAD::vector<CppAD::AD<double>>& x,
-  const ad_data& model,
+  const density_data& model,
   const Config& config)
 {
 

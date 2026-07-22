@@ -1,4 +1,4 @@
-test_that("hnlm for_dev builds ad_fun via ad_fun", {
+test_that("hnlm for_dev builds ad_pack via ad_pack", {
   skip_if_not_installed("adlaplace")
   td <- make_hpolcc_test_data()
   forres <- hpolcc::hnlm(
@@ -6,24 +6,24 @@ test_that("hnlm for_dev builds ad_fun via ad_fun", {
     data = td$data,
     config = list(
       verbose = FALSE,
-      num_shards = 2L,
+      num_groups = 2L,
       num_threads = 1L
     ),
     for_dev = TRUE
   )
   expect_s3_class(forres, "hnlm")
   expect_s3_class(forres, "hnlm_dev")
-  expect_true(methods::is(forres$ad_fun, "ad_fun"))
+  expect_true(methods::is(forres$ad_pack, "ad_pack"))
   expect_true(is.list(forres$model_data))
   expect_true("observations" %in% names(forres$model_data))
 
-  sz <- forres$ad_fun@sizes
+  sz <- forres$ad_pack@sizes
   x <- c(
     forres$config$opt$init[seq_len(sz["beta"])],
     rep(0, sz["gamma"]),
     forres$config$opt$init[seq_len(sz["theta"]) + sz["beta"]]
   )
-  dens <- adlaplace::joint_log_dens(forres$ad_fun, x)
+  dens <- adlaplace::joint_log_dens(forres$ad_pack, x)
   expect_true(is.finite(dens))
 })
 
@@ -36,7 +36,7 @@ test_that("hnlm fit returns flat hnlm object", {
     data = td$data,
     config = list(
       verbose = FALSE,
-      num_shards = 4L,
+      num_groups = 4L,
       num_threads = 1L
     ),
     control = list(maxit = 3L, trace = 0),

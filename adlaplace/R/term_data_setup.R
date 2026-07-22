@@ -4,7 +4,7 @@
 #' \code{theta_info$log} is \code{TRUE}. Missing or \code{NA} \code{log}
 #' entries default to \code{TRUE}.
 #'
-#' @param theta_info Data frame from \code{info$theta} (see \code{\link{data_setup}}).
+#' @param theta_info Data frame from \code{info$theta} (see \code{\link{term_data_setup}}).
 #' @param cols Character vector of column names to transform (e.g. \code{"init"}).
 #' @param active Logical; when \code{FALSE}, returns \code{theta_info} unchanged.
 #' @return A copy of \code{theta_info} with selected entries logged.
@@ -52,19 +52,19 @@ log_transform_columns <- function(df, cols, idx) {
 }
 
 #' @keywords internal
-parse_data_setup_terms <- function(formula, verbose = FALSE) {
+parse_term_data_setup_terms <- function(formula, verbose = FALSE) {
   if (methods::is(formula, "formula")) {
     return(collect_terms(formula, verbose = verbose))
   }
 
   terms <- formula
-  if (inherits(terms, "model")) {
+  if (inherits(terms, "model_term")) {
     terms <- list(terms)
   }
-  inherits_seq <- unlist(lapply(terms, inherits, what = "model"))
+  inherits_seq <- unlist(lapply(terms, inherits, what = "model_term"))
   if (!all(inherits_seq)) {
     warning(
-      "formula must be of class formula or a list of objects which inherit class model"
+      "formula must be of class formula or a list of objects which inherit class model_term"
     )
   }
   terms
@@ -75,8 +75,8 @@ bind_design_matrices <- function(terms, data) {
   terms <- lapply(terms, add_by_levels, data)
   design_list <- lapply(terms, design, data = data)
 
-  terms_with_beta <- vapply(terms, function(t) methods::slot(t, "type") == "fixed", logical(1L))
-  terms_with_gamma <- vapply(terms, function(t) methods::slot(t, "type") == "random", logical(1L))
+  terms_with_beta <- vapply(terms, function(t) methods::slot(t, "model_role") == "fixed", logical(1L))
+  terms_with_gamma <- vapply(terms, function(t) methods::slot(t, "model_role") == "random", logical(1L))
 
   if (any(terms_with_beta)) {
     x_matrix <- do.call(cbind, design_list[terms_with_beta])
@@ -103,7 +103,7 @@ empty_theta_setup <- function() {
     lower = numeric(),
     upper = numeric(),
     parscale = numeric(),
-    type = factor(levels = .type_factor_levels),
+    model_role = factor(levels = .model_role_levels),
     log = logical(0),
     stringsAsFactors = FALSE
   )
@@ -214,7 +214,7 @@ build_gamma_setup <- function(terms, data, a_matrix, theta_setup) {
 #' @keywords internal
 extract_response <- function(terms, formula_in, data) {
   obs_idx <- which(vapply(terms, function(t) {
-    methods::is(t, "model") && !is.na(t@ad_kind) &&
+    methods::is(t, "model_term") && !is.na(t@ad_kind) &&
       identical(t@ad_kind, "observations")
   }, logical(1L)))
 
@@ -227,7 +227,7 @@ extract_response <- function(terms, formula_in, data) {
   }
 
   if (length(term_idx) == 1L) {
-    return(as.numeric(data[[terms[[term_idx]]@term]]))
+    return(as.numeric(data[[terms[[term_idx]]@name]]))
   }
 
   if (methods::is(formula_in, "formula")) {
@@ -258,7 +258,7 @@ empty_parameters_info <- function() {
     lower = numeric(),
     upper = numeric(),
     parscale = numeric(),
-    type = factor(levels = .type_factor_levels),
+    model_role = factor(levels = .model_role_levels),
     log = logical(0),
     stringsAsFactors = FALSE
   )
@@ -303,9 +303,9 @@ build_parameters_info <- function(beta_df, theta_df, names_common) {
 #'   fixed effects); \code{init}, \code{lower}, and \code{upper} are already on
 #'   the optimization (log) scale where \code{log} is \code{TRUE}.
 #' @export
-data_setup <- function(formula, data, verbose = FALSE) {
+term_data_setup <- function(formula, data, verbose = FALSE) {
   formula_in <- formula
-  terms <- parse_data_setup_terms(formula, verbose = verbose)
+  terms <- parse_term_data_setup_terms(formula, verbose = verbose)
   design <- bind_design_matrices(terms, data)
   terms <- design$terms
   x_matrix <- design$X

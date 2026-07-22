@@ -3,7 +3,7 @@
 #' Constructs Hessian sparsity templates (global/outer and inner-gamma)
 #' and per-group maps from shard sparsity patterns.
 #'
-#' @param sparsity_list List of per-group sparsity shards from \code{ad_fun()}.
+#' @param sparsity_list List of per-group sparsity shards from \code{ad_pack()}.
 #' @param n_beta Number of fixed-effect parameters.
 #' @param n_gamma Number of random-effect parameters.
 #' @param n_theta Number of variance parameters.
@@ -12,11 +12,11 @@
 #'   (symbolic LDL pattern for C++: \code{L1}, \code{Linv}, \code{perm},
 #'   \code{perm} (0-based; inner Hessian uses \code{index1 = FALSE}),
 #'   \code{perm_inv} (0-based), \code{half_H_inv}, \code{H_inv}), optional
-#'   \code{trace_columns} (added in \code{ad_fun()}, not by this function),
+#'   \code{trace_columns} (added in \code{ad_pack()}, not by this function),
 #'   \code{chol_inner} (\code{dCHMsimpl}
 #'   for R), \code{map_outer}, \code{map_inner}, and \code{sizes} (named
 #'   \code{beta}/\code{gamma}/\code{theta}; consumed internally by
-#'   \code{ad_fun()}).
+#'   \code{ad_pack()}).
 #'
 #' @keywords internal
 hessian_map <- function(sparsity_list, n_beta, n_gamma, n_theta) {
@@ -240,7 +240,7 @@ hessian_map_build_chol_inner <- function(innerMat, n_gamma) {
 #' Per-shard column indices into half_H_inv for trace_hinv_t
 #'
 #' Built from \code{group_sparsity} and the symbolic \code{half_H_inv} pattern
-#' in \code{chol_inner_list}. Added to that list in \code{new_ad_fun_from_ptr()}.
+#' in \code{chol_inner_list}. Added to that list in \code{new_ad_pack_from_ptr()}.
 #'
 #' @param group_sparsity List of per-shard \code{grad_inner} index vectors.
 #' @param n_beta Number of fixed-effect parameters.

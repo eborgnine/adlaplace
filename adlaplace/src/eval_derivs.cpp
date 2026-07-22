@@ -7,23 +7,23 @@
 namespace {
 
 Rcpp::IntegerVector shards_vector(
-  const Rcpp::Nullable<Rcpp::IntegerVector>& shards) {
-  if (shards.isNull()) {
+  const Rcpp::Nullable<Rcpp::IntegerVector>& ad_shards) {
+  if (ad_shards.isNull()) {
     return Rcpp::IntegerVector();
   }
-  return shards.get();
+  return ad_shards.get();
 }
 
 }  // namespace
 
 // [[Rcpp::export(name = ".joint_log_dens_cpp")]]
 double joint_log_dens(
-  SEXP ad_fun,
+  SEXP ad_pack,
   const Rcpp::NumericVector& x,
-  Rcpp::Nullable<Rcpp::IntegerVector> shards = R_NilValue,
+  Rcpp::Nullable<Rcpp::IntegerVector> ad_shards = R_NilValue,
   bool negative = true) {
 
-  ::ad_fun* backend = resolve_ad_fun_eval(ad_fun);
+  ::ad_pack* backend = resolve_ad_pack_eval(ad_pack);
   adlaplace_require_serial_dens_handle(*backend);
   const size_t n_shards = backend->fun.size();
   const size_t Nparams = backend->fun[0]->pack.x.size();
@@ -32,11 +32,11 @@ double joint_log_dens(
   }
 
   const std::vector<size_t> shard_idx =
-    resolve_shard_indices(n_shards, shards_vector(shards));
+    resolve_shard_indices(n_shards, shards_vector(ad_shards));
 
   double total = 0.0;
   for (size_t s : shard_idx) {
-    adlaplace_shard* shard = shard_handle(backend, s);
+    ad_shard* shard = shard_handle(backend, s);
     double fg = 0.0;
     const int rc = shard->f(x.begin(), &fg);
     if (rc != 0) {
@@ -49,24 +49,24 @@ double joint_log_dens(
 
 // [[Rcpp::export(name = ".grad_cpp")]]
 Rcpp::NumericVector grad(
-  SEXP ad_fun,
+  SEXP ad_pack,
   const Rcpp::NumericVector& x,
-  Rcpp::Nullable<Rcpp::IntegerVector> shards = R_NilValue,
+  Rcpp::Nullable<Rcpp::IntegerVector> ad_shards = R_NilValue,
   bool inner = false,
   bool negative = true) {
 
-  ::ad_fun* backend = resolve_ad_fun_eval(ad_fun);
+  ::ad_pack* backend = resolve_ad_pack_eval(ad_pack);
   adlaplace_require_serial_dens_handle(*backend);
   const size_t Nparams = x.size();
   const size_t n_shards = backend->fun.size();
   const std::vector<size_t> shard_idx =
-    resolve_shard_indices(n_shards, shards_vector(shards));
+    resolve_shard_indices(n_shards, shards_vector(ad_shards));
 
   Rcpp::NumericVector grad_out(Nparams, 0.0);
   double f_dummy = 0.0;
 
   for (size_t s : shard_idx) {
-    adlaplace_shard* shard = shard_handle(backend, s);
+    ad_shard* shard = shard_handle(backend, s);
     if (shard->f_grad(x.begin(), inner, &f_dummy, grad_out.begin()) != 0)
       Rcpp::stop("shard f_grad failed for shard %d", (int)s);
   }
@@ -78,19 +78,19 @@ Rcpp::NumericVector grad(
 
 // [[Rcpp::export(name = ".hessian_cpp")]]
 Rcpp::S4 hessian(
-  SEXP ad_fun,
+  SEXP ad_pack,
   const Rcpp::NumericVector& x,
-  Rcpp::Nullable<Rcpp::IntegerVector> shards = R_NilValue,
+  Rcpp::Nullable<Rcpp::IntegerVector> ad_shards = R_NilValue,
   bool inner = false,
   const bool verbose = false,
   bool negative = true) {
-  ::ad_fun* backend = resolve_ad_fun_eval(ad_fun);
+  ::ad_pack* backend = resolve_ad_pack_eval(ad_pack);
   adlaplace_require_serial_dens_handle(*backend);
 
   const size_t Nparams = x.size();
   const size_t n_shards = backend->fun.size();
   const std::vector<size_t> shard_idx =
-    resolve_shard_indices(n_shards, shards_vector(shards));
+    resolve_shard_indices(n_shards, shards_vector(ad_shards));
 
   std::vector<int> tri_i;
   std::vector<int> tri_j;
@@ -99,7 +99,7 @@ Rcpp::S4 hessian(
   if (verbose) Rcpp::Rcout << "Starting Hessian computation..." << std::endl;
 
   for (size_t s : shard_idx) {
-    adlaplace_shard* shard = shard_handle(backend, s);
+    ad_shard* shard = shard_handle(backend, s);
     int n_inner, n_outer, n_beta, n_theta, nnz_grad_i, nnz_grad_o, nnz_hes_i, nnz_hes_o;
     if (shard->get_sizes(&n_inner, &n_outer, &n_beta, &n_theta,
                           &nnz_grad_i, &nnz_grad_o, &nnz_hes_i, &nnz_hes_o) != 0)

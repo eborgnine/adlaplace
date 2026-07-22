@@ -13,7 +13,7 @@ test_that("model_data skewnormal theta has selective transform column", {
     data = dat,
     verbose = FALSE
   )
-  theta <- md$data$info$theta
+  theta <- md$term_data$info$theta
   expect_true("log" %in% names(theta))
   expect_false(any(is.na(theta$log)))
 
@@ -25,7 +25,7 @@ test_that("model_data skewnormal theta has selective transform column", {
   expect_false(any(theta$log[alpha_row]))
 })
 
-test_that("ad_fun(model_data) leaves alpha untransformed in config theta", {
+test_that("ad_pack(model_data) leaves alpha untransformed in config theta", {
   skip_if_not_installed("sn")
   set.seed(1L)
   Nobs <- 40L
@@ -40,23 +40,23 @@ test_that("ad_fun(model_data) leaves alpha untransformed in config theta", {
     data = dat,
     verbose = FALSE
   )
-  expected_theta <- adlaplace::apply_theta_log(md$data$info$theta, cols = "init")$init
+  expected_theta <- adlaplace::apply_theta_log(md$term_data$info$theta, cols = "init")$init
 
   config <- list(
     transform_theta = TRUE,
-    shards = adlaplace::ad_shards(md$data$A, num_shards = 5L),
+    obs_groups = adlaplace::obs_groups(md$term_data$A, num_groups = 5L),
     verbose = FALSE
   )
-  ad_fun <- adlaplace::ad_fun(md, config, num_threads = 1L)
+  ad_pack <- adlaplace::ad_pack(md, config, num_threads = 1L)
 
-  alpha_label <- md$data$info$theta$label[grepl("_alpha$", md$data$info$theta$label)]
-  alpha_idx <- match(alpha_label, md$data$info$theta$label)
-  expect_equal(expected_theta[alpha_idx], md$data$info$theta$init[alpha_idx])
+  alpha_label <- md$term_data$info$theta$label[grepl("_alpha$", md$term_data$info$theta$label)]
+  alpha_idx <- match(alpha_label, md$term_data$info$theta$label)
+  expect_equal(expected_theta[alpha_idx], md$term_data$info$theta$init[alpha_idx])
 
   x_full <- c(
-    md$data$info$beta$init,
-    rep(0, nrow(md$data$info$gamma)),
+    md$term_data$info$beta$init,
+    rep(0, nrow(md$term_data$info$gamma)),
     expected_theta
   )
-  expect_true(is.finite(adlaplace::joint_log_dens(ad_fun, x_full, negative = FALSE)))
+  expect_true(is.finite(adlaplace::joint_log_dens(ad_pack, x_full, negative = FALSE)))
 })

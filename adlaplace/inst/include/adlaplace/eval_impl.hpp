@@ -13,7 +13,7 @@
 #include "adlaplace/backend.hpp"
 
 int pack_sparsity_sizes(
-  GroupPack& ad_pack,
+  AdTape& ad_pack,
   int* n_inner,
   int* n_outer,
   int* n_beta,
@@ -37,7 +37,7 @@ int pack_sparsity_sizes(
 }
 
 int get_pattern(
-  GroupPack& ad_pack,
+  AdTape& ad_pack,
   int* pattern_grad_inner,
   int* pattern_grad_outer,
   int* pattern_hes_inner_row,
@@ -111,13 +111,13 @@ const char* trace_hinv_t_strerror(int rc) {
   }
 }
 
-class EvalShard final : public adlaplace_shard {
+class EvalShard final : public ad_shard {
 public:
-  explicit EvalShard(GroupPack&& p, ShardFactory f = nullptr)
-    : adlaplace_shard(std::move(p), f) {}
+  explicit EvalShard(AdTape&& p, ShardFactory f = nullptr)
+    : ad_shard(std::move(p), f) {}
 
   int f(const double* x, double* out_f) override {
-    GroupPack& gp = pack;
+    AdTape& gp = pack;
     const size_t Nparams = gp.x.size();
     const size_t Ndomain = gp.fun.Domain();
     const size_t Nrange = gp.fun.Range();
@@ -134,7 +134,7 @@ public:
   }
 
   int f_grad(const double* x, bool inner, double* out_f, double* out_grad) override {
-    GroupPack& gp = pack;
+    AdTape& gp = pack;
     const size_t Nparams = gp.x.size();
     for (size_t D = 0; D < Nparams; ++D) {
       gp.x[D] = x[D];
@@ -169,7 +169,7 @@ public:
     double* out_hes,
     int* map) override {
 
-    GroupPack& gp = pack;
+    AdTape& gp = pack;
     const size_t Nparams = gp.x.size();
     for (size_t D = 0; D < Nparams; ++D) {
       gp.x[D] = x[D];
@@ -245,7 +245,7 @@ public:
   }
 
   int assign_memory() override {
-    GroupPack& gp = pack;
+    AdTape& gp = pack;
     const std::size_t n_params = gp.fun.Domain();
     if (n_params == 0) return 2;
 
@@ -284,7 +284,7 @@ public:
     if (LinvPt_p == nullptr || LinvPt_i == nullptr || LinvPt_x == nullptr) return 1;
     if (LinvPtColumns_p == nullptr || LinvPtColumns_i == nullptr) return 1;
 
-    GroupPack& gp = pack;
+    AdTape& gp = pack;
     const std::size_t ist = gp.shard_index;
     if (ist + 1 >= LinvPtColumns_p_len) return 5;
     if (LinvPt_p_len < LinvPt_ncol + 1) return 6;
@@ -391,7 +391,7 @@ public:
     return rc;
   }
 
-  adlaplace_shard* clone() const override {
+  ad_shard* clone() const override {
     return new EvalShard(clone_group_pack(pack), factory);
   }
 };

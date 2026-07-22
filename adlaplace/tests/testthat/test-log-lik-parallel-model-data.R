@@ -15,18 +15,18 @@ test_that("model_data + OpenMP log_lik_laplace works", {
   )
   config <- list(
     transform_theta = TRUE,
-    shards = adlaplace::ad_shards(md$data$A, num_shards = 8L),
+    obs_groups = adlaplace::obs_groups(md$term_data$A, num_groups = 8L),
     verbose = FALSE
   )
-  af <- adlaplace::ad_fun(md, config, num_threads = 2L)
+  af <- adlaplace::ad_pack(md, config, num_threads = 2L)
   res <- adlaplace::log_lik_laplace(
-    x = md$data$info$parameters$init,
-    ad_fun = af,
+    x = md$term_data$info$parameters$init,
+    ad_pack = af,
     config = config,
     control = list(report.level = 0, report.freq = 0),
     deriv = TRUE
   )
   expect_true(is.finite(res$log_lik))
-  expect_equal(length(res$deriv$d_neg_log_lik), length(md$data$info$parameters$init))
+  expect_equal(length(res$deriv$d_neg_log_lik), length(md$term_data$info$parameters$init))
   expect_true(all(is.finite(res$deriv$d_neg_log_lik)))
 })

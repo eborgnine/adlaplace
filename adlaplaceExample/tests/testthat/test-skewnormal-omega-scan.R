@@ -27,7 +27,7 @@ test_that("skewnormal obs and extra log densities vary with log(omega)", {
     theta = c(log(thetaOrig[c("sd1", "sd2", "omega")]), thetaOrig["alpha"]),
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    shards = adlaplace::ad_shards(Amat, num_shards = 10L),
+    obs_groups = adlaplace::obs_groups(Amat, num_groups = 10L),
     num_threads = 1L,
     verbose = FALSE
   )
@@ -36,7 +36,7 @@ test_that("skewnormal obs and extra log densities vary with log(omega)", {
   n_gamma <- length(config$gamma)
   n_theta <- length(config$theta)
 
-  data_obs <- adlaplace::ad_data(
+  data_obs <- adlaplace::density_data(
     y = y,
     A = Amat,
     X = X,
@@ -47,21 +47,21 @@ test_that("skewnormal obs and extra log densities vary with log(omega)", {
       which(names(thetaOrig) == "alpha")
     ), n_theta),
     ad_kind = "observations",
-    ad_fun = "skewnormal_obs",
+    density = "skewnormal_obs",
     package = "adlaplaceExample"
   )
-  data_extra <- adlaplace::ad_data(
+  data_extra <- adlaplace::density_data(
     y = data_obs@y,
     beta_map = data_obs@beta_map,
     gamma_map = data_obs@gamma_map,
     theta_map = data_obs@theta_map,
     ad_kind = "parameters",
-    ad_fun = "skewnormal_extra",
+    density = "skewnormal_extra",
     package = "adlaplaceExample"
   )
 
-  ad_fun_obs <- adlaplace::ad_fun_ptr(data = data_obs, config = config)
-  ad_fun_extra <- adlaplace::ad_fun_ptr(data = data_extra, config = config)
+  ad_fun_obs <- adlaplace::ad_pack_ptr(data = data_obs, config = config)
+  ad_fun_extra <- adlaplace::ad_pack_ptr(data = data_extra, config = config)
 
   xx <- c(beta, config$gamma, config$theta)
   omega_idx <- n_beta + n_gamma + which(names(thetaOrig) == "omega")

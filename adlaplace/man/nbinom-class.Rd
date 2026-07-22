@@ -53,7 +53,7 @@ Negative binomial observation model term
 \section{Slots (inherited from \code{model})}{
 
 \describe{
-  \item{\code{ad_fun}}{Character scalar \code{"nbinom_obs"}.}
+  \item{\code{ad_pack}}{Character scalar \code{"nbinom_obs"}.}
   \item{\code{ad_kind}}{Character scalar \code{"observations"}.}
 }
 }

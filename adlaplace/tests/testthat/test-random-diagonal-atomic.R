@@ -28,7 +28,7 @@ random_diagonal_fixture <- function(nr = 20L, n_gamma_full = NULL) {
   if (is.null(n_gamma_full)) {
     n_gamma_full <- nr
   }
-  model <- adlaplace:::ad_data(
+  model <- adlaplace:::density_data(
     gamma_map = Matrix::sparseMatrix(
       i = seq_len(nr),
       j = seq_len(nr),
@@ -37,7 +37,7 @@ random_diagonal_fixture <- function(nr = 20L, n_gamma_full = NULL) {
     ),
     theta_map = c(1L, 1L),
     ad_kind = "random",
-    ad_fun = "random_diagonal",
+    density = "random_diagonal",
     precision = rep(2, nr)
   )
   config <- list(
@@ -50,20 +50,20 @@ random_diagonal_fixture <- function(nr = 20L, n_gamma_full = NULL) {
   list(model = model, config = config)
 }
 
-test_that("random_diagonal ad_fun_ptr builds", {
+test_that("random_diagonal ad_pack_ptr builds", {
   fx <- random_diagonal_fixture(nr = 8L)
-  ptr <- adlaplace::ad_fun_ptr(fx$model, fx$config)
-  expect_true(is(ptr, "ad_fun_ptr"))
-  af <- adlaplace::ad_fun(ptr, num_threads = 1L)
-  expect_true(methods::is(af, "ad_fun"))
+  ptr <- adlaplace::ad_pack_ptr(fx$model, fx$config)
+  expect_true(is(ptr, "ad_pack_ptr"))
+  af <- adlaplace::ad_pack(ptr, num_threads = 1L)
+  expect_true(methods::is(af, "ad_pack"))
 })
 
 test_that("random_diagonal grad and inner hess match finite differences", {
   set.seed(42)
   nr <- 20L
   fx <- random_diagonal_fixture(nr = nr)
-  af <- adlaplace::ad_fun(
-    adlaplace::ad_fun_ptr(fx$model, fx$config),
+  af <- adlaplace::ad_pack(
+    adlaplace::ad_pack_ptr(fx$model, fx$config),
     num_threads = 1L
   )
   x <- c(rnorm(nr, sd = 0.1), fx$config$theta)
@@ -82,12 +82,12 @@ test_that("random_diagonal grad and inner hess match finite differences", {
   expect_equal(diag(H_ad)[seq_len(nr)], -tau * rep(2, nr), tolerance = 1e-5)
 })
 
-test_that("inner_opt works on random_diagonal-only ad_fun", {
+test_that("inner_opt works on random_diagonal-only ad_pack", {
   set.seed(7)
   nr <- 25L
   fx <- random_diagonal_fixture(nr = nr)
-  af <- adlaplace::ad_fun(
-    adlaplace::ad_fun_ptr(fx$model, fx$config),
+  af <- adlaplace::ad_pack(
+    adlaplace::ad_pack_ptr(fx$model, fx$config),
     num_threads = 1L
   )
   parameters <- fx$config$theta
@@ -96,7 +96,7 @@ test_that("inner_opt works on random_diagonal-only ad_fun", {
   inner_false <- adlaplace::inner_opt(
     parameters = parameters,
     gamma = gamma,
-    ad_fun = af,
+    ad_pack = af,
     control = list(maxit = 20L, report.level = 0, report.freq = 0),
     deriv = FALSE
   )
@@ -106,7 +106,7 @@ test_that("inner_opt works on random_diagonal-only ad_fun", {
   inner_true <- adlaplace::inner_opt(
     parameters = parameters,
     gamma = gamma,
-    ad_fun = af,
+    ad_pack = af,
     control = list(maxit = 20L, report.level = 0, report.freq = 0),
     deriv = TRUE
   )
