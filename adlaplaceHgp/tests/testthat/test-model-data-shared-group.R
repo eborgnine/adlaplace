@@ -25,7 +25,7 @@ test_that("model_data keeps both random terms that share a grouping variable", {
     function(r) Matrix::nnzero(r@gamma_map),
     integer(1)
   ))
-  expect_equal(n_mapped, nrow(md$data$info$gamma))
-  expect_equal(ncol(md$data$A), nrow(md$data$info$gamma))
-  expect_false(anyDuplicated(colnames(md$data$A)) > 0)
+  expect_equal(n_mapped, nrow(md$term_data$info$gamma))
+  expect_equal(ncol(md$term_data$A), nrow(md$term_data$info$gamma))
+  expect_false(anyDuplicated(colnames(md$term_data$A)) > 0)
 })

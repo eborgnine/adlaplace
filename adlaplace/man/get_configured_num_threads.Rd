@@ -2,17 +2,17 @@
 % Please edit documentation in R/RcppExports.R
 \name{get_configured_num_threads}
 \alias{get_configured_num_threads}
-\title{Configured \code{num_threads} from \code{ad_fun()} thread assignment}
+\title{Configured \code{num_threads} from \code{ad_pack()} thread assignment}
 \usage{
 get_configured_num_threads(handle)
 }
 \arguments{
-\item{handle}{External pointer of class \code{ad_fun_ptr}.}
+\item{handle}{External pointer of class \code{ad_pack_ptr}.}
 }
 \value{
-Integer \code{num_threads} if \code{ad_fun()} assigned threads; otherwise \code{NA}.
+Integer \code{num_threads} if \code{ad_pack()} assigned threads; otherwise \code{NA}.
 }
 \description{
-Configured \code{num_threads} from \code{ad_fun()} thread assignment
+Configured \code{num_threads} from \code{ad_pack()} thread assignment
 }
 \keyword{internal}

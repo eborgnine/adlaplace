@@ -23,18 +23,18 @@ test_that("permuted design columns match identity maps via beta_map/gamma_map", 
   )
   theta_map <- Matrix::sparseMatrix(i = 1L, j = 1L, dims = c(1L, 1L))
 
-  obs_ref <- adlaplace:::ad_data(
+  obs_ref <- adlaplace:::density_data(
     y = y,
     A = A,
     X = X,
     theta_map = theta_map,
     ad_kind = "observations",
-    ad_fun = "gaussian_obs"
+    density = "gaussian_obs"
   )
-  extra_ref <- adlaplace::ad_data(
+  extra_ref <- adlaplace::density_data(
     obs_ref,
     ad_kind = "parameters",
-    ad_fun = "gaussian_extra"
+    density = "gaussian_extra"
   )
 
   beta_perm <- c(3L, 1L, 2L)
@@ -52,7 +52,7 @@ test_that("permuted design columns match identity maps via beta_map/gamma_map", 
     dims = c(length(gamma), length(gamma_perm))
   )
 
-  obs_perm <- adlaplace:::ad_data(
+  obs_perm <- adlaplace:::density_data(
     y = y,
     A = A_perm,
     X = X_perm,
@@ -60,24 +60,24 @@ test_that("permuted design columns match identity maps via beta_map/gamma_map", 
     gamma_map = gamma_map_perm,
     theta_map = theta_map,
     ad_kind = "observations",
-    ad_fun = "gaussian_obs"
+    density = "gaussian_obs"
   )
-  extra_perm <- adlaplace::ad_data(
+  extra_perm <- adlaplace::density_data(
     obs_perm,
     ad_kind = "parameters",
-    ad_fun = "gaussian_extra"
+    density = "gaussian_extra"
   )
 
   x <- c(beta, gamma, log(sigma))
   manual <- sum(stats::dnorm(y, eta, sigma, log = TRUE))
 
-  ptr_ref <- adlaplace::ad_fun_ptr(obs_ref, config)
-  ptr_extra_ref <- adlaplace::ad_fun_ptr(extra_ref, config)
+  ptr_ref <- adlaplace::ad_pack_ptr(obs_ref, config)
+  ptr_extra_ref <- adlaplace::ad_pack_ptr(extra_ref, config)
   ad_ref <- adlaplace::joint_log_dens(ptr_ref, x, negative = FALSE) +
     adlaplace::joint_log_dens(ptr_extra_ref, x, negative = FALSE)
 
-  ptr_perm <- adlaplace::ad_fun_ptr(obs_perm, config)
-  ptr_extra_perm <- adlaplace::ad_fun_ptr(extra_perm, config)
+  ptr_perm <- adlaplace::ad_pack_ptr(obs_perm, config)
+  ptr_extra_perm <- adlaplace::ad_pack_ptr(extra_perm, config)
   ad_perm <- adlaplace::joint_log_dens(ptr_perm, x, negative = FALSE) +
     adlaplace::joint_log_dens(ptr_extra_perm, x, negative = FALSE)
 
@@ -89,7 +89,7 @@ test_that("permuted design columns match identity maps via beta_map/gamma_map", 
 test_that("design maps require ncol match and one nonzero per column", {
   X <- matrix(c(1, 1, 2, 2), nrow = 2L, ncol = 2L)
   expect_error(
-    adlaplace:::ad_data(
+    adlaplace:::density_data(
       y = c(0, 0),
       X = X,
       beta_map = Matrix::Diagonal(1L)
@@ -97,7 +97,7 @@ test_that("design maps require ncol match and one nonzero per column", {
     "beta_map ncol"
   )
   expect_error(
-    adlaplace:::ad_data(
+    adlaplace:::density_data(
       y = c(0, 0),
       X = X,
       beta_map = Matrix::sparseMatrix(

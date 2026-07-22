@@ -20,22 +20,22 @@ test_that("gaussian_obs + gaussian_extra match dnorm", {
     gamma = gamma,
     theta = log(sigma),
     transform_theta = TRUE,
-    shards = adlaplace::ad_shards(A, num_shards = 2L)
+    obs_groups = adlaplace::obs_groups(A, num_groups = 2L)
   )
   theta_map <- Matrix::sparseMatrix(i = 1L, j = 1L, dims = c(1L, 1L))
-  obs <- adlaplace:::ad_data(
+  obs <- adlaplace:::density_data(
     y = y, A = A, X = X,
     theta_map = theta_map,
     ad_kind = "observations",
-    ad_fun = "gaussian_obs"
+    density = "gaussian_obs"
   )
-  extra <- adlaplace::ad_data(
+  extra <- adlaplace::density_data(
     obs,
     ad_kind = "parameters",
-    ad_fun = "gaussian_extra"
+    density = "gaussian_extra"
   )
-  ptr_obs <- adlaplace::ad_fun_ptr(obs, config)
-  ptr_extra <- adlaplace::ad_fun_ptr(extra, config)
+  ptr_obs <- adlaplace::ad_pack_ptr(obs, config)
+  ptr_extra <- adlaplace::ad_pack_ptr(extra, config)
 
   x <- c(beta, gamma, log(sigma))
   manual <- sum(stats::dnorm(y, eta, sigma, log = TRUE))
@@ -56,12 +56,12 @@ test_that("bare response defaults to gaussian and adlaplace() fits it", {
 
   terms <- adlaplace::collect_terms(y ~ x + iid(g))
   expect_true(inherits(terms$y, "gaussian"))
-  expect_identical(terms$y@ad_fun, "gaussian_obs")
+  expect_identical(terms$y@density, "gaussian_obs")
 
   fit <- adlaplace(
     y ~ x + iid(g, init = 0.5),
     data = dat,
-    num_shards = 5L,
+    num_groups = 5L,
     control = list(maxit = 100L)
   )
   expect_identical(fit$details$outer_opt$convergence, 0L)

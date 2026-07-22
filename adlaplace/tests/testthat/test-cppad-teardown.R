@@ -10,7 +10,7 @@ cppad_teardown_fixture <- function(num_threads = 2L) {
     theta = c(-1, -1),
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    shards = adlaplace::ad_shards(Amat, num_shards = 20L),
+    obs_groups = adlaplace::obs_groups(Amat, num_groups = 20L),
     verbose = FALSE,
     package = "adlaplace"
   )
@@ -29,13 +29,13 @@ cppad_teardown_fixture <- function(num_threads = 2L) {
     Q = rep(1, ncol(Amat))
   )
   ad_ptr <- do.call(c, list(
-    adlaplace::ad_fun_ptr(as_shard(model, "observations", "nbinom_obs"), config),
-    adlaplace::ad_fun_ptr(random_shard, config),
-    adlaplace::ad_fun_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
+    adlaplace::ad_pack_ptr(as_shard(model, "observations", "nbinom_obs"), config),
+    adlaplace::ad_pack_ptr(random_shard, config),
+    adlaplace::ad_pack_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
   ))
   list(
     config = config,
-    ad_fun = adlaplace::ad_fun(ad_ptr, num_threads = num_threads)
+    ad_pack = adlaplace::ad_pack(ad_ptr, num_threads = num_threads)
   )
 }
 
@@ -46,7 +46,7 @@ test_that("log_lik_laplace deriv=TRUE runs trace inside inner_opt (team teardown
     x = c(fx$config$beta, fx$config$theta),
     config = list(verbose = FALSE),
     gamma = fx$config$gamma,
-    ad_fun = fx$ad_fun,
+    ad_pack = fx$ad_pack,
     control = list(maxit = 5L, report.level = 0, report.freq = 0),
     deriv = TRUE
   )
@@ -62,7 +62,7 @@ test_that("back-to-back log_lik_laplace deriv=TRUE reuses CppAD team teardown", 
     x = c(fx$config$beta, fx$config$theta),
     config = list(verbose = FALSE),
     gamma = fx$config$gamma,
-    ad_fun = fx$ad_fun,
+    ad_pack = fx$ad_pack,
     control = list(maxit = 4L, report.level = 0, report.freq = 0),
     deriv = TRUE
   )
@@ -79,7 +79,7 @@ test_that("serial log_lik_laplace deriv=TRUE still completes", {
     x = c(fx$config$beta, fx$config$theta),
     config = list(verbose = FALSE),
     gamma = fx$config$gamma,
-    ad_fun = fx$ad_fun,
+    ad_pack = fx$ad_pack,
     control = list(maxit = 4L, report.level = 0, report.freq = 0),
     deriv = TRUE
   )

@@ -1,7 +1,7 @@
 Package: hpolcc
 Type: Package
 Title: Hierarchical Air Pollution Model
-Version: 0.5.4
+Version: 0.6.0
 Authors@R: person(given = "Patrick", family = "Brown",
     email = "patrick.borgnine@gmail.com",
     role = c("aut", "cre", "cph"))
@@ -11,7 +11,7 @@ Description: Fits hierarchical functional case-crossover models for air
 License: MPL-2.0
 Depends:
     R (>= 4.1.0),
-    adlaplace (>= 0.5.3)
+    adlaplace (>= 0.6.0)
 Imports: Matrix, data.table, methods, timeDate, stats, adlaplaceHgp, RCppAD
 Suggests: GET, WoodburyMatrix, testthat (>= 3.0.0), trustOptim
 Enhances: extraDistr

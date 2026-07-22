@@ -1,4 +1,4 @@
-#include "adlaplace/ad_data.hpp"
+#include "adlaplace/density_data.hpp"
 #include "adlaplace/atomics.hpp"
 #include "adlaplace/densities.hpp"
 #include "adlaplace/eta.hpp"
@@ -16,12 +16,12 @@ std::pair<std::size_t, std::size_t> obs_range(
   std::size_t ny,
   std::size_t Dgroup) {
 
-  const bool have_shards = config.shards.ncol() > 0;
+  const bool have_shards = config.obs_groups.ncol() > 0;
   std::size_t startP = 0;
   std::size_t endP = 0;
   if (have_shards) {
-    startP = static_cast<std::size_t>(config.shards.p[Dgroup]);
-    endP = static_cast<std::size_t>(config.shards.p[Dgroup + 1]);
+    startP = static_cast<std::size_t>(config.obs_groups.p[Dgroup]);
+    endP = static_cast<std::size_t>(config.obs_groups.p[Dgroup + 1]);
   } else if (Dgroup == 0) {
     endP = ny;
   }
@@ -37,7 +37,7 @@ CppAD::AD<double> softplus_ad(const CppAD::AD<double>& z) {
 
 CppAD::AD<double> log_theta_ad(
   const CppAD::vector<CppAD::AD<double>>& x,
-  const ad_data& model,
+  const density_data& model,
   const Config& config) {
 
   const std::size_t t_global = model.theta_index(0);
@@ -50,18 +50,18 @@ CppAD::AD<double> log_theta_ad(
 
 CppAD::vector<CppAD::AD<double>> binomial_obs(
   const CppAD::vector<CppAD::AD<double>>& x,
-  const ad_data& model,
+  const density_data& model,
   const Config& config,
   const size_t Dgroup) {
 
   const size_t ny = model.y.size();
   const auto range = obs_range(config, ny, Dgroup);
-  const bool have_shards = config.shards.ncol() > 0;
+  const bool have_shards = config.obs_groups.ncol() > 0;
   const bool have_weights = model.weights.size() == ny;
 
   CppAD::AD<double> result = 0.0;
   for (size_t DI = range.first; DI < range.second; ++DI) {
-    const size_t Dobs = have_shards ? static_cast<size_t>(config.shards.i[DI]) : DI;
+    const size_t Dobs = have_shards ? static_cast<size_t>(config.obs_groups.i[DI]) : DI;
     const CppAD::AD<double> eta = eta_at(x, model, Dobs);
     const CppAD::AD<double> ntrials = have_weights
       ? CppAD::AD<double>(model.weights[Dobs])
@@ -76,7 +76,7 @@ CppAD::vector<CppAD::AD<double>> binomial_obs(
 
 CppAD::vector<CppAD::AD<double>> gaussian_obs(
   const CppAD::vector<CppAD::AD<double>>& x,
-  const ad_data& model,
+  const density_data& model,
   const Config& config,
   const size_t Dgroup) {
 
@@ -85,11 +85,11 @@ CppAD::vector<CppAD::AD<double>> gaussian_obs(
 
   const size_t ny = model.y.size();
   const auto range = obs_range(config, ny, Dgroup);
-  const bool have_shards = config.shards.ncol() > 0;
+  const bool have_shards = config.obs_groups.ncol() > 0;
 
   CppAD::AD<double> ss = 0.0;
   for (size_t DI = range.first; DI < range.second; ++DI) {
-    const size_t Dobs = have_shards ? static_cast<size_t>(config.shards.i[DI]) : DI;
+    const size_t Dobs = have_shards ? static_cast<size_t>(config.obs_groups.i[DI]) : DI;
     const CppAD::AD<double> eta = eta_at(x, model, Dobs);
     const CppAD::AD<double> resid = CppAD::AD<double>(model.y[Dobs]) - eta;
     ss += resid * resid;
@@ -102,7 +102,7 @@ CppAD::vector<CppAD::AD<double>> gaussian_obs(
 
 CppAD::vector<CppAD::AD<double>> gaussian_extra(
   const CppAD::vector<CppAD::AD<double>>& x,
-  const ad_data& model,
+  const density_data& model,
   const Config& config) {
 
   const CppAD::AD<double> logSigma = log_theta_ad(x, model, config);
@@ -115,7 +115,7 @@ CppAD::vector<CppAD::AD<double>> gaussian_extra(
 
 CppAD::vector<CppAD::AD<double>> nbinom_obs(
   const CppAD::vector<CppAD::AD<double>>& x,
-  const ad_data& model,
+  const density_data& model,
   const Config& config,
   const size_t Dgroup) {
 
@@ -128,10 +128,10 @@ CppAD::vector<CppAD::AD<double>> nbinom_obs(
 
   const size_t ny = model.y.size();
   const auto range = obs_range(config, ny, Dgroup);
-  const bool have_shards = config.shards.ncol() > 0;
+  const bool have_shards = config.obs_groups.ncol() > 0;
 
   for (size_t DI = range.first; DI < range.second; ++DI) {
-    const size_t Dobs = have_shards ? static_cast<size_t>(config.shards.i[DI]) : DI;
+    const size_t Dobs = have_shards ? static_cast<size_t>(config.obs_groups.i[DI]) : DI;
     const CppAD::AD<double> eta = eta_at(x, model, Dobs);
     const CppAD::AD<double> diff = eta - logNbSize;
     const CppAD::AD<double> logRplusMu = logNbSize + softplus_ad(diff);
@@ -147,7 +147,7 @@ CppAD::vector<CppAD::AD<double>> nbinom_obs(
 
 CppAD::vector<CppAD::AD<double>> nbinom_extra(
   const CppAD::vector<CppAD::AD<double>>& x,
-  const ad_data& model,
+  const density_data& model,
   const Config& config) {
 
   const CppAD::AD<double> logTheta = log_theta_ad(x, model, config);
@@ -177,7 +177,7 @@ CppAD::vector<CppAD::AD<double>> nbinom_extra(
 
 CppAD::vector<CppAD::AD<double>> poisson_obs(
   const CppAD::vector<CppAD::AD<double>>& x,
-  const ad_data& model,
+  const density_data& model,
   const Config& config,
   const size_t Dgroup) {
 
@@ -192,14 +192,14 @@ CppAD::vector<CppAD::AD<double>> poisson_obs(
 
   const size_t ny = model.y.size();
   const auto range = obs_range(config, ny, Dgroup);
-  const bool have_shards = config.shards.ncol() > 0;
+  const bool have_shards = config.obs_groups.ncol() > 0;
 
   CppAD::AD<double> linear = 0.0;
   CppAD::AD<double> expsum = 0.0;
   double constants = 0.0;
 
   for (size_t DI = range.first; DI < range.second; ++DI) {
-    const size_t Dobs = have_shards ? static_cast<size_t>(config.shards.i[DI]) : DI;
+    const size_t Dobs = have_shards ? static_cast<size_t>(config.obs_groups.i[DI]) : DI;
     const CppAD::AD<double> eta = eta_at(x, model, Dobs);
 
     const double off = have_offset
@@ -237,7 +237,7 @@ CppAD::AD<double> stable_logsumexp(
 
 CppAD::vector<CppAD::AD<double>> compute_eta_for_stratum(
   const size_t Dstrata,
-  const ad_data& model,
+  const density_data& model,
   const CppAD::vector<CppAD::AD<double>>& x) {
 
   const size_t startHere = model.elgm_matrix.p[Dstrata];
@@ -254,7 +254,7 @@ CppAD::vector<CppAD::AD<double>> compute_eta_for_stratum(
 
 CppAD::AD<double> accumulate_contrib_for_stratum(
   const size_t Dstrata,
-  const ad_data& model,
+  const density_data& model,
   const CppAD::vector<CppAD::AD<double>>& etaHere,
   const CppAD::AD<double>& tauSq) {
 
@@ -288,7 +288,7 @@ CppAD::AD<double> accumulate_contrib_for_stratum(
 
 CppAD::AD<double> tau_sq_from_x(
   const CppAD::vector<CppAD::AD<double>>& x,
-  const ad_data& model,
+  const density_data& model,
   const Config& config) {
 
   const std::size_t t_global = model.theta_index(0);
@@ -303,16 +303,16 @@ CppAD::AD<double> tau_sq_from_x(
 
 CppAD::vector<CppAD::AD<double>> dirichlet_multinomial(
   const CppAD::vector<CppAD::AD<double>>& x,
-  const ad_data& model,
+  const density_data& model,
   const Config& config,
   const size_t Dgroup) {
 
   CppAD::AD<double> result1 = 0.0;
   CppAD::vector<CppAD::AD<double>> result(1);
 
-  const bool have_shards = config.shards.ncol() > 0;
-  const size_t startP = have_shards ? config.shards.p[Dgroup] : Dgroup;
-  const size_t endP = have_shards ? config.shards.p[Dgroup + 1] : Dgroup + 1;
+  const bool have_shards = config.obs_groups.ncol() > 0;
+  const size_t startP = have_shards ? config.obs_groups.p[Dgroup] : Dgroup;
+  const size_t endP = have_shards ? config.obs_groups.p[Dgroup + 1] : Dgroup + 1;
 
   const CppAD::AD<double> tauSq = tau_sq_from_x(x, model, config);
   const bool verbose_here = config.verbose && (Dgroup < 1);
@@ -322,7 +322,7 @@ CppAD::vector<CppAD::AD<double>> dirichlet_multinomial(
   }
 
   for (size_t DstrataI = startP; DstrataI < endP; ++DstrataI) {
-    const size_t Dstrata = have_shards ? config.shards.i[DstrataI] : DstrataI;
+    const size_t Dstrata = have_shards ? config.obs_groups.i[DstrataI] : DstrataI;
     const auto etaHere = compute_eta_for_stratum(Dstrata, model, x);
     const auto contrib = accumulate_contrib_for_stratum(Dstrata, model, etaHere, tauSq);
 
@@ -343,7 +343,7 @@ CppAD::vector<CppAD::AD<double>> dirichlet_multinomial(
 
 CppAD::vector<CppAD::AD<double>> dirichlet_multinomial_extra(
   const CppAD::vector<CppAD::AD<double>>& x,
-  const ad_data& model,
+  const density_data& model,
   const Config& config) {
 
   const CppAD::AD<double> tauSq = tau_sq_from_x(x, model, config);

@@ -9,7 +9,7 @@ log_lik_laplace(
   config = list(),
   gamma,
   control = list(report.level = 4, report.freq = 1),
-  ad_fun,
+  ad_pack,
   data,
   package = c(config[["package"]], "adlaplace")[1L],
   deriv = FALSE
@@ -17,30 +17,30 @@ log_lik_laplace(
 }
 \arguments{
 \item{x}{Numeric vector of outer parameters (\code{beta}, then \code{theta}).
-Length must equal \code{num_beta + num_theta} from \code{ad_fun@sizes}.}
+Length must equal \code{num_beta + num_theta} from \code{ad_pack@sizes}.}
 
 \item{config}{A list of backend options (\code{verbose}, \code{package}, etc.).
-When \code{ad_fun} is missing, must also include \code{beta}, \code{gamma},
-and \code{theta} so \code{ad_fun()} can be built from \code{data}.}
+When \code{ad_pack} is missing, must also include \code{beta}, \code{gamma},
+and \code{theta} so \code{ad_pack()} can be built from \code{data}.}
 
 \item{gamma}{Optional numeric vector of starting values for the inner
 parameter \code{gamma}. If missing, uses \code{config$gamma} when present,
-otherwise a zero vector of length \code{ad_fun@sizes["gamma"]}.}
+otherwise a zero vector of length \code{ad_pack@sizes["gamma"]}.}
 
 \item{control}{List of control parameters passed *as-is* to the backend inner
 optimizer (e.g., \code{report.level}, \code{report.freq}). See backend
 documentation (e.g., \pkg{trustOptim}) for supported options.}
 
-\item{ad_fun}{Optional \code{ad_fun} object from \code{\link{ad_fun}}.
+\item{ad_pack}{Optional \code{ad_pack} object from \code{\link{ad_pack}}.
 This is a single backend handle (no separate inner/outer handles). If
 missing, it will be constructed automatically using \code{data}.}
 
-\item{data}{Optional data list used to build \code{ad_fun} when \code{ad_fun}
+\item{data}{Optional data list used to build \code{ad_pack} when \code{ad_pack}
 is not supplied.}
 
 \item{package}{Character scalar naming the backend package to use for
-\code{ad_fun()} and \code{inner_opt()}. Defaults to \code{"adlaplace"}.
-Other backends must export a compatible \code{ad_fun()} builder and \code{inner_opt()}.}
+\code{ad_pack()} and \code{inner_opt()}. Defaults to \code{"adlaplace"}.
+Other backends must export a compatible \code{ad_pack()} builder and \code{inner_opt()}.}
 
 \item{deriv}{Logical scalar. If \code{TRUE}, include derivative quantities in
 the output (gradient, intermediate derivatives).}
@@ -63,9 +63,9 @@ selected backend package (by default \pkg{adlaplace}).
 }
 \details{
 The default \pkg{adlaplace} backend uses a single AD handle. This function
-passes that handle to \code{inner_opt(..., ad_fun = ad_fun)}. Parameter block
-sizes are read from \code{ad_fun@sizes}; \code{config} is not required to
-contain \code{beta}, \code{gamma}, or \code{theta} when \code{ad_fun} is
+passes that handle to \code{inner_opt(..., ad_pack = ad_pack)}. Parameter block
+sizes are read from \code{ad_pack@sizes}; \code{config} is not required to
+contain \code{beta}, \code{gamma}, or \code{theta} when \code{ad_pack} is
 supplied.
 
 When \code{deriv=FALSE}, the return value mirrors \code{\link{inner_opt}()}
@@ -79,5 +79,5 @@ The Laplace approximation assumes the inner Hessian is positive definite
   non-invertible Hessian, \code{log_lik_laplace()} issues a warning or error.
 }
 \seealso{
-\code{\link{ad_fun}}, \code{\link{inner_opt}}
+\code{\link{ad_pack}}, \code{\link{inner_opt}}
 }

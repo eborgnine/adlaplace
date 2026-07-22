@@ -51,7 +51,7 @@ model_stuff <- adlaplace::model_data(
 
 config <- list(
   transform_theta = TRUE,
-  shards = adlaplace::ad_shards(model_stuff$data$A, num_shards = 100),
+  obs_groups = adlaplace::obs_groups(model_stuff$term_data$A, num_groups = 100),
   num_threads = 2L,
   verbose = FALSE
 )
@@ -59,20 +59,20 @@ config <- list(
 
 ## Laplace log-likelihood at starting values
 
-`ad_fun()` composes the observation, parameter, and random-effect shards into
+`ad_pack()` composes the observation, parameter, and random-effect shards into
 a single callable object. `log_lik_laplace()` solves the inner problem for
 random effects and returns the profile log-likelihood, gradient, and fitted
 parameters at the initial outer vector.
 
 ```{r}
-ad_fun <- adlaplace::ad_fun(
+ad_pack <- adlaplace::ad_pack(
   model_stuff,
   config = config,
   num_threads = config$num_threads
 )
 res <- adlaplace::log_lik_laplace(
-  x = model_stuff$data$info$parameters$init,
-  ad_fun = ad_fun,
+  x = model_stuff$term_data$info$parameters$init,
+  ad_pack = ad_pack,
   config = config,
   deriv = TRUE
 )
@@ -90,26 +90,26 @@ objective and gradient once at the start, then run a short L-BFGS-B fit.
 cache <- new.env(parent = emptyenv())
 cache$gamma <- res$inner_opt$solution
 
-x0 <- model_stuff$data$info$parameters$init
+x0 <- model_stuff$term_data$info$parameters$init
 
-adlaplace::outer_fn(x = x0, cache = cache, config = config, ad_fun = ad_fun)
-adlaplace::outer_gr(x = x0, cache = cache, config = config, ad_fun = ad_fun)
+adlaplace::outer_fn(x = x0, cache = cache, config = config, ad_pack = ad_pack)
+adlaplace::outer_gr(x = x0, cache = cache, config = config, ad_pack = ad_pack)
 
 outer_fit <- stats::optim(
   par = x0,
   fn = adlaplace::outer_fn,
   gr = adlaplace::outer_gr,
-  lower = model_stuff$data$info$parameters$lower,
-  upper = model_stuff$data$info$parameters$upper,
+  lower = model_stuff$term_data$info$parameters$lower,
+  upper = model_stuff$term_data$info$parameters$upper,
   method = "L-BFGS-B",
   control = list(
     maxit = 10,
-    parscale = model_stuff$data$info$parameters$parscale,
+    parscale = model_stuff$term_data$info$parameters$parscale,
     trace = 3,
     REPORT = 1
   ),
   config = config,
-  ad_fun = ad_fun,
+  ad_pack = ad_pack,
   cache = cache
 )
 outer_fit$par
@@ -117,7 +117,7 @@ outer_fit$value
 
 adlaplace::format_parameters(
   parameters = outer_fit$par, gamma = cache$gamma,
-  info = ad_fun@info
+  info = ad_pack@info
 )$parameters
 ```
 
@@ -130,19 +130,19 @@ density on the BMI histogram (when `sn` is available).
 ```{r}
 res <- adlaplace::log_lik_laplace(
   x = outer_fit$par,
-  ad_fun = ad_fun,
+  ad_pack = ad_pack,
   config = modifyList(config, list(verbose = FALSE)),
   deriv = TRUE
 )
 res$deriv$d_neg_log_lik
-model_stuff$data$info$gamma$mode <- res$inner_opt$solution
-model_stuff$data$info$beta$mle <- res$parameters[seq(1, nrow(model_stuff$data$info$beta))]
+model_stuff$term_data$info$gamma$mode <- res$inner_opt$solution
+model_stuff$term_data$info$beta$mle <- res$parameters[seq(1, nrow(model_stuff$term_data$info$beta))]
 
-model_stuff$data$info$theta$mle <- res$parameters[-(1:nrow(model_stuff$data$info$beta))]
-model_stuff$data$info$theta[
-  model_stuff$data$info$theta$log, "mle"
+model_stuff$term_data$info$theta$mle <- res$parameters[-(1:nrow(model_stuff$term_data$info$beta))]
+model_stuff$term_data$info$theta[
+  model_stuff$term_data$info$theta$log, "mle"
 ] <-
-  exp(model_stuff$data$info$theta[model_stuff$data$info$theta$log, "mle"])
+  exp(model_stuff$term_data$info$theta[model_stuff$term_data$info$theta$log, "mle"])
 ```
 
 ```{r}
@@ -151,9 +151,9 @@ x_seq <- seq(par("usr")[1], par("usr")[2], len = 1001)
 if (requireNamespace("sn", quietly = TRUE)) {
   lines(x_seq,
     sn::dsn(x_seq,
-      xi = model_stuff$data$info$beta$mle[1],
-      omega = model_stuff$data$info$theta$mle[1],
-      alpha = model_stuff$data$info$theta$mle[2]
+      xi = model_stuff$term_data$info$beta$mle[1],
+      omega = model_stuff$term_data$info$theta$mle[1],
+      alpha = model_stuff$term_data$info$theta$mle[2]
     ),
     col = "red"
   )
@@ -183,7 +183,7 @@ par_grid[, Dpar] <- Sx
 res <- lapply(
   split(par_grid, row(par_grid)),
   adlaplace::log_lik_laplace,
-  ad_fun = ad_fun,
+  ad_pack = ad_pack,
   config = config,
   deriv = TRUE,
   gamma = cache$gamma

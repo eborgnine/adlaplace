@@ -2,16 +2,16 @@
 % Please edit documentation in R/RcppExports.R
 \name{adlaplace_attach_hessian}
 \alias{adlaplace_attach_hessian}
-\title{Attach hessian_map() result to an ad_fun handle}
+\title{Attach hessian_map() result to an ad_pack handle}
 \usage{
 adlaplace_attach_hessian(handle, hessian_pack)
 }
 \arguments{
-\item{handle}{External pointer of class \code{ad_fun_ptr}.}
+\item{handle}{External pointer of class \code{ad_pack_ptr}.}
 
 \item{hessian_pack}{List returned by \code{hessian_map()}.}
 }
 \description{
-Copies outer/inner templates and maps into the C++ \code{ad_fun} handle.
+Copies outer/inner templates and maps into the C++ \code{ad_pack} handle.
 }
 \keyword{internal}

@@ -1,6 +1,6 @@
 // Backend boilerplate for adlaplaceFem (FEM Matérn random densities).
 // Taping and evaluation must live in this DSO (macOS CppAD requirement).
-// register_impl.hpp provides packs_to_ad_fun / make_ad_fun_ptr (no adlaplace.so link).
+// register_impl.hpp provides packs_to_ad_fun / make_ad_pack_ptr (no adlaplace.so link).
 
 #include <Rcpp.h>
 

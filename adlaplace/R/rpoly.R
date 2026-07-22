@@ -22,12 +22,12 @@ setClass("rpoly",
   slots = list(
     sd = "numeric"
   ),
-  contains = "model",
+  contains = "model_term",
   prototype = prototype(
     knots = numeric(0),
     sd = numeric(0),
-    type = factor("random", levels = .type_factor_levels),
-    ad_fun = "random_diagonal",
+    model_role = factor("random", levels = .model_role_levels),
+    density = "random_diagonal",
     ad_kind = "random"
   )
 )
@@ -53,7 +53,7 @@ rpoly <- function(x, p = 2, ref_value = 0, sd = Inf) {
   }
 
   methods::new("rpoly",
-    term = x,
+    name = x,
     label = paste(x, "rpoly", sep = "_"),
     formula = stats::as.formula(paste0("~ 0 + ", x), env = new.env()),
     p.order = as.integer(p),
@@ -73,13 +73,13 @@ setMethod("design", "rpoly", function(term, data) {
     return(NULL)
   }
   D <- stats::poly(
-    data[[term@term]] - term@ref_value,
+    data[[term@name]] - term@ref_value,
     degree = term@p.order,
     raw = TRUE
   )
   D <- D[, 1:ncol(D), drop = FALSE]
 
-  colnames(D) <- paste0(term@term, "_rpoly_", seq.int(1, length.out = term@p.order))
+  colnames(D) <- paste0(term@name, "_rpoly_", seq.int(1, length.out = term@p.order))
   D
 })
 
@@ -103,7 +103,7 @@ setMethod("precision", "rpoly", function(term, data) {
   # For random effects, we typically use identity matrix scaled by 1/sd^2
   precision_mat <- Matrix::Diagonal(n = p, x = 1 / (sd_values^2))
   dimnames(precision_mat) <- list(
-    paste0(term@term, "_rpoly_", seq.int(1, length.out = term@p.order))
+    paste0(term@name, "_rpoly_", seq.int(1, length.out = term@p.order))
   )[c(1, 1)]
   return(precision_mat)
 })
@@ -122,7 +122,7 @@ setMethod("random_info", "rpoly", function(term, data) {
   the_colnames <- paste0(the_label, "_", seq.int(1, length.out = term@p.order))
 
   result <- data.frame(
-    term = term@term,
+    term = term@name,
     model = "rpoly",
     label = the_label,
     by = NA, by_labels = NA,

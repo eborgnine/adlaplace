@@ -62,7 +62,7 @@ Dirichlet-multinomial case-crossover response term
 \section{Slots (inherited from \code{model})}{
 
 \describe{
-  \item{\code{ad_fun}}{Character scalar \code{"dirichlet_multinomial"}.}
+  \item{\code{ad_pack}}{Character scalar \code{"dirichlet_multinomial"}.}
   \item{\code{ad_kind}}{Character scalar \code{"observations"}.}
   \item{\code{package}}{Character scalar \code{"adlaplace"}.}
 }

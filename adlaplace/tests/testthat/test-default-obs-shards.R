@@ -1,4 +1,4 @@
-test_that("missing config$shards uses one observation shard", {
+test_that("missing config$obs_groups uses one observation shard", {
   set.seed(2)
   Nobs <- 40L
   X <- Matrix::Matrix(cbind(1, rbinom(Nobs, 1, prob = 0.5)))
@@ -22,7 +22,7 @@ test_that("missing config$shards uses one observation shard", {
     config = config,
     theta_local_row = length(config$theta) - 1L
   )
-  obs_ptr <- adlaplace::ad_fun_ptr(
+  obs_ptr <- adlaplace::ad_pack_ptr(
     as_shard(model, "observations", "nbinom_obs"),
     config
   )

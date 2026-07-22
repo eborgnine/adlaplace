@@ -21,10 +21,10 @@ setClass("rsiwp",
     mult = "character",
     ref_mult = "numeric"
   ),
-  contains = "model",
+  contains = "model_term",
   prototype = prototype(
-    type = factor("random", levels = adlaplace::.type_factor_levels),
-    ad_fun = "random_diagonal",
+    model_role = factor("random", levels = adlaplace::.model_role_levels),
+    density = "random_diagonal",
     ad_kind = "random"
   )
 )
@@ -35,7 +35,7 @@ methods::setAs(
   function(from) {
     # Create a new iwp object with the same basic properties
     methods::new("iwp",
-      term = from@term,
+      name = from@name,
       formula = from@formula,
       knots = from@knots,
       ref_value = from@ref_value,
@@ -110,7 +110,7 @@ rsiwp <- function(
   rsiwp_label <- paste(c(x, mult, "rsiwp"), collapse = "_")
 
   result[[rsiwp_label]] <- methods::new("rsiwp",
-    term = x,
+    name = x,
     label = rsiwp_label,
     mult = mult,
     formula = the_f,
@@ -168,7 +168,7 @@ setMethod("design", "rsiwp", function(term, data) {
   knots_string <- gsub(".*_k", "", colnames(design_iwp))
 
   colnames(result) <- paste0(
-    term@term, "_", term@mult,
+    term@name, "_", term@mult,
     "_rsiwp_k", knots_string
   )
   result
@@ -189,7 +189,7 @@ setMethod("precision", "rsiwp", function(term, data) {
   )
 
   dimnames(result) <- list(
-    paste0(term@term, "_", term@mult, "_rsiwp_k", knots_string)
+    paste0(term@name, "_", term@mult, "_rsiwp_k", knots_string)
   )[c(1, 1)]
   result
 })
@@ -199,12 +199,12 @@ setMethod("precision", "rsiwp", function(term, data) {
 #' @export
 setMethod("theta_info", "rsiwp", function(term) {
   result <- data.frame(
-    term = term@term, model = "rsiwp",
+    term = term@name, model = "rsiwp",
     label = term@label,
     init = term@init,
     lower = term@lower, upper = term@upper,
     parscale = term@parscale,
-    type = term@type,
+    model_role = term@model_role,
     log = term@log
   )
   return(result)
@@ -226,7 +226,7 @@ setMethod("random_info", "rsiwp", function(term, data) {
   basis <- seq(1, len = length(term@knots) - 1)
 
   result <- expand.grid(
-    term = term@term,
+    term = term@name,
     model = "rsiwp",
     label = term@label,
     by = NA,

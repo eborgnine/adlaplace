@@ -1,10 +1,10 @@
 setClass("iwp",
   slots = list(),
-  contains = "model",
+  contains = "model_term",
   prototype = prototype(
     # Default values for iwp-specific behavior
-    type = factor("random", levels = .type_factor_levels),
-    ad_fun = "random_diagonal",
+    model_role = factor("random", levels = .model_role_levels),
+    density = "random_diagonal",
     ad_kind = "random"
   )
 )
@@ -84,7 +84,7 @@ iwp <- function(
   ref_value <- ref_align(ref_value, knots)
 
   result[[iwp_name]] <- methods::new("iwp",
-    term = x,
+    name = x,
     label = iwp_name,
     formula = the_f,
     p.order = as.integer(p),
@@ -211,15 +211,15 @@ ref_align <- function(ref_value, knots) {
 #' @param data A data frame containing the term variable
 #' @export
 setMethod("design", "iwp", function(term, data) {
-  if (any(data[[term@term]] < min(term@knots)) || any(data[[term@term]] > max(term@knots))) {
-    warning("knots don't span the range of x ", term@term)
+  if (any(data[[term@name]] < min(term@knots)) || any(data[[term@name]] > max(term@knots))) {
+    warning("knots don't span the range of x ", term@name)
     print(range(term@knots))
-    print(range(data[[term@term]]))
+    print(range(data[[term@name]]))
   }
 
   result <- local_poly(
     term@knots - term@ref_value,
-    data[[term@term]] - term@ref_value,
+    data[[term@name]] - term@ref_value,
     term@p.order
   )
 
@@ -227,7 +227,7 @@ setMethod("design", "iwp", function(term, data) {
     width = ceiling(log10(ncol(result))), flag = "0"
   )
 
-  colnames(result) <- paste0(term@term, "_iwp_k", knots_string)
+  colnames(result) <- paste0(term@name, "_iwp_k", knots_string)
   result
 })
 
@@ -243,7 +243,7 @@ setMethod("precision", "iwp", function(term, data) {
   )
 
   dimnames(result) <- list(
-    paste0(term@term, "_iwp_k", knots_string)
+    paste0(term@name, "_iwp_k", knots_string)
   )[c(1, 1)]
   result
 })
@@ -253,12 +253,12 @@ setMethod("precision", "iwp", function(term, data) {
 #' @export
 setMethod("theta_info", "iwp", function(term) {
   result <- data.frame(
-    term = term@term, model = "iwp",
+    term = term@name, model = "iwp",
     label = term@label,
     init = term@init,
     lower = term@lower, upper = term@upper,
     parscale = term@parscale,
-    type = term@type,
+    model_role = term@model_role,
     log = term@log
   )
   return(result)
@@ -272,7 +272,7 @@ setMethod("random_info", "iwp", function(term, data) {
   basis <- seq(1, length.out = length(term@knots) - 1)
 
   result <- expand.grid(
-    term = term@term,
+    term = term@name,
     model = "iwp",
     label = term@label,
     by = NA, # iwp doesn't have hierarchical structure

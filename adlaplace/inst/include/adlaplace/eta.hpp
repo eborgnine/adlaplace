@@ -1,7 +1,7 @@
 #ifndef ADLAPLACE_ETA_HPP
 #define ADLAPLACE_ETA_HPP
 
-#include "adlaplace/ad_data.hpp"
+#include "adlaplace/density_data.hpp"
 
 #include <cppad/cppad.hpp>
 #include <cstddef>
@@ -10,7 +10,7 @@
 template <class ADScalar>
 inline ADScalar eta_at(
   const CppAD::vector<ADScalar>& x,
-  const ad_data& model,
+  const density_data& model,
   std::size_t Dobs) {
 
   ADScalar eta = ADScalar(0.0);

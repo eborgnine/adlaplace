@@ -1,11 +1,11 @@
-#' @include log_lik.R model_data.R ad_shards.R
+#' @include log_lik.R model_data.R obs_groups.R
 NULL
 
 #' Fit a hierarchical model by Laplace-approximate maximum likelihood
 #'
 #' One-call interface to the \pkg{adlaplace} pipeline: parse the formula with
 #' \code{\link{model_data}()}, partition observations into AD shards with
-#' \code{\link{ad_shards}()}, build the AD handle with \code{\link{ad_fun}()},
+#' \code{\link{obs_groups}()}, build the AD handle with \code{\link{ad_pack}()},
 #' maximize the Laplace-approximate marginal likelihood with
 #' \code{\link[stats]{optim}()} using the exact profile gradient
 #' (\code{\link{outer_fn}} / \code{\link{outer_gr}}), and return a fitted-model
@@ -19,12 +19,12 @@ NULL
 #'   Not needed when \code{formula} is already a \code{model_data} result.
 #' @param config List of backend options merged over the defaults
 #'   \code{list(transform_theta = TRUE, verbose = verbose)}. When
-#'   \code{config$shards} is missing it is filled by
-#'   \code{ad_shards(A, num_shards = num_shards)}, or with
+#'   \code{config$obs_groups} is missing it is filled by
+#'   \code{obs_groups(A, num_groups = num_groups)}, or with
 #'   \code{elgm_matrix} when the model data includes one (e.g. case-crossover).
 #' @param num_threads Positive integer, OpenMP thread count for the AD handle.
-#' @param num_shards Target number of observation shards for
-#'   \code{\link{ad_shards}()}.
+#' @param num_groups Target number of observation shards for
+#'   \code{\link{obs_groups}()}.
 #' @param control List of \code{\link[stats]{optim}} control options, merged
 #'   over the defaults \code{list(maxit = 200L, parscale = <from terms>)}.
 #' @param control_inner List of control options for the inner (random effects)
@@ -49,7 +49,7 @@ NULL
 #'   \item{details}{Laplace evaluation at the optimum, including
 #'     \code{outer_opt}, \code{inner_opt}, \code{vcov}, \code{log_lik},
 #'     \code{gradient}, and \code{hessian}.}
-#'   \item{model_data, ad_fun, config, cache}{Objects needed by the accessor
+#'   \item{model_data, ad_pack, config, cache}{Objects needed by the accessor
 #'     methods and for warm restarts.}
 #' }
 #'
@@ -71,7 +71,7 @@ adlaplace <- function(
   data,
   config = list(),
   num_threads = 1L,
-  num_shards = 100L,
+  num_groups = 100L,
   control = list(),
   control_inner = list(maxit = 100L, report.level = 0, report.freq = 0),
   method = "L-BFGS-B",
@@ -81,7 +81,7 @@ adlaplace <- function(
 ) {
   cl <- match.call()
   if (is.list(formula) &&
-    all(c("terms", "data", "observations") %in% names(formula))) {
+    all(c("terms", "term_data", "observations") %in% names(formula))) {
     md <- formula
     formula <- NULL
   } else {
@@ -95,22 +95,22 @@ adlaplace <- function(
     list(transform_theta = TRUE, verbose = verbose),
     config
   )
-  if (is.null(config$shards)) {
-    A <- md$data$A
+  if (is.null(config$obs_groups)) {
+    A <- md$term_data$A
     if (!is.null(A) && ncol(A) > 0L) {
-      elgm <- md$data$elgm_matrix
+      elgm <- md$term_data$elgm_matrix
       if (!is.null(elgm) && methods::is(elgm, "Matrix") && ncol(elgm) > 0L) {
-        config$shards <- ad_shards(
+        config$obs_groups <- obs_groups(
           A,
           elgm_matrix = elgm,
-          num_shards = num_shards,
+          num_groups = num_groups,
           min_groups = min(
-            as.integer(num_shards),
+            as.integer(num_groups),
             as.integer(num_threads) * 4L
           )
         )
       } else {
-        config$shards <- ad_shards(A, num_shards = num_shards)
+        config$obs_groups <- obs_groups(A, num_groups = num_groups)
       }
     }
   }
@@ -118,9 +118,9 @@ adlaplace <- function(
     config$num_threads <- as.integer(num_threads)[1L]
   }
 
-  af <- ad_fun(md, config, num_threads = config$num_threads)
+  af <- ad_pack(md, config, num_threads = config$num_threads)
 
-  par_meta <- md$data$info$parameters
+  par_meta <- md$term_data$info$parameters
   labels <- par_meta$label
 
   control_use <- utils::modifyList(
@@ -129,7 +129,7 @@ adlaplace <- function(
   )
 
   cache <- new.env(parent = emptyenv())
-  cache$gamma <- rep(0, nrow(md$data$info$gamma))
+  cache$gamma <- rep(0, nrow(md$term_data$info$gamma))
 
   optim_args <- list(
     par = par_meta$init,
@@ -139,7 +139,7 @@ adlaplace <- function(
     control = control_use,
     hessian = hessian,
     config = config,
-    ad_fun = af,
+    ad_pack = af,
     cache = cache,
     control_inner = control_inner
   )
@@ -152,7 +152,7 @@ adlaplace <- function(
   details <- log_lik_laplace(
     x = opt$par,
     gamma = cache$gamma,
-    ad_fun = af,
+    ad_pack = af,
     config = config,
     control = control_inner,
     deriv = TRUE
@@ -212,15 +212,15 @@ adlaplace <- function(
     call = cl,
     formula = formula,
     model_data = md,
-    ad_fun = af,
+    ad_pack = af,
     config = config,
     details = details,
     par_info = par_info,
     gamma = stats::setNames(
       details$inner_opt$solution,
-      md$data$info$gamma$gamma_label
+      md$term_data$info$gamma$gamma_label
     ),
-    nobs = length(md$data$y),
+    nobs = length(md$term_data$y),
     cache = cache
   )
   class(out) <- "adlaplace_fit"

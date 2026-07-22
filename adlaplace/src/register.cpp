@@ -1,6 +1,6 @@
 #include "adlaplace/register.hpp"
 #include "adlaplace/extension.hpp"
-#include "adlaplace/adfun.hpp"
+#include "adlaplace/ad_pack.hpp"
 #include "adlaplace/densities.hpp"
 #include "adlaplace/runtime.hpp"
 
@@ -10,7 +10,7 @@
 
 #include "adlaplace/register_impl.hpp"
 
-extern adlaplace_shard* adlaplace_make_shard(GroupPack&&);
+extern ad_shard* adlaplace_make_ad_shard(AdTape&&);
 
 static LogDensObsFn resolve_obs_density(const std::string& name) {
   if (name == "nbinom_obs") return nbinom_obs;
@@ -39,45 +39,45 @@ void adlaplace_init_atomics() {
   adlaplace_init_log_erfc_atomic();
 }
 
-static adlaplace_shard* first_shard(ad_fun* groups) {
+static ad_shard* first_shard(ad_pack* groups) {
   if (!groups || groups->fun.empty()) {
-    Rcpp::stop("ad_fun handle has no shards");
+    Rcpp::stop("ad_pack handle has no shards");
   }
-  for (adlaplace_shard* shard : groups->fun) {
+  for (ad_shard* shard : groups->fun) {
     if (shard) {
       return shard;
     }
   }
-  Rcpp::stop("ad_fun handle has no valid shards");
+  Rcpp::stop("ad_pack handle has no valid shards");
 }
 
-ad_fun* combine_ad_fun(const std::vector<ad_fun*>& parts) {
+ad_pack* combine_ad_fun(const std::vector<ad_pack*>& parts) {
   if (parts.empty()) {
-    Rcpp::stop("c_ad_fun_ptr requires at least one handle");
+    Rcpp::stop("c_ad_pack_ptr requires at least one handle");
   }
-  adlaplace_shard* layout = first_shard(parts[0]);
+  ad_shard* layout = first_shard(parts[0]);
   const std::size_t n_beta = layout->pack.n_beta;
   const std::size_t n_theta = layout->pack.n_theta;
 
-  std::vector<GroupPack> merged;
+  std::vector<AdTape> merged;
   std::vector<ShardFactory> merged_factories;
   size_t shard_index = 0;
 
-  for (ad_fun* part : parts) {
+  for (ad_pack* part : parts) {
     if (!part) continue;
     if (part->abi_version != ADLAPLACE_ABI_VERSION) {
       Rcpp::stop(
-        "ad_fun ABI mismatch (got %d, need %d): rebuild the extension package against this adlaplace",
+        "ad_pack ABI mismatch (got %d, need %d): rebuild the extension package against this adlaplace",
         part->abi_version,
         ADLAPLACE_ABI_VERSION
       );
     }
-    for (adlaplace_shard* shard : part->fun) {
+    for (ad_shard* shard : part->fun) {
       if (!shard) continue;
       shard->pack.shard_index = shard_index++;
       shard->pack.n_beta = n_beta;
       shard->pack.n_theta = n_theta;
-      merged_factories.push_back(shard->factory ? shard->factory : adlaplace_make_shard);
+      merged_factories.push_back(shard->factory ? shard->factory : adlaplace_make_ad_shard);
       merged.push_back(std::move(shard->pack));
       delete shard;
     }
@@ -85,7 +85,7 @@ ad_fun* combine_ad_fun(const std::vector<ad_fun*>& parts) {
     ad_fun_destroy(part);
   }
 
-  auto* groups = new ad_fun();
+  auto* groups = new ad_pack();
   groups->abi_version = ADLAPLACE_ABI_VERSION;
   groups->fun.reserve(merged.size());
   for (size_t g = 0; g < merged.size(); ++g) {
@@ -94,24 +94,24 @@ ad_fun* combine_ad_fun(const std::vector<ad_fun*>& parts) {
   return groups;
 }
 
-ad_fun* get_ad_fun_raw_obs_h(
+ad_pack* get_ad_pack_raw_obs_h(
   SEXP model_sexp,
   const Rcpp::List& config,
   const std::string& obs_name) {
 
-  const ad_data model(model_sexp);
-  std::vector<GroupPack> packs = build_ad_fun_obs(model, config, resolve_obs_density(obs_name));
-  return packs_to_ad_fun(std::move(packs), model.num_beta, model.num_theta, adlaplace_make_shard);
+  const density_data model(model_sexp);
+  std::vector<AdTape> packs = build_ad_fun_obs(model, config, resolve_obs_density(obs_name));
+  return packs_to_ad_fun(std::move(packs), model.num_beta, model.num_theta, adlaplace_make_ad_shard);
 }
 
-ad_fun* get_ad_fun_raw_parameters_h(
+ad_pack* get_ad_pack_raw_parameters_h(
   SEXP model_sexp,
   const Rcpp::List& config,
   const std::string& single_name) {
 
-  const ad_data model(model_sexp);
-  GroupPack pack = build_ad_fun_parameters(model, config, resolve_extra_density(single_name));
-  std::vector<GroupPack> packs;
+  const density_data model(model_sexp);
+  AdTape pack = build_ad_fun_parameters(model, config, resolve_extra_density(single_name));
+  std::vector<AdTape> packs;
   packs.push_back(std::move(pack));
-  return packs_to_ad_fun(std::move(packs), model.num_beta, model.num_theta, adlaplace_make_shard);
+  return packs_to_ad_fun(std::move(packs), model.num_beta, model.num_theta, adlaplace_make_ad_shard);
 }

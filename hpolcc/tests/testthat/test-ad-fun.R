@@ -10,12 +10,12 @@ test_that("model_data attaches elgm_matrix for dirichlet_multinom", {
     na_omit = TRUE,
     verbose = FALSE
   )
-  expect_gt(ncol(md$data$elgm_matrix), 0L)
+  expect_gt(ncol(md$term_data$elgm_matrix), 0L)
   expect_gt(ncol(md$observations$count@elgm_matrix), 0L)
-  expect_identical(md$parameters$count_extra@ad_fun, "dirichlet_multinomial_extra")
+  expect_identical(md$parameters$count_extra@density, "dirichlet_multinomial_extra")
 })
 
-test_that("ad_fun builds from hnlm for_dev model_data bundle", {
+test_that("ad_pack builds from hnlm for_dev model_data bundle", {
   skip_if_not_installed("adlaplace")
   td <- make_hpolcc_test_data()
   forres <- hpolcc::hnlm(
@@ -23,15 +23,15 @@ test_that("ad_fun builds from hnlm for_dev model_data bundle", {
     data = td$data,
     config = list(
       verbose = FALSE,
-      num_shards = 2L,
+      num_groups = 2L,
       num_threads = 1L
     ),
     for_dev = TRUE
   )
-  expect_true(methods::is(forres$ad_fun, "ad_fun"))
-  expect_true("outer" %in% methods::slotNames(forres$ad_fun))
+  expect_true(methods::is(forres$ad_pack, "ad_pack"))
+  expect_true("outer" %in% methods::slotNames(forres$ad_pack))
 
-  sz <- forres$ad_fun@sizes
+  sz <- forres$ad_pack@sizes
   n_beta <- as.integer(sz["beta"])
   n_gamma <- as.integer(sz["gamma"])
   n_theta <- as.integer(sz["theta"])
@@ -41,17 +41,17 @@ test_that("ad_fun builds from hnlm for_dev model_data bundle", {
     forres$config$opt$init[seq(n_beta + 1L, length.out = n_theta)]
   )
 
-  dens <- adlaplace::joint_log_dens(forres$ad_fun, x)
+  dens <- adlaplace::joint_log_dens(forres$ad_pack, x)
   expect_true(is.finite(dens))
 
-  g <- adlaplace::grad(forres$ad_fun, x)
+  g <- adlaplace::grad(forres$ad_pack, x)
   expect_equal(length(g), length(x))
 
-  H <- adlaplace::hessian(forres$ad_fun, x)
+  H <- adlaplace::hessian(forres$ad_pack, x)
   expect_true(inherits(H, "Matrix") || inherits(H, "matrix"))
 })
 
-test_that("ad_fun builds from hnlm for_dev with no fixed effects", {
+test_that("ad_pack builds from hnlm for_dev with no fixed effects", {
   skip_if_not_installed("adlaplace")
   td <- make_hpolcc_test_data()
   formula <- adlaplace::dirichlet_multinom(
@@ -63,25 +63,25 @@ test_that("ad_fun builds from hnlm for_dev with no fixed effects", {
     data = td$data,
     config = list(
       verbose = FALSE,
-      num_shards = 2L,
+      num_groups = 2L,
       num_threads = 1L
     ),
     for_dev = TRUE
   )
 
-  expect_equal(as.integer(forres$ad_fun@sizes["beta"]), 0L)
-  expect_equal(nrow(forres$model_data$data$info$beta), 0L)
+  expect_equal(as.integer(forres$ad_pack@sizes["beta"]), 0L)
+  expect_equal(nrow(forres$model_data$term_data$info$beta), 0L)
 
-  n_gamma <- as.integer(forres$ad_fun@sizes["gamma"])
-  n_theta <- as.integer(forres$ad_fun@sizes["theta"])
+  n_gamma <- as.integer(forres$ad_pack@sizes["gamma"])
+  n_theta <- as.integer(forres$ad_pack@sizes["theta"])
   x <- c(
     rep(0, n_gamma),
     forres$config$opt$init[seq_len(n_theta)]
   )
 
-  dens <- adlaplace::joint_log_dens(forres$ad_fun, x)
+  dens <- adlaplace::joint_log_dens(forres$ad_pack, x)
   expect_true(is.finite(dens))
 
-  g <- adlaplace::grad(forres$ad_fun, x)
+  g <- adlaplace::grad(forres$ad_pack, x)
   expect_equal(length(g), length(x))
 })

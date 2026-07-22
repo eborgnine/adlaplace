@@ -38,8 +38,8 @@ Built HTML vignettes (from CI):
 
 | Layer | R | C++ |
 |-------|---|-----|
-| Model (formula, S4 terms) | `effects.R`, `data_setup.R`, term `*.R` | — |
-| Laplace (AD handle, profile likelihood) | `ad_fun.R`, `ad_data.R`, `log_lik.R`, … | `inner_opt`, … |
+| Model (formula, S4 terms) | `effects.R`, `term_data_setup.R`, term `*.R` | — |
+| Laplace (AD handle, profile likelihood) | `ad_pack.R`, `density_data.R`, `log_lik.R`, … | `inner_opt`, … |
 | Engine (eval, optimizer) | `R/RcppExports.R` | `src/`, `src/include/adlaplace/` |
 
 Public headers for backend packages live in `inst/include/adlaplace/`.

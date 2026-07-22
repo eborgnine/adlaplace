@@ -33,7 +33,7 @@ test_that("cond_sim_iwp_inputs and cond_sim_iwp use laplace + model_data", {
 
   model_data <- list(
     terms = unlist(iwp_terms, recursive = FALSE),
-    data = list(info = list(
+    term_data = list(info = list(
       beta = data.frame(beta_label = character(0)),
       gamma = random_info,
       theta = data.frame(label = "x_iwp")

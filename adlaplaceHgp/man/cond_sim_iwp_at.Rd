@@ -20,7 +20,7 @@ cond_sim_iwp_at(
 \arguments{
 \item{terms}{Named list of model term objects from \code{model_data()$terms}.}
 
-\item{random_info}{Data frame from \code{model_data()$data$info$gamma} with
+\item{random_info}{Data frame from \code{model_data()$term_data$info$gamma} with
 columns \code{gamma_label}, \code{term}, \code{model}, and \code{by}.}
 
 \item{beta}{Named numeric vector of fixed-effect MLEs, or a data frame with

@@ -59,7 +59,7 @@ test_that("laplace_half_H_inv works on log_lik_laplace deriv output", {
     theta = c(-1, -1),
     transform_theta = TRUE,
     gamma = rep(0, Nrandom),
-    shards = adlaplace::ad_shards(Amat, num_shards = 8L),
+    obs_groups = adlaplace::obs_groups(Amat, num_groups = 8L),
     verbose = FALSE
   )
   model <- test_ad_data(
@@ -77,16 +77,16 @@ test_that("laplace_half_H_inv works on log_lik_laplace deriv output", {
     Q = rep(1, Nrandom)
   )
   ad_ptr <- do.call(c, list(
-    adlaplace::ad_fun_ptr(as_shard(model, "observations", "nbinom_obs"), config),
-    adlaplace::ad_fun_ptr(random_shard, config),
-    adlaplace::ad_fun_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
+    adlaplace::ad_pack_ptr(as_shard(model, "observations", "nbinom_obs"), config),
+    adlaplace::ad_pack_ptr(random_shard, config),
+    adlaplace::ad_pack_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
   ))
-  ad_fun <- adlaplace::ad_fun(ad_ptr)
+  ad_pack <- adlaplace::ad_pack(ad_ptr)
   laplace <- adlaplace::log_lik_laplace(
     x = c(config$beta, config$theta),
     config = list(verbose = FALSE),
     gamma = config$gamma,
-    ad_fun = ad_fun,
+    ad_pack = ad_pack,
     control = list(maxit = 5L, report.level = 0, report.freq = 0),
     deriv = TRUE
   )

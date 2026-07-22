@@ -107,7 +107,7 @@ struct NumVecView {
   double operator[](std::size_t i) const;
 };
 
-// Thread-safe CSC pattern copied into std::vector (e.g. config$shards).
+// Thread-safe CSC pattern copied into std::vector (e.g. config$obs_groups).
 struct CscPattern {
   std::vector<int> i;
   std::vector<int> p;
@@ -133,7 +133,7 @@ struct Config {
   std::vector<double> beta, gamma, theta;
   std::vector<double> offset;
 
-  CscPattern shards;
+  CscPattern obs_groups;
 
   explicit Config(const Rcpp::List& cfg);
 };
@@ -272,8 +272,8 @@ inline Config::Config(const Rcpp::List& cfg)
   adlaplace_assign_numeric_vec(gamma, cfg, "gamma");
   adlaplace_assign_numeric_vec(theta, cfg, "theta");
 
-  if (cfg.containsElementNamed("shards")) {
-    shards = CscPattern(Rcpp::as<Rcpp::S4>(cfg["shards"]));
+  if (cfg.containsElementNamed("obs_groups")) {
+    obs_groups = CscPattern(Rcpp::as<Rcpp::S4>(cfg["obs_groups"]));
   }
 
   if (cfg.containsElementNamed("offset") && !Rf_isNull(cfg["offset"])) {

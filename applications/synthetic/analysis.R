@@ -13,7 +13,7 @@ sim <- cond_sim_iwp(
   fit = fit$extra,
   model_data = list(
     terms = fit$call$terms,
-    data = list(info = fit$info)
+    term_data = list(info = fit$info)
   ),
   newx = newx,
   n = 1000,

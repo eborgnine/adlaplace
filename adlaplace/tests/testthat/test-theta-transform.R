@@ -1,4 +1,4 @@
-test_that("data_setup defaults log to TRUE for all theta rows", {
+test_that("term_data_setup defaults log to TRUE for all theta rows", {
   skip_if_not_installed("mgcv")
   dat <- mgcv::gamSim(6, n = 80, scale = 0.2, dist = "poisson")
   md <- adlaplace::model_data(
@@ -8,13 +8,13 @@ test_that("data_setup defaults log to TRUE for all theta rows", {
     data = dat,
     verbose = FALSE
   )
-  theta <- md$data$info$theta
+  theta <- md$term_data$info$theta
   expect_true("log" %in% names(theta))
   expect_false(any(is.na(theta$log)))
   expect_true(all(theta$log))
 })
 
-test_that("data_setup parameters has log column and log-scaled init", {
+test_that("term_data_setup parameters has log column and log-scaled init", {
   skip_if_not_installed("adlaplaceExample")
   skip_if_not_installed("sn")
   set.seed(0L)
@@ -29,18 +29,18 @@ test_that("data_setup parameters has log column and log-scaled init", {
     data = dat,
     verbose = FALSE
   )
-  params <- md$data$info$parameters
+  params <- md$term_data$info$parameters
   expect_equal(rownames(params), as.character(seq_len(nrow(params))))
   expect_true("log" %in% names(params))
-  expect_false(any(params$log[seq_len(nrow(md$data$info$beta))]))
+  expect_false(any(params$log[seq_len(nrow(md$term_data$info$beta))]))
   expect_equal(
     params$init,
     c(
-      md$data$info$beta$init,
-      adlaplace::apply_theta_log(md$data$info$theta, cols = c("init", "lower", "upper"))$init
+      md$term_data$info$beta$init,
+      adlaplace::apply_theta_log(md$term_data$info$theta, cols = c("init", "lower", "upper"))$init
     )
   )
-  expect_equal(params$log, c(rep(FALSE, nrow(md$data$info$beta)), md$data$info$theta$log))
+  expect_equal(params$log, c(rep(FALSE, nrow(md$term_data$info$beta)), md$term_data$info$theta$log))
 })
 
 test_that("apply_theta_log logs only rows with log TRUE", {
@@ -83,7 +83,7 @@ test_that("iid log=FALSE is selective in info$theta", {
     data = dat,
     verbose = FALSE
   )
-  theta <- md$data$info$theta
+  theta <- md$term_data$info$theta
   iid_row <- grepl("iid", theta$label)
   expect_false(any(theta$log[iid_row]))
   expect_true(all(theta$log[!iid_row]))
@@ -103,7 +103,7 @@ test_that("fit$par_info has enriched columns and log-aware se", {
     adlaplace::nbinom(y, lower = 1e-9, init = 0.2) ~
       x + adlaplace::iid(g, init = 0.25),
     data = dat,
-    num_shards = 4L,
+    num_groups = 4L,
     control = list(maxit = 60L),
     verbose = FALSE
   )

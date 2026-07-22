@@ -342,7 +342,7 @@ CholPattern chol_pattern_from_list(const Rcpp::List& cil, const int n_gamma) {
 
 } // namespace
 
-void ad_fun_attach_chol_pattern_from_list(ad_fun& shards, const Rcpp::List& hessian_pack) {
+void ad_fun_attach_chol_pattern_from_list(ad_pack& shards, const Rcpp::List& hessian_pack) {
 	if (shards.chol_pattern.n > 0) {
 		return;
 	}

@@ -8,7 +8,7 @@ hnlm_check_fitted <- function(object) {
 
 #' @keywords internal
 hnlm_nobs <- function(object) {
-  shards <- object$call$config$shards
+  shards <- object$call$config$obs_groups
   if (!is.null(shards)) {
     return(as.integer(nrow(shards)))
   }
@@ -19,7 +19,7 @@ hnlm_nobs <- function(object) {
 hnlm_model_data_stub <- function(object) {
   list(
     terms = object$call$terms,
-    data = list(info = object$info)
+    term_data = list(info = object$info)
   )
 }
 
@@ -197,8 +197,8 @@ print.hnlm <- function(x, ...) {
     if (!is.null(x$formula)) {
       cat("  formula:", paste(deparse(x$formula), collapse = " "), "\n")
     }
-    if (!is.null(x$model_data$data$data)) {
-      cat("  n =", nrow(x$model_data$data$data), "\n")
+    if (!is.null(x$model_data$term_data$data)) {
+      cat("  n =", nrow(x$model_data$term_data$data), "\n")
     }
   } else if (!is.null(x$call$call$formula)) {
     cat("  formula:", paste(deparse(x$call$call$formula), collapse = " "), "\n")

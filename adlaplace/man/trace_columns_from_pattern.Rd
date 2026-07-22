@@ -21,6 +21,6 @@ Sparse \code{ngCMatrix} (\code{index1 = FALSE}) with
 }
 \description{
 Built from \code{group_sparsity} and the symbolic \code{half_H_inv} pattern
-in \code{chol_inner_list}. Added to that list in \code{new_ad_fun_from_ptr()}.
+in \code{chol_inner_list}. Added to that list in \code{new_ad_pack_from_ptr()}.
 }
 \keyword{internal}

@@ -2,7 +2,7 @@
 % Please edit documentation in R/model_data.R
 \name{model_data}
 \alias{model_data}
-\title{Assemble model terms and per-shard \code{ad_data} objects}
+\title{Assemble model terms and per-shard \code{density_data} objects}
 \usage{
 model_data(formula, data, verbose = FALSE, na_omit = TRUE)
 }
@@ -22,16 +22,16 @@ sort by observation-term \code{by} columns when present.}
 A list with:
 \describe{
   \item{\code{terms}}{Named list of term objects from \code{\link{collect_terms}}.}
-  \item{\code{data}}{Output of \code{\link{data_setup}}, including \code{elgm_matrix}
+  \item{\code{data}}{Output of \code{\link{term_data_setup}}, including \code{elgm_matrix}
     when an observation term defines an \code{elgm_matrix} method.}
-  \item{\code{observations}}{Named list of observation \code{ad_data} shards.}
-  \item{\code{parameters}}{Named list of parameter \code{ad_data} shards.}
-  \item{\code{random}}{Named list of random-effect \code{ad_data} shards.}
+  \item{\code{observations}}{Named list of observation \code{density_data} shards.}
+  \item{\code{parameters}}{Named list of parameter \code{density_data} shards.}
+  \item{\code{random}}{Named list of random-effect \code{density_data} shards.}
 }
 }
 \description{
 Parses a formula, builds design matrices, and returns formula terms plus
-\code{ad_data} shards for the observation density, parameter densities, and
+\code{density_data} shards for the observation density, parameter densities, and
 each random-effect term.
 }
 \examples{

@@ -1,4 +1,4 @@
-test_that("data_setup returns empty beta info when no fixed terms", {
+test_that("term_data_setup returns empty beta info when no fixed terms", {
   dat <- data.frame(
     y = rpois(20L, lambda = 1),
     f = factor(rep(1:4, each = 5L))
@@ -6,14 +6,14 @@ test_that("data_setup returns empty beta info when no fixed terms", {
   terms <- adlaplace::collect_terms(
     stats::update.formula(adlaplace::nbinom(y) ~ adlaplace::iid(f), . ~ . - 1)
   )
-  setup <- adlaplace::data_setup(terms, dat)
+  setup <- adlaplace::term_data_setup(terms, dat)
 
   expect_s3_class(setup$info$beta, "data.frame")
   expect_equal(nrow(setup$info$beta), 0L)
   expect_equal(length(setup$info$beta$init), 0L)
 })
 
-test_that("ad_fun(model_data) works with zero betas", {
+test_that("ad_pack(model_data) works with zero betas", {
   dat <- data.frame(
     y = rpois(20L, lambda = 1),
     f = factor(rep(1:4, each = 5L))
@@ -23,15 +23,15 @@ test_that("ad_fun(model_data) works with zero betas", {
     data = dat
   )
 
-  expect_equal(nrow(md$data$info$beta), 0L)
-  expect_equal(length(md$data$info$beta$init), 0L)
+  expect_equal(nrow(md$term_data$info$beta), 0L)
+  expect_equal(length(md$term_data$info$beta$init), 0L)
 
   config <- list(
     transform_theta = TRUE,
-    shards = adlaplace::ad_shards(md$data$A, num_shards = 2L),
+    obs_groups = adlaplace::obs_groups(md$term_data$A, num_groups = 2L),
     verbose = FALSE
   )
-  af <- adlaplace::ad_fun(md, config, num_threads = 1L)
+  af <- adlaplace::ad_pack(md, config, num_threads = 1L)
 
   expect_equal(as.integer(af@sizes["beta"]), 0L)
   n_gamma <- as.integer(af@sizes["gamma"])
@@ -41,7 +41,7 @@ test_that("ad_fun(model_data) works with zero betas", {
 
   x <- c(
     rep(0, n_gamma),
-    md$data$info$theta$init
+    md$term_data$info$theta$init
   )
   expect_equal(length(x), n_gamma + n_theta)
 
@@ -52,9 +52,9 @@ test_that("ad_fun(model_data) works with zero betas", {
   expect_equal(length(g), length(x))
 })
 
-test_that("ad_fun_ptr accepts omitted config$beta when n_beta is zero", {
+test_that("ad_pack_ptr accepts omitted config$beta when n_beta is zero", {
   nr <- 4L
-  model <- adlaplace:::ad_data(
+  model <- adlaplace:::density_data(
     gamma_map = Matrix::sparseMatrix(
       i = seq_len(nr),
       j = seq_len(nr),
@@ -63,7 +63,7 @@ test_that("ad_fun_ptr accepts omitted config$beta when n_beta is zero", {
     ),
     theta_map = c(1L, 1L),
     ad_kind = "random",
-    ad_fun = "random_diagonal",
+    density = "random_diagonal",
     precision = rep(2, nr)
   )
   config <- list(
@@ -71,6 +71,6 @@ test_that("ad_fun_ptr accepts omitted config$beta when n_beta is zero", {
     theta = 0.1,
     transform_theta = FALSE
   )
-  ptr <- adlaplace::ad_fun_ptr(model, config)
-  expect_true(is(ptr, "ad_fun_ptr"))
+  ptr <- adlaplace::ad_pack_ptr(model, config)
+  expect_true(is(ptr, "ad_pack_ptr"))
 })

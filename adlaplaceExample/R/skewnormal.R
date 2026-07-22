@@ -12,7 +12,7 @@
 #'
 #' @section Slots (inherited from \code{model}):
 #' \describe{
-#'   \item{\code{ad_fun}}{Character scalar \code{"skewnormal_obs"}.}
+#'   \item{\code{ad_pack}}{Character scalar \code{"skewnormal_obs"}.}
 #'   \item{\code{ad_kind}}{Character scalar \code{"observations"}.}
 #'   \item{\code{package}}{Character scalar \code{"adlaplaceExample"}.}
 #' }
@@ -20,7 +20,7 @@ NULL
 
 setClass(
   "skewnormal",
-  contains = "model",
+  contains = "model_term",
   prototype = prototype(
     knots = numeric(0),
     ref_value = numeric(0),
@@ -29,8 +29,8 @@ setClass(
     lower = numeric(0),
     upper = numeric(0),
     parscale = numeric(0),
-    type = factor("response", levels = adlaplace:::.type_factor_levels),
-    ad_fun = "skewnormal_obs",
+    model_role = factor("response", levels = adlaplace:::.model_role_levels),
+    density = "skewnormal_obs",
     ad_kind = "observations",
     package = "adlaplaceExample"
   )
@@ -58,7 +58,7 @@ skewnormal <- function(x,
   log <- rep_len(log, 2L)
   methods::new(
     "skewnormal",
-    term = x,
+    name = x,
     label = paste(x, "skewnormal", sep = "_"),
     formula = stats::as.formula(paste(x, "~."), env = new.env()),
     init = init,
@@ -89,14 +89,14 @@ setMethod("precision", "skewnormal", function(term, data) {
 setMethod("theta_info", "skewnormal", function(term) {
   n <- length(term@init)
   data.frame(
-    term = term@term,
+    term = term@name,
     model = "skewnormal",
     label = paste0(term@label, c("_omega", "_alpha")),
     init = term@init,
     lower = term@lower,
     upper = term@upper,
     parscale = term@parscale,
-    type = term@type,
+    model_role = term@model_role,
     log = rep_len(term@log, n),
     stringsAsFactors = FALSE
   )

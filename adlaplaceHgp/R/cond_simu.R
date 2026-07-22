@@ -3,7 +3,7 @@ get_terms_pred <- function(terms, length.out = 100) {
   is_iwp <- which(smodel %in% c("iwp", "hiwp", "rsiwp"))
   is_rsiwp <- which(smodel[is_iwp] %in% c("rsiwp"))
 
-  svar <- unlist(lapply(terms[is_iwp], methods::slot, "term"))
+  svar <- unlist(lapply(terms[is_iwp], methods::slot, "name"))
   sknots <- lapply(terms[is_iwp], methods::slot, "knots")
 
   smin <- unlist(lapply(sknots, min))
@@ -297,11 +297,11 @@ cond_sim_gamma <- function(half_H_inv, gamma_mode, gamma_label, n) {
 }
 
 select_iwp_terms <- function(terms) {
-  terms_vars <- lapply(terms, methods::slot, "term")
+  terms_vars <- lapply(terms, methods::slot, "name")
   terms_no_vars <- unlist(lapply(terms_vars, length)) == 0
   terms_have_vars <- terms[!terms_no_vars]
   terms_vars <- terms_vars[!terms_no_vars]
-  terms_type <- unlist(lapply(terms_have_vars, methods::slot, "type"))
+  terms_type <- unlist(lapply(terms_have_vars, methods::slot, "model_role"))
 
   terms_has_by <- vapply(terms_have_vars, function(x) {
     if (methods::.hasSlot(x, "by")) {
@@ -394,11 +394,11 @@ cond_sim_iwp_inputs <- function(laplace, model_data) {
   if (!is.list(laplace) || is.null(laplace$full_parameters)) {
     stop("laplace must be output of log_lik_laplace(...)", call. = FALSE)
   }
-  if (!is.list(model_data) || is.null(model_data$data$info)) {
+  if (!is.list(model_data) || is.null(model_data$term_data$info)) {
     stop("model_data must be output of model_data()", call. = FALSE)
   }
 
-  info <- model_data$data$info
+  info <- model_data$term_data$info
   n_beta <- nrow(info$beta)
   n_gamma <- nrow(info$gamma)
   n_theta <- nrow(info$theta)
@@ -438,7 +438,7 @@ cond_sim_iwp_inputs <- function(laplace, model_data) {
 #' and \code{model_data} objects; use this function for custom pipelines.
 #'
 #' @param terms Named list of model term objects from \code{model_data()$terms}.
-#' @param random_info Data frame from \code{model_data()$data$info$gamma} with
+#' @param random_info Data frame from \code{model_data()$term_data$info$gamma} with
 #'   columns \code{gamma_label}, \code{term}, \code{model}, and \code{by}.
 #' @param beta Named numeric vector of fixed-effect MLEs, or a data frame with
 #'   columns \code{beta_label} and \code{mle}.

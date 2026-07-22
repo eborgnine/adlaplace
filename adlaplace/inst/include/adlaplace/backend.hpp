@@ -7,13 +7,13 @@
 #include <cstddef>
 #include <vector>
 
-#include "adlaplace/ad_data.hpp"
+#include "adlaplace/density_data.hpp"
 #include "adlaplace/rviews.hpp"
 
-// Bump when GroupPack / adlaplace_shard / ad_fun layout or the backend
-// registration contract changes. packs_to_ad_fun stamps this into ad_fun;
+// Bump when AdTape / ad_shard / ad_pack layout or the backend
+// registration contract changes. packs_to_ad_fun stamps this into ad_pack;
 // adlaplace checks it when consuming a backend-built handle.
-#define ADLAPLACE_ABI_VERSION 1
+#define ADLAPLACE_ABI_VERSION 2
 
 // Symbolic LDL pattern from hessian_map()$chol_inner_list (L1, Linv, perm,
 // half_H_inv, H_inv).
@@ -40,7 +40,7 @@ struct TraceWorkspace {
   CPPAD_TESTVECTOR(double) direction;
 };
 
-struct GroupPack {
+struct AdTape {
   CppAD::ADFun<double> fun;
   CppAD::sparse_jac_work work_grad;
   CppAD::sparse_hes_work work_hess;
@@ -65,8 +65,8 @@ struct GroupPack {
   std::size_t n_theta = 0;
 };
 
-inline GroupPack clone_group_pack(const GroupPack& src) {
-  GroupPack dst;
+inline AdTape clone_group_pack(const AdTape& src) {
+  AdTape dst;
   dst.fun = src.fun;
   dst.work_grad = src.work_grad;
   dst.work_hess = src.work_hess;
@@ -88,18 +88,18 @@ inline GroupPack clone_group_pack(const GroupPack& src) {
   return dst;
 }
 
-struct adlaplace_shard;
+struct ad_shard;
 
-using ShardFactory = adlaplace_shard* (*)(GroupPack&&);
+using ShardFactory = ad_shard* (*)(AdTape&&);
 
-struct adlaplace_shard {
-  GroupPack pack;
+struct ad_shard {
+  AdTape pack;
   ShardFactory factory = nullptr;
 
-  explicit adlaplace_shard(GroupPack&& p, ShardFactory f = nullptr)
+  explicit ad_shard(AdTape&& p, ShardFactory f = nullptr)
     : pack(std::move(p)), factory(f) {}
 
-  virtual ~adlaplace_shard() = default;
+  virtual ~ad_shard() = default;
 
   virtual int f(const double* x, double* out_f) = 0;
   virtual int f_grad(const double* x, bool inner, double* out_f, double* out_grad) = 0;
@@ -141,14 +141,14 @@ struct adlaplace_shard {
     std::size_t LinvPtColumns_p_len,
     std::size_t LinvPtColumns_i_len,
     double* out_trace) = 0;
-  virtual adlaplace_shard* clone() const = 0;
+  virtual ad_shard* clone() const = 0;
 };
 
-using ad_vector = std::vector<adlaplace_shard*>;
+using ad_vector = std::vector<ad_shard*>;
 
 using hessian_template = Eigen::SparseMatrix<int, Eigen::ColMajor, int>;
 
-struct ad_fun {
+struct ad_pack {
   int abi_version = ADLAPLACE_ABI_VERSION;
   ad_vector fun;
   hessian_template hessian_outer;
@@ -164,18 +164,18 @@ struct ad_fun {
 
 using LogDensObsFn = CppAD::vector<CppAD::AD<double>> (*)(
   const CppAD::vector<CppAD::AD<double>>& x,
-  const ad_data& model,
+  const density_data& model,
   const Config& config,
   size_t Dgroup);
 
 using LogDensSingleDataFn = CppAD::vector<CppAD::AD<double>> (*)(
   const CppAD::vector<CppAD::AD<double>>& x,
-  const ad_data& model,
+  const density_data& model,
   const Config& config);
 
 using LogDensSingleRandomFn = CppAD::vector<CppAD::AD<double>> (*)(
   const CppAD::vector<CppAD::AD<double>>& x,
-  const ad_data& model,
+  const density_data& model,
   const Config& config);
 
 #endif

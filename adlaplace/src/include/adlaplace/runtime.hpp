@@ -10,58 +10,58 @@
 #include "adlaplace/backend.hpp"
 #include "adlaplace/rviews.hpp"
 
-ad_fun* clone_ad_fun(const ad_fun* src);
+ad_pack* clone_ad_pack(const ad_pack* src);
 
 hessian_template hessian_template_from_dgc(
   const DgCView& tpl,
   const char* label);
 
 void ad_fun_attach_hessians_from_list(
-  ad_fun& shards,
-  const Rcpp::List& ad_fun);
+  ad_pack& shards,
+  const Rcpp::List& ad_pack);
 
-adlaplace_shard* shard_handle(ad_fun* backend, size_t shard);
+ad_shard* shard_handle(ad_pack* backend, size_t shard);
 
 SEXP ad_fun_handle_sexp(const Rcpp::List& ad_fun_list);
 
-ad_fun* ad_fun_from_list(const Rcpp::List& ad_fun_list);
+ad_pack* ad_fun_from_list(const Rcpp::List& ad_fun_list);
 
-ad_fun* ad_fun_from_handle(SEXP handle);
+ad_pack* ad_fun_from_handle(SEXP handle);
 
-ad_fun* resolve_ad_fun_eval(SEXP ad_fun_ptr);
+ad_pack* resolve_ad_pack_eval(SEXP ad_pack_ptr);
 
-ad_fun* resolve_ad_fun_laplace(const Rcpp::S4& ad_fun_s4);
+ad_pack* resolve_ad_pack_laplace(const Rcpp::S4& ad_fun_s4);
 
 std::vector<size_t> resolve_shard_indices(
   size_t n_shards,
   const Rcpp::IntegerVector& shards);
 
-Rcpp::List sparsity_shard_from_handle(adlaplace_shard* shard);
+Rcpp::List sparsity_shard_from_handle(ad_shard* shard);
 
-inline void adlaplace_require_owner_threads_assigned(const ad_fun& backend) {
+inline void adlaplace_require_owner_threads_assigned(const ad_pack& backend) {
   for (std::size_t s = 0; s < backend.fun.size(); ++s) {
-    adlaplace_shard* shard = shard_handle(const_cast<ad_fun*>(&backend), s);
+    ad_shard* shard = shard_handle(const_cast<ad_pack*>(&backend), s);
     if (!shard->pack.owner_thread_assigned) {
       Rcpp::stop(
-        "OpenMP thread assignment missing; call ad_fun(..., num_threads=) before inner_opt or trace_hinv_t"
+        "OpenMP thread assignment missing; call ad_pack(..., num_threads=) before inner_opt or trace_hinv_t"
       );
     }
   }
 }
 
-// Serial debug dens/grad/hessian: reject multi-thread handles from ad_fun(N>1).
-inline void adlaplace_require_serial_dens_handle(const ad_fun& backend) {
+// Serial debug dens/grad/hessian: reject multi-thread handles from ad_pack(N>1).
+inline void adlaplace_require_serial_dens_handle(const ad_pack& backend) {
   if (backend.configured_num_threads > 1) {
     Rcpp::stop(
       "joint_log_dens/grad/hessian are serial debug APIs; this handle has "
-      "num_threads=%d from ad_fun(). Use clone_ad_fun_ptr() before ad_fun(), "
-      "or call dens on that plain ptr (or ad_fun with num_threads=1).",
+      "num_threads=%d from ad_pack(). Use clone_ad_pack_ptr() before ad_pack(), "
+      "or call dens on that plain ptr (or ad_pack with num_threads=1).",
       static_cast<int>(backend.configured_num_threads)
     );
   }
 }
 
-inline std::vector<std::vector<std::size_t>> thread_groups_from_backend(ad_fun& backend) {
+inline std::vector<std::vector<std::size_t>> thread_groups_from_backend(ad_pack& backend) {
   const std::size_t n = backend.fun.size();
   std::vector<std::size_t> owners(n);
   std::size_t max_t = 0;
@@ -86,7 +86,7 @@ inline constexpr double kThreadMismatchSentinel =
 
 bool adlaplace_debug_enabled();
 
-bool adlaplace_shard_thread_ok(const GroupPack& pack);
+bool adlaplace_shard_thread_ok(const AdTape& pack);
 
 void adlaplace_debug_note_grad_mismatch(double* grad_local, std::size_t n);
 

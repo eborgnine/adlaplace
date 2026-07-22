@@ -37,7 +37,7 @@ matern_est <- function(fit, eval_grid, n = 0L) {
   }
   mat <- mat_terms[[1L]]
 
-  ginfo <- fit$model_data$data$info$gamma
+  ginfo <- fit$model_data$term_data$info$gamma
   idx <- which(ginfo$label == mat@label)
   if (!length(idx)) {
     stop("no random effects found for matern term '", mat@label, "'", call. = FALSE)

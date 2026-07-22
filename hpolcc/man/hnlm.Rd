@@ -25,7 +25,7 @@ hnlm(
 log-scale hyperparameters.}
 \item{\code{num_threads}}{OpenMP threads for inner optimization and
 derivative evaluation (default \code{1L}).}
-\item{\code{num_shards}}{Target number of observation shards for
+\item{\code{num_groups}}{Target number of observation shards for
 parallel evaluation (default \code{1000L}).}
 \item{\code{num_sim}}{Number of conditional simulation draws from
 \code{adlaplaceHgp::cond_sim_iwp} (default \code{500}).}

@@ -12,11 +12,11 @@ test_that("hnlm_assemble builds a proper hnlm object for the flat path", {
     optim_result = list(convergence = 0L, par = 0.1, value = 12.3),
     laplace = list(log_lik = -12.3),
     hessian = list(outer = matrix(1, 1L, 1L), inner = NULL, var_iid = NULL),
-    ad_fun = NULL,
+    ad_pack = NULL,
     sample = NULL,
     call = quote(hnlm()),
     config = list(),
-    model_data = list(data = list(info = list())),
+    model_data = list(term_data = list(info = list())),
     control = list(),
     control_inner = list(),
     cache = new.env(parent = emptyenv())
@@ -42,11 +42,11 @@ test_that("hnlm() takes the flat branch when gamma is empty", {
     na_omit = TRUE,
     verbose = FALSE
   )
-  expect_equal(nrow(model_data$data$info$gamma), 0L)
+  expect_equal(nrow(model_data$term_data$info$gamma), 0L)
 
   # Building tapes for dirichlet_multinom without random effects currently
   # segfaults in the parameters shard; assert the dispatch condition instead.
   cache <- new.env(parent = emptyenv())
-  cache$gamma <- model_data$data$info$gamma$init
+  cache$gamma <- model_data$term_data$info$gamma$init
   expect_equal(length(cache$gamma), 0L)
 })

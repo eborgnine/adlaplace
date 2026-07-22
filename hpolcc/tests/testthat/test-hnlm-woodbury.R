@@ -9,7 +9,7 @@ test_that("hnlm fit stores Woodbury var_iid when package available", {
     data = td$data,
     config = list(
       verbose = FALSE,
-      num_shards = 4L,
+      num_groups = 4L,
       num_threads = 1L
     ),
     control = list(maxit = 5L, trace = 0),

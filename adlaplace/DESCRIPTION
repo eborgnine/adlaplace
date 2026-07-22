@@ -1,7 +1,7 @@
 Package: adlaplace
 Type: Package
 Title: Laplace Approximations Using Automatic Differentiation
-Version: 0.5.4
+Version: 0.6.0
 Authors@R: person(given="Patrick", family="Brown", email="patrick.borgnine@gmail.com", role=c("aut","cre","cph"))
 Maintainer: Patrick Brown <patrick.borgnine@gmail.com>
 Description: Computes Laplace approximations for hierarchical models using
@@ -10,7 +10,7 @@ License: MPL-2.0
 Depends: R (>= 3.5.0)
 Imports: Matrix (>= 1.2.18), Rcpp (>= 1.0.3), methods, data.table, stats,
     graphics, RCppAD
-Suggests: abind, knitr, rmarkdown, trustOptim, testthat (>= 3.0.0),
+Suggests: knitr, rmarkdown, trustOptim, testthat (>= 3.0.0),
     mvQuad, mgcv, MASS, nlme, sn, terra, GET, extraDistr, RSpectra
 Config/testthat/edition: 3
 VignetteBuilder: knitr
@@ -20,15 +20,15 @@ SystemRequirements: OpenMP
 NeedsCompilation: yes
 Collate:
     'RcppExports.R'
+    'ad_pack.R'
+    'ad_pack_ptr.R'
     'classes.R'
-    'ad_data.R'
-    'ad_fun.R'
-    'ad_fun_ptr.R'
-    'ad_shards.R'
-    'data_setup.R'
+    'density_data.R'
+    'deriv_scan.R'
     'dirichlet_multinom.R'
     'effects.R'
     'families.R'
+    'obs_groups.R'
     'model_data.R'
     'log_lik.R'
     'fit.R'
@@ -44,6 +44,7 @@ Collate:
     'mvn_utils.R'
     'prepare_model_rows.R'
     'rpoly.R'
+    'term_data_setup.R'
     'zzz.R'
 LazyData: true
 Config/roxygen2/version: 8.0.0

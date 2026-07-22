@@ -12,7 +12,7 @@
 #'
 #' @section Slots (inherited from \code{model}):
 #' \describe{
-#'   \item{\code{ad_fun}}{Character scalar \code{"dirichlet_multinomial"}.}
+#'   \item{\code{ad_pack}}{Character scalar \code{"dirichlet_multinomial"}.}
 #'   \item{\code{ad_kind}}{Character scalar \code{"observations"}.}
 #'   \item{\code{package}}{Character scalar \code{"adlaplace"}.}
 #' }
@@ -21,7 +21,7 @@ NULL
 setClass(
   "dirichlet_multinom",
   slots = c(by = "character"),
-  contains = "model",
+  contains = "model_term",
   prototype = prototype(
     knots = numeric(0),
     ref_value = numeric(0),
@@ -30,8 +30,8 @@ setClass(
     lower = 0,
     upper = Inf,
     parscale = 1,
-    type = factor("response", levels = .type_factor_levels),
-    ad_fun = "dirichlet_multinomial",
+    model_role = factor("response", levels = .model_role_levels),
+    density = "dirichlet_multinomial",
     ad_kind = "observations",
     package = "adlaplace",
     by = character(0)
@@ -60,7 +60,7 @@ dirichlet_multinom <- function(x,
   by <- as.character(by)
   methods::new(
     "dirichlet_multinom",
-    term = x,
+    name = x,
     label = paste(x, "dirichlet_multinom", sep = "_"),
     formula = stats::as.formula(paste(x, "~."), env = new.env()),
     init = init,
@@ -101,7 +101,7 @@ setMethod("elgm_matrix", "dirichlet_multinom", function(term, data) {
     )
   }
 
-  outcome <- as.numeric(data[[term@term[[1L]]]])
+  outcome <- as.numeric(data[[term@name[[1L]]]])
   n_outcome <- as.numeric(rowsum(outcome, group = interaction, na.rm = TRUE))
   n_days <- as.integer(tabulate(interaction))
   keep <- which(n_outcome > 0 & n_days > 1L)
@@ -131,14 +131,14 @@ setMethod("precision", "dirichlet_multinom", function(term, data) {
 #' @export
 setMethod("theta_info", "dirichlet_multinom", function(term) {
   data.frame(
-    term = term@term,
+    term = term@name,
     model = "dirichlet_multinom",
     label = paste0(term@label, "_sd"),
     init = term@init,
     lower = term@lower,
     upper = term@upper,
     parscale = term@parscale,
-    type = term@type,
+    model_role = term@model_role,
     log = term@log,
     stringsAsFactors = FALSE
   )

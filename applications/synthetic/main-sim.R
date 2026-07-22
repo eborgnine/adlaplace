@@ -85,7 +85,7 @@ res <- hnlm(
   config = list(
     transform_theta = TRUE,
     num_threads = 1L,
-    num_shards = 50L,
+    num_groups = 50L,
     verbose = FALSE
   ),
   control = list(
@@ -114,7 +114,7 @@ gamma_mode <- res$cache$gamma
 lik <- log_lik_laplace(
   x = x_outer,
   gamma = gamma_mode,
-  ad_fun = forres$ad_fun,
+  ad_pack = forres$ad_pack,
   config = forres$config,
   control = res$control_inner,
   deriv = TRUE
@@ -123,7 +123,7 @@ lik <- log_lik_laplace(
 cat("profile log-lik check:", lik$log_lik, "\n")
 
 # 1-D likelihood slice over the first theta parameter ---------------------
-sz <- forres$ad_fun@sizes
+sz <- forres$ad_pack@sizes
 theta_pos <- as.integer(sz["beta"]) + 1L
 bnd <- 0.1
 SxL <- seq(-bnd, bnd, length.out = 6) + x_outer[theta_pos]
@@ -134,7 +134,7 @@ theL <- lapply(SxL, function(val) {
   log_lik_laplace(
     x = x_try,
     gamma = gamma_mode,
-    ad_fun = forres$ad_fun,
+    ad_pack = forres$ad_pack,
     config = forres$config,
     control = res$control_inner,
     deriv = TRUE

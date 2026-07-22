@@ -66,7 +66,7 @@ upper_csc_pattern <- function(S) {
 #'
 #' @param fem Result of [fem_bspline()] (or list with C, G, G2, optional G3).
 #' @param alpha `2` or `3`.
-#' @return List for `ad_data@precision`: Grams, chol pattern, and Q CSC
+#' @return List for `density_data@precision`: Grams, chol pattern, and Q CSC
 #'   coefficients aligned for on-tape assembly.
 #' @export
 fem_precision_payload <- function(fem, alpha = 2L) {

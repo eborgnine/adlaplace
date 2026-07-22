@@ -37,7 +37,7 @@ matern_fem_grams <- function(knots, degree) {
 #' adlaplaceFem kernels `random_fem_ssq_2` / `random_fem_det_2` (shape nu = 1)
 #' or `random_fem_ssq_3` / `random_fem_det_3` (nu = 2). The quadratic form is a
 #' random shard; the log-determinant is a parameters companion via
-#' [adlaplace::extra_ad_fun()].
+#' [adlaplace::extra_density()].
 #' The first argument is a **column name** in `data` (like [adlaplace::iid()]):
 #' that column holds observation locations as a 2-column matrix, WKT text, or
 #' HEX WKB points. Knot lines are supplied at construction; the observation
@@ -54,13 +54,13 @@ setClass(
   slots = c(
     fem = "ANY"
   ),
-  contains = "model",
+  contains = "model_term",
   prototype = prototype(
     ref_value = numeric(0),
     p.order = 2L,
     knots = numeric(0),
-    type = factor("random", levels = adlaplace::.type_factor_levels),
-    ad_fun = "random_fem_ssq_2",
+    model_role = factor("random", levels = adlaplace::.model_role_levels),
+    density = "random_fem_ssq_2",
     ad_kind = "random",
     package = "adlaplaceFem",
     fem = NULL
@@ -98,7 +98,7 @@ matern <- function(x,
   knots <- matern_knots(knots)
   fem <- matern_fem_grams(knots, degree = degree)
 
-  ad_fun <- if (identical(degree, 3L)) {
+  density <- if (identical(degree, 3L)) {
     "random_fem_ssq_3"
   } else {
     "random_fem_ssq_2"
@@ -106,7 +106,7 @@ matern <- function(x,
   log <- rep_len(log, 2L)
   methods::new(
     "matern",
-    term = x,
+    name = x,
     label = paste(x, "matern", sep = "_"),
     formula = stats::as.formula(paste0("~ 0 + ", x), env = new.env()),
     init = as.numeric(init),
@@ -115,7 +115,7 @@ matern <- function(x,
     parscale = as.numeric(parscale),
     log = log,
     p.order = degree,
-    ad_fun = ad_fun,
+    density = density,
     ad_kind = "random",
     package = "adlaplaceFem",
     fem = fem
@@ -125,8 +125,8 @@ matern <- function(x,
 #' @describeIn matern-class Companion parameters density for the FEM
 #'   log-determinant shard.
 #' @export
-setMethod("extra_ad_fun", "matern", function(term) {
-  sub("^random_fem_ssq_", "random_fem_det_", term@ad_fun, perl = TRUE)
+setMethod("extra_density", "matern", function(term) {
+  sub("^random_fem_ssq_", "random_fem_det_", term@density, perl = TRUE)
 })
 
 #' @keywords internal
@@ -139,17 +139,17 @@ ensure_matern_fem <- function(term) {
 }
 
 #' @describeIn matern-class Design matrix of B-spline basis evaluations at
-#'   coordinates in `data[[term@term]]`.
+#'   coordinates in `data[[term@name]]`.
 #' @export
 setMethod("design", "matern", function(term, data) {
-  if (!term@term %in% names(data)) {
+  if (!term@name %in% names(data)) {
     stop(
-      "matern geometry column '", term@term, "' not found in data",
+      "matern geometry column '", term@name, "' not found in data",
       call. = FALSE
     )
   }
   fem <- ensure_matern_fem(term)
-  xy <- matern_column_xy(data[[term@term]])
+  xy <- matern_column_xy(data[[term@name]])
   if (nrow(xy) != nrow(data)) {
     stop(
       "matern geometry has ", nrow(xy), " rows but data has ", nrow(data),
@@ -181,7 +181,7 @@ setMethod("random_info", "matern", function(term, data) {
   n_basis <- nrow(fem$C)
   basis <- as.character(seq_len(n_basis))
   result <- data.frame(
-    term = term@term,
+    term = term@name,
     model = "matern",
     label = term@label,
     by = NA,
@@ -200,14 +200,14 @@ setMethod("random_info", "matern", function(term, data) {
 setMethod("theta_info", "matern", function(term) {
   n <- length(term@init)
   data.frame(
-    term = term@term,
+    term = term@name,
     model = "matern",
     label = paste0(term@label, c("_log_range", "_log_sd")),
     init = term@init,
     lower = term@lower,
     upper = term@upper,
     parscale = term@parscale,
-    type = term@type,
+    model_role = term@model_role,
     log = rep_len(term@log, n),
     stringsAsFactors = FALSE
   )

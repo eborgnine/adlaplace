@@ -12,11 +12,11 @@
 //      in the same shared object),
 //   3. ADLAPLACE_DEFINE_BACKEND(<unique_factory_name>) -- exports a shard
 //      factory adlaplace calls through virtual dispatch,
-//   4. resolve_*_density() maps -- from the ad_fun name on the R side
+//   4. resolve_*_density() maps -- from the ad_pack name on the R side
 //      (e.g. "skewnormal_obs") to your C++ function pointers,
-//   5. Rcpp exports get_ad_fun_raw_obs() / get_ad_fun_raw_parameters();
-//      adlaplace::ad_fun_ptr() dispatches to these via the `package` slot
-//      on the model term. Random-effect densities use create_ad_fun_<name>
+//   5. Rcpp exports get_ad_pack_raw_obs() / get_ad_pack_raw_parameters();
+//      adlaplace::ad_pack_ptr() dispatches to these via the `package` slot
+//      on the model term. Random-effect densities use create_ad_shard_<name>
 //      in adlaplace (or another package) instead — no backend random export.
 //
 // To write a new backend: copy this file, rename the density names and the
@@ -24,18 +24,18 @@
 
 #include <Rcpp.h>
 
-#include "adlaplace/adfun.hpp"
+#include "adlaplace/ad_pack.hpp"
 #include "adlaplace/extension.hpp"
 
 CppAD::vector<CppAD::AD<double>> logDensObs(
   const CppAD::vector<CppAD::AD<double>>& x,
-  const ad_data& model,
+  const density_data& model,
   const Config& config,
   const size_t Dgroup);
 
 CppAD::vector<CppAD::AD<double>> logDensExtra(
   const CppAD::vector<CppAD::AD<double>>& x,
-  const ad_data& model,
+  const density_data& model,
   const Config& config);
 
 #include "adlaplace/eval_impl.hpp"
@@ -53,43 +53,43 @@ static LogDensSingleDataFn resolve_extra_density(const std::string& name) {
   Rcpp::stop("unknown parameters density: %s", name.c_str());
 }
 
-//' Build observation-shard \code{ad_fun_ptr} in this package's shared library.
+//' Build observation-shard \code{ad_pack_ptr} in this package's shared library.
 //'
 //' Records CppAD tapes in \code{adlaplaceExample.so} (same DSO as custom densities).
-//' @param model \code{ad_data} S4 object.
+//' @param model \code{density_data} S4 object.
 //' @param config Model configuration list.
 //' @param name Observation density name (e.g. \code{"skewnormal_obs"}).
-//' @return External pointer of class \code{ad_fun_ptr}.
+//' @return External pointer of class \code{ad_pack_ptr}.
 // [[Rcpp::export]]
-SEXP get_ad_fun_raw_obs(SEXP model, Rcpp::List config, std::string name) {
-  const ad_data ad_model(model);
-  std::vector<GroupPack> packs = build_ad_fun_obs(
+SEXP get_ad_pack_raw_obs(SEXP model, Rcpp::List config, std::string name) {
+  const density_data ad_model(model);
+  std::vector<AdTape> packs = build_ad_fun_obs(
     ad_model, config, resolve_obs_density(name));
-  ad_fun* groups = packs_to_ad_fun(
+  ad_pack* groups = packs_to_ad_fun(
     std::move(packs),
     ad_model.num_beta,
     ad_model.num_theta,
     adlaplace_example_make_shard);
-  return make_ad_fun_ptr(groups);
+  return make_ad_pack_ptr(groups);
 }
 
-//' Build parameters-shard \code{ad_fun_ptr} in this package's shared library.
+//' Build parameters-shard \code{ad_pack_ptr} in this package's shared library.
 //'
-//' @param model \code{ad_data} S4 object.
+//' @param model \code{density_data} S4 object.
 //' @param config Model configuration list.
 //' @param name Parameters density name (e.g. \code{"skewnormal_extra"}).
-//' @return External pointer of class \code{ad_fun_ptr}.
+//' @return External pointer of class \code{ad_pack_ptr}.
 // [[Rcpp::export]]
-SEXP get_ad_fun_raw_parameters(SEXP model, Rcpp::List config, std::string name) {
-  const ad_data ad_model(model);
-  GroupPack pack = build_ad_fun_parameters(
+SEXP get_ad_pack_raw_parameters(SEXP model, Rcpp::List config, std::string name) {
+  const density_data ad_model(model);
+  AdTape pack = build_ad_fun_parameters(
     ad_model, config, resolve_extra_density(name));
-  std::vector<GroupPack> packs;
+  std::vector<AdTape> packs;
   packs.push_back(std::move(pack));
-  ad_fun* groups = packs_to_ad_fun(
+  ad_pack* groups = packs_to_ad_fun(
     std::move(packs),
     ad_model.num_beta,
     ad_model.num_theta,
     adlaplace_example_make_shard);
-  return make_ad_fun_ptr(groups);
+  return make_ad_pack_ptr(groups);
 }

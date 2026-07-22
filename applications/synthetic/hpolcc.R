@@ -27,7 +27,7 @@ forres <- hnlm(
   config = list(
     transform_theta = FALSE,
     num_threads = 4L,
-    num_shards = 50L,
+    num_groups = 50L,
     verbose = FALSE
   ),
   for_dev = TRUE
@@ -41,7 +41,7 @@ x_outer <- c(beta_hat, theta_hat)
 lik <- log_lik_laplace(
   x = x_outer,
   gamma = gamma_start,
-  ad_fun = forres$ad_fun,
+  ad_pack = forres$ad_pack,
   config = forres$config,
   control = list(maxit = 300, report.level = 0),
   deriv = TRUE
@@ -55,7 +55,7 @@ if (requireNamespace("numDeriv", quietly = TRUE)) {
     log_lik_laplace(
       x = c(x, theta_hat),
       gamma = gamma_start,
-      ad_fun = forres$ad_fun,
+      ad_pack = forres$ad_pack,
       config = forres$config,
       control = list(maxit = 300, report.level = 0),
       deriv = FALSE

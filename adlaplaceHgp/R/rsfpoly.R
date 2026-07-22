@@ -21,10 +21,10 @@ setClass("rsfpoly",
     mult = "character",
     ref_mult = "numeric"
   ),
-  contains = "model",
+  contains = "model_term",
   prototype = list(
     knots = numeric(0),
-    type = factor("fixed", levels = adlaplace::.type_factor_levels)
+    model_role = factor("fixed", levels = adlaplace::.model_role_levels)
   )
 )
 
@@ -53,7 +53,7 @@ rsfpoly <- function(
   if (is.null(upper)) upper <- .my_beta_upper
   if (is.null(parscale)) parscale <- .my_beta_parscale
   methods::new("rsfpoly",
-    term = x,
+    name = x,
     mult = mult,
     formula = stats::as.formula(paste0("~ 0 + ", x), env = new.env()),
     p.order = as.integer(p),
@@ -79,7 +79,7 @@ setMethod("design", "rsfpoly", function(term, data) {
   mult_vec <- data[[term@mult]] - term@ref_mult
 
   D <- stats::poly(
-    data[[term@term]] - term@ref_value,
+    data[[term@name]] - term@ref_value,
     degree = term@p.order,
     raw = TRUE
   )
@@ -87,7 +87,7 @@ setMethod("design", "rsfpoly", function(term, data) {
   D <- D * mult_vec
   seq_order <- seq.int(1, length.out = term@p.order)
 
-  colnames(D) <- paste(term@term, term@mult, "rsfpoly", seq_order, sep = "_")
+  colnames(D) <- paste(term@name, term@mult, "rsfpoly", seq_order, sep = "_")
   D
 })
 
@@ -116,11 +116,11 @@ setMethod("theta_info", "rsfpoly", function(term) {
 #' @return A data frame containing beta parameter information for the random slope fixed polynomial term
 #' @export
 setMethod("beta_info", "rsfpoly", function(term, data) {
-  the_label <- paste(term@term, term@mult, "rsfpoly", sep = "_")
+  the_label <- paste(term@name, term@mult, "rsfpoly", sep = "_")
   seq_order <- seq.int(1, length.out = term@p.order)
 
   result <- data.frame(
-    term = term@term,
+    term = term@name,
     model = "fpoly",
     label = the_label,
     order = seq_order,
@@ -129,7 +129,7 @@ setMethod("beta_info", "rsfpoly", function(term, data) {
     lower = term@lower,
     upper = term@upper,
     parscale = term@parscale,
-    type = as.character(term@type)
+    type = as.character(term@model_role)
   )
   return(result)
 })

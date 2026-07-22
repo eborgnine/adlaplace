@@ -21,16 +21,16 @@ NULL
 
 setClass("intercept",
   representation = representation(),
-  contains = "model",
+  contains = "model_term",
   prototype = list(
-    term = "intercept",
+    name = "intercept",
     label = "intercept",
     formula = . ~ 1,
     ref_value = numeric(0),
     p.order = integer(0),
     knots = numeric(0),
-    type = factor("fixed", levels = .type_factor_levels),
-    ad_fun = NA_character_,
+    model_role = factor("fixed", levels = .model_role_levels),
+    density = NA_character_,
     ad_kind = NA_character_
   )
 )
@@ -110,13 +110,13 @@ NULL
 
 setClass("linear",
   representation = representation(),
-  contains = "model",
+  contains = "model_term",
   prototype = list(
     ref_value = numeric(0),
     p.order = integer(0),
     knots = numeric(0),
-    type = factor("fixed", levels = .type_factor_levels),
-    ad_fun = NA_character_,
+    model_role = factor("fixed", levels = .model_role_levels),
+    density = NA_character_,
     ad_kind = NA_character_
   )
 )
@@ -148,7 +148,7 @@ linear <- function(x,
     stop("x must be a single variable name", call. = FALSE)
   }
   methods::new("linear",
-    term = x,
+    name = x,
     label = paste(x, "linear", sep = "_"),
     formula = stats::as.formula(paste0("~ 0 + ", x)),
     init = init,
@@ -164,10 +164,10 @@ linear <- function(x,
 #' @export
 setMethod("design", "linear", function(term, data) {
   res <- Matrix::sparse.model.matrix(term@formula, data, drop.unused.levels = FALSE)
-  if (is.factor(data[[term@term]])) {
+  if (is.factor(data[[term@name]])) {
     res <- res[, -1, drop = FALSE]
   }
-  colnames(res) <- paste0(term@term, "_linear_", colnames(res))
+  colnames(res) <- paste0(term@name, "_linear_", colnames(res))
   res
 })
 
@@ -180,7 +180,7 @@ setMethod("beta_info", "linear", function(term, data) {
   the_label <- term@label
 
   result <- data.frame(
-    term = term@term,
+    term = term@name,
     model = "linear",
     label = the_label,
     order = NA,
@@ -220,15 +220,15 @@ setClass("fpoly",
            upper = "numeric",
            parscale = "numeric"
          ),
-         contains = "model",
+         contains = "model_term",
          prototype = prototype(
            knots = numeric(0),
            init = numeric(0),
            lower = numeric(0),
            upper = numeric(0),
            parscale = numeric(0),
-           type = factor("fixed", levels = .type_factor_levels),
-           ad_fun = NA_character_,
+           model_role = factor("fixed", levels = .model_role_levels),
+           density = NA_character_,
            ad_kind = NA_character_
          )
 )
@@ -255,7 +255,7 @@ fpoly <- function(x, p = 2, ref_value = 0,
                   upper = .my_beta_upper,
                   parscale = .my_beta_parscale) {
   methods::new("fpoly",
-    term = x,
+    name = x,
     label = paste(x, "fpoly", sep = "_"),
     formula = stats::as.formula(paste0("~ 0 + ", x), env = new.env()),
     p.order = as.integer(p),
@@ -277,14 +277,14 @@ setMethod("design", "fpoly", function(term, data) {
     return(NULL)
   }
   D <- stats::poly(
-    data[[term@term]] - term@ref_value,
+    data[[term@name]] - term@ref_value,
     degree = term@p.order,
     raw = TRUE
   )
   D <- D[, 1:ncol(D), drop = FALSE]
   seq_order <- seq.int(1, length.out = term@p.order)
 
-  colnames(D) <- paste0(term@term, "_fpoly_", seq_order)
+  colnames(D) <- paste0(term@name, "_fpoly_", seq_order)
   D
 })
 
@@ -298,7 +298,7 @@ setMethod("beta_info", "fpoly", function(term, data) {
   the_label <- term@label
 
   result <- data.frame(
-    term = term@term,
+    term = term@name,
     model = "fpoly",
     label = the_label,
     order = NA,

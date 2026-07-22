@@ -7,7 +7,7 @@
 inner_opt(
   parameters,
   gamma,
-  ad_fun,
+  ad_pack,
   control = NULL,
   deriv = FALSE,
   verbose = FALSE
@@ -20,7 +20,7 @@ inner_opt(
 \item{gamma}{Numeric vector of starting values for inner parameters
 (\code{gamma}; length \code{Ngamma}).}
 
-\item{ad_fun}{\code{ad_fun} S4 object from \code{\link{ad_fun}}.}
+\item{ad_pack}{\code{ad_pack} S4 object from \code{\link{ad_pack}}.}
 
 \item{control}{List of trust-region control parameters (see \pkg{trustOptim}).}
 
@@ -40,7 +40,7 @@ A list with \code{log_lik}, \code{neg_log_lik}, \code{parameters},
 \description{
 Runs the inner optimization over \eqn{\gamma} using the
 \pkg{trustOptim} sparse trust-region CG solver on a pre-built
-\code{\link{ad_fun}} handle.
+\code{\link{ad_pack}} handle.
 }
 \details{
 Negates tape log-density values in C++ for minimization via

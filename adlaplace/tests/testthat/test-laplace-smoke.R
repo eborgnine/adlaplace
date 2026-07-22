@@ -1,4 +1,4 @@
-test_that("ad_fun and derivatives run on small GLMM data", {
+test_that("ad_pack and derivatives run on small GLMM data", {
   set.seed(0)
   Nobs <- 80L
   Nrandom1 <- 4L
@@ -14,7 +14,7 @@ test_that("ad_fun and derivatives run on small GLMM data", {
     theta = c(-1, -1, -1),
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    shards = adlaplace::ad_shards(Amat, num_shards = 20L),
+    obs_groups = adlaplace::obs_groups(Amat, num_groups = 20L),
     num_threads = 1L,
     verbose = FALSE,
     package = "adlaplace"
@@ -36,26 +36,26 @@ test_that("ad_fun and derivatives run on small GLMM data", {
     Q = rep(1, ncol(Amat))
   )
   ad_ptr <- do.call(c, list(
-    adlaplace::ad_fun_ptr(as_shard(model, "observations", "nbinom_obs"), config),
-    adlaplace::ad_fun_ptr(random_shard, config),
-    adlaplace::ad_fun_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
+    adlaplace::ad_pack_ptr(as_shard(model, "observations", "nbinom_obs"), config),
+    adlaplace::ad_pack_ptr(random_shard, config),
+    adlaplace::ad_pack_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
   ))
-  ad_fun <- adlaplace::ad_fun(ad_ptr)
+  ad_pack <- adlaplace::ad_pack(ad_ptr)
   x <- c(config$beta, config$gamma, config$theta)
 
-  dens <- adlaplace::joint_log_dens(ad_fun, x)
+  dens <- adlaplace::joint_log_dens(ad_pack, x)
   expect_true(is.finite(dens))
 
-  g <- adlaplace::grad(ad_fun, x)
+  g <- adlaplace::grad(ad_pack, x)
   expect_equal(length(g), length(x))
 
-  H <- adlaplace::hessian(ad_fun, x)
+  H <- adlaplace::hessian(ad_pack, x)
   expect_true(inherits(H, "Matrix"))
 
   inner_res <- adlaplace::inner_opt(
     parameters = c(config$beta, config$theta),
     gamma = config$gamma,
-    ad_fun = ad_fun,
+    ad_pack = ad_pack,
     control = list(maxit = 5L, report.level = 0, report.freq = 0),
     deriv = FALSE
   )
@@ -75,7 +75,7 @@ test_that("ad_fun and derivatives run on small GLMM data", {
     x = c(config$beta, config$theta),
     config = config_min,
     gamma = config$gamma,
-    ad_fun = ad_fun,
+    ad_pack = ad_pack,
     control = list(maxit = 5L, report.level = 0, report.freq = 0),
     deriv = FALSE
   )
@@ -85,7 +85,7 @@ test_that("ad_fun and derivatives run on small GLMM data", {
     x = c(config$beta, config$theta),
     config = config_min,
     gamma = config$gamma,
-    ad_fun = ad_fun,
+    ad_pack = ad_pack,
     control = list(maxit = 5L, report.level = 0, report.freq = 0),
     deriv = TRUE
   )
@@ -108,8 +108,8 @@ test_that("model_data builds data for iwp formula", {
     formula = y ~ intercept() + linear(x),
     verbose = FALSE
   )
-  expect_true(is.list(md$data))
+  expect_true(is.list(md$term_data))
   expect_true(length(md$observations) >= 1L)
   expect_true(nrow(md$observations[[1]]@XTp) >= 1L)
-  expect_true(length(md$data$info$beta$init) >= 1L)
+  expect_true(length(md$term_data$info$beta$init) >= 1L)
 })

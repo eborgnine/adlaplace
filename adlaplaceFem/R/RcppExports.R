@@ -3,35 +3,35 @@
 
 #' Build raw AD handle for a random_fem_ssq_2 term
 #'
-#' @param model An \code{ad_data} S4 object with FEM precision payload.
+#' @param model An \code{density_data} S4 object with FEM precision payload.
 #' @param config Model configuration list.
-#' @return External pointer of class \code{ad_fun_ptr}.
+#' @return External pointer of class \code{ad_pack_ptr}.
 #' @keywords internal
 #' @noRd
-create_ad_fun_random_fem_ssq_2 <- function(model, config) {
-    .Call(`_adlaplaceFem_create_ad_fun_random_fem_ssq_2`, model, config)
+create_ad_shard_random_fem_ssq_2 <- function(model, config) {
+    .Call(`_adlaplaceFem_create_ad_shard_random_fem_ssq_2`, model, config)
 }
 
 #' Build raw AD handle for a random_fem_ssq_3 term
 #'
-#' @param model An \code{ad_data} S4 object with FEM precision payload.
+#' @param model An \code{density_data} S4 object with FEM precision payload.
 #' @param config Model configuration list.
-#' @return External pointer of class \code{ad_fun_ptr}.
+#' @return External pointer of class \code{ad_pack_ptr}.
 #' @keywords internal
 #' @noRd
-create_ad_fun_random_fem_ssq_3 <- function(model, config) {
-    .Call(`_adlaplaceFem_create_ad_fun_random_fem_ssq_3`, model, config)
+create_ad_shard_random_fem_ssq_3 <- function(model, config) {
+    .Call(`_adlaplaceFem_create_ad_shard_random_fem_ssq_3`, model, config)
 }
 
-#' Build parameters-shard \code{ad_fun_ptr} for FEM log-determinant densities.
+#' Build parameters-shard \code{ad_pack_ptr} for FEM log-determinant densities.
 #'
-#' @param model \code{ad_data} S4 object with FEM precision payload.
+#' @param model \code{density_data} S4 object with FEM precision payload.
 #' @param config Model configuration list.
 #' @param name Density name (\code{"random_fem_det_2"} or \code{"random_fem_det_3"}).
-#' @return External pointer of class \code{ad_fun_ptr}.
+#' @return External pointer of class \code{ad_pack_ptr}.
 #' @keywords internal
 #' @noRd
-get_ad_fun_raw_parameters <- function(model, config, name) {
-    .Call(`_adlaplaceFem_get_ad_fun_raw_parameters`, model, config, name)
+get_ad_pack_raw_parameters <- function(model, config, name) {
+    .Call(`_adlaplaceFem_get_ad_pack_raw_parameters`, model, config, name)
 }
 

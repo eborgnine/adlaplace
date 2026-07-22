@@ -18,7 +18,7 @@ fit_small_glmm <- function(seed = 4L) {
   fit <- adlaplace(
     nbinom(y, lower = 1e-9, init = 0.15) ~ x + iid(g, init = 0.3),
     data = dat,
-    num_shards = 5L,
+    num_groups = 5L,
     control = list(maxit = 80L),
     verbose = FALSE
   )
@@ -34,7 +34,7 @@ test_that("predict without newdata returns fitted values", {
 
 test_that("predict with newdata returns simulation matrix", {
   fit <- fit_small_glmm()
-  dat <- fit$model_data$data$y
+  dat <- fit$model_data$term_data$y
   newx <- data.frame(
     x = c(0, 1),
     g = factor(c(1L, 2L), levels = levels(fit$.__dat__$g))
@@ -59,7 +59,7 @@ test_that("summary and confint handle missing vcov", {
   fit <- adlaplace(
     nbinom(y, lower = 1e-9, init = 0.15) ~ x + iid(g, init = 0.3),
     data = dat,
-    num_shards = 4L,
+    num_groups = 4L,
     hessian = FALSE,
     control = list(maxit = 50L),
     verbose = FALSE

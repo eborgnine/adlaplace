@@ -6,7 +6,7 @@
 #include "adlaplace/backend.hpp"
 
 int pack_sparsity_sizes(
-  GroupPack& ad_pack,
+  AdTape& ad_pack,
   int* n_inner,
   int* n_outer,
   int* n_beta,
@@ -17,7 +17,7 @@ int pack_sparsity_sizes(
   int* nnz_hes_outer);
 
 int get_pattern(
-  GroupPack& ad_pack,
+  AdTape& ad_pack,
   int* pattern_grad_inner,
   int* pattern_grad_outer,
   int* pattern_hes_inner_row,

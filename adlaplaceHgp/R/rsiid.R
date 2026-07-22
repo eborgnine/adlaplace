@@ -21,10 +21,10 @@ setClass("rsiid",
     mult = "character",
     ref_mult = "numeric"
   ),
-  contains = "model",
+  contains = "model_term",
   prototype = prototype(
-    type = factor("random", levels = adlaplace::.type_factor_levels),
-    ad_fun = "random_diagonal",
+    model_role = factor("random", levels = adlaplace::.model_role_levels),
+    density = "random_diagonal",
     ad_kind = "random"
   )
 )
@@ -34,7 +34,7 @@ methods::setAs(
   "rsiid", "iid",
   function(from) {
     methods::new("iid",
-      term = from@term,
+      name = from@name,
       formula = from@formula,
       init = from@init,
       lower = from@lower,
@@ -71,7 +71,7 @@ rsiid <- function(
   rsiid_label <- paste(c(x, mult, "rsiid"), collapse = "_")
 
   result <- list(methods::new("rsiid",
-    term = x,
+    name = x,
     label = rsiid_label,
     mult = mult,
     ref_mult = ref_mult,
@@ -79,7 +79,7 @@ rsiid <- function(
     init = init, lower = lower, upper = upper, parscale = parscale,
     log = log
   ))
-  names(result) <- result[[1]]@term
+  names(result) <- result[[1]]@name
   result
 }
 
@@ -126,14 +126,14 @@ setMethod("precision", "rsiid", function(term, data) {
 #' @export
 setMethod("theta_info", "rsiid", function(term) {
   result <- data.frame(
-    term = term@term,
+    term = term@name,
     model = "rsiid",
     label = term@label,
     init = term@init,
     lower = term@lower,
     upper = term@upper,
     parscale = term@parscale,
-    type = term@type,
+    model_role = term@model_role,
     log = term@log
   )
   return(result)
@@ -156,7 +156,7 @@ setMethod("beta_info", "rsiid", function(term, data) {
 #' @return A data frame containing random effects information for the random slope polynomial term
 #' @export
 setMethod("random_info", "rsiid", function(term, data) {
-  term_values <- data[[term@term]]
+  term_values <- data[[term@name]]
   basis_labels <- if (is.factor(term_values)) {
     levels(term_values)
   } else {
@@ -164,7 +164,7 @@ setMethod("random_info", "rsiid", function(term, data) {
   }
 
   result <- data.frame(
-    term = term@term,
+    term = term@name,
     model = "rsiid",
     label = term@label,
     by = NA,
@@ -173,7 +173,7 @@ setMethod("random_info", "rsiid", function(term, data) {
     order = NA
   )
   result$gamma_label <- paste0(
-    term@term, "_rsiid_", term@mult, "_", result$basis
+    term@name, "_rsiid_", term@mult, "_", result$basis
   )
 
   result

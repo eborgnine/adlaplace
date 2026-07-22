@@ -55,6 +55,6 @@ void h_inv_update(
 	std::vector<double>& H_inv_x
 );
 
-void ad_fun_attach_chol_pattern_from_list(ad_fun& shards, const Rcpp::List& hessian_pack);
+void ad_fun_attach_chol_pattern_from_list(ad_pack& shards, const Rcpp::List& hessian_pack);
 
 #endif

@@ -13,7 +13,7 @@ test_that("c() combines shards for small GLMM", {
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    shards = adlaplace::ad_shards(Amat, num_shards = 10L),
+    obs_groups = adlaplace::obs_groups(Amat, num_groups = 10L),
     num_threads = 1L,
     verbose = FALSE
   )
@@ -32,20 +32,20 @@ test_that("c() combines shards for small GLMM", {
   )
 
   ad_ptr <- do.call(c, list(
-    adlaplace::ad_fun_ptr(as_shard(model, "observations", "nbinom_obs"), config),
-    adlaplace::ad_fun_ptr(random_shard, config),
-    adlaplace::ad_fun_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
+    adlaplace::ad_pack_ptr(as_shard(model, "observations", "nbinom_obs"), config),
+    adlaplace::ad_pack_ptr(random_shard, config),
+    adlaplace::ad_pack_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
   ))
-  expect_true(is(ad_ptr, "ad_fun_ptr"))
+  expect_true(is(ad_ptr, "ad_pack_ptr"))
   expect_equal(
     adlaplace:::n_groups(ad_ptr),
-    ncol(config$shards) + 2L
+    ncol(config$obs_groups) + 2L
   )
   x <- c(config$beta, config$gamma, config$theta)
   expect_true(is.finite(adlaplace::joint_log_dens(ad_ptr, x)))
 })
 
-test_that("ad_fun_ptr obs-only builds observation groups only", {
+test_that("ad_pack_ptr obs-only builds observation groups only", {
   set.seed(3)
   Nobs <- 20L
   X <- Matrix::Matrix(cbind(1, rbinom(Nobs, 1, prob = 0.5)))
@@ -59,7 +59,7 @@ test_that("ad_fun_ptr obs-only builds observation groups only", {
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    shards = adlaplace::ad_shards(Amat, num_shards = 5L),
+    obs_groups = adlaplace::obs_groups(Amat, num_groups = 5L),
     verbose = FALSE
   )
   model <- test_ad_data(
@@ -68,16 +68,16 @@ test_that("ad_fun_ptr obs-only builds observation groups only", {
     X = X,
     config = config
   )
-  ad_obs <- adlaplace::ad_fun_ptr(
+  ad_obs <- adlaplace::ad_pack_ptr(
     as_shard(model, "observations", "nbinom_obs"),
     config
   )
 
   expect_error(
-    adlaplace::ad_fun_ptr(as_shard(model, "observations", ""), config),
-    "data@ad_fun is required",
+    adlaplace::ad_pack_ptr(as_shard(model, "observations", ""), config),
+    "data@density is required",
     fixed = TRUE
   )
-  expect_equal(adlaplace:::n_groups(ad_obs), ncol(config$shards))
-  expect_true(is(ad_obs, "ad_fun_ptr"))
+  expect_equal(adlaplace:::n_groups(ad_obs), ncol(config$obs_groups))
+  expect_true(is(ad_obs, "ad_pack_ptr"))
 })

@@ -16,15 +16,15 @@ test_that("binomial_obs matches dbinom and has correct gradient", {
   config <- list(
     beta = beta, gamma = gamma, theta = numeric(0),
     transform_theta = TRUE,
-    shards = adlaplace::ad_shards(A, num_shards = 3L)
+    obs_groups = adlaplace::obs_groups(A, num_groups = 3L)
   )
-  model <- adlaplace:::ad_data(
+  model <- adlaplace:::density_data(
     y = y, A = A, X = X,
     theta_map = Matrix::Matrix(nrow = 0L, ncol = 0L),
     ad_kind = "observations",
-    ad_fun = "binomial_obs"
+    density = "binomial_obs"
   )
-  ptr <- adlaplace::ad_fun_ptr(model, config)
+  ptr <- adlaplace::ad_pack_ptr(model, config)
 
   x <- c(beta, gamma)
   manual <- sum(stats::dbinom(y, 1, prob, log = TRUE))
@@ -54,7 +54,7 @@ test_that("binomial() falls back to stats::binomial when called bare", {
 test_that("binomial term carries the expected slots and NULL theta_info", {
   term <- adlaplace::binomial("yn")
   expect_s4_class(term, "binomial")
-  expect_identical(term@ad_fun, "binomial_obs")
+  expect_identical(term@density, "binomial_obs")
   expect_identical(term@ad_kind, "observations")
   expect_null(adlaplace::theta_info(term))
 })
@@ -69,7 +69,7 @@ test_that("adlaplace() fits binomial GLMM on bacteria data", {
   fit <- adlaplace::adlaplace(
     binomial(yn) ~ trt + wk + iid(ID, init = 1),
     data = bacteria,
-    num_shards = 20L,
+    num_groups = 20L,
     control = list(maxit = 300L)
   )
   expect_identical(fit$details$outer_opt$convergence, 0L)

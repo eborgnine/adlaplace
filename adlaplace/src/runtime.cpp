@@ -2,24 +2,24 @@
 #include "adlaplace/register.hpp"
 #include "adlaplace/chol_update.hpp"
 
-extern adlaplace_shard* adlaplace_make_shard(GroupPack&&);
+extern ad_shard* adlaplace_make_ad_shard(AdTape&&);
 
-ad_fun* clone_ad_fun(const ad_fun* src) {
+ad_pack* clone_ad_pack(const ad_pack* src) {
   if (!src) {
-    Rcpp::stop("clone_ad_fun: source handle is NULL");
+    Rcpp::stop("clone_ad_pack: source handle is NULL");
   }
   if (src->fun.empty()) {
-    Rcpp::stop("clone_ad_fun: source has no AD shards");
+    Rcpp::stop("clone_ad_pack: source has no AD shards");
   }
 
   std::size_t n_beta = 0;
   std::size_t n_theta = 0;
-  std::vector<GroupPack> packs;
+  std::vector<AdTape> packs;
   std::vector<ShardFactory> factories;
   packs.reserve(src->fun.size());
   factories.reserve(src->fun.size());
 
-  for (adlaplace_shard* shard : src->fun) {
+  for (ad_shard* shard : src->fun) {
     if (!shard) {
       continue;
     }
@@ -27,19 +27,19 @@ ad_fun* clone_ad_fun(const ad_fun* src) {
       n_beta = shard->pack.n_beta;
       n_theta = shard->pack.n_theta;
     }
-    factories.push_back(shard->factory ? shard->factory : adlaplace_make_shard);
-    GroupPack pack = clone_group_pack(shard->pack);
-    // Dens-safe clone: clear OpenMP affinity from multi-thread ad_fun().
+    factories.push_back(shard->factory ? shard->factory : adlaplace_make_ad_shard);
+    AdTape pack = clone_group_pack(shard->pack);
+    // Dens-safe clone: clear OpenMP affinity from multi-thread ad_pack().
     pack.owner_thread = 0;
     pack.owner_thread_assigned = false;
     packs.push_back(std::move(pack));
   }
 
   if (packs.empty()) {
-    Rcpp::stop("clone_ad_fun: source has no valid shards");
+    Rcpp::stop("clone_ad_pack: source has no valid shards");
   }
 
-  ad_fun* copy = new ad_fun();
+  ad_pack* copy = new ad_pack();
   copy->abi_version = src->abi_version;
   copy->fun.reserve(packs.size());
   for (size_t g = 0; g < packs.size(); ++g) {
@@ -91,20 +91,20 @@ hessian_template hessian_template_from_dgc(
 }
 
 void ad_fun_attach_hessians_from_list(
-  ad_fun& shards,
-  const Rcpp::List& ad_fun) {
+  ad_pack& shards,
+  const Rcpp::List& ad_pack) {
 
-  if (!ad_fun.containsElementNamed("outer") || !ad_fun.containsElementNamed("inner")) {
-    Rcpp::stop("ad_fun list must contain 'outer' and 'inner' (from hessian_map())");
+  if (!ad_pack.containsElementNamed("outer") || !ad_pack.containsElementNamed("inner")) {
+    Rcpp::stop("ad_pack list must contain 'outer' and 'inner' (from hessian_map())");
   }
-  if (!ad_fun.containsElementNamed("map_outer") || !ad_fun.containsElementNamed("map_inner")) {
-    Rcpp::stop("ad_fun list must contain 'map_outer' and 'map_inner'");
+  if (!ad_pack.containsElementNamed("map_outer") || !ad_pack.containsElementNamed("map_inner")) {
+    Rcpp::stop("ad_pack list must contain 'map_outer' and 'map_inner'");
   }
-  if (!ad_fun.containsElementNamed("sizes")) {
-    Rcpp::stop("ad_fun list must contain 'sizes'");
+  if (!ad_pack.containsElementNamed("sizes")) {
+    Rcpp::stop("ad_pack list must contain 'sizes'");
   }
 
-  shards.sizes = IntVecView(static_cast<SEXP>(ad_fun["sizes"]));
+  shards.sizes = IntVecView(static_cast<SEXP>(ad_pack["sizes"]));
   if (!shards.sizes.has_name("beta") ||
       !shards.sizes.has_name("gamma") ||
       !shards.sizes.has_name("theta")) {
@@ -116,53 +116,53 @@ void ad_fun_attach_hessians_from_list(
   }
 
   shards.hessian_outer = hessian_template_from_dgc(
-    DgCView(Rcpp::as<Rcpp::S4>(ad_fun["outer"])), "outer");
+    DgCView(Rcpp::as<Rcpp::S4>(ad_pack["outer"])), "outer");
 
   shards.hessian_inner = hessian_template_from_dgc(
-    DgCView(Rcpp::as<Rcpp::S4>(ad_fun["inner"])), "inner");
+    DgCView(Rcpp::as<Rcpp::S4>(ad_pack["inner"])), "inner");
 
-  shards.map_outer = hessian_map_view(Rcpp::as<Rcpp::List>(ad_fun["map_outer"]));
-  shards.map_inner = hessian_map_view(Rcpp::as<Rcpp::List>(ad_fun["map_inner"]));
+  shards.map_outer = hessian_map_view(Rcpp::as<Rcpp::List>(ad_pack["map_outer"]));
+  shards.map_inner = hessian_map_view(Rcpp::as<Rcpp::List>(ad_pack["map_inner"]));
 
   shards.hessians_attached = true;
-  ad_fun_attach_chol_pattern_from_list(shards, ad_fun);
+  ad_fun_attach_chol_pattern_from_list(shards, ad_pack);
 }
 
 namespace {
 
-static void check_ad_fun_abi(const ad_fun& backend) {
+static void check_ad_fun_abi(const ad_pack& backend) {
   if (backend.abi_version != ADLAPLACE_ABI_VERSION) {
     Rcpp::stop(
-      "ad_fun ABI mismatch (got %d, need %d): rebuild the extension package against this adlaplace",
+      "ad_pack ABI mismatch (got %d, need %d): rebuild the extension package against this adlaplace",
       backend.abi_version,
       ADLAPLACE_ABI_VERSION
     );
   }
 }
 
-static void validate_ad_fun_eval(const ad_fun& backend) {
+static void validate_ad_fun_eval(const ad_pack& backend) {
   check_ad_fun_abi(backend);
   if (backend.fun.empty()) {
-    Rcpp::stop("ad_fun has no AD shards");
+    Rcpp::stop("ad_pack has no AD shards");
   }
 }
 
-static void validate_ad_fun_laplace(const ad_fun& backend) {
+static void validate_ad_fun_laplace(const ad_pack& backend) {
   validate_ad_fun_eval(backend);
   if (backend.sizes.sexp == R_NilValue ||
       !backend.sizes.has_name("beta") ||
       !backend.sizes.has_name("gamma") ||
       !backend.sizes.has_name("theta")) {
-    Rcpp::stop("ad_fun missing sizes; call ad_fun() before inner_opt()");
+    Rcpp::stop("ad_pack missing sizes; call ad_pack() before inner_opt()");
   }
   if (!backend.hessians_attached) {
-    Rcpp::stop("ad_fun missing Hessian templates; call ad_fun() before inner_opt()");
+    Rcpp::stop("ad_pack missing Hessian templates; call ad_pack() before inner_opt()");
   }
 }
 
 static Rcpp::List ad_fun_list_from_s4(const Rcpp::S4& obj) {
   return Rcpp::List::create(
-    Rcpp::Named("ad_fun") = obj.slot("ptr"),
+    Rcpp::Named("ad_pack") = obj.slot("ptr"),
     Rcpp::Named("group_sparsity") = obj.slot("group_sparsity"),
     Rcpp::Named("outer") = obj.slot("outer"),
     Rcpp::Named("inner") = obj.slot("inner"),
@@ -175,60 +175,60 @@ static Rcpp::List ad_fun_list_from_s4(const Rcpp::S4& obj) {
 
 }  // namespace
 
-adlaplace_shard* shard_handle(ad_fun* backend, size_t shard) {
-  if (!backend) Rcpp::stop("ad_fun handle is NULL");
+ad_shard* shard_handle(ad_pack* backend, size_t shard) {
+  if (!backend) Rcpp::stop("ad_pack handle is NULL");
   if (shard >= backend->fun.size()) {
     Rcpp::stop("shard index %d out of range [0, %d]", (int)shard, (int)backend->fun.size() - 1);
   }
-  adlaplace_shard* s = backend->fun[shard];
-  if (!s) Rcpp::stop("ad_fun.fun[%d] is NULL", (int)shard);
+  ad_shard* s = backend->fun[shard];
+  if (!s) Rcpp::stop("ad_pack.fun[%d] is NULL", (int)shard);
   return s;
 }
 
 SEXP ad_fun_handle_sexp(const Rcpp::List& ad_fun_list) {
-  if (ad_fun_list.containsElementNamed("ad_fun")) {
-    return ad_fun_list["ad_fun"];
+  if (ad_fun_list.containsElementNamed("ad_pack")) {
+    return ad_fun_list["ad_pack"];
   }
-  Rcpp::stop("ad_fun list must contain component 'ad_fun'");
+  Rcpp::stop("ad_pack list must contain component 'ad_pack'");
 }
 
-ad_fun* ad_fun_from_list(const Rcpp::List& ad_fun_list) {
+ad_pack* ad_fun_from_list(const Rcpp::List& ad_fun_list) {
   SEXP handle_ptr = ad_fun_handle_sexp(ad_fun_list);
-  auto* backend = static_cast<::ad_fun*>(R_ExternalPtrAddr(handle_ptr));
+  auto* backend = static_cast<::ad_pack*>(R_ExternalPtrAddr(handle_ptr));
   if (!backend) {
-    Rcpp::stop("ad_fun external pointer is NULL (cleared?)");
+    Rcpp::stop("ad_pack external pointer is NULL (cleared?)");
   }
 
   ad_fun_attach_hessians_from_list(*backend, ad_fun_list);
   return backend;
 }
 
-ad_fun* ad_fun_from_handle(SEXP handle) {
-  auto* backend = static_cast<::ad_fun*>(R_ExternalPtrAddr(handle));
+ad_pack* ad_fun_from_handle(SEXP handle) {
+  auto* backend = static_cast<::ad_pack*>(R_ExternalPtrAddr(handle));
   if (!backend) {
-    Rcpp::stop("ad_fun external pointer is NULL (cleared?)");
+    Rcpp::stop("ad_pack external pointer is NULL (cleared?)");
   }
   check_ad_fun_abi(*backend);
   return backend;
 }
 
-ad_fun* resolve_ad_fun_eval(SEXP ad_fun_ptr) {
-  if (Rf_isNull(ad_fun_ptr)) {
-    Rcpp::stop("ad_fun_ptr must not be NULL");
+ad_pack* resolve_ad_pack_eval(SEXP ad_pack_ptr) {
+  if (Rf_isNull(ad_pack_ptr)) {
+    Rcpp::stop("ad_pack_ptr must not be NULL");
   }
-  if (!Rf_inherits(ad_fun_ptr, "ad_fun_ptr")) {
-    Rcpp::stop("expected ad_fun_ptr");
+  if (!Rf_inherits(ad_pack_ptr, "ad_pack_ptr")) {
+    Rcpp::stop("expected ad_pack_ptr");
   }
-  ad_fun* backend = ad_fun_from_handle(ad_fun_ptr);
+  ad_pack* backend = ad_fun_from_handle(ad_pack_ptr);
   validate_ad_fun_eval(*backend);
   return backend;
 }
 
-ad_fun* resolve_ad_fun_laplace(const Rcpp::S4& ad_fun_s4) {
-  if (!ad_fun_s4.inherits("ad_fun")) {
-    Rcpp::stop("expected an ad_fun object; call ad_fun(ad_fun_ptr) first");
+ad_pack* resolve_ad_pack_laplace(const Rcpp::S4& ad_fun_s4) {
+  if (!ad_fun_s4.inherits("ad_pack")) {
+    Rcpp::stop("expected an ad_pack object; call ad_pack(ad_pack_ptr) first");
   }
-  ::ad_fun* backend = ad_fun_from_list(ad_fun_list_from_s4(ad_fun_s4));
+  ::ad_pack* backend = ad_fun_from_list(ad_fun_list_from_s4(ad_fun_s4));
   validate_ad_fun_laplace(*backend);
   return backend;
 }
@@ -256,7 +256,7 @@ std::vector<size_t> resolve_shard_indices(
   return shard_idx;
 }
 
-Rcpp::List sparsity_shard_from_handle(adlaplace_shard* shard) {
+Rcpp::List sparsity_shard_from_handle(ad_shard* shard) {
   int n_inner = 0;
   int n_outer = 0;
   int n_beta = 0;

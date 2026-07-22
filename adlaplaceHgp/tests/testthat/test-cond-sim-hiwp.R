@@ -12,15 +12,15 @@ test_that("cond_sim_iwp_inputs extracts hiwp random effects from model_data", {
     formula = y ~ hiwp(x = "x", knots = knots, by = "g", include_global = FALSE),
     verbose = FALSE
   )
-  random_info <- model_data$data$info$gamma
+  random_info <- model_data$term_data$info$gamma
   n_gamma <- nrow(random_info)
   expect_true(any(random_info$model == "hiwp"))
 
   laplace <- list(
     full_parameters = c(
-      model_data$data$info$beta$init,
+      model_data$term_data$info$beta$init,
       rep(0, n_gamma),
-      model_data$data$info$theta$init
+      model_data$term_data$info$theta$init
     ),
     extra = list(half_H_inv = Matrix::Diagonal(n_gamma, 0.5))
   )
@@ -44,12 +44,12 @@ test_that("cond_sim_iwp smoke with hierarchical hiwp terms", {
     formula = y ~ hiwp(x = "x", knots = knots, by = "g", include_global = FALSE),
     verbose = FALSE
   )
-  n_gamma <- nrow(model_data$data$info$gamma)
+  n_gamma <- nrow(model_data$term_data$info$gamma)
   laplace <- list(
     full_parameters = c(
-      model_data$data$info$beta$init,
+      model_data$term_data$info$beta$init,
       rep(0, n_gamma),
-      model_data$data$info$theta$init
+      model_data$term_data$info$theta$init
     ),
     extra = list(half_H_inv = Matrix::Diagonal(n_gamma, 0.5))
   )
@@ -80,12 +80,12 @@ test_that("cond_sim_iwp envelope uses GET when available", {
     formula = y ~ hiwp(x = "x", knots = knots, by = "g", include_global = FALSE),
     verbose = FALSE
   )
-  n_gamma <- nrow(model_data$data$info$gamma)
+  n_gamma <- nrow(model_data$term_data$info$gamma)
   laplace <- list(
     full_parameters = c(
-      model_data$data$info$beta$init,
+      model_data$term_data$info$beta$init,
       rep(0, n_gamma),
-      model_data$data$info$theta$init
+      model_data$term_data$info$theta$init
     ),
     extra = list(half_H_inv = Matrix::Diagonal(n_gamma, 0.5))
   )

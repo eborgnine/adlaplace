@@ -12,14 +12,14 @@ test_that("binomial_obs with size matches softplus kernel", {
     beta = beta, gamma = numeric(0), theta = numeric(0),
     transform_theta = TRUE
   )
-  model <- adlaplace:::ad_data(
+  model <- adlaplace:::density_data(
     y = y, X = X,
     theta_map = Matrix::Matrix(nrow = 0L, ncol = 0L),
     ad_kind = "observations",
-    ad_fun = "binomial_obs",
+    density = "binomial_obs",
     weights = as.numeric(N)
   )
-  ptr <- adlaplace::ad_fun_ptr(model, config)
+  ptr <- adlaplace::ad_pack_ptr(model, config)
   x <- beta
   # dbinom includes choose(N,y); AD density omits that constant
   manual_kernel <- sum(y * eta - N * log1p(exp(eta)))
@@ -51,6 +51,6 @@ test_that("collect_terms evaluates in formula env and coerces size", {
   terms <- adlaplace::collect_terms(f)
   bin <- terms[[grep("binomial", names(terms))[1L]]]
   expect_s4_class(bin, "binomial")
-  expect_identical(bin@term, "y")
+  expect_identical(bin@name, "y")
   expect_identical(bin@size, "N")
 })

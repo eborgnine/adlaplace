@@ -69,7 +69,7 @@ fit <- adlaplace(
     formula = cc_formula,
     data = london,
     num_threads = 2L,
-    num_shards = 50L,
+    num_groups = 50L,
     config = list(transform_theta = TRUE),
     control = list(
         maxit = 200, trace = 0, REPORT = 1,
@@ -91,7 +91,7 @@ num_sim <- 200L
 num_grid <- 101L
 gamma_sims <- rmvnldl(n = num_sim, fit = fit)
 
-smooth_vars <- unique(fit$model_data$data$info$gamma$term)
+smooth_vars <- unique(fit$model_data$term_data$info$gamma$term)
 
 
 par(mfrow = c(1, 2), mar = c(2.25, 2.25, 0, 0), bty = "l", mgp = c(1, 0.5, 0))
@@ -125,7 +125,7 @@ for (D in smooth_vars) {
 
 ## AD development check
 
-Build `model_data`, shard map, and `ad_fun` without running outer optimization,
+Build `model_data`, shard map, and `ad_pack` without running outer optimization,
 then maximize the Laplace profile likelihood with `optim` directly.
 
 ```{r for_dev}
@@ -135,15 +135,15 @@ config_dev <- list(
     num_threads = 2L,
     verbose = FALSE
 )
-config_dev$shards <- ad_shards(
-    A = md$data$A,
-    elgm_matrix = md$data$elgm_matrix,
-    num_shards = 50L,
+config_dev$obs_groups <- obs_groups(
+    A = md$term_data$A,
+    elgm_matrix = md$term_data$elgm_matrix,
+    num_groups = 50L,
     min_groups = min(50L, 2L * 4L)
 )
-par_info <- md$data$info$parameters
+par_info <- md$term_data$info$parameters
 cache <- new.env(parent = emptyenv())
-cache$gamma <- rep(0, nrow(md$data$info$gamma))
+cache$gamma <- rep(0, nrow(md$term_data$info$gamma))
 control_dev <- list(
     maxit = 200, trace = 0, REPORT = 1,
     factr = 1e3,
@@ -151,9 +151,9 @@ control_dev <- list(
     parscale = par_info$parscale
 )
 control_inner <- list(report.level = 0)
-af <- ad_fun(md, config_dev, num_threads = 2L)
+af <- ad_pack(md, config_dev, num_threads = 2L)
 slotNames(af)
-dim(config_dev$shards)
+dim(config_dev$obs_groups)
 par_info
 bob <- stats::optim(
     par = par_info$init,
@@ -164,7 +164,7 @@ bob <- stats::optim(
     lower = par_info$lower,
     upper = par_info$upper,
     config = config_dev,
-    ad_fun = af,
+    ad_pack = af,
     cache = cache,
     control_inner = control_inner,
     hessian = TRUE
@@ -178,7 +178,7 @@ parameters (`beta`, inner `gamma`, and `theta`).
 
 ```{r joint-log-dens}
 sz <- af@sizes
-gamma0 <- rep(0, nrow(md$data$info$gamma))
+gamma0 <- rep(0, nrow(md$term_data$info$gamma))
 x_full <- c(
     par_info$init[seq_len(sz["beta"])],
     gamma0,
@@ -186,11 +186,11 @@ x_full <- c(
 )
 
 # Serial dens/grad/hess on a dens-safe clone (multi-thread affinity cleared).
-dens_ptr <- clone_ad_fun_ptr(af@ptr)
+dens_ptr <- clone_ad_pack_ptr(af@ptr)
 shards <- seq.int(from = 0L, length.out = adlaplace:::n_groups(dens_ptr))
 by_shard <- vapply(
     shards,
-    function(s) joint_log_dens(dens_ptr, x_full, shards = s),
+    function(s) joint_log_dens(dens_ptr, x_full, ad_shards = s),
     numeric(1)
 )
 by_shard[1:5]
@@ -212,7 +212,7 @@ x_outer <- par_info$init
 
 lik <- log_lik_laplace(
     x = x_outer,
-    ad_fun = af,
+    ad_pack = af,
     config = modifyList(config_dev, list(verbose = TRUE)),
     gamma = gamma0,
     control = list(report.level = 2, report.freq = 1),

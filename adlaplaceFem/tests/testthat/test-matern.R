@@ -7,7 +7,7 @@ test_that("matern builds design from a matrix geometry column", {
   dat$geometry <- geom
   term <- matern("geometry", knots = knots_list)
   expect_s4_class(term, "matern")
-  expect_equal(term@term, "geometry")
+  expect_equal(term@name, "geometry")
   expect_equal(term@p.order, 2L)
   expect_null(term@fem$A)
   A <- design(term, dat)
@@ -36,8 +36,8 @@ test_that("matern parses WKT and HEX point columns", {
 test_that("matern shape 2 selects random_fem_ssq_3", {
   knots_list <- list(x = seq(0, 1, length.out = 4), y = seq(0, 1, length.out = 4))
   term <- matern("geometry", knots = knots_list, shape = 2L)
-  expect_identical(term@ad_fun, "random_fem_ssq_3")
-  expect_identical(extra_ad_fun(term), "random_fem_det_3")
+  expect_identical(term@density, "random_fem_ssq_3")
+  expect_identical(extra_density(term), "random_fem_det_3")
   expect_identical(term@package, "adlaplaceFem")
   expect_equal(term@p.order, 3L)
   expect_equal(precision(term, data.frame())$alpha, 3L)
@@ -71,23 +71,23 @@ test_that("matern formula term works via :: and model_data", {
   terms <- adlaplace::collect_terms(f)
   mat <- terms[[grep("matern", names(terms))[1L]]]
   expect_s4_class(mat, "matern")
-  expect_identical(mat@ad_fun, "random_fem_ssq_2")
-  expect_identical(extra_ad_fun(mat), "random_fem_det_2")
-  expect_equal(mat@term, "geometry")
+  expect_identical(mat@density, "random_fem_ssq_2")
+  expect_identical(extra_density(mat), "random_fem_det_2")
+  expect_equal(mat@name, "geometry")
 
   md <- adlaplace::model_data(f, data = dat)
   expect_length(md$random, 1L)
   prec <- md$random[[1L]]@precision
   expect_true(is.list(prec))
   expect_true(all(c("Q_p", "Q_i", "C_x", "chol", "alpha") %in% names(prec)))
-  expect_identical(md$random[[1L]]@ad_fun, "random_fem_ssq_2")
+  expect_identical(md$random[[1L]]@density, "random_fem_ssq_2")
   expect_identical(md$random[[1L]]@package, "adlaplaceFem")
   expect_equal(ncol(md$random[[1L]]@theta_map), 2L)
 
   det_idx <- grep("_det$", names(md$parameters))
   expect_length(det_idx, 1L)
   det <- md$parameters[[det_idx]]
-  expect_identical(det@ad_fun, "random_fem_det_2")
+  expect_identical(det@density, "random_fem_det_2")
   expect_identical(det@ad_kind, "parameters")
   expect_identical(det@package, "adlaplaceFem")
   expect_identical(det@precision, prec)

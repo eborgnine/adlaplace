@@ -7,13 +7,13 @@
 
 // [[Rcpp::export(name = ".trace_hinv_t_cpp")]]
 Rcpp::NumericVector trace_hinv_t(
-  SEXP ad_fun,
+  SEXP ad_pack,
   const Rcpp::NumericVector& x,
   const Rcpp::S4& LinvPt,
   const Rcpp::S4& LinvPtColumns,
   bool verbose = false
 ) {
-  ::ad_fun* backend = resolve_ad_fun_eval(ad_fun);
+  ::ad_pack* backend = resolve_ad_pack_eval(ad_pack);
 
   Rcpp::IntegerVector LinvPt_p = LinvPt.slot("p");
   Rcpp::IntegerVector LinvPt_i = LinvPt.slot("i");

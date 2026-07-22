@@ -22,26 +22,26 @@ test_that("random_fem ssq + det match dense Matern FEM log density", {
     transform_theta = TRUE
   )
 
-  rand_ssq <- adlaplace::ad_data(
+  rand_ssq <- adlaplace::density_data(
     gamma_map = Matrix::Diagonal(nr),
     theta_map = list(c(1L, 2L), 2L),
     ad_kind = "random",
-    ad_fun = "random_fem_ssq_2",
+    density = "random_fem_ssq_2",
     package = "adlaplaceFem",
     precision = prec
   )
-  rand_det <- adlaplace::ad_data(
+  rand_det <- adlaplace::density_data(
     beta_map = 0L,
     gamma_map = nr,
     theta_map = list(c(1L, 2L), 2L),
     ad_kind = "parameters",
-    ad_fun = "random_fem_det_2",
+    density = "random_fem_det_2",
     package = "adlaplaceFem",
     precision = prec
   )
 
-  ptr_ssq <- adlaplace::ad_fun_ptr(rand_ssq, config)
-  ptr_det <- adlaplace::ad_fun_ptr(rand_det, config)
+  ptr_ssq <- adlaplace::ad_pack_ptr(rand_ssq, config)
+  ptr_det <- adlaplace::ad_pack_ptr(rand_det, config)
   expect_equal(adlaplace:::n_groups(ptr_ssq), 1L)
   expect_equal(adlaplace:::n_groups(ptr_det), 1L)
 

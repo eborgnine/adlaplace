@@ -6,30 +6,30 @@
 #include <vector>
 
 #include "adlaplace/rviews.hpp"
-#include "adlaplace/ad_data.hpp"
+#include "adlaplace/density_data.hpp"
 #include "adlaplace/backend.hpp"
 #include "adlaplace/extension.hpp"
 
 void adlaplace_init_atomics();
 
-void ad_fun_destroy(ad_fun* groups);
+void ad_fun_destroy(ad_pack* groups);
 void adfun_finalizer(SEXP ext);
-SEXP make_ad_fun_ptr(ad_fun* groups);
+SEXP make_ad_pack_ptr(ad_pack* groups);
 
-ad_fun* packs_to_ad_fun(
-  std::vector<GroupPack>&& packs,
+ad_pack* packs_to_ad_fun(
+  std::vector<AdTape>&& packs,
   std::size_t n_beta,
   std::size_t n_theta,
   ShardFactory factory);
 
-ad_fun* combine_ad_fun(const std::vector<ad_fun*>& parts);
+ad_pack* combine_ad_fun(const std::vector<ad_pack*>& parts);
 
-ad_fun* get_ad_fun_raw_obs_h(
+ad_pack* get_ad_pack_raw_obs_h(
   SEXP model,
   const Rcpp::List& config,
   const std::string& obs_name);
 
-ad_fun* get_ad_fun_raw_parameters_h(
+ad_pack* get_ad_pack_raw_parameters_h(
   SEXP model,
   const Rcpp::List& config,
   const std::string& single_name);

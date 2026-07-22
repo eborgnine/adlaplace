@@ -88,7 +88,7 @@ struct TrustControl {
 #include "adlaplace/runtime.hpp"
 
 struct AD_Func_Opt {
-  ad_fun *const shards;
+  ad_pack *const shards;
   const std::vector<std::vector<size_t>> *const thread_groups;
   const bool inner;
   const int num_threads;
@@ -109,7 +109,7 @@ struct AD_Func_Opt {
   std::vector<double> hess_upper_accum;
 
   AD_Func_Opt(
-      ad_fun &ag, const std::vector<double> &params_init, bool innerIn = true,
+      ad_pack &ag, const std::vector<double> &params_init, bool innerIn = true,
       int num_threads_in = 1,
       const std::vector<std::vector<size_t>> *thread_groups_in = nullptr)
       : AD_Func_Opt(ag, params_init, make_layout(ag, innerIn), innerIn,
@@ -133,8 +133,8 @@ struct AD_Func_Opt {
       const std::vector<size_t> &shard_group = shard_group_for_thread();
 
       for (size_t s : shard_group) {
-        adlaplace_shard *shard = shards->fun[s];
-        GroupPack &pack = shard->pack;
+        ad_shard *shard = shards->fun[s];
+        AdTape &pack = shard->pack;
         if (!adlaplace_shard_thread_ok(pack)) {
           adlaplace_debug_record_mismatch(
               s, pack.owner_thread,
@@ -175,8 +175,8 @@ struct AD_Func_Opt {
       const std::vector<size_t> &shard_group = shard_group_for_thread();
 
       for (size_t s : shard_group) {
-        adlaplace_shard *shard = shards->fun[s];
-        GroupPack &pack = shard->pack;
+        ad_shard *shard = shards->fun[s];
+        AdTape &pack = shard->pack;
         if (!adlaplace_shard_thread_ok(pack)) {
           adlaplace_debug_record_mismatch(
               s, pack.owner_thread,
@@ -238,8 +238,8 @@ struct AD_Func_Opt {
       const std::vector<size_t> &shard_group = shard_group_for_thread();
 
       for (size_t s : shard_group) {
-        adlaplace_shard *shard = shards->fun[s];
-        GroupPack &pack = shard->pack;
+        ad_shard *shard = shards->fun[s];
+        AdTape &pack = shard->pack;
         if (!adlaplace_shard_thread_ok(pack)) {
           adlaplace_debug_record_mismatch(
               s, pack.owner_thread,
@@ -359,7 +359,7 @@ private:
     std::vector<std::vector<int>> hess_maps;
   };
 
-  static std::vector<std::vector<int>> build_hess_maps(ad_fun &ag, bool innerIn,
+  static std::vector<std::vector<int>> build_hess_maps(ad_pack &ag, bool innerIn,
                                                        size_t n_shards) {
 
     const hessian_map_view &hv = innerIn ? ag.map_inner : ag.map_outer;
@@ -371,9 +371,9 @@ private:
 
     std::vector<std::vector<int>> maps(n_shards);
     for (size_t s = 0; s < n_shards; ++s) {
-      adlaplace_shard *shard = ag.fun[s];
+      ad_shard *shard = ag.fun[s];
       if (!shard) {
-        Rcpp::stop("ad_fun.fun[%d] is NULL", static_cast<int>(s));
+        Rcpp::stop("ad_pack.fun[%d] is NULL", static_cast<int>(s));
       }
 
       int n_inner = 0;
@@ -416,14 +416,14 @@ private:
     return maps;
   }
 
-  static Layout make_layout(ad_fun &ag, bool innerIn) {
+  static Layout make_layout(ad_pack &ag, bool innerIn) {
     if (ag.fun.empty())
-      Rcpp::stop("ad_fun.fun is empty");
+      Rcpp::stop("ad_pack.fun is empty");
 
     const size_t Nbeta = static_cast<size_t>(ag.sizes.named("beta"));
     const size_t Ngamma = static_cast<size_t>(ag.sizes.named("gamma"));
     const size_t n_shards = ag.fun.size();
-    adlaplace_shard *shard0 = ag.fun[0];
+    ad_shard *shard0 = ag.fun[0];
     const size_t Nparams = shard0->pack.x.size();
 
     const size_t nvars_opt = innerIn ? Ngamma : Nparams;
@@ -431,7 +431,7 @@ private:
 
     const hessian_template &tpl = innerIn ? ag.hessian_inner : ag.hessian_outer;
     if (tpl.nonZeros() == 0) {
-      Rcpp::stop("%s Hessian template missing on ad_fun; attach hessian_map "
+      Rcpp::stop("%s Hessian template missing on ad_pack; attach hessian_map "
                  "result first",
                  innerIn ? "inner" : "outer");
     }
@@ -459,7 +459,7 @@ private:
     return out;
   }
 
-  AD_Func_Opt(ad_fun &ag, const std::vector<double> &params_init, Layout layout,
+  AD_Func_Opt(ad_pack &ag, const std::vector<double> &params_init, Layout layout,
               bool innerIn, int num_threads_in,
               const std::vector<std::vector<size_t>> *thread_groups_in)
       : shards(&ag), thread_groups(thread_groups_in), inner(innerIn),

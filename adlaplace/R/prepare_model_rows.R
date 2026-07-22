@@ -4,7 +4,7 @@ parse_model_terms <- function(formula, verbose = FALSE) {
     collect_terms(formula, verbose = verbose)
   } else {
     terms <- formula
-    if (methods::is(terms, "model")) {
+    if (methods::is(terms, "model_term")) {
       terms <- list(terms)
     }
     terms
@@ -13,7 +13,7 @@ parse_model_terms <- function(formula, verbose = FALSE) {
 
 #' @keywords internal
 required_model_variables <- function(terms) {
-  covariates <- unique(unlist(lapply(terms, function(t) t@term)))
+  covariates <- unique(unlist(lapply(terms, function(t) t@name)))
   covariates <- unique(unlist(strsplit(covariates, ":", fixed = TRUE)))
 
   random_slope_terms <- unique(unlist(lapply(terms, function(t) {
@@ -33,7 +33,7 @@ required_model_variables <- function(terms) {
   })))
 
   strata_vars <- unique(unlist(lapply(terms, function(t) {
-    if (methods::is(t, "model") &&
+    if (methods::is(t, "model_term") &&
         identical(t@ad_kind, "observations") &&
         "by" %in% methods::slotNames(t) &&
         is.character(t@by)) {
@@ -70,11 +70,11 @@ prepare_model_rows <- function(data, terms, verbose = FALSE) {
   }
 
   obs_terms <- Filter(function(t) {
-    methods::is(t, "model") && identical(t@ad_kind, "observations")
+    methods::is(t, "model_term") && identical(t@ad_kind, "observations")
   }, terms)
 
   for (term in obs_terms) {
-    outcome_var <- term@term
+    outcome_var <- term@name
     if (outcome_var %in% names(data) && anyNA(data[[outcome_var]])) {
       warning("missing values in outcome, treating as zeros", call. = FALSE)
       data[[outcome_var]][is.na(data[[outcome_var]])] <- 0
@@ -99,7 +99,7 @@ prepare_model_rows <- function(data, terms, verbose = FALSE) {
 }
 
 #' @keywords internal
-parameter_ad_fun <- function(obs_ad_fun) {
+parameter_density <- function(obs_ad_fun) {
   if (grepl("_extra$", obs_ad_fun)) {
     return(obs_ad_fun)
   }

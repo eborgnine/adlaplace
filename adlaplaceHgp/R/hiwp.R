@@ -25,11 +25,11 @@ setClass("hiwp",
     by = "by_group",
     init = "numeric"
   ),
-  contains = "model",
+  contains = "model_term",
   prototype = prototype(
     by = adlaplace::by_group(),
     init = numeric(0),
-    type = factor("random", levels = adlaplace::.type_factor_levels)
+    model_role = factor("random", levels = adlaplace::.model_role_levels)
   )
 )
 
@@ -82,7 +82,7 @@ hiwp <- function(
   hiwp_name <- paste(c(x, "hiwp"), collapse = "_")
 
   result[[hiwp_name]] <- methods::new("hiwp",
-    term = x,
+    name = x,
     label = hiwp_name,
     formula = the_f,
     p.order = as.integer(p),
@@ -98,7 +98,7 @@ hiwp <- function(
   if (include_global) {
     iwp_name <- paste(c(x, "iwp"), collapse = "_")
     result[[iwp_name]] <- methods::new("iwp",
-      term = x,
+      name = x,
       label = iwp_name,
       formula = the_f,
       p.order = as.integer(p),
@@ -185,7 +185,7 @@ setMethod("design", "hiwp", function(term, data) {
     dims = c(nrow(data), ncol(A0) * length(id_split)),
     dimnames = list(
       rownames(data),
-      paste0(term@term, "_hiwp_k",
+      paste0(term@name, "_hiwp_k",
         rep(
           formatC(1:ncol(A0), width = ceiling(log10(ncol(A0))), flag = "0"),
           length(id_split)
@@ -226,14 +226,14 @@ setMethod("precision", "hiwp", function(term, data) {
 setMethod("theta_info", "hiwp", function(term) {
   # Global and local parameters
   result <- data.frame(
-    term = term@term,
+    term = term@name,
     model = "hiwp",
-    label = paste(c(term@term, "hiwp"), collapse = "_"),
+    label = paste(c(term@name, "hiwp"), collapse = "_"),
     init = term@init,
     lower = term@lower,
     upper = term@upper,
     parscale = term@parscale,
-    type = term@type,
+    model_role = term@model_role,
     log = term@log
   )
 
@@ -258,9 +258,9 @@ setMethod("random_info", "hiwp", function(term, data) {
   basis <- seq(1, len = length(term@knots) - 1)
 
   result <- expand.grid(
-    term = term@term,
+    term = term@name,
     model = "hiwp",
-    label = paste(c(term@term, "hiwp"), collapse = "_"),
+    label = paste(c(term@name, "hiwp"), collapse = "_"),
     by = term@by@levels,
     basis = basis,
     order = term@p.order,
@@ -283,7 +283,7 @@ methods::setAs(
   function(from) {
     # Create a new iwp object with the same basic properties
     methods::new("iwp",
-      term = from@term,
+      name = from@name,
       formula = from@formula,
       knots = from@knots,
       ref_value = from@ref_value,

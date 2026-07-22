@@ -1,4 +1,4 @@
-test_that("joint_log_dens/grad/hessian reject multi-thread ad_fun handles", {
+test_that("joint_log_dens/grad/hessian reject multi-thread ad_pack handles", {
   skip_if_not(adlaplace:::has_openmp(), "OpenMP not available in this build")
   set.seed(21)
   Nobs <- 30L
@@ -13,7 +13,7 @@ test_that("joint_log_dens/grad/hessian reject multi-thread ad_fun handles", {
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    shards = adlaplace::ad_shards(Amat, num_shards = 8L),
+    obs_groups = adlaplace::obs_groups(Amat, num_groups = 8L),
     verbose = FALSE
   )
   model <- test_ad_data(
@@ -23,11 +23,11 @@ test_that("joint_log_dens/grad/hessian reject multi-thread ad_fun handles", {
     config = config
   )
   ad_ptr <- do.call(c, list(
-    adlaplace::ad_fun_ptr(as_shard(model, "observations", "nbinom_obs"), config),
-    adlaplace::ad_fun_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
+    adlaplace::ad_pack_ptr(as_shard(model, "observations", "nbinom_obs"), config),
+    adlaplace::ad_pack_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
   ))
-  plain <- adlaplace::clone_ad_fun_ptr(ad_ptr)
-  af <- adlaplace::ad_fun(ad_ptr, num_threads = 2L)
+  plain <- adlaplace::clone_ad_pack_ptr(ad_ptr)
+  af <- adlaplace::ad_pack(ad_ptr, num_threads = 2L)
   x <- c(config$beta, config$gamma, config$theta)
 
   expect_error(
@@ -46,7 +46,7 @@ test_that("joint_log_dens/grad/hessian reject multi-thread ad_fun handles", {
   expect_true(is.finite(adlaplace::joint_log_dens(plain, x, negative = FALSE)))
   expect_true(all(is.finite(adlaplace::grad(plain, x, negative = FALSE))))
 
-  dens_clone <- adlaplace::clone_ad_fun_ptr(af@ptr)
+  dens_clone <- adlaplace::clone_ad_pack_ptr(af@ptr)
   expect_false(adlaplace:::get_owner_thread_assigned(dens_clone, 0L))
   expect_true(is.na(adlaplace:::get_configured_num_threads(dens_clone)))
   expect_true(is.finite(
@@ -54,7 +54,7 @@ test_that("joint_log_dens/grad/hessian reject multi-thread ad_fun handles", {
   ))
 })
 
-test_that("joint_log_dens still works on ad_fun with num_threads = 1", {
+test_that("joint_log_dens still works on ad_pack with num_threads = 1", {
   set.seed(22)
   Nobs <- 20L
   X <- Matrix::Matrix(cbind(1, stats::rbinom(Nobs, 1, 0.5)))
@@ -68,7 +68,7 @@ test_that("joint_log_dens still works on ad_fun with num_threads = 1", {
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    shards = adlaplace::ad_shards(Amat, num_shards = 4L),
+    obs_groups = adlaplace::obs_groups(Amat, num_groups = 4L),
     verbose = FALSE
   )
   model <- test_ad_data(
@@ -78,10 +78,10 @@ test_that("joint_log_dens still works on ad_fun with num_threads = 1", {
     config = config
   )
   ad_ptr <- do.call(c, list(
-    adlaplace::ad_fun_ptr(as_shard(model, "observations", "nbinom_obs"), config),
-    adlaplace::ad_fun_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
+    adlaplace::ad_pack_ptr(as_shard(model, "observations", "nbinom_obs"), config),
+    adlaplace::ad_pack_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
   ))
-  af <- adlaplace::ad_fun(ad_ptr, num_threads = 1L)
+  af <- adlaplace::ad_pack(ad_ptr, num_threads = 1L)
   x <- c(config$beta, config$gamma, config$theta)
   expect_true(is.finite(adlaplace::joint_log_dens(af, x, negative = FALSE)))
 })
