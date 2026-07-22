@@ -4,8 +4,9 @@
 #include "adlaplace/density_data.hpp"
 #include "adlaplace/ad_pack.hpp"
 #include "adlaplace/ad_pack_random.hpp"
-#include "adlaplace/chol_update_impl.hpp"
 #include "adlaplace/extension.hpp"
+
+#include "fem_logdet_atomic.hpp"
 
 #include <cmath>
 #include <set>
@@ -23,18 +24,6 @@ const double ONEHALFLOGTWOPI = 0.91893853320467274178032973640561763976;
 
 // Declared by ADLAPLACE_DEFINE_BACKEND in backend.cpp
 extern ad_shard *adlaplace_fem_make_shard(AdTape &&);
-
-namespace adlaplace {
-namespace chol {
-template <> struct CholLogDetTraits<CppAD::AD<double>> {
-  static bool invalid_diag(const CppAD::AD<double> &) { return false; }
-  static CppAD::AD<double> invalid_result() { return CppAD::AD<double>(0); }
-  static CppAD::AD<double> log_of(const CppAD::AD<double> &d) {
-    return CppAD::log(d);
-  }
-};
-} // namespace chol
-} // namespace adlaplace
 
 namespace {
 
@@ -91,6 +80,40 @@ FemCholPayload read_fem_payload(const density_data &model) {
     Rcpp::stop("random_fem Gram coefficient vectors must match length(Q_i)");
   }
   return out;
+}
+
+// Register the constant part of Q(theta) with the fem_logdet atomic:
+// Q = a*C + b*G + c*G2 (+ d*G3), so the atomic only sees the coefficient
+// scalars while the Grams, pattern, and symbolic factor stay fixed.
+template <int Alpha>
+std::size_t register_fem_logdet_payload(const FemCholPayload &pay) {
+  femlogdet::Payload atom;
+  atom.Q_p = pay.Q_p;
+  atom.Q_i = pay.Q_i;
+  atom.n = pay.Q_p.size() - 1;
+  atom.w.resize(pay.Q_i.size());
+  for (std::size_t col = 0; col + 1 < pay.Q_p.size(); ++col) {
+    for (int pos = pay.Q_p[col]; pos < pay.Q_p[col + 1]; ++pos) {
+      const std::size_t row =
+          static_cast<std::size_t>(pay.Q_i[static_cast<std::size_t>(pos)]);
+      atom.w[static_cast<std::size_t>(pos)] = (row == col) ? 1.0 : 2.0;
+    }
+  }
+  atom.M.push_back(pay.C_x);
+  atom.M.push_back(pay.G_x);
+  atom.M.push_back(pay.G2_x);
+  if (Alpha == 3) {
+    atom.M.push_back(pay.G3_x);
+  }
+  atom.perm = pay.perm;
+  atom.perm_inv.assign(atom.n, 0);
+  for (std::size_t r = 0; r < atom.n; ++r) {
+    atom.perm_inv[static_cast<std::size_t>(pay.perm[r])] = static_cast<int>(r);
+  }
+  atom.L1_p = pay.L1_p;
+  atom.L1_i = pay.L1_i;
+  return femlogdet::fem_logdet_atomic_instance().register_payload(
+      std::move(atom));
 }
 
 // Public theta (range, sd): practical range rho = sqrt(8*nu)/kappa and field
@@ -195,13 +218,26 @@ random_fem_det(const CppAD::vector<CppAD::AD<double>> &x, const density_data &mo
   }
   CppAD::AD<double> k2, k4, k6, tau2;
   fem_kappa_tau2<Alpha>(x, model, config, k2, k4, k6, tau2);
-  const auto Q_x = assemble_Q_x<Alpha>(pay, k2, k4, k6, tau2);
 
   const std::size_t n = pay.Q_p.size() - 1;
-  std::vector<CppAD::AD<double>> L_x(pay.L1_i.size());
-  std::vector<CppAD::AD<double>> D(n);
-  const CppAD::AD<double> log_det = adlaplace::chol::chol_update_csc(
-      pay.Q_p, pay.Q_i, Q_x, pay.perm, pay.L1_p, pay.L1_i, L_x, D);
+  const std::size_t call_id = register_fem_logdet_payload<Alpha>(pay);
+
+  // Coefficients of Q = a*C + b*G + c*G2 (+ d*G3); the atomic handles the
+  // factorization and Tr(Q^{-1} dQ) derivatives in doubles, off the tape.
+  CppAD::vector<CppAD::AD<double>> ax(Alpha == 2 ? 3 : 4);
+  if constexpr (Alpha == 2) {
+    ax[0] = tau2 * k4;
+    ax[1] = CppAD::AD<double>(2) * tau2 * k2;
+    ax[2] = tau2;
+  } else {
+    ax[0] = tau2 * k6;
+    ax[1] = CppAD::AD<double>(3) * tau2 * k4;
+    ax[2] = CppAD::AD<double>(3) * tau2 * k2;
+    ax[3] = tau2;
+  }
+  CppAD::vector<CppAD::AD<double>> ay(1);
+  femlogdet::fem_logdet_atomic_instance()(call_id, ax, ay);
+  const CppAD::AD<double> log_det = ay[0];
 
   CppAD::vector<CppAD::AD<double>> result(1);
   result[0] =

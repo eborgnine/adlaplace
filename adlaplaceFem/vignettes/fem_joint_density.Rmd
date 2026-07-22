@@ -210,4 +210,82 @@ c(
 )
 ```
 
+## Laplace log-likelihood: AD vs finite differences
+
+The checks above are for the joint density with the spline weights held
+fixed. The marginal log-likelihood instead profiles the weights out with an
+inner optimization (`log_lik_laplace()`), and its AD gradient with respect to
+the outer parameters $(\log\sigma, \log\rho, \log\sigma_w)$ combines the
+chain rule through the inner mode, the Laplace determinant correction, and
+the FEM prior log-determinant derivative supplied by the `fem_logdet` atomic.
+Compare this gradient to central finite differences of the log-likelihood
+itself.
+
+```{r loglik-grad}
+af <- ad_pack(ptr, num_threads = 1L)
+x_outer <- c(log(sigma), log(range), log(sd_w))
+quiet <- list(maxit = 100L, report.level = 0, report.freq = 0)
+
+ll <- log_lik_laplace(
+  x = x_outer, ad_pack = af, config = config,
+  control = quiet, deriv = TRUE
+)
+g_ad_ll <- as.numeric(ll$deriv$d_neg_log_lik)
+
+eps <- 1e-4
+g_fd_ll <- vapply(seq_along(x_outer), function(i) {
+  xp <- xm <- x_outer
+  xp[i] <- xp[i] + eps
+  xm[i] <- xm[i] - eps
+  llp <- log_lik_laplace(
+    x = xp, ad_pack = af, config = config, control = quiet
+  )$neg_log_lik
+  llm <- log_lik_laplace(
+    x = xm, ad_pack = af, config = config, control = quiet
+  )$neg_log_lik
+  (llp - llm) / (2 * eps)
+}, numeric(1))
+
+data.frame(
+  AD = g_ad_ll,
+  finite_diff = g_fd_ll,
+  abs_diff = abs(g_ad_ll - g_fd_ll),
+  row.names = c("log_sigma", "log_range", "log_sd_w")
+)
+```
+
+A scan along $\log\rho$ shows the finite-difference midpoints falling on the
+AD curves, for both the profile gradient and the half log-determinant of the
+inner Hessian.
+
+```{r loglik-scan, fig.height=3.5}
+par(mfrow = c(1, 2), mar = c(2.5, 2.5, 1.5, 0.5), mgp = c(1.4, 0.5, 0.5))
+
+scan_ll <- deriv_scan_laplace(
+  af,
+  x = x_outer,
+  index = 2L,
+  width = 0.3,
+  n = 9L,
+  config = config,
+  gamma = config$gamma
+)
+
+plot(
+  scan_ll$grid, scan_ll$grad[, 2L],
+  type = "l", xlab = expression(log(rho)), ylab = "d -log lik"
+)
+points(scan_ll$mid, scan_ll$fd_value, pch = 16)
+legend(
+  "topright", c("AD", "finite diff"),
+  lty = c(1, NA), pch = c(NA, 16), bty = "n"
+)
+
+plot(
+  scan_ll$grid, scan_ll$d_det[, 2L],
+  type = "l", xlab = expression(log(rho)), ylab = "d half log det"
+)
+points(scan_ll$mid, scan_ll$fd_det, pch = 16)
+```
+
 No outer optimization is performed here; that will appear in a later vignette.

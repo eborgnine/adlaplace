@@ -1,10 +1,10 @@
 ---
-title: "SUN(3,3) maximum likelihood with derivatives"
+title: "SUN(3,3) maximum likelihood with analytic gradients"
 author: "Patrick Brown"
 date: "`r Sys.Date()`"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{SUN(3,3) maximum likelihood with derivatives}
+  %\VignetteIndexEntry{SUN(3,3) maximum likelihood with analytic gradients}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -12,23 +12,22 @@ vignette: >
 ```{r setup, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
-  comment = "#>"
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 4
 )
 library(admvn)
-qmc_n_points <- 2000L
-qmc_n_shifts <- 12L
 ```
 
-This vignette reproduces the SUN$(3,3)$ simulation and MLE example from the
-supervision notes. We first fit the model with `sn::dsun` (density only), then
-repeat the fit using `admvn::dsun_fun`, which builds per-observation CppAD
-shard tapes with the data fixed and returns derivatives with respect to the
-21-parameter vector.
+This vignette shows how to obtain the MLE of a SUN$(3,3)$ distribution with
+`stats::optim()`, supplying an analytic gradient from `admvn::dsun_fun()`.
+The same simulated example is also fit with `sn::dsun` (value only) for
+comparison.
 
 ## Parameterization
 
-The free parameter vector has 21 components and is converted to the `sn` list
-`dp = list(xi, Omega, Delta, tau, Gamma)` by `make_sun_params()`:
+The free parameter vector has 21 components and maps to the `sn` list
+`dp = list(xi, Omega, Delta, tau, Gamma)` via `make_sun_params()`:
 
 ```{r params}
 true_params <- c(
@@ -49,25 +48,27 @@ str(true_sun_params, max.level = 1)
 ```{r sim, eval = requireNamespace("sn", quietly = TRUE)}
 library(sn)
 set.seed(0)
-n <- 2000
+n <- 500
 ysim <- sn::rsun(n, dp = true_sun_params)
 colnames(ysim) <- paste0("Y", 1:3)
 head(ysim)
 ```
 
-The vignette uses `n = 2000` rather than 8000 to keep build time reasonable.
+A moderate sample size and QMC budget keep the vignette build time manageable.
+For production fits, increase `n` and `n_points` / `n_shifts` as needed.
 
-## Log-likelihood check
+## Build a reusable log-likelihood tape
 
-At the true parameters, `admvn::dsun` and `sn::dsun` agree up to quasi-Monte
-Carlo error in the orthant probabilities. The tape fixes the data and treats
-only `par` as independent; `deriv = 0` evaluates the value only.
+`dsun_fun()` fixes the data and tapes the summed log-likelihood as a function
+of the 21-parameter vector. Evaluation supports `deriv = 0` (value),
+`1` (value + gradient), or `2` (value + gradient + Hessian).
 
-```{r check-density, eval = requireNamespace("sn", quietly = TRUE)}
-sn_ll <- sum(sn::dsun(ysim, dp = true_sun_params, log = TRUE))
+```{r tape, eval = requireNamespace("sn", quietly = TRUE)}
+qmc_n_points <- 800L
+qmc_n_shifts <- 8L
 
 build_time <- system.time({
-  tape_check <- dsun_fun(
+  tape <- dsun_fun(
     ysim,
     true_params,
     n_points = qmc_n_points,
@@ -75,92 +76,23 @@ build_time <- system.time({
   )
 })["elapsed"]
 
-eval_time <- system.time({
-  ad_out <- tape_check$eval(true_params, log = TRUE, deriv = 0L)
-})["elapsed"]
-
+check <- tape$eval(true_params, log = TRUE, deriv = 1L)
+sn_ll <- sum(sn::dsun(ysim, dp = true_sun_params, log = TRUE))
 c(
   sn = sn_ll,
-  admvn = ad_out$value,
-  build_sec = build_time,
-  eval_sec = eval_time,
-  n_threads = tape_check$n_threads
+  admvn = check$value,
+  build_sec = unname(build_time),
+  n_threads = tape$n_threads
 )
 ```
 
-## Derivative check
+## MLE with `optim()` and an analytic gradient
 
-We slice the log-likelihood along one parameter and compare the analytic
-gradient from `admvn` with a finite-difference derivative of the slice.
+`tape$optim_fns()` returns cached `fn` and `gr` closures. When `optim()`
+calls both at the same parameter value, the log-likelihood and gradient are
+computed in a single AD pass.
 
-```{r deriv-check, eval = requireNamespace("sn", quietly = TRUE), fig.width = 9, fig.height = 3.8, fig.cap = "Left: log-likelihood slice along ell21. Right: finite-difference derivative of the slice (grey) versus the admvn analytic gradient (blue)."}
-param_name <- "ell21"
-base_par <- true_params
-grid <- seq(-0.1, 0.5, length.out = 21L)
-
-loglik <- vapply(grid, function(v) {
-  par <- base_par
-  par[param_name] <- v
-  tape_check$eval(par, log = TRUE, deriv = 0L)$value
-}, numeric(1))
-
-grad_ad <- vapply(grid, function(v) {
-  par <- base_par
-  par[param_name] <- v
-  tape_check$eval(par, log = TRUE, deriv = 1L)$gradient[param_name]
-}, numeric(1))
-
-grad_num <- diff(loglik) / diff(grid)
-grid_mid <- 0.5 * (grid[-length(grid)] + grid[-1L])
-
-old_par <- par(mfrow = c(1, 2), mar = c(4, 4, 2.5, 1))
-
-plot(
-  grid,
-  loglik,
-  type = "l",
-  lwd = 2,
-  col = "steelblue",
-  xlab = param_name,
-  ylab = "log-likelihood",
-  main = sprintf("Log-likelihood slice (%s)", param_name)
-)
-abline(v = true_params[param_name], lty = 3, col = "gray50")
-
-plot(
-  grid_mid,
-  grad_num,
-  type = "l",
-  lwd = 2,
-  col = "gray40",
-  xlab = param_name,
-  ylab = expression(paste("partial log-likelihood / partial", theta)),
-  main = "Numeric vs AD gradient",
-  ylim = range(c(grad_num, grad_ad), na.rm = TRUE)
-)
-lines(grid, grad_ad, lwd = 2, col = "steelblue", lty = 2)
-abline(v = true_params[param_name], lty = 3, col = "gray50")
-legend(
-  "topright",
-  legend = c("finite difference", "admvn gradient"),
-  col = c("gray40", "steelblue"),
-  lty = c(1, 2),
-  lwd = 2,
-  bty = "n",
-  cex = 0.85
-)
-
-par(old_par)
-```
-
-## MLE without derivatives (`sn`)
-
-```{r mle-sn, eval = requireNamespace("sn", quietly = TRUE)}
-sun_loglik_sn <- function(params, x) {
-  dp <- make_sun_params(params)
-  sum(sn::dsun(x, dp = dp, log = TRUE))
-}
-
+```{r mle-admvn, eval = requireNamespace("sn", quietly = TRUE)}
 start_params <- true_params
 start_params[] <- c(
   xi1 = 0.2, xi2 = -0.1, xi3 = 0.1,
@@ -181,6 +113,33 @@ lower <- c(
 )
 upper <- rep(Inf, length(lower))
 
+obj <- tape$optim_fns()
+
+fit_ad_time <- system.time({
+  fit_ad <- optim(
+    start_params,
+    fn = obj$fn,
+    gr = obj$gr,
+    method = "L-BFGS-B",
+    lower = lower,
+    upper = upper,
+    control = list(fnscale = -1, maxit = 50)
+  )
+})
+
+fit_ad$convergence
+fit_ad$value
+unname(fit_ad_time["elapsed"])
+```
+
+## Comparison with value-only `sn` MLE
+
+```{r mle-sn, eval = requireNamespace("sn", quietly = TRUE)}
+sun_loglik_sn <- function(params, x) {
+  dp <- make_sun_params(params)
+  sum(sn::dsun(x, dp = dp, log = TRUE))
+}
+
 fit_sn_time <- system.time({
   fit_sn <- optim(
     start_params,
@@ -189,64 +148,29 @@ fit_sn_time <- system.time({
     method = "L-BFGS-B",
     lower = lower,
     upper = upper,
-    control = list(fnscale = -1, maxit = 40)
+    control = list(fnscale = -1, maxit = 50)
   )
 })
+
 fit_sn$convergence
 fit_sn$value
-fit_sn_time["elapsed"]
+unname(fit_sn_time["elapsed"])
 ```
-
-## MLE with analytic gradient (`admvn`)
-
-The AD fit uses cached fn/gr from `optim_fns()` so each L-BFGS step evaluates
-the log-likelihood and gradient in a single CppAD pass. Shard evaluation runs
-in parallel when OpenMP is enabled.
-
-```{r mle-admvn, eval = requireNamespace("sn", quietly = TRUE)}
-tape_build_time <- system.time({
-  tape <- dsun_fun(
-    ysim,
-    start_params,
-    n_points = qmc_n_points,
-    n_shifts = qmc_n_shifts
-  )
-})["elapsed"]
-
-obj <- tape$optim_fns()
-
-fit_ad_time <- system.time({
-  fit_ad <- optim(
-    start_params,
-    obj$fn,
-    gr = obj$gr,
-    method = "L-BFGS-B",
-    lower = lower,
-    upper = upper,
-    control = list(fnscale = -1, maxit = 40)
-  )
-})
-fit_ad$convergence
-fit_ad$value
-c(tape_build_sec = tape_build_time, optim_sec = fit_ad_time["elapsed"])
-```
-
-## Comparison
 
 ```{r compare, eval = requireNamespace("sn", quietly = TRUE)}
 cbind(
   true = true_params,
   start = start_params,
-  mle_sn = fit_sn$par,
-  mle_admvn = fit_ad$par
+  mle_admvn = fit_ad$par,
+  mle_sn = fit_sn$par
 )
 rbind(
   true_mean = sn::sunMean(dp = true_sun_params),
-  mle_sn_mean = sn::sunMean(dp = make_sun_params(fit_sn$par)),
-  mle_admvn_mean = sn::sunMean(dp = make_sun_params(fit_ad$par))
+  mle_admvn_mean = sn::sunMean(dp = make_sun_params(fit_ad$par)),
+  mle_sn_mean = sn::sunMean(dp = make_sun_params(fit_sn$par))
 )
 ```
 
-The analytic-gradient fit should recover similar estimates to the `sn`-based fit,
-with modest differences attributable to quasi-Monte Carlo error in the orthant
-probabilities.
+Small differences between the two fits are expected: `admvn` approximates the
+SUN orthant probabilities with quasi-Monte Carlo, while `sn` uses its own CDF
+routine.
