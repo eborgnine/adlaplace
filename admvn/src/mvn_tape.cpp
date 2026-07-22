@@ -1,5 +1,6 @@
 #include "mvn_tape.hpp"
 
+#include "mvn_analytic.hpp"
 #include "mvn_sparsity.hpp"
 #include "qnorm_atomic.hpp"
 
@@ -641,27 +642,35 @@ MvnResult eval_mvn_tape(
 
   out.value = tape.fun.Forward(0, x)[0];
 
-  auto& pattern_grad = inner ? tape.pattern_grad_inner : tape.pattern_grad;
-  auto& work_grad = inner ? tape.work_inner_grad : tape.work_grad;
-  CppAD::sparse_rc<CppAD::vector<size_t>> jac_pattern;
-  tape.fun.sparse_jac_rev(x, pattern_grad, jac_pattern, detail::kJacColor, work_grad);
-
-  if (inner) {
-    const auto& cols = pattern_grad.col();
-    const auto& vals = pattern_grad.val();
-    for (size_t k = 0; k < pattern_grad.nnz(); ++k) {
-      out.gradient[cols[k]] += vals[k];
-    }
+  // Prefer analytic ∂F/∂upper (and mean) from Sigma in original order.
+  std::vector<double> g_upper;
+  std::vector<double> g_mean;
+  if (analytic_mvn_upper_mean_grad(upper, mean, sigma, tape.lower, g_upper, g_mean)) {
+    out.gradient = std::move(g_upper);
+    out.gradient_mean = std::move(g_mean);
   } else {
-    std::vector<double> grad_full(tape.n_domain, 0.0);
-    const auto& cols = pattern_grad.col();
-    const auto& vals = pattern_grad.val();
-    for (size_t k = 0; k < pattern_grad.nnz(); ++k) {
-      grad_full[cols[k]] += vals[k];
-    }
-    for (std::size_t i = 0; i < n; ++i) {
-      out.gradient[i] = grad_full[i];
-      out.gradient_mean[i] = grad_full[n + i];
+    auto& pattern_grad = inner ? tape.pattern_grad_inner : tape.pattern_grad;
+    auto& work_grad = inner ? tape.work_inner_grad : tape.work_grad;
+    CppAD::sparse_rc<CppAD::vector<size_t>> jac_pattern;
+    tape.fun.sparse_jac_rev(x, pattern_grad, jac_pattern, detail::kJacColor, work_grad);
+
+    if (inner) {
+      const auto& cols = pattern_grad.col();
+      const auto& vals = pattern_grad.val();
+      for (size_t k = 0; k < pattern_grad.nnz(); ++k) {
+        out.gradient[cols[k]] += vals[k];
+      }
+    } else {
+      std::vector<double> grad_full(tape.n_domain, 0.0);
+      const auto& cols = pattern_grad.col();
+      const auto& vals = pattern_grad.val();
+      for (size_t k = 0; k < pattern_grad.nnz(); ++k) {
+        grad_full[cols[k]] += vals[k];
+      }
+      for (std::size_t i = 0; i < n; ++i) {
+        out.gradient[i] = grad_full[i];
+        out.gradient_mean[i] = grad_full[n + i];
+      }
     }
   }
 
@@ -694,9 +703,23 @@ std::vector<double> eval_mvn_domain_grad(
   const std::vector<double>& mean,
   const std::vector<std::vector<double>>& sigma) {
 
-  detail::init_qnorm_atomic();
-
   const GenzPack genz = pack_genz_ch(sigma, tape.perm);
+  return eval_mvn_domain_grad_auto(tape, upper, mean, genz);
+}
+
+std::vector<double> eval_mvn_domain_grad_auto(
+  MvnTape& tape,
+  const std::vector<double>& upper,
+  const std::vector<double>& mean,
+  const GenzPack& genz) {
+
+  std::vector<double> analytic =
+    analytic_mvn_domain_grad(upper, mean, genz, tape.lower);
+  if (!analytic.empty()) {
+    return analytic;
+  }
+
+  detail::init_qnorm_atomic();
   const CppAD::vector<double> x = detail::to_cppad_vector(pack_domain(upper, mean, genz));
 
   CppAD::sparse_rc<CppAD::vector<size_t>> jac_pattern;

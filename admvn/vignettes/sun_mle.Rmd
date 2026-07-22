@@ -48,7 +48,7 @@ str(true_sun_params, max.level = 1)
 ```{r sim, eval = requireNamespace("sn", quietly = TRUE)}
 library(sn)
 set.seed(0)
-n <- 200
+n <- 2000
 ysim <- sn::rsun(n, dp = true_sun_params)
 colnames(ysim) <- paste0("Y", 1:3)
 head(ysim)
@@ -64,8 +64,8 @@ of the 21-parameter vector. Evaluation supports `deriv = 0` (value),
 `1` (value + gradient), or `2` (value + gradient + Hessian).
 
 ```{r tape, eval = requireNamespace("sn", quietly = TRUE)}
-qmc_n_points <- 800L
-qmc_n_shifts <- 8L
+qmc_n_points <- 200L
+qmc_n_shifts <- 4L
 
 build_time <- system.time({
   tape <- dsun_fun(
@@ -125,7 +125,7 @@ fit_ad_time <- system.time({
     method = "L-BFGS-B",
     lower = lower,
     upper = upper,
-    control = list(fnscale = -1, maxit = 5, REPORT = 1, trace = 1)
+    control = list(fnscale = -1, maxit = 500, REPORT = 1, trace = 1)
   )
 })
 
@@ -150,13 +150,15 @@ fit_sn_time <- system.time({
     method = "L-BFGS-B",
     lower = lower,
     upper = upper,
-    control = list(fnscale = -1, maxit = 5, REPORT = 1, trace = 1)
+    control = list(fnscale = -1, maxit = 500, REPORT = 1, trace = 1)
   )
 })
 
 fit_sn$convergence
 fit_sn$value
+fit_ad$value
 unname(fit_sn_time["elapsed"])
+unname(fit_ad_time["elapsed"])
 ```
 
 ```{r compare, eval = requireNamespace("sn", quietly = TRUE)}

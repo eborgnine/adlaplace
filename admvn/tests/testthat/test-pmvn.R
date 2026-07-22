@@ -149,3 +149,49 @@ test_that("univariate pmvn matches pnorm", {
   expect_equal(out$value, pnorm(0.5, sd = sd))
   expect_equal(out$gradient, dnorm(0.5 / sd) / sd)
 })
+
+test_that("analytic trivariate upper gradient matches conditional formula", {
+  skip_if_not_installed("mvtnorm")
+  sigma <- matrix(c(
+    1.0, 0.3, 0.2,
+    0.3, 1.2, 0.1,
+    0.2, 0.1, 1.1
+  ), 3, 3)
+  upper <- c(0.4, 0.1, -0.2)
+  out <- pmvn(
+    upper,
+    lower = rep(-Inf, 3),
+    sigma = sigma,
+    n_points = 1500L,
+    n_shifts = 8L
+  )
+  s11 <- sigma[1, 1]
+  beta <- as.numeric(sigma[2:3, 1] / s11)
+  cond_mean <- beta * upper[1]
+  cond_cov <- sigma[2:3, 2:3] - tcrossprod(sigma[2:3, 1]) / s11
+  g1 <- dnorm(upper[1], sd = sqrt(s11)) *
+    as.numeric(mvtnorm::pmvnorm(upper = upper[2:3] - cond_mean, sigma = cond_cov))
+  expect_equal(out$gradient[1], g1, tolerance = 1e-6)
+})
+
+test_that("dsun gradient still matches numDeriv with analytic pmvn reverse", {
+  skip_if_not_installed("sn")
+  skip_if_not_installed("numDeriv")
+  par <- c(
+    xi1 = 0, xi2 = 0, xi3 = 0,
+    nu1 = 1, nu2 = 1, nu3 = 1,
+    ell21 = 0.2, ell31 = 0.1, ell32 = 0.2,
+    L11 = 1, L12 = 0.5, L13 = 1,
+    L21 = 0.5, L22 = 1, L23 = 1.5,
+    L31 = 0, L32 = 0.5, L33 = 1,
+    a = 0.3, b = 0.2, c = 0.3
+  )
+  dp <- make_sun_params(par)
+  set.seed(4)
+  x <- sn::rsun(3, dp = dp)
+  tape <- dsun_fun(x, par, n_points = 1200L, n_shifts = 8L, n_threads = 1L)
+  f <- function(p) tape$eval(p, log = TRUE, deriv = 0L)$value
+  g_num <- numDeriv::grad(f, par, method = "Richardson")
+  g_ad <- tape$eval(par, log = TRUE, deriv = 1L)$gradient
+  expect_equal(g_ad, as.numeric(g_num), tolerance = 0.4)
+})

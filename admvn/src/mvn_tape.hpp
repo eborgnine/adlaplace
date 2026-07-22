@@ -78,6 +78,13 @@ std::vector<double> eval_mvn_domain_grad(
   const std::vector<double>& mean,
   const std::vector<std::vector<double>>& sigma);
 
+// Prefer analytic orthant gradients (n<=3, lower=-Inf); fall back to AD-QMC.
+std::vector<double> eval_mvn_domain_grad_auto(
+  MvnTape& tape,
+  const std::vector<double>& upper,
+  const std::vector<double>& mean,
+  const GenzPack& genz);
+
 }  // namespace admvn
 
 #endif

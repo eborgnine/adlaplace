@@ -159,8 +159,13 @@ public:
       }
     }
 
-    const std::vector<double> grad_domain =
-      eval_mvn_domain_grad(*pmvn_atomic_tape, upper, mean, sigma);
+    // Analytic domain gradient w.r.t. the (upper, mean, scale, L) in tx;
+    // fall back to AD-through-QMC when analytic is unavailable.
+    std::vector<double> grad_domain =
+      eval_mvn_domain_grad_auto(*pmvn_atomic_tape, upper, mean, genz);
+    if (grad_domain.empty()) {
+      grad_domain = eval_mvn_domain_grad(*pmvn_atomic_tape, upper, mean, sigma);
+    }
 
     for (std::size_t i = 0; i < n_in; ++i) {
       px[i] += py[0] * grad_domain[i];
