@@ -361,31 +361,6 @@ std::vector<double> make_as(
   return as;
 }
 
-double qmc_error(
-  const MvnTape& tape,
-  const std::vector<double>& upper,
-  const std::vector<double>& mean,
-  const GenzPack& genz) {
-
-  const std::vector<double> bs = make_bs(upper, mean, tape.perm, genz.scale);
-  const std::vector<double> as = make_as(tape.lower, mean, tape.perm, genz.scale);
-  double p = 0.0;
-  double e = 0.0;
-
-  for (std::size_t shift = 0; shift < tape.n_shifts; ++shift) {
-    double sm = 0.0;
-    for (std::size_t pt = 0; pt < tape.n_points; ++pt) {
-      sm += qmc_integrand_double(bs, as, genz.ch, tape.qmc_w[shift][pt]);
-    }
-    sm /= static_cast<double>(tape.n_points);
-    const double dm = (sm - p) / static_cast<double>(shift + 1);
-    p += dm;
-    e = (static_cast<double>(shift) * e / static_cast<double>(shift + 1)) + dm * dm;
-  }
-  (void)p;
-  return 3.0 * std::sqrt(e);
-}
-
 ChMatrix<CppAD::AD<double>> unpack_ch_ad(
   const std::vector<CppAD::AD<double>>& x,
   std::size_t n,
@@ -486,6 +461,34 @@ GenzPack pack_genz_ch_sigma_p(
 
 }  // namespace
 
+double eval_mvn_value_double(
+  const MvnTape& tape,
+  const std::vector<double>& upper,
+  const std::vector<double>& mean,
+  const GenzPack& genz,
+  double* error_out) {
+
+  const std::vector<double> bs = make_bs(upper, mean, tape.perm, genz.scale);
+  const std::vector<double> as = make_as(tape.lower, mean, tape.perm, genz.scale);
+  double p = 0.0;
+  double e = 0.0;
+
+  for (std::size_t shift = 0; shift < tape.n_shifts; ++shift) {
+    double sm = 0.0;
+    for (std::size_t pt = 0; pt < tape.n_points; ++pt) {
+      sm += qmc_integrand_double(bs, as, genz.ch, tape.qmc_w[shift][pt]);
+    }
+    sm /= static_cast<double>(tape.n_points);
+    const double dm = (sm - p) / static_cast<double>(shift + 1);
+    p += dm;
+    e = (static_cast<double>(shift) * e / static_cast<double>(shift + 1)) + dm * dm;
+  }
+  if (error_out != nullptr) {
+    *error_out = 3.0 * std::sqrt(e);
+  }
+  return p;
+}
+
 std::size_t vech_size(std::size_t n) {
   return n * (n + 1) / 2;
 }
@@ -533,7 +536,8 @@ MvnTape create_mvn_tape(
   const std::vector<std::vector<double>>& sigma_seed,
   std::size_t n_points,
   std::size_t n_shifts,
-  unsigned int seed) {
+  unsigned int seed,
+  bool value_only) {
 
   const std::size_t n = sigma_seed.size();
   if (n == 0) {
@@ -547,6 +551,7 @@ MvnTape create_mvn_tape(
   tape.n_points = n_points;
   tape.n_shifts = n_shifts;
   tape.lower = lower;
+  tape.value_only = value_only;
   tape.perm.resize(n);
   std::iota(tape.perm.begin(), tape.perm.end(), 0);
 
@@ -597,27 +602,29 @@ MvnTape create_mvn_tape(
   const std::vector<double> domain_seed =
     pack_domain(upper_seed, mean_seed, genz);
 
-  build_taped_fun(tape, lower, domain_seed);
-
   tape.x_seed = detail::to_cppad_vector(domain_seed);
 
-  std::vector<std::size_t> inner_subset(n);
-  std::iota(inner_subset.begin(), inner_subset.end(), 0);
+  if (!value_only) {
+    build_taped_fun(tape, lower, domain_seed);
 
-  detail::setup_mvn_sparsity(
-    tape.fun,
-    tape.x_seed,
-    inner_subset,
-    tape.pattern_grad,
-    tape.pattern_grad_inner,
-    tape.pattern_hessian,
-    tape.pattern_hessian_inner,
-    tape.work_grad,
-    tape.work_inner_grad,
-    tape.work_hess,
-    tape.work_inner_hess,
-    tape.unused_pattern,
-    tape.w);
+    std::vector<std::size_t> inner_subset(n);
+    std::iota(inner_subset.begin(), inner_subset.end(), 0);
+
+    detail::setup_mvn_sparsity(
+      tape.fun,
+      tape.x_seed,
+      inner_subset,
+      tape.pattern_grad,
+      tape.pattern_grad_inner,
+      tape.pattern_hessian,
+      tape.pattern_hessian_inner,
+      tape.work_grad,
+      tape.work_inner_grad,
+      tape.work_hess,
+      tape.work_inner_hess,
+      tape.unused_pattern,
+      tape.w);
+  }
 
   return tape;
 }
@@ -635,12 +642,8 @@ MvnResult eval_mvn_tape(
   out.hessian.assign(n, std::vector<double>(n, 0.0));
   out.gradient_mean.assign(n, 0.0);
 
-  detail::init_qnorm_atomic();
-
   const GenzPack genz = pack_genz_ch(sigma, tape.perm);
-  const CppAD::vector<double> x = detail::to_cppad_vector(pack_domain(upper, mean, genz));
-
-  out.value = tape.fun.Forward(0, x)[0];
+  out.value = eval_mvn_value_double(tape, upper, mean, genz, &out.error);
 
   // Prefer analytic ∂F/∂upper (and mean) from Sigma in original order.
   std::vector<double> g_upper;
@@ -649,6 +652,12 @@ MvnResult eval_mvn_tape(
     out.gradient = std::move(g_upper);
     out.gradient_mean = std::move(g_mean);
   } else {
+    if (tape.value_only) {
+      throw std::runtime_error(
+        "AD gradient requested for value_only MvnTape without analytic path");
+    }
+    detail::init_qnorm_atomic();
+    const CppAD::vector<double> x = detail::to_cppad_vector(pack_domain(upper, mean, genz));
     auto& pattern_grad = inner ? tape.pattern_grad_inner : tape.pattern_grad;
     auto& work_grad = inner ? tape.work_inner_grad : tape.work_grad;
     CppAD::sparse_rc<CppAD::vector<size_t>> jac_pattern;
@@ -674,26 +683,29 @@ MvnResult eval_mvn_tape(
     }
   }
 
-  auto& pattern_hes = inner ? tape.pattern_hessian_inner : tape.pattern_hessian;
-  auto& work_hes = inner ? tape.work_inner_hess : tape.work_hess;
-  CppAD::sparse_rc<CppAD::vector<size_t>> hes_pattern;
-  tape.fun.sparse_hes(x, tape.w, pattern_hes, hes_pattern, detail::kHessColor, work_hes);
+  if (!tape.value_only) {
+    detail::init_qnorm_atomic();
+    const CppAD::vector<double> x = detail::to_cppad_vector(pack_domain(upper, mean, genz));
+    auto& pattern_hes = inner ? tape.pattern_hessian_inner : tape.pattern_hessian;
+    auto& work_hes = inner ? tape.work_inner_hess : tape.work_hess;
+    CppAD::sparse_rc<CppAD::vector<size_t>> hes_pattern;
+    tape.fun.sparse_hes(x, tape.w, pattern_hes, hes_pattern, detail::kHessColor, work_hes);
 
-  const auto& rows = pattern_hes.row();
-  const auto& cols = pattern_hes.col();
-  const auto& vals = pattern_hes.val();
-  for (size_t k = 0; k < pattern_hes.nnz(); ++k) {
-    const std::size_t i = rows[k];
-    const std::size_t j = cols[k];
-    if (i < n && j < n) {
-      out.hessian[i][j] += vals[k];
-      if (i != j) {
-        out.hessian[j][i] += vals[k];
+    const auto& rows = pattern_hes.row();
+    const auto& cols = pattern_hes.col();
+    const auto& vals = pattern_hes.val();
+    for (size_t k = 0; k < pattern_hes.nnz(); ++k) {
+      const std::size_t i = rows[k];
+      const std::size_t j = cols[k];
+      if (i < n && j < n) {
+        out.hessian[i][j] += vals[k];
+        if (i != j) {
+          out.hessian[j][i] += vals[k];
+        }
       }
     }
   }
 
-  out.error = qmc_error(tape, upper, mean, genz);
   return out;
 }
 
@@ -719,6 +731,10 @@ std::vector<double> eval_mvn_domain_grad_auto(
     return analytic;
   }
 
+  if (tape.value_only) {
+    throw std::runtime_error(
+      "AD domain gradient requested for value_only MvnTape without analytic path");
+  }
   detail::init_qnorm_atomic();
   const CppAD::vector<double> x = detail::to_cppad_vector(pack_domain(upper, mean, genz));
 

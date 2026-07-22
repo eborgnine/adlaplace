@@ -5,6 +5,7 @@
 #include <omp.h>
 #endif
 
+#include "sun_holder.hpp"
 #include "sun_tape.hpp"
 
 namespace {
@@ -44,23 +45,6 @@ Rcpp::List sun_result_to_list(const admvn::SunResult& res, int deriv) {
     out["hessian"] = H;
   }
   return out;
-}
-
-class SunTapeHolder {
-public:
-  admvn::SunTapeBundle bundle;
-  std::vector<double> seed_par;
-
-  SunTapeHolder(admvn::SunTapeBundle b, std::vector<double> par)
-    : bundle(std::move(b)), seed_par(std::move(par)) {}
-};
-
-void sun_holder_finalizer(SEXP ptr) {
-  if (R_ExternalPtrAddr(ptr) == nullptr) {
-    return;
-  }
-  delete static_cast<SunTapeHolder*>(R_ExternalPtrAddr(ptr));
-  R_ClearExternalPtr(ptr);
 }
 
 admvn::SunTapeBundle make_sun_bundle(
@@ -119,7 +103,7 @@ SEXP dsun_fun_create_cpp(
   unsigned int seed = 1,
   int n_threads = 1) {
 
-  auto* holder = new SunTapeHolder(
+  auto* holder = new admvn::SunTapeHolder(
     make_sun_bundle(
       as_matrix_rows(x),
       as_vector(par_seed),
@@ -129,7 +113,7 @@ SEXP dsun_fun_create_cpp(
       n_threads),
     as_vector(par_seed));
   SEXP out = R_MakeExternalPtr(holder, R_NilValue, R_NilValue);
-  R_RegisterCFinalizerEx(out, sun_holder_finalizer, TRUE);
+  R_RegisterCFinalizerEx(out, admvn::sun_holder_finalizer, TRUE);
   Rf_setAttrib(out, R_ClassSymbol, Rf_mkString("admvn_sun_tape_ptr"));
   return out;
 }
@@ -142,10 +126,7 @@ Rcpp::List dsun_fun_eval_cpp(
   int deriv = 0,
   int n_threads = 0) {
 
-  if (R_ExternalPtrAddr(ptr) == nullptr) {
-    Rcpp::stop("invalid admvn SUN tape pointer");
-  }
-  auto* holder = static_cast<SunTapeHolder*>(R_ExternalPtrAddr(ptr));
+  auto* holder = admvn::sun_holder_from_sexp(ptr);
 
   std::vector<double> par_v;
   if (par.isNotNull()) {

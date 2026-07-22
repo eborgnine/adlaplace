@@ -66,7 +66,8 @@ SunResult eval_sun_bundle(
   const std::vector<double>& par,
   bool log_scale = true,
   int deriv = 0,
-  int n_threads = 0);
+  int n_threads = 0,
+  bool manage_parallel_scope = true);
 
 }  // namespace admvn
 

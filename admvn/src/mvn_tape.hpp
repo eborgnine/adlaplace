@@ -28,6 +28,9 @@ struct MvnTape {
   std::vector<std::vector<std::vector<double>>> qmc_w;
   std::size_t n_points = 0;
   std::size_t n_shifts = 0;
+  // When true, skip CppAD tape build; values use compiled QMC and gradients
+  // use analytic formulas (n <= 3, lower = -Inf).
+  bool value_only = false;
 
   CppAD::ADFun<double> fun;
   CppAD::sparse_jac_work work_grad;
@@ -63,7 +66,16 @@ MvnTape create_mvn_tape(
   const std::vector<std::vector<double>>& sigma_seed,
   std::size_t n_points,
   std::size_t n_shifts,
-  unsigned int seed);
+  unsigned int seed,
+  bool value_only = false);
+
+// Compiled double QMC value (+ optional Monte Carlo error estimate).
+double eval_mvn_value_double(
+  const MvnTape& tape,
+  const std::vector<double>& upper,
+  const std::vector<double>& mean,
+  const GenzPack& genz,
+  double* error_out);
 
 MvnResult eval_mvn_tape(
   MvnTape& tape,

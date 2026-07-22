@@ -123,3 +123,60 @@ test_that("optim_fns caches fn and gr for the same par", {
   expect_equal(obj$fn(par), direct$value, tolerance = 1e-10)
   expect_equal(obj$gr(par), direct$gradient, tolerance = 1e-8)
 })
+
+test_that("sun_mle improves loglik from a perturbed start", {
+  skip_if_not_installed("sn")
+  skip_if_not_installed("trustOptim")
+  par <- c(
+    xi1 = 0, xi2 = 0, xi3 = 0,
+    nu1 = 1, nu2 = 1, nu3 = 1,
+    ell21 = 0.2, ell31 = 0.1, ell32 = 0.2,
+    L11 = 1, L12 = 0.5, L13 = 1,
+    L21 = 0.5, L22 = 1, L23 = 1.5,
+    L31 = 0, L32 = 0.5, L33 = 1,
+    a = 0.3, b = 0.2, c = 0.3
+  )
+  dp <- make_sun_params(par)
+  set.seed(5)
+  x <- sn::rsun(20, dp = dp)
+  start <- par
+  start[1:3] <- c(0.2, -0.1, 0.1)
+  start[4:6] <- c(1.2, 0.8, 1.1)
+  tape <- dsun_fun(x, start, n_points = 400L, n_shifts = 6L, n_threads = 1L)
+  ll0 <- tape$eval(start, log = TRUE, deriv = 0L)$value
+  fit <- sun_mle(tape, start, control = list(maxit = 20L))
+  expect_true(is.finite(fit$value))
+  expect_gt(fit$value, ll0 - 1e-6)
+  expect_true(all(fit$par[4:6] > 0))
+})
+
+test_that("sun_mle reaches the same optimum as optim on a small sample", {
+  skip_if_not_installed("sn")
+  skip_if_not_installed("trustOptim")
+  par <- c(
+    xi1 = 0, xi2 = 0, xi3 = 0,
+    nu1 = 1, nu2 = 1, nu3 = 1,
+    ell21 = 0.2, ell31 = 0.1, ell32 = 0.2,
+    L11 = 1, L12 = 0.5, L13 = 1,
+    L21 = 0.5, L22 = 1, L23 = 1.5,
+    L31 = 0, L32 = 0.5, L33 = 1,
+    a = 0.3, b = 0.2, c = 0.3
+  )
+  dp <- make_sun_params(par)
+  set.seed(6)
+  x <- sn::rsun(12, dp = dp)
+  start <- par
+  start[1:3] <- c(0.15, -0.05, 0.08)
+  start[4:6] <- c(1.1, 0.9, 1.05)
+  tape <- dsun_fun(x, start, n_points = 400L, n_shifts = 6L, n_threads = 1L)
+  obj <- tape$optim_fns()
+  lower <- c(rep(-Inf, 3), rep(1e-3, 3), rep(-Inf, 15))
+  fit_opt <- optim(
+    start, fn = obj$fn, gr = obj$gr,
+    method = "L-BFGS-B", lower = lower, upper = rep(Inf, 21L),
+    control = list(fnscale = -1, maxit = 40L)
+  )
+  fit_tr <- sun_mle(tape, start, control = list(maxit = 40L))
+  expect_equal(fit_tr$value, fit_opt$value, tolerance = 0.05)
+  expect_equal(fit_tr$par, unname(fit_opt$par), tolerance = 0.15)
+})

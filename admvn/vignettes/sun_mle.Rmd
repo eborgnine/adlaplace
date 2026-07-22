@@ -20,9 +20,10 @@ library(admvn)
 ```
 
 This vignette shows how to obtain the MLE of a SUN$(3,3)$ distribution with
-`stats::optim()`, supplying an analytic gradient from `admvn::dsun_fun()`.
-The same simulated example is also fit with `sn::dsun` (value only) for
-comparison.
+analytic gradients from `admvn::dsun_fun()`. Gradients of the MVN orthant
+probabilities use closed-form formulas, so the QMC budget only needs to
+resolve the log-likelihood *value*. We compare `stats::optim()`, the C++
+trust-region driver `sun_mle()`, and a value-only `sn::dsun` fit.
 
 ## Parameterization
 
@@ -48,24 +49,22 @@ str(true_sun_params, max.level = 1)
 ```{r sim, eval = requireNamespace("sn", quietly = TRUE)}
 library(sn)
 set.seed(0)
-n <- 2000
+n <- 500
 ysim <- sn::rsun(n, dp = true_sun_params)
 colnames(ysim) <- paste0("Y", 1:3)
 head(ysim)
 ```
 
-A moderate sample size and QMC budget keep the vignette build time manageable.
-For production fits, increase `n` and `n_points` / `n_shifts` as needed.
-
 ## Build a reusable log-likelihood tape
 
-`dsun_fun()` fixes the data and tapes the summed log-likelihood as a function
-of the 21-parameter vector. Evaluation supports `deriv = 0` (value),
-`1` (value + gradient), or `2` (value + gradient + Hessian).
+`dsun_fun()` fixes the data and builds per-observation shard tapes. Because
+gradients are analytic, a modest QMC budget (e.g. `400 × 6`) is enough for
+optimization.
 
 ```{r tape, eval = requireNamespace("sn", quietly = TRUE)}
-qmc_n_points <- 200L
-qmc_n_shifts <- 4L
+# Modest QMC: gradients do not differentiate through QMC.
+qmc_n_points <- 400L
+qmc_n_shifts <- 6L
 
 build_time <- system.time({
   tape <- dsun_fun(
@@ -89,10 +88,8 @@ c(
 
 ## MLE with `optim()` and an analytic gradient
 
-`tape$optim_fns()` returns `fn` and `gr` closures. `fn` evaluates the
-log-likelihood only (`deriv = 0`); `gr` computes the analytic gradient
-(`deriv = 1`). Results are cached by parameter value so repeated calls at the
-same `par` are free.
+`tape$optim_fns()` returns cached `fn`/`gr` that share one `deriv = 1`
+evaluation per new parameter value.
 
 ```{r mle-admvn, eval = requireNamespace("sn", quietly = TRUE)}
 start_params <- true_params
@@ -125,13 +122,31 @@ fit_ad_time <- system.time({
     method = "L-BFGS-B",
     lower = lower,
     upper = upper,
-    control = list(fnscale = -1, maxit = 500, REPORT = 1, trace = 1)
+    control = list(fnscale = -1, maxit = 50, REPORT = 1, trace = 1)
   )
 })
 
 fit_ad$convergence
 fit_ad$value
 unname(fit_ad_time["elapsed"])
+```
+
+## MLE with C++ `sun_mle()` (trustOptim)
+
+`sun_mle()` runs a quasi-Newton trust-region loop entirely in C++ (no R
+fn/gr round-trips). The `nu` parameters are optimized on the log scale.
+
+```{r mle-trust, eval = requireNamespace("sn", quietly = TRUE) && requireNamespace("trustOptim", quietly = TRUE)}
+fit_trust_time <- system.time({
+  fit_trust <- sun_mle(
+    tape,
+    start_params,
+    control = list(maxit = 50L, report.freq = 1L, report.level = 1L)
+  )
+})
+fit_trust$value
+fit_trust$iterations
+unname(fit_trust_time["elapsed"])
 ```
 
 ## Comparison with value-only `sn` MLE
@@ -150,31 +165,32 @@ fit_sn_time <- system.time({
     method = "L-BFGS-B",
     lower = lower,
     upper = upper,
-    control = list(fnscale = -1, maxit = 500, REPORT = 1, trace = 1)
+    control = list(fnscale = -1, maxit = 50, REPORT = 1, trace = 1)
   )
 })
 
 fit_sn$convergence
 fit_sn$value
-fit_ad$value
-unname(fit_sn_time["elapsed"])
-unname(fit_ad_time["elapsed"])
+c(
+  optim_sec = unname(fit_ad_time["elapsed"]),
+  sun_mle_sec = if (exists("fit_trust_time")) unname(fit_trust_time["elapsed"]) else NA,
+  sn_sec = unname(fit_sn_time["elapsed"])
+)
 ```
 
 ```{r compare, eval = requireNamespace("sn", quietly = TRUE)}
-cbind(
+tab <- cbind(
   true = true_params,
   start = start_params,
-  mle_admvn = fit_ad$par,
+  mle_optim = fit_ad$par,
   mle_sn = fit_sn$par
 )
-rbind(
-  true_mean = sn::sunMean(dp = true_sun_params),
-  mle_admvn_mean = sn::sunMean(dp = make_sun_params(fit_ad$par)),
-  mle_sn_mean = sn::sunMean(dp = make_sun_params(fit_sn$par))
-)
+if (exists("fit_trust")) {
+  tab <- cbind(tab, mle_sun_mle = fit_trust$par)
+}
+tab
 ```
 
-Small differences between the two fits are expected: `admvn` approximates the
-SUN orthant probabilities with quasi-Monte Carlo, while `sn` uses its own CDF
+Small differences between fits are expected: `admvn` approximates the SUN
+orthant probabilities with quasi-Monte Carlo, while `sn` uses its own CDF
 routine.

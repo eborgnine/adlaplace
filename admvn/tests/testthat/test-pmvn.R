@@ -150,6 +150,25 @@ test_that("univariate pmvn matches pnorm", {
   expect_equal(out$gradient, dnorm(0.5 / sd) / sd)
 })
 
+test_that("compiled double QMC value matches taped Forward path", {
+  # Public pmvn() now uses the compiled double value path; cross-check against
+  # a reusable tape that still records the CppAD graph (non-value_only).
+  sigma <- matrix(c(1, 0.25, 0.25, 1.1), 2, 2)
+  upper <- c(0.3, -0.1)
+  lower <- c(-Inf, -Inf)
+  mean <- c(0, 0)
+  a <- pmvn(
+    upper, lower = lower, mean = mean, sigma = sigma,
+    n_points = 2000L, n_shifts = 10L, seed = 9L
+  )
+  f <- pmvn_fun(
+    lower = lower, mean = mean, sigma = sigma,
+    n_points = 2000L, n_shifts = 10L, seed = 9L
+  )
+  b <- f$eval(upper)
+  expect_equal(a$value, b$value, tolerance = 1e-12)
+})
+
 test_that("analytic trivariate upper gradient matches conditional formula", {
   skip_if_not_installed("mvtnorm")
   sigma <- matrix(c(

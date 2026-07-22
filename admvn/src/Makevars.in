@@ -1,5 +1,6 @@
 # Standalone package: CppAD via LinkingTo: RCppAD; optional OpenMP.
-PKG_CPPFLAGS = @OPENMP_CPPFLAGS@
+# Eigen via LinkingTo: RcppEigen; trustOptim headers via LinkingTo: trustOptim.
+PKG_CPPFLAGS = @OPENMP_CPPFLAGS@ -DEIGEN_DONT_PARALLELIZE
 # Keep CppAD thread_alloc / AD statics local to this DSO when mixed with other
 # CppAD packages in one R process.
 # VISIBILITY_CXXFLAGS set by configure after probing.

@@ -84,9 +84,8 @@ dsun <- function(x,
 #'
 #' @return An object of class \code{"admvn_sun_tape"} with components
 #'   \code{eval(par, log = TRUE, deriv = 0, n_threads = 0)} and
-#'   \code{optim_fns()} for \code{optim()}: \code{fn} is value-only
-#'   (\code{deriv = 0}); \code{gr} returns the analytic gradient
-#'   (\code{deriv = 1}). Both cache by parameter value.
+#'   \code{optim_fns()} for \code{optim()}: \code{fn}/\code{gr} share one
+#'   \code{deriv = 1} evaluation cached by parameter value.
 #' @export
 dsun_fun <- function(x,
                      par_seed,
@@ -139,30 +138,27 @@ dsun_fun <- function(x,
     cache$value <- NULL
     cache$gradient <- NULL
 
+    # One deriv=1 eval per new par (analytic reverse makes this barely
+    # more expensive than value-only); fn and gr share the cache.
+    ensure <- function(p) {
+      if (!is.null(cache$par) && same_par(p, cache$par) &&
+            !is.null(cache$value) && !is.null(cache$gradient)) {
+        return(invisible(NULL))
+      }
+      out <- eval_fn(p, log = log, deriv = 1L, n_threads = n_threads)
+      cache$par <- p
+      cache$value <- out$value
+      cache$gradient <- out$gradient
+      invisible(NULL)
+    }
+
     list(
       fn = function(p) {
-        # Value only: much cheaper than gradient (no pmvn reverse / Jac).
-        if (!is.null(cache$par) && same_par(p, cache$par) &&
-              !is.null(cache$value)) {
-          return(cache$value)
-        }
-        out <- eval_fn(p, log = log, deriv = 0L, n_threads = n_threads)
-        if (is.null(cache$par) || !same_par(p, cache$par)) {
-          cache$gradient <- NULL
-        }
-        cache$par <- p
-        cache$value <- out$value
+        ensure(p)
         cache$value
       },
       gr = function(p) {
-        if (!is.null(cache$par) && same_par(p, cache$par) &&
-              !is.null(cache$gradient)) {
-          return(cache$gradient)
-        }
-        out <- eval_fn(p, log = log, deriv = 1L, n_threads = n_threads)
-        cache$par <- p
-        cache$value <- out$value
-        cache$gradient <- out$gradient
+        ensure(p)
         cache$gradient
       },
       clear = function() {
@@ -183,5 +179,42 @@ dsun_fun <- function(x,
       optim_fns = optim_fns
     ),
     class = c("admvn_sun_tape", "list")
+  )
+}
+
+#' SUN(3,3) MLE via C++ trust-region optimization
+#'
+#' Maximizes the taped SUN log-likelihood using the quasi-Newton trust-region
+#' solver from \pkg{trustOptim} (SR1 by default). The `nu` components are
+#' optimized on the log scale so that they remain positive. The entire
+#' optimization runs in C++ with one OpenMP-parallel value+gradient evaluation
+#' per iteration.
+#'
+#' @param tape An object from [dsun_fun()].
+#' @param start Numeric start vector of length 21 (natural parameterization).
+#' @param control List of trust-region controls (see \pkg{trustOptim}), e.g.
+#'   \code{maxit}, \code{grad.tol}, \code{report.freq},
+#'   \code{quasi.newton.method} (1 = SR1, 2 = BFGS).
+#' @param n_threads Threads for shard evaluation; \code{0} uses the tape default.
+#'
+#' @return A list with \code{par}, \code{value} (log-likelihood),
+#'   \code{gradient}, \code{iterations}, \code{status}, and related fields.
+#' @export
+sun_mle <- function(tape, start, control = list(), n_threads = 0L) {
+  if (!inherits(tape, "admvn_sun_tape")) {
+    stop("tape must be created by dsun_fun()")
+  }
+  start <- as.numeric(start)
+  if (length(start) != 21L) {
+    stop("start must have length 21")
+  }
+  if (any(start[4:6] <= 0)) {
+    stop("nu1, nu2, nu3 in start must be positive")
+  }
+  sun_mle_cpp(
+    tape$ptr,
+    start = start,
+    control = control,
+    n_threads = as.integer(n_threads)
   )
 }

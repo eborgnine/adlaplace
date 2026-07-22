@@ -97,9 +97,8 @@ public:
       }
     }
 
-    const std::vector<double> domain = pack_domain(upper, mean, genz);
-    const CppAD::vector<double> x = detail::to_cppad_vector(domain);
-    ty[0] = pmvn_atomic_tape->fun.Forward(0, x)[0];
+    double* no_err = nullptr;
+    ty[0] = eval_mvn_value_double(*pmvn_atomic_tape, upper, mean, genz, no_err);
     return true;
   }
 

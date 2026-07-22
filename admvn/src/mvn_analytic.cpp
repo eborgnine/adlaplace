@@ -14,7 +14,8 @@ namespace {
 constexpr double kTwoPi = 2.0 * 3.14159265358979323846;
 
 inline bool is_neg_inf(double x) {
-  return !std::isfinite(x) && x < 0.0;
+  // Accept true -Inf and the historical Genz sentinel (~-1e50).
+  return (!std::isfinite(x) && x < 0.0) || x <= -1e20;
 }
 
 inline double clamp_cor(double r) {

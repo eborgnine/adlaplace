@@ -10,6 +10,7 @@
 #include <array>
 #include <cmath>
 #include <limits>
+#include <memory>
 #include <numeric>
 #include <stdexcept>
 
@@ -21,7 +22,7 @@ namespace admvn {
 namespace {
 
 constexpr double kLog2Pi = 1.8378770664093453;
-constexpr double kNegInf = -1e50;
+constexpr double kNegInf = -std::numeric_limits<double>::infinity();
 
 using AD = CppAD::AD<double>;
 using ChAD = std::vector<std::vector<AD>>;
@@ -669,7 +670,7 @@ SunTapeBundle create_sun_bundle(
 
   bundle.p2.p2_tape = create_mvn_tape(
     lower, mean_zero, mean_zero, mat_from_mat3(gamma),
-    n_points, n_shifts, seed + 1U);
+    n_points, n_shifts, seed + 1U, /*value_only=*/true);
   build_p2_shard_fun(bundle.p2);
   setup_adfun_sparsity(bundle.p2.adfun, par_seed);
 
@@ -697,7 +698,8 @@ SunTapeBundle create_sun_bundle(
 
     shard.p1_tape = create_mvn_tape(
       lower, upper_alpha, mean_zero, mat_from_mat3(lambda),
-      n_points, n_shifts, seed + 2U + static_cast<unsigned int>(obs));
+      n_points, n_shifts, seed + 2U + static_cast<unsigned int>(obs),
+      /*value_only=*/true);
 
     build_obs_shard_fun(shard);
     setup_adfun_sparsity(shard.adfun, par_seed);
@@ -712,7 +714,8 @@ SunResult eval_sun_bundle(
   const std::vector<double>& par,
   bool log_scale,
   int deriv,
-  int n_threads) {
+  int n_threads,
+  bool manage_parallel_scope) {
 
   if (par.size() != kSunNPar) {
     throw std::runtime_error("par must have length 21");
@@ -727,7 +730,12 @@ SunResult eval_sun_bundle(
   total.gradient.assign(kSunNPar, 0.0);
   total.hessian.assign(kSunNPar, std::vector<double>(kSunNPar, 0.0));
 
-  CppadParallelScope parallel_scope(static_cast<std::size_t>(n_threads));
+  // Optional RAII scope; trustOptim driver owns one scope for the whole loop.
+  std::unique_ptr<CppadParallelScope> parallel_scope;
+  if (manage_parallel_scope) {
+    parallel_scope =
+      std::make_unique<CppadParallelScope>(static_cast<std::size_t>(n_threads));
+  }
 
   const std::size_t n_shards = bundle.shards.size();
 

@@ -37,3 +37,7 @@ dsun_n_threads_default_cpp <- function() {
     .Call(`_admvn_dsun_n_threads_default_cpp`)
 }
 
+sun_mle_cpp <- function(ptr, start, control, n_threads = 0L) {
+    .Call(`_admvn_sun_mle_cpp`, ptr, start, control, n_threads)
+}
+
