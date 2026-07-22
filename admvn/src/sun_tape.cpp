@@ -92,7 +92,8 @@ ChAD diag3(const std::array<AD, kSunD>& d) {
 ChAD cov2cor3(const ChAD& sigma) {
   std::array<AD, kSunD> scale{};
   for (std::size_t i = 0; i < kSunD; ++i) {
-    scale[i] = CppAD::sqrt(sigma[i][i]);
+    const AD s2 = CppAD::CondExpGt(sigma[i][i], AD(1e-12), sigma[i][i], AD(1e-12));
+    scale[i] = CppAD::sqrt(s2);
   }
   ChAD out = zeros_ad3();
   for (std::size_t i = 0; i < kSunD; ++i) {
@@ -386,7 +387,8 @@ void pack_genz_ad(
   ChAD ch{};
   chol_lower_ad3(corr, ch);
   for (std::size_t i = 0; i < kSunD; ++i) {
-    scale[i] = CppAD::sqrt(sigma[i][i]);
+    const AD s2 = CppAD::CondExpGt(sigma[i][i], AD(1e-12), sigma[i][i], AD(1e-12));
+    scale[i] = CppAD::sqrt(s2);
   }
   vech_ch.assign(vech_size(kSunD), AD(0.0));
   for (std::size_t i = 0; i < kSunD; ++i) {

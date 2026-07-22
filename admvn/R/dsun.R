@@ -140,15 +140,28 @@ dsun_fun <- function(x,
 
     # One deriv=1 eval per new par (analytic reverse makes this barely
     # more expensive than value-only); fn and gr share the cache.
+    # Sanitize for L-BFGS-B: non-finite / huge grads from wild Omega steps
+    # otherwise abort optim().
+    sanitize <- function(value, gradient) {
+      if (!is.finite(value)) {
+        value <- if (isTRUE(log)) -1e300 else 0
+      }
+      gradient <- as.numeric(gradient)
+      gradient[!is.finite(gradient)] <- 0
+      gradient <- pmin(pmax(gradient, -1e8), 1e8)
+      list(value = value, gradient = gradient)
+    }
+
     ensure <- function(p) {
       if (!is.null(cache$par) && same_par(p, cache$par) &&
             !is.null(cache$value) && !is.null(cache$gradient)) {
         return(invisible(NULL))
       }
       out <- eval_fn(p, log = log, deriv = 1L, n_threads = n_threads)
+      safe <- sanitize(out$value, out$gradient)
       cache$par <- p
-      cache$value <- out$value
-      cache$gradient <- out$gradient
+      cache$value <- safe$value
+      cache$gradient <- safe$gradient
       invisible(NULL)
     }
 

@@ -159,11 +159,14 @@ public:
     }
 
     // Analytic domain gradient w.r.t. the (upper, mean, scale, L) in tx;
-    // fall back to AD-through-QMC when analytic is unavailable.
+    // fall back to AD-through-QMC when analytic is unavailable (non-value_only).
     std::vector<double> grad_domain =
       eval_mvn_domain_grad_auto(*pmvn_atomic_tape, upper, mean, genz);
     if (grad_domain.empty()) {
       grad_domain = eval_mvn_domain_grad(*pmvn_atomic_tape, upper, mean, sigma);
+    }
+    if (grad_domain.size() != n_in) {
+      return false;
     }
 
     for (std::size_t i = 0; i < n_in; ++i) {

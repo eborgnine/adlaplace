@@ -91,7 +91,7 @@ c(
 `tape$optim_fns()` returns cached `fn`/`gr` that share one `deriv = 1`
 evaluation per new parameter value.
 
-```{r setup}
+```{r mle-setup, eval = requireNamespace("sn", quietly = TRUE)}
 start_params <- true_params
 start_params[] <- c(
   xi1 = 0.2, xi2 = -0.1, xi3 = 0.1,
@@ -111,6 +111,15 @@ lower <- c(
   -Inf, -Inf, -Inf
 )
 upper <- rep(Inf, length(lower))
+# Rescale free parameters so L-BFGS-B does not take wild Omega steps.
+parscale <- pmax(abs(as.numeric(start_params)), 0.1)
+optim_ctrl <- list(
+  fnscale = -1,
+  maxit = 500,
+  parscale = parscale,
+  REPORT = 10,
+  trace = 1
+)
 
 obj <- tape$optim_fns()
 ```
@@ -124,7 +133,7 @@ fit_ad_time <- system.time({
     method = "L-BFGS-B",
     lower = lower,
     upper = upper,
-    control = list(fnscale = -1, maxit = 500, REPORT = 1, trace = 1)
+    control = optim_ctrl
   )
 })
 
@@ -156,7 +165,8 @@ unname(fit_trust_time["elapsed"])
 ```{r mle-sn, eval = requireNamespace("sn", quietly = TRUE)}
 sun_loglik_sn <- function(params, x) {
   dp <- make_sun_params(params)
-  sum(sn::dsun(x, dp = dp, log = TRUE))
+  ll <- sum(sn::dsun(x, dp = dp, log = TRUE))
+  if (!is.finite(ll)) -1e300 else ll
 }
 
 fit_sn_time <- system.time({
@@ -167,7 +177,7 @@ fit_sn_time <- system.time({
     method = "L-BFGS-B",
     lower = lower,
     upper = upper,
-    control = list(fnscale = -1, maxit = 500, REPORT = 10, trace = 1)
+    control = optim_ctrl
   )
 })
 

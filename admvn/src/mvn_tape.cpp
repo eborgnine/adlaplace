@@ -651,11 +651,13 @@ MvnResult eval_mvn_tape(
   if (analytic_mvn_upper_mean_grad(upper, mean, sigma, tape.lower, g_upper, g_mean)) {
     out.gradient = std::move(g_upper);
     out.gradient_mean = std::move(g_mean);
+  } else if (tape.value_only) {
+    // No AD reverse tape; signal a bad domain (e.g. non-PD Sigma) with NaNs
+    // instead of throwing (unsafe under OpenMP).
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    out.gradient.assign(n, nan);
+    out.gradient_mean.assign(n, nan);
   } else {
-    if (tape.value_only) {
-      throw std::runtime_error(
-        "AD gradient requested for value_only MvnTape without analytic path");
-    }
     detail::init_qnorm_atomic();
     const CppAD::vector<double> x = detail::to_cppad_vector(pack_domain(upper, mean, genz));
     auto& pattern_grad = inner ? tape.pattern_grad_inner : tape.pattern_grad;
@@ -732,8 +734,10 @@ std::vector<double> eval_mvn_domain_grad_auto(
   }
 
   if (tape.value_only) {
-    throw std::runtime_error(
-      "AD domain gradient requested for value_only MvnTape without analytic path");
+    // Analytic path unavailable (singular / non-PD Sigma, bad scales, etc.).
+    // Return NaNs so callers/optimizers can stop; do not throw under OpenMP.
+    return std::vector<double>(
+      tape.n_domain, std::numeric_limits<double>::quiet_NaN());
   }
   detail::init_qnorm_atomic();
   const CppAD::vector<double> x = detail::to_cppad_vector(pack_domain(upper, mean, genz));
