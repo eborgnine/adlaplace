@@ -123,7 +123,7 @@ fit_ad_time <- system.time({
     method = "L-BFGS-B",
     lower = lower,
     upper = upper,
-    control = list(fnscale = -1, maxit = 50)
+    control = list(fnscale = -1, maxit = 5)
   )
 })
 
