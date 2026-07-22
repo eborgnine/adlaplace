@@ -48,7 +48,7 @@ str(true_sun_params, max.level = 1)
 ```{r sim, eval = requireNamespace("sn", quietly = TRUE)}
 library(sn)
 set.seed(0)
-n <- 500
+n <- 200
 ysim <- sn::rsun(n, dp = true_sun_params)
 colnames(ysim) <- paste0("Y", 1:3)
 head(ysim)
@@ -72,7 +72,8 @@ build_time <- system.time({
     ysim,
     true_params,
     n_points = qmc_n_points,
-    n_shifts = qmc_n_shifts
+    n_shifts = qmc_n_shifts,
+    n_threads = 8L
   )
 })["elapsed"]
 
@@ -88,9 +89,10 @@ c(
 
 ## MLE with `optim()` and an analytic gradient
 
-`tape$optim_fns()` returns cached `fn` and `gr` closures. When `optim()`
-calls both at the same parameter value, the log-likelihood and gradient are
-computed in a single AD pass.
+`tape$optim_fns()` returns `fn` and `gr` closures. `fn` evaluates the
+log-likelihood only (`deriv = 0`); `gr` computes the analytic gradient
+(`deriv = 1`). Results are cached by parameter value so repeated calls at the
+same `par` are free.
 
 ```{r mle-admvn, eval = requireNamespace("sn", quietly = TRUE)}
 start_params <- true_params
@@ -123,7 +125,7 @@ fit_ad_time <- system.time({
     method = "L-BFGS-B",
     lower = lower,
     upper = upper,
-    control = list(fnscale = -1, maxit = 5)
+    control = list(fnscale = -1, maxit = 5, REPORT = 1, trace = 1)
   )
 })
 
@@ -148,7 +150,7 @@ fit_sn_time <- system.time({
     method = "L-BFGS-B",
     lower = lower,
     upper = upper,
-    control = list(fnscale = -1, maxit = 50)
+    control = list(fnscale = -1, maxit = 5, REPORT = 1, trace = 1)
   )
 })
 

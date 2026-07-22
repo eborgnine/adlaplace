@@ -84,7 +84,9 @@ dsun <- function(x,
 #'
 #' @return An object of class \code{"admvn_sun_tape"} with components
 #'   \code{eval(par, log = TRUE, deriv = 0, n_threads = 0)} and
-#'   \code{optim_fns()} for cached fn/gr used by \code{optim()}.
+#'   \code{optim_fns()} for \code{optim()}: \code{fn} is value-only
+#'   (\code{deriv = 0}); \code{gr} returns the analytic gradient
+#'   (\code{deriv = 1}). Both cache by parameter value.
 #' @export
 dsun_fun <- function(x,
                      par_seed,
@@ -137,24 +139,30 @@ dsun_fun <- function(x,
     cache$value <- NULL
     cache$gradient <- NULL
 
-    ensure <- function(p) {
-      if (!is.null(cache$par) && same_par(p, cache$par)) {
-        return(invisible(NULL))
-      }
-      out <- eval_fn(p, log = log, deriv = 1L, n_threads = n_threads)
-      cache$par <- p
-      cache$value <- out$value
-      cache$gradient <- out$gradient
-      invisible(NULL)
-    }
-
     list(
       fn = function(p) {
-        ensure(p)
+        # Value only: much cheaper than gradient (no pmvn reverse / Jac).
+        if (!is.null(cache$par) && same_par(p, cache$par) &&
+              !is.null(cache$value)) {
+          return(cache$value)
+        }
+        out <- eval_fn(p, log = log, deriv = 0L, n_threads = n_threads)
+        if (is.null(cache$par) || !same_par(p, cache$par)) {
+          cache$gradient <- NULL
+        }
+        cache$par <- p
+        cache$value <- out$value
         cache$value
       },
       gr = function(p) {
-        ensure(p)
+        if (!is.null(cache$par) && same_par(p, cache$par) &&
+              !is.null(cache$gradient)) {
+          return(cache$gradient)
+        }
+        out <- eval_fn(p, log = log, deriv = 1L, n_threads = n_threads)
+        cache$par <- p
+        cache$value <- out$value
+        cache$gradient <- out$gradient
         cache$gradient
       },
       clear = function() {
