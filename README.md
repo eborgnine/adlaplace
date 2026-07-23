@@ -64,11 +64,14 @@ HTML vignettes are published by CI to GitHub Pages:
 Examples:
 
 - [adlaplace overview](https://eborgnine.github.io/adlaplace/adlaplace/adlaplace.html)
+- [Case-crossover models](https://eborgnine.github.io/adlaplace/adlaplace/casecrossover.html)
+- [Dirichlet–multinomial equivalence](https://eborgnine.github.io/adlaplace/adlaplace/dirichlet_multinom.html)
 - [Germany BYM example](https://eborgnine.github.io/adlaplace/adlaplace/germany.html)
 - [GAMM examples](https://eborgnine.github.io/adlaplace/adlaplace/gamm.html)
-- [hpolcc](https://eborgnine.github.io/adlaplace/hpolcc/hpolcc.html)
+- [FEM Matérn methods](https://eborgnine.github.io/adlaplace/adlaplaceFem/fem_matern_methods.html)
+- [Loaloa FEM example](https://eborgnine.github.io/adlaplace/adlaplaceFem/loaloa.html)
 
-The site refreshes when the `R-CMD-check` workflow completes successfully (Sunday schedule or manual dispatch). Set the repo **Pages** source to **GitHub Actions** once if it is not already.
+Case-crossover / `hnlm` usage is documented in the **adlaplace** `casecrossover` vignette (not a separate `hpolcc` HTML vignette). The site refreshes when the `R-CMD-check` workflow completes successfully (Sunday schedule or manual dispatch). Set the repo **Pages** source to **GitHub Actions** once if it is not already.
 
 ## System requirements
 
