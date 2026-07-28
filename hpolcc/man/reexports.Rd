@@ -11,6 +11,6 @@ These objects are imported from other packages. Follow the links
 below to see their documentation.
 
 \describe{
-  \item{adlaplace}{\code{\link[adlaplace]{dirichlet_multinom}}}
+  \item{adlaplace}{\code{\link[adlaplace:dirichlet_multinom]{dirichlet_multinom()}}}
 }}
 

@@ -65,6 +65,8 @@ profile_shard_eval_times <- function(
   if (is.na(n_warmup) || n_warmup < 0L) {
     stop("n_warmup must be non-negative", call. = FALSE)
   }
+  # One GC before the timing loop (not per shard; avoids system.time gcFirst).
+  invisible(gc())
   n_shards <- n_groups(ptr)
   times <- numeric(n_shards)
   for (s in seq_len(n_shards) - 1L) {
@@ -75,7 +77,9 @@ profile_shard_eval_times <- function(
     }
     elapsed <- numeric(n_rep)
     for (r in seq_len(n_rep)) {
-      elapsed[[r]] <- system.time(eval_fun(ptr, x, s))[["elapsed"]]
+      t0 <- proc.time()[["elapsed"]]
+      eval_fun(ptr, x, s)
+      elapsed[[r]] <- proc.time()[["elapsed"]] - t0
     }
     times[[s + 1L]] <- mean(elapsed)
   }
@@ -105,6 +109,28 @@ profile_shard_hessian_times <- function(ptr, x, n_rep = 2L, n_warmup = 1L) {
     },
     n_rep = n_rep,
     n_warmup = n_warmup
+  )
+}
+
+# Overrides RcppExports binding (Collate: ad_pack.R after RcppExports.R):
+# one GC before C++ chrono timing, matching gradient/hessian helpers.
+profile_shard_trace3_times <- function(
+  handle,
+  x,
+  half_H_inv,
+  trace_columns,
+  n_rep = 4L,
+  n_warmup = 1L
+) {
+  invisible(gc())
+  .Call(
+    `_adlaplace_profile_shard_trace3_times`,
+    handle,
+    x,
+    half_H_inv,
+    trace_columns,
+    n_rep,
+    n_warmup
   )
 }
 

@@ -103,7 +103,7 @@ test_that("reorder_shards gradient LPT can differ from modulo and stays correct"
     adlaplace:::get_thread_owner(af_grad@ptr, g)
   }, integer(1))
   expect_true(all(owners_grad %in% 0:1))
-  # Small models may time as 0 under system.time; LPT then parks all on thread 0.
+  # Small models may time as 0 under proc.time; LPT then parks all on thread 0.
   expect_true(length(unique(owners_grad)) >= 1L)
   expect_equal(length(owners_grad), n)
 
