@@ -99,9 +99,8 @@ loaloa_model <- adlaplace::binomial(y, size = N) ~
 fit <- adlaplace::adlaplace(
   loaloa_model,
   data = loaloa_df,
-  num_groups = 20L,
   control = list(maxit = 200, trace = 3, REPORT = 1),
-  config = list(num_threads = 2L),
+  config = list(num_threads = 2L, num_shards = 20L),
   verbose = FALSE
 )
 fit$optim$convergence

@@ -64,7 +64,7 @@ config <- list(
   gamma = rep(0, n_gamma),
   theta = log(c(1e-2, 0.1)),
   offset = log(germany$E),
-  obs_groups = adlaplace::obs_groups(A_obs, num_groups = 2L),
+  obs_groups = adlaplace::obs_groups(A_obs, num_shards = 2L),
   verbose = FALSE
 )
 

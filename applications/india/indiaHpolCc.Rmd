@@ -163,7 +163,7 @@ res_pm_temp <- hnlm(
   config = list(
     transform_theta = TRUE,
     num_threads = parallel::detectCores(),
-    num_groups = 1e4,
+    num_shards = 1e4,
     num_sim = 500,
     verbose = TRUE
   ),
@@ -518,7 +518,7 @@ res_pm_temp_nt <- hnlm(
   config = list(
     transform_theta = FALSE,
     num_threads = parallel::detectCores(),
-    num_groups = 1e4,
+    num_shards = 1e4,
     num_sim = 500,
     verbose = TRUE
   ),

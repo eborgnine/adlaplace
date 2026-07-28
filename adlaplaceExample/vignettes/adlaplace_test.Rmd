@@ -100,7 +100,7 @@ config <- list(
   theta = c(log(thetaOrig[setdiff(names(thetaOrig), "alpha")]), thetaOrig["alpha"]),
   transform_theta = TRUE,
   gamma = rep(0, ncol(Amat)),
-  obs_groups = adlaplace::obs_groups(Amat, num_groups = 100),
+  obs_groups = adlaplace::obs_groups(Amat, num_shards = 100),
   num_threads = 4L,
   verbose = FALSE
 )
@@ -602,7 +602,7 @@ config2 <- list(
   transform_theta = TRUE,
   obs_groups = adlaplace::obs_groups(
     md$term_data$A,
-    num_groups = 100
+    num_shards = 100
   ),
   beta = xx_remap[seq_len(n_beta)],
   theta = xx_remap[-seq_len(n_beta)],

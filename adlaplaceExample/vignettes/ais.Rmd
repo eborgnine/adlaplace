@@ -51,7 +51,7 @@ model_stuff <- adlaplace::model_data(
 
 config <- list(
   transform_theta = TRUE,
-  obs_groups = adlaplace::obs_groups(model_stuff$term_data$A, num_groups = 100),
+  obs_groups = adlaplace::obs_groups(model_stuff$term_data$A, num_shards = 100),
   num_threads = 2L,
   verbose = FALSE
 )

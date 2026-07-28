@@ -107,7 +107,7 @@ config <- list(
   theta = log(thetaOrig),
   transform_theta = TRUE,
   gamma = rep(0, ncol(Amat)),
-  obs_groups = adlaplace::obs_groups(Amat, num_groups = 1000),
+  obs_groups = adlaplace::obs_groups(Amat, num_shards = 1000),
   verbose = FALSE,
   package = "adlaplace"
 )
@@ -602,7 +602,7 @@ config2 <- list(
   transform_theta = TRUE,
   obs_groups = obs_groups(
     md$term_data$A,
-    num_groups = 100
+    num_shards = 100
   )
 )
 ad_fun2 <- ad_pack(md, config2, num_threads = 2L)

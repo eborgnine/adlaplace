@@ -59,7 +59,7 @@ config <- list(
   transform_theta = TRUE,
   obs_groups = adlaplace::obs_groups(
     md$term_data$A,
-    num_groups = 100
+    num_shards = 100
   ),
   verbose = FALSE
 )
