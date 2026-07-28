@@ -70,13 +70,13 @@ fit <- adlaplace(
     data = london,
     num_threads = 2L,
     num_groups = 50L,
-    config = list(transform_theta = TRUE),
+    config = list(reorder_shards = "third"),
     control = list(
         maxit = 200, trace = 0, REPORT = 1,
         factr = 1e3,
         pgtol = 1e-8
     ),
-    verbose = FALSE
+    verbose = TRUE
 )
 ```
 

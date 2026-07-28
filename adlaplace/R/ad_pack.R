@@ -15,7 +15,7 @@ effective_num_threads <- function(num_threads) {
 #' @keywords internal
 match_reorder_shards <- function(reorder_shards) {
   reorder_shards <- as.character(reorder_shards)[1L]
-  match.arg(reorder_shards, c("hessian", "third", "none"))
+  match.arg(reorder_shards, c("third", "hessian", "none"))
 }
 
 #' Longest-processing-time thread assignment
@@ -118,7 +118,7 @@ new_ad_pack_from_ptr <- function(
   num_threads = 1L,
   info = list(),
   verbose = FALSE,
-  reorder_shards = c("hessian", "third", "none")
+  reorder_shards = c("third", "hessian", "none")
 ) {
   if (!is(ptr, "ad_pack_ptr")) {
     stop("ptr must be an ad_pack_ptr external pointer")
@@ -210,7 +210,7 @@ new_ad_pack_from_ptr <- function(
         cat("  profiling outer Hessian times per shard...\n")
         utils::flush.console()
       }
-      costs <- profile_shard_hessian_times(ptr, x_profile)
+      costs <- profile_shard_hessian_times(ptr, x_profile, n_rep = 2L)
     } else if (
       !is.null(chol_inner_list$half_H_inv) &&
         !is.null(chol_inner_list$trace_columns)
@@ -302,12 +302,12 @@ new_ad_pack_from_ptr <- function(
 #'   and parallel \code{trace_hinv_t}. Default \code{1L} (serial).
 #' @param reorder_shards Character; how to assign OpenMP owner threads when
 #'   \code{num_threads > 1} and there are multiple shards:
-#'   \code{"hessian"} (default) times each shard's outer
+#'   \code{"third"} (default) times a Reverse3 sweep with dummy directions
+#'   matching the symbolic \code{half_H_inv} / \code{trace_columns} sparsity
+#'   (no numeric Cholesky), then longest-processing-time (LPT) assignment;
+#'   \code{"hessian"} times each shard's outer
 #'   \code{\link{hessian}(..., inner = FALSE)} (1 warmup + mean of 4), then
-#'   longest-processing-time (LPT) assignment;
-#'   \code{"third"} times a Reverse3 sweep with dummy directions matching the
-#'   symbolic \code{half_H_inv} / \code{trace_columns} sparsity (no numeric
-#'   Cholesky), then LPT;
+#'   LPT;
 #'   \code{"none"} uses \code{owner_thread = shard_index \% num_threads}.
 #'   Physical shard order is unchanged; only \code{owner_thread} is rewritten.
 #' @param ... For \code{ad_pack_ptr} input, optional additional
@@ -317,7 +317,7 @@ new_ad_pack_from_ptr <- function(
 setGeneric(
   "ad_pack",
   function(x, config = NULL, num_threads = 1L,
-           reorder_shards = c("hessian", "third", "none"), ...) {
+           reorder_shards = c("third", "hessian", "none"), ...) {
     standardGeneric("ad_pack")
   }
 )
@@ -328,38 +328,39 @@ setMethod(
   "ad_pack",
   signature = c(x = "ad_pack_ptr"),
   function(x, config = NULL, num_threads = 1L,
-           reorder_shards = c("hessian", "third", "none"), ...) {
-  extras <- list(...)
-  verbose <- FALSE
-  if (!is.null(config)) {
-    if (is.list(config) && !is(config, "ad_pack_ptr")) {
-      # a genuine config list: only verbose / reorder_shards used at attach
-      verbose <- isTRUE(config[["verbose"]])
-      if (!is.null(config[["reorder_shards"]])) {
-        reorder_shards <- config[["reorder_shards"]]
+           reorder_shards = c("third", "hessian", "none"), ...) {
+    extras <- list(...)
+    verbose <- FALSE
+    if (!is.null(config)) {
+      if (is.list(config) && !is(config, "ad_pack_ptr")) {
+        # a genuine config list: only verbose / reorder_shards used at attach
+        verbose <- isTRUE(config[["verbose"]])
+        if (!is.null(config[["reorder_shards"]])) {
+          reorder_shards <- config[["reorder_shards"]]
+        }
+      } else {
+        # positional shorthand ad_pack(ptr1, ptr2, ...): treat as extra shard
+        extras <- c(list(config), extras)
       }
-    } else {
-      # positional shorthand ad_pack(ptr1, ptr2, ...): treat as extra shard
-      extras <- c(list(config), extras)
     }
+    if (length(extras) > 0L) {
+      if (!all(vapply(extras, function(ptr) is(ptr, "ad_pack_ptr"), logical(1)))) {
+        stop("additional arguments must be ad_pack_ptr", call. = FALSE)
+      }
+      if (verbose) {
+        cat("ad_pack: merging ", 1L + length(extras), " raw handle(s)...\n", sep = "")
+        utils::flush.console()
+      }
+      x <- do.call(c, c(list(x), extras))
+    }
+    new_ad_pack_from_ptr(
+      x,
+      num_threads = num_threads,
+      verbose = verbose,
+      reorder_shards = reorder_shards
+    )
   }
-  if (length(extras) > 0L) {
-    if (!all(vapply(extras, function(ptr) is(ptr, "ad_pack_ptr"), logical(1)))) {
-      stop("additional arguments must be ad_pack_ptr", call. = FALSE)
-    }
-    if (verbose) {
-      cat("ad_pack: merging ", 1L + length(extras), " raw handle(s)...\n", sep = "")
-      utils::flush.console()
-    }
-    x <- do.call(c, c(list(x), extras))
-  }
-  new_ad_pack_from_ptr(
-    x,
-    num_threads = num_threads,
-    verbose = verbose,
-    reorder_shards = reorder_shards
-  )
-})
+)
 
 #' @rdname ad_pack
 #' @export
@@ -367,7 +368,7 @@ setMethod(
   "ad_pack",
   signature = c(x = "density_data"),
   function(x, config, num_threads = 1L,
-           reorder_shards = c("hessian", "third", "none"), ...) {
+           reorder_shards = c("third", "hessian", "none"), ...) {
     if (missing(config) || is.null(config)) {
       stop("config is required for ad_pack(density_data, config)", call. = FALSE)
     }
@@ -392,113 +393,114 @@ setMethod(
   "ad_pack",
   signature = c(x = "list"),
   function(x, config, num_threads = 1L,
-           reorder_shards = c("hessian", "third", "none"), ...) {
-  if (!is_model_data_bundle(x)) {
-    stop(
-      "list `x` must be a bundle from model_data() with ",
-      "`observations`, `random`, and `parameters`",
-      call. = FALSE
+           reorder_shards = c("third", "hessian", "none"), ...) {
+    if (!is_model_data_bundle(x)) {
+      stop(
+        "list `x` must be a bundle from model_data() with ",
+        "`observations`, `random`, and `parameters`",
+        call. = FALSE
+      )
+    }
+    if (missing(config) || is.null(config)) {
+      stop("config is required for ad_pack(model_data, config)", call. = FALSE)
+    }
+    if (!is.null(config$num_threads)) {
+      num_threads <- config$num_threads
+    }
+    if (!is.null(config$reorder_shards)) {
+      reorder_shards <- config$reorder_shards
+    }
+    defaults <- list(
+      beta = init_from_info_block(x$term_data$info$beta),
+      theta = init_from_info_block(x$term_data$info$theta),
+      gamma = rep(0, nrow(x$term_data$info$gamma))
     )
-  }
-  if (missing(config) || is.null(config)) {
-    stop("config is required for ad_pack(model_data, config)", call. = FALSE)
-  }
-  if (!is.null(config$num_threads)) {
-    num_threads <- config$num_threads
-  }
-  if (!is.null(config$reorder_shards)) {
-    reorder_shards <- config$reorder_shards
-  }
-  defaults <- list(
-    beta = init_from_info_block(x$term_data$info$beta),
-    theta = init_from_info_block(x$term_data$info$theta),
-    gamma = rep(0, nrow(x$term_data$info$gamma))
-  )
-  config_build <- utils::modifyList(defaults, config)
-  theta_info <- x$term_data$info$theta
-  n_theta <- nrow(theta_info)
-  force_no_log <- identical(config_build$transform_theta, FALSE)
-  log_flags <- if (force_no_log) {
-    rep(FALSE, n_theta)
-  } else if (is.logical(config_build$transform_theta) &&
+    config_build <- utils::modifyList(defaults, config)
+    theta_info <- x$term_data$info$theta
+    n_theta <- nrow(theta_info)
+    force_no_log <- identical(config_build$transform_theta, FALSE)
+    log_flags <- if (force_no_log) {
+      rep(FALSE, n_theta)
+    } else if (is.logical(config_build$transform_theta) &&
       length(config_build$transform_theta) == n_theta &&
       n_theta > 0L) {
-    config_build$transform_theta
-  } else if (n_theta > 0L && "log" %in% names(theta_info)) {
-    flags <- theta_info$log
-    flags[is.na(flags)] <- TRUE
-    as.logical(flags)
-  } else {
-    rep(TRUE, n_theta)
-  }
-  config_build$transform_theta <- log_flags
-  if (is.null(config$theta) && n_theta > 0L) {
-    theta_for_log <- theta_info
-    if (!"log" %in% names(theta_for_log)) {
-      theta_for_log$log <- TRUE
-    }
-    theta_for_log$log <- log_flags
-    config_build$theta <- apply_theta_log(
-      theta_for_log,
-      cols = "init",
-      active = TRUE
-    )$init
-  }
-  verbose <- isTRUE(config_build[["verbose"]])
-  shard_list <- c(x$observations, x$random, x$parameters)
-  shard_names <- names(shard_list)
-  n_shards <- length(shard_list)
-  if (verbose) {
-    obs_groups <- if (!is.null(config_build$obs_groups)) {
-      ncol(config_build$obs_groups)
+      config_build$transform_theta
+    } else if (n_theta > 0L && "log" %in% names(theta_info)) {
+      flags <- theta_info$log
+      flags[is.na(flags)] <- TRUE
+      as.logical(flags)
     } else {
-      NA_integer_
+      rep(TRUE, n_theta)
     }
-    cat(
-      "ad_pack: building ", n_shards, " density shard(s)",
-      if (!is.na(obs_groups)) paste0(" (", obs_groups, " observation group(s) per obs shard)") else "",
-      "...\n",
-      sep = ""
-    )
-    utils::flush.console()
-  }
-  ptrs <- vector("list", n_shards)
-  for (i in seq_len(n_shards)) {
-    shard <- shard_list[[i]]
-    shard_name <- if (length(shard_names) >= i) shard_names[[i]] else NULL
+    config_build$transform_theta <- log_flags
+    if (is.null(config$theta) && n_theta > 0L) {
+      theta_for_log <- theta_info
+      if (!"log" %in% names(theta_for_log)) {
+        theta_for_log$log <- TRUE
+      }
+      theta_for_log$log <- log_flags
+      config_build$theta <- apply_theta_log(
+        theta_for_log,
+        cols = "init",
+        active = TRUE
+      )$init
+    }
+    verbose <- isTRUE(config_build[["verbose"]])
+    shard_list <- c(x$observations, x$random, x$parameters)
+    shard_names <- names(shard_list)
+    n_shards <- length(shard_list)
     if (verbose) {
+      obs_groups <- if (!is.null(config_build$obs_groups)) {
+        ncol(config_build$obs_groups)
+      } else {
+        NA_integer_
+      }
       cat(
-        "  [", i, "/", n_shards, "] ",
-        ad_shard_label(shard, shard_name),
-        " (CppAD tape",
-        if (identical(shard@ad_kind, "observations") && !is.null(config_build$obs_groups)) {
-          paste0(", ", ncol(config_build$obs_groups), " groups")
-        } else {
-          ""
-        },
-        ")...\n",
+        "ad_pack: building ", n_shards, " density shard(s)",
+        if (!is.na(obs_groups)) paste0(" (", obs_groups, " observation group(s) per obs shard)") else "",
+        "...\n",
         sep = ""
       )
       utils::flush.console()
     }
-    ptrs[[i]] <- ad_pack_ptr(shard, config = config_build)
+    ptrs <- vector("list", n_shards)
+    for (i in seq_len(n_shards)) {
+      shard <- shard_list[[i]]
+      shard_name <- if (length(shard_names) >= i) shard_names[[i]] else NULL
+      if (verbose) {
+        cat(
+          "  [", i, "/", n_shards, "] ",
+          ad_shard_label(shard, shard_name),
+          " (CppAD tape",
+          if (identical(shard@ad_kind, "observations") && !is.null(config_build$obs_groups)) {
+            paste0(", ", ncol(config_build$obs_groups), " groups")
+          } else {
+            ""
+          },
+          ")...\n",
+          sep = ""
+        )
+        utils::flush.console()
+      }
+      ptrs[[i]] <- ad_pack_ptr(shard, config = config_build)
+      if (verbose) {
+        cat("  [", i, "/", n_shards, "] done (", n_groups(ptrs[[i]]), " AD group(s)).\n", sep = "")
+        utils::flush.console()
+      }
+    }
     if (verbose) {
-      cat("  [", i, "/", n_shards, "] done (", n_groups(ptrs[[i]]), " AD group(s)).\n", sep = "")
+      cat("ad_pack: merging density handles...\n")
       utils::flush.console()
     }
+    new_ad_pack_from_ptr(
+      do.call(c, ptrs),
+      num_threads = num_threads,
+      info = x$term_data$info,
+      verbose = verbose,
+      reorder_shards = reorder_shards
+    )
   }
-  if (verbose) {
-    cat("ad_pack: merging density handles...\n")
-    utils::flush.console()
-  }
-  new_ad_pack_from_ptr(
-    do.call(c, ptrs),
-    num_threads = num_threads,
-    info = x$term_data$info,
-    verbose = verbose,
-    reorder_shards = reorder_shards
-  )
-})
+)
 
 #' C++ backend entry points
 #'
