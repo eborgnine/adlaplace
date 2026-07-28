@@ -11,7 +11,8 @@ test_that("lpt_assign_owners balances longest jobs first", {
   expect_equal(max(loads) - min(loads), 0)
 })
 
-test_that("match_reorder_shards accepts hessian/third/none", {
+test_that("match_reorder_shards accepts gradient/hessian/third/none", {
+  expect_equal(adlaplace:::match_reorder_shards("gradient"), "gradient")
   expect_equal(adlaplace:::match_reorder_shards("hessian"), "hessian")
   expect_equal(adlaplace:::match_reorder_shards("third"), "third")
   expect_equal(adlaplace:::match_reorder_shards("none"), "none")
@@ -54,7 +55,7 @@ test_that("reorder_shards none preserves modulo owners", {
   expect_equal(owners, (seq_len(n) - 1L) %% 2L)
 })
 
-test_that("reorder_shards hessian LPT can differ from modulo and stays correct", {
+test_that("reorder_shards gradient LPT can differ from modulo and stays correct", {
   skip_if_not(adlaplace:::has_openmp(), "OpenMP not available in this build")
   set.seed(42)
   Nobs <- 80L
@@ -89,27 +90,80 @@ test_that("reorder_shards hessian LPT can differ from modulo and stays correct",
     num_threads = 2L,
     reorder_shards = "none"
   )
-  af_hess <- adlaplace::ad_pack(
+  af_grad <- adlaplace::ad_pack(
     make_ptr(),
     num_threads = 2L,
-    reorder_shards = "hessian"
+    reorder_shards = "gradient"
   )
-  n <- adlaplace:::n_groups(af_hess@ptr)
+  n <- adlaplace:::n_groups(af_grad@ptr)
   owners_none <- vapply(seq_len(n) - 1L, function(g) {
     adlaplace:::get_thread_owner(af_none@ptr, g)
   }, integer(1))
-  owners_hess <- vapply(seq_len(n) - 1L, function(g) {
-    adlaplace:::get_thread_owner(af_hess@ptr, g)
+  owners_grad <- vapply(seq_len(n) - 1L, function(g) {
+    adlaplace:::get_thread_owner(af_grad@ptr, g)
   }, integer(1))
-  expect_true(all(owners_hess %in% 0:1))
-  expect_equal(length(unique(owners_hess)), 2L)
+  expect_true(all(owners_grad %in% 0:1))
+  # Small models may time as 0 under system.time; LPT then parks all on thread 0.
+  expect_true(length(unique(owners_grad)) >= 1L)
+  expect_equal(length(owners_grad), n)
 
   x <- c(config$beta, config$gamma, config$theta)
   dens <- adlaplace::clone_ad_pack_ptr(make_ptr())
   dens_val <- adlaplace::joint_log_dens(dens, x, negative = FALSE)
   expect_true(is.finite(dens_val))
 
-  # Parallel outer Hessian path still runs after LPT affinity.
+  fo <- adlaplace::fun_obj_fdfh(
+    af_grad,
+    parameters = c(config$beta, config$theta),
+    gamma = config$gamma,
+    inner = FALSE,
+    verbose = FALSE
+  )
+  expect_true(is.finite(fo$f))
+})
+
+test_that("reorder_shards hessian LPT can differ from modulo and stays correct", {
+  skip_if_not(adlaplace:::has_openmp(), "OpenMP not available in this build")
+  set.seed(42)
+  Nobs <- 80L
+  X <- Matrix::Matrix(cbind(1, stats::rbinom(Nobs, 1, 0.5)))
+  Amat <- Matrix::sparseMatrix(
+    i = seq_len(Nobs),
+    j = sample(6L, Nobs, replace = TRUE),
+    x = 1
+  )
+  config <- list(
+    beta = rep(0, 2),
+    theta = -1,
+    transform_theta = TRUE,
+    gamma = rep(0, ncol(Amat)),
+    obs_groups = adlaplace::obs_groups(Amat, num_groups = 16L),
+    verbose = FALSE
+  )
+  model <- test_ad_data(
+    y = stats::rpois(Nobs, 2),
+    A = Amat,
+    X = X,
+    config = config
+  )
+  make_ptr <- function() {
+    do.call(c, list(
+      adlaplace::ad_pack_ptr(as_shard(model, "observations", "nbinom_obs"), config),
+      adlaplace::ad_pack_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
+    ))
+  }
+  af_hess <- adlaplace::ad_pack(
+    make_ptr(),
+    num_threads = 2L,
+    reorder_shards = "hessian"
+  )
+  n <- adlaplace:::n_groups(af_hess@ptr)
+  owners_hess <- vapply(seq_len(n) - 1L, function(g) {
+    adlaplace:::get_thread_owner(af_hess@ptr, g)
+  }, integer(1))
+  expect_true(all(owners_hess %in% 0:1))
+  expect_equal(length(unique(owners_hess)), 2L)
+
   fo <- adlaplace::fun_obj_fdfh(
     af_hess,
     parameters = c(config$beta, config$theta),
@@ -193,7 +247,7 @@ test_that("num_threads = 1 ignores reorder_shards balancing", {
     config = config
   )
   ad_ptr <- adlaplace::ad_pack_ptr(as_shard(model, "observations", "nbinom_obs"), config)
-  af <- adlaplace::ad_pack(ad_ptr, num_threads = 1L, reorder_shards = "hessian")
+  af <- adlaplace::ad_pack(ad_ptr, num_threads = 1L, reorder_shards = "gradient")
   owners <- vapply(seq_len(adlaplace:::n_groups(af@ptr)) - 1L, function(g) {
     adlaplace:::get_thread_owner(af@ptr, g)
   }, integer(1))

@@ -15,7 +15,7 @@ effective_num_threads <- function(num_threads) {
 #' @keywords internal
 match_reorder_shards <- function(reorder_shards) {
   reorder_shards <- as.character(reorder_shards)[1L]
-  match.arg(reorder_shards, c("third", "hessian", "none"))
+  match.arg(reorder_shards, c("gradient", "hessian", "third", "none"))
 }
 
 #' Longest-processing-time thread assignment
@@ -50,7 +50,13 @@ lpt_assign_owners <- function(costs, num_threads) {
 }
 
 #' @keywords internal
-profile_shard_hessian_times <- function(ptr, x, n_rep = 4L, n_warmup = 1L) {
+profile_shard_eval_times <- function(
+  ptr,
+  x,
+  eval_fun,
+  n_rep = 2L,
+  n_warmup = 1L
+) {
   n_rep <- as.integer(n_rep)[1L]
   n_warmup <- as.integer(n_warmup)[1L]
   if (is.na(n_rep) || n_rep < 1L) {
@@ -64,18 +70,42 @@ profile_shard_hessian_times <- function(ptr, x, n_rep = 4L, n_warmup = 1L) {
   for (s in seq_len(n_shards) - 1L) {
     if (n_warmup > 0L) {
       for (w in seq_len(n_warmup)) {
-        hessian(ptr, x, ad_shards = s, inner = FALSE)
+        eval_fun(ptr, x, s)
       }
     }
     elapsed <- numeric(n_rep)
     for (r in seq_len(n_rep)) {
-      elapsed[[r]] <- system.time(
-        hessian(ptr, x, ad_shards = s, inner = FALSE)
-      )[["elapsed"]]
+      elapsed[[r]] <- system.time(eval_fun(ptr, x, s))[["elapsed"]]
     }
     times[[s + 1L]] <- mean(elapsed)
   }
   times
+}
+
+#' @keywords internal
+profile_shard_gradient_times <- function(ptr, x, n_rep = 2L, n_warmup = 0L) {
+  profile_shard_eval_times(
+    ptr,
+    x,
+    eval_fun = function(ptr, x, s) {
+      grad(ptr, x, ad_shards = s, inner = FALSE)
+    },
+    n_rep = n_rep,
+    n_warmup = n_warmup
+  )
+}
+
+#' @keywords internal
+profile_shard_hessian_times <- function(ptr, x, n_rep = 2L, n_warmup = 1L) {
+  profile_shard_eval_times(
+    ptr,
+    x,
+    eval_fun = function(ptr, x, s) {
+      hessian(ptr, x, ad_shards = s, inner = FALSE)
+    },
+    n_rep = n_rep,
+    n_warmup = n_warmup
+  )
 }
 
 #' @keywords internal
@@ -118,7 +148,7 @@ new_ad_pack_from_ptr <- function(
   num_threads = 1L,
   info = list(),
   verbose = FALSE,
-  reorder_shards = c("third", "hessian", "none")
+  reorder_shards = c("gradient", "hessian", "third", "none")
 ) {
   if (!is(ptr, "ad_pack_ptr")) {
     stop("ptr must be an ad_pack_ptr external pointer")
@@ -194,8 +224,7 @@ new_ad_pack_from_ptr <- function(
     utils::flush.console()
   }
 
-  do_balance <- identical(reorder_shards, "hessian") ||
-    identical(reorder_shards, "third")
+  do_balance <- reorder_shards %in% c("gradient", "hessian", "third")
   if (num_threads <= 1L || n_shards <= 1L) {
     do_balance <- FALSE
   }
@@ -205,34 +234,44 @@ new_ad_pack_from_ptr <- function(
     n_params <- as.integer(sz$n_outer)
     x_profile <- rep(0, n_params)
     costs <- NULL
-    if (identical(reorder_shards, "hessian")) {
+    if (identical(reorder_shards, "gradient")) {
+      if (verbose) {
+        cat("  profiling outer gradient times per shard...\n")
+        utils::flush.console()
+      }
+      costs <- profile_shard_gradient_times(ptr, x_profile)
+    } else if (identical(reorder_shards, "hessian")) {
       if (verbose) {
         cat("  profiling outer Hessian times per shard...\n")
         utils::flush.console()
       }
-      costs <- profile_shard_hessian_times(ptr, x_profile, n_rep = 2L)
-    } else if (
-      !is.null(chol_inner_list$half_H_inv) &&
-        !is.null(chol_inner_list$trace_columns)
-    ) {
-      if (verbose) {
-        cat("  profiling Reverse3 (dummy direction) times per shard...\n")
+      costs <- profile_shard_hessian_times(ptr, x_profile)
+    } else if (identical(reorder_shards, "third")) {
+      if (
+        !is.null(chol_inner_list$half_H_inv) &&
+          !is.null(chol_inner_list$trace_columns)
+      ) {
+        if (verbose) {
+          cat("  profiling Reverse3 (dummy direction) times per shard...\n")
+          utils::flush.console()
+        }
+        half_pat <- methods::as(chol_inner_list$half_H_inv, "dgCMatrix")
+        costs <- profile_shard_trace3_times(
+          ptr,
+          x_profile,
+          half_pat,
+          chol_inner_list$trace_columns,
+          n_rep = 2L,
+          n_warmup = 1L
+        )
+      } else if (verbose) {
+        cat(
+          "  reorder_shards='third' but no half_H_inv/trace_columns; ",
+          "falling back to modulo owners.\n",
+          sep = ""
+        )
         utils::flush.console()
       }
-      half_pat <- methods::as(chol_inner_list$half_H_inv, "dgCMatrix")
-      costs <- profile_shard_trace3_times(
-        ptr,
-        x_profile,
-        half_pat,
-        chol_inner_list$trace_columns
-      )
-    } else if (verbose) {
-      cat(
-        "  reorder_shards='third' but no half_H_inv/trace_columns; ",
-        "falling back to modulo owners.\n",
-        sep = ""
-      )
-      utils::flush.console()
     }
     if (!is.null(costs)) {
       owner_threads <- lpt_assign_owners(costs, num_threads)
@@ -302,12 +341,14 @@ new_ad_pack_from_ptr <- function(
 #'   and parallel \code{trace_hinv_t}. Default \code{1L} (serial).
 #' @param reorder_shards Character; how to assign OpenMP owner threads when
 #'   \code{num_threads > 1} and there are multiple shards:
-#'   \code{"third"} (default) times a Reverse3 sweep with dummy directions
-#'   matching the symbolic \code{half_H_inv} / \code{trace_columns} sparsity
-#'   (no numeric Cholesky), then longest-processing-time (LPT) assignment;
+#'   \code{"gradient"} (default) times each shard's outer
+#'   \code{\link{grad}(..., inner = FALSE)} (mean of 2; no warmup), then
+#'   longest-processing-time (LPT) assignment;
 #'   \code{"hessian"} times each shard's outer
-#'   \code{\link{hessian}(..., inner = FALSE)} (1 warmup + mean of 4), then
-#'   LPT;
+#'   \code{\link{hessian}(..., inner = FALSE)} (1 warmup + mean of 2), then LPT;
+#'   \code{"third"} times a Reverse3 sweep with dummy directions matching the
+#'   symbolic \code{half_H_inv} / \code{trace_columns} sparsity (no numeric
+#'   Cholesky), then LPT;
 #'   \code{"none"} uses \code{owner_thread = shard_index \% num_threads}.
 #'   Physical shard order is unchanged; only \code{owner_thread} is rewritten.
 #' @param ... For \code{ad_pack_ptr} input, optional additional
@@ -317,7 +358,7 @@ new_ad_pack_from_ptr <- function(
 setGeneric(
   "ad_pack",
   function(x, config = NULL, num_threads = 1L,
-           reorder_shards = c("third", "hessian", "none"), ...) {
+           reorder_shards = c("gradient", "hessian", "third", "none"), ...) {
     standardGeneric("ad_pack")
   }
 )
@@ -328,7 +369,7 @@ setMethod(
   "ad_pack",
   signature = c(x = "ad_pack_ptr"),
   function(x, config = NULL, num_threads = 1L,
-           reorder_shards = c("third", "hessian", "none"), ...) {
+           reorder_shards = c("gradient", "hessian", "third", "none"), ...) {
     extras <- list(...)
     verbose <- FALSE
     if (!is.null(config)) {
@@ -368,7 +409,7 @@ setMethod(
   "ad_pack",
   signature = c(x = "density_data"),
   function(x, config, num_threads = 1L,
-           reorder_shards = c("third", "hessian", "none"), ...) {
+           reorder_shards = c("gradient", "hessian", "third", "none"), ...) {
     if (missing(config) || is.null(config)) {
       stop("config is required for ad_pack(density_data, config)", call. = FALSE)
     }
@@ -393,7 +434,7 @@ setMethod(
   "ad_pack",
   signature = c(x = "list"),
   function(x, config, num_threads = 1L,
-           reorder_shards = c("third", "hessian", "none"), ...) {
+           reorder_shards = c("gradient", "hessian", "third", "none"), ...) {
     if (!is_model_data_bundle(x)) {
       stop(
         "list `x` must be a bundle from model_data() with ",
