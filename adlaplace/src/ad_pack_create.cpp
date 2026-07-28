@@ -181,24 +181,59 @@ bool get_owner_thread_assigned(SEXP handle, int group) {
 
 //' Assign OpenMP owner threads to all shards
 //'
-//' Sets \code{owner_thread = shard_index \% num_threads} on every shard.
-//' Called from \code{ad_pack()} after \code{c()}. Required before parallel
-//' \code{inner_opt} / \code{trace_hinv_t}.
+//' By default sets \code{owner_thread = shard_index \% num_threads}. When
+//' \code{owners} is supplied (length \code{n_shards}, 0-based thread ids in
+//' \code{[0, num_threads)}), those values are used instead (e.g. LPT balancing
+//' from \code{ad_pack(..., reorder_shards=)}).
+//' Called from \code{ad_pack()} after templates are attached. Required before
+//' parallel \code{inner_opt} / \code{trace_hinv_t}.
 //'
 //' @param handle External pointer of class \code{ad_pack_ptr}.
 //' @param num_threads Positive integer thread count.
+//' @param owners Optional integer vector of length \code{n_shards} with
+//'   0-based owner thread ids; \code{NULL} uses modulo assignment.
 //' @keywords internal
 // [[Rcpp::export]]
-void assign_owner_threads(SEXP handle, int num_threads) {
+void assign_owner_threads(
+  SEXP handle,
+  int num_threads,
+  Rcpp::Nullable<Rcpp::IntegerVector> owners = R_NilValue
+) {
   if (num_threads < 1) {
     Rcpp::stop("num_threads must be a positive integer");
   }
   ad_pack* groups = ad_fun_from_handle(handle);
   const std::size_t n_threads = static_cast<std::size_t>(num_threads);
-  for (std::size_t s = 0; s < groups->fun.size(); ++s) {
-    ad_shard* shard = shard_handle(groups, s);
-    shard->pack.owner_thread = shard->pack.shard_index % n_threads;
-    shard->pack.owner_thread_assigned = true;
+  const std::size_t n_shards = groups->fun.size();
+
+  if (owners.isNotNull()) {
+    Rcpp::IntegerVector own = owners.get();
+    if (static_cast<std::size_t>(own.size()) != n_shards) {
+      Rcpp::stop(
+        "owners must have length n_shards (%d), got %d",
+        static_cast<int>(n_shards),
+        own.size()
+      );
+    }
+    for (std::size_t s = 0; s < n_shards; ++s) {
+      const int t = own[static_cast<R_xlen_t>(s)];
+      if (t == NA_INTEGER || t < 0 || static_cast<std::size_t>(t) >= n_threads) {
+        Rcpp::stop(
+          "owners[%d] = %d is outside [0, num_threads)",
+          static_cast<int>(s),
+          t
+        );
+      }
+      ad_shard* shard = shard_handle(groups, s);
+      shard->pack.owner_thread = static_cast<std::size_t>(t);
+      shard->pack.owner_thread_assigned = true;
+    }
+  } else {
+    for (std::size_t s = 0; s < n_shards; ++s) {
+      ad_shard* shard = shard_handle(groups, s);
+      shard->pack.owner_thread = shard->pack.shard_index % n_threads;
+      shard->pack.owner_thread_assigned = true;
+    }
   }
   groups->configured_num_threads = n_threads;
   groups->num_threads_configured = true;

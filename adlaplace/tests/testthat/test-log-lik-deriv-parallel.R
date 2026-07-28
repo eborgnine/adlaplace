@@ -40,7 +40,7 @@ test_that("ad_pack assigns threads for multi-shard model", {
   x <- c(config$beta, config$gamma, config$theta)
   dens_ptr <- adlaplace::clone_ad_pack_ptr(ad_ptr)
   expect_true(is.finite(adlaplace::joint_log_dens(dens_ptr, x, negative = FALSE)))
-  ad_pack <- adlaplace::ad_pack(ad_ptr, num_threads = 2L)
+  ad_pack <- adlaplace::ad_pack(ad_ptr, num_threads = 2L, reorder_shards = "none")
   n <- adlaplace:::n_groups(ad_pack@ptr)
   owners <- vapply(seq_len(n) - 1L, function(g) {
     adlaplace:::get_thread_owner(ad_pack@ptr, g)
@@ -187,7 +187,7 @@ test_that("ad_pack_ptr has no thread assignment until ad_pack", {
   ))
   expect_false(adlaplace:::get_owner_thread_assigned(ptr, 0L))
 
-  af <- adlaplace::ad_pack(ptr, num_threads = 2L)
+  af <- adlaplace::ad_pack(ptr, num_threads = 2L, reorder_shards = "none")
   n <- adlaplace:::n_groups(af@ptr)
   owners <- vapply(seq_len(n) - 1L, function(g) {
     adlaplace:::get_thread_owner(af@ptr, g)

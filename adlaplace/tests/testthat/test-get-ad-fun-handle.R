@@ -209,7 +209,11 @@ test_that("ad_pack variadic ad_pack_ptr matches explicit c() composition", {
     adlaplace::ad_pack_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
   ))
   dens_explicit <- adlaplace::clone_ad_pack_ptr(ad_ptr_explicit)
-  af_explicit <- adlaplace::ad_pack(ad_ptr_explicit, num_threads = 2L)
+  af_explicit <- adlaplace::ad_pack(
+    ad_ptr_explicit,
+    num_threads = 2L,
+    reorder_shards = "none"
+  )
 
   make_three <- function() {
     list(
@@ -221,7 +225,7 @@ test_that("ad_pack variadic ad_pack_ptr matches explicit c() composition", {
   dens_variadic <- do.call(c, make_three())
   af_variadic <- do.call(
     adlaplace::ad_pack,
-    c(make_three(), list(num_threads = 2L))
+    c(make_three(), list(num_threads = 2L, reorder_shards = "none"))
   )
 
   x <- c(config$beta, config$gamma, config$theta)

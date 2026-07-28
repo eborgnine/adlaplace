@@ -13,6 +13,72 @@ effective_num_threads <- function(num_threads) {
 }
 
 #' @keywords internal
+match_reorder_shards <- function(reorder_shards) {
+  reorder_shards <- as.character(reorder_shards)[1L]
+  match.arg(reorder_shards, c("hessian", "third", "none"))
+}
+
+#' Longest-processing-time thread assignment
+#'
+#' @param costs Numeric vector of per-shard costs (length n_shards).
+#' @param num_threads Positive integer thread count.
+#' @return Integer vector of length n_shards with 0-based owner thread ids.
+#' @keywords internal
+lpt_assign_owners <- function(costs, num_threads) {
+  costs <- as.numeric(costs)
+  num_threads <- as.integer(num_threads)[1L]
+  n <- length(costs)
+  if (n < 1L) {
+    return(integer(0))
+  }
+  if (is.na(num_threads) || num_threads < 1L) {
+    stop("num_threads must be a positive integer", call. = FALSE)
+  }
+  owners <- integer(n)
+  loads <- numeric(num_threads)
+  ord <- order(costs, decreasing = TRUE, na.last = TRUE)
+  for (idx in ord) {
+    t <- which.min(loads) - 1L
+    owners[[idx]] <- t
+    c_i <- costs[[idx]]
+    if (is.na(c_i)) {
+      c_i <- 0
+    }
+    loads[[t + 1L]] <- loads[[t + 1L]] + c_i
+  }
+  owners
+}
+
+#' @keywords internal
+profile_shard_hessian_times <- function(ptr, x, n_rep = 4L, n_warmup = 1L) {
+  n_rep <- as.integer(n_rep)[1L]
+  n_warmup <- as.integer(n_warmup)[1L]
+  if (is.na(n_rep) || n_rep < 1L) {
+    stop("n_rep must be a positive integer", call. = FALSE)
+  }
+  if (is.na(n_warmup) || n_warmup < 0L) {
+    stop("n_warmup must be non-negative", call. = FALSE)
+  }
+  n_shards <- n_groups(ptr)
+  times <- numeric(n_shards)
+  for (s in seq_len(n_shards) - 1L) {
+    if (n_warmup > 0L) {
+      for (w in seq_len(n_warmup)) {
+        hessian(ptr, x, ad_shards = s, inner = FALSE)
+      }
+    }
+    elapsed <- numeric(n_rep)
+    for (r in seq_len(n_rep)) {
+      elapsed[[r]] <- system.time(
+        hessian(ptr, x, ad_shards = s, inner = FALSE)
+      )[["elapsed"]]
+    }
+    times[[s + 1L]] <- mean(elapsed)
+  }
+  times
+}
+
+#' @keywords internal
 build_parallel_map <- function(n_shards, num_threads, owner_threads = NULL) {
   num_threads <- effective_num_threads(num_threads)
   if (n_shards < 1L) {
@@ -47,32 +113,30 @@ build_parallel_map <- function(n_shards, num_threads, owner_threads = NULL) {
 }
 
 #' @keywords internal
-new_ad_pack_from_ptr <- function(ptr, num_threads = 1L, info = list(), verbose = FALSE) {
+new_ad_pack_from_ptr <- function(
+  ptr,
+  num_threads = 1L,
+  info = list(),
+  verbose = FALSE,
+  reorder_shards = c("hessian", "third", "none")
+) {
   if (!is(ptr, "ad_pack_ptr")) {
     stop("ptr must be an ad_pack_ptr external pointer")
   }
   num_threads <- effective_num_threads(num_threads)
+  reorder_shards <- match_reorder_shards(reorder_shards)
   n_shards <- n_groups(ptr)
   if (verbose) {
     cat(
       "ad_pack: attaching Hessian templates (",
       n_shards, " AD group(s), ",
-      num_threads, " thread(s))...\n",
+      num_threads, " thread(s)",
+      ", reorder_shards=", reorder_shards, ")...\n",
       sep = ""
     )
     utils::flush.console()
   }
-  if (verbose) {
-    cat("  assigning owner threads...\n")
-    utils::flush.console()
-  }
-  assign_owner_threads(ptr, num_threads)
-  owner_threads <- vapply(
-    seq_len(n_shards) - 1L,
-    function(g) get_thread_owner(ptr, g),
-    integer(1)
-  )
-  parallel_map <- build_parallel_map(n_shards, num_threads, owner_threads)
+
   sz <- get_sizes(ptr, 0L)
   n_beta <- sz$n_beta
   n_theta <- sz$n_theta
@@ -130,6 +194,82 @@ new_ad_pack_from_ptr <- function(ptr, num_threads = 1L, info = list(), verbose =
     utils::flush.console()
   }
 
+  do_balance <- identical(reorder_shards, "hessian") ||
+    identical(reorder_shards, "third")
+  if (num_threads <= 1L || n_shards <= 1L) {
+    do_balance <- FALSE
+  }
+
+  owner_threads <- NULL
+  if (do_balance) {
+    n_params <- as.integer(sz$n_outer)
+    x_profile <- rep(0, n_params)
+    costs <- NULL
+    if (identical(reorder_shards, "hessian")) {
+      if (verbose) {
+        cat("  profiling outer Hessian times per shard...\n")
+        utils::flush.console()
+      }
+      costs <- profile_shard_hessian_times(ptr, x_profile)
+    } else if (
+      !is.null(chol_inner_list$half_H_inv) &&
+        !is.null(chol_inner_list$trace_columns)
+    ) {
+      if (verbose) {
+        cat("  profiling Reverse3 (dummy direction) times per shard...\n")
+        utils::flush.console()
+      }
+      half_pat <- methods::as(chol_inner_list$half_H_inv, "dgCMatrix")
+      costs <- profile_shard_trace3_times(
+        ptr,
+        x_profile,
+        half_pat,
+        chol_inner_list$trace_columns
+      )
+    } else if (verbose) {
+      cat(
+        "  reorder_shards='third' but no half_H_inv/trace_columns; ",
+        "falling back to modulo owners.\n",
+        sep = ""
+      )
+      utils::flush.console()
+    }
+    if (!is.null(costs)) {
+      owner_threads <- lpt_assign_owners(costs, num_threads)
+      if (verbose) {
+        cat(
+          "  LPT owners: ",
+          paste(owner_threads, collapse = ","),
+          "\n",
+          sep = ""
+        )
+        cat(
+          "  shard times: ",
+          paste(format(costs, digits = 3L), collapse = ","),
+          "\n",
+          sep = ""
+        )
+        utils::flush.console()
+      }
+    }
+  }
+
+  if (verbose) {
+    cat("  assigning owner threads...\n")
+    utils::flush.console()
+  }
+  if (is.null(owner_threads)) {
+    assign_owner_threads(ptr, num_threads)
+  } else {
+    assign_owner_threads(ptr, num_threads, owners = owner_threads)
+  }
+  owner_threads <- vapply(
+    seq_len(n_shards) - 1L,
+    function(g) get_thread_owner(ptr, g),
+    integer(1)
+  )
+  parallel_map <- build_parallel_map(n_shards, num_threads, owner_threads)
+
   methods::new(
     "ad_pack",
     ptr = ptr,
@@ -157,27 +297,47 @@ new_ad_pack_from_ptr <- function(ptr, num_threads = 1L, info = list(), verbose =
 #'   when omitted (only \code{shards}, \code{transform_theta}, etc. are needed).
 #'   When \code{config$num_threads} is set, it overrides the \code{num_threads}
 #'   argument for \code{density_data} and \code{model_data} methods.
+#'   When \code{config$reorder_shards} is set, it overrides \code{reorder_shards}.
 #' @param num_threads Positive integer; OpenMP thread count for \code{inner_opt}
-#'   and parallel \code{trace_hinv_t}. Shards are assigned
-#'   \code{owner_thread = shard_index \% num_threads} at attach time.
-#'   Default \code{1L} (serial).
+#'   and parallel \code{trace_hinv_t}. Default \code{1L} (serial).
+#' @param reorder_shards Character; how to assign OpenMP owner threads when
+#'   \code{num_threads > 1} and there are multiple shards:
+#'   \code{"hessian"} (default) times each shard's outer
+#'   \code{\link{hessian}(..., inner = FALSE)} (1 warmup + mean of 4), then
+#'   longest-processing-time (LPT) assignment;
+#'   \code{"third"} times a Reverse3 sweep with dummy directions matching the
+#'   symbolic \code{half_H_inv} / \code{trace_columns} sparsity (no numeric
+#'   Cholesky), then LPT;
+#'   \code{"none"} uses \code{owner_thread = shard_index \% num_threads}.
+#'   Physical shard order is unchanged; only \code{owner_thread} is rewritten.
 #' @param ... For \code{ad_pack_ptr} input, optional additional
 #'   \code{ad_pack_ptr} shards to combine before attaching templates.
 #' @return Object of class \code{ad_pack}.
 #' @export
-setGeneric("ad_pack", function(x, config = NULL, num_threads = 1L, ...) {
-  standardGeneric("ad_pack")
-})
+setGeneric(
+  "ad_pack",
+  function(x, config = NULL, num_threads = 1L,
+           reorder_shards = c("hessian", "third", "none"), ...) {
+    standardGeneric("ad_pack")
+  }
+)
 
 #' @rdname ad_pack
 #' @export
-setMethod("ad_pack", signature = c(x = "ad_pack_ptr"), function(x, config = NULL, num_threads = 1L, ...) {
+setMethod(
+  "ad_pack",
+  signature = c(x = "ad_pack_ptr"),
+  function(x, config = NULL, num_threads = 1L,
+           reorder_shards = c("hessian", "third", "none"), ...) {
   extras <- list(...)
   verbose <- FALSE
   if (!is.null(config)) {
     if (is.list(config) && !is(config, "ad_pack_ptr")) {
-      # a genuine config list: only verbose is used at attach time
+      # a genuine config list: only verbose / reorder_shards used at attach
       verbose <- isTRUE(config[["verbose"]])
+      if (!is.null(config[["reorder_shards"]])) {
+        reorder_shards <- config[["reorder_shards"]]
+      }
     } else {
       # positional shorthand ad_pack(ptr1, ptr2, ...): treat as extra shard
       extras <- c(list(config), extras)
@@ -193,23 +353,34 @@ setMethod("ad_pack", signature = c(x = "ad_pack_ptr"), function(x, config = NULL
     }
     x <- do.call(c, c(list(x), extras))
   }
-  new_ad_pack_from_ptr(x, num_threads = num_threads, verbose = verbose)
+  new_ad_pack_from_ptr(
+    x,
+    num_threads = num_threads,
+    verbose = verbose,
+    reorder_shards = reorder_shards
+  )
 })
 
 #' @rdname ad_pack
 #' @export
-setMethod("ad_pack",
+setMethod(
+  "ad_pack",
   signature = c(x = "density_data"),
-  function(x, config, num_threads = 1L, ...) {
+  function(x, config, num_threads = 1L,
+           reorder_shards = c("hessian", "third", "none"), ...) {
     if (missing(config) || is.null(config)) {
       stop("config is required for ad_pack(density_data, config)", call. = FALSE)
     }
     if (!is.null(config$num_threads)) {
       num_threads <- config$num_threads
     }
+    if (!is.null(config$reorder_shards)) {
+      reorder_shards <- config$reorder_shards
+    }
     ad_pack(
       ad_pack_ptr(x, config),
       num_threads = num_threads,
+      reorder_shards = reorder_shards,
       config = config
     )
   }
@@ -217,7 +388,11 @@ setMethod("ad_pack",
 
 #' @rdname ad_pack
 #' @export
-setMethod("ad_pack", signature = c(x = "list"), function(x, config, num_threads = 1L, ...) {
+setMethod(
+  "ad_pack",
+  signature = c(x = "list"),
+  function(x, config, num_threads = 1L,
+           reorder_shards = c("hessian", "third", "none"), ...) {
   if (!is_model_data_bundle(x)) {
     stop(
       "list `x` must be a bundle from model_data() with ",
@@ -230,6 +405,9 @@ setMethod("ad_pack", signature = c(x = "list"), function(x, config, num_threads 
   }
   if (!is.null(config$num_threads)) {
     num_threads <- config$num_threads
+  }
+  if (!is.null(config$reorder_shards)) {
+    reorder_shards <- config$reorder_shards
   }
   defaults <- list(
     beta = init_from_info_block(x$term_data$info$beta),
@@ -317,7 +495,8 @@ setMethod("ad_pack", signature = c(x = "list"), function(x, config, num_threads 
     do.call(c, ptrs),
     num_threads = num_threads,
     info = x$term_data$info,
-    verbose = verbose
+    verbose = verbose,
+    reorder_shards = reorder_shards
   )
 })
 

@@ -7,13 +7,37 @@
 \alias{ad_pack,list-method}
 \title{Build AD function with Hessian templates}
 \usage{
-ad_pack(x, config = NULL, num_threads = 1L, ...)
+ad_pack(
+  x,
+  config = NULL,
+  num_threads = 1L,
+  reorder_shards = c("hessian", "third", "none"),
+  ...
+)
 
-\S4method{ad_pack}{ad_pack_ptr}(x, config = NULL, num_threads = 1L, ...)
+\S4method{ad_pack}{ad_pack_ptr}(
+  x,
+  config = NULL,
+  num_threads = 1L,
+  reorder_shards = c("hessian", "third", "none"),
+  ...
+)
 
-\S4method{ad_pack}{density_data}(x, config = NULL, num_threads = 1L, ...)
+\S4method{ad_pack}{density_data}(
+  x,
+  config = NULL,
+  num_threads = 1L,
+  reorder_shards = c("hessian", "third", "none"),
+  ...
+)
 
-\S4method{ad_pack}{list}(x, config = NULL, num_threads = 1L, ...)
+\S4method{ad_pack}{list}(
+  x,
+  config = NULL,
+  num_threads = 1L,
+  reorder_shards = c("hessian", "third", "none"),
+  ...
+)
 }
 \arguments{
 \item{x}{One of: an \code{ad_pack_ptr}, an \code{density_data} shard with
@@ -25,12 +49,22 @@ with \code{observations}, \code{random}, \code{parameters}).}
 \code{beta}, \code{gamma}, and \code{theta} are filled from \code{x$term_data$info}
 when omitted (only \code{shards}, \code{transform_theta}, etc. are needed).
 When \code{config$num_threads} is set, it overrides the \code{num_threads}
-argument for \code{density_data} and \code{model_data} methods.}
+argument for \code{density_data} and \code{model_data} methods.
+When \code{config$reorder_shards} is set, it overrides \code{reorder_shards}.}
 
 \item{num_threads}{Positive integer; OpenMP thread count for \code{inner_opt}
-and parallel \code{trace_hinv_t}. Shards are assigned
-\code{owner_thread = shard_index \% num_threads} at attach time.
-Default \code{1L} (serial).}
+and parallel \code{trace_hinv_t}. Default \code{1L} (serial).}
+
+\item{reorder_shards}{Character; how to assign OpenMP owner threads when
+\code{num_threads > 1} and there are multiple shards:
+\code{"hessian"} (default) times each shard's outer
+\code{\link{hessian}(..., inner = FALSE)} (1 warmup + mean of 4), then
+longest-processing-time (LPT) assignment;
+\code{"third"} times a Reverse3 sweep with dummy directions matching the
+symbolic \code{half_H_inv} / \code{trace_columns} sparsity (no numeric
+Cholesky), then LPT;
+\code{"none"} uses \code{owner_thread = shard_index \% num_threads}.
+Physical shard order is unchanged; only \code{owner_thread} is rewritten.}
 
 \item{...}{For \code{ad_pack_ptr} input, optional additional
 \code{ad_pack_ptr} shards to combine before attaching templates.}

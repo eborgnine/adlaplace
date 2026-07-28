@@ -4,16 +4,22 @@
 \alias{assign_owner_threads}
 \title{Assign OpenMP owner threads to all shards}
 \usage{
-assign_owner_threads(handle, num_threads)
+assign_owner_threads(handle, num_threads, owners = NULL)
 }
 \arguments{
 \item{handle}{External pointer of class \code{ad_pack_ptr}.}
 
 \item{num_threads}{Positive integer thread count.}
+
+\item{owners}{Optional integer vector of length \code{n_shards} with
+0-based owner thread ids; \code{NULL} uses modulo assignment.}
 }
 \description{
-Sets \code{owner_thread = shard_index \% num_threads} on every shard.
-Called from \code{ad_pack()} after \code{c()}. Required before parallel
-\code{inner_opt} / \code{trace_hinv_t}.
+By default sets \code{owner_thread = shard_index \% num_threads}. When
+\code{owners} is supplied (length \code{n_shards}, 0-based thread ids in
+\code{[0, num_threads)}), those values are used instead (e.g. LPT balancing
+from \code{ad_pack(..., reorder_shards=)}).
+Called from \code{ad_pack()} after templates are attached. Required before
+parallel \code{inner_opt} / \code{trace_hinv_t}.
 }
 \keyword{internal}

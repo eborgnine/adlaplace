@@ -111,15 +111,20 @@ get_owner_thread_assigned <- function(handle, group) {
 
 #' Assign OpenMP owner threads to all shards
 #'
-#' Sets \code{owner_thread = shard_index \% num_threads} on every shard.
-#' Called from \code{ad_pack()} after \code{c()}. Required before parallel
-#' \code{inner_opt} / \code{trace_hinv_t}.
+#' By default sets \code{owner_thread = shard_index \% num_threads}. When
+#' \code{owners} is supplied (length \code{n_shards}, 0-based thread ids in
+#' \code{[0, num_threads)}), those values are used instead (e.g. LPT balancing
+#' from \code{ad_pack(..., reorder_shards=)}).
+#' Called from \code{ad_pack()} after templates are attached. Required before
+#' parallel \code{inner_opt} / \code{trace_hinv_t}.
 #'
 #' @param handle External pointer of class \code{ad_pack_ptr}.
 #' @param num_threads Positive integer thread count.
+#' @param owners Optional integer vector of length \code{n_shards} with
+#'   0-based owner thread ids; \code{NULL} uses modulo assignment.
 #' @keywords internal
-assign_owner_threads <- function(handle, num_threads) {
-    invisible(.Call(`_adlaplace_assign_owner_threads`, handle, num_threads))
+assign_owner_threads <- function(handle, num_threads, owners = NULL) {
+    invisible(.Call(`_adlaplace_assign_owner_threads`, handle, num_threads, owners))
 }
 
 #' Deep copy of an \code{ad_pack_ptr} handle
@@ -225,5 +230,25 @@ warm_openmp_runtime <- function() {
 
 .trace_hinv_t_cpp <- function(ad_pack, x, LinvPt, LinvPtColumns, verbose = FALSE) {
     .Call(`_adlaplace_trace_hinv_t`, ad_pack, x, LinvPt, LinvPtColumns, verbose)
+}
+
+#' Profile per-shard Reverse3 cost with dummy LinvPt directions
+#'
+#' Serial timing helper for \code{ad_pack(..., reorder_shards = "third")}.
+#' Uses the symbolic \code{half_H_inv} CSC pattern (values forced to 1) and
+#' \code{trace_columns} as \code{LinvPtColumns}. Does not require owner
+#' threads or a numeric Cholesky.
+#'
+#' @param handle External pointer of class \code{ad_pack_ptr}.
+#' @param x Parameter vector of length \code{Nparams}.
+#' @param half_H_inv Sparse Matrix (\code{dgCMatrix}) symbolic pattern.
+#' @param trace_columns Sparse Matrix (\code{ngCMatrix}/\code{dgCMatrix})
+#'   shard-to-column map (\code{dims = c(n_gamma, n_shards)}).
+#' @param n_rep Number of timed repetitions per shard (mean stored).
+#' @param n_warmup Number of untimed warmup sweeps per shard.
+#' @return Numeric vector of length \code{n_shards} (mean elapsed seconds).
+#' @keywords internal
+profile_shard_trace3_times <- function(handle, x, half_H_inv, trace_columns, n_rep = 4L, n_warmup = 1L) {
+    .Call(`_adlaplace_profile_shard_trace3_times`, handle, x, half_H_inv, trace_columns, n_rep, n_warmup)
 }
 

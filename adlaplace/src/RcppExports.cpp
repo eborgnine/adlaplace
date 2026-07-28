@@ -130,13 +130,14 @@ BEGIN_RCPP
 END_RCPP
 }
 // assign_owner_threads
-void assign_owner_threads(SEXP handle, int num_threads);
-RcppExport SEXP _adlaplace_assign_owner_threads(SEXP handleSEXP, SEXP num_threadsSEXP) {
+void assign_owner_threads(SEXP handle, int num_threads, Rcpp::Nullable<Rcpp::IntegerVector> owners);
+RcppExport SEXP _adlaplace_assign_owner_threads(SEXP handleSEXP, SEXP num_threadsSEXP, SEXP ownersSEXP) {
 BEGIN_RCPP
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< SEXP >::type handle(handleSEXP);
     Rcpp::traits::input_parameter< int >::type num_threads(num_threadsSEXP);
-    assign_owner_threads(handle, num_threads);
+    Rcpp::traits::input_parameter< Rcpp::Nullable<Rcpp::IntegerVector> >::type owners(ownersSEXP);
+    assign_owner_threads(handle, num_threads, owners);
     return R_NilValue;
 END_RCPP
 }
@@ -283,6 +284,22 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// profile_shard_trace3_times
+Rcpp::NumericVector profile_shard_trace3_times(SEXP handle, const Rcpp::NumericVector& x, const Rcpp::S4& half_H_inv, const Rcpp::S4& trace_columns, int n_rep, int n_warmup);
+RcppExport SEXP _adlaplace_profile_shard_trace3_times(SEXP handleSEXP, SEXP xSEXP, SEXP half_H_invSEXP, SEXP trace_columnsSEXP, SEXP n_repSEXP, SEXP n_warmupSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< SEXP >::type handle(handleSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::NumericVector& >::type x(xSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::S4& >::type half_H_inv(half_H_invSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::S4& >::type trace_columns(trace_columnsSEXP);
+    Rcpp::traits::input_parameter< int >::type n_rep(n_repSEXP);
+    Rcpp::traits::input_parameter< int >::type n_warmup(n_warmupSEXP);
+    rcpp_result_gen = Rcpp::wrap(profile_shard_trace3_times(handle, x, half_H_inv, trace_columns, n_rep, n_warmup));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_adlaplace_get_ad_pack_raw_obs", (DL_FUNC) &_adlaplace_get_ad_pack_raw_obs, 3},
@@ -295,7 +312,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_adlaplace_get_thread_owner", (DL_FUNC) &_adlaplace_get_thread_owner, 2},
     {"_adlaplace_get_configured_num_threads", (DL_FUNC) &_adlaplace_get_configured_num_threads, 1},
     {"_adlaplace_get_owner_thread_assigned", (DL_FUNC) &_adlaplace_get_owner_thread_assigned, 2},
-    {"_adlaplace_assign_owner_threads", (DL_FUNC) &_adlaplace_assign_owner_threads, 2},
+    {"_adlaplace_assign_owner_threads", (DL_FUNC) &_adlaplace_assign_owner_threads, 3},
     {"_adlaplace_clone_ad_pack_ptr_impl", (DL_FUNC) &_adlaplace_clone_ad_pack_ptr_impl, 1},
     {"_adlaplace_create_ad_shard_random_diagonal", (DL_FUNC) &_adlaplace_create_ad_shard_random_diagonal, 2},
     {"_adlaplace_create_ad_shard_random_mult", (DL_FUNC) &_adlaplace_create_ad_shard_random_mult, 2},
@@ -307,6 +324,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_adlaplace_has_openmp", (DL_FUNC) &_adlaplace_has_openmp, 0},
     {"_adlaplace_warm_openmp_runtime", (DL_FUNC) &_adlaplace_warm_openmp_runtime, 0},
     {"_adlaplace_trace_hinv_t", (DL_FUNC) &_adlaplace_trace_hinv_t, 5},
+    {"_adlaplace_profile_shard_trace3_times", (DL_FUNC) &_adlaplace_profile_shard_trace3_times, 6},
     {NULL, NULL, 0}
 };
 
