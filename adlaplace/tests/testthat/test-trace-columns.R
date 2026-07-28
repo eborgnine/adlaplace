@@ -12,7 +12,7 @@ test_that("ad_pack chol_inner_list includes trace_columns", {
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    obs_groups = adlaplace::obs_groups(Amat, num_groups = 4L),
+    obs_groups = adlaplace::obs_groups(Amat, num_shards = 4L),
     num_threads = 1L,
     verbose = FALSE
   )
@@ -58,7 +58,7 @@ test_that("trace_columns matches legacy log_lik_deriv column builder", {
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    obs_groups = adlaplace::obs_groups(Amat, num_groups = 8L),
+    obs_groups = adlaplace::obs_groups(Amat, num_shards = 8L),
     num_threads = 1L,
     verbose = FALSE
   )
@@ -107,7 +107,7 @@ test_that("inner_opt trace3 matches standalone trace_hinv_t", {
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    obs_groups = adlaplace::obs_groups(Amat, num_groups = 4L),
+    obs_groups = adlaplace::obs_groups(Amat, num_shards = 4L),
     num_threads = 1L,
     verbose = FALSE
   )
@@ -166,7 +166,7 @@ test_that("log_lik_laplace deriv uses trace from inner_opt", {
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    obs_groups = adlaplace::obs_groups(Amat, num_groups = 8L),
+    obs_groups = adlaplace::obs_groups(Amat, num_shards = 8L),
     num_threads = 1L,
     verbose = FALSE
   )

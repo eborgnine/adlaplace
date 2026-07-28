@@ -8,8 +8,6 @@ adlaplace(
   formula,
   data,
   config = list(),
-  num_threads = 1L,
-  num_groups = 100L,
   control = list(),
   control_inner = list(maxit = 100L, report.level = 0, report.freq = 0),
   method = "L-BFGS-B",
@@ -28,14 +26,12 @@ result (in which case \code{data} is ignored).}
 Not needed when \code{formula} is already a \code{model_data} result.}
 
 \item{config}{List of backend options merged over the defaults
-\code{list(transform_theta = TRUE, verbose = verbose)}. When
-\code{config$obs_groups} is missing it is filled by
-\code{obs_groups(A, num_groups = num_groups)}, or with
-\code{elgm_matrix} when the model data includes one (e.g. case-crossover).}
-
-\item{num_threads}{Positive integer, OpenMP thread count for the AD handle.}
-
-\item{num_groups}{Target number of observation shards for
+\code{list(transform_theta = TRUE, verbose = verbose, num_threads = 1L,
+num_shards = 100L)}. When \code{config$obs_groups} is missing it is filled
+by \code{obs_groups(A, num_shards = config$num_shards)}, or with
+\code{elgm_matrix} when the model data includes one (e.g. case-crossover).
+\code{config$num_threads} is the OpenMP thread count for the AD handle;
+\code{config$num_shards} is the target number of observation shards for
 \code{\link{obs_groups}()}.}
 
 \item{control}{List of \code{\link[stats]{optim}} control options, merged
@@ -85,7 +81,7 @@ object with standard accessor methods.
 \dontrun{
 fit <- adlaplace(
   nbinom(y, lower = 1e-9, init = 0.15) ~ x + iid(g, init = 0.1),
-  data = dat, num_threads = 2L
+  data = dat, config = list(num_threads = 2L)
 )
 summary(fit)
 confint(fit)

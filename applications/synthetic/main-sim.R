@@ -85,7 +85,7 @@ res <- hnlm(
   config = list(
     transform_theta = TRUE,
     num_threads = 1L,
-    num_groups = 50L,
+    num_shards = 50L,
     verbose = FALSE
   ),
   control = list(

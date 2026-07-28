@@ -21,7 +21,7 @@ test_that("poisson_obs matches dpois with an offset", {
     theta = numeric(0),
     transform_theta = TRUE,
     offset = offset,
-    obs_groups = adlaplace::obs_groups(A, num_groups = 3L)
+    obs_groups = adlaplace::obs_groups(A, num_shards = 3L)
   )
   model <- adlaplace:::density_data(
     y = y,

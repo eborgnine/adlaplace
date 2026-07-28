@@ -12,7 +12,7 @@ test_that("hessian_map chol_inner_list includes half_H_inv and H_inv patterns", 
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    obs_groups = adlaplace::obs_groups(Amat, num_groups = 4L),
+    obs_groups = adlaplace::obs_groups(Amat, num_shards = 4L),
     num_threads = 1L,
     verbose = FALSE
   )
@@ -59,7 +59,7 @@ test_that("inner_opt deriv half_H_inv and H_inv match R reference", {
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    obs_groups = adlaplace::obs_groups(Amat, num_groups = 8L),
+    obs_groups = adlaplace::obs_groups(Amat, num_shards = 8L),
     num_threads = 1L,
     verbose = FALSE
   )
@@ -123,7 +123,7 @@ test_that("H_inv dsCMatrix with coupled random-effect groups (vignette-like)", {
     theta = c(-1, -1, -1),
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    obs_groups = adlaplace::obs_groups(Amat, num_groups = 40L),
+    obs_groups = adlaplace::obs_groups(Amat, num_shards = 40L),
     num_threads = 1L,
     verbose = FALSE,
     package = "adlaplace"

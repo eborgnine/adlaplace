@@ -12,7 +12,7 @@ test_that("clone_ad_pack_ptr matches joint_log_dens on source", {
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    obs_groups = adlaplace::obs_groups(Amat, num_groups = 4L),
+    obs_groups = adlaplace::obs_groups(Amat, num_shards = 4L),
     verbose = FALSE
   )
   model <- test_ad_data(
@@ -46,7 +46,7 @@ test_that("clone survives after c() invalidates source shard handle", {
     theta = -0.5,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    obs_groups = adlaplace::obs_groups(Amat, num_groups = 3L),
+    obs_groups = adlaplace::obs_groups(Amat, num_shards = 3L),
     verbose = FALSE
   )
   model <- test_ad_data(
@@ -84,7 +84,7 @@ test_that("clone after ad_pack() preserves laplace eval", {
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    obs_groups = adlaplace::obs_groups(Amat, num_groups = 6L),
+    obs_groups = adlaplace::obs_groups(Amat, num_shards = 6L),
     verbose = FALSE
   )
   model <- test_ad_data(

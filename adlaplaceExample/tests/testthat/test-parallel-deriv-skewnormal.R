@@ -1,6 +1,6 @@
 # Mixed-DSO skew-normal: obs/extra in adlaplaceExample.so, random in adlaplace.so.
 
-build_skewnormal_ad_fun <- function(num_threads = 4L, num_groups = 20L) {
+build_skewnormal_ad_fun <- function(num_threads = 4L, num_shards = 20L) {
   skip_if_not_installed("sn")
 
   set.seed(42)
@@ -25,7 +25,7 @@ build_skewnormal_ad_fun <- function(num_threads = 4L, num_groups = 20L) {
     theta = c(log(thetaOrig[c("sd1", "sd2", "omega")]), thetaOrig["alpha"]),
     transform_theta = TRUE,
     gamma = gamma,
-    obs_groups = adlaplace::obs_groups(Amat, num_groups = num_groups),
+    obs_groups = adlaplace::obs_groups(Amat, num_shards = num_shards),
     num_threads = as.integer(num_threads),
     verbose = FALSE
   )
@@ -88,7 +88,7 @@ skip_parallel_on_macos <- function() {
 
 test_that("serial log_lik_laplace deriv=TRUE with mixed-DSO skewnormal", {
   skip_if_not_installed("sn")
-  fx <- build_skewnormal_ad_fun(num_threads = 1L, num_groups = 20L)
+  fx <- build_skewnormal_ad_fun(num_threads = 1L, num_shards = 20L)
   ll <- adlaplace::log_lik_laplace(
     x = c(fx$config$beta, fx$config$theta),
     config = list(verbose = FALSE),
@@ -105,7 +105,7 @@ test_that("serial log_lik_laplace deriv=TRUE with mixed-DSO skewnormal", {
 test_that("parallel log_lik_laplace deriv=TRUE with mixed-DSO skewnormal", {
   skip_if_not_installed("sn")
   skip_parallel_on_macos()
-  fx <- build_skewnormal_ad_fun(num_threads = 4L, num_groups = 20L)
+  fx <- build_skewnormal_ad_fun(num_threads = 4L, num_shards = 20L)
   ll <- adlaplace::log_lik_laplace(
     x = c(fx$config$beta, fx$config$theta),
     config = list(verbose = FALSE),
@@ -122,7 +122,7 @@ test_that("parallel log_lik_laplace deriv=TRUE with mixed-DSO skewnormal", {
 test_that("back-to-back parallel deriv=TRUE reuses trace prep on mixed-DSO skewnormal", {
   skip_if_not_installed("sn")
   skip_parallel_on_macos()
-  fx <- build_skewnormal_ad_fun(num_threads = 4L, num_groups = 20L)
+  fx <- build_skewnormal_ad_fun(num_threads = 4L, num_shards = 20L)
   args <- list(
     x = c(fx$config$beta, fx$config$theta),
     config = list(verbose = FALSE),

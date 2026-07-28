@@ -13,7 +13,7 @@ build_fun_obj_test_model <- function(num_threads) {
     theta = c(-1, -1, -1),
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    obs_groups = adlaplace::obs_groups(Amat, num_groups = 40L),
+    obs_groups = adlaplace::obs_groups(Amat, num_shards = 40L),
     verbose = FALSE,
     package = "adlaplace"
   )

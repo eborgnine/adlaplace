@@ -11,7 +11,7 @@ test_that("ad_pack_ptr normalizes missing config$gamma for observation shard", {
     beta = rep(0, ncol(X)),
     theta = c(-1, -1),
     transform_theta = TRUE,
-    obs_groups = adlaplace::obs_groups(Amat, num_groups = 5L),
+    obs_groups = adlaplace::obs_groups(Amat, num_shards = 5L),
     verbose = FALSE
   )
   model <- test_ad_data(

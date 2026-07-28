@@ -15,7 +15,7 @@ test_that("model_data + OpenMP log_lik_laplace works", {
   )
   config <- list(
     transform_theta = TRUE,
-    obs_groups = adlaplace::obs_groups(md$term_data$A, num_groups = 8L),
+    obs_groups = adlaplace::obs_groups(md$term_data$A, num_shards = 8L),
     verbose = FALSE
   )
   af <- adlaplace::ad_pack(md, config, num_threads = 2L)

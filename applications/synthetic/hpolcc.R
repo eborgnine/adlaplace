@@ -27,7 +27,7 @@ forres <- hnlm(
   config = list(
     transform_theta = FALSE,
     num_threads = 4L,
-    num_groups = 50L,
+    num_shards = 50L,
     verbose = FALSE
   ),
   for_dev = TRUE

@@ -103,7 +103,7 @@ test_that("fit$par_info has enriched columns and log-aware se", {
     adlaplace::nbinom(y, lower = 1e-9, init = 0.2) ~
       x + adlaplace::iid(g, init = 0.25),
     data = dat,
-    num_groups = 4L,
+    config = list(num_shards = 4L),
     control = list(maxit = 60L),
     verbose = FALSE
   )

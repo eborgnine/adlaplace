@@ -12,7 +12,7 @@ test_that("ad_pack attaches hessian_map to combined handle", {
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    obs_groups = adlaplace::obs_groups(Amat, num_groups = 8L),
+    obs_groups = adlaplace::obs_groups(Amat, num_shards = 8L),
     num_threads = 1L,
     verbose = FALSE
   )
@@ -86,7 +86,7 @@ test_that("inner_opt deriv exports Linv matching chol_inner_list pattern", {
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    obs_groups = adlaplace::obs_groups(Amat, num_groups = 8L),
+    obs_groups = adlaplace::obs_groups(Amat, num_shards = 8L),
     num_threads = 1L,
     verbose = FALSE
   )
@@ -149,7 +149,7 @@ test_that("ad_pack works without config when layout is on ptr", {
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    obs_groups = adlaplace::obs_groups(Amat, num_groups = 6L),
+    obs_groups = adlaplace::obs_groups(Amat, num_shards = 6L),
     verbose = FALSE
   )
   model <- test_ad_data(
@@ -185,7 +185,7 @@ test_that("ad_pack variadic ad_pack_ptr matches explicit c() composition", {
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    obs_groups = adlaplace::obs_groups(Amat, num_groups = 8L),
+    obs_groups = adlaplace::obs_groups(Amat, num_shards = 8L),
     num_threads = 2L,
     verbose = FALSE
   )
@@ -255,7 +255,7 @@ test_that("ad_pack variadic composition clears source pointers like c()", {
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    obs_groups = adlaplace::obs_groups(Amat, num_groups = 5L),
+    obs_groups = adlaplace::obs_groups(Amat, num_shards = 5L),
     num_threads = 2L,
     verbose = FALSE
   )
@@ -307,7 +307,7 @@ test_that("ad_pack variadic input validates additional arguments", {
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    obs_groups = adlaplace::obs_groups(Amat, num_groups = 3L),
+    obs_groups = adlaplace::obs_groups(Amat, num_shards = 3L),
     verbose = FALSE
   )
   model <- test_ad_data(

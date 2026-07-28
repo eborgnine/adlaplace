@@ -34,7 +34,7 @@ test_that("reorder_shards none preserves modulo owners", {
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    obs_groups = adlaplace::obs_groups(Amat, num_groups = 12L),
+    obs_groups = adlaplace::obs_groups(Amat, num_shards = 12L),
     verbose = FALSE
   )
   model <- test_ad_data(
@@ -70,7 +70,7 @@ test_that("reorder_shards gradient LPT can differ from modulo and stays correct"
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    obs_groups = adlaplace::obs_groups(Amat, num_groups = 16L),
+    obs_groups = adlaplace::obs_groups(Amat, num_shards = 16L),
     verbose = FALSE
   )
   model <- test_ad_data(
@@ -137,7 +137,7 @@ test_that("reorder_shards hessian LPT can differ from modulo and stays correct",
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    obs_groups = adlaplace::obs_groups(Amat, num_groups = 16L),
+    obs_groups = adlaplace::obs_groups(Amat, num_shards = 16L),
     verbose = FALSE
   )
   model <- test_ad_data(
@@ -189,7 +189,7 @@ test_that("reorder_shards third LPT assigns owners and parallel dens agrees", {
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    obs_groups = adlaplace::obs_groups(Amat, num_groups = 10L),
+    obs_groups = adlaplace::obs_groups(Amat, num_shards = 10L),
     verbose = FALSE
   )
   model <- test_ad_data(
@@ -237,7 +237,7 @@ test_that("num_threads = 1 ignores reorder_shards balancing", {
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    obs_groups = adlaplace::obs_groups(Amat, num_groups = 6L),
+    obs_groups = adlaplace::obs_groups(Amat, num_shards = 6L),
     verbose = FALSE
   )
   model <- test_ad_data(

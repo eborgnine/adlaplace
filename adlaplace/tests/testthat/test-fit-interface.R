@@ -18,7 +18,7 @@ test_that("adlaplace() fits a nbinom GLMM and methods work", {
   fit <- adlaplace(
     nbinom(y, lower = 1e-9, init = 0.15) ~ x + iid(g, init = 0.3),
     data = dat,
-    num_groups = 10L,
+    config = list(num_shards = 10L),
     control = list(maxit = 100L),
     verbose = FALSE
   )
@@ -76,7 +76,7 @@ test_that("adlaplace() with hessian = FALSE has no vcov", {
   fit <- adlaplace(
     nbinom(y, lower = 1e-9, init = 0.15) ~ x + iid(g, init = 0.3),
     data = dat,
-    num_groups = 5L,
+    config = list(num_shards = 5L),
     hessian = FALSE,
     control = list(maxit = 50L)
   )

@@ -27,7 +27,7 @@ test_that("skewnormal obs and extra log densities vary with log(omega)", {
     theta = c(log(thetaOrig[c("sd1", "sd2", "omega")]), thetaOrig["alpha"]),
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    obs_groups = adlaplace::obs_groups(Amat, num_groups = 10L),
+    obs_groups = adlaplace::obs_groups(Amat, num_shards = 10L),
     num_threads = 1L,
     verbose = FALSE
   )

@@ -85,7 +85,7 @@ test_that("ad_pack from model_data stores info slot", {
     md,
     config = list(
       transform_theta = TRUE,
-      num_groups = 4L,
+      num_shards = 4L,
       num_threads = 1L,
       verbose = FALSE
     )

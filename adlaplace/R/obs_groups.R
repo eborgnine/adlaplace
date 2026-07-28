@@ -1,6 +1,6 @@
 #' Partition observations into AD shards by sparsity pattern
 #'
-#' The function partitions columns into \code{num_groups} shards using
+#' The function partitions columns into \code{num_shards} shards using
 #' quantiles of the first right singular vector, optionally using \pkg{RSpectra}
 #' for efficiency when available.
 #'
@@ -10,12 +10,12 @@
 #'
 #' @param A Random-effects design matrix (\code{nrow(A)} = number of observations).
 #' @param elgm_matrix A numeric matrix (or matrix-like object) for extended latent gaussian models.
-#' @param num_groups Integer giving the maximum number of shards to construct.
+#' @param num_shards Integer giving the maximum number of shards to construct.
 #'   The actual number of shards may be smaller if fewer distinct loadings
 #'   are present.
-#' @param min_groups Integer giving the minimum number of shards. When there
-#'   are fewer distinct singular-vector loadings than \code{min_groups}, only
-#'   the largest exact-loading group is split until \code{min_groups} is reached
+#' @param min_shards Integer giving the minimum number of shards. When there
+#'   are fewer distinct singular-vector loadings than \code{min_shards}, only
+#'   the largest exact-loading group is split until \code{min_shards} is reached
 #'   (or that group cannot be split further).
 #'
 #' @details
@@ -35,7 +35,7 @@
 #' @examples
 #' set.seed(1)
 #' A <- matrix(rnorm(100), 20, 5)
-#' G <- obs_groups(A, num_groups = 3)
+#' G <- obs_groups(A, num_shards = 3)
 #' G
 #' @name obs_groups
 NULL
@@ -66,10 +66,10 @@ default_obs_groups <- function(n_obs) {
 }
 
 #' @export
-obs_groups <- function(A, elgm_matrix, num_groups, min_groups = 0) {
+obs_groups <- function(A, elgm_matrix, num_shards, min_shards = 0) {
   ATp <- Matrix::t(A)
-  if (missing(num_groups)) {
-    num_groups <- ncol(ATp)
+  if (missing(num_shards)) {
+    num_shards <- ncol(ATp)
   }
 
   if (!missing(elgm_matrix)) {
@@ -116,16 +116,16 @@ obs_groups <- function(A, elgm_matrix, num_groups, min_groups = 0) {
     stop("obs_groups: no finite singular-vector loadings", call. = FALSE)
   }
 
-  # Discrete groups from exact loadings. If fewer than min_groups, split only
-  # the largest group into enough pieces to reach min_groups.
+  # Discrete groups from exact loadings. If fewer than min_shards, split only
+  # the largest group into enough pieces to reach min_shards.
   group_id <- match(loadings, uniqueLoadings)
-  if (length(uniqueLoadings) < min_groups) {
+  if (length(uniqueLoadings) < min_shards) {
     counts <- tabulate(group_id, nbins = length(uniqueLoadings))
     big <- which.max(counts)
     idx <- which(group_id == big)
     n_pieces <- min(
       length(idx),
-      as.integer(min_groups) - length(uniqueLoadings) + 1L
+      as.integer(min_shards) - length(uniqueLoadings) + 1L
     )
     if (n_pieces > 1L) {
       piece <- floor((seq_along(idx) - 1L) * n_pieces / length(idx))
@@ -135,10 +135,10 @@ obs_groups <- function(A, elgm_matrix, num_groups, min_groups = 0) {
   }
 
   n_groups <- length(unique(group_id[!is.na(group_id)]))
-  if (n_groups > num_groups) {
+  if (n_groups > num_shards) {
     # Too many distinct loadings: quantile-merge on the continuous loadings.
     groupCut <- unique(as.numeric(stats::quantile(
-      uniqueLoadings, seq(0, 1, len = num_groups + 1)
+      uniqueLoadings, seq(0, 1, len = num_shards + 1)
     )))
     groupCut[1] <- groupCut[1] - 1
     groupCut[length(groupCut)] <- groupCut[length(groupCut)] + 1

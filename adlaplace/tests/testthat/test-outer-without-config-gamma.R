@@ -14,7 +14,7 @@ test_that("outer_fn and outer_gr work without config$gamma on minimal GLMM", {
     theta = c(-1, -1, -1),
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    obs_groups = adlaplace::obs_groups(Amat, num_groups = 20L),
+    obs_groups = adlaplace::obs_groups(Amat, num_shards = 20L),
     num_threads = 1L,
     verbose = FALSE,
     package = "adlaplace"
@@ -79,7 +79,7 @@ test_that("model_data ad_pack and outer wrappers work without config$gamma", {
   md <- adlaplace::model_data(data = df, formula = formula, verbose = FALSE)
   config <- list(
     transform_theta = TRUE,
-    obs_groups = adlaplace::obs_groups(md$term_data$A, num_groups = 10L),
+    obs_groups = adlaplace::obs_groups(md$term_data$A, num_shards = 10L),
     verbose = FALSE
   )
   ad_pack <- adlaplace::ad_pack(md, config)

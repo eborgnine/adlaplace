@@ -18,12 +18,12 @@ NULL
 #' @param data Data frame containing the variables referenced in \code{formula}.
 #'   Not needed when \code{formula} is already a \code{model_data} result.
 #' @param config List of backend options merged over the defaults
-#'   \code{list(transform_theta = TRUE, verbose = verbose)}. When
-#'   \code{config$obs_groups} is missing it is filled by
-#'   \code{obs_groups(A, num_groups = num_groups)}, or with
+#'   \code{list(transform_theta = TRUE, verbose = verbose, num_threads = 1L,
+#'   num_shards = 100L)}. When \code{config$obs_groups} is missing it is filled
+#'   by \code{obs_groups(A, num_shards = config$num_shards)}, or with
 #'   \code{elgm_matrix} when the model data includes one (e.g. case-crossover).
-#' @param num_threads Positive integer, OpenMP thread count for the AD handle.
-#' @param num_groups Target number of observation shards for
+#'   \code{config$num_threads} is the OpenMP thread count for the AD handle;
+#'   \code{config$num_shards} is the target number of observation shards for
 #'   \code{\link{obs_groups}()}.
 #' @param control List of \code{\link[stats]{optim}} control options, merged
 #'   over the defaults \code{list(maxit = 200L, parscale = <from terms>)}.
@@ -60,7 +60,7 @@ NULL
 #' \dontrun{
 #' fit <- adlaplace(
 #'   nbinom(y, lower = 1e-9, init = 0.15) ~ x + iid(g, init = 0.1),
-#'   data = dat, num_threads = 2L
+#'   data = dat, config = list(num_threads = 2L)
 #' )
 #' summary(fit)
 #' confint(fit)
@@ -70,8 +70,6 @@ adlaplace <- function(
   formula,
   data,
   config = list(),
-  num_threads = 1L,
-  num_groups = 100L,
   control = list(),
   control_inner = list(maxit = 100L, report.level = 0, report.freq = 0),
   method = "L-BFGS-B",
@@ -92,9 +90,16 @@ adlaplace <- function(
   }
 
   config <- utils::modifyList(
-    list(transform_theta = TRUE, verbose = verbose),
+    list(
+      transform_theta = TRUE,
+      verbose = verbose,
+      num_threads = 1L,
+      num_shards = 100L
+    ),
     config
   )
+  config$num_threads <- as.integer(config$num_threads)[1L]
+  config$num_shards <- as.integer(config$num_shards)[1L]
   if (is.null(config$obs_groups)) {
     A <- md$term_data$A
     if (!is.null(A) && ncol(A) > 0L) {
@@ -103,19 +108,16 @@ adlaplace <- function(
         config$obs_groups <- obs_groups(
           A,
           elgm_matrix = elgm,
-          num_groups = num_groups,
-          min_groups = min(
-            as.integer(num_groups),
-            as.integer(num_threads) * 4L
+          num_shards = config$num_shards,
+          min_shards = min(
+            config$num_shards,
+            config$num_threads * 4L
           )
         )
       } else {
-        config$obs_groups <- obs_groups(A, num_groups = num_groups)
+        config$obs_groups <- obs_groups(A, num_shards = config$num_shards)
       }
     }
-  }
-  if (is.null(config$num_threads)) {
-    config$num_threads <- as.integer(num_threads)[1L]
   }
 
   af <- ad_pack(md, config, num_threads = config$num_threads)

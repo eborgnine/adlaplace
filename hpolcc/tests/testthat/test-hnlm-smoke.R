@@ -6,7 +6,7 @@ test_that("hnlm for_dev builds ad_pack via ad_pack", {
     data = td$data,
     config = list(
       verbose = FALSE,
-      num_groups = 2L,
+      num_shards = 2L,
       num_threads = 1L
     ),
     for_dev = TRUE
@@ -36,7 +36,7 @@ test_that("hnlm fit returns flat hnlm object", {
     data = td$data,
     config = list(
       verbose = FALSE,
-      num_groups = 4L,
+      num_shards = 4L,
       num_threads = 1L
     ),
     control = list(maxit = 3L, trace = 0),

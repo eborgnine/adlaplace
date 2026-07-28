@@ -13,7 +13,7 @@ test_that("c() combines shards for small GLMM", {
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    obs_groups = adlaplace::obs_groups(Amat, num_groups = 10L),
+    obs_groups = adlaplace::obs_groups(Amat, num_shards = 10L),
     num_threads = 1L,
     verbose = FALSE
   )
@@ -59,7 +59,7 @@ test_that("ad_pack_ptr obs-only builds observation groups only", {
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    obs_groups = adlaplace::obs_groups(Amat, num_groups = 5L),
+    obs_groups = adlaplace::obs_groups(Amat, num_shards = 5L),
     verbose = FALSE
   )
   model <- test_ad_data(

@@ -13,7 +13,7 @@ test_that("joint_log_dens/grad/hessian reject multi-thread ad_pack handles", {
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    obs_groups = adlaplace::obs_groups(Amat, num_groups = 8L),
+    obs_groups = adlaplace::obs_groups(Amat, num_shards = 8L),
     verbose = FALSE
   )
   model <- test_ad_data(
@@ -68,7 +68,7 @@ test_that("joint_log_dens still works on ad_pack with num_threads = 1", {
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    obs_groups = adlaplace::obs_groups(Amat, num_groups = 4L),
+    obs_groups = adlaplace::obs_groups(Amat, num_shards = 4L),
     verbose = FALSE
   )
   model <- test_ad_data(

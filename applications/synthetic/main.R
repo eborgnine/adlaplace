@@ -82,7 +82,7 @@ fit <- hnlm(
   config = list(
     transform_theta = TRUE,
     num_threads = 4L,
-    num_groups = 100L,
+    num_shards = 100L,
     num_sim = 200L,
     verbose = FALSE
   ),

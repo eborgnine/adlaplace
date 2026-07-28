@@ -2,7 +2,7 @@
 # must not hit CppAD parallel_setup thread_num() >= num_threads on macOS.
 
 build_transition_fixture <- function(num_threads = 2L,
-                                       num_groups = 20L,
+                                       num_shards = 20L,
                                        include_random = TRUE) {
   set.seed(42)
   Nobs <- 80L
@@ -16,7 +16,7 @@ build_transition_fixture <- function(num_threads = 2L,
     theta = c(-1, -1),
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    obs_groups = adlaplace::obs_groups(Amat, num_groups = num_groups),
+    obs_groups = adlaplace::obs_groups(Amat, num_shards = num_shards),
     verbose = FALSE,
     package = "adlaplace"
   )

@@ -59,7 +59,7 @@ test_that("laplace_half_H_inv works on log_lik_laplace deriv output", {
     theta = c(-1, -1),
     transform_theta = TRUE,
     gamma = rep(0, Nrandom),
-    obs_groups = adlaplace::obs_groups(Amat, num_groups = 8L),
+    obs_groups = adlaplace::obs_groups(Amat, num_shards = 8L),
     verbose = FALSE
   )
   model <- test_ad_data(

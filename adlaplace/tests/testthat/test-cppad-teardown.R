@@ -10,7 +10,7 @@ cppad_teardown_fixture <- function(num_threads = 2L) {
     theta = c(-1, -1),
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    obs_groups = adlaplace::obs_groups(Amat, num_groups = 20L),
+    obs_groups = adlaplace::obs_groups(Amat, num_shards = 20L),
     verbose = FALSE,
     package = "adlaplace"
   )

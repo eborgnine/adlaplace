@@ -12,7 +12,7 @@ test_that("for_dev bundle log_lik_laplace deriv=TRUE (serial)", {
     data = td$data,
     config = list(
       verbose = FALSE,
-      num_groups = 8L,
+      num_shards = 8L,
       num_threads = 1L
     ),
     for_dev = TRUE

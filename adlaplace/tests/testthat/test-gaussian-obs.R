@@ -20,7 +20,7 @@ test_that("gaussian_obs + gaussian_extra match dnorm", {
     gamma = gamma,
     theta = log(sigma),
     transform_theta = TRUE,
-    obs_groups = adlaplace::obs_groups(A, num_groups = 2L)
+    obs_groups = adlaplace::obs_groups(A, num_shards = 2L)
   )
   theta_map <- Matrix::sparseMatrix(i = 1L, j = 1L, dims = c(1L, 1L))
   obs <- adlaplace:::density_data(
@@ -61,7 +61,7 @@ test_that("bare response defaults to gaussian and adlaplace() fits it", {
   fit <- adlaplace(
     y ~ x + iid(g, init = 0.5),
     data = dat,
-    num_groups = 5L,
+    config = list(num_shards = 5L),
     control = list(maxit = 100L)
   )
   expect_identical(fit$details$outer_opt$convergence, 0L)

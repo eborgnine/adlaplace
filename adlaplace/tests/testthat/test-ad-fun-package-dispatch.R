@@ -19,7 +19,7 @@ test_that("ad_pack_ptr dispatches to extension package via density_data@package"
     gamma = numeric(0),
     obs_groups = adlaplace::obs_groups(
       Matrix::sparseMatrix(i = 1:3, j = 1:3, x = 1),
-      num_groups = 1L
+      num_shards = 1L
     ),
     verbose = FALSE
   )

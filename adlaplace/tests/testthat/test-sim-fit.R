@@ -18,7 +18,7 @@ test_that("sim_fit returns expected structure on small GLMM", {
   fit <- adlaplace(
     nbinom(y, lower = 1e-9, init = 0.15) ~ x + iid(g, init = 0.3),
     data = dat,
-    num_groups = 5L,
+    config = list(num_shards = 5L),
     control = list(maxit = 80L),
     verbose = FALSE
   )
@@ -40,7 +40,7 @@ test_that("sim_fit rejects non-model_data input", {
   fit <- adlaplace(
     nbinom(y, lower = 1e-9, init = 0.15) ~ x + iid(g, init = 0.3),
     data = dat,
-    num_groups = 4L,
+    config = list(num_shards = 4L),
     control = list(maxit = 50L),
     verbose = FALSE
   )

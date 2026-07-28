@@ -8,13 +8,13 @@
 
 \item{elgm_matrix}{A numeric matrix (or matrix-like object) for extended latent gaussian models.}
 
-\item{num_groups}{Integer giving the maximum number of shards to construct.
+\item{num_shards}{Integer giving the maximum number of shards to construct.
 The actual number of shards may be smaller if fewer distinct loadings
 are present.}
 
-\item{min_groups}{Integer giving the minimum number of shards. When there
-are fewer distinct singular-vector loadings than \code{min_groups}, only
-the largest exact-loading group is split until \code{min_groups} is reached
+\item{min_shards}{Integer giving the minimum number of shards. When there
+are fewer distinct singular-vector loadings than \code{min_shards}, only
+the largest exact-loading group is split until \code{min_shards} is reached
 (or that group cannot be split further).}
 }
 \value{
@@ -23,7 +23,7 @@ one column per shard and one row per observation. Nonzero entries
 correspond to singular-vector loadings.
 }
 \description{
-The function partitions columns into \code{num_groups} shards using
+The function partitions columns into \code{num_shards} shards using
 quantiles of the first right singular vector, optionally using \pkg{RSpectra}
 for efficiency when available.
 }
@@ -44,6 +44,6 @@ variability appear first.
 \examples{
 set.seed(1)
 A <- matrix(rnorm(100), 20, 5)
-G <- obs_groups(A, num_groups = 3)
+G <- obs_groups(A, num_shards = 3)
 G
 }

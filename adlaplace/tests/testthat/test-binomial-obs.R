@@ -16,7 +16,7 @@ test_that("binomial_obs matches dbinom and has correct gradient", {
   config <- list(
     beta = beta, gamma = gamma, theta = numeric(0),
     transform_theta = TRUE,
-    obs_groups = adlaplace::obs_groups(A, num_groups = 3L)
+    obs_groups = adlaplace::obs_groups(A, num_shards = 3L)
   )
   model <- adlaplace:::density_data(
     y = y, A = A, X = X,
@@ -69,7 +69,7 @@ test_that("adlaplace() fits binomial GLMM on bacteria data", {
   fit <- adlaplace::adlaplace(
     binomial(yn) ~ trt + wk + iid(ID, init = 1),
     data = bacteria,
-    num_groups = 20L,
+    config = list(num_shards = 20L),
     control = list(maxit = 300L)
   )
   expect_identical(fit$details$outer_opt$convergence, 0L)

@@ -12,7 +12,7 @@
 #'       log-scale hyperparameters.}
 #'     \item{\code{num_threads}}{OpenMP threads for inner optimization and
 #'       derivative evaluation (default \code{1L}).}
-#'     \item{\code{num_groups}}{Target number of observation shards for
+#'     \item{\code{num_shards}}{Target number of observation shards for
 #'       parallel evaluation (default \code{1000L}).}
 #'     \item{\code{num_sim}}{Number of conditional simulation draws from
 #'       \code{adlaplaceHgp::cond_sim_iwp} (default \code{500}).}
@@ -145,7 +145,7 @@ hnlm_merge_config <- function(config) {
     verbose = FALSE,
     transform_theta = TRUE,
     num_threads = 1L,
-    num_groups = 1000L,
+    num_shards = 1000L,
     num_sim = 500L
   )
   defaults <- defaults[setdiff(names(defaults), names(config))]
@@ -157,8 +157,8 @@ hnlm_build_shards <- function(model_data, config) {
   adlaplace::obs_groups(
     A = model_data$term_data$A,
     elgm_matrix = model_data$term_data$elgm_matrix,
-    num_groups = config$num_groups,
-    min_groups = min(config$num_groups, config$num_threads * 4L)
+    num_shards = config$num_shards,
+    min_shards = min(config$num_shards, config$num_threads * 4L)
   )
 }
 
@@ -276,8 +276,6 @@ hnlm_fit_laplace <- function(
   fit <- adlaplace::adlaplace(
     formula = model_data,
     config = config,
-    num_threads = config$num_threads,
-    num_groups = config$num_groups,
     control = control,
     control_inner = control_inner,
     method = "L-BFGS-B",

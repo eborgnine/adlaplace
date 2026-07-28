@@ -23,7 +23,7 @@ test_that("ad_pack builds from hnlm for_dev model_data bundle", {
     data = td$data,
     config = list(
       verbose = FALSE,
-      num_groups = 2L,
+      num_shards = 2L,
       num_threads = 1L
     ),
     for_dev = TRUE
@@ -63,7 +63,7 @@ test_that("ad_pack builds from hnlm for_dev with no fixed effects", {
     data = td$data,
     config = list(
       verbose = FALSE,
-      num_groups = 2L,
+      num_shards = 2L,
       num_threads = 1L
     ),
     for_dev = TRUE

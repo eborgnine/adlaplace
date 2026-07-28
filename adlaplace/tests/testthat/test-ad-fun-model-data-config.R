@@ -26,7 +26,7 @@ test_that("ad_pack(model_data) keeps user-supplied config beta and theta", {
 
   config_default <- list(
     transform_theta = TRUE,
-    obs_groups = adlaplace::obs_groups(md$term_data$A, num_groups = 4L),
+    obs_groups = adlaplace::obs_groups(md$term_data$A, num_shards = 4L),
     verbose = FALSE
   )
   config_custom <- modifyList(config_default, list(beta = custom_beta, theta = custom_theta))

@@ -14,7 +14,7 @@ test_that("ad_pack assigns threads for multi-shard model", {
     theta = c(-1, -1, -1),
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    obs_groups = adlaplace::obs_groups(Amat, num_groups = 40L),
+    obs_groups = adlaplace::obs_groups(Amat, num_shards = 40L),
     verbose = FALSE,
     package = "adlaplace"
   )
@@ -68,7 +68,7 @@ test_that("log_lik_laplace deriv=TRUE with multi-thread ad_pack", {
     theta = c(-1, -1, -1),
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    obs_groups = adlaplace::obs_groups(Amat, num_groups = 40L),
+    obs_groups = adlaplace::obs_groups(Amat, num_shards = 40L),
     verbose = FALSE,
     package = "adlaplace"
   )
@@ -118,7 +118,7 @@ test_that("log_lik_laplace deriv=TRUE with serial threads", {
     theta = c(-1, -1),
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    obs_groups = adlaplace::obs_groups(Amat, num_groups = 16L),
+    obs_groups = adlaplace::obs_groups(Amat, num_shards = 16L),
     verbose = FALSE,
     package = "adlaplace"
   )
@@ -168,7 +168,7 @@ test_that("ad_pack_ptr has no thread assignment until ad_pack", {
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    obs_groups = adlaplace::obs_groups(Amat, num_groups = 20L),
+    obs_groups = adlaplace::obs_groups(Amat, num_shards = 20L),
     verbose = FALSE
   )
   model <- test_ad_data(
@@ -208,7 +208,7 @@ test_that("ad_pack(ptr, num_threads = 1L) assigns all shards to thread 0", {
     theta = -1,
     transform_theta = TRUE,
     gamma = rep(0, ncol(Amat)),
-    obs_groups = adlaplace::obs_groups(Amat, num_groups = 12L),
+    obs_groups = adlaplace::obs_groups(Amat, num_shards = 12L),
     verbose = FALSE
   )
   model <- test_ad_data(
