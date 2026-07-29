@@ -4,7 +4,17 @@
 \alias{sim_random}
 \title{Simulate a random-effect contribution for one covariate}
 \usage{
-sim_random(x, fit, new_x, gamma_sims, num_grid = 101L, num_sim = 100L)
+sim_random(
+  x,
+  fit,
+  new_x,
+  gamma_sims,
+  num_grid = 101L,
+  num_sim = 100L,
+  probs = c(0.1, 0.5, 0.9),
+  coverage = 0.8,
+  transform = identity
+)
 }
 \arguments{
 \item{x}{Character scalar: name of the covariate / grouping variable.}
@@ -23,11 +33,22 @@ columns named by gamma labels). When missing, drawn with
 \item{num_grid}{Target length for the default \code{pretty} grid.}
 
 \item{num_sim}{Number of draws when \code{gamma_sims} is missing.}
+
+\item{probs}{Quantile levels for pointwise intervals.}
+
+\item{coverage}{Coverage for \code{\link[GET]{central_region}} global
+envelopes (used only when \pkg{GET} is installed).}
+
+\item{transform}{Function applied to each simulated linear predictor before
+summarizing intervals (and returned as \code{sim}); default identity.
+Use \code{exp} for relative-risk scale.}
 }
 \value{
-A list with \code{x} (numeric or character grid) and \code{sim}
-  (an \code{length(x)} by \code{nrow(gamma_sims)} matrix of linear-predictor
-  contributions on that grid).
+A list with \code{x} (numeric or character grid), \code{sim}
+  (an \code{length(x)} by draws matrix after \code{transform}),
+  \code{pointwise} (quantile matrix), and \code{global} (GET envelope with
+  columns \code{lo}, \code{central}, \code{hi}, or \code{NULL} if \pkg{GET}
+  is unavailable).
 }
 \description{
 Builds a prediction grid for variable \code{x}, forms the design matrix for
@@ -45,5 +66,6 @@ IID prediction grids use factor levels stored in the gamma info table; levels
 not present at fit time are not invented here.
 }
 \seealso{
-\code{\link{rmvnldl}}, \code{\link{sim_fit}}, \code{\link{design}}
+\code{\link{rmvnldl}}, \code{\link{sim_fit}}, \code{\link{sim_iid}},
+  \code{\link{design}}
 }

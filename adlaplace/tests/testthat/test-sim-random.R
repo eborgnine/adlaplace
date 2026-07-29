@@ -20,6 +20,8 @@ test_that("sim_random works for iwp + rpoly terms", {
   expect_equal(nrow(out$sim), length(out$x))
   expect_equal(ncol(out$sim), 15L)
   expect_true(all(is.finite(out$sim)))
+  expect_equal(nrow(out$pointwise), length(out$x))
+  expect_equal(ncol(out$pointwise), 3L)
 
   gamma_sims <- rmvnldl(n = 8L, fit = fit)
   out2 <- sim_random("x", fit = fit, gamma_sims = gamma_sims, num_grid = 11L)
@@ -54,6 +56,35 @@ test_that("sim_random works for iid terms", {
   expect_equal(nrow(out$sim), length(out$x))
   expect_equal(ncol(out$sim), 10L)
   expect_true(all(is.finite(out$sim)))
+})
+
+test_that("sim_random transform=exp and GET global when available", {
+  skip_if_not_installed("GET")
+  set.seed(16)
+  n <- 80L
+  x <- seq(0, 1, length.out = n)
+  dat <- data.frame(
+    y = rnorm(n, sin(2 * pi * x), 0.2),
+    x = x
+  )
+  fit <- adlaplace(
+    y ~ 0 + iwp(x, p = 2, knots = seq(0, 1, by = 0.25), init = 0.2),
+    data = dat,
+    config = list(num_shards = 3L),
+    control = list(maxit = 40L),
+    verbose = FALSE
+  )
+  set.seed(17)
+  out_lp <- sim_random("x", fit = fit, num_sim = 20L, num_grid = 15L)
+  set.seed(17)
+  out_rr <- sim_random(
+    "x",
+    fit = fit, num_sim = 20L, num_grid = 15L, transform = exp
+  )
+  expect_equal(out_rr$sim, exp(out_lp$sim), tolerance = 1e-10)
+  expect_true(!is.null(out_rr$global))
+  expect_true(all(c("lo", "central", "hi") %in% colnames(out_rr$global)))
+  expect_equal(nrow(out_rr$global), length(out_rr$x))
 })
 
 test_that("sim_random errors for unknown variable", {

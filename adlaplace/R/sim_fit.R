@@ -138,6 +138,25 @@ sim_fit <- function(x, data, fit, n = 500L) {
   eta
 }
 
+#' @noRd
+sim_pointwise_quantiles <- function(sim, probs) {
+  pointwise <- t(apply(sim, 1L, stats::quantile, probs = probs))
+  colnames(pointwise) <- as.character(probs)
+  pointwise
+}
+
+#' @noRd
+sim_global_envelope <- function(sim, coverage) {
+  if (!requireNamespace("GET", quietly = TRUE)) {
+    return(NULL)
+  }
+  env <- GET::central_region(
+    GET::create_curve_set(list(obs = sim)),
+    coverage = coverage
+  )
+  as.matrix(env[, c("lo", "central", "hi"), drop = FALSE])
+}
+
 #' Simulate a random-effect contribution for one covariate
 #'
 #' Builds a prediction grid for variable \code{x}, forms the design matrix for
@@ -156,10 +175,18 @@ sim_fit <- function(x, data, fit, n = 500L) {
 #'   \code{\link{rmvnldl}(n = num_sim, fit = fit)}.
 #' @param num_grid Target length for the default \code{pretty} grid.
 #' @param num_sim Number of draws when \code{gamma_sims} is missing.
+#' @param probs Quantile levels for pointwise intervals.
+#' @param coverage Coverage for \code{\link[GET]{central_region}} global
+#'   envelopes (used only when \pkg{GET} is installed).
+#' @param transform Function applied to each simulated linear predictor before
+#'   summarizing intervals (and returned as \code{sim}); default identity.
+#'   Use \code{exp} for relative-risk scale.
 #'
-#' @return A list with \code{x} (numeric or character grid) and \code{sim}
-#'   (an \code{length(x)} by \code{nrow(gamma_sims)} matrix of linear-predictor
-#'   contributions on that grid).
+#' @return A list with \code{x} (numeric or character grid), \code{sim}
+#'   (an \code{length(x)} by draws matrix after \code{transform}),
+#'   \code{pointwise} (quantile matrix), and \code{global} (GET envelope with
+#'   columns \code{lo}, \code{central}, \code{hi}, or \code{NULL} if \pkg{GET}
+#'   is unavailable).
 #'
 #' @details
 #' Only terms with \code{model_role == "random"} whose \code{@name} equals \code{x}
@@ -170,7 +197,8 @@ sim_fit <- function(x, data, fit, n = 500L) {
 #' IID prediction grids use factor levels stored in the gamma info table; levels
 #' not present at fit time are not invented here.
 #'
-#' @seealso \code{\link{rmvnldl}}, \code{\link{sim_fit}}, \code{\link{design}}
+#' @seealso \code{\link{rmvnldl}}, \code{\link{sim_fit}}, \code{\link{sim_iid}},
+#'   \code{\link{design}}
 #' @export
 sim_random <- function(
   x,
@@ -178,7 +206,10 @@ sim_random <- function(
   new_x,
   gamma_sims,
   num_grid = 101L,
-  num_sim = 100L
+  num_sim = 100L,
+  probs = c(0.1, 0.5, 0.9),
+  coverage = 0.8,
+  transform = identity
 ) {
   if (!is.character(x) || length(x) != 1L || !nzchar(x)) {
     stop("`x` must be a non-empty character scalar", call. = FALSE)
@@ -251,5 +282,14 @@ sim_random <- function(
     new_design,
     gamma_sims[, colnames(new_design), drop = FALSE]
   )
-  list(x = new_x[[x]], sim = sim_here)
+  if (!is.function(transform)) {
+    stop("`transform` must be a function", call. = FALSE)
+  }
+  sim_here <- transform(sim_here)
+  list(
+    x = new_x[[x]],
+    sim = sim_here,
+    pointwise = sim_pointwise_quantiles(sim_here, probs = probs),
+    global = sim_global_envelope(sim_here, coverage = coverage)
+  )
 }

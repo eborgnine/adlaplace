@@ -376,20 +376,6 @@ hnlm_build_variance <- function(
         hessian$inner <- h_pack$H[seq_inner, seq_inner, drop = FALSE]
       }
     }
-    which_is_iid <- grepl("iid", coefficients$gamma$model)
-    if (any(which_is_iid) &&
-      !is.null(hessian$inner) &&
-      requireNamespace("WoodburyMatrix", quietly = TRUE)) {
-      H_inner <- hessian$inner
-      Dinv <- H_inner[which_is_iid, which_is_iid]
-      for_var_years <- WoodburyMatrix::WoodburyMatrix(
-        A = Matrix::solve(Dinv),
-        B = H_inner[!which_is_iid, !which_is_iid],
-        X = H_inner[which_is_iid, !which_is_iid],
-        symmetric = TRUE
-      )
-      hessian$var_iid <- WoodburyMatrix::solve(for_var_years)
-    }
   }
 
   list(hessian = hessian, coefficients = coefficients)
