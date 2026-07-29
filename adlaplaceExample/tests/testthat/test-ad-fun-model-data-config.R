@@ -1,23 +1,17 @@
 test_that("ad_pack(model_data) keeps user-supplied config beta and theta", {
-  skip_if_not_installed("adlaplaceExample")
   skip_if_not_installed("sn")
 
   set.seed(1L)
   Nobs <- 40L
   X <- Matrix::Matrix(cbind(1, stats::rnorm(Nobs)))
   r1 <- sample(3L, Nobs, replace = TRUE)
-  Amat <- Matrix::sparseMatrix(
-    i = seq_len(Nobs),
-    j = r1,
-    dims = c(Nobs, 3L)
-  )
   beta <- c(0.1, -0.2)
   thetaOrig <- c(sd1 = 0.2, omega = 0.5, alpha = 0.3)
   y <- sn::rsn(Nobs, xi = as.vector(X %*% beta), omega = thetaOrig["omega"], alpha = thetaOrig["alpha"])
 
   dat <- data.frame(y = y, x1 = X[, 2], r1 = r1)
   md <- adlaplace::model_data(
-    adlaplaceExample::skewnormal(y) ~ x1 + adlaplace::iid(r1),
+    skewnormal(y) ~ x1 + adlaplace::iid(r1),
     data = dat
   )
 

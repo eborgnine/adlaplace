@@ -1,6 +1,4 @@
 test_that("ad_pack_ptr dispatches to extension package via density_data@package", {
-  skip_if_not_installed("adlaplaceExample")
-
   obs <- adlaplace::density_data(
     y = c(1, 2, 3),
     X = Matrix::Matrix(cbind(1, 1:3)),

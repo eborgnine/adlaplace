@@ -11,7 +11,7 @@ ad_pack(
   x,
   config = NULL,
   num_threads = 1L,
-  reorder_shards = c("gradient", "hessian", "third", "none"),
+  reorder_shards = c("none", "gradient", "hessian", "third"),
   ...
 )
 
@@ -19,7 +19,7 @@ ad_pack(
   x,
   config = NULL,
   num_threads = 1L,
-  reorder_shards = c("gradient", "hessian", "third", "none"),
+  reorder_shards = c("none", "gradient", "hessian", "third"),
   ...
 )
 
@@ -27,7 +27,7 @@ ad_pack(
   x,
   config = NULL,
   num_threads = 1L,
-  reorder_shards = c("gradient", "hessian", "third", "none"),
+  reorder_shards = c("none", "gradient", "hessian", "third"),
   ...
 )
 
@@ -35,7 +35,7 @@ ad_pack(
   x,
   config = NULL,
   num_threads = 1L,
-  reorder_shards = c("gradient", "hessian", "third", "none"),
+  reorder_shards = c("none", "gradient", "hessian", "third"),
   ...
 )
 }
@@ -57,15 +57,15 @@ and parallel \code{trace_hinv_t}. Default \code{1L} (serial).}
 
 \item{reorder_shards}{Character; how to assign OpenMP owner threads when
 \code{num_threads > 1} and there are multiple shards:
-\code{"gradient"} (default) times each shard's outer
+\code{"none"} (default) uses \code{owner_thread = shard_index \% num_threads};
+\code{"gradient"} times each shard's outer
 \code{\link{grad}(..., inner = FALSE)} (mean of 2; no warmup), then
 longest-processing-time (LPT) assignment;
 \code{"hessian"} times each shard's outer
 \code{\link{hessian}(..., inner = FALSE)} (1 warmup + mean of 2), then LPT;
 \code{"third"} times a Reverse3 sweep with dummy directions matching the
 symbolic \code{half_H_inv} / \code{trace_columns} sparsity (no numeric
-Cholesky), then LPT;
-\code{"none"} uses \code{owner_thread = shard_index \% num_threads}.
+Cholesky), then LPT.
 Physical shard order is unchanged; only \code{owner_thread} is rewritten.}
 
 \item{...}{For \code{ad_pack_ptr} input, optional additional

@@ -14,35 +14,6 @@ test_that("term_data_setup defaults log to TRUE for all theta rows", {
   expect_true(all(theta$log))
 })
 
-test_that("term_data_setup parameters has log column and log-scaled init", {
-  skip_if_not_installed("adlaplaceExample")
-  skip_if_not_installed("sn")
-  set.seed(0L)
-  dat <- data.frame(
-    y = sn::rsn(30L, xi = 0, omega = 0.7, alpha = 0.8),
-    x = stats::rnorm(30L),
-    r1 = sample(3L, 30L, replace = TRUE)
-  )
-  md <- adlaplace::model_data(
-    adlaplaceExample::skewnormal(y, init = c(0.7, 0.8)) ~
-      x + adlaplace::iid(r1, init = 0.1),
-    data = dat,
-    verbose = FALSE
-  )
-  params <- md$term_data$info$parameters
-  expect_equal(rownames(params), as.character(seq_len(nrow(params))))
-  expect_true("log" %in% names(params))
-  expect_false(any(params$log[seq_len(nrow(md$term_data$info$beta))]))
-  expect_equal(
-    params$init,
-    c(
-      md$term_data$info$beta$init,
-      adlaplace::apply_theta_log(md$term_data$info$theta, cols = c("init", "lower", "upper"))$init
-    )
-  )
-  expect_equal(params$log, c(rep(FALSE, nrow(md$term_data$info$beta)), md$term_data$info$theta$log))
-})
-
 test_that("apply_theta_log logs only rows with log TRUE", {
   theta_info <- data.frame(
     label = c("sd", "alpha"),

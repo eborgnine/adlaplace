@@ -15,7 +15,7 @@ effective_num_threads <- function(num_threads) {
 #' @keywords internal
 match_reorder_shards <- function(reorder_shards) {
   reorder_shards <- as.character(reorder_shards)[1L]
-  match.arg(reorder_shards, c("gradient", "hessian", "third", "none"))
+  match.arg(reorder_shards, c("none", "gradient", "hessian", "third"))
 }
 
 #' Longest-processing-time thread assignment
@@ -174,7 +174,7 @@ new_ad_pack_from_ptr <- function(
   num_threads = 1L,
   info = list(),
   verbose = FALSE,
-  reorder_shards = c("gradient", "hessian", "third", "none")
+  reorder_shards = c("none", "gradient", "hessian", "third")
 ) {
   if (!is(ptr, "ad_pack_ptr")) {
     stop("ptr must be an ad_pack_ptr external pointer")
@@ -367,15 +367,15 @@ new_ad_pack_from_ptr <- function(
 #'   and parallel \code{trace_hinv_t}. Default \code{1L} (serial).
 #' @param reorder_shards Character; how to assign OpenMP owner threads when
 #'   \code{num_threads > 1} and there are multiple shards:
-#'   \code{"gradient"} (default) times each shard's outer
+#'   \code{"none"} (default) uses \code{owner_thread = shard_index \% num_threads};
+#'   \code{"gradient"} times each shard's outer
 #'   \code{\link{grad}(..., inner = FALSE)} (mean of 2; no warmup), then
 #'   longest-processing-time (LPT) assignment;
 #'   \code{"hessian"} times each shard's outer
 #'   \code{\link{hessian}(..., inner = FALSE)} (1 warmup + mean of 2), then LPT;
 #'   \code{"third"} times a Reverse3 sweep with dummy directions matching the
 #'   symbolic \code{half_H_inv} / \code{trace_columns} sparsity (no numeric
-#'   Cholesky), then LPT;
-#'   \code{"none"} uses \code{owner_thread = shard_index \% num_threads}.
+#'   Cholesky), then LPT.
 #'   Physical shard order is unchanged; only \code{owner_thread} is rewritten.
 #' @param ... For \code{ad_pack_ptr} input, optional additional
 #'   \code{ad_pack_ptr} shards to combine before attaching templates.
@@ -384,7 +384,7 @@ new_ad_pack_from_ptr <- function(
 setGeneric(
   "ad_pack",
   function(x, config = NULL, num_threads = 1L,
-           reorder_shards = c("gradient", "hessian", "third", "none"), ...) {
+           reorder_shards = c("none", "gradient", "hessian", "third"), ...) {
     standardGeneric("ad_pack")
   }
 )
@@ -395,7 +395,7 @@ setMethod(
   "ad_pack",
   signature = c(x = "ad_pack_ptr"),
   function(x, config = NULL, num_threads = 1L,
-           reorder_shards = c("gradient", "hessian", "third", "none"), ...) {
+           reorder_shards = c("none", "gradient", "hessian", "third"), ...) {
     extras <- list(...)
     verbose <- FALSE
     if (!is.null(config)) {
@@ -435,7 +435,7 @@ setMethod(
   "ad_pack",
   signature = c(x = "density_data"),
   function(x, config, num_threads = 1L,
-           reorder_shards = c("gradient", "hessian", "third", "none"), ...) {
+           reorder_shards = c("none", "gradient", "hessian", "third"), ...) {
     if (missing(config) || is.null(config)) {
       stop("config is required for ad_pack(density_data, config)", call. = FALSE)
     }
@@ -460,7 +460,7 @@ setMethod(
   "ad_pack",
   signature = c(x = "list"),
   function(x, config, num_threads = 1L,
-           reorder_shards = c("gradient", "hessian", "third", "none"), ...) {
+           reorder_shards = c("none", "gradient", "hessian", "third"), ...) {
     if (!is_model_data_bundle(x)) {
       stop(
         "list `x` must be a bundle from model_data() with ",

@@ -45,18 +45,17 @@ london$temp_div10 <- london$tmean / 10
 cc_formula <- dirichlet_multinom(
     all,
     by = c("year", "month", "dow"),
-    init = 0.2,
-    parscale = 5
+    init = 0.02
 ) ~ 0 + rh + iwp(
     pm10,
     p = 2,
     knots = seq(0, 100, by = 10),
     ref_value = 40,
-    init = 0.001, parscale = 100
+    init = 0.001
 ) + iwp(
     tmean,
     p = 3, knots = seq(-2, 30, by = 2),
-    init = 0.01, parscale = 100,
+    init = 0.02,
     ref_value = 20
 )
 ```
@@ -70,21 +69,63 @@ fit <- adlaplace(
     data = london,
     config = list(
         num_threads = 2L,
-        num_shards = 50L,
-        reorder_shards = "third"
+        num_shards = 100L
     ),
     control = list(
         maxit = 200, trace = 0, REPORT = 1,
         factr = 1e3,
         pgtol = 1e-8
     ),
-    verbose = TRUE
+    verbose = FALSE
 )
 ```
 
 ```{r summary}
-fit
-summary(fit)
+fit$par_info
+```
+
+The same model with overdispersion optimized on the natural scale
+(`log = FALSE`) should recover the same MLE and log-likelihood.
+
+```{r fit-natural-scale}
+cc_formula_nat <- dirichlet_multinom(
+    all,
+    by = c("year", "month", "dow"),
+    init = 0.02,
+    lower = 0,
+    upper = 0.5,
+    parscale = 1e-3,
+    log = FALSE
+) ~ 0 + rh + iwp(
+    pm10,
+    p = 2,
+    knots = seq(0, 100, by = 10),
+    ref_value = 40,
+    init = 0.001
+) + iwp(
+    tmean,
+    p = 3, knots = seq(-2, 30, by = 2),
+    init = 0.02,
+    ref_value = 20
+)
+
+fit_nat <- adlaplace(
+    formula = cc_formula_nat,
+    data = london,
+    config = list(
+        num_threads = 2L,
+        num_shards = 100L
+    ),
+    control = list(
+        maxit = 200, trace = 1, REPORT = 1,
+        factr = 1e3,
+        pgtol = 1e-8
+    ),
+    verbose = FALSE
+)
+
+all.equal(coef(fit), coef(fit_nat), tolerance = 1e-5)
+all.equal(as.numeric(logLik(fit)), as.numeric(logLik(fit_nat)), tolerance = 1e-5)
 ```
 
 
