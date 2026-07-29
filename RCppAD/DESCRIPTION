@@ -17,7 +17,7 @@ Description: Provides the 'CppAD' C++ header library for automatic
     differentiation, for use by R packages via LinkingTo. Headers are
     vendored with CRAN-safe defaults and R-safe error handling that does not call std::cerr or
     std::exit.  The two final components of the version number are the `CppAD` release number.
-License: EPL-2.0
+License: GPL (>= 2)
 URL: https://github.com/eborgnine/adlaplace/
 Depends: R (>= 3.5.0)
 NeedsCompilation: no

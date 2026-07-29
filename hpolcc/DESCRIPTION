@@ -8,7 +8,7 @@ Authors@R: person(given = "Patrick", family = "Brown",
 Description: Fits hierarchical functional case-crossover models for air
     pollution health effects, with hierarchical structures and case-crossover
     designs built on the adlaplace Laplace approximation framework.
-License: MPL-2.0
+License: GPL (>= 2)
 Depends:
     R (>= 4.1.0),
     adlaplace (>= 0.6.0)

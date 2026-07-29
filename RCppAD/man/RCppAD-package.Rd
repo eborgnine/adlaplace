@@ -15,5 +15,8 @@
   IPOPT) disabled. The error handler uses \code{REprintf} /
   \code{Rf_error} instead of \code{std::cerr} / \code{std::exit}.
 }
-\author{EPL-2.0 | GPL (>= 2)}
+\author{
+Patrick Brown \email{patrick.borgnine@gmail.com} (package packaging);
+Bradley M. Bell (CppAD)
+}
 \keyword{package}

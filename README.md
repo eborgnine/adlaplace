@@ -103,7 +103,6 @@ sudo apt-get install -y libomp-dev g++
 
 ## License
 
-See each package’s `DESCRIPTION`:
-
-- `RCppAD` — EPL-2.0 or GPL-2+ (`License: file LICENSE`; vendored CppAD)
-- `adlaplace`, `adlaplaceHgp`, `hpolcc`, and most backends — MPL-2.0
+All packages in this repository are licensed under **GPL (>= 2)**.
+See each package’s `DESCRIPTION`. Upstream CppAD is also available under
+EPL-2.0 from its own source distribution.

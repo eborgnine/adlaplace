@@ -14,7 +14,7 @@ Description: Finite-element approximations for hierarchical models with the
     optional terra SpatRaster / SpatVector input, and AD tape builders for
     random_fem_ssq_* / random_fem_det_*.
 SystemRequirements: OpenMP
-License: MPL-2.0
+License: GPL (>= 2)
 Depends:
     R (>= 4.1.0),
     adlaplace (>= 0.6.0)

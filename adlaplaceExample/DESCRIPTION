@@ -10,7 +10,7 @@ Description: Provides a minimal example backend package for 'adlaplace'.
     construction while delegating optimization and Laplace approximation
     workflows to 'adlaplace'.
 SystemRequirements: OpenMP
-License: MPL-2.0
+License: GPL (>= 2)
 Depends: R (>= 4.1.0)
 LinkingTo: Rcpp, adlaplace, RcppEigen, trustOptim, RCppAD
 Imports: Rcpp, adlaplace (>= 0.6.0), RCppAD, methods
