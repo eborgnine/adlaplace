@@ -22,9 +22,9 @@ library(admvn)
 This vignette shows how to obtain the MLE of a SUN$(3,3)$ distribution with
 analytic gradients from `admvn::dsun_fun()`. Orthant probabilities in
 dimension $\le 3$ use specialized bivariate/trivariate CDF routines (as in
-`sn`/`mnormt`), and their gradients are analytic, so a small QMC budget is
-only a fallback for higher-dimensional cases. We compare `stats::optim()`,
-the C++ trust-region driver `sun_mle()`, and a value-only `sn::dsun` fit.
+`sn`/`mnormt`), and their gradients are analytic. We compare `stats::optim()`
+and the C++ trust-region driver `sun_mle()`, and check agreement with
+`sn::dsun` at the fitted value.
 
 ## Parameterization
 
@@ -47,10 +47,12 @@ str(true_sun_params, max.level = 1)
 
 ## Simulation
 
+A modest sample keeps the vignette fast while still illustrating the API.
+
 ```{r sim, eval = requireNamespace("sn", quietly = TRUE)}
 library(sn)
 set.seed(0)
-n <- 2000
+n <- 250
 ysim <- sn::rsun(n, dp = true_sun_params)
 colnames(ysim) <- paste0("Y", 1:3)
 head(ysim)
@@ -73,7 +75,7 @@ build_time <- system.time({
     true_params,
     n_points = qmc_n_points,
     n_shifts = qmc_n_shifts,
-    n_threads = 8L
+    n_threads = 2L
   )
 })["elapsed"]
 
@@ -116,10 +118,8 @@ upper <- rep(Inf, length(lower))
 parscale <- pmax(abs(as.numeric(start_params)), 0.1)
 optim_ctrl <- list(
   fnscale = -1,
-  maxit = 100,
-  parscale = parscale,
-  REPORT = 20,
-  trace = 2
+  maxit = 40,
+  parscale = parscale
 )
 
 obj <- tape$optim_fns()
@@ -153,7 +153,7 @@ fit_trust_time <- system.time({
   fit_trust <- sun_mle(
     tape,
     start_params,
-    control = list(maxit = 500, report.freq = 1L, report.level = 4L)
+    control = list(maxit = 40L, report.freq = 0L, report.level = 0L)
   )
 })
 fit_trust$value
@@ -161,33 +161,12 @@ fit_trust$iterations
 unname(fit_trust_time["elapsed"])
 ```
 
-## Comparison with value-only `sn` MLE
+## Comparison with `sn::dsun`
 
-```{r mle-sn, eval = requireNamespace("sn", quietly = TRUE)}
-sun_loglik_sn <- function(params, x) {
-  dp <- make_sun_params(params)
-  ll <- sum(sn::dsun(x, dp = dp, log = TRUE))
-  if (!is.finite(ll)) -1e300 else ll
-}
-
-fit_sn_time <- system.time({
-  fit_sn <- optim(
-    start_params,
-    sun_loglik_sn,
-    x = ysim,
-    method = "L-BFGS-B",
-    lower = lower,
-    upper = upper,
-    control = optim_ctrl
-  )
-})
-
-fit_sn$convergence
-fit_sn$value
-```
+Score each fit with both `sn::dsun` and `tape$eval` (no separate value-only
+`sn` optim — that is much slower and not needed to check agreement).
 
 ```{r compare, eval = requireNamespace("sn", quietly = TRUE)}
-# Score every fit's MLE with both sn::dsun and admvn (tape$eval) log-likelihoods.
 sn_ll_at <- function(par) {
   sum(sn::dsun(ysim, dp = make_sun_params(par), log = TRUE))
 }
@@ -196,17 +175,11 @@ ad_ll_at <- function(par) {
 }
 
 compare <- data.frame(
-  method = c("ad_optim", "sn_dsun"),
-  sn_loglik = c(sn_ll_at(fit_ad$par), sn_ll_at(fit_sn$par)),
-  admvn_loglik = c(ad_ll_at(fit_ad$par), ad_ll_at(fit_sn$par)),
-  iterations = c(
-    unname(fit_ad$counts[["gradient"]]),
-    unname(fit_sn$counts[["function"]])
-  ),
-  elapsed_sec = c(
-    unname(fit_ad_time["elapsed"]),
-    unname(fit_sn_time["elapsed"])
-  ),
+  method = "ad_optim",
+  sn_loglik = sn_ll_at(fit_ad$par),
+  admvn_loglik = ad_ll_at(fit_ad$par),
+  iterations = unname(fit_ad$counts[["gradient"]]),
+  elapsed_sec = unname(fit_ad_time["elapsed"]),
   stringsAsFactors = FALSE
 )
 if (exists("fit_trust")) {
@@ -227,33 +200,23 @@ compare
 ```
 
 `sn_loglik` and `admvn_loglik` are \(\sum_i \log f(y_i;\hat\theta)\) at each
-method's reported parameter estimate, evaluated with `sn::dsun` and
-`tape$eval(..., log = TRUE)` respectively. With the specialized $d\le 3$ CDF,
-the two log-densities agree closely; remaining differences come from optimizer
-paths. For `ad_optim` / `sn_dsun`, `iterations` is the reported gradient or
-function count from `optim`; for `ad_trustOptim` it is the trust-region
-iteration count.
+method's reported parameter estimate. With the specialized $d\le 3$ CDF, the
+two log-densities agree closely.
 
-## Gradient check at the `ad_trustOptim` MLE
+## Gradient check at the fitted MLE
 
-For each of ten free parameters, a one-dimensional slice through
-$\hat\theta$ from `sun_mle()` compares the analytic/`CppAD` partial
-derivative with a central finite-difference estimate of the same
-component.
+Compare analytic/`CppAD` partials to central finite differences along a few
+one-dimensional slices through $\hat\theta$.
 
-```{r grad-check, eval = requireNamespace("sn", quietly = TRUE) && exists("fit_trust"), fig.width = 8, fig.height = 10}
-par_hat <- as.numeric(fit_trust$par)
+```{r grad-check, eval = requireNamespace("sn", quietly = TRUE), fig.width = 7, fig.height = 5}
+par_hat <- as.numeric(if (exists("fit_trust")) fit_trust$par else fit_ad$par)
 par_names <- names(true_params)
 if (is.null(par_names)) {
   par_names <- paste0("p", seq_along(par_hat))
 }
 names(par_hat) <- par_names
 
-# Ten representative coordinates (location, scale, dependence, skewness).
-idx <- match(
-  c("xi1", "xi2", "nu1", "nu2", "ell21", "ell32", "L11", "L22", "L33", "a")[1:9],
-  par_names
-)
+idx <- match(c("xi1", "nu1", "L11", "a"), par_names)
 
 ll <- function(p) tape$eval(p, log = TRUE, deriv = 0L)$value
 ad_grad_j <- function(p, j) tape$eval(p, log = TRUE, deriv = 1L)$gradient[j]
@@ -265,14 +228,13 @@ fd_grad_j <- function(p, j, h) {
   (ll(p_up) - ll(p_dn)) / (2 * h)
 }
 
-op <- par(mfrow = c(3, 3), mar = c(3.2, 3.2, 2.2, 0.8), oma = c(0, 0, 1.5, 0))
+op <- par(mfrow = c(2, 2), mar = c(3.2, 3.2, 2.2, 0.8), oma = c(0, 0, 1.5, 0))
 on.exit(par(op), add = TRUE)
 
 for (j in idx) {
   center <- par_hat[j]
-  # Relative step that stays positive for nu_* when possible.
   span <- pmax(0.15 * abs(center), 0.05)
-  grid <- center + seq(-span, span, length.out = 21L)
+  grid <- center + seq(-span, span, length.out = 9L)
   if (par_names[j] %in% c("nu1", "nu2", "nu3")) {
     grid <- grid[grid > 1e-3]
   }

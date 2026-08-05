@@ -67,7 +67,8 @@ MvnTape create_mvn_tape(
   std::size_t n_points,
   std::size_t n_shifts,
   unsigned int seed,
-  bool value_only = false);
+  bool value_only = false,
+  bool reorder = true);
 
 // Compiled double QMC value (+ optional Monte Carlo error estimate).
 double eval_mvn_value_double(

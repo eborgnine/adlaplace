@@ -585,7 +585,8 @@ MvnTape create_mvn_tape(
   std::size_t n_points,
   std::size_t n_shifts,
   unsigned int seed,
-  bool value_only) {
+  bool value_only,
+  bool reorder) {
 
   const std::size_t n = sigma_seed.size();
   if (n == 0) {
@@ -615,7 +616,44 @@ MvnTape create_mvn_tape(
                                       : (upper_seed[i] - mean_seed[i]) / scale[i];
   }
 
-  chlrdr(c, ap, bp, tape.perm);
+  if (reorder) {
+    chlrdr(c, ap, bp, tape.perm);
+  } else {
+    // Identity permutation + plain correlation Cholesky. Matches SUN atomics,
+    // which pass unpermuted genz packs (original variable order).
+    const double eps = std::numeric_limits<double>::epsilon();
+    std::vector<double> d(n);
+    for (std::size_t i = 0; i < n; ++i) {
+      d[i] = std::sqrt(std::max(c[i][i], 0.0));
+    }
+    for (std::size_t i = 0; i < n; ++i) {
+      if (d[i] > 0.0) {
+        const double di = d[i];
+        for (std::size_t j = 0; j < n; ++j) {
+          c[i][j] /= di;
+          c[j][i] /= di;
+        }
+        ap[i] /= di;
+        bp[i] /= di;
+      }
+    }
+    for (std::size_t i = 0; i < n; ++i) {
+      for (std::size_t j = 0; j <= i; ++j) {
+        double s = c[i][j];
+        for (std::size_t k = 0; k < j; ++k) {
+          s -= c[i][k] * c[j][k];
+        }
+        if (i == j) {
+          c[i][j] = std::sqrt(std::max(s, eps));
+        } else {
+          c[i][j] = s / c[j][j];
+        }
+      }
+      for (std::size_t j = i + 1; j < n; ++j) {
+        c[i][j] = 0.0;
+      }
+    }
+  }
 
   const std::vector<double> q = primes_sqrt(n);
   std::mt19937 rng(seed);

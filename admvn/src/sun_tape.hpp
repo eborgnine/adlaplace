@@ -49,6 +49,8 @@ struct SunP2Shard {
 struct SunTapeBundle {
   std::vector<SunObsShard> shards;
   SunP2Shard p2;
+  std::vector<double> weights;
+  double weight_sum = 0.0;
   std::size_t n_obs = 0;
   int n_threads = 1;
 };
@@ -59,7 +61,8 @@ SunTapeBundle create_sun_bundle(
   std::size_t n_points,
   std::size_t n_shifts,
   unsigned int seed,
-  int n_threads = 1);
+  int n_threads = 1,
+  const std::vector<double>& weights = {});
 
 SunResult eval_sun_bundle(
   SunTapeBundle& bundle,

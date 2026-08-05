@@ -2,9 +2,9 @@
 #'
 #' Evaluates the log-density (or density) of a SUN(3,3) distribution using the
 #' block-Cholesky parameterization from \code{make_sun_params()}. For a matrix
-#' of observations the returned value is the summed log-likelihood. Derivatives
-#' are with respect to the 21-component parameter vector only; the data are
-#' treated as fixed.
+#' of observations the returned value is the summed log-likelihood, or a
+#' weighted sum if \code{weights} is supplied. Derivatives are with respect to
+#' the 21-component parameter vector only; the data are treated as fixed.
 #'
 #' @param x Numeric vector of length 3 or an \eqn{n \times 3} matrix of
 #'   observations.
@@ -18,6 +18,9 @@
 #' @param n_threads Number of OpenMP threads for parallel shard evaluation.
 #'   Defaults to \code{1}. Use \code{0} in \code{$eval()} to reuse the value
 #'   stored when the tape was built.
+#' @param weights Optional numeric vector of length \code{nrow(x)}. If
+#'   supplied, returns \eqn{\sum_i w_i \log q(x_i)} (and matching derivatives)
+#'   instead of the unweighted sum. Defaults to equal weights of 1.
 #'
 #' @return A list with \code{value} and \code{error}. If \code{deriv >= 1},
 #'   also \code{gradient} (length 21). If \code{deriv >= 2}, also
@@ -32,7 +35,8 @@ dsun <- function(x,
                  n_points = 1021L,
                  n_shifts = 8L,
                  seed = 1L,
-                 n_threads = 1L) {
+                 n_threads = 1L,
+                 weights = NULL) {
   par <- as.numeric(par)
   if (length(par) != 21L) {
     stop("par must have length 21; see make_sun_params()")
@@ -44,6 +48,12 @@ dsun <- function(x,
   x <- as.matrix(x)
   if (ncol(x) != 3L) {
     stop("x must be a vector of length 3 or a matrix with 3 columns")
+  }
+  if (!is.null(weights)) {
+    weights <- as.numeric(weights)
+    if (length(weights) != nrow(x)) {
+      stop("weights must have length nrow(x)")
+    }
   }
   if (nrow(x) == 0L) {
     out <- list(value = if (log) 0 else 1, error = 0)
@@ -64,7 +74,8 @@ dsun <- function(x,
     n_points = as.integer(n_points),
     n_shifts = as.integer(n_shifts),
     seed = as.integer(seed),
-    n_threads = as.integer(n_threads)
+    n_threads = as.integer(n_threads),
+    weights = weights
   )
 }
 
@@ -73,7 +84,8 @@ dsun <- function(x,
 #' Builds per-observation CppAD shard tapes for the summed SUN log-likelihood
 #' with the data \code{x} fixed and the independent variables equal to the
 #' 21-parameter vector. Use this for MLE: build once, then call
-#' \code{$eval(par)} at new parameter values.
+#' \code{$eval(par)} at new parameter values. Pass \code{weights} for a
+#' weighted sum (e.g. Gauss--Hermite KL objectives).
 #'
 #' @param x Numeric vector of length 3 or \eqn{n \times 3} matrix of
 #'   observations fixed in the tape.
@@ -81,6 +93,8 @@ dsun <- function(x,
 #' @param n_points,n_shifts,seed QMC settings passed to [dsun()].
 #' @param n_threads Default number of OpenMP threads for \code{$eval()}. When
 #'   \code{NULL}, uses the maximum available OpenMP thread count.
+#' @param weights Optional numeric vector of length \code{nrow(x)} for a
+#'   weighted log-likelihood \eqn{\sum_i w_i \log q(x_i)}.
 #'
 #' @return An object of class \code{"admvn_sun_tape"} with components
 #'   \code{eval(par, log = TRUE, deriv = 0, n_threads = 0)} and
@@ -92,7 +106,8 @@ dsun_fun <- function(x,
                      n_points = 1021L,
                      n_shifts = 8L,
                      seed = 1L,
-                     n_threads = NULL) {
+                     n_threads = NULL,
+                     weights = NULL) {
   par_seed <- as.numeric(par_seed)
   if (length(par_seed) != 21L) {
     stop("par_seed must have length 21")
@@ -102,6 +117,12 @@ dsun_fun <- function(x,
     stop("x must be a vector of length 3 or a matrix with 3 columns")
   }
   storage.mode(x) <- "double"
+  if (!is.null(weights)) {
+    weights <- as.numeric(weights)
+    if (length(weights) != nrow(x)) {
+      stop("weights must have length nrow(x)")
+    }
+  }
   if (is.null(n_threads)) {
     n_threads <- dsun_n_threads_default_cpp()
   }
@@ -111,7 +132,8 @@ dsun_fun <- function(x,
     n_points = as.integer(n_points),
     n_shifts = as.integer(n_shifts),
     seed = as.integer(seed),
-    n_threads = as.integer(n_threads)
+    n_threads = as.integer(n_threads),
+    weights = weights
   )
 
   same_par <- function(a, b) {
@@ -188,6 +210,7 @@ dsun_fun <- function(x,
       ptr = ptr,
       n_obs = nrow(x),
       n_threads = as.integer(n_threads),
+      weights = weights,
       eval = eval_fn,
       optim_fns = optim_fns
     ),

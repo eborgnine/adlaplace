@@ -11,16 +11,26 @@
 namespace admvn {
 namespace detail {
 
-inline thread_local MvnTape* pmvn_atomic_tape_0 = nullptr;
-inline thread_local MvnTape* pmvn_atomic_tape_1 = nullptr;
+inline thread_local std::vector<MvnTape*> pmvn_atomic_tapes;
 
 inline MvnTape* pmvn_atomic_tape_from_id(size_t call_id) {
-  return call_id == 0 ? pmvn_atomic_tape_0 : pmvn_atomic_tape_1;
+  if (call_id >= pmvn_atomic_tapes.size()) {
+    return nullptr;
+  }
+  return pmvn_atomic_tapes[call_id];
 }
 
+inline void set_pmvn_atomic_tape(size_t call_id, MvnTape* tape) {
+  if (call_id >= pmvn_atomic_tapes.size()) {
+    pmvn_atomic_tapes.resize(call_id + 1, nullptr);
+  }
+  pmvn_atomic_tapes[call_id] = tape;
+}
+
+// Backward-compatible: call_id 0 = p1, call_id 1 = p2.
 inline void set_pmvn_atomic_tapes(MvnTape* p1, MvnTape* p2) {
-  pmvn_atomic_tape_0 = p1;
-  pmvn_atomic_tape_1 = p2;
+  set_pmvn_atomic_tape(0, p1);
+  set_pmvn_atomic_tape(1, p2);
 }
 
 class atomic_pmvn : public CppAD::atomic_four<double> {
@@ -134,7 +144,6 @@ public:
     size_t order_up,
     const CppAD::vector<double>& tx,
     CppAD::vector<double>& ty) override {
-    (void)call_id;
     (void)select_y;
     if (order_low > 0 || order_up > 0) {
       return false;

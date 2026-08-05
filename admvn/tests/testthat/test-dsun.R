@@ -216,3 +216,106 @@ test_that("sun_mle reaches the same optimum as optim on a small sample", {
   expect_gt(ll_tr, tape$eval(start, log = TRUE, deriv = 0L)$value - 1e-6)
   expect_gt(ll_opt, tape$eval(start, log = TRUE, deriv = 0L)$value - 1e-6)
 })
+
+test_that("unit weights match unweighted dsun", {
+  skip_if_not_installed("sn")
+  par <- c(
+    xi1 = 0, xi2 = 0, xi3 = 0,
+    nu1 = 1, nu2 = 1, nu3 = 1,
+    ell21 = 0.2, ell31 = 0.1, ell32 = 0.2,
+    L11 = 1, L12 = 0.5, L13 = 1,
+    L21 = 0.5, L22 = 1, L23 = 1.5,
+    L31 = 0, L32 = 0.5, L33 = 1,
+    a = 0.3, b = 0.2, c = 0.3
+  )
+  set.seed(11)
+  x <- sn::rsun(6, dp = make_sun_params(par))
+  unwt <- dsun(x, par, log = TRUE, deriv = 1L, n_points = 64L, n_shifts = 2L)
+  unit <- dsun(
+    x, par, log = TRUE, deriv = 1L, n_points = 64L, n_shifts = 2L,
+    weights = rep(1, nrow(x))
+  )
+  expect_equal(unit$value, unwt$value, tolerance = 1e-10)
+  expect_equal(unit$gradient, unwt$gradient, tolerance = 1e-10)
+})
+
+test_that("weighted dsun matches sum of weighted single-row evals", {
+  skip_if_not_installed("sn")
+  par <- c(
+    xi1 = 0, xi2 = 0, xi3 = 0,
+    nu1 = 1, nu2 = 1, nu3 = 1,
+    ell21 = 0.2, ell31 = 0.1, ell32 = 0.2,
+    L11 = 1, L12 = 0.5, L13 = 1,
+    L21 = 0.5, L22 = 1, L23 = 1.5,
+    L31 = 0, L32 = 0.5, L33 = 1,
+    a = 0.3, b = 0.2, c = 0.3
+  )
+  set.seed(12)
+  x <- sn::rsun(5, dp = make_sun_params(par))
+  w <- c(0.5, 1.2, 0.8, 1.5, 0.3)
+  joint <- dsun(
+    x, par, log = TRUE, deriv = 1L, n_points = 64L, n_shifts = 2L,
+    weights = w
+  )
+  val <- 0
+  grad <- numeric(21L)
+  for (i in seq_len(nrow(x))) {
+    one <- dsun(
+      x[i, , drop = FALSE], par, log = TRUE, deriv = 1L,
+      n_points = 64L, n_shifts = 2L
+    )
+    val <- val + w[i] * one$value
+    grad <- grad + w[i] * one$gradient
+  }
+  expect_equal(joint$value, val, tolerance = 1e-8)
+  expect_equal(joint$gradient, grad, tolerance = 1e-8)
+})
+
+test_that("weighted dsun value matches weighted sn::dsun", {
+  skip_if_not_installed("sn")
+  par <- c(
+    xi1 = 0, xi2 = 0, xi3 = 0,
+    nu1 = 1, nu2 = 1, nu3 = 1,
+    ell21 = 0.2, ell31 = 0.1, ell32 = 0.2,
+    L11 = 1, L12 = 0.5, L13 = 1,
+    L21 = 0.5, L22 = 1, L23 = 1.5,
+    L31 = 0, L32 = 0.5, L33 = 1,
+    a = 0.3, b = 0.2, c = 0.3
+  )
+  dp <- make_sun_params(par)
+  set.seed(13)
+  x <- sn::rsun(8, dp = dp)
+  w <- runif(nrow(x), 0.2, 1.8)
+  sn_val <- sum(w * sn::dsun(x, dp = dp, log = TRUE))
+  adv <- dsun(
+    x, par, log = TRUE, deriv = 0L, n_points = 64L, n_shifts = 2L,
+    weights = w
+  )
+  expect_equal(adv$value, sn_val, tolerance = 1e-4)
+})
+
+test_that("weighted dsun_fun tape matches dsun weights", {
+  skip_if_not_installed("sn")
+  par <- c(
+    xi1 = 0, xi2 = 0, xi3 = 0,
+    nu1 = 1, nu2 = 1, nu3 = 1,
+    ell21 = 0.2, ell31 = 0.1, ell32 = 0.2,
+    L11 = 1, L12 = 0.5, L13 = 1,
+    L21 = 0.5, L22 = 1, L23 = 1.5,
+    L31 = 0, L32 = 0.5, L33 = 1,
+    a = 0.3, b = 0.2, c = 0.3
+  )
+  set.seed(14)
+  x <- sn::rsun(4, dp = make_sun_params(par))
+  w <- c(1.1, 0.4, 2.0, 0.7)
+  tape <- dsun_fun(
+    x, par, n_points = 64L, n_shifts = 2L, n_threads = 1L, weights = w
+  )
+  from_tape <- tape$eval(par, log = TRUE, deriv = 1L)
+  from_dsun <- dsun(
+    x, par, log = TRUE, deriv = 1L, n_points = 64L, n_shifts = 2L,
+    weights = w
+  )
+  expect_equal(from_tape$value, from_dsun$value, tolerance = 1e-8)
+  expect_equal(from_tape$gradient, from_dsun$gradient, tolerance = 1e-8)
+})

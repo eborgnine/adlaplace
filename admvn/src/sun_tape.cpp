@@ -640,7 +640,8 @@ SunTapeBundle create_sun_bundle(
   std::size_t n_points,
   std::size_t n_shifts,
   unsigned int seed,
-  int n_threads) {
+  int n_threads,
+  const std::vector<double>& weights) {
 
   if (x_rows.empty() || par_seed.size() != kSunNPar) {
     throw std::runtime_error("invalid seed dimensions for SUN(3,3) tape");
@@ -650,10 +651,22 @@ SunTapeBundle create_sun_bundle(
       throw std::runtime_error("each observation must have length 3");
     }
   }
+  if (!weights.empty() && weights.size() != x_rows.size()) {
+    throw std::runtime_error("weights must have length equal to number of rows in x");
+  }
 
   SunTapeBundle bundle;
   bundle.n_obs = x_rows.size();
   bundle.n_threads = resolve_n_threads(n_threads, 1);
+  if (weights.empty()) {
+    bundle.weights.assign(x_rows.size(), 1.0);
+  } else {
+    bundle.weights = weights;
+  }
+  bundle.weight_sum = 0.0;
+  for (double w : bundle.weights) {
+    bundle.weight_sum += w;
+  }
 
   Mat3 lambda{};
   (void)sun_sigma_double(par_seed, lambda);
@@ -780,16 +793,17 @@ SunResult eval_sun_bundle(
     }
 
     for (std::size_t i = 0; i < n_shards; ++i) {
-      total.value += shard_values[i];
+      const double wi = bundle.weights[i];
+      total.value += wi * shard_values[i];
       if (deriv >= 1) {
         for (std::size_t j = 0; j < kSunNPar; ++j) {
-          total.gradient[j] += shard_grads[i][j];
+          total.gradient[j] += wi * shard_grads[i][j];
         }
       }
       if (deriv >= 2) {
         for (std::size_t r = 0; r < kSunNPar; ++r) {
           for (std::size_t c = 0; c < kSunNPar; ++c) {
-            total.hessian[r][c] += shard_hess[i][r][c];
+            total.hessian[r][c] += wi * shard_hess[i][r][c];
           }
         }
       }
@@ -797,14 +811,14 @@ SunResult eval_sun_bundle(
   } else
 #endif
   {
-    for (auto& shard : bundle.shards) {
+    for (std::size_t i = 0; i < n_shards; ++i) {
       SunResult shard_res = eval_adfun_log(
-        shard.adfun,
-        &shard.p1_tape,
+        bundle.shards[i].adfun,
+        &bundle.shards[i].p1_tape,
         nullptr,
         par,
         deriv);
-      accumulate_result(total, shard_res, 1.0, deriv);
+      accumulate_result(total, shard_res, bundle.weights[i], deriv);
     }
   }
 
@@ -814,7 +828,7 @@ SunResult eval_sun_bundle(
     &bundle.p2.p2_tape,
     par,
     deriv);
-  accumulate_result(total, p2_res, -static_cast<double>(bundle.n_obs), deriv);
+  accumulate_result(total, p2_res, -bundle.weight_sum, deriv);
 
   apply_log_scale(total, log_scale, deriv);
   return total;
