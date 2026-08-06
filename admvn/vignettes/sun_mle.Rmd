@@ -2,7 +2,7 @@
 title: "SUN(3,3) maximum likelihood with analytic gradients"
 author: "Patrick Brown"
 date: "`r Sys.Date()`"
-output: rmarkdown::html_vignette
+output: pdf_document
 vignette: >
   %\VignetteIndexEntry{SUN(3,3) maximum likelihood with analytic gradients}
   %\VignetteEngine{knitr::rmarkdown}
@@ -28,21 +28,151 @@ and the C++ trust-region driver `sun_mle()`, and check agreement with
 
 ## Parameterization
 
-The free parameter vector has 21 components and maps to the `sn` list
-`dp = list(xi, Omega, Delta, tau, Gamma)` via `make_sun_params()`:
+A SUN$(3,3)$ observation is $Y = U \mid V > 0$ with $U,V\in\mathbb{R}^3$.
+The latent structure is defined on the **correlation scale** of $U$, then
+scaled by $D_u=\operatorname{diag}(\nu)$ with $\nu_j>0$ the marginal
+standard deviations. Writing $U_\star$ for the standardized latent (unit
+variances),
+
+\[
+\begin{bmatrix} U_\star \\ V \end{bmatrix}
+\sim
+\mathcal{N}\!\left(
+\begin{bmatrix} 0 \\ 0 \end{bmatrix},
+\begin{bmatrix} I & 0 \\ L & I \end{bmatrix}
+\begin{bmatrix} C_u & 0 \\ 0 & R \end{bmatrix}
+\begin{bmatrix} I & L^\top \\ 0 & I \end{bmatrix}
+\right),
+\qquad
+U = \xi + D_u U_\star.
+\]
+
+Equivalently,
+
+\[
+\operatorname{Var}
+\begin{pmatrix} U \\ V \end{pmatrix}
+=
+\begin{bmatrix}
+D_u C_u D_u & D_u C_u L^\top \\
+L C_u D_u & L C_u L^\top + R
+\end{bmatrix}.
+\]
+
+Excluding $D_u$, the SUN law is therefore determined by a correlation matrix
+$C_u$ together with loadings $L$ and residual $R$; entries of $L$ in
+$[-1,1]$ are the natural regime.
+
+The free parameter vector has **21** components and is mapped to the `sn`
+list `dp = list(xi, Omega, Delta, tau, Gamma)` by `make_sun_params()` as
+follows.
+
+**Location.** $\xi = (\xi_1,\xi_2,\xi_3)^\top$.
+
+**Observed-scale covariance** $\Omega = D_u C_u D_u$ with
+$D_u=\operatorname{diag}(\nu)$ and $\nu_j>0$ the marginal **standard
+deviations**. A correlation $C_u$ comes from unconstrained hyperspherical
+coordinates $(\ell_{21},\ell_{31},\ell_{32})$ (unit-row Cholesky +
+$\tanh$):
+
+\[
+\Omega = D_u C_u D_u,
+\qquad
+D_u = \operatorname{diag}(\nu_1,\nu_2,\nu_3).
+\]
+
+So $\Omega_{jj}=\nu_j^2$.
+
+**Skew loadings.** $L$ multiplies $C_u$ (not $\Omega$). It is parameterized
+by its three diagonals, three off-diagonal pair levels
+$(L_{12},L_{13},L_{23})$, and three signed asymmetries
+$(e_{12},e_{13},e_{23})$: lower triangle gets $L_{ij}+e_{ij}$, upper
+gets $L_{ij}-e_{ij}$.
+
+\[
+L =
+\begin{bmatrix}
+L_{11} & L_{12}-e_{12} & L_{13}-e_{13} \\
+L_{12}+e_{12} & L_{22} & L_{23}-e_{23} \\
+L_{13}+e_{13} & L_{23}+e_{23} & L_{33}
+\end{bmatrix}.
+\]
+
+($L = 0$ recovers a Gaussian; a small diagonal $L$ is a mild skew start.
+Default box constraints keep diagonals in $[-1,1]$ and pair levels /
+asymmetries $L_{ij}$, $e_{ij}$ in $[-0.5,0.5]$.)
+
+**Residual correlation** \(C\) and latent \(\Sigma_{vv}\).
+Unconstrained free parameters \((a,b,c)\) enter a unit-row Cholesky
+(hyperspherical) factor for a residual correlation \(C\):
+
+\[
+\begin{aligned}
+B_r &=
+\begin{bmatrix}
+1 & 0 & 0 \\
+t_a & \sqrt{1-t_a^2} & 0 \\
+t_b & t_c\sqrt{1-t_b^2} & \sqrt{(1-t_b^2)(1-t_c^2)}
+\end{bmatrix},
+\\
+t_a &= \tanh(a),\; t_b = \tanh(b),\; t_c = \tanh(c),
+\qquad
+C = B_r B_r^\top.
+\end{aligned}
+\]
+
+With \(M = L C_u L^\top\) and \(D = \operatorname{diag}\!\bigl(1 - \operatorname{diag}(M)\bigr)\)
+(requiring \(\operatorname{diag}(M) < 1\)),
+
+\[
+R = D^{1/2} C D^{1/2},
+\qquad
+\Sigma_{vv} = M + R.
+\]
+
+Then \(\Sigma_{vv}\) is a correlation matrix
+(\(\operatorname{diag}(\Sigma_{vv}) = 1\)) by construction—no post-hoc
+\(\omega_v\) / `cov2cor` rescaling of \(V\).
+
+**`sn` cross-covariance quantities.** Writing
+\(\Sigma_{uv} = D_u C_u L^\top\),
+
+\[
+\Delta = D_u^{-1}\Sigma_{uv} = C_u L^\top,
+\qquad
+\Gamma = \Sigma_{vv},
+\qquad
+\tau = 0.
+\]
+
+**Parameter order** (names used in code):
+
+\[
+\begin{aligned}
+&\xi_1,\xi_2,\xi_3,\;
+\nu_1,\nu_2,\nu_3,\;
+\ell_{21},\ell_{31},\ell_{32},\\
+&L_{11},L_{22},L_{33},\;
+L_{12},L_{13},L_{23},\;
+e_{12},e_{13},e_{23},\;
+a,b,c.
+\end{aligned}
+\]
 
 ```{r params}
 true_params <- c(
   xi1 = 0, xi2 = 0, xi3 = 0,
   nu1 = 1, nu2 = 1, nu3 = 1,
   ell21 = 0.2, ell31 = 0.1, ell32 = 0.2,
-  L11 = 1, L12 = 0.5, L13 = 1,
-  L21 = 0.5, L22 = 1, L23 = 1.5,
-  L31 = 0, L32 = 0.5, L33 = 1,
+  L11 = 0.4, L22 = 0.4, L33 = 0.35,
+  L12 = 0.1, L13 = 0.05, L23 = 0.1,
+  e12 = 0, e13 = -0.05, e23 = 0,
   a = 0.3, b = 0.2, c = 0.3
 )
 true_sun_params <- make_sun_params(true_params)
 str(true_sun_params, max.level = 1)
+# Sigma_vv = Gamma has unit diagonal by construction
+diag(true_sun_params$Gamma)
 ```
 
 ## Simulation
@@ -100,20 +230,17 @@ start_params[] <- c(
   xi1 = 0.2, xi2 = -0.1, xi3 = 0.1,
   nu1 = 1.4, nu2 = 0.7, nu3 = 1.2,
   ell21 = 0.0, ell31 = 0.3, ell32 = 0.0,
-  L11 = 0.7, L12 = 0.2, L13 = 0.1,
-  L21 = 0.2, L22 = 0.8, L23 = 0.3,
-  L31 = 0.1, L32 = 0.3, L33 = 0.9,
+  L11 = 0.7, L22 = 0.8, L33 = 0.9,
+  L12 = 0.2, L13 = 0.1, L23 = 0.2,
+  e12 = 0, e13 = 0, e23 = 0.1,
   a = 0.1, b = 0.0, c = 0.2
 )
 
-lower <- c(
-  -Inf, -Inf, -Inf,
-  1e-3, 1e-3, 1e-3,
-  -Inf, -Inf, -Inf,
-  rep(-Inf, 9),
-  -Inf, -Inf, -Inf
-)
-upper <- rep(Inf, length(lower))
+bnd <- sun33_bounds()
+lower <- bnd$lower
+upper <- bnd$upper
+# Keep nu floors a bit above the package default for this demo.
+lower[4:6] <- pmax(lower[4:6], 1e-3)
 # Rescale free parameters so L-BFGS-B does not take wild Omega steps.
 parscale <- pmax(abs(as.numeric(start_params)), 0.1)
 optim_ctrl <- list(
@@ -164,7 +291,10 @@ unname(fit_trust_time["elapsed"])
 ## Comparison with `sn::dsun`
 
 Score each fit with both `sn::dsun` and `tape$eval` (no separate value-only
-`sn` optim — that is much slower and not needed to check agreement).
+`sn` optim — that is much slower and not needed to check agreement). Package
+tests (`tests/testthat/test-dsun.R`, `test-dsun44.R`, `test-sun-kl.R`) also
+assert that `dsun` / `dsun_fun` / `evaluate_sun33_slice` match `sn::dsun` on
+mild parameter values.
 
 ```{r compare, eval = requireNamespace("sn", quietly = TRUE)}
 sn_ll_at <- function(par) {

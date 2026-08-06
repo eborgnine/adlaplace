@@ -1,11 +1,31 @@
+test_that("L33 pair-level / signed-gap reparam roundtrips", {
+  L0 <- matrix(
+    c(
+      0.4, 0.1, 0.1,
+      0.1, 0.4, 0.1,
+      0.0, 0.1, 0.35
+    ),
+    3L, byrow = TRUE
+  )
+  pr <- admvn:::.L33_to_reparam(L0)
+  L1 <- admvn:::.L33_from_reparam(
+    pr["L11"], pr["L22"], pr["L33"],
+    pr["L12"], pr["L13"], pr["L23"],
+    pr["e12"], pr["e13"], pr["e23"]
+  )
+  expect_equal(L1, L0, tolerance = 1e-12)
+  expect_equal(L1[2, 1], unname(pr["L12"] + pr["e12"]), tolerance = 1e-12)
+  expect_equal(L1[1, 2], unname(pr["L12"] - pr["e12"]), tolerance = 1e-12)
+})
+
 test_that("make_sun_params matches expected structure", {
   par <- c(
     xi1 = 0, xi2 = 0, xi3 = 0,
     nu1 = 1, nu2 = 1, nu3 = 1,
     ell21 = 0.2, ell31 = 0.1, ell32 = 0.2,
-    L11 = 1, L12 = 0.5, L13 = 1,
-    L21 = 0.5, L22 = 1, L23 = 1.5,
-    L31 = 0, L32 = 0.5, L33 = 1,
+    L11 = 0.4, L22 = 0.4, L33 = 0.35,
+    L12 = 0.1, L13 = 0.05, L23 = 0.1,
+    e12 = 0, e13 = -0.05, e23 = 0,
     a = 0.3, b = 0.2, c = 0.3
   )
   dp <- make_sun_params(par)
@@ -14,6 +34,63 @@ test_that("make_sun_params matches expected structure", {
   expect_equal(dim(dp$Delta), c(3L, 3L))
   expect_equal(dp$tau, c(0, 0, 0))
   expect_equal(dim(dp$Gamma), c(3L, 3L))
+  expect_equal(diag(dp$Gamma), rep(1, 3L), tolerance = 1e-10)
+})
+
+test_that("unit-row Cholesky yields a correlation matrix without cov2cor", {
+  Br <- admvn:::.unit_row_chol(c(0.3, 0.2, 0.3), 3L)
+  expect_equal(rowSums(Br^2), rep(1, 3L), tolerance = 1e-12)
+  R <- Br %*% t(Br)
+  expect_equal(diag(R), rep(1, 3L), tolerance = 1e-12)
+  expect_true(all(abs(R) <= 1 + 1e-12))
+  # Zero free params -> identity
+  expect_equal(admvn:::.unit_row_chol(c(0, 0, 0), 3L), diag(3))
+})
+
+test_that("make_sun_params Sigma_vv has unit diagonal via residual R", {
+  par <- c(
+    xi1 = 0, xi2 = 0, xi3 = 0,
+    nu1 = 1, nu2 = 1, nu3 = 1,
+    ell21 = 0.2, ell31 = 0.1, ell32 = 0.2,
+    L11 = 0.4, L22 = 0.4, L33 = 0.35,
+    L12 = 0.1, L13 = 0.05, L23 = 0.1,
+    e12 = 0, e13 = -0.05, e23 = 0,
+    a = 0.3, b = 0.2, c = 0.3
+  )
+  dp <- make_sun_params(par)
+  expect_equal(diag(dp$Gamma), rep(1, 3L), tolerance = 1e-10)
+  expect_equal(unname(diag(dp$Omega)), unname(c(par["nu1"], par["nu2"], par["nu3"])^2),
+               tolerance = 1e-10)
+  Cu <- admvn:::.corr_from_free(
+    c(par["ell21"], par["ell31"], par["ell32"]), 3L
+  )
+  L <- admvn:::.L33_from_reparam(
+    par["L11"], par["L22"], par["L33"],
+    par["L12"], par["L13"], par["L23"],
+    par["e12"], par["e13"], par["e23"]
+  )
+  M <- L %*% Cu %*% t(L)
+  R <- admvn:::.residual_corr_R(M, c(par["a"], par["b"], par["c"]))
+  expect_equal(dp$Gamma, M + R, tolerance = 1e-10)
+  expect_true(all(diag(M) < 1))
+  expect_equal(dp$Delta, Cu %*% t(L), tolerance = 1e-10)
+})
+
+test_that("make_sun_params with L=0 has Gamma equal to residual correlation C", {
+  par <- c(
+    xi1 = 0, xi2 = 0, xi3 = 0,
+    nu1 = 1, nu2 = 1, nu3 = 1,
+    ell21 = 0, ell31 = 0, ell32 = 0,
+    L11 = 0, L22 = 0, L33 = 0,
+    L12 = 0, L13 = 0, L23 = 0,
+    e12 = 0, e13 = 0, e23 = 0,
+    a = 0.4, b = -0.2, c = 0.1
+  )
+  dp <- make_sun_params(par)
+  Br <- admvn:::.unit_row_chol(c(0.4, -0.2, 0.1), 3L)
+  C <- Br %*% t(Br)
+  expect_equal(dp$Gamma, C, tolerance = 1e-12)
+  expect_equal(diag(dp$Gamma), rep(1, 3L), tolerance = 1e-12)
 })
 
 test_that("dsun log-density matches sn::dsun", {
@@ -22,9 +99,9 @@ test_that("dsun log-density matches sn::dsun", {
     xi1 = 0, xi2 = 0, xi3 = 0,
     nu1 = 1, nu2 = 1, nu3 = 1,
     ell21 = 0.2, ell31 = 0.1, ell32 = 0.2,
-    L11 = 1, L12 = 0.5, L13 = 1,
-    L21 = 0.5, L22 = 1, L23 = 1.5,
-    L31 = 0, L32 = 0.5, L33 = 1,
+    L11 = 0.4, L22 = 0.4, L33 = 0.35,
+    L12 = 0.1, L13 = 0.05, L23 = 0.1,
+    e12 = 0, e13 = -0.05, e23 = 0,
     a = 0.3, b = 0.2, c = 0.3
   )
   dp <- make_sun_params(par)
@@ -44,9 +121,9 @@ test_that("dsun gradient matches numDeriv on summed loglik", {
     xi1 = 0, xi2 = 0, xi3 = 0,
     nu1 = 1, nu2 = 1, nu3 = 1,
     ell21 = 0.2, ell31 = 0.1, ell32 = 0.2,
-    L11 = 1, L12 = 0.5, L13 = 1,
-    L21 = 0.5, L22 = 1, L23 = 1.5,
-    L31 = 0, L32 = 0.5, L33 = 1,
+    L11 = 0.4, L22 = 0.4, L33 = 0.35,
+    L12 = 0.1, L13 = 0.05, L23 = 0.1,
+    e12 = 0, e13 = -0.05, e23 = 0,
     a = 0.3, b = 0.2, c = 0.3
   )
   dp <- make_sun_params(par)
@@ -66,9 +143,9 @@ test_that("SUN grads w.r.t. L and skewness params match finite differences", {
     xi1 = 0, xi2 = 0, xi3 = 0,
     nu1 = 1, nu2 = 1, nu3 = 1,
     ell21 = 0.2, ell31 = 0.1, ell32 = 0.2,
-    L11 = 1, L12 = 0.5, L13 = 1,
-    L21 = 0.5, L22 = 1, L23 = 1.5,
-    L31 = 0, L32 = 0.5, L33 = 1,
+    L11 = 0.4, L22 = 0.4, L33 = 0.35,
+    L12 = 0.1, L13 = 0.05, L23 = 0.1,
+    e12 = 0, e13 = -0.05, e23 = 0,
     a = 0.3, b = 0.2, c = 0.3
   )
   set.seed(7)
@@ -76,7 +153,7 @@ test_that("SUN grads w.r.t. L and skewness params match finite differences", {
   tape <- dsun_fun(x, par, n_points = 64L, n_shifts = 2L, n_threads = 1L)
   g_ad <- tape$eval(par, log = TRUE, deriv = 1L)$gradient
   ll <- function(p) tape$eval(p, log = TRUE, deriv = 0L)$value
-  idx <- match(c("L11", "L22", "L33", "a", "b", "c"), names(par))
+  idx <- match(c("L11", "L22", "L33", "L12", "a", "b", "c"), names(par))
   expect_true(all(abs(g_ad[idx]) > 1e-8))
   for (j in idx) {
     h <- pmax(1e-6, 1e-5 * abs(par[j]))
@@ -94,9 +171,9 @@ test_that("dsun_fun reuses tape with fixed data", {
     xi1 = 0, xi2 = 0, xi3 = 0,
     nu1 = 1, nu2 = 1, nu3 = 1,
     ell21 = 0.2, ell31 = 0.1, ell32 = 0.2,
-    L11 = 1, L12 = 0.5, L13 = 1,
-    L21 = 0.5, L22 = 1, L23 = 1.5,
-    L31 = 0, L32 = 0.5, L33 = 1,
+    L11 = 0.4, L22 = 0.4, L33 = 0.35,
+    L12 = 0.1, L13 = 0.05, L23 = 0.1,
+    e12 = 0, e13 = -0.05, e23 = 0,
     a = 0.3, b = 0.2, c = 0.3
   )
   dp <- make_sun_params(par)
@@ -117,9 +194,9 @@ test_that("serial and parallel shard eval agree", {
     xi1 = 0, xi2 = 0, xi3 = 0,
     nu1 = 1, nu2 = 1, nu3 = 1,
     ell21 = 0.2, ell31 = 0.1, ell32 = 0.2,
-    L11 = 1, L12 = 0.5, L13 = 1,
-    L21 = 0.5, L22 = 1, L23 = 1.5,
-    L31 = 0, L32 = 0.5, L33 = 1,
+    L11 = 0.4, L22 = 0.4, L33 = 0.35,
+    L12 = 0.1, L13 = 0.05, L23 = 0.1,
+    e12 = 0, e13 = -0.05, e23 = 0,
     a = 0.3, b = 0.2, c = 0.3
   )
   dp <- make_sun_params(par)
@@ -138,9 +215,9 @@ test_that("optim_fns caches fn and gr for the same par", {
     xi1 = 0, xi2 = 0, xi3 = 0,
     nu1 = 1, nu2 = 1, nu3 = 1,
     ell21 = 0.2, ell31 = 0.1, ell32 = 0.2,
-    L11 = 1, L12 = 0.5, L13 = 1,
-    L21 = 0.5, L22 = 1, L23 = 1.5,
-    L31 = 0, L32 = 0.5, L33 = 1,
+    L11 = 0.4, L22 = 0.4, L33 = 0.35,
+    L12 = 0.1, L13 = 0.05, L23 = 0.1,
+    e12 = 0, e13 = -0.05, e23 = 0,
     a = 0.3, b = 0.2, c = 0.3
   )
   dp <- make_sun_params(par)
@@ -161,9 +238,9 @@ test_that("sun_mle improves loglik from a perturbed start", {
     xi1 = 0, xi2 = 0, xi3 = 0,
     nu1 = 1, nu2 = 1, nu3 = 1,
     ell21 = 0.2, ell31 = 0.1, ell32 = 0.2,
-    L11 = 1, L12 = 0.5, L13 = 1,
-    L21 = 0.5, L22 = 1, L23 = 1.5,
-    L31 = 0, L32 = 0.5, L33 = 1,
+    L11 = 0.4, L22 = 0.4, L33 = 0.35,
+    L12 = 0.1, L13 = 0.05, L23 = 0.1,
+    e12 = 0, e13 = -0.05, e23 = 0,
     a = 0.3, b = 0.2, c = 0.3
   )
   dp <- make_sun_params(par)
@@ -187,9 +264,9 @@ test_that("sun_mle reaches the same optimum as optim on a small sample", {
     xi1 = 0, xi2 = 0, xi3 = 0,
     nu1 = 1, nu2 = 1, nu3 = 1,
     ell21 = 0.2, ell31 = 0.1, ell32 = 0.2,
-    L11 = 1, L12 = 0.5, L13 = 1,
-    L21 = 0.5, L22 = 1, L23 = 1.5,
-    L31 = 0, L32 = 0.5, L33 = 1,
+    L11 = 0.4, L22 = 0.4, L33 = 0.35,
+    L12 = 0.1, L13 = 0.05, L23 = 0.1,
+    e12 = 0, e13 = -0.05, e23 = 0,
     a = 0.3, b = 0.2, c = 0.3
   )
   dp <- make_sun_params(par)
@@ -223,9 +300,9 @@ test_that("unit weights match unweighted dsun", {
     xi1 = 0, xi2 = 0, xi3 = 0,
     nu1 = 1, nu2 = 1, nu3 = 1,
     ell21 = 0.2, ell31 = 0.1, ell32 = 0.2,
-    L11 = 1, L12 = 0.5, L13 = 1,
-    L21 = 0.5, L22 = 1, L23 = 1.5,
-    L31 = 0, L32 = 0.5, L33 = 1,
+    L11 = 0.4, L22 = 0.4, L33 = 0.35,
+    L12 = 0.1, L13 = 0.05, L23 = 0.1,
+    e12 = 0, e13 = -0.05, e23 = 0,
     a = 0.3, b = 0.2, c = 0.3
   )
   set.seed(11)
@@ -245,9 +322,9 @@ test_that("weighted dsun matches sum of weighted single-row evals", {
     xi1 = 0, xi2 = 0, xi3 = 0,
     nu1 = 1, nu2 = 1, nu3 = 1,
     ell21 = 0.2, ell31 = 0.1, ell32 = 0.2,
-    L11 = 1, L12 = 0.5, L13 = 1,
-    L21 = 0.5, L22 = 1, L23 = 1.5,
-    L31 = 0, L32 = 0.5, L33 = 1,
+    L11 = 0.4, L22 = 0.4, L33 = 0.35,
+    L12 = 0.1, L13 = 0.05, L23 = 0.1,
+    e12 = 0, e13 = -0.05, e23 = 0,
     a = 0.3, b = 0.2, c = 0.3
   )
   set.seed(12)
@@ -277,9 +354,9 @@ test_that("weighted dsun value matches weighted sn::dsun", {
     xi1 = 0, xi2 = 0, xi3 = 0,
     nu1 = 1, nu2 = 1, nu3 = 1,
     ell21 = 0.2, ell31 = 0.1, ell32 = 0.2,
-    L11 = 1, L12 = 0.5, L13 = 1,
-    L21 = 0.5, L22 = 1, L23 = 1.5,
-    L31 = 0, L32 = 0.5, L33 = 1,
+    L11 = 0.4, L22 = 0.4, L33 = 0.35,
+    L12 = 0.1, L13 = 0.05, L23 = 0.1,
+    e12 = 0, e13 = -0.05, e23 = 0,
     a = 0.3, b = 0.2, c = 0.3
   )
   dp <- make_sun_params(par)
@@ -300,9 +377,9 @@ test_that("weighted dsun_fun tape matches dsun weights", {
     xi1 = 0, xi2 = 0, xi3 = 0,
     nu1 = 1, nu2 = 1, nu3 = 1,
     ell21 = 0.2, ell31 = 0.1, ell32 = 0.2,
-    L11 = 1, L12 = 0.5, L13 = 1,
-    L21 = 0.5, L22 = 1, L23 = 1.5,
-    L31 = 0, L32 = 0.5, L33 = 1,
+    L11 = 0.4, L22 = 0.4, L33 = 0.35,
+    L12 = 0.1, L13 = 0.05, L23 = 0.1,
+    e12 = 0, e13 = -0.05, e23 = 0,
     a = 0.3, b = 0.2, c = 0.3
   )
   set.seed(14)

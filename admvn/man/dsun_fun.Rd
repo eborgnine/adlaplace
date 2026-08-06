@@ -10,7 +10,8 @@ dsun_fun(
   n_points = 1021L,
   n_shifts = 8L,
   seed = 1L,
-  n_threads = NULL
+  n_threads = NULL,
+  weights = NULL
 )
 }
 \arguments{
@@ -23,15 +24,20 @@ observations fixed in the tape.}
 
 \item{n_threads}{Default number of OpenMP threads for \code{$eval()}. When
 \code{NULL}, uses the maximum available OpenMP thread count.}
+
+\item{weights}{Optional numeric vector of length \code{nrow(x)} for a
+weighted log-likelihood \eqn{\sum_i w_i \log q(x_i)}.}
 }
 \value{
 An object of class \code{"admvn_sun_tape"} with components
 \code{eval(par, log = TRUE, deriv = 0, n_threads = 0)} and
-\code{optim_fns()} for cached fn/gr used by \code{optim()}.
+\code{optim_fns()} for \code{optim()}: \code{fn}/\code{gr} share one
+\code{deriv = 1} evaluation cached by parameter value.
 }
 \description{
 Builds per-observation CppAD shard tapes for the summed SUN log-likelihood
 with the data \code{x} fixed and the independent variables equal to the
 21-parameter vector. Use this for MLE: build once, then call
-\code{$eval(par)} at new parameter values.
+\code{$eval(par)} at new parameter values. Pass \code{weights} for a
+weighted sum (e.g. Gauss--Hermite KL objectives).
 }

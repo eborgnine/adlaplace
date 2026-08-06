@@ -9,8 +9,8 @@ Description: Evaluates the cumulative distribution function of the multivariate
     normal distribution using specialized bivariate/trivariate algorithms for
     dimension <= 3 and Genz quasi-Monte Carlo for higher dimensions, with
     gradient and Hessian with respect to the upper integration limits computed
-    via CppAD automatic differentiation. Also provides the SUN(3,3) and
-    SUN(4,4) densities with gradient and Hessian with respect to a
+    via CppAD automatic differentiation. Also provides the SUN(2,2), SUN(3,3)
+    and SUN(4,4) densities with gradient and Hessian with respect to a
     block-Cholesky parameter vector, Gauss-Hermite utilities, and KL
     minimisation of SUN approximations on weighted quadrature.
 License: GPL (>= 2)
@@ -23,7 +23,6 @@ VignetteBuilder: knitr
 Config/testthat/edition: 3
 Encoding: UTF-8
 SystemRequirements: OpenMP
-RoxygenNote: 7.3.3
 Roxygen: list(markdown = TRUE)
 NeedsCompilation: yes
 Collate:
@@ -34,10 +33,13 @@ Collate:
     'pmvn.R'
     'pmvn_fun.R'
     'make_sun_params.R'
+    'make_sun22_params.R'
     'make_sun44_params.R'
     'dsun.R'
+    'dsun22.R'
     'dsun44.R'
     'gh_points.R'
     'sun_bounds.R'
     'sun_starts.R'
     'sun_kl.R'
+Config/roxygen2/version: 8.1.0

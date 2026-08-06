@@ -152,7 +152,7 @@ test_that("univariate pmvn matches pnorm", {
 
 test_that("analytic domain grads for upper and scale match finite differences", {
   # Domain treats (scale, chol(R)) as independent; free chol perturbations that
-  # break unit-diagonal R are not the SUN outer-tape path (which re-cov2cors).
+  # break unit-diagonal R are not the SUN outer-tape path (unit-row Cholesky).
   set.seed(3)
   A <- matrix(rnorm(9), 3, 3)
   sigma0 <- crossprod(A) + diag(3)
@@ -254,9 +254,9 @@ test_that("dsun gradient still matches numDeriv with analytic pmvn reverse", {
     xi1 = 0, xi2 = 0, xi3 = 0,
     nu1 = 1, nu2 = 1, nu3 = 1,
     ell21 = 0.2, ell31 = 0.1, ell32 = 0.2,
-    L11 = 1, L12 = 0.5, L13 = 1,
-    L21 = 0.5, L22 = 1, L23 = 1.5,
-    L31 = 0, L32 = 0.5, L33 = 1,
+    L11 = 0.4, L22 = 0.4, L33 = 0.35,
+    L12 = 0.1, L13 = 0.05, L23 = 0.1,
+    e12 = 0, e13 = -0.05, e23 = 0,
     a = 0.3, b = 0.2, c = 0.3
   )
   dp <- make_sun_params(par)

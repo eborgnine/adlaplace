@@ -9,7 +9,18 @@ make_sun_params(par)
 \arguments{
 \item{par}{Numeric vector of length 21:
 \code{c(xi1, xi2, xi3, nu1, nu2, nu3, ell21, ell31, ell32,
-  L11, ..., L33, a, b, c)}.}
+L11, L22, L33, L12, L13, L23, e12, e13, e23, a, b, c)}.
+Here \code{nu} are marginal standard deviations of \eqn{\Omega}
+(\eqn{\Omega_{jj}=\nu_j^2}), and \code{ell*}
+are unconstrained hyperspherical coordinates for the correlation
+\eqn{C_u} of the standardized latent. Skew loadings \eqn{L} act on that
+correlation scale (so entries in \eqn{[-1,1]} are natural); they are
+parameterized as three diagonals, three off-diagonal pair levels
+\code{L12,L13,L23}, and three signed asymmetries \code{e*} (lower
+\eqn{=}\code{Lij+eij}, upper \eqn{=}\code{Lij-eij}; see
+\code{\link[=.L33_from_reparam]{.L33_from_reparam()}}). \code{a}, \code{b}, \code{c} parameterize the
+residual correlation of \eqn{V}. Valid parameters need
+\eqn{\operatorname{diag}(L C_u L^\top) < 1}.}
 }
 \value{
 A list with components \code{xi}, \code{Omega}, \code{Delta},
@@ -20,14 +31,40 @@ Converts the SUN(3,3) block-Cholesky parameterization used in the
 supervision notes into the \code{dp} list expected by the \pkg{sn} package
 (\code{xi}, \code{Omega}, \code{Delta}, \code{tau}, \code{Gamma}).
 }
+\details{
+\strong{Correlation-scale SUN, then scale.} With correlation \eqn{C_u} from the
+unit-row Cholesky of \eqn{(\ell_{21},\ell_{31},\ell_{32})} and
+marginal standard deviations \eqn{\nu_j>0}, writing
+\eqn{D_u=\operatorname{diag}(\nu)},
+\deqn{\Omega = D_u C_u D_u.}
+Skew loadings \eqn{L} multiply \eqn{C_u} (not \eqn{\Omega}):
+\deqn{M = L C_u L^\top,\qquad
+\Sigma_{uv} = D_u C_u L^\top.}
+Free \eqn{(a,b,c)} build residual correlation \eqn{C}. With
+\eqn{D = \operatorname{diag}(1 - \operatorname{diag}(M))},
+\deqn{R = D^{1/2} C D^{1/2},}
+so \eqn{\Sigma_{vv} = M + R} is a correlation matrix. Then
+\eqn{\Gamma = \Sigma_{vv}} and
+\eqn{\Delta = D_u^{-1}\Sigma_{uv} = C_u L^\top}.
+
+\strong{Skew loadings.}
+\deqn{
+L =
+\begin{bmatrix}
+L_{11} & L_{12}-e_{12} & L_{13}-e_{13} \\
+L_{12}+e_{12} & L_{22} & L_{23}-e_{23} \\
+L_{13}+e_{13} & L_{23}+e_{23} & L_{33}
+\end{bmatrix}.
+}
+}
 \examples{
 par <- c(
   xi1 = 0, xi2 = 0, xi3 = 0,
   nu1 = 1, nu2 = 1, nu3 = 1,
   ell21 = 0.2, ell31 = 0.1, ell32 = 0.2,
-  L11 = 1, L12 = 0.5, L13 = 1,
-  L21 = 0.5, L22 = 1, L23 = 1.5,
-  L31 = 0, L32 = 0.5, L33 = 1,
+  L11 = 0.4, L22 = 0.4, L33 = 0.35,
+  L12 = 0.1, L13 = 0.05, L23 = 0.1,
+  e12 = 0, e13 = -0.05, e23 = 0,
   a = 0.3, b = 0.2, c = 0.3
 )
 make_sun_params(par)

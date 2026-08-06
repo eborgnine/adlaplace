@@ -104,6 +104,29 @@ ChAD cov2cor3(const ChAD& sigma) {
   return out;
 }
 
+// Unit-row Cholesky (hyperspherical) factor of a correlation matrix.
+  // Free params z (length d*(d-1)/2) are unconstrained; each partial coordinate
+  // uses tanh so C = Br Br^T is a residual correlation (unit diagonal).
+ChAD unit_row_chol3(const std::array<AD, 3>& z) {
+  ChAD Br = zeros_ad3();
+  Br[0][0] = AD(1.0);
+  std::size_t idx = 0;
+  for (std::size_t i = 1; i < kSunD; ++i) {
+    AD sum_sq = AD(0.0);
+    for (std::size_t j = 0; j < i; ++j) {
+      const AD tij = CppAD::tanh(z[idx++]);
+      const AD rem = CppAD::CondExpGt(AD(1.0) - sum_sq, AD(1e-16),
+                                      AD(1.0) - sum_sq, AD(1e-16));
+      Br[i][j] = tij * CppAD::sqrt(rem);
+      sum_sq += Br[i][j] * Br[i][j];
+    }
+    const AD rem_diag = CppAD::CondExpGt(AD(1.0) - sum_sq, AD(1e-16),
+                                         AD(1.0) - sum_sq, AD(1e-16));
+    Br[i][i] = CppAD::sqrt(rem_diag);
+  }
+  return Br;
+}
+
 struct SunDpAD {
   std::array<AD, kSunD> xi{};
   ChAD Omega = zeros_ad3();
@@ -117,56 +140,89 @@ SunDpAD make_sun_dp_ad(const std::vector<AD>& par) {
     out.xi[i] = par[i];
   }
 
-  ChAD B1 = identity_ad3();
-  B1[1][0] = par[6];
-  B1[2][0] = par[7];
-  B1[2][1] = par[8];
+  // Correlation C_u from ell; scale S = diag(nu) applied outside.
+  // L acts on C_u so |L_ij| <= 1 is the natural regime.
+  const std::array<AD, kSunD> nu{par[3], par[4], par[5]};
+  const std::array<AD, 3> z_ell{par[6], par[7], par[8]};
+  ChAD Bu = unit_row_chol3(z_ell);
+  ChAD Cu = mat_mul3(Bu, mat_transpose3(Bu));
+  std::array<AD, kSunD> s_u{};
+  for (std::size_t i = 0; i < kSunD; ++i) {
+    // nu = marginal standard deviations
+    s_u[i] = CppAD::CondExpGt(nu[i], AD(1e-12), nu[i], AD(1e-12));
+  }
+  ChAD Omega = zeros_ad3();
+  for (std::size_t i = 0; i < kSunD; ++i) {
+    for (std::size_t j = 0; j < kSunD; ++j) {
+      Omega[i][j] = s_u[i] * s_u[j] * Cu[i][j];
+    }
+  }
+  out.Omega = Omega;
 
-  std::array<AD, kSunD> nu{par[3], par[4], par[5]};
-  ChAD A1 = mat_mul3(mat_mul3(B1, diag3(nu)), mat_transpose3(B1));
-  out.Omega = A1;
-
+  // L: diagonals; pair levels L12,L13,L23; signed gaps e12,e13,e23
+  // lower = Lij + eij, upper = Lij - eij
+  const AD L11 = par[9];
+  const AD L22 = par[10];
+  const AD L33 = par[11];
+  const AD L12 = par[12];
+  const AD L13 = par[13];
+  const AD L23 = par[14];
+  const AD e12 = par[15];
+  const AD e13 = par[16];
+  const AD e23 = par[17];
   ChAD L = zeros_ad3();
+  L[0][0] = L11;
+  L[0][1] = L12 - e12;
+  L[0][2] = L13 - e13;
+  L[1][0] = L12 + e12;
+  L[1][1] = L22;
+  L[1][2] = L23 - e23;
+  L[2][0] = L13 + e13;
+  L[2][1] = L23 + e23;
+  L[2][2] = L33;
+
+  const std::array<AD, 3> z_br{par[18], par[19], par[20]};
+  ChAD Br = unit_row_chol3(z_br);
+  ChAD C = mat_mul3(Br, mat_transpose3(Br));
+
+  // Correlation-scale block: M = L C_u L'; Delta = C_u L'
+  ChAD M = mat_mul3(mat_mul3(L, Cu), mat_transpose3(L));
+
+  // Residual R = D^{1/2} C D^{1/2} with D = diag(1 - diag(M)), so
+  // Sigma_vv = M + R has unit diagonal (correlation matrix).
+  std::array<AD, kSunD> s_res{};
+  for (std::size_t i = 0; i < kSunD; ++i) {
+    const AD rem = CppAD::CondExpGt(AD(1.0) - M[i][i], AD(1e-12),
+                                    AD(1.0) - M[i][i], AD(1e-12));
+    s_res[i] = CppAD::sqrt(rem);
+  }
+  ChAD R = zeros_ad3();
   for (std::size_t i = 0; i < kSunD; ++i) {
     for (std::size_t j = 0; j < kSunD; ++j) {
-      L[i][j] = par[9 + i * kSunD + j];
+      R[i][j] = s_res[i] * s_res[j] * C[i][j];
     }
   }
 
-  ChAD Br = identity_ad3();
-  Br[1][0] = par[18];
-  Br[2][0] = par[19];
-  Br[2][1] = par[20];
-  ChAD R = cov2cor3(mat_mul3(Br, mat_transpose3(Br)));
-
-  ChAD Sigma_uv = mat_mul3(A1, mat_transpose3(L));
-  ChAD Sigma_vv = mat_mul3(mat_mul3(L, A1), mat_transpose3(L));
+  ChAD Sigma_vv = zeros_ad3();
   for (std::size_t i = 0; i < kSunD; ++i) {
     for (std::size_t j = 0; j < kSunD; ++j) {
-      Sigma_vv[i][j] = Sigma_vv[i][j] + R[i][j];
+      Sigma_vv[i][j] = M[i][j] + R[i][j];
     }
   }
 
-  std::array<AD, kSunD> omega_u{};
-  std::array<AD, kSunD> omega_v{};
-  for (std::size_t i = 0; i < kSunD; ++i) {
-    omega_u[i] = CppAD::sqrt(A1[i][i]);
-    omega_v[i] = CppAD::sqrt(Sigma_vv[i][i]);
-  }
-
+  // Delta = D_u^{-1} Sigma_uv = C_u L'  (S cancels)
   out.Delta = zeros_ad3();
   for (std::size_t i = 0; i < kSunD; ++i) {
     for (std::size_t j = 0; j < kSunD; ++j) {
-      out.Delta[i][j] = Sigma_uv[i][j] / (omega_u[i] * omega_v[j]);
+      AD acc = AD(0.0);
+      for (std::size_t k = 0; k < kSunD; ++k) {
+        acc += Cu[i][k] * L[j][k];
+      }
+      out.Delta[i][j] = acc;
     }
   }
 
-  out.Gamma = zeros_ad3();
-  for (std::size_t i = 0; i < kSunD; ++i) {
-    for (std::size_t j = 0; j < kSunD; ++j) {
-      out.Gamma[i][j] = Sigma_vv[i][j] / (omega_v[i] * omega_v[j]);
-    }
-  }
+  out.Gamma = Sigma_vv;
   return out;
 }
 

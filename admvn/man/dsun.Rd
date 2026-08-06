@@ -12,7 +12,8 @@ dsun(
   n_points = 1021L,
   n_shifts = 8L,
   seed = 1L,
-  n_threads = 1L
+  n_threads = 1L,
+  weights = NULL
 )
 }
 \arguments{
@@ -33,6 +34,10 @@ probabilities in the SUN density.}
 \item{n_threads}{Number of OpenMP threads for parallel shard evaluation.
 Defaults to \code{1}. Use \code{0} in \code{$eval()} to reuse the value
 stored when the tape was built.}
+
+\item{weights}{Optional numeric vector of length \code{nrow(x)}. If
+supplied, returns \eqn{\sum_i w_i \log q(x_i)} (and matching derivatives)
+instead of the unweighted sum. Defaults to equal weights of 1.}
 }
 \value{
 A list with \code{value} and \code{error}. If \code{deriv >= 1},
@@ -42,9 +47,9 @@ also \code{gradient} (length 21). If \code{deriv >= 2}, also
 \description{
 Evaluates the log-density (or density) of a SUN(3,3) distribution using the
 block-Cholesky parameterization from \code{make_sun_params()}. For a matrix
-of observations the returned value is the summed log-likelihood. Derivatives
-are with respect to the 21-component parameter vector only; the data are
-treated as fixed.
+of observations the returned value is the summed log-likelihood, or a
+weighted sum if \code{weights} is supplied. Derivatives are with respect to
+the 21-component parameter vector only; the data are treated as fixed.
 }
 \seealso{
 \code{\link[=make_sun_params]{make_sun_params()}}, \code{\link[=dsun_fun]{dsun_fun()}}
