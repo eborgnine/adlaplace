@@ -577,6 +577,90 @@ std::vector<double> pack_domain(
   return x;
 }
 
+void unpack_domain(
+  const std::vector<double>& x,
+  std::size_t n,
+  std::vector<double>& upper,
+  std::vector<double>& mean,
+  GenzPack& genz) {
+
+  upper.resize(n);
+  mean.resize(n);
+  genz.scale.resize(n);
+  genz.ch.assign(n, std::vector<double>(n, 0.0));
+  for (std::size_t i = 0; i < n; ++i) {
+    upper[i] = x[i];
+    mean[i] = x[n + i];
+    genz.scale[i] = x[2 * n + i];
+  }
+  const std::size_t off_ch = 3 * n;
+  for (std::size_t i = 0; i < n; ++i) {
+    for (std::size_t j = 0; j <= i; ++j) {
+      genz.ch[i][j] = x[off_ch + vech_index(i, j)];
+    }
+  }
+}
+
+// Domain gradient by central FD of the same forward used for values
+// (specialized d<=3 CDF or QMC). Keeps SUN reverse consistent with Forward,
+// including residual-correlation params like SUN22 `a` at large |a|.
+std::vector<double> eval_mvn_domain_grad_fd(
+  const MvnTape& tape,
+  const std::vector<double>& upper,
+  const std::vector<double>& mean,
+  const GenzPack& genz) {
+
+  const std::size_t n = tape.n;
+  const std::size_t n_dom = domain_size(n);
+  std::vector<double> x0 = pack_domain(upper, mean, genz);
+  std::vector<double> grad(n_dom, 0.0);
+
+  for (std::size_t i = 0; i < n_dom; ++i) {
+    const double xi = x0[i];
+    double h = 1e-7 * std::max(1.0, std::abs(xi));
+    // Keep Cholesky diagonals (vech entries with row==col) positive.
+    const std::size_t off_ch = 3 * n;
+    if (i >= off_ch) {
+      std::size_t rem = i - off_ch;
+      // vech index i*(i+1)/2 + j; detect diagonal j==row
+      std::size_t row = 0;
+      while (vech_index(row + 1, 0) <= rem && row + 1 < n) {
+        ++row;
+      }
+      const std::size_t col = rem - vech_index(row, 0);
+      if (row == col) {
+        h = std::min(h, 0.25 * std::max(xi, 1e-8));
+        if (xi - h <= 0.0) {
+          // Forward difference near zero diagonal
+          std::vector<double> xh = x0;
+          xh[i] = xi + h;
+          std::vector<double> up, mu;
+          GenzPack gz;
+          unpack_domain(xh, n, up, mu, gz);
+          const double vp = eval_mvn_value_double(tape, up, mu, gz, nullptr);
+          unpack_domain(x0, n, up, mu, gz);
+          const double v0 = eval_mvn_value_double(tape, up, mu, gz, nullptr);
+          grad[i] = (vp - v0) / h;
+          continue;
+        }
+      }
+    }
+
+    std::vector<double> xp = x0;
+    std::vector<double> xm = x0;
+    xp[i] = xi + h;
+    xm[i] = xi - h;
+    std::vector<double> up, mu;
+    GenzPack gz;
+    unpack_domain(xp, n, up, mu, gz);
+    const double vp = eval_mvn_value_double(tape, up, mu, gz, nullptr);
+    unpack_domain(xm, n, up, mu, gz);
+    const double vm = eval_mvn_value_double(tape, up, mu, gz, nullptr);
+    grad[i] = (vp - vm) / (2.0 * h);
+  }
+  return grad;
+}
+
 MvnTape create_mvn_tape(
   const std::vector<double>& lower,
   const std::vector<double>& upper_seed,
@@ -812,6 +896,23 @@ std::vector<double> eval_mvn_domain_grad_auto(
   const std::vector<double>& upper,
   const std::vector<double>& mean,
   const GenzPack& genz) {
+
+  const std::size_t n = tape.n;
+  // Prefer FD of the same specialized/QMC forward used for values when d<=3.
+  // Hand-coded Plackett→chol analytic grads disagree with that forward for
+  // some SUN residual-correlation paths (e.g. large |a|), which made AD for
+  // SUN22 `a` look flat while FD matched the objective slope.
+  bool lower_ok = (tape.lower.size() == n);
+  for (std::size_t i = 0; lower_ok && i < n; ++i) {
+    const double lo = tape.lower[i];
+    if (!((!std::isfinite(lo) && lo < 0.0) || lo <= -1e20)) {
+      lower_ok = false;
+    }
+  }
+  if (n >= 1 && n <= 3 && lower_ok &&
+      genz.scale.size() == n && genz.ch.size() == n) {
+    return eval_mvn_domain_grad_fd(tape, upper, mean, genz);
+  }
 
   std::vector<double> analytic =
     analytic_mvn_domain_grad(upper, mean, genz, tape.lower);

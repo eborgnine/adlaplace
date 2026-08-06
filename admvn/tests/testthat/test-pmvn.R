@@ -253,11 +253,11 @@ test_that("dsun gradient still matches numDeriv with analytic pmvn reverse", {
   par <- c(
     xi1 = 0, xi2 = 0, xi3 = 0,
     nu1 = 1, nu2 = 1, nu3 = 1,
-    ell21 = 0.2, ell31 = 0.1, ell32 = 0.2,
-    L11 = 0.4, L22 = 0.4, L33 = 0.35,
-    L12 = 0.1, L13 = 0.05, L23 = 0.1,
-    e12 = 0, e13 = -0.05, e23 = 0,
-    a = 0.3, b = 0.2, c = 0.3
+    omega12 = 0.2, omega13 = 0.1, omega23 = 0.2,
+    L11 = 0.4, L12 = 0.1, L13 = 0.1,
+    L21 = 0.1, L22 = 0.4, L23 = 0.1,
+    L31 = 0, L32 = 0.1, L33 = 0.35,
+    gamma12 = 0.3, gamma13 = 0.2, gamma23 = 0.3
   )
   dp <- make_sun_params(par)
   set.seed(4)
