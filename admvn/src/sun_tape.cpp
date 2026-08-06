@@ -4,6 +4,7 @@
 #include "ompad.hpp"
 #include "pmvn_atomic.hpp"
 #include "qnorm_atomic.hpp"
+#include "sun_ad_utils.hpp"
 
 #include <Rcpp.h>
 
@@ -468,8 +469,7 @@ AD sun_obs_contrib_ad(
   std::vector<AD> mean_v(kSunD, AD(0.0));
   std::vector<AD> scale_l_v(scale_l.begin(), scale_l.end());
   const AD p1 = detail::pmvn_ad(0, p1_tape, alpha_v, mean_v, scale_l_v, vech_l);
-  const AD eps = AD(1e-300);
-  return log_pdf + CppAD::log(p1 + eps);
+  return log_pdf + log_prob_floored(p1);
 }
 
 AD sun_obs_loglik_ad(
@@ -495,8 +495,7 @@ AD sun_log_p2_ad(const std::vector<AD>& par, MvnTape& p2_tape) {
   std::vector<AD> upper_zero(kSunD, AD(0.0));
   std::vector<AD> scale_g_v(scale_g.begin(), scale_g.end());
   const AD p2 = detail::pmvn_ad(1, p2_tape, upper_zero, mean_v, scale_g_v, vech_g);
-  const AD eps = AD(1e-300);
-  return CppAD::log(p2 + eps);
+  return log_prob_floored(p2);
 }
 
 std::vector<std::vector<double>> mat_from_mat3(const Mat3& m) {
