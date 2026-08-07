@@ -149,6 +149,42 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// dsun_hs_cpp
+Rcpp::List dsun_hs_cpp(Rcpp::NumericMatrix x, Rcpp::NumericVector par, bool log_scale, int deriv, int n_points, int n_shifts, unsigned int seed, int n_threads, Rcpp::Nullable<Rcpp::NumericVector> weights);
+RcppExport SEXP _admvn_dsun_hs_cpp(SEXP xSEXP, SEXP parSEXP, SEXP log_scaleSEXP, SEXP derivSEXP, SEXP n_pointsSEXP, SEXP n_shiftsSEXP, SEXP seedSEXP, SEXP n_threadsSEXP, SEXP weightsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::NumericMatrix >::type x(xSEXP);
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type par(parSEXP);
+    Rcpp::traits::input_parameter< bool >::type log_scale(log_scaleSEXP);
+    Rcpp::traits::input_parameter< int >::type deriv(derivSEXP);
+    Rcpp::traits::input_parameter< int >::type n_points(n_pointsSEXP);
+    Rcpp::traits::input_parameter< int >::type n_shifts(n_shiftsSEXP);
+    Rcpp::traits::input_parameter< unsigned int >::type seed(seedSEXP);
+    Rcpp::traits::input_parameter< int >::type n_threads(n_threadsSEXP);
+    Rcpp::traits::input_parameter< Rcpp::Nullable<Rcpp::NumericVector> >::type weights(weightsSEXP);
+    rcpp_result_gen = Rcpp::wrap(dsun_hs_cpp(x, par, log_scale, deriv, n_points, n_shifts, seed, n_threads, weights));
+    return rcpp_result_gen;
+END_RCPP
+}
+// dsun_hs_fun_create_cpp
+SEXP dsun_hs_fun_create_cpp(Rcpp::NumericMatrix x, Rcpp::NumericVector par_seed, int n_points, int n_shifts, unsigned int seed, int n_threads, Rcpp::Nullable<Rcpp::NumericVector> weights);
+RcppExport SEXP _admvn_dsun_hs_fun_create_cpp(SEXP xSEXP, SEXP par_seedSEXP, SEXP n_pointsSEXP, SEXP n_shiftsSEXP, SEXP seedSEXP, SEXP n_threadsSEXP, SEXP weightsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::NumericMatrix >::type x(xSEXP);
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type par_seed(par_seedSEXP);
+    Rcpp::traits::input_parameter< int >::type n_points(n_pointsSEXP);
+    Rcpp::traits::input_parameter< int >::type n_shifts(n_shiftsSEXP);
+    Rcpp::traits::input_parameter< unsigned int >::type seed(seedSEXP);
+    Rcpp::traits::input_parameter< int >::type n_threads(n_threadsSEXP);
+    Rcpp::traits::input_parameter< Rcpp::Nullable<Rcpp::NumericVector> >::type weights(weightsSEXP);
+    rcpp_result_gen = Rcpp::wrap(dsun_hs_fun_create_cpp(x, par_seed, n_points, n_shifts, seed, n_threads, weights));
+    return rcpp_result_gen;
+END_RCPP
+}
 // dsun_n_threads_default_cpp
 int dsun_n_threads_default_cpp();
 RcppExport SEXP _admvn_dsun_n_threads_default_cpp() {
@@ -178,6 +214,25 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// dsun22_hs_cpp
+Rcpp::List dsun22_hs_cpp(Rcpp::NumericMatrix x, Rcpp::NumericVector par, bool log_scale, int deriv, int n_points, int n_shifts, unsigned int seed, int n_threads, Rcpp::Nullable<Rcpp::NumericVector> weights);
+RcppExport SEXP _admvn_dsun22_hs_cpp(SEXP xSEXP, SEXP parSEXP, SEXP log_scaleSEXP, SEXP derivSEXP, SEXP n_pointsSEXP, SEXP n_shiftsSEXP, SEXP seedSEXP, SEXP n_threadsSEXP, SEXP weightsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::NumericMatrix >::type x(xSEXP);
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type par(parSEXP);
+    Rcpp::traits::input_parameter< bool >::type log_scale(log_scaleSEXP);
+    Rcpp::traits::input_parameter< int >::type deriv(derivSEXP);
+    Rcpp::traits::input_parameter< int >::type n_points(n_pointsSEXP);
+    Rcpp::traits::input_parameter< int >::type n_shifts(n_shiftsSEXP);
+    Rcpp::traits::input_parameter< unsigned int >::type seed(seedSEXP);
+    Rcpp::traits::input_parameter< int >::type n_threads(n_threadsSEXP);
+    Rcpp::traits::input_parameter< Rcpp::Nullable<Rcpp::NumericVector> >::type weights(weightsSEXP);
+    rcpp_result_gen = Rcpp::wrap(dsun22_hs_cpp(x, par, log_scale, deriv, n_points, n_shifts, seed, n_threads, weights));
+    return rcpp_result_gen;
+END_RCPP
+}
 // dsun22_fun_create_cpp
 SEXP dsun22_fun_create_cpp(Rcpp::NumericMatrix x, Rcpp::NumericVector par_seed, int n_points, int n_shifts, unsigned int seed, int n_threads, Rcpp::Nullable<Rcpp::NumericVector> weights);
 RcppExport SEXP _admvn_dsun22_fun_create_cpp(SEXP xSEXP, SEXP par_seedSEXP, SEXP n_pointsSEXP, SEXP n_shiftsSEXP, SEXP seedSEXP, SEXP n_threadsSEXP, SEXP weightsSEXP) {
@@ -192,6 +247,23 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< int >::type n_threads(n_threadsSEXP);
     Rcpp::traits::input_parameter< Rcpp::Nullable<Rcpp::NumericVector> >::type weights(weightsSEXP);
     rcpp_result_gen = Rcpp::wrap(dsun22_fun_create_cpp(x, par_seed, n_points, n_shifts, seed, n_threads, weights));
+    return rcpp_result_gen;
+END_RCPP
+}
+// dsun22_hs_fun_create_cpp
+SEXP dsun22_hs_fun_create_cpp(Rcpp::NumericMatrix x, Rcpp::NumericVector par_seed, int n_points, int n_shifts, unsigned int seed, int n_threads, Rcpp::Nullable<Rcpp::NumericVector> weights);
+RcppExport SEXP _admvn_dsun22_hs_fun_create_cpp(SEXP xSEXP, SEXP par_seedSEXP, SEXP n_pointsSEXP, SEXP n_shiftsSEXP, SEXP seedSEXP, SEXP n_threadsSEXP, SEXP weightsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::NumericMatrix >::type x(xSEXP);
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type par_seed(par_seedSEXP);
+    Rcpp::traits::input_parameter< int >::type n_points(n_pointsSEXP);
+    Rcpp::traits::input_parameter< int >::type n_shifts(n_shiftsSEXP);
+    Rcpp::traits::input_parameter< unsigned int >::type seed(seedSEXP);
+    Rcpp::traits::input_parameter< int >::type n_threads(n_threadsSEXP);
+    Rcpp::traits::input_parameter< Rcpp::Nullable<Rcpp::NumericVector> >::type weights(weightsSEXP);
+    rcpp_result_gen = Rcpp::wrap(dsun22_hs_fun_create_cpp(x, par_seed, n_points, n_shifts, seed, n_threads, weights));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -229,6 +301,25 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// dsun44_hs_cpp
+Rcpp::List dsun44_hs_cpp(Rcpp::NumericMatrix x, Rcpp::NumericVector par, bool log_scale, int deriv, int n_points, int n_shifts, unsigned int seed, int n_threads, Rcpp::Nullable<Rcpp::NumericVector> weights);
+RcppExport SEXP _admvn_dsun44_hs_cpp(SEXP xSEXP, SEXP parSEXP, SEXP log_scaleSEXP, SEXP derivSEXP, SEXP n_pointsSEXP, SEXP n_shiftsSEXP, SEXP seedSEXP, SEXP n_threadsSEXP, SEXP weightsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::NumericMatrix >::type x(xSEXP);
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type par(parSEXP);
+    Rcpp::traits::input_parameter< bool >::type log_scale(log_scaleSEXP);
+    Rcpp::traits::input_parameter< int >::type deriv(derivSEXP);
+    Rcpp::traits::input_parameter< int >::type n_points(n_pointsSEXP);
+    Rcpp::traits::input_parameter< int >::type n_shifts(n_shiftsSEXP);
+    Rcpp::traits::input_parameter< unsigned int >::type seed(seedSEXP);
+    Rcpp::traits::input_parameter< int >::type n_threads(n_threadsSEXP);
+    Rcpp::traits::input_parameter< Rcpp::Nullable<Rcpp::NumericVector> >::type weights(weightsSEXP);
+    rcpp_result_gen = Rcpp::wrap(dsun44_hs_cpp(x, par, log_scale, deriv, n_points, n_shifts, seed, n_threads, weights));
+    return rcpp_result_gen;
+END_RCPP
+}
 // dsun44_fun_create_cpp
 SEXP dsun44_fun_create_cpp(Rcpp::NumericMatrix x, Rcpp::NumericVector par_seed, int n_points, int n_shifts, unsigned int seed, int n_threads, Rcpp::Nullable<Rcpp::NumericVector> weights);
 RcppExport SEXP _admvn_dsun44_fun_create_cpp(SEXP xSEXP, SEXP par_seedSEXP, SEXP n_pointsSEXP, SEXP n_shiftsSEXP, SEXP seedSEXP, SEXP n_threadsSEXP, SEXP weightsSEXP) {
@@ -243,6 +334,23 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< int >::type n_threads(n_threadsSEXP);
     Rcpp::traits::input_parameter< Rcpp::Nullable<Rcpp::NumericVector> >::type weights(weightsSEXP);
     rcpp_result_gen = Rcpp::wrap(dsun44_fun_create_cpp(x, par_seed, n_points, n_shifts, seed, n_threads, weights));
+    return rcpp_result_gen;
+END_RCPP
+}
+// dsun44_hs_fun_create_cpp
+SEXP dsun44_hs_fun_create_cpp(Rcpp::NumericMatrix x, Rcpp::NumericVector par_seed, int n_points, int n_shifts, unsigned int seed, int n_threads, Rcpp::Nullable<Rcpp::NumericVector> weights);
+RcppExport SEXP _admvn_dsun44_hs_fun_create_cpp(SEXP xSEXP, SEXP par_seedSEXP, SEXP n_pointsSEXP, SEXP n_shiftsSEXP, SEXP seedSEXP, SEXP n_threadsSEXP, SEXP weightsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::NumericMatrix >::type x(xSEXP);
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type par_seed(par_seedSEXP);
+    Rcpp::traits::input_parameter< int >::type n_points(n_pointsSEXP);
+    Rcpp::traits::input_parameter< int >::type n_shifts(n_shiftsSEXP);
+    Rcpp::traits::input_parameter< unsigned int >::type seed(seedSEXP);
+    Rcpp::traits::input_parameter< int >::type n_threads(n_threadsSEXP);
+    Rcpp::traits::input_parameter< Rcpp::Nullable<Rcpp::NumericVector> >::type weights(weightsSEXP);
+    rcpp_result_gen = Rcpp::wrap(dsun44_hs_fun_create_cpp(x, par_seed, n_points, n_shifts, seed, n_threads, weights));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -286,12 +394,18 @@ static const R_CallMethodDef CallEntries[] = {
     {"_admvn_dsun_cpp", (DL_FUNC) &_admvn_dsun_cpp, 9},
     {"_admvn_dsun_fun_create_cpp", (DL_FUNC) &_admvn_dsun_fun_create_cpp, 7},
     {"_admvn_dsun_fun_eval_cpp", (DL_FUNC) &_admvn_dsun_fun_eval_cpp, 5},
+    {"_admvn_dsun_hs_cpp", (DL_FUNC) &_admvn_dsun_hs_cpp, 9},
+    {"_admvn_dsun_hs_fun_create_cpp", (DL_FUNC) &_admvn_dsun_hs_fun_create_cpp, 7},
     {"_admvn_dsun_n_threads_default_cpp", (DL_FUNC) &_admvn_dsun_n_threads_default_cpp, 0},
     {"_admvn_dsun22_cpp", (DL_FUNC) &_admvn_dsun22_cpp, 9},
+    {"_admvn_dsun22_hs_cpp", (DL_FUNC) &_admvn_dsun22_hs_cpp, 9},
     {"_admvn_dsun22_fun_create_cpp", (DL_FUNC) &_admvn_dsun22_fun_create_cpp, 7},
+    {"_admvn_dsun22_hs_fun_create_cpp", (DL_FUNC) &_admvn_dsun22_hs_fun_create_cpp, 7},
     {"_admvn_dsun22_fun_eval_cpp", (DL_FUNC) &_admvn_dsun22_fun_eval_cpp, 5},
     {"_admvn_dsun44_cpp", (DL_FUNC) &_admvn_dsun44_cpp, 9},
+    {"_admvn_dsun44_hs_cpp", (DL_FUNC) &_admvn_dsun44_hs_cpp, 9},
     {"_admvn_dsun44_fun_create_cpp", (DL_FUNC) &_admvn_dsun44_fun_create_cpp, 7},
+    {"_admvn_dsun44_hs_fun_create_cpp", (DL_FUNC) &_admvn_dsun44_hs_fun_create_cpp, 7},
     {"_admvn_dsun44_fun_eval_cpp", (DL_FUNC) &_admvn_dsun44_fun_eval_cpp, 5},
     {"_admvn_sun_mle_cpp", (DL_FUNC) &_admvn_sun_mle_cpp, 4},
     {NULL, NULL, 0}

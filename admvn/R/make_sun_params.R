@@ -7,13 +7,15 @@
 #'
 #' @param z Numeric vector of length \code{d * (d - 1) / 2}.
 #' @param d Dimension.
+#' @param eps Floor for residual row-norm squares (default \code{0}).
 #' @return Lower-triangular \code{d x d} matrix with unit rows.
 #' @keywords internal
-.unit_row_chol <- function(z, d) {
+.unit_row_chol <- function(z, d, eps = 0) {
   n_free <- as.integer(d * (d - 1L) / 2L)
   if (length(z) != n_free) {
     stop("z must have length ", n_free, " for dimension ", d, call. = FALSE)
   }
+  eps <- max(as.numeric(eps), 0)
   Br <- diag(d)
   idx <- 1L
   for (i in seq_len(d)) {
@@ -24,18 +26,18 @@
     for (j in seq_len(i - 1L)) {
       tij <- tanh(z[[idx]])
       idx <- idx + 1L
-      Br[i, j] <- tij * sqrt(max(1 - sum_sq, 0))
+      Br[i, j] <- tij * sqrt(max(1 - sum_sq, eps))
       sum_sq <- sum_sq + Br[i, j]^2
     }
-    Br[i, i] <- sqrt(max(1 - sum_sq, 0))
+    Br[i, i] <- sqrt(max(1 - sum_sq, eps))
   }
   Br
 }
 
 #' Correlation matrix from unconstrained hyperspherical free parameters
 #' @keywords internal
-.corr_from_free <- function(z, d) {
-  Br <- .unit_row_chol(z, d)
+.corr_from_free <- function(z, d, eps = 0) {
+  Br <- .unit_row_chol(z, d, eps = eps)
   Br %*% t(Br)
 }
 

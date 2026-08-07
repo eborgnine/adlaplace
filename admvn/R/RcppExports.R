@@ -37,6 +37,14 @@ dsun_fun_eval_cpp <- function(ptr, par = NULL, log_scale = TRUE, deriv = 0L, n_t
     .Call(`_admvn_dsun_fun_eval_cpp`, ptr, par, log_scale, deriv, n_threads)
 }
 
+dsun_hs_cpp <- function(x, par, log_scale = TRUE, deriv = 0L, n_points = 1021L, n_shifts = 8L, seed = 1L, n_threads = 1L, weights = NULL) {
+    .Call(`_admvn_dsun_hs_cpp`, x, par, log_scale, deriv, n_points, n_shifts, seed, n_threads, weights)
+}
+
+dsun_hs_fun_create_cpp <- function(x, par_seed, n_points = 1021L, n_shifts = 8L, seed = 1L, n_threads = 1L, weights = NULL) {
+    .Call(`_admvn_dsun_hs_fun_create_cpp`, x, par_seed, n_points, n_shifts, seed, n_threads, weights)
+}
+
 dsun_n_threads_default_cpp <- function() {
     .Call(`_admvn_dsun_n_threads_default_cpp`)
 }
@@ -45,8 +53,16 @@ dsun22_cpp <- function(x, par, log_scale = TRUE, deriv = 0L, n_points = 1021L, n
     .Call(`_admvn_dsun22_cpp`, x, par, log_scale, deriv, n_points, n_shifts, seed, n_threads, weights)
 }
 
+dsun22_hs_cpp <- function(x, par, log_scale = TRUE, deriv = 0L, n_points = 1021L, n_shifts = 8L, seed = 1L, n_threads = 1L, weights = NULL) {
+    .Call(`_admvn_dsun22_hs_cpp`, x, par, log_scale, deriv, n_points, n_shifts, seed, n_threads, weights)
+}
+
 dsun22_fun_create_cpp <- function(x, par_seed, n_points = 1021L, n_shifts = 8L, seed = 1L, n_threads = 1L, weights = NULL) {
     .Call(`_admvn_dsun22_fun_create_cpp`, x, par_seed, n_points, n_shifts, seed, n_threads, weights)
+}
+
+dsun22_hs_fun_create_cpp <- function(x, par_seed, n_points = 1021L, n_shifts = 8L, seed = 1L, n_threads = 1L, weights = NULL) {
+    .Call(`_admvn_dsun22_hs_fun_create_cpp`, x, par_seed, n_points, n_shifts, seed, n_threads, weights)
 }
 
 dsun22_fun_eval_cpp <- function(ptr, par = NULL, log_scale = TRUE, deriv = 0L, n_threads = 0L) {
@@ -57,8 +73,16 @@ dsun44_cpp <- function(x, par, log_scale = TRUE, deriv = 0L, n_points = 1021L, n
     .Call(`_admvn_dsun44_cpp`, x, par, log_scale, deriv, n_points, n_shifts, seed, n_threads, weights)
 }
 
+dsun44_hs_cpp <- function(x, par, log_scale = TRUE, deriv = 0L, n_points = 1021L, n_shifts = 8L, seed = 1L, n_threads = 1L, weights = NULL) {
+    .Call(`_admvn_dsun44_hs_cpp`, x, par, log_scale, deriv, n_points, n_shifts, seed, n_threads, weights)
+}
+
 dsun44_fun_create_cpp <- function(x, par_seed, n_points = 1021L, n_shifts = 8L, seed = 1L, n_threads = 1L, weights = NULL) {
     .Call(`_admvn_dsun44_fun_create_cpp`, x, par_seed, n_points, n_shifts, seed, n_threads, weights)
+}
+
+dsun44_hs_fun_create_cpp <- function(x, par_seed, n_points = 1021L, n_shifts = 8L, seed = 1L, n_threads = 1L, weights = NULL) {
+    .Call(`_admvn_dsun44_hs_fun_create_cpp`, x, par_seed, n_points, n_shifts, seed, n_threads, weights)
 }
 
 dsun44_fun_eval_cpp <- function(ptr, par = NULL, log_scale = TRUE, deriv = 0L, n_threads = 0L) {

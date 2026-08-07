@@ -26,7 +26,7 @@
 }
 
 .evaluate_sun_slice <- function(par, quad,
-                                family = c("22", "33", "44"),
+                                family = c("22", "33", "33hs", "44"),
                                 n_points = NULL,
                                 n_shifts = NULL,
                                 n_threads = 1L) {
@@ -60,6 +60,23 @@
     if (is.null(n_shifts)) n_shifts <- 2L
     tape <- tryCatch(
       dsun_fun(
+        x = x,
+        par_seed = par,
+        weights = w,
+        n_points = as.integer(n_points),
+        n_shifts = as.integer(n_shifts),
+        n_threads = as.integer(n_threads)
+      ),
+      error = function(e) NULL
+    )
+  } else if (family == "33hs") {
+    if (length(par) != 21L) {
+      stop("par must have length 21 for SUN(3,3) hyperspherical")
+    }
+    if (is.null(n_points)) n_points <- 64L
+    if (is.null(n_shifts)) n_shifts <- 2L
+    tape <- tryCatch(
+      dsun_hs_fun(
         x = x,
         par_seed = par,
         weights = w,
@@ -186,7 +203,7 @@ evaluate_sun44_slice <- function(par, quad,
                           verbose,
                           mvquad_opts,
                           optim_opts,
-                          family = c("22", "33", "44")) {
+                          family = c("22", "33", "33hs", "44")) {
   family <- match.arg(family)
   start <- as.numeric(start)
   npar <- length(start)
@@ -200,6 +217,13 @@ evaluate_sun44_slice <- function(par, quad,
     make_dp <- make_sun_params
     mq_default <- list(n_points = 64L, n_shifts = 2L)
     dsun_fun_create <- dsun_fun
+  } else if (family == "33hs") {
+    if (npar != 21L) {
+      stop("start must have length 21 for SUN(3,3) hyperspherical")
+    }
+    make_dp <- make_sun_hs_params
+    mq_default <- list(n_points = 64L, n_shifts = 2L)
+    dsun_fun_create <- dsun_hs_fun
   } else {
     if (npar != 36L) stop("start must have length 36 for SUN(4,4)")
     make_dp <- make_sun44_params
@@ -211,6 +235,7 @@ evaluate_sun44_slice <- function(par, quad,
     b <- switch(family,
       "22" = sun22_bounds(),
       "33" = sun33_bounds(),
+      "33hs" = sun33_hs_bounds(),
       sun44_bounds()
     )
     if (is.null(lower)) lower <- b$lower
@@ -396,6 +421,61 @@ fit_sun33_quad <- function(quad,
   )
 }
 
+#' Slice KL / cross-entropy of a SUN(3,3) hyperspherical vs a weighted target
+#'
+#' Like [evaluate_sun33_slice()], but uses [dsun_hs_fun()] and
+#' [make_sun_hs_params()].
+#'
+#' @inheritParams evaluate_sun33_slice
+#' @param par Length-21 hyperspherical parameter vector
+#'   (see [make_sun_hs_params()]).
+#' @export
+evaluate_sun33_hs_slice <- function(par, quad,
+                                    n_points = 64L,
+                                    n_shifts = 2L,
+                                    n_threads = 1L) {
+  .evaluate_sun_slice(
+    par, quad,
+    family = "33hs",
+    n_points = n_points,
+    n_shifts = n_shifts,
+    n_threads = n_threads
+  )
+}
+
+#' Fit SUN(3,3) hyperspherical by minimising KL on a weighted quadrature
+#'
+#' Like [fit_sun33_quad()], but uses [dsun_hs_fun()] and defaults from
+#' [sun33_hs_bounds()] / [make_sun33_hs_start_from_normal()].
+#'
+#' @inheritParams fit_sun33_quad
+#' @param start Length-21 hyperspherical start
+#'   (see [make_sun33_hs_start_from_normal()]).
+#' @param lower,upper Box constraints (defaults from [sun33_hs_bounds()]).
+#' @export
+fit_sun33_hs_quad <- function(quad,
+                              start,
+                              lower = NULL,
+                              upper = NULL,
+                              obj_scale = 1e4,
+                              mc.cores = 1L,
+                              verbose = FALSE,
+                              mvquad_opts = list(),
+                              optim_opts = list()) {
+  .fit_sun_quad(
+    quad = quad,
+    start = start,
+    lower = lower,
+    upper = upper,
+    obj_scale = obj_scale,
+    mc.cores = mc.cores,
+    verbose = verbose,
+    mvquad_opts = mvquad_opts,
+    optim_opts = optim_opts,
+    family = "33hs"
+  )
+}
+
 #' Fit SUN(4,4) by minimising KL on a weighted quadrature
 #'
 #' Like [fit_sun33_quad()] for SUN(4,4) via [dsun44_fun()]. Default QMC
@@ -430,7 +510,8 @@ fit_sun44_quad <- function(quad,
 #' Print SUN KL fit diagnostics (including gradient)
 #'
 #' @param fit Result from [fit_sun22_quad()] / [fit_sun33_quad()] /
-#'   [fit_sun44_quad()] (or a toenail wrapper that preserves the same fields).
+#'   [fit_sun33_hs_quad()] / [fit_sun44_quad()]
+#'   (or a toenail wrapper that preserves the same fields).
 #' @param label Optional header string.
 #' @return \code{fit}, invisibly.
 #' @export

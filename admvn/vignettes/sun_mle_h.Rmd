@@ -1,0 +1,305 @@
+---
+title: "SUN(3,3) MLE with joint hyperspherical parameterization"
+author: "Patrick Brown"
+date: "`r Sys.Date()`"
+output: pdf_document
+vignette: >
+  %\VignetteIndexEntry{SUN(3,3) MLE with joint hyperspherical parameterization}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 4
+)
+library(admvn)
+```
+
+This vignette mirrors `sun_mle`, but uses the joint hyperspherical
+parameterization of `make_sun_hs_params()` / `dsun_hs_fun()`. Orthant
+probabilities in dimension $\le 3$ use specialized bivariate/trivariate CDF
+routines, and their gradients are analytic. We compare `stats::optim()` and
+the C++ trust-region driver `sun_mle()`, and check agreement with `sn::dsun`
+at the fitted value. The block-Cholesky API is unchanged; see the `sun_mle`
+vignette for that path.
+
+## Parameterization
+
+A SUN$(3,3)$ observation is $Y = U \mid V > 0$ with $U,V\in\mathbb{R}^3$.
+Writing $U_\star$ for the standardized latent (unit variances) and
+$D_u=\operatorname{diag}(\nu)$ with $\nu_j>0$ the marginal standard
+deviations,
+
+\[
+\begin{bmatrix} U_\star \\ V \end{bmatrix}
+\sim
+\mathcal{N}(0, J),
+\qquad
+U = \xi + D_u U_\star,
+\]
+
+where the joint correlation $J$ of $(U_\star,V)\in\mathbb{R}^6$ is built from
+a unit-row lower Cholesky factor $B$:
+
+\[
+J = B B^\top,
+\qquad
+C_u = J_{UU},\;
+\Delta = J_{UV},\;
+\Gamma = J_{VV},\;
+\Omega = D_u C_u D_u,\;
+\tau = 0.
+\]
+
+Free entries of $B$ are $t_{ij}=\tanh(z_{ij})$ in row-major fill order.
+For dimension $d=6$ the fifteen coordinates are
+`z21, z31, z32, z41, ..., z65` (after `xi`, `nu`).
+
+**Location / scales.** $\xi=(\xi_1,\xi_2,\xi_3)^\top$ and $\nu_j>0$ with
+$\Omega_{jj}=\nu_j^2$ occupy the same slots as in the block-Cholesky layout,
+so `sun_mle()` works on hyperspherical tapes without modification.
+
+**Independent skew-normals.** Only the pair slots
+$z_{4,1},z_{5,2},z_{6,3}=\operatorname{atanh}(d_i)$ nonzero yields
+$J=\begin{bmatrix}I&D\\D&I\end{bmatrix}$ with $D=\operatorname{diag}(d)$.
+All $z=0$ recovers a Gaussian.
+
+**Soft boxes.** `sun33_hs_bounds()` keeps pair $|t|\le 0.8$ and other
+$|t|\le 0.5$. An $\varepsilon=10^{-6}$ floor on residual row-norm squares
+keeps $J$ numerically PD near the boundary.
+
+### Parameter order
+
+\[
+\xi_1,\xi_2,\xi_3,\;
+\nu_1,\nu_2,\nu_3,\;
+z_{21},z_{31},z_{32},z_{41},\ldots,z_{65}.
+\]
+
+```{r params}
+true_params <- c(
+  xi1 = 0, xi2 = 0, xi3 = 0,
+  nu1 = 1, nu2 = 1, nu3 = 1,
+  z21 = 0.2, z31 = 0.1, z32 = 0.15,
+  z41 = atanh(0.35), z42 = 0.05, z43 = -0.05,
+  z51 = 0.05, z52 = atanh(0.3), z53 = 0.05, z54 = 0.1,
+  z61 = -0.05, z62 = 0.05, z63 = atanh(0.25), z64 = 0.1, z65 = 0.05
+)
+true_sun_params <- make_sun_hs_params(true_params)
+str(true_sun_params, max.level = 1)
+diag(true_sun_params$Gamma)
+diag(true_sun_params$Delta)
+```
+
+## Simulation
+
+```{r sim, eval = requireNamespace("sn", quietly = TRUE)}
+library(sn)
+set.seed(0)
+n <- 250
+ysim <- sn::rsun(n, dp = true_sun_params)
+colnames(ysim) <- paste0("Y", 1:3)
+head(ysim)
+```
+
+## Build a reusable log-likelihood tape
+
+`dsun_hs_fun()` fixes the data and builds per-observation shard tapes. For
+SUN$(3,3)$ the orthant CDFs use the specialized $d\le 3$ path (QMC settings
+are unused for those values).
+
+```{r tape, eval = requireNamespace("sn", quietly = TRUE)}
+# Unused for d<=3 specialized CDF values; kept for API compatibility.
+qmc_n_points <- 64L
+qmc_n_shifts <- 2L
+
+build_time <- system.time({
+  tape <- dsun_hs_fun(
+    ysim,
+    true_params,
+    n_points = qmc_n_points,
+    n_shifts = qmc_n_shifts,
+    n_threads = 2L
+  )
+})["elapsed"]
+
+check <- tape$eval(true_params, log = TRUE, deriv = 1L)
+sn_ll <- sum(sn::dsun(ysim, dp = true_sun_params, log = TRUE))
+c(
+  sn = sn_ll,
+  admvn = check$value,
+  build_sec = unname(build_time),
+  n_threads = tape$n_threads
+)
+```
+
+## MLE with `optim()` and an analytic gradient
+
+`tape$optim_fns()` returns cached `fn`/`gr` that share one `deriv = 1`
+evaluation per new parameter value.
+
+```{r mle-setup, eval = requireNamespace("sn", quietly = TRUE)}
+start_params <- make_sun33_hs_start_from_normal(
+  mu = colMeans(ysim),
+  Sigma = stats::cov(ysim),
+  skew_strength = 0.15
+)
+
+bnd <- sun33_hs_bounds()
+lower <- bnd$lower
+upper <- bnd$upper
+# Keep nu floors a bit above the package default for this demo.
+lower[4:6] <- pmax(lower[4:6], 1e-3)
+parscale <- pmax(abs(as.numeric(start_params)), 0.1)
+optim_ctrl <- list(
+  fnscale = -1,
+  maxit = 40,
+  parscale = parscale
+)
+
+obj <- tape$optim_fns()
+```
+
+```{r mle-admvn, eval = requireNamespace("sn", quietly = TRUE)}
+fit_ad_time <- system.time({
+  fit_ad <- optim(
+    start_params,
+    fn = obj$fn,
+    gr = obj$gr,
+    method = "L-BFGS-B",
+    lower = lower,
+    upper = upper,
+    control = optim_ctrl
+  )
+})
+
+fit_ad$convergence
+fit_ad$value
+unname(fit_ad_time["elapsed"])
+```
+
+## MLE with C++ `sun_mle()` (trustOptim)
+
+`sun_mle()` runs a quasi-Newton trust-region loop entirely in C++ (no R
+fn/gr round-trips). The `nu` parameters are optimized on the log scale.
+
+```{r mle-trust, eval = requireNamespace("sn", quietly = TRUE) && requireNamespace("trustOptim", quietly = TRUE)}
+fit_trust_time <- system.time({
+  fit_trust <- sun_mle(
+    tape,
+    start_params,
+    control = list(maxit = 40L, report.freq = 0L, report.level = 0L)
+  )
+})
+fit_trust$value
+fit_trust$iterations
+unname(fit_trust_time["elapsed"])
+```
+
+## Comparison with `sn::dsun`
+
+```{r compare, eval = requireNamespace("sn", quietly = TRUE)}
+sn_ll_at <- function(par) {
+  sum(sn::dsun(ysim, dp = make_sun_hs_params(par), log = TRUE))
+}
+ad_ll_at <- function(par) {
+  tape$eval(par, log = TRUE, deriv = 0L)$value
+}
+
+compare <- data.frame(
+  method = "ad_optim",
+  sn_loglik = sn_ll_at(fit_ad$par),
+  admvn_loglik = ad_ll_at(fit_ad$par),
+  iterations = unname(fit_ad$counts[["gradient"]]),
+  elapsed_sec = unname(fit_ad_time["elapsed"]),
+  stringsAsFactors = FALSE
+)
+if (exists("fit_trust")) {
+  compare <- rbind(
+    data.frame(
+      method = "ad_trustOptim",
+      sn_loglik = sn_ll_at(fit_trust$par),
+      admvn_loglik = ad_ll_at(fit_trust$par),
+      iterations = as.numeric(fit_trust$iterations),
+      elapsed_sec = unname(fit_trust_time["elapsed"]),
+      stringsAsFactors = FALSE
+    ),
+    compare
+  )
+}
+rownames(compare) <- NULL
+compare
+```
+
+`sn_loglik` and `admvn_loglik` are $\sum_i \log f(y_i;\hat\theta)$ at each
+method's reported parameter estimate. With the specialized $d\le 3$ CDF, the
+two log-densities agree closely.
+
+## Gradient check at the fitted MLE
+
+Compare analytic/`CppAD` partials to central finite differences along a few
+one-dimensional slices through $\hat\theta$.
+
+```{r grad-check, eval = requireNamespace("sn", quietly = TRUE), fig.width = 7, fig.height = 5}
+par_hat <- as.numeric(if (exists("fit_trust")) fit_trust$par else fit_ad$par)
+par_names <- names(true_params)
+if (is.null(par_names)) {
+  par_names <- paste0("p", seq_along(par_hat))
+}
+names(par_hat) <- par_names
+
+idx <- match(c("xi1", "nu1", "z41", "z21"), par_names)
+
+ll <- function(p) tape$eval(p, log = TRUE, deriv = 0L)$value
+ad_grad_j <- function(p, j) tape$eval(p, log = TRUE, deriv = 1L)$gradient[j]
+fd_grad_j <- function(p, j, h) {
+  p_up <- p
+  p_dn <- p
+  p_up[j] <- p[j] + h
+  p_dn[j] <- p[j] - h
+  (ll(p_up) - ll(p_dn)) / (2 * h)
+}
+
+op <- par(mfrow = c(2, 2), mar = c(3.2, 3.2, 2.2, 0.8), oma = c(0, 0, 1.5, 0))
+on.exit(par(op), add = TRUE)
+
+for (j in idx) {
+  center <- par_hat[j]
+  span <- pmax(0.15 * abs(center), 0.05)
+  grid <- center + seq(-span, span, length.out = 9L)
+  if (par_names[j] %in% c("nu1", "nu2", "nu3")) {
+    grid <- grid[grid > 1e-3]
+  }
+
+  ad_vals <- numeric(length(grid))
+  fd_vals <- numeric(length(grid))
+  for (k in seq_along(grid)) {
+    p <- par_hat
+    p[j] <- grid[k]
+    h <- pmax(1e-5, 1e-4 * abs(grid[k]))
+    ad_vals[k] <- ad_grad_j(p, j)
+    fd_vals[k] <- fd_grad_j(p, j, h)
+  }
+
+  ylim <- range(c(ad_vals, fd_vals), finite = TRUE)
+  plot(
+    grid, ad_vals,
+    type = "l", lwd = 2, col = "#1b4f72",
+    xlab = par_names[j], ylab = expression(partialdiff * ell / partialdiff * theta),
+    main = par_names[j],
+    ylim = ylim
+  )
+  lines(grid, fd_vals, lwd = 2, col = "#b03a2e", lty = 2)
+  abline(v = center, col = "gray50", lty = 3)
+}
+legend(
+  "topleft",
+  legend = c("AD", "finite diff"),
+  col = c("#1b4f72", "#b03a2e"),
+  lty = c(1, 2), lwd = 2, bty = "n", cex = 0.8
+)
+```

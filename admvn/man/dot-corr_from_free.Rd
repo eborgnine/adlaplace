@@ -4,7 +4,7 @@
 \alias{.corr_from_free}
 \title{Correlation matrix from unconstrained hyperspherical free parameters}
 \usage{
-.corr_from_free(z, d)
+.corr_from_free(z, d, eps = 0)
 }
 \description{
 Correlation matrix from unconstrained hyperspherical free parameters

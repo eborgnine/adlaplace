@@ -11,15 +11,15 @@ library(admvn)
 par_true <- c(
   xi1 = 0.2, xi2 = -0.1, xi3 = 0.05,
   nu1 = 1.0, nu2 = 0.8, nu3 = 1.2,
-  omega12 = 0.15, omega13 = 0.05, omega23 = 0.10,
-  L11 = 0.5, L12 = 0, L13 = 0,
-  L21 = 0, L22 = 0.45, L23 = 0,
-  L31 = 0, L32 = 0, L33 = 0.4,
-  gamma12 = 0.2, gamma13 = 0.0, gamma23 = 0.1
+  z21 = 0.15, z31 = 0.05, z32 = 0.10,
+  z41 = atanh(0.5), z42 = 0, z43 = 0,
+  z51 = 0, z52 = atanh(0.45), z53 = 0, z54 = 0,
+  z61 = 0, z62 = 0, z63 = atanh(0.4), z64 = 0.1, z65 = 0.05
 )
-dp_true <- make_sun_params(par_true)
+dp_true <- make_sun_hs_params(par_true)
 str(dp_true, max.level = 1)
 diag(dp_true$Gamma)
+diag(dp_true$Delta)
 
 ## ----target, eval = requireNamespace("sn", quietly = TRUE)--------------------
 library(sn)
@@ -30,23 +30,26 @@ w <- rep(1 / n, n)
 logp_true <- as.numeric(sn::dsun(x, dp = dp_true, log = TRUE))
 quad <- list(x = x, w = w, logp = logp_true)
 
-kl_at_true <- evaluate_sun33_slice(par_true, quad)
+kl_at_true <- evaluate_sun33_hs_slice(par_true, quad)
 kl_at_true
 
 ## ----start, eval = requireNamespace("sn", quietly = TRUE)---------------------
-par_start <- make_sun33_start_from_normal(
+par_start <- make_sun33_hs_start_from_normal(
   mu = colMeans(x),
   Sigma = stats::cov(x),
   skew_strength = 0.05
 )
-kl_at_start <- evaluate_sun33_slice(par_start, quad)
+kl_at_start <- evaluate_sun33_hs_slice(par_start, quad)
 kl_at_start
 
-sel <- c("xi1", "xi2", "xi3", "nu1", "nu2", "nu3", "L11", "L22", "L33", "L12", "L21", "gamma12", "gamma13", "gamma23")
+sel <- c(
+  "xi1", "xi2", "xi3", "nu1", "nu2", "nu3",
+  "z21", "z31", "z32", "z41", "z52", "z63", "z64", "z65"
+)
 rbind(true = par_true[sel], start = par_start[sel])
 
 ## ----fit, eval = requireNamespace("sn", quietly = TRUE)-----------------------
-fit <- fit_sun33_quad(
+fit <- fit_sun33_hs_quad(
   quad = quad,
   start = par_start,
   mc.cores = 1L,
@@ -54,13 +57,13 @@ fit <- fit_sun33_quad(
   mvquad_opts = list(n_points = 64L, n_shifts = 2L),
   optim_opts = list(maxit = 250L, factr = 1e3, pgtol = 1e-8)
 )
-print_sun_kl_fit(fit, label = "SUN(3,3) KL match")
+print_sun_kl_fit(fit, label = "SUN(3,3) hs KL match")
 
 ## ----recovery, eval = requireNamespace("sn", quietly = TRUE)------------------
 par_hat <- fit$par
 names(par_hat) <- names(par_true)
 dp_hat <- fit$dp
-kl_at_hat <- evaluate_sun33_slice(par_hat, quad)
+kl_at_hat <- evaluate_sun33_hs_slice(par_hat, quad)
 
 data.frame(
   kl_true = unname(kl_at_true[["kl"]]),
@@ -73,7 +76,7 @@ set.seed(2)
 x_hold <- sn::rsun(400L, dp = dp_true)
 ll_true <- mean(sn::dsun(x_hold, dp = dp_true, log = TRUE))
 ll_hat <- mean(sn::dsun(x_hold, dp = dp_hat, log = TRUE))
-ll_start <- mean(sn::dsun(x_hold, dp = make_sun_params(par_start), log = TRUE))
+ll_start <- mean(sn::dsun(x_hold, dp = make_sun_hs_params(par_start), log = TRUE))
 c(holdout_ll_true = ll_true, holdout_ll_start = ll_start, holdout_ll_hat = ll_hat)
 
 cmp <- data.frame(
@@ -112,13 +115,13 @@ plot(
 )
 abline(0, 1, col = "red", lty = 2)
 
-## ----kl-sun33-profile-setup, eval = requireNamespace("sn", quietly = TRUE)----
+## ----kl-sun33-hs-profile-setup, eval = requireNamespace("sn", quietly = TRUE)----
 par0 <- as.numeric(fit$par)
 names(par0) <- names(par_true)
 w_fit <- as.numeric(fit$quad$w)
 w_fit <- w_fit / sum(w_fit)
 
-tape33 <- dsun_fun(
+tape33 <- dsun_hs_fun(
   x = as.matrix(fit$quad$x),
   par_seed = par0,
   weights = w_fit,
@@ -127,7 +130,7 @@ tape33 <- dsun_fun(
   n_threads = 1L
 )
 
-## dsun_fun value = sum w log q; objective = -sum w log q (= KL + const)
+## dsun_hs_fun value = sum w log q; objective = -sum w log q (= KL + const)
 obj_ad <- function(p) {
   v <- tape33$eval(p, deriv = 0L)$value
   if (!is.finite(v)) {
@@ -143,7 +146,7 @@ grad_ad <- function(p) {
   -g
 }
 
-bnd <- sun33_bounds()
+bnd <- sun33_hs_bounds()
 col_kl <- "steelblue"
 
 profile_seq <- function(j, n = 11L, half_width = 0.5) {
@@ -248,12 +251,12 @@ profile_par_block <- function(idx, n_col = 4L) {
   }
 }
 
-## ----kl-sun33-profile-1, eval = requireNamespace("sn", quietly = TRUE), fig.width = 7, fig.height = 9, fig.cap = "SUN(3,3) slice profiles for parameters 1-7 (cross-entropy objective; FD vs AD gradient)."----
+## ----kl-sun33-hs-profile-1, eval = requireNamespace("sn", quietly = TRUE), fig.width = 7, fig.height = 9, fig.cap = "SUN(3,3) hs slice profiles for parameters 1-7 (cross-entropy objective; FD vs AD gradient)."----
 profile_par_block(1:7)
 
-## ----kl-sun33-profile-2, eval = requireNamespace("sn", quietly = TRUE), fig.width = 7, fig.height = 9, fig.cap = "SUN(3,3) slice profiles for parameters 8-14."----
+## ----kl-sun33-hs-profile-2, eval = requireNamespace("sn", quietly = TRUE), fig.width = 7, fig.height = 9, fig.cap = "SUN(3,3) hs slice profiles for parameters 8-14."----
 profile_par_block(8:14)
 
-## ----kl-sun33-profile-3, eval = requireNamespace("sn", quietly = TRUE), fig.width = 7, fig.height = 9, fig.cap = "SUN(3,3) slice profiles for parameters 15-21."----
+## ----kl-sun33-hs-profile-3, eval = requireNamespace("sn", quietly = TRUE), fig.width = 7, fig.height = 9, fig.cap = "SUN(3,3) hs slice profiles for parameters 15-21."----
 profile_par_block(15:21)
 

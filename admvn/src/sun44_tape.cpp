@@ -215,16 +215,84 @@ Sun44DpAD make_sun44_dp_ad(const std::vector<AD>& par) {
   return out;
 }
 
+ChAD unit_row_chol8(const std::vector<AD>& z) {
+  if (z.size() != kSun44HsNFree) {
+    throw std::runtime_error("unit_row_chol8: expected 28 free parameters");
+  }
+  ChAD Br(kSun44JointD, std::vector<AD>(kSun44JointD, AD(0.0)));
+  Br[0][0] = AD(1.0);
+  std::size_t idx = 0;
+  const AD kEps = AD(1e-6);
+  for (std::size_t i = 1; i < kSun44JointD; ++i) {
+    AD sum_sq = AD(0.0);
+    for (std::size_t j = 0; j < i; ++j) {
+      const AD tij = CppAD::tanh(z[idx++]);
+      const AD rem = CppAD::CondExpGt(
+        AD(1.0) - sum_sq, kEps, AD(1.0) - sum_sq, kEps);
+      Br[i][j] = tij * CppAD::sqrt(rem);
+      sum_sq += Br[i][j] * Br[i][j];
+    }
+    const AD rem_diag = CppAD::CondExpGt(
+      AD(1.0) - sum_sq, kEps, AD(1.0) - sum_sq, kEps);
+    Br[i][i] = CppAD::sqrt(rem_diag);
+  }
+  return Br;
+}
+
+Sun44DpAD make_sun44_dp_hs_ad(const std::vector<AD>& par) {
+  if (par.size() != kSun44NPar) {
+    throw std::runtime_error("par must have length 36");
+  }
+  Sun44DpAD out;
+  for (std::size_t i = 0; i < kSun44D; ++i) {
+    out.xi[i] = par[i];
+  }
+  std::vector<AD> z(kSun44HsNFree);
+  for (std::size_t i = 0; i < kSun44HsNFree; ++i) {
+    z[i] = par[2 * kSun44D + i];
+  }
+  ChAD B = unit_row_chol8(z);
+  ChAD J(kSun44JointD, std::vector<AD>(kSun44JointD, AD(0.0)));
+  for (std::size_t i = 0; i < kSun44JointD; ++i) {
+    for (std::size_t j = 0; j < kSun44JointD; ++j) {
+      for (std::size_t k = 0; k < kSun44JointD; ++k) {
+        J[i][j] += B[i][k] * B[j][k];
+      }
+    }
+  }
+  for (std::size_t i = 0; i < kSun44D; ++i) {
+    const AD si = CppAD::CondExpGt(
+      par[kSun44D + i], AD(1e-12), par[kSun44D + i], AD(1e-12));
+    for (std::size_t j = 0; j < kSun44D; ++j) {
+      const AD sj = CppAD::CondExpGt(
+        par[kSun44D + j], AD(1e-12), par[kSun44D + j], AD(1e-12));
+      out.Omega[i][j] = si * sj * J[i][j];
+      out.Delta[i][j] = J[i][kSun44D + j];
+      out.Gamma[i][j] = J[kSun44D + i][kSun44D + j];
+    }
+  }
+  return out;
+}
+
+Sun44DpAD make_sun44_dp_dispatch(
+  const std::vector<AD>& par, Sun44ParMap par_map) {
+  if (par_map == Sun44ParMap::kHyperspherical) {
+    return make_sun44_dp_hs_ad(par);
+  }
+  return make_sun44_dp_ad(par);
+}
+
 Mat44 zeros_mat44() {
   return Mat44(kSun44D, std::vector<double>(kSun44D, 0.0));
 }
 
-Mat44 sun44_sigma_double(const std::vector<double>& par, Mat44& lambda) {
+Mat44 sun44_sigma_double(
+  const std::vector<double>& par, Mat44& lambda, Sun44ParMap par_map) {
   std::vector<AD> par_ad(kSun44NPar);
   for (std::size_t i = 0; i < kSun44NPar; ++i) {
     par_ad[i] = AD(par[i]);
   }
-  Sun44DpAD dp = make_sun44_dp_ad(par_ad);
+  Sun44DpAD dp = make_sun44_dp_dispatch(par_ad, par_map);
 
   ChAD omega_bar = cov2cor(dp.Omega);
   ChAD omega_inv = zeros_ad();
@@ -471,9 +539,10 @@ AD sun44_obs_loglik_ad(
   const std::vector<AD>& x,
   const std::vector<AD>& par,
   MvnTape& p1_tape,
-  std::size_t pmvn_call_id) {
+  std::size_t pmvn_call_id,
+  Sun44ParMap par_map) {
 
-  Sun44DpAD dp = make_sun44_dp_ad(par);
+  Sun44DpAD dp = make_sun44_dp_dispatch(par, par_map);
   const ChAD lambda = lambda_from_dp(dp);
   std::vector<AD> scale_l;
   std::vector<AD> vech_l;
@@ -485,9 +554,10 @@ AD sun44_obs_loglik_ad(
 AD sun44_log_p2_ad(
   const std::vector<AD>& par,
   MvnTape& p2_tape,
-  std::size_t pmvn_call_id) {
+  std::size_t pmvn_call_id,
+  Sun44ParMap par_map) {
 
-  Sun44DpAD dp = make_sun44_dp_ad(par);
+  Sun44DpAD dp = make_sun44_dp_dispatch(par, par_map);
   std::vector<AD> scale_g;
   std::vector<AD> vech_g;
   pack_genz_ad(dp.Gamma, scale_g, vech_g);
@@ -519,7 +589,10 @@ void setup_adfun_sparsity(Sun44AdfunPack& pack, const std::vector<double>& par_s
     pack.w);
 }
 
-void build_obs_shard_fun(Sun44ObsShard& shard, const std::vector<double>& par_seed) {
+void build_obs_shard_fun(
+  Sun44ObsShard& shard,
+  const std::vector<double>& par_seed,
+  Sun44ParMap par_map) {
   detail::init_qnorm_atomic();
   detail::init_pmvn_atomic();
   detail::set_pmvn_atomic_tape(shard.pmvn_call_id, &shard.p1_tape);
@@ -537,13 +610,17 @@ void build_obs_shard_fun(Sun44ObsShard& shard, const std::vector<double>& par_se
   }
   CppAD::Independent(par_ad);
 
-  AD y = sun44_obs_loglik_ad(x_ad, par_ad, shard.p1_tape, shard.pmvn_call_id);
+  AD y = sun44_obs_loglik_ad(
+    x_ad, par_ad, shard.p1_tape, shard.pmvn_call_id, par_map);
   std::vector<AD> out(1);
   out[0] = y;
   shard.adfun.fun = CppAD::ADFun<double>(par_ad, out);
 }
 
-void build_p2_shard_fun(Sun44P2Shard& shard, const std::vector<double>& par_seed) {
+void build_p2_shard_fun(
+  Sun44P2Shard& shard,
+  const std::vector<double>& par_seed,
+  Sun44ParMap par_map) {
   detail::init_qnorm_atomic();
   detail::init_pmvn_atomic();
   detail::set_pmvn_atomic_tape(shard.pmvn_call_id, &shard.p2_tape);
@@ -554,7 +631,8 @@ void build_p2_shard_fun(Sun44P2Shard& shard, const std::vector<double>& par_seed
   }
   CppAD::Independent(par_ad);
 
-  AD y = sun44_log_p2_ad(par_ad, shard.p2_tape, shard.pmvn_call_id);
+  AD y = sun44_log_p2_ad(
+    par_ad, shard.p2_tape, shard.pmvn_call_id, par_map);
   std::vector<AD> out(1);
   out[0] = y;
   shard.adfun.fun = CppAD::ADFun<double>(par_ad, out);
@@ -689,7 +767,8 @@ Sun44TapeBundle create_sun44_bundle(
   std::size_t n_shifts,
   unsigned int seed,
   int n_threads,
-  const std::vector<double>& weights) {
+  const std::vector<double>& weights,
+  Sun44ParMap par_map) {
 
   if (x_rows.empty() || par_seed.size() != kSun44NPar) {
     throw std::runtime_error("invalid seed dimensions for SUN(4,4) tape");
@@ -706,6 +785,7 @@ Sun44TapeBundle create_sun44_bundle(
   Sun44TapeBundle bundle;
   bundle.n_obs = x_rows.size();
   bundle.n_threads = resolve_n_threads(n_threads, 1);
+  bundle.par_map = par_map;
   if (weights.empty()) {
     bundle.weights.assign(x_rows.size(), 1.0);
   } else {
@@ -717,14 +797,14 @@ Sun44TapeBundle create_sun44_bundle(
   }
 
   Mat44 lambda = zeros_mat44();
-  (void)sun44_sigma_double(par_seed, lambda);
+  (void)sun44_sigma_double(par_seed, lambda, par_map);
   Mat44 gamma = zeros_mat44();
   {
     std::vector<AD> par_ad(kSun44NPar);
     for (std::size_t i = 0; i < kSun44NPar; ++i) {
       par_ad[i] = AD(par_seed[i]);
     }
-    Sun44DpAD dp = make_sun44_dp_ad(par_ad);
+    Sun44DpAD dp = make_sun44_dp_dispatch(par_ad, par_map);
     for (std::size_t i = 0; i < kSun44D; ++i) {
       for (std::size_t j = 0; j < kSun44D; ++j) {
         gamma[i][j] = Value(dp.Gamma[i][j]);
@@ -747,7 +827,7 @@ Sun44TapeBundle create_sun44_bundle(
   bundle.p2.p2_tape = create_mvn_tape(
     lower, mean_zero, mean_zero, gamma,
     n_points, n_shifts, seed + 1U, /*value_only=*/false, /*reorder=*/false);
-  build_p2_shard_fun(bundle.p2, par_seed);
+  build_p2_shard_fun(bundle.p2, par_seed, par_map);
   setup_adfun_sparsity(bundle.p2.adfun, par_seed);
 
   bundle.shards.reserve(x_rows.size());
@@ -764,7 +844,7 @@ Sun44TapeBundle create_sun44_bundle(
     for (std::size_t i = 0; i < kSun44D; ++i) {
       x_ad[i] = AD(x_rows[obs][i]);
     }
-    Sun44DpAD dp = make_sun44_dp_ad(par_ad);
+    Sun44DpAD dp = make_sun44_dp_dispatch(par_ad, par_map);
     std::vector<AD> alpha_ad = alpha_from_x(x_ad, dp);
     std::vector<double> upper_alpha(kSun44D);
     for (std::size_t i = 0; i < kSun44D; ++i) {
@@ -776,7 +856,7 @@ Sun44TapeBundle create_sun44_bundle(
       n_points, n_shifts, seed + 2U + static_cast<unsigned int>(obs),
       /*value_only=*/false, /*reorder=*/false);
 
-    build_obs_shard_fun(shard, par_seed);
+    build_obs_shard_fun(shard, par_seed, par_map);
     setup_adfun_sparsity(shard.adfun, par_seed);
     bundle.shards.push_back(std::move(shard));
   }

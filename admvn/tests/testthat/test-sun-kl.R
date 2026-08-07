@@ -66,3 +66,27 @@ test_that("print_sun_kl_fit runs", {
   )
   expect_invisible(print_sun_kl_fit(fit, label = "test"))
 })
+
+test_that("fit_sun33_hs_quad recovers near-MVN on a simple weighted sample", {
+  skip_if_not_installed("sn")
+  skip_if_not_installed("mvtnorm")
+  set.seed(13)
+  mu <- c(0.1, -0.2, 0.05)
+  Sigma <- diag(c(1.2, 0.8, 1.0))
+  start <- make_sun33_hs_start_from_normal(mu, Sigma, skew_strength = 0)
+  gh <- gh_points(mu, Sigma, n = 4)
+  logp <- as.numeric(mvtnorm::dmvnorm(gh$x, mean = mu, sigma = Sigma, log = TRUE))
+  quad <- list(x = gh$x, w = gh$w, logp = logp)
+
+  fit <- fit_sun33_hs_quad(
+    quad = quad,
+    start = start,
+    mc.cores = 1L,
+    optim_opts = list(maxit = 40L, factr = 1e7)
+  )
+  expect_equal(fit$engine, "admvn")
+  expect_length(fit$gradient, 21L)
+  expect_true(all(is.finite(fit$gradient)))
+  expect_true(is.finite(fit$value))
+  expect_lte(fit$value, fit$value_start + 1e-6)
+})

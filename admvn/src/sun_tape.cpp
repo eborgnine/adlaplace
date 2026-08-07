@@ -213,12 +213,88 @@ SunDpAD make_sun_dp_ad(const std::vector<AD>& par) {
   return out;
 }
 
-Mat3 sun_sigma_double(const std::vector<double>& par, Mat3& lambda) {
+// Unit-row Cholesky for the 6 x 6 joint correlation (15 free z's).
+// eps = 1e-6 floor on residual row-norm squares (hs path).
+ChAD unit_row_chol6(const std::vector<AD>& z) {
+  if (z.size() != kSunHsNFree) {
+    throw std::runtime_error("unit_row_chol6: expected 15 free parameters");
+  }
+  ChAD Br(kSunJointD, std::vector<AD>(kSunJointD, AD(0.0)));
+  Br[0][0] = AD(1.0);
+  std::size_t idx = 0;
+  const AD kEps = AD(1e-6);
+  for (std::size_t i = 1; i < kSunJointD; ++i) {
+    AD sum_sq = AD(0.0);
+    for (std::size_t j = 0; j < i; ++j) {
+      const AD tij = CppAD::tanh(z[idx++]);
+      const AD rem = CppAD::CondExpGt(AD(1.0) - sum_sq, kEps,
+                                      AD(1.0) - sum_sq, kEps);
+      Br[i][j] = tij * CppAD::sqrt(rem);
+      sum_sq += Br[i][j] * Br[i][j];
+    }
+    const AD rem_diag = CppAD::CondExpGt(AD(1.0) - sum_sq, kEps,
+                                         AD(1.0) - sum_sq, kEps);
+    Br[i][i] = CppAD::sqrt(rem_diag);
+  }
+  return Br;
+}
+
+SunDpAD make_sun_dp_hs_ad(const std::vector<AD>& par) {
+  SunDpAD out;
+  for (std::size_t i = 0; i < kSunD; ++i) {
+    out.xi[i] = par[i];
+  }
+  const std::array<AD, kSunD> nu{par[3], par[4], par[5]};
+  std::vector<AD> z(kSunHsNFree);
+  for (std::size_t i = 0; i < kSunHsNFree; ++i) {
+    z[i] = par[6 + i];
+  }
+
+  ChAD B = unit_row_chol6(z);
+  // J = B B^T (6 x 6)
+  ChAD J(kSunJointD, std::vector<AD>(kSunJointD, AD(0.0)));
+  for (std::size_t i = 0; i < kSunJointD; ++i) {
+    for (std::size_t j = 0; j < kSunJointD; ++j) {
+      AD s = AD(0.0);
+      for (std::size_t k = 0; k < kSunJointD; ++k) {
+        s += B[i][k] * B[j][k];
+      }
+      J[i][j] = s;
+    }
+  }
+
+  std::array<AD, kSunD> s_u{};
+  for (std::size_t i = 0; i < kSunD; ++i) {
+    s_u[i] = CppAD::CondExpGt(nu[i], AD(1e-12), nu[i], AD(1e-12));
+  }
+
+  out.Omega = zeros_ad3();
+  out.Delta = zeros_ad3();
+  out.Gamma = zeros_ad3();
+  for (std::size_t i = 0; i < kSunD; ++i) {
+    for (std::size_t j = 0; j < kSunD; ++j) {
+      out.Omega[i][j] = s_u[i] * s_u[j] * J[i][j];
+      out.Delta[i][j] = J[i][kSunD + j];
+      out.Gamma[i][j] = J[kSunD + i][kSunD + j];
+    }
+  }
+  return out;
+}
+
+SunDpAD make_sun_dp_dispatch(const std::vector<AD>& par, SunParMap par_map) {
+  if (par_map == SunParMap::kHyperspherical) {
+    return make_sun_dp_hs_ad(par);
+  }
+  return make_sun_dp_ad(par);
+}
+
+Mat3 sun_sigma_double(const std::vector<double>& par, Mat3& lambda,
+                      SunParMap par_map) {
   std::vector<AD> par_ad(kSunNPar);
   for (std::size_t i = 0; i < kSunNPar; ++i) {
     par_ad[i] = AD(par[i]);
   }
-  SunDpAD dp = make_sun_dp_ad(par_ad);
+  SunDpAD dp = make_sun_dp_dispatch(par_ad, par_map);
 
   ChAD omega_bar = cov2cor3(dp.Omega);
   ChAD omega_inv = zeros_ad3();
@@ -461,9 +537,10 @@ AD sun_obs_contrib_ad(
 AD sun_obs_loglik_ad(
   const std::array<AD, kSunD>& x,
   const std::vector<AD>& par,
-  MvnTape& p1_tape) {
+  MvnTape& p1_tape,
+  SunParMap par_map) {
 
-  SunDpAD dp = make_sun_dp_ad(par);
+  SunDpAD dp = make_sun_dp_dispatch(par, par_map);
   const ChAD lambda = lambda_from_dp(dp);
   std::array<AD, kSunD> scale_l{};
   std::vector<AD> vech_l;
@@ -471,8 +548,9 @@ AD sun_obs_loglik_ad(
   return sun_obs_contrib_ad(x, dp, lambda, scale_l, vech_l, p1_tape);
 }
 
-AD sun_log_p2_ad(const std::vector<AD>& par, MvnTape& p2_tape) {
-  SunDpAD dp = make_sun_dp_ad(par);
+AD sun_log_p2_ad(const std::vector<AD>& par, MvnTape& p2_tape,
+                 SunParMap par_map) {
+  SunDpAD dp = make_sun_dp_dispatch(par, par_map);
   std::array<AD, kSunD> scale_g{};
   std::vector<AD> vech_g;
   pack_genz_ad(dp.Gamma, scale_g, vech_g);
@@ -514,7 +592,7 @@ void setup_adfun_sparsity(SunAdfunPack& pack, const std::vector<double>& par_see
     pack.w);
 }
 
-void build_obs_shard_fun(SunObsShard& shard) {
+void build_obs_shard_fun(SunObsShard& shard, SunParMap par_map) {
   detail::init_qnorm_atomic();
   detail::init_pmvn_atomic();
   detail::set_pmvn_atomic_tapes(&shard.p1_tape, nullptr);
@@ -530,13 +608,13 @@ void build_obs_shard_fun(SunObsShard& shard) {
   }
   CppAD::Independent(par_ad);
 
-  AD y = sun_obs_loglik_ad(x_ad, par_ad, shard.p1_tape);
+  AD y = sun_obs_loglik_ad(x_ad, par_ad, shard.p1_tape, par_map);
   std::vector<AD> out(1);
   out[0] = y;
   shard.adfun.fun = CppAD::ADFun<double>(par_ad, out);
 }
 
-void build_p2_shard_fun(SunP2Shard& shard) {
+void build_p2_shard_fun(SunP2Shard& shard, SunParMap par_map) {
   detail::init_qnorm_atomic();
   detail::init_pmvn_atomic();
   detail::set_pmvn_atomic_tapes(nullptr, &shard.p2_tape);
@@ -547,7 +625,7 @@ void build_p2_shard_fun(SunP2Shard& shard) {
   }
   CppAD::Independent(par_ad);
 
-  AD y = sun_log_p2_ad(par_ad, shard.p2_tape);
+  AD y = sun_log_p2_ad(par_ad, shard.p2_tape, par_map);
   std::vector<AD> out(1);
   out[0] = y;
   shard.adfun.fun = CppAD::ADFun<double>(par_ad, out);
@@ -682,7 +760,8 @@ SunTapeBundle create_sun_bundle(
   std::size_t n_shifts,
   unsigned int seed,
   int n_threads,
-  const std::vector<double>& weights) {
+  const std::vector<double>& weights,
+  SunParMap par_map) {
 
   if (x_rows.empty() || par_seed.size() != kSunNPar) {
     throw std::runtime_error("invalid seed dimensions for SUN(3,3) tape");
@@ -699,6 +778,7 @@ SunTapeBundle create_sun_bundle(
   SunTapeBundle bundle;
   bundle.n_obs = x_rows.size();
   bundle.n_threads = resolve_n_threads(n_threads, 1);
+  bundle.par_map = par_map;
   if (weights.empty()) {
     bundle.weights.assign(x_rows.size(), 1.0);
   } else {
@@ -710,14 +790,14 @@ SunTapeBundle create_sun_bundle(
   }
 
   Mat3 lambda{};
-  (void)sun_sigma_double(par_seed, lambda);
+  (void)sun_sigma_double(par_seed, lambda, par_map);
   Mat3 gamma{};
   {
     std::vector<AD> par_ad(kSunNPar);
     for (std::size_t i = 0; i < kSunNPar; ++i) {
       par_ad[i] = AD(par_seed[i]);
     }
-    SunDpAD dp = make_sun_dp_ad(par_ad);
+    SunDpAD dp = make_sun_dp_dispatch(par_ad, par_map);
     for (std::size_t i = 0; i < kSunD; ++i) {
       for (std::size_t j = 0; j < kSunD; ++j) {
         gamma[i][j] = Value(dp.Gamma[i][j]);
@@ -731,7 +811,7 @@ SunTapeBundle create_sun_bundle(
   bundle.p2.p2_tape = create_mvn_tape(
     lower, mean_zero, mean_zero, mat_from_mat3(gamma),
     n_points, n_shifts, seed + 1U, /*value_only=*/true);
-  build_p2_shard_fun(bundle.p2);
+  build_p2_shard_fun(bundle.p2, par_map);
   setup_adfun_sparsity(bundle.p2.adfun, par_seed);
 
   bundle.shards.reserve(x_rows.size());
@@ -749,7 +829,7 @@ SunTapeBundle create_sun_bundle(
     for (std::size_t i = 0; i < kSunD; ++i) {
       x_ad[i] = AD(x_rows[obs][i]);
     }
-    SunDpAD dp = make_sun_dp_ad(par_ad);
+    SunDpAD dp = make_sun_dp_dispatch(par_ad, par_map);
     std::array<AD, kSunD> alpha_ad = alpha_from_x(x_ad, dp);
     std::vector<double> upper_alpha(kSunD);
     for (std::size_t i = 0; i < kSunD; ++i) {
@@ -761,7 +841,7 @@ SunTapeBundle create_sun_bundle(
       n_points, n_shifts, seed + 2U + static_cast<unsigned int>(obs),
       /*value_only=*/true);
 
-    build_obs_shard_fun(shard);
+    build_obs_shard_fun(shard, par_map);
     setup_adfun_sparsity(shard.adfun, par_seed);
     bundle.shards.push_back(std::move(shard));
   }

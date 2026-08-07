@@ -12,6 +12,13 @@ constexpr std::size_t kSun22D = 2;
 constexpr std::size_t kSun22M = 2;
 constexpr std::size_t kSun22NPar = 10;
 constexpr std::size_t kSun22NDomain = kSun22NPar;
+constexpr std::size_t kSun22JointD = kSun22D + kSun22M;
+constexpr std::size_t kSun22HsNFree = kSun22JointD * (kSun22JointD - 1) / 2;
+
+enum class Sun22ParMap {
+  kBlockChol = 0,
+  kHyperspherical = 1
+};
 
 struct Sun22Result {
   double value = 0.0;
@@ -55,6 +62,7 @@ struct Sun22TapeBundle {
   double weight_sum = 0.0;
   std::size_t n_obs = 0;
   int n_threads = 1;
+  Sun22ParMap par_map = Sun22ParMap::kBlockChol;
 };
 
 Sun22TapeBundle create_sun22_bundle(
@@ -64,7 +72,8 @@ Sun22TapeBundle create_sun22_bundle(
   std::size_t n_shifts,
   unsigned int seed,
   int n_threads = 1,
-  const std::vector<double>& weights = {});
+  const std::vector<double>& weights = {},
+  Sun22ParMap par_map = Sun22ParMap::kBlockChol);
 
 Sun22Result eval_sun22_bundle(
   Sun22TapeBundle& bundle,

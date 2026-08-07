@@ -165,6 +165,45 @@ Names used in code:
 \end{aligned}
 \]
 
+## Alternative: joint hyperspherical parameterization
+
+The block-Cholesky layout above remains the primary API
+(`make_sun_params()`, `dsun()`, `dsun_fun()`). An additive facility
+maps the same length-21 vector through a single $6\times 6$ unit-row
+Cholesky for the joint correlation of $(U_\star,V)$:
+
+\[
+J = B B^\top,
+\qquad
+C_u = J_{UU},\;
+\Delta = J_{UV},\;
+\Gamma = J_{VV},\;
+\Omega = D_u C_u D_u,\;
+\tau = 0.
+\]
+
+Free coordinates are the fifteen $z_{ij}=\operatorname{atanh}(t_{ij})$
+in row-major fill order
+`z21, z31, z32, z41, ..., z65` (after `xi`, `nu`).
+Independent skew-normals use only the pair slots
+$z_{4,1},z_{5,2},z_{6,3}=\operatorname{atanh}(d_i)$; all $z=0$ recovers
+a Gaussian. Soft boxes from `sun33_hs_bounds()` keep pair $|t|\le 0.8$
+and other $|t|\le 0.5$; an $\varepsilon=10^{-6}$ floor on residual
+row-norm squares keeps $J$ numerically PD near the boundary.
+
+```{r hs-params}
+hs_par <- make_sun33_hs_start_from_normal(
+  mu = c(0, 0, 0),
+  Sigma = diag(3),
+  skew_strength = 0.3
+)
+hs_dp <- make_sun_hs_params(hs_par)
+diag(hs_dp$Delta)
+```
+
+Use `dsun_hs()` / `dsun_hs_fun()` for densities and tapes; `xi`/`nu` stay
+in the same slots so `sun_mle()` works unchanged on hyperspherical tapes.
+
 ```{r params}
 true_params <- c(
   xi1 = 0, xi2 = 0, xi3 = 0,

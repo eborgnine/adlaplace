@@ -4,12 +4,14 @@
 \alias{.unit_row_chol}
 \title{Unit-row Cholesky (hyperspherical) factor of a correlation matrix}
 \usage{
-.unit_row_chol(z, d)
+.unit_row_chol(z, d, eps = 0)
 }
 \arguments{
 \item{z}{Numeric vector of length \code{d * (d - 1) / 2}.}
 
 \item{d}{Dimension.}
+
+\item{eps}{Floor for residual row-norm squares (default \code{0}).}
 }
 \value{
 Lower-triangular \code{d x d} matrix with unit rows.

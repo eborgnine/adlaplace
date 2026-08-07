@@ -12,6 +12,13 @@ constexpr std::size_t kSunD = 3;
 constexpr std::size_t kSunM = 3;
 constexpr std::size_t kSunNPar = 21;
 constexpr std::size_t kSunNDomain = kSunNPar;
+constexpr std::size_t kSunJointD = kSunD + kSunM;
+constexpr std::size_t kSunHsNFree = kSunJointD * (kSunJointD - 1) / 2;
+
+enum class SunParMap {
+  kBlockChol = 0,
+  kHyperspherical = 1
+};
 
 struct SunResult {
   double value = 0.0;
@@ -53,6 +60,7 @@ struct SunTapeBundle {
   double weight_sum = 0.0;
   std::size_t n_obs = 0;
   int n_threads = 1;
+  SunParMap par_map = SunParMap::kBlockChol;
 };
 
 SunTapeBundle create_sun_bundle(
@@ -62,7 +70,8 @@ SunTapeBundle create_sun_bundle(
   std::size_t n_shifts,
   unsigned int seed,
   int n_threads = 1,
-  const std::vector<double>& weights = {});
+  const std::vector<double>& weights = {},
+  SunParMap par_map = SunParMap::kBlockChol);
 
 SunResult eval_sun_bundle(
   SunTapeBundle& bundle,

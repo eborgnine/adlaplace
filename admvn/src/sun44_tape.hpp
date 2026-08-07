@@ -12,6 +12,13 @@ constexpr std::size_t kSun44D = 4;
 constexpr std::size_t kSun44M = 4;
 constexpr std::size_t kSun44NPar = 36;
 constexpr std::size_t kSun44NDomain = kSun44NPar;
+constexpr std::size_t kSun44JointD = kSun44D + kSun44M;
+constexpr std::size_t kSun44HsNFree = kSun44JointD * (kSun44JointD - 1) / 2;
+
+enum class Sun44ParMap {
+  kBlockChol = 0,
+  kHyperspherical = 1
+};
 
 struct Sun44Result {
   double value = 0.0;
@@ -55,6 +62,7 @@ struct Sun44TapeBundle {
   double weight_sum = 0.0;
   std::size_t n_obs = 0;
   int n_threads = 1;
+  Sun44ParMap par_map = Sun44ParMap::kBlockChol;
 };
 
 Sun44TapeBundle create_sun44_bundle(
@@ -64,7 +72,8 @@ Sun44TapeBundle create_sun44_bundle(
   std::size_t n_shifts,
   unsigned int seed,
   int n_threads = 1,
-  const std::vector<double>& weights = {});
+  const std::vector<double>& weights = {},
+  Sun44ParMap par_map = Sun44ParMap::kBlockChol);
 
 Sun44Result eval_sun44_bundle(
   Sun44TapeBundle& bundle,

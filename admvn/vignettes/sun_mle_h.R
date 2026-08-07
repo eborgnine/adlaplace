@@ -11,16 +11,15 @@ library(admvn)
 true_params <- c(
   xi1 = 0, xi2 = 0, xi3 = 0,
   nu1 = 1, nu2 = 1, nu3 = 1,
-  omega12 = 0.2, omega13 = 0.1, omega23 = 0.2,
-  L11 = 0.4, L12 = 0.1, L13 = 0.1,
-  L21 = 0.1, L22 = 0.4, L23 = 0.1,
-  L31 = 0, L32 = 0.1, L33 = 0.35,
-  gamma12 = 0.3, gamma13 = 0.2, gamma23 = 0.3
+  z21 = 0.2, z31 = 0.1, z32 = 0.15,
+  z41 = atanh(0.35), z42 = 0.05, z43 = -0.05,
+  z51 = 0.05, z52 = atanh(0.3), z53 = 0.05, z54 = 0.1,
+  z61 = -0.05, z62 = 0.05, z63 = atanh(0.25), z64 = 0.1, z65 = 0.05
 )
-true_sun_params <- make_sun_params(true_params)
+true_sun_params <- make_sun_hs_params(true_params)
 str(true_sun_params, max.level = 1)
-# Sigma_vv = Gamma has unit diagonal by construction
 diag(true_sun_params$Gamma)
+diag(true_sun_params$Delta)
 
 ## ----sim, eval = requireNamespace("sn", quietly = TRUE)-----------------------
 library(sn)
@@ -36,7 +35,7 @@ qmc_n_points <- 64L
 qmc_n_shifts <- 2L
 
 build_time <- system.time({
-  tape <- dsun_fun(
+  tape <- dsun_hs_fun(
     ysim,
     true_params,
     n_points = qmc_n_points,
@@ -55,23 +54,17 @@ c(
 )
 
 ## ----mle-setup, eval = requireNamespace("sn", quietly = TRUE)-----------------
-start_params <- true_params
-start_params[] <- c(
-  xi1 = 0.2, xi2 = -0.1, xi3 = 0.1,
-  nu1 = 1.4, nu2 = 0.7, nu3 = 1.2,
-  omega12 = 0.0, omega13 = 0.3, omega23 = 0.0,
-  L11 = 0.7, L12 = 0.2, L13 = 0.1,
-  L21 = 0.2, L22 = 0.8, L23 = 0.1,
-  L31 = 0.1, L32 = 0.3, L33 = 0.9,
-  gamma12 = 0.1, gamma13 = 0.0, gamma23 = 0.2
+start_params <- make_sun33_hs_start_from_normal(
+  mu = colMeans(ysim),
+  Sigma = stats::cov(ysim),
+  skew_strength = 0.15
 )
 
-bnd <- sun33_bounds()
+bnd <- sun33_hs_bounds()
 lower <- bnd$lower
 upper <- bnd$upper
 # Keep nu floors a bit above the package default for this demo.
 lower[4:6] <- pmax(lower[4:6], 1e-3)
-# Rescale free parameters so L-BFGS-B does not take wild Omega steps.
 parscale <- pmax(abs(as.numeric(start_params)), 0.1)
 optim_ctrl <- list(
   fnscale = -1,
@@ -112,7 +105,7 @@ unname(fit_trust_time["elapsed"])
 
 ## ----compare, eval = requireNamespace("sn", quietly = TRUE)-------------------
 sn_ll_at <- function(par) {
-  sum(sn::dsun(ysim, dp = make_sun_params(par), log = TRUE))
+  sum(sn::dsun(ysim, dp = make_sun_hs_params(par), log = TRUE))
 }
 ad_ll_at <- function(par) {
   tape$eval(par, log = TRUE, deriv = 0L)$value
@@ -150,7 +143,7 @@ if (is.null(par_names)) {
 }
 names(par_hat) <- par_names
 
-idx <- match(c("xi1", "nu1", "L11", "gamma12"), par_names)
+idx <- match(c("xi1", "nu1", "z41", "z21"), par_names)
 
 ll <- function(p) tape$eval(p, log = TRUE, deriv = 0L)$value
 ad_grad_j <- function(p, j) tape$eval(p, log = TRUE, deriv = 1L)$gradient[j]

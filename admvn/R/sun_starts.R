@@ -45,6 +45,38 @@ make_sun22_start_from_gh <- function(quad, skew_strength = 0.01) {
   make_sun22_start_from_normal(mu, S, skew_strength = skew_strength)
 }
 
+#' Map mean and covariance to a SUN(2,2) hyperspherical start
+#' @inheritParams make_sun22_start_from_normal
+#' @return Named length-10 vector for [make_sun22_hs_params()].
+#' @export
+make_sun22_hs_start_from_normal <- function(mu, Sigma, skew_strength = 0) {
+  mu <- as.numeric(mu)
+  if (length(mu) != 2L) stop("mu must have length 2")
+  Sigma <- as.matrix(Sigma)
+  if (!all(dim(Sigma) == c(2L, 2L))) stop("Sigma must be 2 x 2")
+  Sigma <- (Sigma + t(Sigma)) / 2
+  nu <- sqrt(pmax(diag(Sigma), 1e-8))
+  z <- setNames(numeric(6L), .sun_hs_z_names(2L, 2L))
+  z["z21"] <- .corr_free_from_C(stats::cov2cor(Sigma))
+  if (abs(skew_strength) > 0) {
+    s <- max(min(as.numeric(skew_strength), 1 - 1e-8), -1 + 1e-8)
+    z[c("z31", "z42")] <- atanh(s)
+  }
+  c(xi1 = mu[1], xi2 = mu[2], nu1 = nu[1], nu2 = nu[2], z)
+}
+
+#' SUN(2,2) hyperspherical start from weighted sample moments
+#' @inheritParams make_sun22_start_from_gh
+#' @return Named length-10 parameter vector.
+#' @export
+make_sun22_hs_start_from_gh <- function(quad, skew_strength = 0.01) {
+  Z <- as.matrix(quad$x)
+  w <- as.numeric(quad$w)
+  w <- w / sum(w)
+  make_sun22_hs_start_from_normal(
+    weighted_mean(Z, w), weighted_cov(Z, w), skew_strength)
+}
+
 #' Map mean and covariance to a SUN(3,3) start (zero / tiny skewness)
 #'
 #' Uses marginal standard deviations and unconstrained correlation free
@@ -93,6 +125,60 @@ make_sun33_start_from_gh <- function(quad, skew_strength = 0.01) {
   make_sun33_start_from_normal(mu, S, skew_strength = skew_strength)
 }
 
+#' Map mean and covariance to a SUN(3,3) hyperspherical start
+#'
+#' Exact Gaussian start on the joint hyperspherical layout of
+#' [make_sun_hs_params()]: the three \eqn{U}-block free coordinates come from
+#' inverting \code{cov2cor(Sigma)}; all cross / \eqn{V} coordinates are zero
+#' (so \eqn{J=\operatorname{blockdiag}(C_u,I)}). Optional
+#' \code{skew_strength} sets the independent-SN pair slots to
+#' \code{atanh(skew_strength)}.
+#'
+#' @param mu Length-3 mean.
+#' @param Sigma \eqn{3\times 3} covariance.
+#' @param skew_strength Pair-slot \eqn{t=\tanh(z)} value in \eqn{(-1,1)}
+#'   (default 0).
+#' @return Named length-21 parameter vector for [make_sun_hs_params()].
+#' @export
+make_sun33_hs_start_from_normal <- function(mu, Sigma, skew_strength = 0) {
+  mu <- as.numeric(mu)
+  if (length(mu) != 3L) stop("mu must have length 3")
+  Sigma <- as.matrix(Sigma)
+  if (!all(dim(Sigma) == c(3L, 3L))) stop("Sigma must be 3 x 3")
+  Sigma <- (Sigma + t(Sigma)) / 2
+  nu <- sqrt(pmax(diag(Sigma), 1e-8))
+  C <- stats::cov2cor(Sigma)
+  om <- .corr_free_from_C(C)
+
+  z <- setNames(numeric(15L), .sun_hs_z_names(3L, 3L))
+  z[c("z21", "z31", "z32")] <- om
+  if (abs(skew_strength) > 0) {
+    s <- max(min(as.numeric(skew_strength), 1 - 1e-8), -1 + 1e-8)
+    z[c("z41", "z52", "z63")] <- atanh(s)
+  }
+
+  c(
+    xi1 = mu[1], xi2 = mu[2], xi3 = mu[3],
+    nu1 = nu[1], nu2 = nu[2], nu3 = nu[3],
+    z
+  )
+}
+
+#' SUN(3,3) hyperspherical start from weighted sample moments
+#'
+#' @param quad List with \code{x} and \code{w}.
+#' @param skew_strength Passed to [make_sun33_hs_start_from_normal()].
+#' @return Named length-21 parameter vector.
+#' @export
+make_sun33_hs_start_from_gh <- function(quad, skew_strength = 0.01) {
+  Z <- as.matrix(quad$x)
+  w <- as.numeric(quad$w)
+  w <- w / sum(w)
+  mu <- weighted_mean(Z, w)
+  S <- weighted_cov(Z, w)
+  make_sun33_hs_start_from_normal(mu, S, skew_strength = skew_strength)
+}
+
 #' Map mean and covariance to a SUN(4,4) start (zero / tiny skewness)
 #'
 #' @param mu Length-4 mean.
@@ -136,4 +222,36 @@ make_sun44_start_from_gh <- function(quad, skew_strength = 0.01) {
   mu <- weighted_mean(Z, w)
   S <- weighted_cov(Z, w)
   make_sun44_start_from_normal(mu, S, skew_strength = skew_strength)
+}
+
+#' Map mean and covariance to a SUN(4,4) hyperspherical start
+#' @inheritParams make_sun44_start_from_normal
+#' @return Named length-36 vector for [make_sun44_hs_params()].
+#' @export
+make_sun44_hs_start_from_normal <- function(mu, Sigma, skew_strength = 0) {
+  mu <- as.numeric(mu)
+  if (length(mu) != 4L) stop("mu must have length 4")
+  Sigma <- as.matrix(Sigma)
+  if (!all(dim(Sigma) == c(4L, 4L))) stop("Sigma must be 4 x 4")
+  Sigma <- (Sigma + t(Sigma)) / 2
+  nu <- sqrt(pmax(diag(Sigma), 1e-8))
+  z <- setNames(numeric(28L), .sun_hs_z_names(4L, 4L))
+  z[seq_len(6L)] <- .corr_free_from_C(stats::cov2cor(Sigma))
+  if (abs(skew_strength) > 0) {
+    s <- max(min(as.numeric(skew_strength), 1 - 1e-8), -1 + 1e-8)
+    z[c("z51", "z62", "z73", "z84")] <- atanh(s)
+  }
+  c(setNames(mu, paste0("xi", 1:4)), setNames(nu, paste0("nu", 1:4)), z)
+}
+
+#' SUN(4,4) hyperspherical start from weighted sample moments
+#' @inheritParams make_sun44_start_from_gh
+#' @return Named length-36 parameter vector.
+#' @export
+make_sun44_hs_start_from_gh <- function(quad, skew_strength = 0.01) {
+  Z <- as.matrix(quad$x)
+  w <- as.numeric(quad$w)
+  w <- w / sum(w)
+  make_sun44_hs_start_from_normal(
+    weighted_mean(Z, w), weighted_cov(Z, w), skew_strength)
 }

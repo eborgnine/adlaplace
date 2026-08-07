@@ -8,7 +8,8 @@ print_sun_kl_fit(fit, label = NULL)
 }
 \arguments{
 \item{fit}{Result from \code{\link[=fit_sun22_quad]{fit_sun22_quad()}} / \code{\link[=fit_sun33_quad]{fit_sun33_quad()}} /
-\code{\link[=fit_sun44_quad]{fit_sun44_quad()}} (or a toenail wrapper that preserves the same fields).}
+\code{\link[=fit_sun33_hs_quad]{fit_sun33_hs_quad()}} / \code{\link[=fit_sun44_quad]{fit_sun44_quad()}}
+(or a toenail wrapper that preserves the same fields).}
 
 \item{label}{Optional header string.}
 }
