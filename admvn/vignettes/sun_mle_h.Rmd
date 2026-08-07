@@ -46,22 +46,53 @@ where the joint correlation $J$ of $(U_\star,V)\in\mathbb{R}^6$ is built from
 a unit-row lower Cholesky factor $B$:
 
 \[
-J = B B^\top,
-\qquad
-C_u = J_{UU},\;
-\Delta = J_{UV},\;
-\Gamma = J_{VV},\;
-\Omega = D_u C_u D_u,\;
-\tau = 0.
+J = B B^\top.
 \]
 
-Free entries of $B$ are $t_{ij}=\tanh(z_{ij})$ in row-major fill order.
-For dimension $d=6$ the fifteen coordinates are
-`z21, z31, z32, z41, ..., z65` (after `xi`, `nu`).
+### Unit-row Cholesky from free $z$
 
-**Location / scales.** $\xi=(\xi_1,\xi_2,\xi_3)^\top$ and $\nu_j>0$ with
-$\Omega_{jj}=\nu_j^2$ occupy the same slots as in the block-Cholesky layout,
-so `sun_mle()` works on hyperspherical tapes without modification.
+Write $t_{ij}=\tanh(z_{ij})\in(-1,1)$. Rows of $B$ are filled left to right
+for $i=2,\ldots,6$ and $j=1,\ldots,i-1$:
+
+\[
+B_{ij}
+=
+t_{ij}\sqrt{1-\sum_{k<j} B_{ik}^2},
+\qquad
+B_{ii}
+=
+\sqrt{1-\sum_{k<i} B_{ik}^2},
+\qquad
+B_{11}=1.
+\]
+
+Every row has unit Euclidean norm for any $z\in\mathbb{R}^{15}$, so
+$J=BB^\top$ is always a correlation matrix. The coordinate $t_{ij}$ is the
+correlation of variable $i$ with the $j$-th orthogonalized direction of the
+preceding variables: leading entries are ordinary correlations, and later
+entries behave like partial correlations.
+
+**Fill order.** Free slots sit in the strict lower triangle of the $6\times 6$
+factor (row-major). Writing the names of the free coordinates:
+
+\[
+B =
+\begin{bmatrix}
+1 & 0 & 0 & 0 & 0 & 0 \\
+z_{21} & \cdot & 0 & 0 & 0 & 0 \\
+z_{31} & z_{32} & \cdot & 0 & 0 & 0 \\
+z_{41} & z_{42} & z_{43} & \cdot & 0 & 0 \\
+z_{51} & z_{52} & z_{53} & z_{54} & \cdot & 0 \\
+z_{61} & z_{62} & z_{63} & z_{64} & z_{65} & \cdot
+\end{bmatrix}
+\]
+
+(dots mark the residual diagonal square-roots). In the length-21 parameter
+vector these fifteen $z$ follow $\xi$ and $\nu$.
+
+**Location / scales.** $\xi=(\xi_1,\xi_2,\xi_3)^\top$ and $\nu_j>0$ occupy
+the same slots as in the block-Cholesky layout, so `sun_mle()` works on
+hyperspherical tapes without modification.
 
 **Independent skew-normals.** Only the pair slots
 $z_{4,1},z_{5,2},z_{6,3}=\operatorname{atanh}(d_i)$ nonzero yields
@@ -91,16 +122,13 @@ true_params <- c(
 )
 true_sun_params <- make_sun_hs_params(true_params)
 str(true_sun_params, max.level = 1)
-diag(true_sun_params$Gamma)
-diag(true_sun_params$Delta)
 ```
-
 ## Simulation
 
 ```{r sim, eval = requireNamespace("sn", quietly = TRUE)}
 library(sn)
 set.seed(0)
-n <- 250
+n <- 500
 ysim <- sn::rsun(n, dp = true_sun_params)
 colnames(ysim) <- paste0("Y", 1:3)
 head(ysim)
@@ -157,7 +185,7 @@ lower[4:6] <- pmax(lower[4:6], 1e-3)
 parscale <- pmax(abs(as.numeric(start_params)), 0.1)
 optim_ctrl <- list(
   fnscale = -1,
-  maxit = 40,
+  maxit = 200,
   parscale = parscale
 )
 
@@ -192,7 +220,7 @@ fit_trust_time <- system.time({
   fit_trust <- sun_mle(
     tape,
     start_params,
-    control = list(maxit = 40L, report.freq = 0L, report.level = 0L)
+    control = list(maxit = 200L, report.freq = 0L, report.level = 0L)
   )
 })
 fit_trust$value
@@ -238,6 +266,54 @@ compare
 `sn_loglik` and `admvn_loglik` are $\sum_i \log f(y_i;\hat\theta)$ at each
 method's reported parameter estimate. With the specialized $d\le 3$ CDF, the
 two log-densities agree closely.
+
+## Parameter recovery
+
+Compare the true free parameters to the start and the MLE (preferring the
+trustOptim fit when available). Approximate standard errors use a
+central-difference diagonal of the observed information
+($\operatorname{se}_j \approx 1/\sqrt{-H_{jj}}$). (The AD Hessian pattern
+currently under-reports curvature for some blocks, so finite differences
+are used for this table.)
+
+```{r recovery, eval = requireNamespace("sn", quietly = TRUE)}
+par_hat <- as.numeric(if (exists("fit_trust")) fit_trust$par else fit_ad$par)
+names(par_hat) <- names(true_params)
+ll0 <- function(p) tape$eval(p, log = TRUE, deriv = 0L)$value
+f0 <- ll0(par_hat)
+se <- vapply(seq_along(par_hat), function(j) {
+  h <- pmax(1e-5, 1e-4 * abs(par_hat[j]))
+  p_up <- p_dn <- par_hat
+  p_up[j] <- par_hat[j] + h
+  p_dn[j] <- par_hat[j] - h
+  if (j %in% 4:6) {
+    if (p_dn[j] <= 1e-8) p_dn[j] <- max(par_hat[j] * 0.5, 1e-6)
+    g_up <- (ll0(p_up) - f0) / (p_up[j] - par_hat[j])
+    g_dn <- (f0 - ll0(p_dn)) / (par_hat[j] - p_dn[j])
+    Hjj <- (g_up - g_dn) / (0.5 * ((p_up[j] - par_hat[j]) + (par_hat[j] - p_dn[j])))
+  } else {
+    Hjj <- (ll0(p_up) - 2 * f0 + ll0(p_dn)) / h^2
+  }
+  if (is.finite(Hjj) && Hjj < 0) sqrt(-1 / Hjj) else NA_real_
+}, numeric(1))
+z_score <- (par_hat - as.numeric(true_params)) / se
+
+recovery <- data.frame(
+  true = as.numeric(true_params),
+  start = as.numeric(start_params),
+  mle = as.numeric(par_hat),
+  se = se,
+  z = z_score,
+  row.names = names(true_params)
+)
+knitr::kable(recovery, digits = 3)
+```
+
+Free-parameter recovery is often weak: several joint-correlation coordinates
+can represent nearly the same SUN law, so individual late-row $z$ entries need
+not match the truth even when the fitted density does (see the log-likelihood
+comparison above). Location, scales, and early-row / pair-slot $z$ are usually
+better behaved; wide SEs flag the weakly identified slots.
 
 ## Gradient check at the fitted MLE
 

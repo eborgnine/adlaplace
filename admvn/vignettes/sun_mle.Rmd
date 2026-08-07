@@ -165,44 +165,19 @@ Names used in code:
 \end{aligned}
 \]
 
-## Alternative: joint hyperspherical parameterization
+### Free vector to `dp` (summary)
 
-The block-Cholesky layout above remains the primary API
-(`make_sun_params()`, `dsun()`, `dsun_fun()`). An additive facility
-maps the same length-21 vector through a single $6\times 6$ unit-row
-Cholesky for the joint correlation of $(U_\star,V)$:
+| block | map |
+|-------|-----|
+| $\xi$ | identity (location) |
+| $\nu$ | positive marginal SDs; $\Omega = D_u C_u D_u$ with $D_u=\operatorname{diag}(\nu)$ |
+| $\omega_{ij}$ | $t=\tanh(\omega)$; unit-row Cholesky $\to C_u$ |
+| $L_{ij}$ | free loadings on the correlation scale |
+| $\gamma_{ij}$ | $t=\tanh(\gamma)$; unit-row Cholesky $\to$ residual $C$; $R=D^{1/2} C D^{1/2}$ |
 
-\[
-J = B B^\top,
-\qquad
-C_u = J_{UU},\;
-\Delta = J_{UV},\;
-\Gamma = J_{VV},\;
-\Omega = D_u C_u D_u,\;
-\tau = 0.
-\]
-
-Free coordinates are the fifteen $z_{ij}=\operatorname{atanh}(t_{ij})$
-in row-major fill order
-`z21, z31, z32, z41, ..., z65` (after `xi`, `nu`).
-Independent skew-normals use only the pair slots
-$z_{4,1},z_{5,2},z_{6,3}=\operatorname{atanh}(d_i)$; all $z=0$ recovers
-a Gaussian. Soft boxes from `sun33_hs_bounds()` keep pair $|t|\le 0.8$
-and other $|t|\le 0.5$; an $\varepsilon=10^{-6}$ floor on residual
-row-norm squares keeps $J$ numerically PD near the boundary.
-
-```{r hs-params}
-hs_par <- make_sun33_hs_start_from_normal(
-  mu = c(0, 0, 0),
-  Sigma = diag(3),
-  skew_strength = 0.3
-)
-hs_dp <- make_sun_hs_params(hs_par)
-diag(hs_dp$Delta)
-```
-
-Use `dsun_hs()` / `dsun_hs_fun()` for densities and tapes; `xi`/`nu` stay
-in the same slots so `sun_mle()` works unchanged on hyperspherical tapes.
+Then $\Delta = C_u L^\top$, $\Gamma = L C_u L^\top + R$, $\tau=0$.
+An alternative joint hyperspherical parameterization of the same SUN law
+is developed in the `sun_mle_h` vignette.
 
 ```{r params}
 true_params <- c(
@@ -227,7 +202,7 @@ A modest sample keeps the vignette fast while still illustrating the API.
 ```{r sim, eval = requireNamespace("sn", quietly = TRUE)}
 library(sn)
 set.seed(0)
-n <- 250
+n <- 500
 ysim <- sn::rsun(n, dp = true_sun_params)
 colnames(ysim) <- paste0("Y", 1:3)
 head(ysim)
@@ -270,15 +245,10 @@ c(
 evaluation per new parameter value.
 
 ```{r mle-setup, eval = requireNamespace("sn", quietly = TRUE)}
-start_params <- true_params
-start_params[] <- c(
-  xi1 = 0.2, xi2 = -0.1, xi3 = 0.1,
-  nu1 = 1.4, nu2 = 0.7, nu3 = 1.2,
-  omega12 = 0.0, omega13 = 0.3, omega23 = 0.0,
-  L11 = 0.7, L12 = 0.2, L13 = 0.1,
-  L21 = 0.2, L22 = 0.8, L23 = 0.1,
-  L31 = 0.1, L32 = 0.3, L33 = 0.9,
-  gamma12 = 0.1, gamma13 = 0.0, gamma23 = 0.2
+start_params <- make_sun33_start_from_normal(
+  mu = colMeans(ysim),
+  Sigma = stats::cov(ysim),
+  skew_strength = 0.1
 )
 
 bnd <- sun33_bounds()
@@ -290,7 +260,7 @@ lower[4:6] <- pmax(lower[4:6], 1e-3)
 parscale <- pmax(abs(as.numeric(start_params)), 0.1)
 optim_ctrl <- list(
   fnscale = -1,
-  maxit = 40,
+  maxit = 200,
   parscale = parscale
 )
 
@@ -325,7 +295,7 @@ fit_trust_time <- system.time({
   fit_trust <- sun_mle(
     tape,
     start_params,
-    control = list(maxit = 40L, report.freq = 0L, report.level = 0L)
+    control = list(maxit = 200L, report.freq = 0L, report.level = 0L)
   )
 })
 fit_trust$value
@@ -377,6 +347,57 @@ compare
 `sn_loglik` and `admvn_loglik` are \(\sum_i \log f(y_i;\hat\theta)\) at each
 method's reported parameter estimate. With the specialized $d\le 3$ CDF, the
 two log-densities agree closely.
+
+## Parameter recovery
+
+Compare the true free parameters to the start and the MLE (preferring the
+trustOptim fit when available). Approximate standard errors use a
+central-difference diagonal of the observed information
+($\operatorname{se}_j \approx 1/\sqrt{-H_{jj}}$). (The AD Hessian pattern
+currently under-reports curvature for some blocks, so finite differences
+are used for this table.)
+
+```{r recovery, eval = requireNamespace("sn", quietly = TRUE)}
+par_hat <- as.numeric(if (exists("fit_trust")) fit_trust$par else fit_ad$par)
+names(par_hat) <- names(true_params)
+ll0 <- function(p) tape$eval(p, log = TRUE, deriv = 0L)$value
+f0 <- ll0(par_hat)
+se <- vapply(seq_along(par_hat), function(j) {
+  h <- pmax(1e-5, 1e-4 * abs(par_hat[j]))
+  p_up <- p_dn <- par_hat
+  p_up[j] <- par_hat[j] + h
+  p_dn[j] <- par_hat[j] - h
+  if (j %in% 4:6) {
+    # keep nu positive
+    if (p_dn[j] <= 1e-8) p_dn[j] <- max(par_hat[j] * 0.5, 1e-6)
+    h_eff2 <- (p_up[j] - par_hat[j]) * (par_hat[j] - p_dn[j])
+    # for unequal steps use (f+ - f0)/(x+-x0) - (f0 - f-)/(x0-x-) over mean step
+    g_up <- (ll0(p_up) - f0) / (p_up[j] - par_hat[j])
+    g_dn <- (f0 - ll0(p_dn)) / (par_hat[j] - p_dn[j])
+    Hjj <- (g_up - g_dn) / (0.5 * ((p_up[j] - par_hat[j]) + (par_hat[j] - p_dn[j])))
+  } else {
+    Hjj <- (ll0(p_up) - 2 * f0 + ll0(p_dn)) / h^2
+  }
+  if (is.finite(Hjj) && Hjj < 0) sqrt(-1 / Hjj) else NA_real_
+}, numeric(1))
+z_score <- (par_hat - as.numeric(true_params)) / se
+
+recovery <- data.frame(
+  true = as.numeric(true_params),
+  start = as.numeric(start_params),
+  mle = as.numeric(par_hat),
+  se = se,
+  z = z_score,
+  row.names = names(true_params)
+)
+knitr::kable(recovery, digits = 3)
+```
+
+Free-parameter recovery is often weak: several block-Cholesky coordinates can
+represent nearly the same SUN law, so individual $L$ / $\gamma$ entries need
+not match the truth even when the fitted density does (see the log-likelihood
+comparison above). Location, scales, and the leading $\omega$ coordinates are
+usually better behaved; wide SEs flag the weakly identified slots.
 
 ## Gradient check at the fitted MLE
 

@@ -11,13 +11,16 @@ library(admvn)
 true_params <- c(
   xi1 = 0, xi2 = 0, xi3 = 0,
   nu1 = 1, nu2 = 1, nu3 = 1,
-  z21 = 0.2, z31 = 0.1, z32 = 0.15,
-  z41 = atanh(0.35), z42 = 0.05, z43 = -0.05,
-  z51 = 0.05, z52 = atanh(0.3), z53 = 0.05, z54 = 0.1,
-  z61 = -0.05, z62 = 0.05, z63 = atanh(0.25), z64 = 0.1, z65 = 0.05
+  omega12 = 0.2, omega13 = 0.1, omega23 = 0.2,
+  L11 = 0.4, L12 = 0.1, L13 = 0.1,
+  L21 = 0.1, L22 = 0.4, L23 = 0.1,
+  L31 = 0, L32 = 0.1, L33 = 0.35,
+  gamma12 = 0.3, gamma13 = 0.2, gamma23 = 0.3
 )
-true_sun_params <- make_sun_hs_params(true_params)
+true_sun_params <- make_sun_params(true_params)
 str(true_sun_params, max.level = 1)
+# Sigma_vv = Gamma has unit diagonal by construction
+diag(true_sun_params$Gamma)
 
 ## ----sim, eval = requireNamespace("sn", quietly = TRUE)-----------------------
 library(sn)
@@ -33,7 +36,7 @@ qmc_n_points <- 64L
 qmc_n_shifts <- 2L
 
 build_time <- system.time({
-  tape <- dsun_hs_fun(
+  tape <- dsun_fun(
     ysim,
     true_params,
     n_points = qmc_n_points,
@@ -52,17 +55,18 @@ c(
 )
 
 ## ----mle-setup, eval = requireNamespace("sn", quietly = TRUE)-----------------
-start_params <- make_sun33_hs_start_from_normal(
+start_params <- make_sun33_start_from_normal(
   mu = colMeans(ysim),
   Sigma = stats::cov(ysim),
-  skew_strength = 0.15
+  skew_strength = 0.1
 )
 
-bnd <- sun33_hs_bounds()
+bnd <- sun33_bounds()
 lower <- bnd$lower
 upper <- bnd$upper
 # Keep nu floors a bit above the package default for this demo.
 lower[4:6] <- pmax(lower[4:6], 1e-3)
+# Rescale free parameters so L-BFGS-B does not take wild Omega steps.
 parscale <- pmax(abs(as.numeric(start_params)), 0.1)
 optim_ctrl <- list(
   fnscale = -1,
@@ -103,7 +107,7 @@ unname(fit_trust_time["elapsed"])
 
 ## ----compare, eval = requireNamespace("sn", quietly = TRUE)-------------------
 sn_ll_at <- function(par) {
-  sum(sn::dsun(ysim, dp = make_sun_hs_params(par), log = TRUE))
+  sum(sn::dsun(ysim, dp = make_sun_params(par), log = TRUE))
 }
 ad_ll_at <- function(par) {
   tape$eval(par, log = TRUE, deriv = 0L)$value
@@ -144,7 +148,10 @@ se <- vapply(seq_along(par_hat), function(j) {
   p_up[j] <- par_hat[j] + h
   p_dn[j] <- par_hat[j] - h
   if (j %in% 4:6) {
+    # keep nu positive
     if (p_dn[j] <= 1e-8) p_dn[j] <- max(par_hat[j] * 0.5, 1e-6)
+    h_eff2 <- (p_up[j] - par_hat[j]) * (par_hat[j] - p_dn[j])
+    # for unequal steps use (f+ - f0)/(x+-x0) - (f0 - f-)/(x0-x-) over mean step
     g_up <- (ll0(p_up) - f0) / (p_up[j] - par_hat[j])
     g_dn <- (f0 - ll0(p_dn)) / (par_hat[j] - p_dn[j])
     Hjj <- (g_up - g_dn) / (0.5 * ((p_up[j] - par_hat[j]) + (par_hat[j] - p_dn[j])))
@@ -173,7 +180,7 @@ if (is.null(par_names)) {
 }
 names(par_hat) <- par_names
 
-idx <- match(c("xi1", "nu1", "z41", "z21"), par_names)
+idx <- match(c("xi1", "nu1", "L11", "gamma12"), par_names)
 
 ll <- function(p) tape$eval(p, log = TRUE, deriv = 0L)$value
 ad_grad_j <- function(p, j) tape$eval(p, log = TRUE, deriv = 1L)$gradient[j]
