@@ -77,6 +77,59 @@ make_sun22_hs_start_from_gh <- function(quad, skew_strength = 0.01) {
     weighted_mean(Z, w), weighted_cov(Z, w), skew_strength)
 }
 
+#' Map mean and covariance to a SUN(3,2) hyperspherical start
+#'
+#' Exact Gaussian start on the joint hyperspherical layout of
+#' [make_sun32_hs_params()]: the three \eqn{U}-block free coordinates come from
+#' inverting \code{cov2cor(Sigma)}; all cross / \eqn{V} coordinates are zero.
+#' Optional \code{skew_strength} sets pair slots \code{z41,z52} to
+#' \code{atanh(skew_strength)}.
+#'
+#' @param mu Length-3 mean.
+#' @param Sigma \eqn{3\times 3} covariance.
+#' @param skew_strength Pair-slot \eqn{t=\tanh(z)} value in \eqn{(-1,1)}
+#'   (default 0).
+#' @return Named length-16 parameter vector for [make_sun32_hs_params()].
+#' @export
+make_sun32_hs_start_from_normal <- function(mu, Sigma, skew_strength = 0) {
+  mu <- as.numeric(mu)
+  if (length(mu) != 3L) stop("mu must have length 3")
+  Sigma <- as.matrix(Sigma)
+  if (!all(dim(Sigma) == c(3L, 3L))) stop("Sigma must be 3 x 3")
+  Sigma <- (Sigma + t(Sigma)) / 2
+  nu <- sqrt(pmax(diag(Sigma), 1e-8))
+  C <- stats::cov2cor(Sigma)
+  om <- .corr_free_from_C(C)
+
+  z <- setNames(numeric(10L), .sun_hs_z_names(3L, 2L))
+  z[c("z21", "z31", "z32")] <- om
+  if (abs(skew_strength) > 0) {
+    s <- max(min(as.numeric(skew_strength), 1 - 1e-8), -1 + 1e-8)
+    z[c("z41", "z52")] <- atanh(s)
+  }
+
+  c(
+    xi1 = mu[1], xi2 = mu[2], xi3 = mu[3],
+    nu1 = nu[1], nu2 = nu[2], nu3 = nu[3],
+    z
+  )
+}
+
+#' SUN(3,2) hyperspherical start from weighted sample moments
+#'
+#' @param quad List with \code{x} and \code{w}.
+#' @param skew_strength Passed to [make_sun32_hs_start_from_normal()].
+#' @return Named length-16 parameter vector.
+#' @export
+make_sun32_hs_start_from_gh <- function(quad, skew_strength = 0.01) {
+  Z <- as.matrix(quad$x)
+  w <- as.numeric(quad$w)
+  w <- w / sum(w)
+  mu <- weighted_mean(Z, w)
+  S <- weighted_cov(Z, w)
+  make_sun32_hs_start_from_normal(mu, S, skew_strength = skew_strength)
+}
+
 #' Map mean and covariance to a SUN(3,3) start (zero / tiny skewness)
 #'
 #' Uses marginal standard deviations and unconstrained correlation free

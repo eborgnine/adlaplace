@@ -106,6 +106,27 @@ sun33_hs_bounds <- function() {
   )
 }
 
+#' Default box constraints for SUN(3,2) hyperspherical parameters
+#'
+#' Pair slots linking \eqn{V_i} to \eqn{U_i} for \eqn{i=1,2}
+#' (\code{z41}, \code{z52}) use \code{atanh(+/-0.8)}; other joint
+#' coordinates use \code{atanh(+/-0.5)}.
+#' @return List of length-16 \code{lower} and \code{upper} vectors.
+#' @export
+sun32_hs_bounds <- function() {
+  z_lo <- rep(atanh(-0.5), 10L)
+  z_hi <- rep(atanh(0.5), 10L)
+  ## z41 and z52 in .sun_hs_z_names(3,2)
+  z_nm <- .sun_hs_z_names(3L, 2L)
+  pair <- match(c("z41", "z52"), z_nm)
+  z_lo[pair] <- atanh(-0.8)
+  z_hi[pair] <- atanh(0.8)
+  list(
+    lower = c(rep(-Inf, 3L), rep(1e-6, 3L), z_lo),
+    upper = c(rep(Inf, 6L), z_hi)
+  )
+}
+
 #' Default L-BFGS-B box constraints for SUN(4,4) parameters
 #'
 #' Skew loadings \code{Lij} act on the correlation scale, so they are
