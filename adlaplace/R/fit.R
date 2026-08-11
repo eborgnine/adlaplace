@@ -52,6 +52,21 @@ NULL
 #'   \item{model_data, ad_pack, config, cache}{Objects needed by the accessor
 #'     methods and for warm restarts.}
 #' }
+#' If \code{optim} throws (for example L-BFGS-B when \code{fn} is not finite),
+#' the same class is returned with \code{par_info} estimates set to \code{NA},
+#' \code{details$outer_opt = NULL}, and \code{details$error} set to the
+#' condition message. \code{ad_pack} and \code{cache} are still present so the
+#' Laplace objective can be inspected or re-run without rebuilding tapes:
+#' \preformatted{
+#' stats::optim(
+#'   fit$cache$last_par_fn,
+#'   fn = adlaplace::outer_fn, gr = adlaplace::outer_gr,
+#'   method = fit$method, control = fit$control,
+#'   lower = fit$par_info$lower, upper = fit$par_info$upper,
+#'   config = fit$config, ad_pack = fit$ad_pack,
+#'   cache = fit$cache, control_inner = fit$control_inner
+#' )
+#' }
 #'
 #' @seealso \code{\link{summary.adlaplace_fit}}, \code{\link{predict.adlaplace_fit}},
 #'   \code{\link{log_lik_laplace}}, \code{\link{model_data}}
@@ -149,7 +164,25 @@ adlaplace <- function(
     optim_args$lower <- par_meta$lower
     optim_args$upper <- par_meta$upper
   }
-  opt <- do.call(stats::optim, optim_args)
+  opt <- tryCatch(
+    do.call(stats::optim, optim_args),
+    error = function(e) e
+  )
+  if (inherits(opt, "error")) {
+    return(.adlaplace_fit_optim_failed(
+      err = opt,
+      cl = cl,
+      formula = formula,
+      md = md,
+      af = af,
+      config = config,
+      control_use = control_use,
+      control_inner = control_inner,
+      method = method,
+      par_meta = par_meta,
+      cache = cache
+    ))
+  }
 
   details <- log_lik_laplace(
     x = opt$par,
@@ -222,6 +255,95 @@ adlaplace <- function(
       details$inner_opt$solution,
       md$term_data$info$gamma$gamma_label
     ),
+    nobs = length(md$term_data$y),
+    cache = cache
+  )
+  class(out) <- "adlaplace_fit"
+  out
+}
+
+#' Build an adlaplace_fit after outer optim throws
+#'
+#' @noRd
+.adlaplace_fit_optim_failed <- function(
+    err,
+    cl,
+    formula,
+    md,
+    af,
+    config,
+    control_use,
+    control_inner,
+    method,
+    par_meta,
+    cache) {
+  err_msg <- conditionMessage(err)
+  labels <- par_meta$label
+  last_x <- if (!is.null(cache$last_par_fn)) {
+    as.numeric(cache$last_par_fn)
+  } else {
+    as.numeric(par_meta$init)
+  }
+  names(last_x) <- labels
+  log_idx <- par_meta$log %in% TRUE
+  last_nat <- last_x
+  last_nat[log_idx] <- exp(last_x[log_idx])
+  g <- cache$gamma
+
+  message("outer optim failed: ", err_msg)
+  message(
+    "last outer parameters (internal):\n",
+    paste(sprintf("  %s = %s", labels, format(last_x, digits = 6L)), collapse = "\n")
+  )
+  message(
+    "last outer parameters (natural scale for log slots):\n",
+    paste(sprintf("  %s = %s", labels, format(last_nat, digits = 6L)), collapse = "\n")
+  )
+  if (!is.null(cache$last_par_gr)) {
+    gr <- as.numeric(cache$last_par_gr)
+    names(gr) <- labels
+    message(
+      "last outer gradient:\n",
+      paste(sprintf("  %s = %s", labels, format(gr, digits = 6L)), collapse = "\n")
+    )
+  }
+  message(
+    "gamma length: ", length(g),
+    "; any non-finite gamma: ", any(!is.finite(g)),
+    "; any non-finite last x: ", any(!is.finite(last_x))
+  )
+
+  n_par <- length(labels)
+  par_info <- data.frame(
+    label = par_meta$label,
+    mle = rep(NA_real_, n_par),
+    se = rep(NA_real_, n_par),
+    mle_internal = rep(NA_real_, n_par),
+    se_internal = rep(NA_real_, n_par),
+    init = par_meta$init,
+    lower = par_meta$lower,
+    upper = par_meta$upper,
+    parscale = par_meta$parscale,
+    log = par_meta$log,
+    stringsAsFactors = FALSE
+  )
+  gamma_lab <- md$term_data$info$gamma$gamma_label
+  if (is.null(g)) {
+    g <- numeric()
+    gamma_lab <- character()
+  }
+  out <- list(
+    call = cl,
+    formula = formula,
+    model_data = md,
+    ad_pack = af,
+    config = config,
+    control = control_use,
+    control_inner = control_inner,
+    method = method,
+    details = list(outer_opt = NULL, vcov = NULL, error = err_msg),
+    par_info = par_info,
+    gamma = stats::setNames(as.numeric(g), gamma_lab),
     nobs = length(md$term_data$y),
     cache = cache
   )

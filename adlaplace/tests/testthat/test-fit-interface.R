@@ -84,3 +84,38 @@ test_that("adlaplace() with hessian = FALSE has no vcov", {
   expect_error(vcov(fit), "hessian = TRUE")
   expect_true(all(is.na(confint(fit))))
 })
+
+test_that("adlaplace() returns a fit object when outer fn is non-finite", {
+  dat <- simulate_fit_data(n = 80L, n_re = 4L, seed = 9L)
+  local_mocked_bindings(
+    outer_fn = function(x, config, cache, ad_pack, control_inner = list(), ...) {
+      assign("last_par_fn", x, cache)
+      Inf
+    },
+    .package = "adlaplace"
+  )
+  msgs <- character()
+  withCallingHandlers(
+    fit <- adlaplace(
+      nbinom(y, lower = 1e-9, init = 0.15) ~ x + iid(g, init = 0.3),
+      data = dat,
+      config = list(num_shards = 4L),
+      hessian = FALSE,
+      control = list(maxit = 1L)
+    ),
+    message = function(m) {
+      msgs <<- c(msgs, conditionMessage(m))
+      invokeRestart("muffleMessage")
+    }
+  )
+  expect_s3_class(fit, "adlaplace_fit")
+  expect_null(fit$details$outer_opt)
+  expect_true(nzchar(fit$details$error))
+  expect_true(methods::is(fit$ad_pack, "ad_pack"))
+  expect_true(is.environment(fit$cache))
+  expect_true(all(is.na(fit$par_info$mle)))
+  expect_true(is.na(as.numeric(logLik(fit))))
+  expect_output(print(fit), "Outer optim failed")
+  expect_true(any(grepl("outer optim failed", msgs, fixed = TRUE)))
+  expect_true(any(grepl("last outer parameters", msgs, fixed = TRUE)))
+})

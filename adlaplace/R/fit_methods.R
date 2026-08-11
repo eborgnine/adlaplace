@@ -73,8 +73,12 @@ vcov.adlaplace_fit <- function(object, transform = FALSE, ...) {
 #' @rdname adlaplace_fit-methods
 #' @export
 logLik.adlaplace_fit <- function(object, ...) {
+  ll <- object$details$log_lik
+  if (is.null(ll)) {
+    ll <- NA_real_
+  }
   structure(
-    object$details$log_lik,
+    ll,
     df = nrow(object$par_info),
     nobs = object$nobs,
     class = "logLik"
@@ -155,6 +159,16 @@ print.adlaplace_fit <- function(
   cat("Laplace-approximate maximum likelihood fit (adlaplace)\n\n")
   cat("Call:\n")
   print(x$call)
+  if (is.null(x$details$outer_opt)) {
+    cat("\nOuter optim failed:", x$details$error, "\n")
+    cat(
+      "  df:", nrow(x$par_info),
+      "  n:", x$nobs,
+      "  random effects:", length(x$gamma),
+      "\n"
+    )
+    return(invisible(x))
+  }
   cat("\nCoefficients (natural scale):\n")
   print(round(coef(x), digits))
   cat(
@@ -199,7 +213,12 @@ summary.adlaplace_fit <- function(object, level = 0.95, ...) {
     df = nrow(par),
     nobs = object$nobs,
     n_random = length(object$gamma),
-    convergence = object$details$outer_opt$convergence,
+    convergence = if (is.null(object$details$outer_opt)) {
+      NA_integer_
+    } else {
+      object$details$outer_opt$convergence
+    },
+    error = object$details$error,
     max_grad = if (!is.null(grad)) suppressWarnings(max(abs(grad))) else NA_real_,
     level = level
   )
@@ -222,11 +241,15 @@ print.summary.adlaplace_fit <- function(
     "  n:", x$nobs,
     "\n"
   )
-  cat(
-    "Convergence code:", x$convergence,
-    "  max|gradient|:", format(x$max_grad, digits = 3L),
-    "\n\n"
-  )
+  if (!is.null(x$error)) {
+    cat("Outer optim failed:", x$error, "\n\n")
+  } else {
+    cat(
+      "Convergence code:", x$convergence,
+      "  max|gradient|:", format(x$max_grad, digits = 3L),
+      "\n\n"
+    )
+  }
   cat(
     "Coefficients (natural scale, ",
     format(100 * x$level, trim = TRUE), "% CI):\n",

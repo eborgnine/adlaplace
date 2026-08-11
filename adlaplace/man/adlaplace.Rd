@@ -67,6 +67,21 @@ An object of class \code{"adlaplace_fit"}: a list with components
   \item{model_data, ad_pack, config, cache}{Objects needed by the accessor
     methods and for warm restarts.}
 }
+If \code{optim} throws (for example L-BFGS-B when \code{fn} is not finite),
+the same class is returned with \code{par_info} estimates set to \code{NA},
+\code{details$outer_opt = NULL}, and \code{details$error} set to the
+condition message. \code{ad_pack} and \code{cache} are still present so the
+Laplace objective can be inspected or re-run without rebuilding tapes:
+\preformatted{
+stats::optim(
+  fit$cache$last_par_fn,
+  fn = adlaplace::outer_fn, gr = adlaplace::outer_gr,
+  method = fit$method, control = fit$control,
+  lower = fit$par_info$lower, upper = fit$par_info$upper,
+  config = fit$config, ad_pack = fit$ad_pack,
+  cache = fit$cache, control_inner = fit$control_inner
+)
+}
 }
 \description{
 One-call interface to the \pkg{adlaplace} pipeline: parse the formula with
