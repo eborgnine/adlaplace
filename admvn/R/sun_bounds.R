@@ -171,3 +171,24 @@ sun44_hs_bounds <- function() {
     upper = c(rep(Inf, 8L), z_hi)
   )
 }
+
+
+#' Default box constraints for SUN(4,3) hyperspherical parameters
+#'
+#' Pair slots linking \eqn{V_i} to \eqn{U_i} for \eqn{i=1,2,3}
+#' (\code{z51}, \code{z62}, \code{z73}) use \code{atanh(+/-0.8)}; other joint
+#' coordinates use \code{atanh(+/-0.5)}.
+#' @return List of length-29 \code{lower} and \code{upper} vectors.
+#' @export
+sun43_hs_bounds <- function() {
+  z_lo <- rep(atanh(-0.5), 21L)
+  z_hi <- rep(atanh(0.5), 21L)
+  z_nm <- .sun_hs_z_names(4L, 3L)
+  pair <- match(c("z51", "z62", "z73"), z_nm)
+  z_lo[pair] <- atanh(-0.8)
+  z_hi[pair] <- atanh(0.8)
+  list(
+    lower = c(rep(-Inf, 4L), rep(1e-6, 4L), z_lo),
+    upper = c(rep(Inf, 8L), z_hi)
+  )
+}

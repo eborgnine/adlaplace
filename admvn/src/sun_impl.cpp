@@ -11,6 +11,8 @@
 #include "sun22_tape.hpp"
 #include "sun32_holder.hpp"
 #include "sun32_tape.hpp"
+#include "sun43_holder.hpp"
+#include "sun43_tape.hpp"
 #include "sun44_holder.hpp"
 #include "sun44_tape.hpp"
 
@@ -63,6 +65,10 @@ Rcpp::List sun22_result_to_list(const admvn::Sun22Result& res, int deriv) {
 }
 
 Rcpp::List sun32_result_to_list(const admvn::Sun32Result& res, int deriv) {
+  return sun_like_result_to_list(res, deriv);
+}
+
+Rcpp::List sun43_result_to_list(const admvn::Sun43Result& res, int deriv) {
   return sun_like_result_to_list(res, deriv);
 }
 
@@ -130,6 +136,26 @@ admvn::Sun32TapeBundle make_sun32_bundle(
     par_map);
 }
 
+admvn::Sun43TapeBundle make_sun43_bundle(
+  const std::vector<std::vector<double>>& x_rows,
+  const std::vector<double>& par_seed,
+  int n_points,
+  int n_shifts,
+  unsigned int seed,
+  int n_threads,
+  const std::vector<double>& weights = {},
+  admvn::Sun43ParMap par_map = admvn::Sun43ParMap::kHyperspherical) {
+  return admvn::create_sun43_bundle(
+    x_rows,
+    par_seed,
+    static_cast<std::size_t>(n_points),
+    static_cast<std::size_t>(n_shifts),
+    seed,
+    n_threads,
+    weights,
+    par_map);
+}
+
 admvn::Sun44TapeBundle make_sun44_bundle(
   const std::vector<std::vector<double>>& x_rows,
   const std::vector<double>& par_seed,
@@ -165,6 +191,15 @@ void require_sun32_dims(const Rcpp::NumericMatrix& x, const Rcpp::NumericVector&
   }
   if (par.size() != static_cast<int>(admvn::kSun32NPar)) {
     Rcpp::stop("par must have length 16 for SUN(3,2)");
+  }
+}
+
+void require_sun43_dims(const Rcpp::NumericMatrix& x, const Rcpp::NumericVector& par) {
+  if (x.ncol() != static_cast<int>(admvn::kSun43D)) {
+    Rcpp::stop("x must have ncol == 4 for SUN(4,3)");
+  }
+  if (par.size() != static_cast<int>(admvn::kSun43NPar)) {
+    Rcpp::stop("par must have length 29 for SUN(4,3)");
   }
 }
 
@@ -584,6 +619,92 @@ Rcpp::List dsun32_fun_eval_cpp(
   admvn::Sun32Result res = admvn::eval_sun32_bundle(
     holder->bundle, par_v, log_scale, deriv, n_threads);
   return sun32_result_to_list(res, deriv);
+}
+
+// [[Rcpp::export]]
+Rcpp::List dsun43_hs_cpp(
+  Rcpp::NumericMatrix x,
+  Rcpp::NumericVector par,
+  bool log_scale = true,
+  int deriv = 0,
+  int n_points = 1021,
+  int n_shifts = 8,
+  unsigned int seed = 1,
+  int n_threads = 1,
+  Rcpp::Nullable<Rcpp::NumericVector> weights = R_NilValue) {
+
+  require_sun43_dims(x, par);
+  const auto x_rows = as_matrix_rows(x);
+  const std::vector<double> par_v = as_vector(par);
+  std::vector<double> w_v;
+  if (weights.isNotNull()) {
+    w_v = as_vector(weights.get());
+  }
+  if (x_rows.empty()) {
+    admvn::Sun43Result out;
+    out.value = log_scale ? 0.0 : 1.0;
+    out.gradient.assign(admvn::kSun43NPar, 0.0);
+    out.hessian.assign(
+      admvn::kSun43NPar, std::vector<double>(admvn::kSun43NPar, 0.0));
+    return sun43_result_to_list(out, deriv);
+  }
+  admvn::Sun43TapeBundle bundle = make_sun43_bundle(
+    x_rows, par_v, n_points, n_shifts, seed, n_threads, w_v,
+    admvn::Sun43ParMap::kHyperspherical);
+  admvn::Sun43Result res = admvn::eval_sun43_bundle(
+    bundle, par_v, log_scale, deriv, n_threads);
+  return sun43_result_to_list(res, deriv);
+}
+
+// [[Rcpp::export]]
+SEXP dsun43_hs_fun_create_cpp(
+  Rcpp::NumericMatrix x,
+  Rcpp::NumericVector par_seed,
+  int n_points = 1021,
+  int n_shifts = 8,
+  unsigned int seed = 1,
+  int n_threads = 1,
+  Rcpp::Nullable<Rcpp::NumericVector> weights = R_NilValue) {
+
+  require_sun43_dims(x, par_seed);
+  std::vector<double> w_v;
+  if (weights.isNotNull()) {
+    w_v = as_vector(weights.get());
+  }
+  auto* holder = new admvn::Sun43TapeHolder(
+    make_sun43_bundle(
+      as_matrix_rows(x), as_vector(par_seed), n_points, n_shifts, seed,
+      n_threads, w_v, admvn::Sun43ParMap::kHyperspherical),
+    as_vector(par_seed));
+  SEXP out = R_MakeExternalPtr(holder, R_NilValue, R_NilValue);
+  R_RegisterCFinalizerEx(out, admvn::sun43_holder_finalizer, TRUE);
+  Rf_setAttrib(out, R_ClassSymbol, Rf_mkString("admvn_sun43_tape_ptr"));
+  return out;
+}
+
+// [[Rcpp::export]]
+Rcpp::List dsun43_fun_eval_cpp(
+  SEXP ptr,
+  Rcpp::Nullable<Rcpp::NumericVector> par = R_NilValue,
+  bool log_scale = true,
+  int deriv = 0,
+  int n_threads = 0) {
+
+  auto* holder = admvn::sun43_holder_from_sexp(ptr);
+
+  std::vector<double> par_v;
+  if (par.isNotNull()) {
+    par_v = as_vector(par.get());
+  } else {
+    par_v = holder->seed_par;
+  }
+  if (par_v.size() != admvn::kSun43NPar) {
+    Rcpp::stop("par must have length 29 for SUN(4,3)");
+  }
+
+  admvn::Sun43Result res = admvn::eval_sun43_bundle(
+    holder->bundle, par_v, log_scale, deriv, n_threads);
+  return sun43_result_to_list(res, deriv);
 }
 
 // [[Rcpp::export]]

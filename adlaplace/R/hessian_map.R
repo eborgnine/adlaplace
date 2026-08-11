@@ -192,15 +192,23 @@ hessian_map_build_chol_inner <- function(innerMat, n_gamma) {
   if (n_gamma > 0L && nrow(innerMat) > 0L) {
     chol_inner <- tryCatch(
       {
-        dummy_x <- ifelse(innerMat$rowInner == innerMat$colInner, 10, 1)
-        hi_dummy <- Matrix::sparseMatrix(
+        # Pattern-only dummy: off-diagonals 1, diagonal = 1 + degree so the
+        # matrix is strictly diagonally dominant (hence SPD) for any graph.
+        # A fixed diagonal of 10 fails on hub-and-spoke patterns (e.g.
+        # hierarchical IWP with a global component coupling all groups).
+        hi_pat <- Matrix::sparseMatrix(
           i = innerMat$rowInner,
           j = innerMat$colInner,
-          x = dummy_x,
+          x = 1,
           symmetric = TRUE,
           index1 = FALSE,
           dims = c(n_gamma, n_gamma)
         )
+                        hi_dummy <- methods::as(hi_pat, "generalMatrix")
+        off_deg <- as.numeric(Matrix::rowSums(hi_dummy)) -
+          as.numeric(Matrix::diag(hi_dummy))
+        Matrix::diag(hi_dummy) <- off_deg + 1
+        hi_dummy <- Matrix::forceSymmetric(hi_dummy)
         Matrix::Cholesky(hi_dummy, perm = TRUE, LDL = TRUE)
       },
       error = function(e) NULL
