@@ -261,12 +261,16 @@ InnerOptResult inner_opt(const std::vector<double> &parameters,
     status = opt.get_current_state(solution, fval, grad, H, iterations, radius);
 
     const double grad_l2_sq = grad.squaredNorm();
-    if (grad_l2_sq > 10.0) {
+    // Optional restart: clamp gamma into [-x, x] and re-run. Disabled when
+    // restart.gamma.clamp is non-finite (e.g. Inf).
+    if (R_finite(control.restart_gamma_clamp) && grad_l2_sq > 10.0) {
+      const double clamp = std::fabs(control.restart_gamma_clamp);
       if (verbose && adlaplace_debug_enabled()) {
-        Rcpp::Rcout << "restarting with shrunk gamma\n";
+        Rcpp::Rcout << "restarting with gamma clamped to [-"
+                    << clamp << ", " << clamp << "]\n";
       }
 
-      gamma_start = gamma_start.cwiseMax(-0.1).cwiseMin(0.1);
+      gamma_start = gamma_start.cwiseMax(-clamp).cwiseMin(clamp);
       Trust_CG_Sparse<Tvec, AD_Func_Opt, THess, TPreLLt> opt_retry(
           funObj, gamma_start, control.rad, control.min_rad, control.tol,
           control.prec, control.report_freq, control.report_level,

@@ -49,6 +49,9 @@ struct TrustControl {
   int    precond_ID;
 //  int    quasi_newton_method;  // 1 = SR1, 2 = BFGS
   int    trust_iter;
+  // Half-width for optional large-gradient restart clamp of gamma into [-x, x].
+  // Non-finite (e.g. Inf) disables the restart.
+  double restart_gamma_clamp;
 
   // Construct from an Rcpp::List with defaults
   explicit TrustControl(const Rcpp::List& control)
@@ -71,6 +74,7 @@ struct TrustControl {
   , precond_ID(           get_int_ctrl   (control, "precond.ID",             0))
 //    , quasi_newton_method(  get_int_ctrl   (control, "quasi.newton.method",    1))  // 1 = SR1
   , trust_iter(           get_int_ctrl   (control, "trust.iter",             50))
+  , restart_gamma_clamp(  get_double_ctrl(control, "restart.gamma.clamp",    0.1))
   {}
 };
 

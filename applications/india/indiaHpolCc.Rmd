@@ -12,6 +12,15 @@ header-includes:
     ```
 ---
 
+Time-stratified case-crossover for Indian grid-cell mortality with
+population-weighted PM$_{2.5}$ and temperature. Strata are cell $\times$
+eco-region $\times$ year–week3–day-of-week. The conditional likelihood is a
+Dirichlet-multinomial with estimated overdispersion. Exposure–response uses
+hierarchical IWP (`hiwp`) smooths of order 2 on $\sqrt{\mathrm{PM}_{2.5}}$ and
+order 3 on temperature/10, each grouped by eco-region.
+
+Joint-density derivative compute is knitr-cached; the plot chunk is not.
+All chunks after the plot are `eval=FALSE`.
 
 ```{r setup, include=FALSE}
 knitr::knit_hooks$set(margins = Pmisc::hook_plot_margins)
@@ -21,26 +30,50 @@ knitr::opts_chunk$set(
   echo = FALSE, prompt = TRUE, comment = NA,
   dev = "pdf", margins = 1, fig.cap = " ", fig.pos = "hp",
   fig.path = file.path("figure", "moreBayes"),
-  fig.width = 5, fig.height = 5, half = NULL,
+  fig.width = 5, fig.height = 5, dpi = NULL,
   tidy = TRUE, tidy.opts = list(indent = 2, width.cutoff = 45)
 )
 
 options(width = 80)
+dir.create("analysis_cache", showWarnings = FALSE)
+fit_rds <- "analysis_cache/res_hiwp_pm_temp.rds"
+deaths_rds <- "deaths.RData"
+
+# Placeholders so knitr still resolves fig.subcap / fig.cap on eval=FALSE chunks.
+for_global <- data.frame(
+  var = character(0),
+  type = character(0),
+  var_name = character(0),
+  subcap = character(0),
+  stringsAsFactors = FALSE
+)
+d_var <- character(0)
+s_group <- character(0)
+s_var_names <- c(temp_div10 = "temperature", sqrt_pm = "PM2.5")
 ```
 
-
-```{r ecoRegionData}
+```{r dirs, include=FALSE}
 s_store_dir <- c("/store/patrick/copernicus/agg", "~/Downloads/agg")
-store_dir <- s_store_dir[1]
-if (!dir.exists(store_dir)) store_dir <- s_store_dir[2]
+store_dir <- s_store_dir[file.exists(path.expand(s_store_dir))][1]
+has_store <- !is.na(store_dir) && nzchar(store_dir)
+has_deaths <- file.exists(deaths_rds)
+has_fit <- file.exists(fit_rds)
+```
 
-india_eco_regions <- terra::unwrap(readRDS(file.path(store_dir, "indiaEcoRegions.rds")))
+```{r ecoRegionData, eval=isTRUE(has_store)}
+india_eco_regions <- terra::unwrap(
+  readRDS(file.path(store_dir, "indiaEcoRegions.rds"))
+)
 india_eco_regions$name <- gsub(
   " AND ", ", ",
-  gsub(" E.O.REGION|[(].*[)]|TO PERHUMID.*|PENINSULA ", "", india_eco_regions$physio_reg)
+  gsub(
+    " E.O.REGION|[(].*[)]|TO PERHUMID.*|PENINSULA ", "",
+    india_eco_regions$physio_reg
+  )
 )
-india_eco_regions$id_name <- paste(india_eco_regions$objectid, india_eco_regions$name)
-
+india_eco_regions$id_name <- paste(
+  india_eco_regions$objectid, india_eco_regions$name
+)
 india_eco_regions$col <- rep_len(
   c(
     RColorBrewer::brewer.pal(12, "Set3"),
@@ -48,107 +81,76 @@ india_eco_regions$col <- rep_len(
   ),
   length(india_eco_regions)
 )
-
-
-# objectid is deaths$eco_region
 ```
 
-```{r worldPopByRegion, cache=TRUE}
+```{r worldPopByRegion, cache=TRUE, eval=isTRUE(has_store)}
 year <- 2020
 dir.create("data/gpw", recursive = TRUE, showWarnings = FALSE)
 
-# geodata::population returns GPW population density (people per km^2)
 pop_density <- geodata::population(year, res = 5, path = "data/gpw")
-
 eco <- terra::project(india_eco_regions, terra::crs(pop_density))
-
-pop_density_india_eco <- terra::crop(pop_density, eco)
-pop_density_india_eco <- terra::mask(pop_density_india_eco, eco)
-
-# Convert density to estimated population count per cell before extraction.
+pop_density_india_eco <- terra::mask(terra::crop(pop_density, eco), eco)
 cell_area_km2 <- terra::cellSize(pop_density_india_eco, unit = "km")
 pop_count <- pop_density_india_eco * cell_area_km2
-
 eco_pop <- terra::extract(
-  pop_count,
-  eco,
-  fun = sum,
-  na.rm = TRUE,
-  exact = TRUE
+  pop_count, eco,
+  fun = sum, na.rm = TRUE, exact = TRUE
 )
-
 eco$gpw_2020 <- eco_pop[, 2]
-
 eco_pop_df <- data.frame(
   objectid = eco$objectid,
   physio_reg = eco$physio_reg,
   gpw_2020 = eco$gpw_2020
 )
-
 eco_pop_df$weight <- eco_pop_df$gpw_2020 / sum(eco_pop_df$gpw_2020)
+eco_weights <- stats::setNames(
+  eco_pop_df$weight,
+  as.character(eco_pop_df$objectid)
+)
 ```
 
-
-
 ```{r deaths_data, eval=FALSE}
-library("data.table")
-# /home/patrick/Admin/globalHealth/indiaSpatial/daily.Rmd
-
-deaths <- as.data.table(readRDS(file.path(store_dir, "indiaCC.rds")))
+# Manually execute to rebuild deaths.RData from the store RDS.
+stopifnot(isTRUE(has_store))
+deaths <- data.table::as.data.table(
+  readRDS(file.path(store_dir, "indiaCC.rds"))
+)
 data.table::setnames(
   deaths,
   old = c("ecoRegion", "yearWeek3Dow"),
   new = c("eco_region", "year_week3_dow"),
   skip_absent = TRUE
 )
-
-# trransform variables
 deaths$sqrt_pm <- sqrt(pmin(deaths$pm, 1000))
-deaths$time_iid <- as.numeric(deaths$date)
-
-deaths$temp_div10 <- pmax(deaths$temp, -5)/10
-
-
+deaths$temp_div10 <- pmax(deaths$temp, -5) / 10
 deaths$dom <- as.numeric(format(deaths$date, "%d"))
 deaths[deaths$dom == Hmisc::monthDays(deaths$date), "dom"] <- 31
 deaths[format(deaths$date, "%m%d") == "0101", "dom"] <- 0
 deaths$dom <- droplevels(relevel(factor(deaths$dom), "1"))
-deaths$month <- format(deaths$date, "%m")
-
-save(deaths, file = "deaths.RData")
+deaths$eco_region <- factor(as.character(deaths$eco_region))
+save(deaths, file = deaths_rds)
 ```
 
-
-
-
-```{r fit, cache=TRUE}
-# devtools::load_all("adlaplace")
-# devtools::load_all("adlaplaceHgp")
-# devtools::load_all("hpolcc")
-
-library(adlaplace)
-library(adlaplaceHgp)
-library(hpolcc)
-
-load("~/research/adlaplace/applications/india/deaths.RData")
-
-cc_formula <- dirichlet_multinom(
-  medical,
+```{r formula_factory, include=FALSE}
+formula_lhs <- adlaplace::dirichlet_multinom(
+  "medical",
   by = c("cell", "eco_region", "year_week3_dow"),
   init = 0.1,
   parscale = 10
-) ~ dom +
-  hiwp(
-    sqrt_pm,
+)
+formula_rhs <- c(
+  adlaplace::linear("dom"),
+  adlaplaceHgp::hiwp(
+    "sqrt_pm",
     p = 2,
     ref_value = 8,
     knots = seq(0, 32, by = 2),
     by = "eco_region",
     init = 1e-1,
     lower = 1e-12
-  ) +
-  hiwp(
-    temp_div10,
+  ),
+  adlaplaceHgp::hiwp(
+    "temp_div10",
     p = 3,
     ref_value = 25 / 10,
     knots = seq(-5, 42.5, by = 2.5) / 10,
@@ -156,90 +158,884 @@ cc_formula <- dirichlet_multinom(
     init = 1e-1,
     lower = 1e-12
   )
-
-res_pm_temp <- hnlm(
-  formula = cc_formula,
-  data = deaths[seq(1, 5e5), ],
-  config = list(
-    transform_theta = TRUE,
-    num_threads = parallel::detectCores(),
-    num_shards = 1e4,
-    num_sim = 500,
-    verbose = TRUE
-  ),
-  control = list(
-    maxit = 10, # 100,
-    trace = 3,
-    REPORT = 1
-  ),
-  control_inner = list(report.level = 0, maxit = 5000),
-  for_dev = FALSE
 )
-
-saveRDS(res_pm_temp, file = "resPmTemp.rds")
+cc_formula <- c(formula_lhs, formula_rhs)
 ```
 
-
-```{r par_table}
-res <- res_pm_temp #readRDS("resPmTempR.rds")
-s_var <- names(res$sample$sim)
-s_var_names <- c(temp_div10 = "temperature", sqrt_pm = "PM2.5")[s_var]
-
-params <- res$coefficients$parameters
-n_beta <- nrow(res$info$beta)
-theta_table <- params[seq(n_beta + 1L, nrow(params)), c("term", "model", "mle", "init", "lower", "parscale", "transform"), drop = FALSE]
-theta_table$log_mle <- ifelse(theta_table$transform, log(theta_table$mle), NA_real_)
-theta_table$term <- s_var_names[theta_table$term]
-theta_table
-```
-
-```{r globalSetup}
-the_x_lim <- list(
-  temp_div10 = c(4, 38),
-  sqrt_pm = c(0, 450)
-)
-
-for_global <- expand.grid(
-  var = s_var,
-  type = c("Common", "Pop Avg"), stringsAsFactors = FALSE
-)
-for_global$var_name <- s_var_names[for_global$var]
-for_global$subcap <- paste(for_global$var_name, for_global$type)
-
-the_y_lim <- list()
-
-for (d in s_var) {
-  x_here <- res$sample$x[[d]]
-  if (grepl("sqrt", d)) x_here <- x_here^2
-  if (grepl("div10", d)) x_here <- 10*x_here
-
-  use_x_here <- x_here <= max(the_x_lim[[d]]) &
-    x_here >= min(the_x_lim[[d]])
-
-  range1 <- range(
-    res$sample$quantiles$common[[d]][use_x_here, , drop = FALSE]
+```{r check_joint_deriv, cache=TRUE}
+# Cached: outer_fn warm-start, 5 derivative-free outer steps, then joint dens scan.
+# Subset to year >= 2010 to keep the probe cheap.
+stopifnot(file.exists(deaths_rds))
+load(deaths_rds)
+deaths <- data.table::as.data.table(deaths)
+deaths <- deaths[as.integer(format(date, "%Y")) >= 2010L]
+deaths[, eco_region := factor(as.character(eco_region))]
+deaths[, dom := droplevels(dom)]
+message(
+  sprintf(
+    "check_joint_deriv subset: N=%d (years >= 2010)",
+    nrow(deaths)
   )
-  if (!is.null(res$sample$envelope$common[[d]])) {
-    range2 <- range(
-      res$sample$envelope$common[[d]][use_x_here, , drop = FALSE]
-    )
+)
+utils::flush.console()
+
+md <- adlaplace::model_data(cc_formula, data = deaths, verbose = FALSE)
+n_shards_dev <- as.integer(
+  min(200L, max(50L, data.table::uniqueN(deaths$cell)))
+)
+config_dev <- list(
+  transform_theta = TRUE,
+  num_threads = 1L,
+  verbose = FALSE,
+  obs_groups = adlaplace::obs_groups(
+    A = md$term_data$A,
+    elgm_matrix = md$term_data$elgm_matrix,
+    num_shards = n_shards_dev
+  )
+)
+
+message("building ad_pack (shards=", n_shards_dev, ")...")
+utils::flush.console()
+ad_plain <- adlaplace::ad_pack(md, config_dev, num_threads = 1L)
+dens_ptr <- adlaplace::clone_ad_pack_ptr(ad_plain@ptr)
+
+sz <- ad_plain@sizes
+n_beta <- as.integer(sz["beta"])
+n_gamma <- as.integer(sz["gamma"])
+n_theta <- as.integer(sz["theta"])
+x0_start <- c(
+  md$term_data$info$beta$init,
+  adlaplace::apply_theta_log(md$term_data$info$theta, cols = "init")$init
+)
+ctrl_inner <- list(
+  maxit = 5L, report.level = 3, report.freq = 1,
+  restart.gamma.clamp = Inf
+)
+cache_j <- new.env(parent = emptyenv())
+cache_j$gamma <- rep(0, n_gamma)
+
+message(
+  "outer_fn(x0): inner opt maxit=", ctrl_inner$maxit,
+  " (gamma length=", n_gamma, ")..."
+)
+utils::flush.console()
+t_fn <- proc.time()[["elapsed"]]
+fn0 <- tryCatch(
+  adlaplace::outer_fn(
+    x0_start,
+    config = config_dev, ad_pack = ad_plain, cache = cache_j,
+    control_inner = ctrl_inner
+  ),
+  error = function(e) e
+)
+fn0_sec <- proc.time()[["elapsed"]] - t_fn
+fn0_err <- if (inherits(fn0, "error")) conditionMessage(fn0) else NA_character_
+fn0_val <- if (inherits(fn0, "error")) NA_real_ else as.numeric(fn0)
+message(
+  sprintf(
+    "outer_fn done in %.1fs: %s",
+    fn0_sec,
+    if (!is.na(fn0_err)) fn0_err else format(fn0_val)
+  )
+)
+utils::flush.console()
+
+gamma_after_fn0 <- as.numeric(cache_j$gamma)
+gamma_fn0_sum <- list(
+  n = length(gamma_after_fn0),
+  n_finite = sum(is.finite(gamma_after_fn0)),
+  range = if (any(is.finite(gamma_after_fn0))) {
+    range(gamma_after_fn0, na.rm = TRUE)
   } else {
-    range2 <- NULL
+    c(NA_real_, NA_real_)
+  },
+  max_abs = if (any(is.finite(gamma_after_fn0))) {
+    max(abs(gamma_after_fn0), na.rm = TRUE)
+  } else {
+    NA_real_
   }
-  the_y_lim[[d]] <- range(c(-2, 100 * (c(range1, range2) - 1)))
+)
+
+# 5 Nelder-Mead outer steps (no derivatives); record each outer_fn eval.
+ctrl_nm_inner <- list(
+  maxit = 5L, report.level = 0, report.freq = 0,
+  restart.gamma.clamp = Inf
+)
+cfg_nm <- utils::modifyList(config_dev, list(verbose = FALSE))
+fn_hist <- data.frame(
+  eval = integer(),
+  neg_log_lik = numeric(),
+  log_lik = numeric(),
+  finite = logical()
+)
+fn_nm <- function(par) {
+  v <- tryCatch(
+    adlaplace::outer_fn(
+      par,
+      config = cfg_nm, ad_pack = ad_plain, cache = cache_j,
+      control_inner = ctrl_nm_inner
+    ),
+    error = function(e) NA_real_
+  )
+  i <- nrow(fn_hist) + 1L
+  fn_hist <<- rbind(
+    fn_hist,
+    data.frame(
+      eval = i,
+      neg_log_lik = v,
+      log_lik = -v,
+      finite = is.finite(v)
+    )
+  )
+  if (i == 1L || i %% 5L == 0L || !is.finite(v)) {
+    message(
+      sprintf(
+        "  NM eval %d: neg_log_lik=%s finite=%s",
+        i, format(v), is.finite(v)
+      )
+    )
+    utils::flush.console()
+  }
+  if (!is.finite(v)) {
+    return(.Machine$double.xmax)
+  }
+  v
+}
+message("Nelder-Mead outer: maxit=5 (no derivatives)...")
+utils::flush.console()
+t_nm <- proc.time()[["elapsed"]]
+opt_nm <- tryCatch(
+  stats::optim(
+    par = x0_start,
+    fn = fn_nm,
+    method = "Nelder-Mead",
+    control = list(maxit = 5L, reltol = 1e-8)
+  ),
+  error = function(e) e
+)
+nm_sec <- proc.time()[["elapsed"]] - t_nm
+if (!inherits(opt_nm, "error") && nrow(fn_hist)) {
+  fn_hist$delta_ll <- fn_hist$log_lik - fn_hist$log_lik[[1L]]
+}
+message(
+  sprintf(
+    "Nelder-Mead done in %.1fs: %s",
+    nm_sec,
+    if (inherits(opt_nm, "error")) {
+      conditionMessage(opt_nm)
+    } else {
+      sprintf(
+        "convergence=%d n_evals=%d value=%s",
+        opt_nm$convergence, nrow(fn_hist), format(opt_nm$value)
+      )
+    }
+  )
+)
+utils::flush.console()
+
+x_nm <- if (inherits(opt_nm, "error")) x0_start else opt_nm$par
+gamma_after_nm <- as.numeric(cache_j$gamma)
+nm_err <- if (inherits(opt_nm, "error")) conditionMessage(opt_nm) else NA_character_
+
+x_here <- c(
+  x_nm[seq_len(n_beta)],
+  gamma_after_nm,
+  x_nm[seq(n_beta + 1L, length.out = n_theta)]
+)
+Dpar_dens <- n_beta + n_gamma + 1L
+message("deriv_scan_joint: n=5 around full index ", Dpar_dens, "...")
+utils::flush.console()
+t_scan <- proc.time()[["elapsed"]]
+scan_j <- adlaplace::deriv_scan_joint(
+  dens_ptr,
+  x = x_here,
+  index = Dpar_dens,
+  width = 0.1,
+  n = 5L,
+  ad_shards = NULL,
+  negative = FALSE
+)
+message(
+  sprintf("deriv_scan_joint done in %.1fs", proc.time()[["elapsed"]] - t_scan)
+)
+# Drop AD handles before cache serialize (external pointers).
+rm(ad_plain, dens_ptr, cache_j, md, fn_nm)
+```
+
+```{r check_outer_fn, dependson="check_joint_deriv"}
+# Diagnose outer_fn using cached fn0 + Nelder-Mead path (no recomputation).
+cat("=== outer_fn at start (fn0) ===\n")
+cat(
+  sprintf(
+    "finite=%s  value=%s  error=%s  time=%.1fs\n",
+    is.finite(fn0_val), format(fn0_val),
+    if (is.na(fn0_err)) "none" else fn0_err,
+    fn0_sec
+  )
+)
+cat(
+  sprintf(
+    "gamma after fn0: n=%d finite=%d/%d range=[%s, %s] max|g|=%s\n",
+    gamma_fn0_sum$n, gamma_fn0_sum$n_finite, gamma_fn0_sum$n,
+    format(gamma_fn0_sum$range[[1L]]), format(gamma_fn0_sum$range[[2L]]),
+    format(gamma_fn0_sum$max_abs)
+  )
+)
+
+cat("\n=== Nelder-Mead outer (5 iters, no derivatives) ===\n")
+if (!is.na(nm_err)) {
+  cat("optim error: ", nm_err, "\n", sep = "")
+} else {
+  cat(
+    sprintf(
+      "convergence=%d  value=%s  time=%.1fs  n_evals=%d\n",
+      opt_nm$convergence, format(opt_nm$value), nm_sec, nrow(fn_hist)
+    )
+  )
+}
+if (nrow(fn_hist)) {
+  print(fn_hist)
+  cat(
+    sprintf(
+      "log_lik change (last - first): %s\n",
+      format(fn_hist$log_lik[[nrow(fn_hist)]] - fn_hist$log_lik[[1L]])
+    )
+  )
+}
+
+# Consistency: first NM eval should match fn0 (same x0; gamma warm-started).
+if (nrow(fn_hist) && is.finite(fn0_val) && is.finite(fn_hist$neg_log_lik[[1L]])) {
+  d_fn <- fn_hist$neg_log_lik[[1L]] - fn0_val
+  cat(
+    sprintf(
+      "\nfn0 vs first NM eval: diff=%s (should be ~0 if warm-start reused)\n",
+      format(d_fn)
+    )
+  )
+}
+
+dx <- x_nm - x0_start
+cat(
+  sprintf(
+    "\nouter par move: max|dx|=%s  ||dx||2=%s  n_moved(>1e-8)=%d / %d\n",
+    format(max(abs(dx))), format(sqrt(sum(dx * dx))),
+    sum(abs(dx) > 1e-8), length(dx)
+  )
+)
+
+cat("\n=== flags (problems with outer_fn / start) ===\n")
+flags <- c(
+  fn0_not_finite = !is.finite(fn0_val),
+  fn0_error = !is.na(fn0_err),
+  gamma_not_all_finite = gamma_fn0_sum$n_finite < gamma_fn0_sum$n,
+  nm_any_nonfinite_eval = nrow(fn_hist) > 0L && !all(fn_hist$finite),
+  nm_no_improvement = nrow(fn_hist) > 1L &&
+    is.finite(fn_hist$log_lik[[1L]]) &&
+    is.finite(fn_hist$log_lik[[nrow(fn_hist)]]) &&
+    (fn_hist$log_lik[[nrow(fn_hist)]] <= fn_hist$log_lik[[1L]] + 1e-8),
+  nm_error = !is.na(nm_err)
+)
+print(flags)
+if (isTRUE(flags[["fn0_not_finite"]]) || isTRUE(flags[["fn0_error"]])) {
+  message(
+    "Likely cause of L-BFGS-B 'needs finite values of fn': outer_fn(x0) is not finite."
+  )
+}
+if (isTRUE(flags[["nm_any_nonfinite_eval"]])) {
+  message("Nelder-Mead hit non-finite outer_fn along its path.")
+}
+if (isTRUE(flags[["nm_no_improvement"]]) && !isTRUE(flags[["fn0_not_finite"]])) {
+  message(
+    "Derivative-free steps did not improve log_lik from fn0 (flat / worse / stuck)."
+  )
+}
+if (!any(unlist(flags))) {
+  message("No obvious outer_fn failure flags at this cheap probe.")
 }
 ```
 
-```{r globalRes, fig.cap='Common component', fig.subcap = for_global$subcap, out.width='0.48\\linewidth', fig.height=5, fig.width=5}
+```{r check_joint_deriv_plot, fig.height=5, dependson="check_joint_deriv"}
+par(mfrow = c(3, 2), mar = c(2, 2, 2, 0), mgp = c(1, 0.5, 0))
+plot(scan_j$grid, scan_j$value, type = "l", ylab = "joint log dens")
+plot(scan_j$grid, scan_j$grad[, Dpar_dens], type = "l", ylab = "AD gradient")
+points(scan_j$mid, scan_j$fd_value, pch = 16)
+legend(
+  "topright",
+  legend = c("AD", "finite diff"),
+  lty = c(1, NA), pch = c(NA, 16), bty = "n"
+)
+
+s_par2 <- sort(unique(c(
+  Dpar_dens, 1:3, seq(to = length(x_here), length.out = 3)
+)))
+s_par2 <- s_par2[seq_len(min(prod(par("mfrow")) - 2L, length(s_par2)))]
+for (Dpar2 in s_par2) {
+  plot(
+    scan_j$grid, scan_j$hess_row[, Dpar2],
+    type = "l",
+    ylab = paste0("H[", Dpar_dens, ",", Dpar2, "]"),
+    ylim = range(
+      c(scan_j$hess_row[, Dpar2], scan_j$fd_grad[, Dpar2]),
+      na.rm = TRUE
+    )
+  )
+  points(scan_j$mid, scan_j$fd_grad[, Dpar2], pch = 16)
+}
+```
+
+```{r fit, eval=FALSE}
+# Manually execute to fit / refresh analysis_cache/res_hiwp_pm_temp.rds.
+stopifnot(file.exists(deaths_rds))
+load(deaths_rds)
+deaths <- data.table::as.data.table(deaths)
+deaths[, eco_region := factor(as.character(eco_region))]
+
+n_threads <- parallel::detectCores()
+if (is.na(n_threads) || n_threads < 1L) {
+  n_threads <- 1L
+}
+n_shards <- as.integer(
+  min(1e4L, max(100L, data.table::uniqueN(deaths$cell)))
+)
+message(
+  sprintf(
+    "fitting medical N=%d threads=%d shards=%d -> %s",
+    nrow(deaths), n_threads, n_shards, fit_rds
+  )
+)
+
+fit <- adlaplace::adlaplace(
+  formula = cc_formula,
+  data = deaths,
+  config = list(
+    transform_theta = TRUE,
+    reorder_shards = "none",
+    num_threads = as.integer(n_threads),
+    num_shards = n_shards
+  ),
+  control = list(
+    maxit = 80,
+    trace = 3,
+    REPORT = 1,
+    pgtol = 1e-5,
+    factr = 1e7,
+    lmm = 8
+  ),
+  verbose = TRUE
+)
+
+if (!is.null(fit$details) && !is.null(fit$model_data)) {
+  wts <- if (exists("eco_weights")) eco_weights else NULL
+  fit$sample <- tryCatch(
+    adlaplaceHgp::cond_sim_iwp(
+      fit = fit$details,
+      model_data = fit$model_data,
+      n = 500L,
+      weights = wts
+    ),
+    error = function(e) {
+      message("cond_sim_iwp failed: ", conditionMessage(e))
+      NULL
+    }
+  )
+}
+
+# Lean cache for knit; keep full `fit` (ad_pack) for check_lik_deriv.
+fit_ok <- is.null(fit$details$error) &&
+  !is.null(fit$par_info) &&
+  all(is.finite(fit$par_info$mle_internal))
+if (!fit_ok) {
+  message(
+    "WARNING: outer fit did not produce finite MLEs",
+    if (!is.null(fit$details$error)) paste0(": ", fit$details$error) else "",
+    "; not overwriting ", fit_rds
+  )
+} else {
+  fit_save <- fit
+  fit_save$model_data <- NULL
+  fit_save$ad_pack <- NULL
+  dir.create("analysis_cache", showWarnings = FALSE)
+  saveRDS(fit_save, fit_rds)
+  message("saved: ", fit_rds)
+  rm(fit_save)
+}
+```
+
+```{r check_lik_deriv, fig.height=3.5, eval=FALSE}
+# Fast debug: joint dens + AD grad vs 2-point FD along one outer theta.
+# No Laplace / no inner opt / no Hessian (those were too slow and crashed).
+# Reuses ad_pack/dens_ptr from this session when present.
+fit_chk <- if (exists("fit") && !is.null(fit$par_info)) {
+  fit
+} else if (file.exists(fit_rds)) {
+  message("loading estimates from ", fit_rds)
+  readRDS(fit_rds)
+} else {
+  stop("no fit in memory and missing ", fit_rds, "; run the fit chunk first")
+}
+
+need_pack <- !(exists("dens_ptr") && !is.null(dens_ptr)) &&
+  !(exists("ad_pack") && !is.null(ad_pack))
+if (!need_pack && exists("ad_pack") && !exists("dens_ptr")) {
+  dens_ptr <- adlaplace::clone_ad_pack_ptr(ad_pack@ptr)
+}
+if (need_pack) {
+  if (!is.null(fit_chk$ad_pack)) {
+    ad_pack <- fit_chk$ad_pack
+    md <- fit_chk$model_data
+  } else {
+    message("rebuilding ad_pack (once)...")
+    stopifnot(file.exists(deaths_rds))
+    load(deaths_rds)
+    deaths <- data.table::as.data.table(deaths)
+    deaths[, eco_region := factor(as.character(eco_region))]
+    md <- adlaplace::model_data(cc_formula, data = deaths, verbose = FALSE)
+    n_threads <- parallel::detectCores()
+    if (is.na(n_threads) || n_threads < 1L) {
+      n_threads <- 1L
+    }
+    n_shards <- as.integer(
+      min(800L, max(50L, data.table::uniqueN(deaths$cell)))
+    )
+    config_dev <- list(
+      transform_theta = TRUE,
+      num_threads = 1L,
+      verbose = FALSE,
+      reorder_shards = "none",
+      obs_groups = adlaplace::obs_groups(
+        A = md$term_data$A,
+        elgm_matrix = md$term_data$elgm_matrix,
+        num_shards = n_shards
+      )
+    )
+    ad_pack <- adlaplace::ad_pack(md, config_dev, num_threads = 1L)
+  }
+  dens_ptr <- adlaplace::clone_ad_pack_ptr(ad_pack@ptr)
+}
+
+sz <- ad_pack@sizes
+n_beta <- as.integer(sz["beta"])
+n_theta <- as.integer(sz["theta"])
+n_gamma <- as.integer(sz["gamma"])
+par_lab_md <- if (!is.null(fit_chk$model_data)) {
+  fit_chk$model_data$term_data$info$parameters$label
+} else if (exists("md")) {
+  md$term_data$info$parameters$label
+} else {
+  fit_chk$par_info$label
+}
+
+x_named <- stats::setNames(
+  as.numeric(fit_chk$par_info$mle_internal),
+  as.character(fit_chk$par_info$label)
+)
+x_outer <- as.numeric(x_named[par_lab_md])
+if (!all(is.finite(x_outer))) {
+  x_outer <- as.numeric(fit_chk$cache$last_par_fn)
+  if (!all(is.finite(x_outer)) || length(x_outer) != length(par_lab_md)) {
+    x_outer <- as.numeric(fit_chk$par_info$init)
+  }
+  message("using non-MLE outer start (fit MLEs not finite)")
+}
+gamma0 <- if (!is.null(fit_chk$gamma) && length(fit_chk$gamma) == n_gamma) {
+  as.numeric(fit_chk$gamma)
+} else {
+  rep(0, n_gamma)
+}
+
+# Full parameter index for first/last theta (outer theta block after gamma).
+theta_labs <- grep("_iwp$|_hiwp$|dirichlet", par_lab_md, value = TRUE)
+par_lab <- if (length(theta_labs)) {
+  theta_labs[length(theta_labs)]
+} else {
+  par_lab_md[length(par_lab_md)]
+}
+j_outer <- match(par_lab, par_lab_md)
+# full x = c(beta, gamma, theta); theta starts after beta+gamma
+j_full <- n_beta + n_gamma + (j_outer - n_beta)
+stopifnot(is.finite(j_full), j_full > n_beta + n_gamma)
+
+x0 <- c(x_outer[seq_len(n_beta)], gamma0, x_outer[seq(n_beta + 1L, length.out = n_theta)])
+eps <- 1e-4
+xp <- xm <- x0
+xp[j_full] <- x0[j_full] + eps
+xm[j_full] <- x0[j_full] - eps
+
+message("joint dens + grad FD for ", par_lab, " (full index ", j_full, ")")
+d0 <- adlaplace::joint_log_dens(dens_ptr, x0, negative = FALSE)
+dp <- adlaplace::joint_log_dens(dens_ptr, xp, negative = FALSE)
+dm <- adlaplace::joint_log_dens(dens_ptr, xm, negative = FALSE)
+g0 <- adlaplace::grad(dens_ptr, x0, inner = FALSE, negative = FALSE)
+fd <- (dp - dm) / (2 * eps)
+
+cmp <- data.frame(
+  label = par_lab,
+  joint_dens = d0,
+  ad_grad = unname(g0[j_full]),
+  fd_grad = fd,
+  abs_err = abs(unname(g0[j_full]) - fd)
+)
+print(cmp)
+
+plot(
+  c(xm[j_full], x0[j_full], xp[j_full]),
+  c(dm, d0, dp),
+  type = "b", xlab = par_lab, ylab = "joint log dens",
+  main = "3 dens evals (no Laplace)"
+)
+abline(
+  a = d0 - g0[j_full] * x0[j_full],
+  b = g0[j_full],
+  col = 2, lty = 2
+)
+legend("topright", c("dens", "AD slope"), lty = c(1, 2), col = c(1, 2), bty = "n")
+```
+
+```{r explore_na_mle, fig.height=5, eval=FALSE}
+# Why are mle / mle_internal NA? Pick one NA slot and probe outer_fn / joint dens.
+# Outer optim failure sets *all* MLEs to NA (see adlaplace:::.adlaplace_fit_optim_failed).
+fit_na <- if (exists("fit") && !is.null(fit$par_info)) {
+  fit
+} else if (file.exists(fit_rds)) {
+  message("loading: ", fit_rds)
+  readRDS(fit_rds)
+} else {
+  stop("no fit available; run the fit chunk first")
+}
+
+pi <- fit_na$par_info
+na_rows <- which(!is.finite(pi$mle_internal))
+message(
+  "outer error: ",
+  if (!is.null(fit_na$details$error)) fit_na$details$error else "(none)",
+  "\nNA mle_internal: ", length(na_rows), " / ", nrow(pi)
+)
+print(pi[na_rows, c("label", "mle", "mle_internal", "init", "lower", "upper", "log")])
+
+# Pick one NA parameter (prefer a theta/IWP scale if present).
+pick <- na_rows[grep("_iwp$|_hiwp$|dirichlet", pi$label[na_rows])[1]]
+if (is.na(pick)) {
+  pick <- na_rows[1L]
+}
+stopifnot(length(pick) == 1L, is.finite(pick))
+message(
+  sprintf(
+    "probing parameter [%d] %s (init=%g, log=%s)",
+    pick, pi$label[pick], pi$init[pick], pi$log[pick]
+  )
+)
+
+# Rebuild AD handle if the cached fit is lean.
+if (!is.null(fit_na$ad_pack) && !is.null(fit_na$model_data)) {
+  ad_na <- fit_na$ad_pack
+  md_na <- fit_na$model_data
+  cfg_na <- utils::modifyList(fit_na$config, list(verbose = FALSE))
+} else {
+  stopifnot(file.exists(deaths_rds))
+  load(deaths_rds)
+  deaths <- data.table::as.data.table(deaths)
+  deaths[, eco_region := factor(as.character(eco_region))]
+  md_na <- adlaplace::model_data(cc_formula, data = deaths, verbose = FALSE)
+  n_threads <- parallel::detectCores()
+  if (is.na(n_threads) || n_threads < 1L) {
+    n_threads <- 1L
+  }
+  n_shards <- as.integer(
+    min(1e4L, max(100L, data.table::uniqueN(deaths$cell)))
+  )
+  cfg_na <- list(
+    transform_theta = TRUE,
+    num_threads = as.integer(n_threads),
+    verbose = FALSE,
+    reorder_shards = "none",
+    obs_groups = adlaplace::obs_groups(
+      A = md_na$term_data$A,
+      elgm_matrix = md_na$term_data$elgm_matrix,
+      num_shards = n_shards
+    )
+  )
+  message("building ad_pack for NA probe...")
+  ad_na <- adlaplace::ad_pack(md_na, cfg_na, num_threads = as.integer(n_threads))
+}
+dens_na <- adlaplace::clone_ad_pack_ptr(ad_na@ptr)
+sz <- ad_na@sizes
+n_beta <- as.integer(sz["beta"])
+n_theta <- as.integer(sz["theta"])
+n_gamma <- as.integer(sz["gamma"])
+
+# Outer start: last_par_fn if present, else inits.
+x0 <- if (!is.null(fit_na$cache$last_par_fn) &&
+  length(fit_na$cache$last_par_fn) == nrow(pi)) {
+  as.numeric(fit_na$cache$last_par_fn)
+} else {
+  as.numeric(pi$init)
+}
+names(x0) <- pi$label
+g0 <- if (!is.null(fit_na$gamma) && length(fit_na$gamma) == n_gamma) {
+  as.numeric(fit_na$gamma)
+} else {
+  rep(0, n_gamma)
+}
+ctrl_inner <- list(maxit = 100L, report.level = 3, report.freq = 1)
+cfg_na$verbose <- TRUE
+cache_na <- new.env(parent = emptyenv())
+cache_na$gamma <- g0
+
+# 1) Outer objective / gradient at the start point used by optim.
+message(
+  "outer_fn(x0): starting inner opt (gamma length=", length(g0),
+  ", maxit=", ctrl_inner$maxit, ")..."
+)
+utils::flush.console()
+t_fn <- proc.time()[["elapsed"]]
+fn0 <- tryCatch(
+  adlaplace::outer_fn(
+    x0,
+    config = cfg_na, ad_pack = ad_na, cache = cache_na,
+    control_inner = ctrl_inner
+  ),
+  error = function(e) e
+)
+message(
+  sprintf(
+    "outer_fn done in %.1fs: %s",
+    proc.time()[["elapsed"]] - t_fn,
+    if (inherits(fn0, "error")) conditionMessage(fn0) else format(fn0)
+  )
+)
+utils::flush.console()
+
+message("outer_gr(x0): starting...")
+utils::flush.console()
+t_gr <- proc.time()[["elapsed"]]
+gr0 <- tryCatch(
+  adlaplace::outer_gr(
+    x0,
+    config = cfg_na, ad_pack = ad_na, cache = cache_na,
+    control_inner = ctrl_inner
+  ),
+  error = function(e) e
+)
+message(
+  sprintf("outer_gr done in %.1fs", proc.time()[["elapsed"]] - t_gr)
+)
+utils::flush.console()
+if (!inherits(gr0, "error")) {
+  message(
+    "outer_gr(x0): finite=", all(is.finite(gr0)),
+    " range=", paste(range(gr0, na.rm = TRUE), collapse = " .. ")
+  )
+  print(utils::head(data.frame(label = pi$label, grad = as.numeric(gr0)), 12))
+} else {
+  message("outer_gr(x0) error: ", conditionMessage(gr0))
+}
+
+# 2) Joint dens at full (beta, gamma, theta); then profile lik.
+x_full0 <- c(x0[seq_len(n_beta)], g0, x0[seq(n_beta + 1L, length.out = n_theta)])
+jd0 <- tryCatch(
+  adlaplace::joint_log_dens(dens_na, x_full0, negative = FALSE),
+  error = function(e) e
+)
+message("joint_log_dens(full): ", if (inherits(jd0, "error")) {
+  conditionMessage(jd0)
+} else {
+  jd0
+})
+
+message("log_lik_laplace(deriv=TRUE): starting...")
+utils::flush.console()
+t_ll <- proc.time()[["elapsed"]]
+lik_na <- tryCatch(
+  adlaplace::log_lik_laplace(
+    x = x0,
+    gamma = g0,
+    ad_pack = ad_na,
+    config = cfg_na,
+    control = ctrl_inner,
+    deriv = TRUE
+  ),
+  error = function(e) e
+)
+message(
+  sprintf("log_lik_laplace done in %.1fs", proc.time()[["elapsed"]] - t_ll)
+)
+utils::flush.console()
+if (inherits(lik_na, "error")) {
+  message("log_lik_laplace error: ", conditionMessage(lik_na))
+} else {
+  message(
+    "log_lik_laplace: neg_log_lik=", lik_na$neg_log_lik,
+    " finite=", is.finite(lik_na$neg_log_lik)
+  )
+  if (!is.null(lik_na$deriv$d_neg_log_lik)) {
+    message(
+      "d_neg_log_lik[", pick, "] (", pi$label[pick], ") = ",
+      lik_na$deriv$d_neg_log_lik[pick]
+    )
+  }
+  g0 <- as.numeric(lik_na$inner_opt$solution)
+  cache_na$gamma <- g0
+}
+
+# 3) Per-shard dens: find shards that are non-finite at x_full0.
+n_grp <- adlaplace:::n_groups(dens_na)
+message("per-shard joint dens: evaluating ", n_grp, " shards...")
+utils::flush.console()
+shard_vals <- rep(NA_real_, n_grp)
+for (i in seq_len(n_grp)) {
+  if (i == 1L || i == n_grp || i %% 500L == 0L) {
+    message("  shard ", i, "/", n_grp)
+    utils::flush.console()
+  }
+  shard_vals[[i]] <- tryCatch(
+    adlaplace::joint_log_dens(
+      dens_na, x_full0,
+      ad_shards = i - 1L, negative = FALSE
+    ),
+    error = function(e) NA_real_
+  )
+}
+bad_shards <- which(!is.finite(shard_vals))
+message(
+  "shards: n=", n_grp,
+  " non-finite=", length(bad_shards),
+  if (length(bad_shards)) {
+    paste0(" (first: ", paste(utils::head(bad_shards - 1L, 10), collapse = ", "), ")")
+  } else {
+    ""
+  }
+)
+print(utils::head(sort(shard_vals), 10))
+print(utils::tail(sort(shard_vals), 5))
+
+# 4) Short 1-D path in the chosen NA parameter (quiet inner reports).
+ctrl_path <- utils::modifyList(ctrl_inner, list(report.level = 0, report.freq = 0))
+cfg_path <- utils::modifyList(cfg_na, list(verbose = FALSE))
+Sx <- x0[pick] + c(-0.5, 0, 0.5)
+fn_path <- rep(NA_real_, length(Sx))
+for (i in seq_along(Sx)) {
+  message(sprintf("outer_fn path %d/%d at %s=%g ...", i, length(Sx), pi$label[pick], Sx[[i]]))
+  utils::flush.console()
+  xv <- x0
+  xv[pick] <- Sx[[i]]
+  t_i <- proc.time()[["elapsed"]]
+  fn_path[[i]] <- tryCatch(
+    adlaplace::outer_fn(
+      xv,
+      config = cfg_path, ad_pack = ad_na, cache = cache_na,
+      control_inner = ctrl_path
+    ),
+    error = function(e) NA_real_
+  )
+  message(
+    sprintf(
+      "  done in %.1fs: %s",
+      proc.time()[["elapsed"]] - t_i,
+      format(fn_path[[i]])
+    )
+  )
+  utils::flush.console()
+}
+path_tbl <- data.frame(
+  x = Sx,
+  outer_fn = fn_path,
+  finite = is.finite(fn_path)
+)
+print(path_tbl)
+
+par(mfrow = c(1, 2), mar = c(3, 3, 2, 0), mgp = c(1.5, 0.5, 0))
+plot(
+  path_tbl$x, path_tbl$outer_fn,
+  type = "b", xlab = pi$label[pick], ylab = "outer_fn",
+  main = "outer_fn along NA parameter"
+)
+abline(v = x0[pick], lty = 2, col = "grey")
+plot(
+  seq_along(shard_vals) - 1L, shard_vals,
+  pch = 16, cex = 0.4, xlab = "shard", ylab = "joint dens",
+  main = "per-shard joint dens at x0"
+)
+if (length(bad_shards)) {
+  points(bad_shards - 1L, shard_vals[bad_shards], col = 2, pch = 16)
+}
+```
+
+```{r load_cache, include=FALSE, eval=FALSE}
+res <- NULL
+if (has_fit) {
+  message("loading: ", fit_rds)
+  res <- readRDS(fit_rds)
+} else {
+  message("missing: ", fit_rds, "; figures/tables will leave gaps")
+}
+has_sample <- !is.null(res$sample$sim)
+s_var <- if (has_sample) names(res$sample$sim) else character(0)
+s_var_names <- c(temp_div10 = "temperature", sqrt_pm = "PM2.5")
+# Placeholders so knitr fig.subcap / fig.cap options always resolve
+# even when sample caches are missing (eval=FALSE still evaluates options).
+for_global <- data.frame(
+  var = character(0),
+  type = character(0),
+  var_name = character(0),
+  subcap = character(0),
+  stringsAsFactors = FALSE
+)
+d_var <- character(0)
+s_group <- character(0)
+the_x_lim <- list(temp_div10 = c(4, 38), sqrt_pm = c(0, 450))
+the_y_lim <- list()
+```
+
+```{r par_table, eval=FALSE}
+th <- res$par_info
+keep <- grepl(
+  "dirichlet_multinom|_iwp$|_hiwp$|_rpoly|_fpoly",
+  th$label
+)
+theta_table <- th[keep, c("label", "mle", "se", "lower", "upper", "log"), drop = FALSE]
+theta_table
+```
+
+```{r globalSetup, eval=FALSE}
+for_global <- expand.grid(
+  var = s_var,
+  type = c("Common", "Pop Avg"),
+  stringsAsFactors = FALSE
+)
+for_global$var_name <- unname(s_var_names[for_global$var])
+for_global$subcap <- paste(for_global$var_name, for_global$type)
+
+the_y_lim <- list()
+for (d in s_var) {
+  x_here <- res$sample$x[[d]]
+  if (grepl("sqrt", d)) x_here <- x_here^2
+  if (grepl("div10", d)) x_here <- 10 * x_here
+  use_x <- x_here <= max(the_x_lim[[d]]) & x_here >= min(the_x_lim[[d]])
+  range1 <- range(
+    res$sample$quantiles$common[[d]][use_x, , drop = FALSE],
+    na.rm = TRUE
+  )
+  env <- res$sample$envelope$common[[d]]
+  range2 <- if (!is.null(env)) {
+    range(env[use_x, , drop = FALSE], na.rm = TRUE)
+  } else {
+    NULL
+  }
+  the_y_lim[[d]] <- range(c(-2, 100 * (c(range1, range2) - 1)), na.rm = TRUE)
+}
+```
+
+```{r globalRes, fig.cap='Common component', fig.subcap = for_global$subcap, out.width='0.48\\linewidth', fig.height=5, fig.width=5, eval=FALSE}
 par(mar = c(3, 3, 0, 0), bty = "l")
 
 for (d in seq_len(nrow(for_global))) {
   d_var <- for_global[d, "var"]
   x_here <- res$sample$x[[d_var]]
   if (grepl("sqrt", d_var)) x_here <- x_here^2
-  if (grepl("div10", d_var)) x_here <- x_here*10
+  if (grepl("div10", d_var)) x_here <- x_here * 10
 
-  plot(NA,
+  plot(
+    NA,
     xlim = the_x_lim[[d_var]], ylim = the_y_lim[[d_var]],
     xlab = s_var_names[d_var], ylab = "100 x (RR-1)",
     xaxs = "i", yaxs = "i"
@@ -255,78 +1051,78 @@ for (d in seq_len(nrow(for_global))) {
     quantiles_here <- res$sample$quantiles$weighted[[d_var]]
   }
   if (!is.null(quantiles_here)) {
-    matlines(x_here, 100 * (quantiles_here - 1),
+    matlines(
+      x_here, 100 * (quantiles_here - 1),
       lty = c(2, 1, 2), lwd = c(1, 3, 1), col = "green"
     )
   }
   if (!is.null(envelope_here)) {
-    matlines(x_here, 100 * (envelope_here - 1),
+    matlines(
+      x_here, 100 * (envelope_here - 1),
       lty = c(3, 2, 3), lwd = c(1, 2, 1), col = "red"
     )
   }
 }
 ```
 
-
-
-
-```{r byRegionTemplate}
-#, eval=FALSE, include=FALSE}
+```{r byRegionTemplate, include=FALSE, eval=FALSE}
 x_here <- res$sample$x[[d_var]]
-s_group = names(res_pm_temp$sample$envelope$group[[d_var]])
-
+s_group <- names(res$sample$envelope$group[[d_var]])
 if (grepl("sqrt", d_var)) x_here <- x_here^2
-  if (grepl("div10", d_var)) x_here <- x_here*10
-
+if (grepl("div10", d_var)) x_here <- x_here * 10
 sim_global_here_y <- 100 * (res$sample$quantiles$common[[d_var]] - 1)
-
 
 for (d_group in s_group) {
   group_key <- as.character(d_group)
   the_ye <- 100 * (res$sample$envelope$group[[d_var]][[group_key]] - 1)
   the_yq <- 100 * (res$sample$quantiles$group[[d_var]][[group_key]] - 1)
-
   if (is.null(the_yq)) {
     warning("missing group quantiles for ", d_var, " / ", d_group)
     next
   }
-
-  plot(x_here, sim_global_here_y[, 2],
+  plot(
+    x_here, sim_global_here_y[, 2],
     type = "l",
     xlab = d_var, ylab = "100 x (RR-1)",
     col = "grey", xaxs = "i", lwd = 4,
     ylim = the_y_lim[[d_var]], xlim = the_x_lim[[d_var]]
   )
-  matlines(x_here, the_yq,
+  matlines(
+    x_here, the_yq,
     lty = c(2, 1, 2), lwd = c(1, 2, 1), col = "green"
   )
-  matlines(x_here, the_ye,
+  matlines(
+    x_here, the_ye,
     lty = c(2, 1, 2), lwd = c(1, 2, 1), col = "red"
   )
 }
 ```
 
-
-```{r byRegionSetup1}
+```{r byRegionSetup1, eval=FALSE}
 d_var <- grep("temp", names(res$sample$sim), value = TRUE)
-s_group <- names(res$sample$quantiles$group[[d_var]])
+s_group <- if (length(d_var)) {
+  names(res$sample$quantiles$group[[d_var]])
+} else {
+  character(0)
+}
 ```
 
-```{r byRegion1, fig.cap=s_var_names[d_var], fig.subcap = s_group, fig.height=4, fig.width=4, ref.label = 'byRegionTemplate', eval=(length(d_var)>0), out.width='0.23\\linewidth', fig.align='center'}
+```{r byRegion1, fig.cap=if (length(d_var)) s_var_names[d_var] else "temperature", fig.subcap = s_group, fig.height=4, fig.width=4, ref.label = 'byRegionTemplate', out.width='0.23\\linewidth', fig.align='center', eval=FALSE}
 ```
 
-```{r byRegionSetup2}
+```{r byRegionSetup2, eval=FALSE}
 d_var <- grep("[pP]m$", names(res$sample$sim), value = TRUE)
-s_group <- names(res$sample$quantiles$group[[d_var]])
+s_group <- if (length(d_var)) {
+  names(res$sample$quantiles$group[[d_var]])
+} else {
+  character(0)
+}
 ```
 
-```{r byRegion2, fig.cap=s_var_names[d_var], fig.subcap = s_group, fig.height=4, fig.width=4, ref.label = 'byRegionTemplate', eval=(length(d_var)>0), out.width='0.23\\linewidth', fig.align='center'}
+```{r byRegion2, fig.cap=if (length(d_var)) s_var_names[d_var] else "PM2.5", fig.subcap = s_group, fig.height=4, fig.width=4, ref.label = 'byRegionTemplate', out.width='0.23\\linewidth', fig.align='center', eval=FALSE}
 ```
 
-
-
-
-```{r ecoRegionmap, fig.cap = 'Eco regions', fig.subcap = c('reginos','legend') ,fig.height=5, fig.width=5, out.width = '0.48\\linewidth'}
+```{r ecoRegionmap, fig.cap = 'Eco regions', fig.subcap = c('regions','legend'), fig.height=5, fig.width=5, out.width = '0.48\\linewidth', eval=FALSE}
 mapmisc::map.new(india_eco_regions)
 terra::plot(india_eco_regions, add = TRUE, col = india_eco_regions$col)
 terra::text(terra::centroids(india_eco_regions), india_eco_regions$objectid)
@@ -340,8 +1136,7 @@ mapmisc::legendBreaks(
 )
 ```
 
-
-```{r ecoTable, results='asis', include=FALSE}
+```{r ecoTable, results='asis', include=FALSE, eval=FALSE}
 knitr::kable(
   mapmisc::legendTable(data.frame(
     label = india_eco_regions$id_name,
@@ -359,198 +1154,4 @@ knitr::kable(
   ) |>
   kableExtra::column_spec(1, latex_column_spec = "p{0.05\\\\linewidth}") |>
   kableExtra::column_spec(2, latex_column_spec = "p{0.7\\\\linewidth}")
-```
-
-```{r derivJointDens, eval=FALSE}
-# Requires an hnlm(for_dev = TRUE) bundle with ad_pack; fitted objects store extra only.
-library(adlaplace)
-
-ad_pack <- res$ad_pack
-sz <- ad_pack@sizes
-
-x_joint <- res$extra$full_parameters
-x_joint[seq(sz["beta"] + 1L, length.out = sz["gamma"])] <- 0.1
-
-# Perturb one parameter and compare analytic gradient to finite differences.
-Dpar <- as.integer(sz["beta"]) + as.integer(sz["gamma"])
-Npar <- 13
-parDf <- as.data.frame(matrix(x_joint, nrow = length(x_joint), ncol = Npar))
-Sx <- seq(-0.1, 0.1, length.out = Npar) + x_joint[Dpar]
-SxD <- Sx[-1] - diff(Sx) / 2
-parDf[Dpar, ] <- Sx
-
-dens1 <- vapply(
-  seq_len(Npar),
-  function(j) joint_log_dens(ad_pack, parDf[[j]], negative = FALSE),
-  numeric(1)
-)
-
-par(mfrow = c(2, 1))
-plot(Sx, dens1, xlab = sprintf("x[%d]", Dpar), ylab = "joint_log_dens")
-
-grad1 <- sapply(
-  seq_len(Npar),
-  function(j) grad(ad_pack, parDf[[j]], inner = FALSE, negative = FALSE),
-  simplify = "matrix"
-)
-
-fdGrad <- diff(dens1) / diff(Sx)
-gradAlongPath <- grad1[Dpar, ]
-gradMid <- 0.5 * (gradAlongPath[-1] + gradAlongPath[-length(gradAlongPath)])
-
-plot(Sx, gradAlongPath, xlab = sprintf("x[%d]", Dpar), ylab = "d joint_log_dens / dx")
-lines(SxD, fdGrad, lwd = 2, col = 2)
-legend("topleft", legend = c("analytic", "finite diff"), lty = 1, col = c(1, 2), bty = "n")
-
-max_abs_err <- max(abs(gradMid - fdGrad))
-max_abs_err
-
-hess1 <- lapply(
-  seq_len(Npar),
-  function(j) as.matrix(hessian(ad_pack, parDf[[j]], inner = FALSE, negative = FALSE))
-)
-hess1b <- do.call(abind::abind, c(hess1, list(along = 3)))[Dpar, , ]
-
-par(mfrow = c(4, 4), mar = c(3, 3, 0, 0))
-
-for (D in seq_len(min(16L, nrow(hess1b)))) {
-  plot(Sx, hess1b[D, ])
-  fdGrad <- diff(grad1[D, ]) / diff(Sx)
-  lines(SxD, fdGrad)
-}
-
-```
-
-
-
-```{r testLogLgrad, eval=FALSE, include=FALSE}
-res <- res_pm_temp
-x_outer <- res$optim$par
-gamma_start <- res$call$cache$gamma
-
-ll1 <- log_lik_laplace(
-  x = x_outer,
-  gamma = gamma_start,
-  ad_pack = res$ad_pack,
-  config = res$call$config,
-  deriv = TRUE,
-  control = list(report.level = 4, maxit = 5000, report.freq = 2)
-)
-
-Npar <- 7
-Dpar <- 2L
-
-parDf <- as.data.frame(matrix(x_outer, nrow = length(x_outer), ncol = Npar))
-Sx <- seq(-0.5, 0.5, length.out = Npar) + parDf[Dpar, 1]
-SxD <- Sx[-1] - diff(Sx) / 2
-parDf[Dpar, ] <- Sx
-
-res2 <- lapply(
-  seq_len(Npar),
-  function(j) {
-    log_lik_laplace(
-      x = parDf[[j]],
-      gamma = gamma_start,
-      ad_pack = res$ad_pack,
-      config = res$call$config,
-      deriv = TRUE,
-      control = list(report.level = 0, maxit = 5000)
-    )
-  }
-)
-
-Slik <- vapply(res2, `[[`, numeric(1), "log_lik")
-Sdet <- vapply(res2, function(xx) xx$extra$hessian$half_log_det, numeric(1))
-dU <- do.call(abind::abind, c(lapply(res2, function(xx) as.matrix(xx$extra$dU)), along = 3))
-uHat <- do.call(rbind, lapply(res2, function(xx) xx$opt$solution))
-extraDf <- do.call(abind::abind, c(lapply(res2, `[[`, "deriv"), along = 3))
-gradVec <- vapply(res2, function(xx) xx$deriv$d_log_lik[Dpar], numeric(1))
-
-plot(Sx, Slik)
-plot(Sx, gradVec)
-lines(SxD, diff(Slik) / diff(Sx), lwd = 2, type = "o", pch = ".")
-
-Du <- 1
-plot(Sx, uHat[, Du])
-plot(Sx, dU[Du, Dpar, ])
-lines(SxD, diff(uHat[, Du]) / diff(Sx))
-plot(Sx, Sdet)
-plot(Sx, extraDf[Dpar, "d_det", ])
-lines(SxD, diff(Sdet) / diff(Sx))
-```
-
-
-```{r fit_nt, cache=TRUE}
-library(adlaplace)
-library(adlaplaceHgp)
-library(hpolcc)
-
-load("~/research/adlaplace/applications/india/deaths.RData")
-
-cc_formula_nt <- dirichlet_multinom(
-  medical,
-  by = c("cell", "eco_region", "year_week3_dow"),
-  init = 0.1,
-  parscale = 1
-) ~ dom +
-  hiwp(
-    sqrt_pm,
-    p = 2,
-    ref_value = 8,
-    knots = seq(0, 32, by = 2),
-    by = "eco_region",
-    init = 1e-2,
-    lower = 1e-12
-  ) +
-  hiwp(
-    temp_div10,
-    p = 3,
-    ref_value = 25 / 10,
-    knots = seq(-5, 42.5, by = 2.5) / 10,
-    by = "eco_region",
-    init = 1e-2,
-    lower = 1e-12
-  )
-
-res_pm_temp_nt <- hnlm(
-  formula = cc_formula_nt,
-  data = deaths,
-  config = list(
-    transform_theta = FALSE,
-    num_threads = parallel::detectCores(),
-    num_shards = 1e4,
-    num_sim = 500,
-    verbose = TRUE
-  ),
-  control = list(
-    maxit = 1000,
-    trace = 3,
-    REPORT = 1
-  ),
-  control_inner = list(report.level = 0, maxit = 5000),
-  for_dev = FALSE
-)
-
-saveRDS(res_pm_temp_nt, file = "resPmTempNt.rds")
-```
-
-
-```{r par_table2}
-res <- res_pm_temp_nt #readRDS("resPmTempR.rds")
-s_var <- names(res$sample$sim)
-s_var_names <- c(temp_div10 = "temperature", sqrt_pm = "PM2.5")[s_var]
-
-params <- res$coefficients$parameters
-n_beta <- nrow(res$info$beta)
-theta_table <- params[seq(n_beta + 1L, nrow(params)), c("term", "model", "mle", "init", "lower", "parscale", "transform"), drop = FALSE]
-theta_table$log_mle <- ifelse(theta_table$transform, log(theta_table$mle), NA_real_)
-theta_table$term <- s_var_names[theta_table$term]
-theta_table
-```
-
-here
-
-```{r optstuf, echo=TRUE}
-res_pm_temp_nt$optim
-res_pm_temp$optim
 ```

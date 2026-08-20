@@ -184,6 +184,10 @@ create_ad_shard_random_mult <- function(model, config) {
 #'   (\code{gamma}; length \code{Ngamma}).
 #' @param ad_pack \code{ad_pack} S4 object from \code{\link{ad_pack}}.
 #' @param control List of trust-region control parameters (see \pkg{trustOptim}).
+#'   Also accepts \code{restart.gamma.clamp}: after the first trust-region run,
+#'   if \eqn{\|g\|^2 > 10}, clamp each \code{gamma} component into
+#'   \code{[-x, x]} and re-run (default \code{x = 0.1}). Set
+#'   \code{restart.gamma.clamp = Inf} to disable the restart.
 #' @param deriv Logical; if \code{TRUE}, also return outer gradient/Hessian
 #'   pieces and Cholesky-based quantities at the inner mode.
 #' @param verbose Logical; if \code{TRUE}, print thread/shard diagnostics.

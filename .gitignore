@@ -42,7 +42,6 @@ todebug.Rdata
 *.log
 *.pdf
 *.xml
-applications/india/indiaHpolCcD.tex
 adlaplace_0.1.tar.gz
 *.rds
 *.so
@@ -55,7 +54,6 @@ hpolcc_0.2.0.tar.gz
 _site/
 adlaplace.zip
 *.gz
-applications/india/indiaHpolCcD.bcf
 applications/india/data/gpw/population/pop/gpw_v4_population_density_rev11_2020_5m.tif
 *.tif
 *.fdb_latexmk

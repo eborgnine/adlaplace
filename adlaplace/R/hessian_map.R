@@ -196,15 +196,20 @@ hessian_map_build_chol_inner <- function(innerMat, n_gamma) {
         # matrix is strictly diagonally dominant (hence SPD) for any graph.
         # A fixed diagonal of 10 fails on hub-and-spoke patterns (e.g.
         # hierarchical IWP with a global component coupling all groups).
+        #
+        # AD sparsity lists both triangles as separate cells; Matrix
+        # sparseMatrix(..., symmetric = TRUE) requires a single triangle
+        # (uplo="U" by default) and errors if both are supplied.
+        upper <- innerMat$rowInner <= innerMat$colInner
         hi_pat <- Matrix::sparseMatrix(
-          i = innerMat$rowInner,
-          j = innerMat$colInner,
+          i = innerMat$rowInner[upper],
+          j = innerMat$colInner[upper],
           x = 1,
           symmetric = TRUE,
           index1 = FALSE,
           dims = c(n_gamma, n_gamma)
         )
-                        hi_dummy <- methods::as(hi_pat, "generalMatrix")
+        hi_dummy <- methods::as(hi_pat, "generalMatrix")
         off_deg <- as.numeric(Matrix::rowSums(hi_dummy)) -
           as.numeric(Matrix::diag(hi_dummy))
         Matrix::diag(hi_dummy) <- off_deg + 1
