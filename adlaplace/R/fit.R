@@ -31,10 +31,11 @@ NULL
 #'   trust-region optimizer.
 #' @param method \code{\link[stats]{optim}} method; bounds are used for
 #'   \code{"L-BFGS-B"} and \code{"Brent"} only.
-#' @param hessian Logical. When \code{TRUE} (default), \code{optim} numerically
-#'   differentiates the exact AD profile gradient at the optimum, giving the
-#'   observed information used by \code{\link{vcov.adlaplace_fit}},
-#'   \code{\link{summary.adlaplace_fit}}, and
+#' @param hessian Logical. When \code{NULL} (default), set to \code{TRUE} if
+#'   there are at most five outer parameters and \code{FALSE} otherwise.
+#'   When \code{TRUE}, \code{optim} numerically differentiates the exact AD
+#'   profile gradient at the optimum, giving the observed information used by
+#'   \code{\link{vcov.adlaplace_fit}}, \code{\link{summary.adlaplace_fit}}, and
 #'   \code{\link{confint.adlaplace_fit}}.
 #' @param verbose Logical, print progress.
 #' @param na_omit Passed to \code{\link{model_data}()}.
@@ -88,7 +89,7 @@ adlaplace <- function(
   control = list(),
   control_inner = list(maxit = 100L, report.level = 0, report.freq = 0),
   method = "L-BFGS-B",
-  hessian = TRUE,
+  hessian = NULL,
   verbose = FALSE,
   na_omit = TRUE
 ) {
@@ -127,6 +128,10 @@ adlaplace <- function(
 
   par_meta <- md$term_data$info$parameters
   labels <- par_meta$label
+  if (is.null(hessian)) {
+    hessian <- length(par_meta$init) <= 5L
+  }
+  hessian <- isTRUE(hessian)
 
   control_use <- utils::modifyList(
     list(maxit = 200L, parscale = par_meta$parscale),

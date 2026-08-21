@@ -1,8 +1,25 @@
 #include "adlaplace/runtime.hpp"
 #include "adlaplace/register.hpp"
 #include "adlaplace/chol_update.hpp"
+#include "adlaplace/omp_compat.hpp"
+#include "adlaplace/ompad.hpp"
 
 extern ad_shard* adlaplace_make_ad_shard(AdTape&&);
+
+void adlaplace_release_shard_eval_buffers(ad_pack& backend) {
+  if (omp_in_parallel() != 0) {
+    Rcpp::stop(
+        "adlaplace_release_shard_eval_buffers: must not run inside an OpenMP "
+        "parallel region");
+  }
+  for (std::size_t s = 0; s < backend.fun.size(); ++s) {
+    AdTape& gp = shard_handle(&backend, s)->pack;
+    gp.fun.capacity_order(0);
+    gp.trace.direction.clear();
+    gp.trace.direction_zeros.clear();
+    gp.trace.wthree.clear();
+  }
+}
 
 ad_pack* clone_ad_pack(const ad_pack* src) {
   if (!src) {

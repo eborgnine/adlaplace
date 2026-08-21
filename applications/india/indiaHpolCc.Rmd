@@ -173,6 +173,63 @@ message(
   )
 )
 
+fit <- adlaplace::adlaplace(
+  formula = cc_formula,
+  data = deaths,
+  config = list(
+    reorder_shards = "none",
+    num_threads = n_threads,
+    num_shards = n_shards
+  ),
+  control = list(
+    maxit = 1,
+    trace = 4,
+    REPORT = 1,
+    pgtol = 1e-5
+  ),
+  hessian = FALSE,
+  verbose = FALSE
+)
+
+if (!is.null(fit$details) && !is.null(fit$model_data)) {
+  wts <- if (exists("eco_weights")) eco_weights else NULL
+  fit$sample <- tryCatch(
+    adlaplaceHgp::cond_sim_iwp(
+      fit = fit$details,
+      model_data = fit$model_data,
+      n = 500L,
+      weights = wts
+    ),
+    error = function(e) {
+      message("cond_sim_iwp failed: ", conditionMessage(e))
+      NULL
+    }
+  )
+}
+fit_ok <- is.null(fit$details$error) &&
+  !is.null(fit$par_info) &&
+  all(is.finite(fit$par_info$mle_internal))
+if (!fit_ok) {
+  message(
+    "WARNING: outer fit did not produce finite MLEs",
+    if (!is.null(fit$details$error)) paste0(": ", fit$details$error) else "",
+    "; not overwriting ", fit_rds
+  )
+} else {
+  fit_save <- fit
+  fit_save$model_data <- NULL
+  fit_save$ad_pack <- NULL
+  dir.create("analysis_cache", showWarnings = FALSE)
+  saveRDS(fit_save, fit_rds)
+  message(
+    "saved: ", fit_rds,
+    if (is.null(fit$sample$sim)) " (no sample yet)" else " (with sample)"
+  )
+  rm(fit_save)
+}
+```
+
+```{r crash_probe, eval=FALSE}
 # --- crash probe: build AD + one inner_opt (10 threads) before full fit ---
 n_threads_dbg <- 10L
 message("debug 1/4: model_data...")
@@ -227,11 +284,11 @@ message(
 )
 utils::flush.console()
 
-message("debug 4/4: inner_opt (deriv=TRUE)...")
+message("debug 4/4: log_lik_laplace (deriv=TRUE)...")
 utils::flush.console()
-inner_dbg_d <- adlaplace::inner_opt(
-  parameters = x0_dbg,
-  gamma = as.numeric(inner_dbg$inner_opt$solution),
+inner_dbg_d <- adlaplace::log_lik_laplace(
+  x = x0_dbg,
+  gamma = g0_dbg, # as.numeric(inner_dbg$inner_opt$solution),
   ad_pack = ad_dbg,
   control = list(
     maxit = 5L,
@@ -239,70 +296,76 @@ inner_dbg_d <- adlaplace::inner_opt(
     report.freq = 1,
     restart.gamma.clamp = Inf
   ),
-  deriv = TRUE,
-  verbose = TRUE
+  deriv = TRUE
 )
-message("debug 4/4 done: deriv inner_opt OK")
+inner_dbg_d$deriv$d_neg_log_lik
+message(
+  "debug 4/4 done: length(deriv$d_neg_log_lik)=",
+  length(inner_dbg_d$deriv$d_neg_log_lik)
+)
 utils::flush.console()
-# --- end crash probe ---
 
-fit <- adlaplace::adlaplace(
-  formula = cc_formula,
-  data = deaths,
-  config = list(
-    transform_theta = TRUE,
-    reorder_shards = "none",
-    num_threads = as.integer(n_threads),
-    num_shards = n_shards
-  ),
+# --- wrappers + zero-iter optim (same path as adlaplace() outer FG) ---
+cfg_dbg$verbose <- TRUE
+control_inner_dbg <- list(
+  maxit = 5L,
+  report.level = 1,
+  report.freq = 1,
+  restart.gamma.clamp = Inf
+)
+cache_dbg <- new.env(parent = emptyenv())
+cache_dbg$gamma <- as.numeric(inner_dbg$inner_opt$solution)
+
+message("debug 5a: outer_fn...")
+utils::flush.console()
+fn_dbg <- adlaplace::outer_fn(
+  x0_dbg,
+  config = cfg_dbg,
+  cache = cache_dbg,
+  ad_pack = ad_dbg,
+  control_inner = control_inner_dbg
+)
+message("debug 5a done: outer_fn = ", format(fn_dbg))
+utils::flush.console()
+
+message("debug 5b: outer_gr...")
+utils::flush.console()
+gr_dbg <- adlaplace::outer_gr(
+  x0_dbg,
+  config = cfg_dbg,
+  cache = cache_dbg,
+  ad_pack = ad_dbg,
+  control_inner = control_inner_dbg
+)
+message("debug 5b done: length(outer_gr) = ", length(gr_dbg))
+utils::flush.console()
+
+message("debug 6: optim(L-BFGS-B, maxit=0) via outer_fn/outer_gr...")
+utils::flush.console()
+opt_dbg <- stats::optim(
+  par = x0_dbg,
+  fn = adlaplace::outer_fn,
+  gr = adlaplace::outer_gr,
+  method = "L-BFGS-B",
+  lower = par_meta_dbg$lower,
+  upper = par_meta_dbg$upper,
   control = list(
-    maxit = 200,
+    maxit = 0L,
     trace = 4,
     REPORT = 1,
-    pgtol = 1e-5
-    #    factr = 1e2
+    parscale = par_meta_dbg$parscale
   ),
-  verbose = FALSE
+  config = cfg_dbg,
+  ad_pack = ad_dbg,
+  cache = cache_dbg,
+  control_inner = control_inner_dbg
 )
-
-if (!is.null(fit$details) && !is.null(fit$model_data)) {
-  wts <- if (exists("eco_weights")) eco_weights else NULL
-  fit$sample <- tryCatch(
-    adlaplaceHgp::cond_sim_iwp(
-      fit = fit$details,
-      model_data = fit$model_data,
-      n = 500L,
-      weights = wts
-    ),
-    error = function(e) {
-      message("cond_sim_iwp failed: ", conditionMessage(e))
-      NULL
-    }
-  )
-}
-
-# Lean cache for knit (drop model_data / ad_pack).
-fit_ok <- is.null(fit$details$error) &&
-  !is.null(fit$par_info) &&
-  all(is.finite(fit$par_info$mle_internal))
-if (!fit_ok) {
-  message(
-    "WARNING: outer fit did not produce finite MLEs",
-    if (!is.null(fit$details$error)) paste0(": ", fit$details$error) else "",
-    "; not overwriting ", fit_rds
-  )
-} else {
-  fit_save <- fit
-  fit_save$model_data <- NULL
-  fit_save$ad_pack <- NULL
-  dir.create("analysis_cache", showWarnings = FALSE)
-  saveRDS(fit_save, fit_rds)
-  message(
-    "saved: ", fit_rds,
-    if (is.null(fit$sample$sim)) " (no sample yet)" else " (with sample)"
-  )
-  rm(fit_save)
-}
+message(
+  "debug 6 done: optim value = ", format(opt_dbg$value),
+  " counts = ", paste(names(opt_dbg$counts), opt_dbg$counts, collapse = ", ")
+)
+utils::flush.console()
+# --- end crash probe ---
 ```
 
 
@@ -374,9 +437,11 @@ for (f in fit_candidates) {
 }
 
 # Session fit (interactive) overrides par_info when it has dom SEs.
-if (exists("fit", inherits = TRUE) &&
-  !is.null(fit$par_info) &&
-  .par_info_has_dom_se(fit$par_info)) {
+if (
+  exists("fit", inherits = TRUE) &&
+    !is.null(fit$par_info) &&
+    .par_info_has_dom_se(fit$par_info)
+) {
   message("using session fit$par_info (has dom SEs)")
   loaded[["__session_fit__"]] <- fit
 }

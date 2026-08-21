@@ -372,7 +372,15 @@ if installing from source). Configure prints when DEBUG is enabled. With
 `config$verbose = TRUE`, `inner_opt` prints CppAD session phase messages (trust
 region, outer `get_fdfh`, trace shards). With `deriv = TRUE`, trace runs inside
 that session; standalone `trace_hinv_t()` remains for direct use. Each
-`CppadParallelScope` end flushes per-thread CppAD pools before the next `.Call`.
+`CppadParallelScope` end drains per-shard ADFun taylor / trace buffers in
+sequential mode, then flushes per-thread CppAD pools before the next `.Call`.
+
+To re-enable CppAD's `thread_alloc` cross-thread `return_memory` asserts
+(normally compiled out by R's `-DNDEBUG`), install with
+`PKG_CXXFLAGS="-DADLAPLACE_CPPAD_ASSERT"` (configure appends `-UNDEBUG`).
+See `inst/scripts/check-cppad-threads.sh`. Optionally set
+`ADLAPLACE_HOLD_MEMORY=0` to force `hold_memory(false)` as a diagnostic
+escape hatch (slower; not a substitute for buffer draining).
 
 ```{r testLogLik}
 res_noderiv <- adlaplace::log_lik_laplace(

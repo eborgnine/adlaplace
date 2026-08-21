@@ -83,12 +83,12 @@ struct TrustControl {
 
 #include <Eigen/SparseCore>
 #include <numeric>
+#include <string>
 #include <vector>
 
 #include "adlaplace/omp_compat.hpp"
 #include "adlaplace/backend.hpp"
 #include "adlaplace/rviews.hpp"
-#include "adlaplace/runtime.hpp"
 #include "adlaplace/runtime.hpp"
 
 struct AD_Func_Opt {
@@ -96,6 +96,7 @@ struct AD_Func_Opt {
   const std::vector<std::vector<size_t>> *const thread_groups;
   const bool inner;
   const int num_threads;
+  const bool verbose;
 
   const size_t Nparams;
   const size_t n_shards_backend;
@@ -115,9 +116,10 @@ struct AD_Func_Opt {
   AD_Func_Opt(
       ad_pack &ag, const std::vector<double> &params_init, bool innerIn = true,
       int num_threads_in = 1,
-      const std::vector<std::vector<size_t>> *thread_groups_in = nullptr)
+      const std::vector<std::vector<size_t>> *thread_groups_in = nullptr,
+      bool verbose_in = false)
       : AD_Func_Opt(ag, params_init, make_layout(ag, innerIn), innerIn,
-                    num_threads_in, thread_groups_in) {}
+                    num_threads_in, thread_groups_in, verbose_in) {}
 
   int get_nvars() const { return static_cast<int>(nvars_opt); }
   int get_nnz() const { return static_cast<int>(Htemplate.nonZeros()); }
@@ -129,12 +131,24 @@ struct AD_Func_Opt {
     update_gamma_from_x(x);
 
     double f_sum = 0.0;
+    adlaplace_verbose_msg(
+        verbose,
+        std::string(inner ? "inner_opt get_f" : "outer get_f") +
+            ": before OpenMP threads=" + std::to_string(num_threads) +
+            " shards=" + std::to_string(n_shards_backend));
 
 #pragma omp parallel num_threads(num_threads)
     {
       double f_local = 0.0;
       std::vector<double> params_local(parameters.begin(), parameters.end());
       const std::vector<size_t> &shard_group = shard_group_for_thread();
+      if (verbose && adlaplace_debug_enabled()) {
+#pragma omp critical(adlaplace_verbose)
+        {
+          Rcpp::Rcout << "  get_f thread=" << omp_get_thread_num()
+                      << " n_shards=" << shard_group.size() << std::endl;
+        }
+      }
 
       for (size_t s : shard_group) {
         ad_shard *shard = shards->fun[s];
@@ -156,6 +170,10 @@ struct AD_Func_Opt {
     }
 
     adlaplace_debug_raise_if_any(inner ? "inner_opt get_f" : "inner_opt get_f");
+    adlaplace_verbose_msg(
+        verbose,
+        std::string(inner ? "inner_opt get_f" : "outer get_f") +
+            ": after OpenMP");
     f = f_sum;
   }
 
@@ -170,6 +188,12 @@ struct AD_Func_Opt {
 
     std::vector<double> grad_full(Nparams, 0.0);
     const bool inner_flag = inner;
+    const char *phase = inner ? "inner_opt get_fdf" : "outer get_fdf";
+    adlaplace_verbose_msg(
+        verbose,
+        std::string(phase) + ": before OpenMP threads=" +
+            std::to_string(num_threads) + " Nparams=" + std::to_string(Nparams) +
+            " shards=" + std::to_string(n_shards_backend));
 
 #pragma omp parallel num_threads(num_threads)
     {
@@ -177,6 +201,13 @@ struct AD_Func_Opt {
       std::vector<double> grad_local(Nparams, 0.0);
       std::vector<double> params_local(parameters.begin(), parameters.end());
       const std::vector<size_t> &shard_group = shard_group_for_thread();
+      if (verbose && adlaplace_debug_enabled()) {
+#pragma omp critical(adlaplace_verbose)
+        {
+          Rcpp::Rcout << "  " << phase << " thread=" << omp_get_thread_num()
+                      << " n_shards=" << shard_group.size() << std::endl;
+        }
+      }
 
       for (size_t s : shard_group) {
         ad_shard *shard = shards->fun[s];
@@ -184,8 +215,7 @@ struct AD_Func_Opt {
         if (!adlaplace_shard_thread_ok(pack)) {
           adlaplace_debug_record_mismatch(
               s, pack.owner_thread,
-              static_cast<std::size_t>(omp_get_thread_num()),
-              inner ? "inner_opt get_fdf" : "inner_opt get_fdf");
+              static_cast<std::size_t>(omp_get_thread_num()), phase);
           adlaplace_debug_note_grad_mismatch(grad_local.data(), Nparams);
           continue;
         }
@@ -202,8 +232,8 @@ struct AD_Func_Opt {
       }
     }
 
-    adlaplace_debug_raise_if_any(inner ? "inner_opt get_fdf"
-                                       : "inner_opt get_fdf");
+    adlaplace_debug_raise_if_any(phase);
+    adlaplace_verbose_msg(verbose, std::string(phase) + ": after OpenMP");
     const size_t gsize = static_cast<size_t>(gout.size());
     const size_t ncopy = gsize < nvars_opt ? gsize : nvars_opt;
     for (size_t k = 0; k < ncopy; ++k) {
@@ -228,6 +258,14 @@ struct AD_Func_Opt {
     const char *phase = inner ? "inner_opt get_fdfh" : "outer get_fdfh";
     int api_err_shard = -1;
     int api_err_rc = 0;
+    const size_t hess_size = hess_upper_accum.size();
+
+    adlaplace_verbose_msg(
+        verbose,
+        std::string(phase) + ": before OpenMP threads=" +
+            std::to_string(num_threads) + " Nparams=" + std::to_string(Nparams) +
+            " hess_size=" + std::to_string(hess_size) +
+            " shards=" + std::to_string(n_shards_backend));
 
 #ifdef DEBUG_EXTRA
     std::vector<double> f_local_log(static_cast<size_t>(num_threads), -99.0);
@@ -237,9 +275,16 @@ struct AD_Func_Opt {
     {
       double f_local = 0.0;
       std::vector<double> grad_local(Nparams, 0.0);
-      std::vector<double> hess_local(hess_upper_accum.size(), 0.0);
+      std::vector<double> hess_local(hess_size, 0.0);
       std::vector<double> params_local(parameters.begin(), parameters.end());
       const std::vector<size_t> &shard_group = shard_group_for_thread();
+      if (verbose && adlaplace_debug_enabled()) {
+#pragma omp critical(adlaplace_verbose)
+        {
+          Rcpp::Rcout << "  " << phase << " thread=" << omp_get_thread_num()
+                      << " n_shards=" << shard_group.size() << std::endl;
+        }
+      }
 
       for (size_t s : shard_group) {
         ad_shard *shard = shards->fun[s];
@@ -269,7 +314,7 @@ struct AD_Func_Opt {
 
 #pragma omp critical(hess_sum)
         {
-          for (size_t k = 0; k < hess_upper_accum.size(); ++k) {
+          for (size_t k = 0; k < hess_size; ++k) {
             hess_upper_accum[k] -= hess_local[k];
           }
         }
@@ -302,6 +347,10 @@ struct AD_Func_Opt {
     }
 
     adlaplace_debug_raise_if_any(phase);
+    adlaplace_verbose_msg(
+        verbose,
+        std::string(phase) + ": after OpenMP api_err_shard=" +
+            std::to_string(api_err_shard));
     if (gout.size() > 0) {
       const size_t gsize = static_cast<size_t>(gout.size());
       const size_t ncopy = gsize < nvars_opt ? gsize : nvars_opt;
@@ -310,6 +359,7 @@ struct AD_Func_Opt {
       }
     }
 
+    adlaplace_verbose_msg(verbose, std::string(phase) + ": scatter Hessian...");
     if (H.rows() != Htemplate.rows() || H.cols() != Htemplate.cols() ||
         H.nonZeros() != Htemplate.nonZeros()) {
       H = Htemplate.cast<double>();
@@ -320,8 +370,15 @@ struct AD_Func_Opt {
     const int *cell_id = Htemplate.valuePtr();
     const Eigen::Index nz = H.nonZeros();
     for (Eigen::Index t = 0; t < nz; ++t) {
-      Hx[t] = hess_upper_accum[static_cast<size_t>(cell_id[t])];
+      const int cid = cell_id[t];
+      if (cid < 0 || static_cast<size_t>(cid) >= hess_size) {
+        Rcpp::stop(
+            "%s: Hessian cell_id OOB t=%d cell_id=%d hess_size=%d", phase,
+            static_cast<int>(t), cid, static_cast<int>(hess_size));
+      }
+      Hx[t] = hess_upper_accum[static_cast<size_t>(cid)];
     }
+    adlaplace_verbose_msg(verbose, std::string(phase) + ": scatter done");
   }
 
   template <class DerivedX>
@@ -465,9 +522,11 @@ private:
 
   AD_Func_Opt(ad_pack &ag, const std::vector<double> &params_init, Layout layout,
               bool innerIn, int num_threads_in,
-              const std::vector<std::vector<size_t>> *thread_groups_in)
+              const std::vector<std::vector<size_t>> *thread_groups_in,
+              bool verbose_in)
       : shards(&ag), thread_groups(thread_groups_in), inner(innerIn),
         num_threads(num_threads_in > 0 ? num_threads_in : 1),
+        verbose(verbose_in),
         Nparams(layout.Nparams), n_shards_backend(layout.n_shards_backend),
         Nbeta_backend(static_cast<size_t>(ag.sizes.named("beta"))),
         Ngamma_backend(static_cast<size_t>(ag.sizes.named("gamma"))),
@@ -484,6 +543,21 @@ private:
     parameters.resize(Nparams, 0.0);
     for (size_t j = 0; j < params_init.size() && j < Nparams; ++j) {
       parameters[j] = params_init[j];
+    }
+    // Once-per-construction check (avoids rescanning every get_fdfh call).
+    const size_t hess_size = hess_upper_accum.size();
+    const char *phase = inner ? "inner_opt" : "outer";
+    for (size_t s = 0; s < hess_maps.size(); ++s) {
+      const auto &map = hess_maps[s];
+      for (size_t Di = 0; Di < map.size(); ++Di) {
+        const int glob = map[Di];
+        if (glob < 0 || static_cast<size_t>(glob) >= hess_size) {
+          Rcpp::stop(
+              "%s: hess map OOB shard=%d Di=%d glob=%d hess_size=%d", phase,
+              static_cast<int>(s), static_cast<int>(Di), glob,
+              static_cast<int>(hess_size));
+        }
+      }
     }
   }
 

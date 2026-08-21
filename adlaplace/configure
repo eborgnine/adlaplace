@@ -16,13 +16,34 @@ WARN_CXXFLAGS=""
 . "$SCRIPT_DIR/backend-configure.sh"
 
 DEBUG_CXXFLAGS=""
+CPPAD_ASSERT=""
 for flags in "${PKG_CXXFLAGS:-}" "${CXXFLAGS:-}" "${CPPFLAGS:-}"; do
   case " $flags " in
-    *" -DDEBUG "*|*" -DDEBUG=1 "*) DEBUG_CXXFLAGS="-DDEBUG"; break ;;
+    *" -DDEBUG "*|*" -DDEBUG=1 "*)
+      case " $DEBUG_CXXFLAGS " in
+        *" -DDEBUG "*) ;;
+        *) DEBUG_CXXFLAGS="${DEBUG_CXXFLAGS:+$DEBUG_CXXFLAGS }-DDEBUG" ;;
+      esac
+      ;;
+  esac
+  case " $flags " in
+    *" -DADLAPLACE_CPPAD_ASSERT "*|*" -DADLAPLACE_CPPAD_ASSERT=1 "*)
+      CPPAD_ASSERT=1
+      ;;
   esac
 done
-if [ -n "$DEBUG_CXXFLAGS" ]; then
-  echo "configure: adlaplace DEBUG build enabled (-DDEBUG; thread-affinity checks active)" >&2
+# -UNDEBUG overrides R's usual -DNDEBUG so CppAD thread_alloc asserts fire.
+# Place after -DNDEBUG in the final compile line (PKG_CXXFLAGS in Makevars.in).
+if [ -n "$CPPAD_ASSERT" ]; then
+  DEBUG_CXXFLAGS="${DEBUG_CXXFLAGS:+$DEBUG_CXXFLAGS }-UNDEBUG -DADLAPLACE_CPPAD_ASSERT"
+  echo "configure: adlaplace CppAD assert build enabled (-UNDEBUG; cross-thread return_memory checks)" >&2
+fi
+if [ -n "$DEBUG_CXXFLAGS" ] && [ -z "$CPPAD_ASSERT" ]; then
+  case " $DEBUG_CXXFLAGS " in
+    *" -DDEBUG "*)
+      echo "configure: adlaplace DEBUG build enabled (-DDEBUG; thread-affinity checks active)" >&2
+      ;;
+  esac
 fi
 
 infile="src/Makevars.in"

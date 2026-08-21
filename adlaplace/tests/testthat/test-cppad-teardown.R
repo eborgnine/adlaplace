@@ -86,3 +86,22 @@ test_that("serial log_lik_laplace deriv=TRUE still completes", {
   expect_true(is.finite(ll$log_lik))
   expect_true(all(is.finite(ll$extra$trace3)))
 })
+
+test_that("repeated parallel log_lik_laplace deriv=TRUE survives thread_alloc teardown", {
+  skip_if_not(adlaplace:::has_openmp(), "OpenMP not available in this build")
+  fx <- cppad_teardown_fixture(num_threads = 4L)
+  args <- list(
+    x = c(fx$config$beta, fx$config$theta),
+    config = list(verbose = FALSE),
+    gamma = fx$config$gamma,
+    ad_pack = fx$ad_pack,
+    control = list(maxit = 3L, report.level = 0, report.freq = 0),
+    deriv = TRUE
+  )
+  for (i in seq_len(20L)) {
+    ll <- do.call(adlaplace::log_lik_laplace, args)
+    expect_true(is.finite(ll$log_lik), info = paste("iter", i))
+    expect_true(all(is.finite(ll$deriv$d_neg_log_lik)), info = paste("iter", i))
+    expect_true(all(is.finite(ll$extra$trace3)), info = paste("iter", i))
+  }
+})

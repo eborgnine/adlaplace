@@ -5,6 +5,7 @@
 #include <Rcpp.h>
 #include <cppad/cppad.hpp>
 #include <cppad/utility/thread_alloc.hpp>
+#include <cstdlib>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -31,6 +32,17 @@ void require_serial_main_thread(const char *phase) {
   if (omp_get_thread_num() != 0) {
     Rcpp::stop("%s: must run on OpenMP thread 0", phase);
   }
+}
+
+// ADLAPLACE_HOLD_MEMORY=0 disables hold_memory(true) so return_memory deletes
+// via the system allocator (thread-safe). Default is hold (1). Mitigation only;
+// prefer draining shard buffers at parallel boundaries.
+bool hold_memory_enabled() {
+  const char *env = std::getenv("ADLAPLACE_HOLD_MEMORY");
+  if (env == nullptr || env[0] == '\0') {
+    return true;
+  }
+  return !(env[0] == '0' && env[1] == '\0');
 }
 
 #ifdef DEBUG
@@ -69,7 +81,7 @@ void cppad_parallel_setup(std::size_t num_threads) {
   } else {
     CppAD::thread_alloc::parallel_setup(num_threads, &in_parallel_wrapper,
                                         &thread_num_wrapper);
-    CppAD::thread_alloc::hold_memory(true);
+    CppAD::thread_alloc::hold_memory(hold_memory_enabled());
   }
   CppAD::parallel_ad<double>();
 }
@@ -122,7 +134,16 @@ void cppad_parallel_teardown() {
     for (std::size_t t = 0; t < n_flush; ++t) {
       CppAD::thread_alloc::free_available(t);
     }
-    (void)CppAD::thread_alloc::free_all();
+    const bool all_freed = CppAD::thread_alloc::free_all();
+#ifdef DEBUG
+    if (!all_freed) {
+      Rcpp::Rcout
+          << "cppad_parallel_teardown: free_all() returned false "
+             "(in-use blocks remain; check cross-thread thread_alloc frees)\n";
+    }
+#else
+    (void)all_freed;
+#endif
   }
 
   set_num_threads_wrapper(1);

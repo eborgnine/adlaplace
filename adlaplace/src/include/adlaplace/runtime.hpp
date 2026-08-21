@@ -5,10 +5,19 @@
 #include <cmath>
 #include <cstddef>
 #include <limits>
+#include <string>
 #include <vector>
 
 #include "adlaplace/backend.hpp"
 #include "adlaplace/rviews.hpp"
+
+// Flushable verbose breadcrumb (endl flushes so last line survives aborts).
+inline void adlaplace_verbose_msg(bool verbose, const std::string& msg) {
+  if (!verbose) {
+    return;
+  }
+  Rcpp::Rcout << msg << std::endl;
+}
 
 ad_pack* clone_ad_pack(const ad_pack* src);
 

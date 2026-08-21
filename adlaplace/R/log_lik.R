@@ -51,6 +51,10 @@ outer_fn <- function(
   num_gamma <- as.integer(ad_pack@sizes["gamma"])
   cache$gamma <- resolve_gamma_start(config, cache, num_gamma)
 
+  if (isTRUE(config$verbose)) {
+    message("outer_fn: calling inner_opt(deriv=FALSE)...")
+    utils::flush.console()
+  }
   result <- adlaplace::inner_opt(
     parameters = x,
     gamma = cache$gamma,
@@ -59,6 +63,10 @@ outer_fn <- function(
     deriv = FALSE,
     verbose = isTRUE(config$verbose)
   )
+  if (isTRUE(config$verbose)) {
+    message("outer_fn: inner_opt done neg_log_lik=", format(result$neg_log_lik))
+    utils::flush.console()
+  }
 
   assign("gamma", result$inner_opt$solution, cache)
   result$neg_log_lik
@@ -73,6 +81,10 @@ outer_gr <- function(
   num_gamma <- as.integer(ad_pack@sizes["gamma"])
   cache$gamma <- resolve_gamma_start(config, cache, num_gamma)
 
+  if (isTRUE(config$verbose)) {
+    message("outer_gr: calling log_lik_laplace(deriv=TRUE)...")
+    utils::flush.console()
+  }
   result <- adlaplace::log_lik_laplace(
     x = x, config = config,
     gamma = cache$gamma,
@@ -80,6 +92,13 @@ outer_gr <- function(
     ad_pack = ad_pack,
     deriv = TRUE, ...
   )
+  if (isTRUE(config$verbose)) {
+    message(
+      "outer_gr: done length(d_neg_log_lik)=",
+      length(result$deriv$d_neg_log_lik)
+    )
+    utils::flush.console()
+  }
   assign("gamma", result$inner_opt$solution, cache)
   result$deriv$d_neg_log_lik
 }

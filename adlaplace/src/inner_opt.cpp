@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <string>
 // Eigen (SparseCholesky pulls SparseCore + OrderingMethods)
 #include <Eigen/SparseCholesky>
 
@@ -198,10 +199,12 @@ InnerOptResult inner_opt(const std::vector<double> &parameters,
     Rcpp::Rcout << "inner_opt: threads = " << num_threads
                 << ", shards = " << backend.fun.size()
                 << ", params = " << n_params << " (beta = " << n_beta
-                << ", gamma = " << n_gamma << ", theta = " << n_theta << ")\n";
+                << ", gamma = " << n_gamma << ", theta = " << n_theta << ")"
+                << std::endl;
   }
   if (verbose && adlaplace_debug_enabled()) {
-    Rcpp::Rcout << "inner_opt: DEBUG build (thread-affinity checks active)\n";
+    Rcpp::Rcout << "inner_opt: DEBUG build (thread-affinity checks active)"
+                << std::endl;
   }
 
   Tvec gamma_start(static_cast<Eigen::Index>(n_gamma));
@@ -225,8 +228,13 @@ InnerOptResult inner_opt(const std::vector<double> &parameters,
         parameters[n_beta + d];
   }
 
-  AD_Func_Opt funObj(backend, params_init, true, num_threads, &thread_groups);
+  adlaplace_verbose_msg(verbose, "inner_opt: constructing AD_Func_Opt (hess maps)...");
+  AD_Func_Opt funObj(backend, params_init, true, num_threads, &thread_groups,
+                     verbose);
   Eigen::SparseMatrix<double> H = funObj.Htemplate.cast<double>();
+  adlaplace_verbose_msg(
+      verbose,
+      "inner_opt: AD_Func_Opt done nnz=" + std::to_string(H.nonZeros()));
 
   Eigen::SparseMatrix<double> Houter;
   Tvec gradOuter;
@@ -246,7 +254,9 @@ InnerOptResult inner_opt(const std::vector<double> &parameters,
   double log_det = NA_REAL;
 
   {
-    CppadParallelScope parallel_scope(static_cast<std::size_t>(num_threads));
+    adlaplace_verbose_msg(verbose, "inner_opt: entering CppadParallelScope...");
+    CppadParallelScope parallel_scope(static_cast<std::size_t>(num_threads),
+                                      verbose, &backend);
 
     Trust_CG_Sparse<Tvec, AD_Func_Opt, THess, TPreLLt> opt(
         funObj, gamma_start, control.rad, control.min_rad, control.tol,
@@ -257,17 +267,22 @@ InnerOptResult inner_opt(const std::vector<double> &parameters,
         control.expand_threshold_ap, control.function_scale_factor,
         control.precond_refresh_freq, control.precond_ID, control.trust_iter);
 
+    adlaplace_verbose_msg(verbose, "inner_opt: opt.run() starting (first get_fdfh)...");
     opt.run();
     status = opt.get_current_state(solution, fval, grad, H, iterations, radius);
+    adlaplace_verbose_msg(
+        verbose,
+        "inner_opt: opt.run() done iters=" + std::to_string(iterations) +
+            " fval=" + std::to_string(fval));
 
     const double grad_l2_sq = grad.squaredNorm();
     // Optional restart: clamp gamma into [-x, x] and re-run. Disabled when
     // restart.gamma.clamp is non-finite (e.g. Inf).
     if (R_finite(control.restart_gamma_clamp) && grad_l2_sq > 10.0) {
       const double clamp = std::fabs(control.restart_gamma_clamp);
-      if (verbose && adlaplace_debug_enabled()) {
-        Rcpp::Rcout << "restarting with gamma clamped to [-"
-                    << clamp << ", " << clamp << "]\n";
+      if (verbose) {
+        Rcpp::Rcout << "restarting with gamma clamped to [-" << clamp << ", "
+                    << clamp << "]" << std::endl;
       }
 
       gamma_start = gamma_start.cwiseMax(-clamp).cwiseMin(clamp);
@@ -285,9 +300,12 @@ InnerOptResult inner_opt(const std::vector<double> &parameters,
     }
 
     H.makeCompressed();
+    adlaplace_verbose_msg(verbose, "inner_opt: chol_update starting...");
     log_det =
         chol_update(H, backend.chol_pattern.perm, backend.chol_pattern.L1_p,
                     backend.chol_pattern.L1_i, out.x_out, out.d_out);
+    adlaplace_verbose_msg(
+        verbose, "inner_opt: chol_update done log_det=" + std::to_string(log_det));
 
     for (std::size_t d = 0; d < n_gamma; ++d) {
       fullParams[static_cast<Eigen::Index>(gamma_begin + d)] =
@@ -296,19 +314,19 @@ InnerOptResult inner_opt(const std::vector<double> &parameters,
 
     if (deriv) {
       // Outer grad/Hessian
-      if (verbose && adlaplace_debug_enabled()) {
+      if (verbose) {
         Rcpp::Rcout << "inner_opt: trust region done; outer get_fdfh next ("
-                    << num_threads << " threads)\n";
+                    << num_threads << " threads)" << std::endl;
       }
       AD_Func_Opt funObjOuter(backend, params_init, false, num_threads,
-                              &thread_groups);
+                              &thread_groups, verbose);
 
       gradOuter = Tvec(static_cast<Eigen::Index>(n_params));
       Houter = funObjOuter.Htemplate.cast<double>();
       funObjOuter.get_fdfh(fullParams, fval, gradOuter, Houter);
 
-      if (verbose && adlaplace_debug_enabled()) {
-        Rcpp::Rcout << "inner_opt: outer get_fdfh done\n";
+      if (verbose) {
+        Rcpp::Rcout << "inner_opt: outer get_fdfh done" << std::endl;
       }
       adlaplace_debug_raise_if_any("inner_opt outer get_fdfh");
 
@@ -327,10 +345,14 @@ InnerOptResult inner_opt(const std::vector<double> &parameters,
                    backend.chol_pattern.H_inv_p, backend.chol_pattern.H_inv_i,
                    out.h_inv_x_out);
 
-      if (verbose && adlaplace_debug_enabled()) {
+      if (verbose) {
         Rcpp::Rcout << "inner_opt: trace_hinv_t next (" << num_threads
-                    << " threads)\n";
+                    << " threads)" << std::endl;
       }
+
+      // Drain before nested parallel assign_memory()/capacity_order so workers
+      // do not free thread-0 taylor buffers allocated during get_fdfh.
+      adlaplace_release_shard_eval_buffers(backend);
 
       const std::vector<double> x_vec(fullParams.data(),
                                       fullParams.data() +
@@ -341,10 +363,12 @@ InnerOptResult inner_opt(const std::vector<double> &parameters,
           backend.chol_pattern.trace_columns_p,
           backend.chol_pattern.trace_columns_i, verbose);
     }
+    adlaplace_verbose_msg(
+        verbose, "inner_opt: leaving CppadParallelScope (teardown next)...");
   } // parallel section
 
-  if (verbose && adlaplace_debug_enabled()) {
-    Rcpp::Rcout << "inner_opt: parallel block ended\n";
+  if (verbose) {
+    Rcpp::Rcout << "inner_opt: parallel block ended" << std::endl;
   }
   adlaplace_debug_raise_if_any("inner_opt after parallel block");
 
@@ -385,7 +409,7 @@ InnerOptResult inner_opt(const std::vector<double> &parameters,
   }
 
   if (verbose) {
-    Rcpp::Rcout << "inner_opt: finished\n";
+    Rcpp::Rcout << "inner_opt: finished" << std::endl;
   }
 
   return out;
@@ -581,13 +605,15 @@ Rcpp::List fun_obj_fdfh(const Rcpp::NumericVector &parameters,
                 << "\n";
   }
 
-  AD_Func_Opt funObj(*backend, params_init, inner, num_threads, &thread_groups);
+  AD_Func_Opt funObj(*backend, params_init, inner, num_threads, &thread_groups,
+                     verbose);
   Eigen::VectorXd grad_vec(static_cast<Eigen::Index>(nvars_opt));
   Eigen::SparseMatrix<double> H = funObj.Htemplate.cast<double>();
   double fval = 0.0;
 
   {
-    CppadParallelScope parallel_scope(static_cast<std::size_t>(num_threads));
+    CppadParallelScope parallel_scope(static_cast<std::size_t>(num_threads),
+                                      verbose, backend);
     if (inner) {
       Eigen::VectorXd x_gamma(static_cast<Eigen::Index>(n_gamma));
       for (std::size_t d = 0; d < n_gamma; ++d) {

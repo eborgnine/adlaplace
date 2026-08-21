@@ -12,18 +12,9 @@
 
 namespace adlaplace_trace {
 
-inline void reset_shard_adfun_taylor(AdTape& gp) {
-  gp.fun.capacity_order(0);
-}
-
+// Alias: sequential drain of ADFun taylor + TraceWorkspace (see ompad.hpp).
 inline void trace_hinv_t_reset_shards(ad_pack& backend) {
-  for (std::size_t s = 0; s < backend.fun.size(); ++s) {
-    AdTape& gp = shard_handle(&backend, s)->pack;
-    reset_shard_adfun_taylor(gp);
-    gp.trace.direction.clear();
-    gp.trace.direction_zeros.clear();
-    gp.trace.wthree.clear();
-  }
+  adlaplace_release_shard_eval_buffers(backend);
 }
 
 inline std::vector<double> trace_hinv_t_parallel(
@@ -132,11 +123,11 @@ inline std::vector<double> trace_hinv_t_impl(
                 << num_threads << " threads)\n";
   }
 
-  trace_hinv_t_reset_shards(backend);
-
   std::vector<double> trace_accum;
   {
-    CppadParallelScope parallel_scope(static_cast<std::size_t>(num_threads));
+    // Entry drain (via scope) replaces the former manual pre-reset.
+    CppadParallelScope parallel_scope(
+        static_cast<std::size_t>(num_threads), verbose, &backend);
     trace_accum = trace_hinv_t_parallel(
       backend,
       x,

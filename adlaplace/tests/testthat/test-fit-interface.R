@@ -85,6 +85,18 @@ test_that("adlaplace() with hessian = FALSE has no vcov", {
   expect_true(all(is.na(confint(fit))))
 })
 
+test_that("adlaplace() default hessian is TRUE for <=5 outer params", {
+  dat <- simulate_fit_data(n = 150L, seed = 3L)
+  fit <- adlaplace(
+    nbinom(y, lower = 1e-9, init = 0.15) ~ x + iid(g, init = 0.3),
+    data = dat,
+    config = list(num_shards = 5L),
+    control = list(maxit = 40L)
+  )
+  expect_lte(nrow(fit$par_info), 5L)
+  expect_false(is.null(fit$details$vcov))
+})
+
 test_that("adlaplace() returns a fit object when outer fn is non-finite", {
   dat <- simulate_fit_data(n = 80L, n_re = 4L, seed = 9L)
   local_mocked_bindings(
