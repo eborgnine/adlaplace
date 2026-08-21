@@ -140,7 +140,7 @@ inline void mark_obs_active(
     const std::size_t Dobs = have_shards
       ? static_cast<std::size_t>(cfg.obs_groups.i[DI])
       : DI;
-    if (model.XTp.p.size() > Dobs + 1) {
+    if (static_cast<std::size_t>(model.XTp.p.size()) > Dobs + 1) {
       const std::size_t p0 = static_cast<std::size_t>(model.XTp.p[Dobs]);
       const std::size_t p1 = static_cast<std::size_t>(model.XTp.p[Dobs + 1]);
       for (std::size_t k = p0; k < p1; ++k) {
@@ -153,7 +153,7 @@ inline void mark_obs_active(
         }
       }
     }
-    if (model.ATp.p.size() > Dobs + 1) {
+    if (static_cast<std::size_t>(model.ATp.p.size()) > Dobs + 1) {
       const std::size_t p0 = static_cast<std::size_t>(model.ATp.p[Dobs]);
       const std::size_t p1 = static_cast<std::size_t>(model.ATp.p[Dobs + 1]);
       for (std::size_t k = p0; k < p1; ++k) {

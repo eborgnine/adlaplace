@@ -41,7 +41,7 @@ inline AdTape build_ad_fun_random(
   if (TYPEOF(model_in.precision) == REALSXP || TYPEOF(model_in.precision) == INTSXP) {
     const NumVecView Q(model_in.precision);
     const int n_gamma_cols = model_in.gamma_map.ncol();
-    if (Q.size() != static_cast<R_xlen_t>(n_gamma_cols)) {
+    if (Q.size() != static_cast<std::size_t>(n_gamma_cols)) {
       Rcpp::stop("length(precision) (%d) must match ncol(gamma_map) (%d)",
                  static_cast<int>(Q.size()), n_gamma_cols);
     }

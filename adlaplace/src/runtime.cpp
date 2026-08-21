@@ -12,8 +12,6 @@ ad_pack* clone_ad_pack(const ad_pack* src) {
     Rcpp::stop("clone_ad_pack: source has no AD shards");
   }
 
-  std::size_t n_beta = 0;
-  std::size_t n_theta = 0;
   std::vector<AdTape> packs;
   std::vector<ShardFactory> factories;
   packs.reserve(src->fun.size());
@@ -22,10 +20,6 @@ ad_pack* clone_ad_pack(const ad_pack* src) {
   for (ad_shard* shard : src->fun) {
     if (!shard) {
       continue;
-    }
-    if (packs.empty()) {
-      n_beta = shard->pack.n_beta;
-      n_theta = shard->pack.n_theta;
     }
     factories.push_back(shard->factory ? shard->factory : adlaplace_make_ad_shard);
     AdTape pack = clone_group_pack(shard->pack);

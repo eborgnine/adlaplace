@@ -37,7 +37,7 @@ Built HTML vignettes (from CI):
 ## Package layout
 
 | Layer | R | C++ |
-|-------|---|-----|
+| ------- | --- | ----- |
 | Model (formula, S4 terms) | `effects.R`, `term_data_setup.R`, term `*.R` | — |
 | Laplace (AD handle, profile likelihood) | `ad_pack.R`, `density_data.R`, `log_lik.R`, … | `inner_opt`, … |
 | Engine (eval, optimizer) | `R/RcppExports.R` | `src/`, `src/include/adlaplace/` |
@@ -50,3 +50,19 @@ also `LinkingTo` / `Imports` **RCppAD**, and typically link against the
 installed `adlaplace` shared library.
 
 See the monorepo root [`README.md`](../README.md) for install order.
+
+## CRAN notes
+
+Comment for CRAN submission (Windows `-Wno-uninitialized`):
+
+```
+Windows (Rtools45 / GCC 14) emits false-positive -Wuninitialized warnings
+from libstdc++ bits/move.h when compiling Eigen SIMD types (std::move of
+packet types). R CMD check treats those as “significant warnings” and the
+install check fails. We therefore pass -Wno-uninitialized only on Windows
+(via configure → src/Makevars.win; see WARN_CXXFLAGS in
+inst/scripts/backend-configure.sh). The flag is not used on Unix. The
+win-builder NOTE about a non-portable warning-suppression flag is the
+same trade-off; we prefer that NOTE to a Windows install WARNING from a
+compiler false positive in system headers.
+```
