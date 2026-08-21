@@ -4,6 +4,8 @@
 #include "mvn_tape.hpp"
 
 #include <cppad/cppad.hpp>
+#include <array>
+#include <cstddef>
 #include <vector>
 
 namespace admvn {

@@ -11,27 +11,12 @@
 namespace admvn {
 namespace detail {
 
-inline thread_local std::vector<MvnTape*> pmvn_atomic_tapes;
-
-inline MvnTape* pmvn_atomic_tape_from_id(size_t call_id) {
-  if (call_id >= pmvn_atomic_tapes.size()) {
-    return nullptr;
-  }
-  return pmvn_atomic_tapes[call_id];
-}
-
-inline void set_pmvn_atomic_tape(size_t call_id, MvnTape* tape) {
-  if (call_id >= pmvn_atomic_tapes.size()) {
-    pmvn_atomic_tapes.resize(call_id + 1, nullptr);
-  }
-  pmvn_atomic_tapes[call_id] = tape;
-}
-
-// Backward-compatible: call_id 0 = p1, call_id 1 = p2.
-inline void set_pmvn_atomic_tapes(MvnTape* p1, MvnTape* p2) {
-  set_pmvn_atomic_tape(0, p1);
-  set_pmvn_atomic_tape(1, p2);
-}
+// Defined in pmvn_atomic.cpp (one TU). Do not put thread_local in this
+// header: Clang/MinGW emit duplicate TLS-init symbols per TU that includes
+// an inline thread_local definition.
+MvnTape* pmvn_atomic_tape_from_id(size_t call_id);
+void set_pmvn_atomic_tape(size_t call_id, MvnTape* tape);
+void set_pmvn_atomic_tapes(MvnTape* p1, MvnTape* p2);
 
 class atomic_pmvn : public CppAD::atomic_four<double> {
 public:

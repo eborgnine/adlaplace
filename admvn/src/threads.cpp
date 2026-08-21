@@ -77,8 +77,8 @@ void cppad_parallel_setup(std::size_t num_threads) {
 void cppad_parallel_teardown() {
   require_serial_main_thread("cppad_parallel_teardown");
 
-  const std::size_t n_flush = cppad_team_num_threads;
 #ifdef _OPENMP
+  const std::size_t n_flush = cppad_team_num_threads;
   if (n_flush > 1) {
     set_num_threads_wrapper(n_flush);
 #pragma omp parallel num_threads(static_cast<int>(n_flush))
