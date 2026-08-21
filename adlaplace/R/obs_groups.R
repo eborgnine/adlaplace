@@ -65,6 +65,63 @@ default_obs_groups <- function(n_obs) {
   )
 }
 
+#' Build \code{config$obs_groups} from design / ELGM when missing
+#'
+#' Used by \code{\link{adlaplace}} and \code{\link{ad_pack}} so that
+#' \code{num_shards} alone is enough for case-crossover (ELGM) models.
+#' When \code{elgm_matrix} has columns, shards index strata, not raw rows of
+#' \code{y}.
+#'
+#' @param config Config list (may already contain \code{obs_groups}).
+#' @param A Random-effects design (\code{term_data$A}).
+#' @param elgm_matrix Optional ELGM stratum map.
+#' @param num_shards Maximum shards (from \code{config$num_shards} if missing).
+#' @param num_threads Used for \code{min_shards} when ELGM is present.
+#' @return \code{config} with \code{obs_groups} filled when possible.
+#' @keywords internal
+ensure_config_obs_groups <- function(
+  config,
+  A,
+  elgm_matrix = NULL,
+  num_shards = NULL,
+  num_threads = 1L
+) {
+  if (!is.null(config[["obs_groups"]])) {
+    return(config)
+  }
+  if (is.null(A) || !methods::is(A, "Matrix") || ncol(A) < 1L) {
+    return(config)
+  }
+  if (is.null(num_shards)) {
+    num_shards <- config[["num_shards"]]
+  }
+  if (is.null(num_shards)) {
+    num_shards <- 100L
+  }
+  num_shards <- as.integer(num_shards)[1L]
+  num_threads <- as.integer(num_threads)[1L]
+  if (is.na(num_threads) || num_threads < 1L) {
+    num_threads <- 1L
+  }
+  if (is.na(num_shards) || num_shards < 1L) {
+    num_shards <- 100L
+  }
+  has_elgm <- !is.null(elgm_matrix) &&
+    methods::is(elgm_matrix, "Matrix") &&
+    ncol(elgm_matrix) > 0L
+  if (has_elgm) {
+    config$obs_groups <- obs_groups(
+      A,
+      elgm_matrix = elgm_matrix,
+      num_shards = num_shards,
+      min_shards = min(num_shards, num_threads * 4L)
+    )
+  } else {
+    config$obs_groups <- obs_groups(A, num_shards = num_shards)
+  }
+  config
+}
+
 #' @export
 obs_groups <- function(A, elgm_matrix, num_shards, min_shards = 0) {
   ATp <- Matrix::t(A)

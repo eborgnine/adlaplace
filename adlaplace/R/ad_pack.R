@@ -512,6 +512,13 @@ setMethod(
         active = TRUE
       )$init
     }
+    config_build <- ensure_config_obs_groups(
+      config_build,
+      A = x$term_data$A,
+      elgm_matrix = x$term_data$elgm_matrix,
+      num_shards = config_build$num_shards,
+      num_threads = num_threads
+    )
     verbose <- isTRUE(config_build[["verbose"]])
     shard_list <- c(x$observations, x$random, x$parameters)
     shard_names <- names(shard_list)

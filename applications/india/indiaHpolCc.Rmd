@@ -135,7 +135,7 @@ formula_rhs <- c(
     ref_value = 8,
     knots = seq(0, 32, by = 2),
     by = "eco_region",
-    init = 1e-1,
+    init = 1e-3, parscale = 10,
     lower = 1e-12
   ),
   adlaplaceHgp::hiwp(
@@ -144,7 +144,7 @@ formula_rhs <- c(
     ref_value = 25 / 10,
     knots = seq(-5, 42.5, by = 2.5) / 10,
     by = "eco_region",
-    init = 1e-1,
+    init = 1e-3, parscale = 10,
     lower = 1e-12
   )
 )
@@ -173,6 +173,79 @@ message(
   )
 )
 
+# --- crash probe: build AD + one inner_opt (10 threads) before full fit ---
+n_threads_dbg <- 10L
+message("debug 1/4: model_data...")
+utils::flush.console()
+md_dbg <- adlaplace::model_data(cc_formula, data = deaths, verbose = TRUE)
+message("debug 2/4: ad_pack(num_threads=", n_threads_dbg, ", shards=", n_shards, ")...")
+utils::flush.console()
+cfg_dbg <- list(
+  transform_theta = TRUE,
+  reorder_shards = "none",
+  num_threads = n_threads_dbg,
+  num_shards = n_shards,
+  verbose = FALSE,
+  obs_groups = adlaplace::obs_groups(
+    md_dbg$term_data$A,
+    elgm_matrix = md_dbg$term_data$elgm_matrix,
+    num_shards = n_shards,
+    min_shards = min(n_shards, n_threads_dbg * 4L)
+  )
+)
+ad_dbg <- adlaplace::ad_pack(md_dbg, cfg_dbg, num_threads = n_threads_dbg)
+message(
+  "debug 2/4 done: sizes beta=", ad_dbg@sizes[["beta"]],
+  " gamma=", ad_dbg@sizes[["gamma"]],
+  " theta=", ad_dbg@sizes[["theta"]]
+)
+utils::flush.console()
+
+par_meta_dbg <- md_dbg$term_data$info$parameters
+x0_dbg <- as.numeric(par_meta_dbg$init)
+g0_dbg <- rep(0, as.integer(ad_dbg@sizes[["gamma"]]))
+message(
+  "debug 3/4: inner_opt (deriv=FALSE, maxit=5, restart.gamma.clamp=Inf)..."
+)
+utils::flush.console()
+inner_dbg <- adlaplace::inner_opt(
+  parameters = x0_dbg,
+  gamma = g0_dbg,
+  ad_pack = ad_dbg,
+  control = list(
+    maxit = 5L,
+    report.level = 3,
+    report.freq = 1,
+    restart.gamma.clamp = Inf
+  ),
+  deriv = FALSE,
+  verbose = TRUE
+)
+message(
+  "debug 3/4 done: neg_log_lik=", format(inner_dbg$neg_log_lik),
+  " fval=", format(inner_dbg$inner_opt$fval)
+)
+utils::flush.console()
+
+message("debug 4/4: inner_opt (deriv=TRUE)...")
+utils::flush.console()
+inner_dbg_d <- adlaplace::inner_opt(
+  parameters = x0_dbg,
+  gamma = as.numeric(inner_dbg$inner_opt$solution),
+  ad_pack = ad_dbg,
+  control = list(
+    maxit = 5L,
+    report.level = 1,
+    report.freq = 1,
+    restart.gamma.clamp = Inf
+  ),
+  deriv = TRUE,
+  verbose = TRUE
+)
+message("debug 4/4 done: deriv inner_opt OK")
+utils::flush.console()
+# --- end crash probe ---
+
 fit <- adlaplace::adlaplace(
   formula = cc_formula,
   data = deaths,
@@ -183,27 +256,13 @@ fit <- adlaplace::adlaplace(
     num_shards = n_shards
   ),
   control = list(
-    maxit = 80,
-    trace = 3,
+    maxit = 200,
+    trace = 4,
     REPORT = 1,
-    pgtol = 1e-5,
-    factr = 1e7,
-    lmm = 8
+    pgtol = 1e-5
+    #    factr = 1e2
   ),
-  control_inner = list(
-    step.size = 1,
-    expand.factor = 3,
-    expand.threshold.rad = 1,
-    trust.iter = 1000,
-    precond.ID = 1,
-    precond.refresh = 1,
-    grad.tol = 1e-3,
-    restart.gamma.clamp = Inf,
-    maxit = 200L,
-    report.level = 0,
-    report.freq = 0
-  ),
-  verbose = TRUE
+  verbose = FALSE
 )
 
 if (!is.null(fit$details) && !is.null(fit$model_data)) {
@@ -238,7 +297,10 @@ if (!fit_ok) {
   fit_save$ad_pack <- NULL
   dir.create("analysis_cache", showWarnings = FALSE)
   saveRDS(fit_save, fit_rds)
-  message("saved: ", fit_rds)
+  message(
+    "saved: ", fit_rds,
+    if (is.null(fit$sample$sim)) " (no sample yet)" else " (with sample)"
+  )
   rm(fit_save)
 }
 ```
@@ -246,16 +308,17 @@ if (!fit_ok) {
 
 ```{r load_cache, include=FALSE}
 # Prefer a lean adlaplace_fit with samples; else legacy hpolcc caches with samples.
+# Parameter plots use par_info with SEs when available (session `fit` or new RDS).
 .normalize_india_res <- function(obj, path) {
   if (is.null(obj)) {
     return(NULL)
   }
-  # New adlaplace_fit: need finite MLEs and samples for figures.
+  # New adlaplace_fit: keep if any finite MLEs (sample optional).
   if (!is.null(obj$par_info)) {
-    mle_ok <- all(is.finite(obj$par_info$mle_internal)) ||
-      all(is.finite(obj$par_info$mle))
-    if (!isTRUE(mle_ok) || is.null(obj$sample$sim)) {
-      message("skipping unusable cache (no finite MLE / sample): ", path)
+    mle_ok <- any(is.finite(obj$par_info$mle_internal)) ||
+      any(is.finite(obj$par_info$mle))
+    if (!isTRUE(mle_ok)) {
+      message("skipping unusable cache (no finite MLE): ", path)
       return(NULL)
     }
     return(obj)
@@ -269,6 +332,8 @@ if (!fit_ok) {
     if (!("log" %in% names(th))) {
       th$log <- NA
     }
+    # Keep beta on the object for day-of-month labels; par_info stays theta
+    # for the scale-parameter table unless a newer fit supplies full par_info.
     obj$par_info <- th
     return(obj)
   }
@@ -276,20 +341,66 @@ if (!fit_ok) {
   NULL
 }
 
+.par_info_has_dom_se <- function(pi) {
+  if (is.null(pi) || !nrow(pi)) {
+    return(FALSE)
+  }
+  dom <- grepl("dom", pi$label)
+  se <- if ("se" %in% names(pi)) pi$se else rep(NA_real_, nrow(pi))
+  se_i <- if ("se_internal" %in% names(pi)) {
+    pi$se_internal
+  } else {
+    se
+  }
+  any(dom & (is.finite(se) | is.finite(se_i)))
+}
+
 fit_candidates <- c(
   fit_rds,
   "resPmTemp.rds",
   "resPmTempR.rds"
 )
-res <- NULL
+loaded <- list()
 for (f in fit_candidates) {
   if (!file.exists(f)) {
     next
   }
   message("trying: ", f)
-  res <- .normalize_india_res(readRDS(f), f)
-  if (!is.null(res)) {
-    message("using: ", f)
+  obj <- .normalize_india_res(readRDS(f), f)
+  if (!is.null(obj)) {
+    loaded[[f]] <- obj
+    message("accepted: ", f)
+  }
+}
+
+# Session fit (interactive) overrides par_info when it has dom SEs.
+if (exists("fit", inherits = TRUE) &&
+  !is.null(fit$par_info) &&
+  .par_info_has_dom_se(fit$par_info)) {
+  message("using session fit$par_info (has dom SEs)")
+  loaded[["__session_fit__"]] <- fit
+}
+
+res <- NULL
+# Prefer object with samples for RR figures.
+for (nm in names(loaded)) {
+  if (!is.null(loaded[[nm]]$sample$sim)) {
+    res <- loaded[[nm]]
+    message("sample from: ", nm)
+    break
+  }
+}
+if (is.null(res) && length(loaded)) {
+  res <- loaded[[1L]]
+}
+# Prefer par_info with dom SEs (new adlaplace_fit / session fit).
+for (nm in names(loaded)) {
+  if (.par_info_has_dom_se(loaded[[nm]]$par_info)) {
+    res$par_info <- loaded[[nm]]$par_info
+    if (!is.null(loaded[[nm]]$model_data)) {
+      res$model_data <- loaded[[nm]]$model_data
+    }
+    message("par_info (with SEs) from: ", nm)
     break
   }
 }
@@ -311,22 +422,141 @@ for_global <- data.frame(
 )
 d_var <- character(0)
 s_group <- character(0)
-the_x_lim <- list(temp_div10 = c(4, 38), sqrt_pm = c(0, 450))
-the_y_lim <- list(temp_div10 = c(0, 10), sqrt_pm = c(0, 10))
+the_x_lim <- list(temp_div10 = c(5, 35), sqrt_pm = c(0, 200))
+the_y_lim <- list(temp_div10 = c(-5, 25), sqrt_pm = c(-5, 25))
 ```
 
-```{r par_table, eval=(!is.null(res))}
+```{r par_table, eval=(!is.null(res)), results='asis'}
+# Parameter MLEs (Mexico-style Pmisc::mdTable via canexposure::theta_table logic).
 th <- res$par_info
-keep <- grepl(
-  "dirichlet_multinom|overdispersion|_iwp$|_hiwp$|rpoly|fpoly",
-  th$label
+if (all(c("term", "model", "mle") %in% names(th))) {
+  theta_table <- th[, c("term", "model", "mle"), drop = FALSE]
+} else {
+  model <- rep(NA_character_, nrow(th))
+  model[grepl("dirichlet_multinom|overdispersion", th$label)] <- "overdispersion"
+  model[grepl("_hiwp$", th$label)] <- "hiwp"
+  model[grepl("_iwp$", th$label)] <- "iwp"
+  model[grepl("hrpoly|rpoly", th$label)] <- "rpoly"
+  model[grepl("hfpoly|fpoly", th$label)] <- "fpoly"
+  term <- gsub(
+    "_(dirichlet_multinom_sd|overdispersion|hiwp|iwp)$",
+    "",
+    th$label
+  )
+  term <- gsub("^hrpoly_|^hfpoly_|^rpoly_|^fpoly_", "", term)
+  term <- gsub("_[0-9]+$", "", term)
+  term <- gsub("temp_div10|temperature_div10", "temp", term)
+  term <- gsub("^sqrt_", "", term)
+  mle <- if ("mle" %in% names(th) && any(is.finite(th$mle))) {
+    th$mle
+  } else {
+    th$mle_internal
+  }
+  theta_table <- data.frame(
+    term = term, model = model, mle = mle,
+    stringsAsFactors = FALSE
+  )
+}
+theta_table <- theta_table[!is.na(theta_table$model), , drop = FALSE]
+term_labs <- c(
+  temp = "temperature", temp_div10 = "temperature",
+  pm = "PM2.5", sqrt_pm = "PM2.5",
+  overdispersion = "obs", obs = "obs"
 )
-cols <- intersect(
-  c("label", "mle", "se", "lower", "upper", "log"),
-  names(th)
+theta_table$term <- ifelse(
+  theta_table$term %in% names(term_labs),
+  unname(term_labs[theta_table$term]),
+  ifelse(
+    is.na(theta_table$term) | !nzchar(theta_table$term),
+    "obs",
+    theta_table$term
+  )
 )
-theta_table <- th[keep, cols, drop = FALSE]
-theta_table
+rownames(theta_table) <- NULL
+Pmisc::mdTable(
+  theta_table,
+  guessGroup = TRUE,
+  mdToTex = any(commandArgs() == "mdToTex"),
+  dec = 8,
+  caption = "Parameter MLEs: Dirichlet-multinomial overdispersion and hierarchical IWP scale parameters."
+)
+```
+
+```{r dom_plot, fig.cap = "Day-of-month fixed effects (log relative risk vs day 1). Points: MLE; segments: 95\\% Wald CI from par\\_info standard errors.", fig.height = 4, fig.width = 6, eval = !is.null(res) && any(grepl("dom", res$par_info$label))}
+pi <- res$par_info
+dom <- pi[grepl("dom", pi$label), , drop = FALSE]
+est <- if ("mle" %in% names(dom) && any(is.finite(dom$mle))) {
+  as.numeric(dom$mle)
+} else {
+  as.numeric(dom$mle_internal)
+}
+se <- if ("se" %in% names(dom) && any(is.finite(dom$se))) {
+  as.numeric(dom$se)
+} else if ("se_internal" %in% names(dom)) {
+  as.numeric(dom$se_internal)
+} else {
+  rep(NA_real_, nrow(dom))
+}
+
+# Day labels: prefer model_data / legacy beta_label; else contrast vs reference day 1.
+day <- NULL
+if (!is.null(res$model_data$term_data$info$beta)) {
+  bi <- res$model_data$term_data$info$beta
+  bi <- bi[grepl("dom", bi$beta_label), , drop = FALSE]
+  if (nrow(bi) == nrow(dom)) {
+    day <- as.integer(sub("^.*dom", "", bi$beta_label))
+  }
+}
+if (is.null(day) && !is.null(res$parameters$beta)) {
+  bi <- res$parameters$beta
+  bi <- bi[grepl("dom", bi$beta_label), , drop = FALSE]
+  if (nrow(bi) == nrow(dom)) {
+    day <- as.integer(sub("^.*dom", "", bi$beta_label))
+  }
+}
+if (is.null(day)) {
+  # linear("dom") drops reference level "1" -> coeffs for 0,2,3,...,31
+  day <- as.integer(c(0L, 2:31))
+  if (length(day) != nrow(dom)) {
+    day <- seq_len(nrow(dom))
+  }
+}
+
+z <- stats::qnorm(0.975)
+dom_df <- data.frame(
+  day = day,
+  est = est,
+  lo = est - z * se,
+  hi = est + z * se
+)
+# Reference day 1 (omitted contrast) at log RR = 0.
+dom_df <- rbind(
+  data.frame(day = 1L, est = 0, lo = NA_real_, hi = NA_real_),
+  dom_df
+)
+dom_df <- dom_df[order(dom_df$day), , drop = FALSE]
+
+par(mar = c(3, 3, 0.5, 0.5), bty = "l", mgp = c(1.8, 0.5, 0))
+ylim <- range(c(dom_df$est, dom_df$lo, dom_df$hi), na.rm = TRUE)
+plot(
+  dom_df$day, dom_df$est,
+  type = "n",
+  xlim = range(dom_df$day),
+  ylim = ylim,
+  xlab = "Day of month",
+  ylab = "Log relative risk",
+  xaxs = "i"
+)
+abline(h = 0, col = "grey70", lty = 2)
+ok_ci <- is.finite(dom_df$lo) & is.finite(dom_df$hi)
+if (any(ok_ci)) {
+  arrows(
+    dom_df$day[ok_ci], dom_df$lo[ok_ci],
+    dom_df$day[ok_ci], dom_df$hi[ok_ci],
+    length = 0.03, angle = 90, code = 3, col = "steelblue"
+  )
+}
+points(dom_df$day, dom_df$est, pch = 16, col = "steelblue")
 ```
 
 ```{r globalSetup, eval=isTRUE(has_sample)}
@@ -340,7 +570,7 @@ for_global$subcap <- paste(for_global$var_name, for_global$type)
 
 the_y_lim <- list()
 for (d in s_var) {
-  the_y_lim[[d]] <- c(0, 10)
+  the_y_lim[[d]] <- c(-5, 25)
 }
 ```
 
@@ -426,7 +656,7 @@ s_group <- if (length(d_var)) {
 }
 ```
 
-```{r byRegion1, fig.cap=if (length(d_var)) s_var_names[d_var] else "temperature", fig.subcap = s_group, fig.height=4, fig.width=4, ref.label = 'byRegionTemplate', eval=isTRUE(has_sample) && length(d_var) > 0, out.width='0.23\\linewidth', fig.align='center'}
+```{r byRegion1, fig.cap=if (length(d_var)) paste0(s_var_names[d_var], " by eco-region. Grey: common-component median. Green: pointwise 2.5/50/97.5\\% quantiles of the region-specific curve. Red: 80\\% global envelope (central curve and bounds).") else "temperature", fig.subcap = s_group, fig.height=4, fig.width=4, ref.label = 'byRegionTemplate', eval=isTRUE(has_sample) && length(d_var) > 0, out.width='0.23\\linewidth', fig.align='center'}
 ```
 
 ```{r byRegionSetup2, eval=isTRUE(has_sample)}
@@ -438,7 +668,7 @@ s_group <- if (length(d_var)) {
 }
 ```
 
-```{r byRegion2, fig.cap=if (length(d_var)) s_var_names[d_var] else "PM2.5", fig.subcap = s_group, fig.height=4, fig.width=4, ref.label = 'byRegionTemplate', eval=isTRUE(has_sample) && length(d_var) > 0, out.width='0.23\\linewidth', fig.align='center'}
+```{r byRegion2, fig.cap=if (length(d_var)) paste0(s_var_names[d_var], " by eco-region. Grey: common-component median. Green: pointwise 2.5/50/97.5\\% quantiles of the region-specific curve. Red: 80\\% global envelope (central curve and bounds).") else "PM2.5", fig.subcap = s_group, fig.height=4, fig.width=4, ref.label = 'byRegionTemplate', eval=isTRUE(has_sample) && length(d_var) > 0, out.width='0.23\\linewidth', fig.align='center'}
 ```
 
 ```{r ecoRegionmap, fig.cap = 'Eco regions', fig.subcap = c('regions','legend'), fig.height=5, fig.width=5, out.width = '0.48\\linewidth', eval=isTRUE(has_store)}
@@ -455,7 +685,7 @@ mapmisc::legendBreaks(
 )
 ```
 
-```{r ecoTable, results='asis', include=FALSE, eval=isTRUE(has_store)}
+```{r ecoTable, results='asis', eval=FALSE, include=FALSE}
 knitr::kable(
   mapmisc::legendTable(data.frame(
     label = india_eco_regions$id_name,

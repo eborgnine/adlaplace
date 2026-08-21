@@ -92,9 +92,19 @@ normalize_config_for_ptr <- function(config, data, kind = NULL) {
     return(config)
   }
   if (identical(kind, "observations") && is.null(config[["obs_groups"]])) {
-    n_obs <- length(data@y)
-    if (n_obs > 0L) {
-      config$obs_groups <- default_obs_groups(n_obs)
+    # ELGM (e.g. dirichlet_multinom): dens indexes obs_groups as strata columns
+    # of elgm_matrix, not rows of y. Prefer ensure_config_obs_groups() upstream
+    # (ad_pack/fit) so num_shards builds a proper map; here fall back to one
+    # shard over all strata so default_obs_groups(length(y)) cannot OOB.
+    elgm <- data@elgm_matrix
+    n_elgm <- if (methods::is(elgm, "Matrix")) ncol(elgm) else 0L
+    if (n_elgm > 0L) {
+      config$obs_groups <- default_obs_groups(n_elgm)
+    } else {
+      n_obs <- length(data@y)
+      if (n_obs > 0L) {
+        config$obs_groups <- default_obs_groups(n_obs)
+      }
     }
   }
   if (is.null(config[["beta"]])) {

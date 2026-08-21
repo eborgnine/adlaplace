@@ -240,6 +240,21 @@ CppAD::vector<CppAD::AD<double>> compute_eta_for_stratum(
   const density_data& model,
   const CppAD::vector<CppAD::AD<double>>& x) {
 
+  const size_t n_strata = static_cast<size_t>(model.elgm_matrix.ncol());
+  if (Dstrata >= n_strata) {
+    Rcpp::stop(
+      "dirichlet_multinomial stratum index %d out of range [0, %d)",
+      static_cast<int>(Dstrata),
+      static_cast<int>(n_strata)
+    );
+  }
+  if (Dstrata + 1 >= static_cast<size_t>(model.elgm_matrix.p.size())) {
+    Rcpp::stop(
+      "elgm_matrix column pointer missing for stratum %d",
+      static_cast<int>(Dstrata)
+    );
+  }
+
   const size_t startHere = model.elgm_matrix.p[Dstrata];
   const size_t endHere = model.elgm_matrix.p[Dstrata + 1];
   const size_t NinStrata = endHere - startHere;

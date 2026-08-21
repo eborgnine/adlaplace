@@ -115,25 +115,13 @@ adlaplace <- function(
   )
   config$num_threads <- as.integer(config$num_threads)[1L]
   config$num_shards <- as.integer(config$num_shards)[1L]
-  if (is.null(config$obs_groups)) {
-    A <- md$term_data$A
-    if (!is.null(A) && ncol(A) > 0L) {
-      elgm <- md$term_data$elgm_matrix
-      if (!is.null(elgm) && methods::is(elgm, "Matrix") && ncol(elgm) > 0L) {
-        config$obs_groups <- obs_groups(
-          A,
-          elgm_matrix = elgm,
-          num_shards = config$num_shards,
-          min_shards = min(
-            config$num_shards,
-            config$num_threads * 4L
-          )
-        )
-      } else {
-        config$obs_groups <- obs_groups(A, num_shards = config$num_shards)
-      }
-    }
-  }
+  config <- ensure_config_obs_groups(
+    config,
+    A = md$term_data$A,
+    elgm_matrix = md$term_data$elgm_matrix,
+    num_shards = config$num_shards,
+    num_threads = config$num_threads
+  )
 
   af <- ad_pack(md, config, num_threads = config$num_threads)
 
