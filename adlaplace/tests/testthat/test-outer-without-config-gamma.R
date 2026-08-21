@@ -48,6 +48,12 @@ test_that("outer_fn and outer_gr work without config$gamma on minimal GLMM", {
   gr <- adlaplace::outer_gr(x0, config_min, cache, ad_pack)
   expect_true(is.finite(val))
   expect_equal(length(gr), length(x0))
+  expect_identical(cache$fg_evals, 1L)
+
+  # Second gr at the same x should reuse the cached Laplace evaluation.
+  gr2 <- adlaplace::outer_gr(x0, config_min, cache, ad_pack)
+  expect_equal(gr2, gr)
+  expect_identical(cache$fg_evals, 1L)
 
   fit <- stats::optim(
     par = x0,
@@ -60,6 +66,8 @@ test_that("outer_fn and outer_gr work without config$gamma on minimal GLMM", {
     cache = cache
   )
   expect_true(is.finite(fit$value))
+  # L-BFGS-B pairs fn+gr; with caching, fg_evals should be close to fn counts.
+  expect_lte(cache$fg_evals, fit$counts[["function"]] + 1L)
 })
 
 test_that("model_data ad_pack and outer wrappers work without config$gamma", {

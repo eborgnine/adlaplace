@@ -182,8 +182,8 @@ fit <- adlaplace::adlaplace(
     num_shards = n_shards
   ),
   control = list(
-    maxit = 1,
-    trace = 4,
+    maxit = 100,
+    trace = 3,
     REPORT = 1,
     pgtol = 1e-5
   ),

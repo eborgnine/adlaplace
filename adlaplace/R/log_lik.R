@@ -5,6 +5,11 @@
 #' the inner problem over \code{gamma} via \code{\link{log_lik_laplace}} and update a mutable
 #' \code{cache} environment with the latest inner solution.
 #'
+#' L-BFGS-B requests \code{fn} then \code{gr} at the same parameter vector. Both wrappers
+#' share one \code{log_lik_laplace(..., deriv = TRUE)} evaluation at that point: the
+#' objective is free once the profile gradient has been computed. Results are stored in
+#' \code{cache$fg_x} / \code{cache$fg_result} and reused until \code{x} changes.
+#'
 #' \describe{
 #' \item{\code{outer_fn()}}{Returns the scalar objective negative log likelihood.}
 #' \item{\code{outer_gr()}}{Returns the gradient.}
@@ -21,7 +26,8 @@
 #'   \code{gamma} solution. If \code{cache$gamma} is missing or the wrong length,
 #'   it is initialized from \code{config$gamma} (if present) or zeros of length
 #'   \code{ad_pack@sizes["gamma"]}. Both functions update \code{cache$gamma} after
-#'   each evaluation.
+#'   each evaluation, and share \code{cache$fg_x} / \code{cache$fg_result} for the
+#'   latest combined objective/gradient evaluation.
 #'
 #' @return
 #' \itemize{
@@ -48,27 +54,14 @@ outer_fn <- function(
   x, config, cache, ad_pack, control_inner = list(), ...
 ) {
   assign("last_par_fn", x, cache)
-  num_gamma <- as.integer(ad_pack@sizes["gamma"])
-  cache$gamma <- resolve_gamma_start(config, cache, num_gamma)
-
-  if (isTRUE(config$verbose)) {
-    message("outer_fn: calling inner_opt(deriv=FALSE)...")
-    utils::flush.console()
-  }
-  result <- adlaplace::inner_opt(
-    parameters = x,
-    gamma = cache$gamma,
+  result <- .outer_fg(
+    x = x,
+    config = config,
+    cache = cache,
     ad_pack = ad_pack,
-    control = control_inner,
-    deriv = FALSE,
-    verbose = isTRUE(config$verbose)
+    control_inner = control_inner,
+    ...
   )
-  if (isTRUE(config$verbose)) {
-    message("outer_fn: inner_opt done neg_log_lik=", format(result$neg_log_lik))
-    utils::flush.console()
-  }
-
-  assign("gamma", result$inner_opt$solution, cache)
   result$neg_log_lik
 }
 
@@ -78,29 +71,63 @@ outer_gr <- function(
   x, config, cache, ad_pack, control_inner = list(), ...
 ) {
   assign("last_par_gr", x, cache)
+  result <- .outer_fg(
+    x = x,
+    config = config,
+    cache = cache,
+    ad_pack = ad_pack,
+    control_inner = control_inner,
+    ...
+  )
+  result$deriv$d_neg_log_lik
+}
+
+#' Combined outer Laplace evaluation with per-\code{x} cache
+#'
+#' @noRd
+.outer_fg <- function(
+  x, config, cache, ad_pack, control_inner = list(), ...
+) {
+  x_num <- as.numeric(x)
+  if (!is.null(cache$fg_x) &&
+    length(cache$fg_x) == length(x_num) &&
+    isTRUE(all(cache$fg_x == x_num)) &&
+    !is.null(cache$fg_result)) {
+    return(cache$fg_result)
+  }
+
   num_gamma <- as.integer(ad_pack@sizes["gamma"])
   cache$gamma <- resolve_gamma_start(config, cache, num_gamma)
 
   if (isTRUE(config$verbose)) {
-    message("outer_gr: calling log_lik_laplace(deriv=TRUE)...")
+    message("outer_fg: calling log_lik_laplace(deriv=TRUE)...")
     utils::flush.console()
   }
   result <- adlaplace::log_lik_laplace(
-    x = x, config = config,
+    x = x,
+    config = config,
     gamma = cache$gamma,
     control = control_inner,
     ad_pack = ad_pack,
-    deriv = TRUE, ...
+    deriv = TRUE,
+    ...
   )
   if (isTRUE(config$verbose)) {
     message(
-      "outer_gr: done length(d_neg_log_lik)=",
-      length(result$deriv$d_neg_log_lik)
+      "outer_fg: done neg_log_lik=", format(result$neg_log_lik),
+      " length(d_neg_log_lik)=", length(result$deriv$d_neg_log_lik)
     )
     utils::flush.console()
   }
+
   assign("gamma", result$inner_opt$solution, cache)
-  result$deriv$d_neg_log_lik
+  assign("fg_x", x_num, cache)
+  assign("fg_result", result, cache)
+  if (is.null(cache$fg_evals)) {
+    cache$fg_evals <- 0L
+  }
+  cache$fg_evals <- cache$fg_evals + 1L
+  result
 }
 
 #' Log-likelihood with inner Laplace optimization

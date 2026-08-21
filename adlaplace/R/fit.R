@@ -33,10 +33,10 @@ NULL
 #'   \code{"L-BFGS-B"} and \code{"Brent"} only.
 #' @param hessian Logical. When \code{NULL} (default), set to \code{TRUE} if
 #'   there are at most five outer parameters and \code{FALSE} otherwise.
-#'   When \code{TRUE}, \code{optim} numerically differentiates the exact AD
-#'   profile gradient at the optimum, giving the observed information used by
-#'   \code{\link{vcov.adlaplace_fit}}, \code{\link{summary.adlaplace_fit}}, and
-#'   \code{\link{confint.adlaplace_fit}}.
+#'   When \code{TRUE}, \code{\link[stats]{optimHess}} numerically differentiates
+#'   the exact AD profile gradient at the optimum, giving the observed
+#'   information used by \code{\link{vcov.adlaplace_fit}},
+#'   \code{\link{summary.adlaplace_fit}}, and \code{\link{confint.adlaplace_fit}}.
 #' @param verbose Logical, print progress.
 #' @param na_omit Passed to \code{\link{model_data}()}.
 #'
@@ -147,7 +147,7 @@ adlaplace <- function(
     gr = outer_gr,
     method = method,
     control = control_use,
-    hessian = hessian,
+    hessian = FALSE,
     config = config,
     ad_pack = af,
     cache = cache,
@@ -177,15 +177,61 @@ adlaplace <- function(
     ))
   }
 
-  details <- log_lik_laplace(
-    x = opt$par,
-    gamma = cache$gamma,
-    ad_pack = af,
-    config = config,
-    control = control_inner,
-    deriv = TRUE
-  )
-  cache$gamma <- details$inner_opt$solution
+  # Prefer the last combined outer_fn/outer_gr evaluation at opt$par.
+  details <- NULL
+  if (!is.null(cache$fg_result) &&
+    !is.null(cache$fg_x) &&
+    length(cache$fg_x) == length(opt$par) &&
+    isTRUE(all(cache$fg_x == as.numeric(opt$par)))) {
+    details <- cache$fg_result
+  }
+  if (is.null(details)) {
+    details <- log_lik_laplace(
+      x = opt$par,
+      gamma = cache$gamma,
+      ad_pack = af,
+      config = config,
+      control = control_inner,
+      deriv = TRUE
+    )
+    cache$gamma <- details$inner_opt$solution
+    cache$fg_x <- as.numeric(opt$par)
+    cache$fg_result <- details
+  } else {
+    cache$gamma <- details$inner_opt$solution
+  }
+
+  if (hessian) {
+    details_at_opt <- details
+    gamma_at_opt <- details$inner_opt$solution
+    hess <- tryCatch(
+      stats::optimHess(
+        par = opt$par,
+        fn = outer_fn,
+        gr = outer_gr,
+        control = control_use,
+        config = config,
+        ad_pack = af,
+        cache = cache,
+        control_inner = control_inner
+      ),
+      error = function(e) e
+    )
+    if (!inherits(hess, "error") && all(is.finite(hess))) {
+      opt$hessian <- hess
+    } else if (inherits(hess, "error")) {
+      warning(
+        "outer Hessian failed; vcov unavailable: ",
+        conditionMessage(hess),
+        call. = FALSE
+      )
+    }
+    # Restore the optimum evaluation after finite-difference probes.
+    details <- details_at_opt
+    cache$gamma <- gamma_at_opt
+    cache$fg_x <- as.numeric(opt$par)
+    cache$fg_result <- details_at_opt
+  }
 
   vc <- NULL
   if (hessian && !is.null(opt$hessian) && all(is.finite(opt$hessian))) {
