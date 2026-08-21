@@ -12,18 +12,20 @@
 #include "adlaplace/backend.hpp"
 #include "adlaplace/rviews.hpp"
 
+// Seed vector over the current tape domain (model.n_tape / tape_to_global).
 inline CPPAD_TESTVECTOR(double)
     make_ad_params_seed(const Config &cfg, const density_data &model) {
 
-  CPPAD_TESTVECTOR(double) ad_params_G(model.num_full);
-  for (std::size_t d = 0; d < model.num_beta; ++d) {
-    ad_params_G[d] = cfg.beta[d];
-  }
-  for (std::size_t d = 0; d < model.num_gamma; ++d) {
-    ad_params_G[model.num_beta + d] = cfg.gamma[d];
-  }
-  for (std::size_t d = 0; d < model.num_theta; ++d) {
-    ad_params_G[model.num_beta + model.num_gamma + d] = cfg.theta[d];
+  CPPAD_TESTVECTOR(double) ad_params_G(model.n_tape);
+  for (std::size_t k = 0; k < model.n_tape; ++k) {
+    const std::size_t g = model.tape_to_global[k];
+    if (g < model.num_beta) {
+      ad_params_G[k] = cfg.beta[g];
+    } else if (g < model.num_beta + model.num_gamma) {
+      ad_params_G[k] = cfg.gamma[g - model.num_beta];
+    } else {
+      ad_params_G[k] = cfg.theta[g - model.num_beta - model.num_gamma];
+    }
   }
   return ad_params_G;
 }
@@ -75,6 +77,69 @@ adpack_discover_hessian(AdTape &gp,
   gp.fun.for_hes_sparsity(select_domain, select_range, internal_bool, hessian);
 }
 
+inline void adpack_attach_tape_maps(AdTape &gp, const density_data &model) {
+  gp.n_global = model.num_full;
+  gp.tape_to_global = model.tape_to_global;
+  gp.gamma_row_to_tape.assign(model.num_gamma, model.n_tape);
+  for (std::size_t k = 0; k < model.n_tape; ++k) {
+    const std::size_t g = model.tape_to_global[k];
+    if (g >= model.num_beta && g < model.num_beta + model.num_gamma) {
+      gp.gamma_row_to_tape[g - model.num_beta] = k;
+    }
+  }
+}
+
+inline void adpack_fill_global_patterns(AdTape &gp) {
+  const auto &map = gp.tape_to_global;
+  const std::size_t n_tape = map.size();
+
+  auto to_global = [&](std::size_t local) -> std::size_t {
+    if (local >= n_tape) {
+      Rcpp::stop("adpack_fill_global_patterns: local index out of range");
+    }
+    return map[local];
+  };
+
+  {
+    const std::size_t nnz = gp.pattern_grad.nnz();
+    const auto &cols = gp.pattern_grad.col();
+    gp.grad_cols_global.resize(nnz);
+    for (std::size_t d = 0; d < nnz; ++d) {
+      gp.grad_cols_global[d] = to_global(cols[d]);
+    }
+  }
+  {
+    const std::size_t nnz = gp.pattern_grad_inner.nnz();
+    const auto &cols = gp.pattern_grad_inner.col();
+    gp.grad_inner_cols_global.resize(nnz);
+    for (std::size_t d = 0; d < nnz; ++d) {
+      gp.grad_inner_cols_global[d] = to_global(cols[d]);
+    }
+  }
+  {
+    const std::size_t nnz = gp.pattern_hessian.nnz();
+    const auto &rows = gp.pattern_hessian.row();
+    const auto &cols = gp.pattern_hessian.col();
+    gp.hes_rows_global.resize(nnz);
+    gp.hes_cols_global.resize(nnz);
+    for (std::size_t d = 0; d < nnz; ++d) {
+      gp.hes_rows_global[d] = to_global(rows[d]);
+      gp.hes_cols_global[d] = to_global(cols[d]);
+    }
+  }
+  {
+    const std::size_t nnz = gp.pattern_hessian_inner.nnz();
+    const auto &rows = gp.pattern_hessian_inner.row();
+    const auto &cols = gp.pattern_hessian_inner.col();
+    gp.hes_inner_rows_global.resize(nnz);
+    gp.hes_inner_cols_global.resize(nnz);
+    for (std::size_t d = 0; d < nnz; ++d) {
+      gp.hes_inner_rows_global[d] = to_global(rows[d]);
+      gp.hes_inner_cols_global[d] = to_global(cols[d]);
+    }
+  }
+}
+
 inline void adpack_sparsity(const CPPAD_TESTVECTOR(double) & x,
                             const std::vector<int> &subset, AdTape &gp,
                             const bool verbose = false,
@@ -112,7 +177,9 @@ inline void adpack_sparsity(const CPPAD_TESTVECTOR(double) & x,
 
   std::vector<unsigned char> insubset(n_params, 0);
   for (std::size_t v : subset) {
-    insubset[v] = 1;
+    if (v < n_params) {
+      insubset[v] = 1;
+    }
   }
 
   {
@@ -199,6 +266,8 @@ inline void adpack_sparsity(const CPPAD_TESTVECTOR(double) & x,
           hessian_inner_upper);
   gp.fun.sparse_hes(x, gp.w, gp.pattern_hessian_inner, hessian_inner,
                     HESS_COLOR, gp.work_inner_hess);
+
+  adpack_fill_global_patterns(gp);
 }
 
 inline size_t count_obs_shards(const density_data &model, const Rcpp::List &config) {
@@ -214,34 +283,37 @@ inline size_t count_obs_shards(const density_data &model, const Rcpp::List &conf
   return ng > 0 ? ng : 1;
 }
 
-inline std::vector<AdTape> build_ad_fun_obs(const density_data &model,
+inline std::vector<AdTape> build_ad_fun_obs(const density_data &model_in,
                                                const Rcpp::List &config,
                                                LogDensObsFn log_dens) {
 
   const Config cfg(config);
-  validate_config_matches_model(cfg, model);
-  const size_t ng = count_obs_shards(model, config);
+  validate_config_matches_model(cfg, model_in);
+  const size_t ng = count_obs_shards(model_in, config);
 
   if (cfg.verbose) {
     Rcpp::Rcout << "build_ad_fun_obs groups " << ng << "\n";
   }
 
   std::vector<AdTape> result(ng);
-  const CPPAD_TESTVECTOR(double) ad_params_G = make_ad_params_seed(cfg, model);
+  density_data model = model_in;
 
   for (size_t d = 0; d < ng; ++d) {
     if (cfg.verbose) {
       Rcpp::Rcout << "  taping observation group " << (d + 1) << " / " << ng
                   << "\n";
     }
-    CppAD::vector<CppAD::AD<double>> ad_params(model.num_full);
-    for (size_t j = 0; j < model.num_full; ++j) {
+    model.apply_tape_domain(cfg, "obs", d);
+    const CPPAD_TESTVECTOR(double) ad_params_G = make_ad_params_seed(cfg, model);
+    CppAD::vector<CppAD::AD<double>> ad_params(model.n_tape);
+    for (size_t j = 0; j < model.n_tape; ++j) {
       ad_params[j] = ad_params_G[j];
     }
     CppAD::Independent(ad_params);
     auto result_here = log_dens(ad_params, model, cfg, d);
     CppAD::ADFun<double> fun(ad_params, result_here);
     result[d].fun = std::move(fun);
+    adpack_attach_tape_maps(result[d], model);
   }
 
   for (size_t d = 0; d < ng; ++d) {
@@ -249,6 +321,8 @@ inline std::vector<AdTape> build_ad_fun_obs(const density_data &model,
       Rcpp::Rcout << "  sparsity observation group " << (d + 1) << " / " << ng
                   << "\n";
     }
+    model.apply_tape_domain(cfg, "obs", d);
+    const CPPAD_TESTVECTOR(double) ad_params_G = make_ad_params_seed(cfg, model);
     adpack_sparsity(ad_params_G, model.seq_gamma, result[d], cfg.verbose);
   }
 
@@ -256,20 +330,23 @@ inline std::vector<AdTape> build_ad_fun_obs(const density_data &model,
 }
 
 inline AdTape build_ad_fun_parameters(
-    const density_data &model, const Rcpp::List &config, LogDensSingleDataFn log_dens,
+    const density_data &model_in, const Rcpp::List &config, LogDensSingleDataFn log_dens,
     const CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> &hessian = empty_sparse_rc()) {
 
   const Config cfg(config);
-  validate_config_matches_model(cfg, model);
+  validate_config_matches_model(cfg, model_in);
 
   if (cfg.verbose) {
     Rcpp::Rcout << "build_ad_fun_parameters: taping...\n";
   }
 
+  density_data model = model_in;
+  model.apply_tape_domain(cfg, "all", 0);
+
   const CPPAD_TESTVECTOR(double) ad_params_G = make_ad_params_seed(cfg, model);
 
-  CppAD::vector<CppAD::AD<double>> ad_params(model.num_full);
-  for (size_t d = 0; d < model.num_full; ++d) {
+  CppAD::vector<CppAD::AD<double>> ad_params(model.n_tape);
+  for (size_t d = 0; d < model.n_tape; ++d) {
     ad_params[d] = ad_params_G[d];
   }
 
@@ -283,6 +360,7 @@ inline AdTape build_ad_fun_parameters(
   AdTape pack;
   pack.fun = std::move(fun);
   pack.owner_thread_assigned = false;
+  adpack_attach_tape_maps(pack, model);
   if (cfg.verbose) {
     Rcpp::Rcout << "build_ad_fun_parameters: computing sparsity...\n";
   }

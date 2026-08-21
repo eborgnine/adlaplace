@@ -13,7 +13,7 @@
 // Bump when AdTape / ad_shard / ad_pack layout or the backend
 // registration contract changes. packs_to_ad_fun stamps this into ad_pack;
 // adlaplace checks it when consuming a backend-built handle.
-#define ADLAPLACE_ABI_VERSION 2
+#define ADLAPLACE_ABI_VERSION 3
 
 // Symbolic LDL pattern from hessian_map()$chol_inner_list (L1, Linv, perm,
 // half_H_inv, H_inv).
@@ -63,7 +63,25 @@ struct AdTape {
   bool owner_thread_assigned = false;
   std::size_t n_beta = 0;
   std::size_t n_theta = 0;
+
+  // Global parameter count (beta+gamma+theta). Tape Domain() may be smaller
+  // when compact_tape is on; gather/scatter uses tape_to_global.
+  std::size_t n_global = 0;
+  std::vector<std::size_t> tape_to_global;
+  // Global gamma row (0..n_gamma-1) -> tape position (n_tape if absent).
+  std::vector<std::size_t> gamma_row_to_tape;
+  // Pattern indices in global parameter coordinates (same nnz order as local).
+  std::vector<std::size_t> grad_cols_global;
+  std::vector<std::size_t> grad_inner_cols_global;
+  std::vector<std::size_t> hes_rows_global;
+  std::vector<std::size_t> hes_cols_global;
+  std::vector<std::size_t> hes_inner_rows_global;
+  std::vector<std::size_t> hes_inner_cols_global;
 };
+
+inline std::size_t ad_tape_n_global(const AdTape& p) {
+  return p.n_global > 0 ? p.n_global : p.x.size();
+}
 
 inline AdTape clone_group_pack(const AdTape& src) {
   AdTape dst;
@@ -85,6 +103,15 @@ inline AdTape clone_group_pack(const AdTape& src) {
   dst.owner_thread_assigned = src.owner_thread_assigned;
   dst.n_beta = src.n_beta;
   dst.n_theta = src.n_theta;
+  dst.n_global = src.n_global;
+  dst.tape_to_global = src.tape_to_global;
+  dst.gamma_row_to_tape = src.gamma_row_to_tape;
+  dst.grad_cols_global = src.grad_cols_global;
+  dst.grad_inner_cols_global = src.grad_inner_cols_global;
+  dst.hes_rows_global = src.hes_rows_global;
+  dst.hes_cols_global = src.hes_cols_global;
+  dst.hes_inner_rows_global = src.hes_inner_rows_global;
+  dst.hes_inner_cols_global = src.hes_inner_cols_global;
   return dst;
 }
 

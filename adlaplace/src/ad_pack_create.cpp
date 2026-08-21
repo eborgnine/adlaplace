@@ -125,6 +125,31 @@ Rcpp::List get_sizes(SEXP handle, int group) {
   );
 }
 
+//' CppAD tape sizes for one AD shard
+//'
+//' @param handle External pointer of class \code{ad_pack_ptr}.
+//' @param group 0-based group index.
+//' @return List with \code{domain}, \code{n_global}, \code{size_op},
+//'   \code{size_var}, and pattern nnz counts.
+//' @keywords internal
+// [[Rcpp::export]]
+Rcpp::List get_tape_sizes(SEXP handle, int group) {
+  ad_pack* groups = ad_fun_from_handle(handle);
+  ad_shard* shard = shard_handle(groups, static_cast<size_t>(group));
+  AdTape& gp = shard->pack;
+  return Rcpp::List::create(
+    Rcpp::Named("domain") = static_cast<int>(gp.fun.Domain()),
+    Rcpp::Named("n_global") = static_cast<int>(
+      gp.n_global > 0 ? gp.n_global : gp.fun.Domain()),
+    Rcpp::Named("size_op") = static_cast<int>(gp.fun.size_op()),
+    Rcpp::Named("size_var") = static_cast<int>(gp.fun.size_var()),
+    Rcpp::Named("nnz_grad") = static_cast<int>(gp.pattern_grad.nnz()),
+    Rcpp::Named("nnz_grad_inner") = static_cast<int>(gp.pattern_grad_inner.nnz()),
+    Rcpp::Named("nnz_hes") = static_cast<int>(gp.pattern_hessian.nnz()),
+    Rcpp::Named("nnz_hes_inner") = static_cast<int>(gp.pattern_hessian_inner.nnz())
+  );
+}
+
 //' Sparse index patterns for one AD shard
 //'
 //' @param handle External pointer of class \code{ad_pack_ptr}.

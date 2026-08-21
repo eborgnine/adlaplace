@@ -124,9 +124,9 @@ void fem_kappa_tau2(const CppAD::vector<CppAD::AD<double>> &x,
                     CppAD::AD<double> &k2, CppAD::AD<double> &k4,
                     CppAD::AD<double> &k6, CppAD::AD<double> &tau2) {
   const std::size_t t0_global = model.theta_index(0);
-  const std::size_t t0_row = t0_global - model.num_beta - model.num_gamma;
+  const std::size_t t0_row = model.theta_row(0);
   const std::size_t t1_global = model.theta_index(1);
-  const std::size_t t1_row = t1_global - model.num_beta - model.num_gamma;
+  const std::size_t t1_row = model.theta_row(1);
   CppAD::AD<double> log_range = x[t0_global];
   CppAD::AD<double> log_sd = x[t1_global];
   if (!transform_theta_at(config, t0_row)) {
@@ -273,7 +273,7 @@ random_fem_ssq_sparsity(const density_data &model) {
   pairs.insert({idx_sd, idx_range});
 
   CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> hessian;
-  set_sparse_rc_pairs(hessian, model.num_full, pairs);
+  set_sparse_rc_pairs(hessian, model.n_tape, pairs);
   return hessian;
 }
 
@@ -289,7 +289,7 @@ random_fem_det_sparsity(const density_data &model) {
   pairs.insert({idx_sd, idx_range});
 
   CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> hessian;
-  set_sparse_rc_pairs(hessian, model.num_full, pairs);
+  set_sparse_rc_pairs(hessian, model.n_tape, pairs);
   return hessian;
 }
 
@@ -297,8 +297,8 @@ template <int Alpha>
 SEXP create_ad_shard_random_fem_ssq(SEXP model, Rcpp::List config) {
   const density_data ad_model(model);
   std::vector<AdTape> packs;
-  packs.push_back(build_ad_fun_random(ad_model, config, random_fem_ssq<Alpha>,
-                                      random_fem_ssq_sparsity(ad_model)));
+  packs.push_back(build_ad_fun_random_with_pattern(
+      ad_model, config, random_fem_ssq<Alpha>, random_fem_ssq_sparsity));
   return make_ad_pack_ptr(packs_to_ad_fun(std::move(packs), ad_model.num_beta,
                                          ad_model.num_theta,
                                          adlaplace_fem_make_shard));
@@ -350,7 +350,9 @@ SEXP create_ad_shard_random_fem_ssq_3(SEXP model, Rcpp::List config) {
 //' @noRd
 // [[Rcpp::export]]
 SEXP get_ad_pack_raw_parameters(SEXP model, Rcpp::List config, std::string name) {
-  const density_data ad_model(model);
+  density_data ad_model(model);
+  const Config cfg(config);
+  ad_model.apply_tape_domain(cfg, "all", 0);
   AdTape pack = build_ad_fun_parameters(
       ad_model, config, resolve_fem_det(name),
       random_fem_det_sparsity(ad_model));

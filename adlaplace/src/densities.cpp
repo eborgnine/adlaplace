@@ -41,7 +41,7 @@ CppAD::AD<double> log_theta_ad(
   const Config& config) {
 
   const std::size_t t_global = model.theta_index(0);
-  const std::size_t t_row = t_global - model.num_beta - model.num_gamma;
+  const std::size_t t_row = model.theta_row(0);
   const CppAD::AD<double> thetaIn = x[t_global];
   return transform_theta_at(config, t_row) ? thetaIn : CppAD::log(thetaIn);
 }
@@ -292,7 +292,7 @@ CppAD::AD<double> tau_sq_from_x(
   const Config& config) {
 
   const std::size_t t_global = model.theta_index(0);
-  const std::size_t t_row = t_global - model.num_beta - model.num_gamma;
+  const std::size_t t_row = model.theta_row(0);
   const CppAD::AD<double> tau_in = x[t_global];
   const CppAD::AD<double> tau =
     transform_theta_at(config, t_row) ? CppAD::exp(tau_in) : tau_in;

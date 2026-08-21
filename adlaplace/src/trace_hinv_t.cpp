@@ -155,7 +155,7 @@ Rcpp::NumericVector profile_shard_trace3_times(
     LinvPtColumns_i.begin(), LinvPtColumns_i.end()
   );
 
-  const std::size_t Nparams = backend->fun[0]->pack.x.size();
+  const std::size_t Nparams = ad_tape_n_global(backend->fun[0]->pack);
   if (x_vec.size() != Nparams) {
     Rcpp::stop(
       "x has length %d but expected Nparams=%d",

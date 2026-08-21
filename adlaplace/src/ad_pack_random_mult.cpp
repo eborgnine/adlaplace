@@ -30,7 +30,7 @@ random_diagonal_impl(const CppAD::vector<CppAD::AD<double>> &x,
   }
 
   const std::size_t t_global = model.theta_index(0);
-  const std::size_t t_row = t_global - model.num_beta - model.num_gamma;
+  const std::size_t t_row = model.theta_row(0);
   CppAD::AD<double> logSd;
   if (transform_theta_at(config, t_row)) {
     logSd = x[t_global];
@@ -73,7 +73,7 @@ random_diagonal_sparsity(const density_data &model) {
       model.all_gamma_global_indices();
   const std::size_t theta_index = model.theta_index(0);
   const std::size_t n_gamma = gamma_indices.size();
-  const std::size_t n_params = model.num_full;
+  const std::size_t n_params = model.n_tape;
 
   CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> hessian;
   hessian.resize(n_params, n_params, 3 * n_gamma + 1);
@@ -93,7 +93,7 @@ random_mult_sparsity(const density_data &model) {
 
   const DgCView Q = model.mult_precision_Q();
   const std::size_t theta_index = model.theta_index(0);
-  const std::size_t n_params = model.num_full;
+  const std::size_t n_params = model.n_tape;
   const int n_term = model.gamma_map.ncol();
 
   std::set<std::pair<std::size_t, std::size_t>> pairs;
@@ -167,7 +167,7 @@ random_mult(const CppAD::vector<CppAD::AD<double>> &x, const density_data &model
   const double log_det = model.mult_precision_log_det();
 
   const std::size_t t_global = model.theta_index(0);
-  const std::size_t t_row = t_global - model.num_beta - model.num_gamma;
+  const std::size_t t_row = model.theta_row(0);
   CppAD::AD<double> logSd;
   if (transform_theta_at(config, t_row)) {
     logSd = x[t_global];
@@ -218,10 +218,8 @@ random_mult(const CppAD::vector<CppAD::AD<double>> &x, const density_data &model
 // [[Rcpp::export]]
 SEXP create_ad_shard_random_diagonal(SEXP model, Rcpp::List config) {
   const density_data ad_model(model);
-  CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> hes_pat =
-      random_diagonal_sparsity(ad_model);
-  AdTape pack =
-      build_ad_fun_random(ad_model, config, random_diagonal, hes_pat);
+  AdTape pack = build_ad_fun_random_with_pattern(
+      ad_model, config, random_diagonal, random_diagonal_sparsity);
   std::vector<AdTape> packs;
   packs.push_back(std::move(pack));
   ad_pack *groups = packs_to_ad_fun(std::move(packs), ad_model.num_beta,
@@ -238,10 +236,8 @@ SEXP create_ad_shard_random_diagonal(SEXP model, Rcpp::List config) {
 // [[Rcpp::export]]
 SEXP create_ad_shard_random_mult(SEXP model, Rcpp::List config) {
   const density_data ad_model(model);
-  CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> hes_pat =
-      random_mult_sparsity(ad_model);
-  AdTape pack =
-      build_ad_fun_random(ad_model, config, random_mult, hes_pat);
+  AdTape pack = build_ad_fun_random_with_pattern(
+      ad_model, config, random_mult, random_mult_sparsity);
   std::vector<AdTape> packs;
   packs.push_back(std::move(pack));
   ad_pack *groups = packs_to_ad_fun(std::move(packs), ad_model.num_beta,

@@ -23,8 +23,13 @@ int pack_sparsity_sizes(
   int* nnz_hes_inner,
   int* nnz_hes_outer) {
 
-  *n_inner = static_cast<int>(ad_pack.pattern_grad_inner.nc());
-  *n_outer = static_cast<int>(ad_pack.pattern_grad.nc());
+  // Report global parameter dimension so R-side hessian_map sizing stays
+  // correct when the tape Domain() is compacted.
+  const int n_global = ad_pack.n_global > 0
+    ? static_cast<int>(ad_pack.n_global)
+    : static_cast<int>(ad_pack.pattern_grad.nc());
+  *n_inner = n_global;
+  *n_outer = n_global;
   *n_beta = static_cast<int>(ad_pack.n_beta);
   *n_theta = static_cast<int>(ad_pack.n_theta);
 
@@ -46,29 +51,59 @@ int get_pattern(
   int* pattern_hes_outer_col) {
 
   const size_t nnz_grad_inner = ad_pack.pattern_grad_inner.nnz();
-  const auto& cols_grad_inner = ad_pack.pattern_grad_inner.col();
-  for (size_t D = 0; D < nnz_grad_inner; ++D) {
-    pattern_grad_inner[D] = static_cast<int>(cols_grad_inner[D]);
+  if (ad_pack.grad_inner_cols_global.size() == nnz_grad_inner) {
+    for (size_t D = 0; D < nnz_grad_inner; ++D) {
+      pattern_grad_inner[D] = static_cast<int>(ad_pack.grad_inner_cols_global[D]);
+    }
+  } else {
+    const auto& cols_grad_inner = ad_pack.pattern_grad_inner.col();
+    for (size_t D = 0; D < nnz_grad_inner; ++D) {
+      pattern_grad_inner[D] = static_cast<int>(cols_grad_inner[D]);
+    }
   }
+
   const size_t nnz_grad_outer = ad_pack.pattern_grad.nnz();
-  const auto& cols_grad_outer = ad_pack.pattern_grad.col();
-  for (size_t D = 0; D < nnz_grad_outer; ++D) {
-    pattern_grad_outer[D] = static_cast<int>(cols_grad_outer[D]);
+  if (ad_pack.grad_cols_global.size() == nnz_grad_outer) {
+    for (size_t D = 0; D < nnz_grad_outer; ++D) {
+      pattern_grad_outer[D] = static_cast<int>(ad_pack.grad_cols_global[D]);
+    }
+  } else {
+    const auto& cols_grad_outer = ad_pack.pattern_grad.col();
+    for (size_t D = 0; D < nnz_grad_outer; ++D) {
+      pattern_grad_outer[D] = static_cast<int>(cols_grad_outer[D]);
+    }
   }
 
   const size_t nnz_inner = ad_pack.pattern_hessian_inner.nnz();
-  const auto& rows_hes_inner = ad_pack.pattern_hessian_inner.row();
-  const auto& cols_hes_inner = ad_pack.pattern_hessian_inner.col();
-  for (size_t D = 0; D < nnz_inner; ++D) {
-    pattern_hes_inner_row[D] = static_cast<int>(rows_hes_inner[D]);
-    pattern_hes_inner_col[D] = static_cast<int>(cols_hes_inner[D]);
+  if (ad_pack.hes_inner_rows_global.size() == nnz_inner &&
+      ad_pack.hes_inner_cols_global.size() == nnz_inner) {
+    for (size_t D = 0; D < nnz_inner; ++D) {
+      pattern_hes_inner_row[D] = static_cast<int>(ad_pack.hes_inner_rows_global[D]);
+      pattern_hes_inner_col[D] = static_cast<int>(ad_pack.hes_inner_cols_global[D]);
+    }
+  } else {
+    const auto& rows_hes_inner = ad_pack.pattern_hessian_inner.row();
+    const auto& cols_hes_inner = ad_pack.pattern_hessian_inner.col();
+    for (size_t D = 0; D < nnz_inner; ++D) {
+      pattern_hes_inner_row[D] = static_cast<int>(rows_hes_inner[D]);
+      pattern_hes_inner_col[D] = static_cast<int>(cols_hes_inner[D]);
+    }
   }
+
   const size_t nnz_outer = ad_pack.pattern_hessian.nnz();
-  const auto& rows_hes_outer = ad_pack.pattern_hessian.row();
-  const auto& cols_hes_outer = ad_pack.pattern_hessian.col();
-  for (size_t D = 0; D < nnz_outer; ++D) {
-    pattern_hes_outer_row[D] = static_cast<int>(rows_hes_outer[D]);
-    pattern_hes_outer_col[D] = static_cast<int>(cols_hes_outer[D]);
+  if (ad_pack.hes_rows_global.size() == nnz_outer &&
+      ad_pack.hes_cols_global.size() == nnz_outer) {
+    for (size_t D = 0; D < nnz_outer; ++D) {
+      pattern_hes_outer_row[D] = static_cast<int>(ad_pack.hes_rows_global[D]);
+      pattern_hes_outer_col[D] = static_cast<int>(ad_pack.hes_cols_global[D]);
+    }
+  } else {
+    const auto& rows_hes_outer = ad_pack.pattern_hessian.row();
+    const auto& cols_hes_outer = ad_pack.pattern_hessian.col();
+    for (size_t D = 0; D < nnz_outer; ++D) {
+      pattern_hes_outer_row[D] = static_cast<int>(rows_hes_outer[D]);
+      pattern_hes_outer_col[D] = static_cast<int>(cols_hes_outer[D]);
+    }
   }
 
   return 0;
@@ -124,8 +159,14 @@ public:
     if (Ndomain != Nparams) return 4;
     if (Nrange < 1) return 5;
 
-    for (size_t D = 0; D < Nparams; ++D) {
-      gp.x[D] = x[D];
+    if (gp.tape_to_global.size() == Nparams) {
+      for (size_t D = 0; D < Nparams; ++D) {
+        gp.x[D] = x[gp.tape_to_global[D]];
+      }
+    } else {
+      for (size_t D = 0; D < Nparams; ++D) {
+        gp.x[D] = x[D];
+      }
     }
     CppAD::vector<double> y = gp.fun.Forward(0, gp.x);
     if (y.size() < 1) return 6;
@@ -136,12 +177,19 @@ public:
   int f_grad(const double* x, bool inner, double* out_f, double* out_grad) override {
     AdTape& gp = pack;
     const size_t Nparams = gp.x.size();
-    for (size_t D = 0; D < Nparams; ++D) {
-      gp.x[D] = x[D];
+    if (gp.tape_to_global.size() == Nparams) {
+      for (size_t D = 0; D < Nparams; ++D) {
+        gp.x[D] = x[gp.tape_to_global[D]];
+      }
+    } else {
+      for (size_t D = 0; D < Nparams; ++D) {
+        gp.x[D] = x[D];
+      }
     }
 
     auto& pattern_here = inner ? gp.pattern_grad_inner : gp.pattern_grad;
     auto& work_here = inner ? gp.work_inner_grad : gp.work_grad;
+    const auto& cols_global = inner ? gp.grad_inner_cols_global : gp.grad_cols_global;
 
     *out_f += gp.fun.Forward(0, gp.x)[0];
     gp.fun.sparse_jac_rev(
@@ -154,8 +202,14 @@ public:
     const size_t NoutGrad = pattern_here.nnz();
     const auto& cols = pattern_here.col();
     const auto& vals = pattern_here.val();
-    for (size_t D = 0; D < NoutGrad; ++D) {
-      out_grad[cols[D]] += vals[D];
+    if (cols_global.size() == NoutGrad) {
+      for (size_t D = 0; D < NoutGrad; ++D) {
+        out_grad[cols_global[D]] += vals[D];
+      }
+    } else {
+      for (size_t D = 0; D < NoutGrad; ++D) {
+        out_grad[cols[D]] += vals[D];
+      }
     }
 
     return 0;
@@ -171,8 +225,14 @@ public:
 
     AdTape& gp = pack;
     const size_t Nparams = gp.x.size();
-    for (size_t D = 0; D < Nparams; ++D) {
-      gp.x[D] = x[D];
+    if (gp.tape_to_global.size() == Nparams) {
+      for (size_t D = 0; D < Nparams; ++D) {
+        gp.x[D] = x[gp.tape_to_global[D]];
+      }
+    } else {
+      for (size_t D = 0; D < Nparams; ++D) {
+        gp.x[D] = x[D];
+      }
     }
 
     *out_f += gp.fun.Forward(0, gp.x)[0];
@@ -181,6 +241,7 @@ public:
     auto& work_here_grad = inner ? gp.work_inner_grad : gp.work_grad;
     auto& pattern_here_hes = inner ? gp.pattern_hessian_inner : gp.pattern_hessian;
     auto& work_here_hes = inner ? gp.work_inner_hess : gp.work_hess;
+    const auto& cols_global = inner ? gp.grad_inner_cols_global : gp.grad_cols_global;
 
     gp.fun.sparse_jac_rev(
       gp.x,
@@ -201,8 +262,14 @@ public:
     const auto& cols = pattern_here_grad.col();
     const auto& vals = pattern_here_grad.val();
 
-    for (size_t D = 0; D < NoutGrad; ++D) {
-      out_grad[cols[D]] += vals[D];
+    if (cols_global.size() == NoutGrad) {
+      for (size_t D = 0; D < NoutGrad; ++D) {
+        out_grad[cols_global[D]] += vals[D];
+      }
+    } else {
+      for (size_t D = 0; D < NoutGrad; ++D) {
+        out_grad[cols[D]] += vals[D];
+      }
     }
 
     const size_t n_hes = pattern_here_hes.nnz();
@@ -301,6 +368,8 @@ public:
 
     const std::size_t n_params = gp.fun.Domain();
     if (n_params == 0) return 2;
+    const bool compacted =
+      gp.n_global > n_params && gp.tape_to_global.size() == n_params;
 
 #ifdef DEBUG
     if (gp.trace.direction.size() != n_params ||
@@ -314,7 +383,13 @@ public:
     if (gp.x.size() != n_params) {
       rc = 2;
     } else {
-      std::copy_n(x, n_params, gp.x.begin());
+      if (compacted) {
+        for (std::size_t d = 0; d < n_params; ++d) {
+          gp.x[d] = x[gp.tape_to_global[d]];
+        }
+      } else {
+        std::copy_n(x, n_params, gp.x.begin());
+      }
 
       const int col_start = LinvPtColumns.p[ist];
       const int col_end = LinvPtColumns.p[ist + 1];
@@ -353,15 +428,28 @@ public:
 
           for (int k = entry_start; k < entry_end; ++k) {
             const int row = LinvPt.i[k];
-            if (row < 0 || static_cast<std::size_t>(row) >= gp.pattern_grad_inner.nc()) {
-              rc = 14;
-              break;
-            }
-
-            const std::size_t idx = gp.n_beta + static_cast<std::size_t>(row);
-            if (idx >= gp.trace.direction.size()) {
-              rc = 15;
-              break;
+            std::size_t idx;
+            if (compacted) {
+              if (row < 0 ||
+                  static_cast<std::size_t>(row) >= gp.gamma_row_to_tape.size()) {
+                rc = 14;
+                break;
+              }
+              idx = gp.gamma_row_to_tape[static_cast<std::size_t>(row)];
+              if (idx >= gp.trace.direction.size()) {
+                continue;
+              }
+            } else {
+              if (row < 0 ||
+                  static_cast<std::size_t>(row) >= gp.pattern_grad_inner.nc()) {
+                rc = 14;
+                break;
+              }
+              idx = gp.n_beta + static_cast<std::size_t>(row);
+              if (idx >= gp.trace.direction.size()) {
+                rc = 15;
+                break;
+              }
             }
             gp.trace.direction[idx] = LinvPt.x[k];
           }
@@ -379,7 +467,11 @@ public:
           }
 
           for (std::size_t d = 0; d < n_params; ++d) {
-            out_trace[d] += dw[3 * d];
+            if (compacted) {
+              out_trace[gp.tape_to_global[d]] += dw[3 * d];
+            } else {
+              out_trace[d] += dw[3 * d];
+            }
           }
         }
       }

@@ -50,7 +50,7 @@ struct TrustControl {
 //  int    quasi_newton_method;  // 1 = SR1, 2 = BFGS
   int    trust_iter;
   // Half-width for optional large-gradient restart clamp of gamma into [-x, x].
-  // Non-finite (e.g. Inf) disables the restart.
+  // Non-finite (e.g. Inf, the default) disables the restart.
   double restart_gamma_clamp;
 
   // Construct from an Rcpp::List with defaults
@@ -58,23 +58,23 @@ struct TrustControl {
   : rad(                  get_double_ctrl(control, "step.size",              1.0))
   , min_rad(              get_double_ctrl(control, "min.step.size",          1e-8))
   , tol(                  get_double_ctrl(control, "cg.tol",                 1e-4))
-  , prec(                 get_double_ctrl(control, "grad.tol",               1e-6))
+  , prec(                 get_double_ctrl(control, "grad.tol",               1e-3))
   , report_freq(          get_int_ctrl   (control, "report.freq",            0))
   , report_level(         get_int_ctrl   (control, "report.level",           0))
   , header_freq(          get_int_ctrl   (control, "header.freq",            10))
   , report_precision(     get_int_ctrl   (control, "report.precision",       6))
   , maxit(                get_int_ctrl   (control, "maxit",                  100))
   , contract_factor(      get_double_ctrl(control, "contract.factor",        0.5))
-  , expand_factor(        get_double_ctrl(control, "expand.factor",          2.0))
+  , expand_factor(        get_double_ctrl(control, "expand.factor",          3.0))
   , contract_threshold(   get_double_ctrl(control, "contract.threshold",     0.25))
   , expand_threshold_rad( get_double_ctrl(control, "expand.threshold.rad",   0.8))
   , expand_threshold_ap(  get_double_ctrl(control, "expand.threshold.ap",    0.75))
   , function_scale_factor(get_double_ctrl(control, "function.scale.factor",  1.0))
-  , precond_refresh_freq( get_int_ctrl   (control, "precond.refresh",        5))
-  , precond_ID(           get_int_ctrl   (control, "precond.ID",             0))
+  , precond_refresh_freq( get_int_ctrl   (control, "precond.refresh",        1))
+  , precond_ID(           get_int_ctrl   (control, "precond.ID",             1))
 //    , quasi_newton_method(  get_int_ctrl   (control, "quasi.newton.method",    1))  // 1 = SR1
-  , trust_iter(           get_int_ctrl   (control, "trust.iter",             50))
-  , restart_gamma_clamp(  get_double_ctrl(control, "restart.gamma.clamp",    0.1))
+  , trust_iter(           get_int_ctrl   (control, "trust.iter",             4000))
+  , restart_gamma_clamp(  get_double_ctrl(control, "restart.gamma.clamp",    R_PosInf))
   {}
 };
 
@@ -428,7 +428,7 @@ private:
     const size_t Ngamma = static_cast<size_t>(ag.sizes.named("gamma"));
     const size_t n_shards = ag.fun.size();
     ad_shard *shard0 = ag.fun[0];
-    const size_t Nparams = shard0->pack.x.size();
+    const size_t Nparams = ad_tape_n_global(shard0->pack);
 
     const size_t nvars_opt = innerIn ? Ngamma : Nparams;
     const size_t var_offset = innerIn ? Nbeta : 0;

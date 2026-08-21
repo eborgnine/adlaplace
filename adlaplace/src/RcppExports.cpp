@@ -82,6 +82,18 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// get_tape_sizes
+Rcpp::List get_tape_sizes(SEXP handle, int group);
+RcppExport SEXP _adlaplace_get_tape_sizes(SEXP handleSEXP, SEXP groupSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< SEXP >::type handle(handleSEXP);
+    Rcpp::traits::input_parameter< int >::type group(groupSEXP);
+    rcpp_result_gen = Rcpp::wrap(get_tape_sizes(handle, group));
+    return rcpp_result_gen;
+END_RCPP
+}
 // get_sparse_pattern
 Rcpp::List get_sparse_pattern(SEXP handle, int group);
 RcppExport SEXP _adlaplace_get_sparse_pattern(SEXP handleSEXP, SEXP groupSEXP) {
@@ -308,6 +320,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_adlaplace_adlaplace_attach_hessian", (DL_FUNC) &_adlaplace_adlaplace_attach_hessian, 2},
     {"_adlaplace_n_groups", (DL_FUNC) &_adlaplace_n_groups, 1},
     {"_adlaplace_get_sizes", (DL_FUNC) &_adlaplace_get_sizes, 2},
+    {"_adlaplace_get_tape_sizes", (DL_FUNC) &_adlaplace_get_tape_sizes, 2},
     {"_adlaplace_get_sparse_pattern", (DL_FUNC) &_adlaplace_get_sparse_pattern, 2},
     {"_adlaplace_get_thread_owner", (DL_FUNC) &_adlaplace_get_thread_owner, 2},
     {"_adlaplace_get_configured_num_threads", (DL_FUNC) &_adlaplace_get_configured_num_threads, 1},

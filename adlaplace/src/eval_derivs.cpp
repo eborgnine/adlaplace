@@ -26,7 +26,7 @@ double joint_log_dens(
   ::ad_pack* backend = resolve_ad_pack_eval(ad_pack);
   adlaplace_require_serial_dens_handle(*backend);
   const size_t n_shards = backend->fun.size();
-  const size_t Nparams = backend->fun[0]->pack.x.size();
+  const size_t Nparams = ad_tape_n_global(backend->fun[0]->pack);
   if (static_cast<size_t>(x.size()) != Nparams) {
     Rcpp::stop("x has length %d but expected Nparams=%d", x.size(), (int)Nparams);
   }

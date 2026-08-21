@@ -4,8 +4,10 @@
 #include "adlaplace/rviews.hpp"
 
 #include <Rinternals.h>
-#include <vector>
+#include <algorithm>
+#include <cstring>
 #include <cstddef>
+#include <vector>
 
 struct density_data {
   DgCView beta_map;
@@ -25,22 +27,40 @@ struct density_data {
   std::size_t num_theta = 0;
   std::size_t num_full = 0;
 
-  // Global x indices: local design column j -> x[beta_global[j]], etc.
+  // Canonical map lookups: design column -> GLOBAL x index (fixed at construct).
+  std::vector<std::size_t> beta_map_global;
+  std::vector<std::size_t> gamma_map_global;
+  std::vector<std::size_t> theta_map_global;
+
+  // Active for indexing the tape Independent vector (tape positions after
+  // apply_tape_domain). Kernels (eta_at, densities) use these.
   std::vector<std::size_t> beta_global;
   std::vector<std::size_t> gamma_global;
   std::vector<std::size_t> theta_global;
 
-  // Global parameter indices for gamma (beta + 0..num_gamma-1).
+  std::size_t n_tape = 0;
+  std::vector<std::size_t> tape_to_global;
+
+  // Tape positions of gamma parameters present on the tape (inner subset).
   std::vector<int> seq_gamma;
 
   explicit density_data(SEXP data_sexp);
 
   std::size_t theta_index(int col = 0) const;
+  std::size_t theta_row(int col = 0) const;
   std::vector<std::size_t> gamma_global_indices(int col = 0) const;
   std::vector<std::size_t> all_gamma_global_indices() const;
   DgCView mult_precision_Q() const;
   double mult_precision_rank() const;
   double mult_precision_log_det() const;
+
+  // Set tape domain: identity (full) or compact betas/gammas (+ all thetas).
+  // mode: "obs" uses obs_groups column Dgroup; "all" uses all design columns /
+  // map columns (parameters / random shards).
+  void apply_tape_domain(
+    const Config& cfg,
+    const char* mode,
+    std::size_t Dgroup = 0);
 };
 
 inline SEXP ad_data_slot(SEXP obj, const char* name) {
@@ -96,6 +116,75 @@ inline std::vector<std::size_t> build_map_global_lookup(
   return out;
 }
 
+inline void mark_obs_active(
+  std::vector<unsigned char>& active,
+  const density_data& model,
+  const Config& cfg,
+  std::size_t Dgroup) {
+
+  const std::size_t ny = model.y.size();
+  const bool have_shards = cfg.obs_groups.ncol() > 0;
+  std::size_t startP = 0;
+  std::size_t endP = 0;
+  if (have_shards) {
+    if (Dgroup + 1 >= cfg.obs_groups.p.size()) {
+      Rcpp::stop("obs_groups column %d out of range", static_cast<int>(Dgroup));
+    }
+    startP = static_cast<std::size_t>(cfg.obs_groups.p[Dgroup]);
+    endP = static_cast<std::size_t>(cfg.obs_groups.p[Dgroup + 1]);
+  } else if (Dgroup == 0) {
+    endP = ny;
+  }
+
+  for (std::size_t DI = startP; DI < endP; ++DI) {
+    const std::size_t Dobs = have_shards
+      ? static_cast<std::size_t>(cfg.obs_groups.i[DI])
+      : DI;
+    if (model.XTp.p.size() > Dobs + 1) {
+      const std::size_t p0 = static_cast<std::size_t>(model.XTp.p[Dobs]);
+      const std::size_t p1 = static_cast<std::size_t>(model.XTp.p[Dobs + 1]);
+      for (std::size_t k = p0; k < p1; ++k) {
+        const std::size_t local_col = static_cast<std::size_t>(model.XTp.i[k]);
+        if (local_col < model.beta_map_global.size()) {
+          const std::size_t g = model.beta_map_global[local_col];
+          if (g < model.num_full) {
+            active[g] = 1;
+          }
+        }
+      }
+    }
+    if (model.ATp.p.size() > Dobs + 1) {
+      const std::size_t p0 = static_cast<std::size_t>(model.ATp.p[Dobs]);
+      const std::size_t p1 = static_cast<std::size_t>(model.ATp.p[Dobs + 1]);
+      for (std::size_t k = p0; k < p1; ++k) {
+        const std::size_t local_col = static_cast<std::size_t>(model.ATp.i[k]);
+        if (local_col < model.gamma_map_global.size()) {
+          const std::size_t g = model.gamma_map_global[local_col];
+          if (g < model.num_full) {
+            active[g] = 1;
+          }
+        }
+      }
+    }
+  }
+}
+
+inline void mark_all_map_active(
+  std::vector<unsigned char>& active,
+  const density_data& model) {
+
+  for (std::size_t g : model.beta_map_global) {
+    if (g < model.num_full) {
+      active[g] = 1;
+    }
+  }
+  for (std::size_t g : model.gamma_map_global) {
+    if (g < model.num_full) {
+      active[g] = 1;
+    }
+  }
+}
+
 }  // namespace adlaplace_detail
 
 inline density_data::density_data(SEXP data_sexp) {
@@ -138,21 +227,21 @@ inline density_data::density_data(SEXP data_sexp) {
     );
   }
 
-  beta_global = adlaplace_detail::build_map_global_lookup(
+  beta_map_global = adlaplace_detail::build_map_global_lookup(
     beta_map,
     0,
     num_full,
     "beta_map",
     have_beta_design
   );
-  gamma_global = adlaplace_detail::build_map_global_lookup(
+  gamma_map_global = adlaplace_detail::build_map_global_lookup(
     gamma_map,
     num_beta,
     num_full,
     "gamma_map",
     have_gamma_design
   );
-  theta_global = adlaplace_detail::build_map_global_lookup(
+  theta_map_global = adlaplace_detail::build_map_global_lookup(
     theta_map,
     num_beta + num_gamma,
     theta_sentinel,
@@ -160,17 +249,109 @@ inline density_data::density_data(SEXP data_sexp) {
     false
   );
 
+  // Default identity tape domain until apply_tape_domain is called.
+  n_tape = num_full;
+  tape_to_global.resize(num_full);
+  for (std::size_t g = 0; g < num_full; ++g) {
+    tape_to_global[g] = g;
+  }
+  beta_global = beta_map_global;
+  gamma_global = gamma_map_global;
+  theta_global.resize(theta_map_global.size());
+  for (std::size_t j = 0; j < theta_map_global.size(); ++j) {
+    const std::size_t g = theta_map_global[j];
+    theta_global[j] =
+      (g < num_beta + num_gamma || g >= num_full) ? n_tape : g;
+  }
   seq_gamma.resize(num_gamma);
   for (std::size_t d = 0; d < num_gamma; ++d) {
     seq_gamma[d] = static_cast<int>(num_beta + d);
   }
 }
 
+inline void density_data::apply_tape_domain(
+  const Config& cfg,
+  const char* mode,
+  std::size_t Dgroup) {
+
+  std::vector<unsigned char> active(num_full, 0);
+
+  // Always keep every theta on the tape.
+  for (std::size_t t = 0; t < num_theta; ++t) {
+    active[num_beta + num_gamma + t] = 1;
+  }
+
+  if (!cfg.compact_tape) {
+    std::fill(active.begin(), active.end(), 1);
+  } else if (std::strcmp(mode, "obs") == 0 && y.size() > 0) {
+    adlaplace_detail::mark_obs_active(active, *this, cfg, Dgroup);
+  } else {
+    // parameters/random shards, or obs shards without a plain y vector
+    // (e.g. ELGM strata): keep every mapped beta/gamma.
+    adlaplace_detail::mark_all_map_active(active, *this);
+  }
+
+  tape_to_global.clear();
+  tape_to_global.reserve(num_full);
+  for (std::size_t g = 0; g < num_full; ++g) {
+    if (active[g]) {
+      tape_to_global.push_back(g);
+    }
+  }
+  n_tape = tape_to_global.size();
+
+  std::vector<std::size_t> global_to_tape(num_full, n_tape);
+  for (std::size_t k = 0; k < n_tape; ++k) {
+    global_to_tape[tape_to_global[k]] = k;
+  }
+
+  beta_global.resize(beta_map_global.size());
+  for (std::size_t j = 0; j < beta_map_global.size(); ++j) {
+    const std::size_t g = beta_map_global[j];
+    beta_global[j] = (g < num_full) ? global_to_tape[g] : n_tape;
+  }
+  gamma_global.resize(gamma_map_global.size());
+  for (std::size_t j = 0; j < gamma_map_global.size(); ++j) {
+    const std::size_t g = gamma_map_global[j];
+    gamma_global[j] = (g < num_full) ? global_to_tape[g] : n_tape;
+  }
+  theta_global.resize(theta_map_global.size());
+  for (std::size_t j = 0; j < theta_map_global.size(); ++j) {
+    const std::size_t g = theta_map_global[j];
+    // theta_map sentinel is num_beta+num_gamma (not num_full).
+    if (g < num_beta + num_gamma || g >= num_full) {
+      theta_global[j] = n_tape;
+    } else {
+      theta_global[j] = global_to_tape[g];
+    }
+  }
+
+  seq_gamma.clear();
+  seq_gamma.reserve(num_gamma);
+  for (std::size_t k = 0; k < n_tape; ++k) {
+    const std::size_t g = tape_to_global[k];
+    if (g >= num_beta && g < num_beta + num_gamma) {
+      seq_gamma.push_back(static_cast<int>(k));
+    }
+  }
+}
+
 inline std::size_t density_data::theta_index(int col) const {
   if (col < 0 || col >= static_cast<int>(theta_global.size())) {
-    return num_beta + num_gamma;
+    return n_tape;
   }
   return theta_global[static_cast<std::size_t>(col)];
+}
+
+inline std::size_t density_data::theta_row(int col) const {
+  if (col < 0 || col >= static_cast<int>(theta_map_global.size())) {
+    return num_theta;
+  }
+  const std::size_t g = theta_map_global[static_cast<std::size_t>(col)];
+  if (g < num_beta + num_gamma || g >= num_full) {
+    return num_theta;
+  }
+  return g - num_beta - num_gamma;
 }
 
 inline std::vector<std::size_t> density_data::gamma_global_indices(int col) const {
@@ -179,7 +360,7 @@ inline std::vector<std::size_t> density_data::gamma_global_indices(int col) cons
     return out;
   }
   const std::size_t g = gamma_global[static_cast<std::size_t>(col)];
-  if (g >= num_full) {
+  if (g >= n_tape) {
     return out;
   }
   out.push_back(g);
@@ -190,7 +371,7 @@ inline std::vector<std::size_t> density_data::all_gamma_global_indices() const {
   std::vector<std::size_t> out;
   out.reserve(gamma_global.size());
   for (std::size_t g : gamma_global) {
-    if (g < num_full) {
+    if (g < n_tape) {
       out.push_back(g);
     }
   }

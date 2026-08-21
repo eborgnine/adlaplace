@@ -26,7 +26,9 @@ setClass("rsrpoly",
   prototype = prototype(
     knots = numeric(0),
     sd = numeric(0),
-    model_role = factor("random", levels = adlaplace::.model_role_levels)
+    model_role = factor("random", levels = adlaplace::.model_role_levels),
+    density = "random_diagonal",
+    ad_kind = "random"
   )
 )
 

@@ -29,7 +29,9 @@ setClass("hiwp",
   prototype = prototype(
     by = adlaplace::by_group(),
     init = numeric(0),
-    model_role = factor("random", levels = adlaplace::.model_role_levels)
+    model_role = factor("random", levels = adlaplace::.model_role_levels),
+    density = "random_diagonal",
+    ad_kind = "random"
   )
 )
 
@@ -255,20 +257,23 @@ setMethod("beta_info", "hiwp", function(term, data) {
 #' @return A data frame containing random effects information for the HIWP term.
 #' @export
 setMethod("random_info", "hiwp", function(term, data) {
-  basis <- seq(1, len = length(term@knots) - 1)
+  term <- adlaplace:::add_by_levels(term, data)
+  basis <- seq(1, length.out = length(term@knots) - 1)
 
+  # Match design()/precision(): basis fastest within each by-group block.
+  # expand.grid varies its first argument fastest.
   result <- expand.grid(
     term = term@name,
     model = "hiwp",
     label = paste(c(term@name, "hiwp"), collapse = "_"),
-    by = term@by@levels,
     basis = basis,
+    by = term@by@levels,
     order = term@p.order,
     stringsAsFactors = FALSE
   )
 
   bnumPad <- formatC(result$basis,
-    width = max(ceiling(c(1, log10(max(result$basis)))), na.rm = TRUE),
+    width = ceiling(log10(length(basis))),
     flag = "0"
   )
   result$by_labels <- term@by@labels[match(result$by, term@by@levels)]

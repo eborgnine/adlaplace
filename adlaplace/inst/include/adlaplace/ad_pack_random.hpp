@@ -30,17 +30,17 @@ inline void set_sparse_rc_pairs(
 }
 
 inline AdTape build_ad_fun_random(
-    const density_data &model, const Rcpp::List &config, LogDensSingleRandomFn log_dens,
+    const density_data &model_in, const Rcpp::List &config, LogDensSingleRandomFn log_dens,
     const CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> &hessian = empty_sparse_rc()) {
 
   const Config cfg(config);
-  validate_config_matches_model(cfg, model, false);
-  if (Rf_isNull(model.precision)) {
+  validate_config_matches_model(cfg, model_in, false);
+  if (Rf_isNull(model_in.precision)) {
     Rcpp::stop("precision is required for random densities");
   }
-  if (TYPEOF(model.precision) == REALSXP || TYPEOF(model.precision) == INTSXP) {
-    const NumVecView Q(model.precision);
-    const int n_gamma_cols = model.gamma_map.ncol();
+  if (TYPEOF(model_in.precision) == REALSXP || TYPEOF(model_in.precision) == INTSXP) {
+    const NumVecView Q(model_in.precision);
+    const int n_gamma_cols = model_in.gamma_map.ncol();
     if (Q.size() != static_cast<R_xlen_t>(n_gamma_cols)) {
       Rcpp::stop("length(precision) (%d) must match ncol(gamma_map) (%d)",
                  static_cast<int>(Q.size()), n_gamma_cols);
@@ -51,10 +51,13 @@ inline AdTape build_ad_fun_random(
     Rcpp::Rcout << "build_ad_fun_random: taping...\n";
   }
 
+  density_data model = model_in;
+  model.apply_tape_domain(cfg, "all", 0);
+
   const CPPAD_TESTVECTOR(double) ad_params_G = make_ad_params_seed(cfg, model);
 
-  CppAD::vector<CppAD::AD<double>> ad_params(model.num_full);
-  for (size_t d = 0; d < model.num_full; ++d) {
+  CppAD::vector<CppAD::AD<double>> ad_params(model.n_tape);
+  for (size_t d = 0; d < model.n_tape; ++d) {
     ad_params[d] = ad_params_G[d];
   }
 
@@ -68,12 +71,34 @@ inline AdTape build_ad_fun_random(
   AdTape pack;
   pack.fun = std::move(fun);
   pack.owner_thread_assigned = false;
+  adpack_attach_tape_maps(pack, model);
   if (cfg.verbose) {
     Rcpp::Rcout << "build_ad_fun_random: computing sparsity...\n";
   }
 
   adpack_sparsity(ad_params_G, model.seq_gamma, pack, cfg.verbose, hessian);
   return pack;
+}
+
+// Like build_ad_fun_random, but builds the analytic Hessian pattern on the
+// compacted model via PatternFn(model) -> sparse_rc.
+template <class PatternFn>
+inline AdTape build_ad_fun_random_with_pattern(
+    const density_data &model_in,
+    const Rcpp::List &config,
+    LogDensSingleRandomFn log_dens,
+    PatternFn pattern_fn) {
+
+  const Config cfg(config);
+  validate_config_matches_model(cfg, model_in, false);
+  if (Rf_isNull(model_in.precision)) {
+    Rcpp::stop("precision is required for random densities");
+  }
+
+  density_data model = model_in;
+  model.apply_tape_domain(cfg, "all", 0);
+  CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> hessian = pattern_fn(model);
+  return build_ad_fun_random(model, config, log_dens, hessian);
 }
 
 #endif

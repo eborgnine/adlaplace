@@ -39,7 +39,7 @@ CppAD::vector<CppAD::AD<double>> logDensObs(
   CppAD::AD<double> result = 0.0;
 
   const std::size_t omega_global = model.theta_index(0);
-  const std::size_t omega_row = omega_global - model.num_beta - model.num_gamma;
+  const std::size_t omega_row = model.theta_row(0);
   const std::size_t alpha_index = model.theta_index(1);
   CppAD::AD<double> omega_in = x[omega_global];
   CppAD::AD<double> omega =
@@ -73,7 +73,7 @@ CppAD::vector<CppAD::AD<double>> logDensExtra(
 {
 
   const std::size_t omega_global = model.theta_index(0);
-  const std::size_t omega_row = omega_global - model.num_beta - model.num_gamma;
+  const std::size_t omega_row = model.theta_row(0);
   CppAD::AD<double> omega_in = x[omega_global];
   CppAD::AD<double> log_omega =
     transform_theta_at(config, omega_row) ? omega_in : CppAD::log(omega_in);

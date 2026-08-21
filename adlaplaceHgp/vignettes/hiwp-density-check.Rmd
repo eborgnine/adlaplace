@@ -1,0 +1,299 @@
+---
+title: "Checking the hiwp Log Density"
+author: "Patrick Brown"
+date: "`r Sys.Date()`"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+vignette: >
+  %\VignetteIndexEntry{Checking the hiwp Log Density}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+This vignette simulates data from a small `hiwp()` model, evaluates the joint
+log density shard by shard, and checks every `"random"` shard against a manual
+evaluation of the same log density in R.
+
+```{r setup, include=FALSE}
+library("Matrix")
+library("adlaplace")
+library("adlaplaceHgp")
+knitr::opts_chunk$set(collapse = TRUE)
+```
+
+# Simulated data
+
+The model mirrors a typical call, with a coarser knot sequence and a handful of
+`by` groups so that everything can be printed.
+
+```{r term}
+knots <- c(0, 2, 4, 8, 14, 22)
+ref_value <- 4
+states <- c("aa", "bb", "cc")
+
+hiwp_terms <- adlaplaceHgp::hiwp("sqrt_pm",
+  by = "state",
+  ref_value = ref_value, p = 2,
+  knots = knots,
+  init = 0.5
+)
+names(hiwp_terms)
+```
+
+`hiwp()` returns four terms: the group-specific IWP deviations (`hiwp`), a
+global IWP (`iwp`), group-specific random slopes (`hrpoly_1`), and a boundary
+polynomial (`rpoly`).
+
+```{r data}
+set.seed(2024)
+n_per_state <- 60
+dat <- data.frame(
+  sqrt_pm = rep(seq(min(knots), max(knots), length.out = n_per_state),
+    times = length(states)),
+  state = rep(states, each = n_per_state)
+)
+```
+
+To simulate we need the design matrix `A` and the prior precisions, so build
+the model data first and then draw the random effects from their own priors.
+
+```{r model_data}
+model_terms <- c(
+  list(y_gaussian = adlaplace::gaussian("y", init = 0.2)),
+  hiwp_terms
+)
+dat$y <- 0
+md <- adlaplace::model_data(model_terms, data = dat)
+
+info <- md$term_data$info
+n_beta <- nrow(info$beta)
+n_gamma <- nrow(info$gamma)
+n_theta <- nrow(info$theta)
+c(n_beta = n_beta, n_gamma = n_gamma, n_theta = n_theta)
+```
+
+```{r theta_info}
+info$theta[, c("term", "model", "label", "init", "log")]
+```
+
+Each random effect is indexed by its `gamma_label` and carries the `theta_id`
+of the standard deviation that scales it.
+
+```{r gamma_info}
+info$gamma[, c("label", "gamma_label", "theta_id")]
+```
+
+The `hiwp` term contributes a random-effects shard alongside `iwp` and
+`hrpoly` (the boundary `rpoly` has a flat prior and is omitted).
+
+```{r random_shards}
+names(md$random)
+```
+
+```{r prototype_slots}
+slots_for <- function(term) {
+  c(class = class(term), density = term@density, ad_kind = term@ad_kind,
+    model_role = as.character(term@model_role))
+}
+as.data.frame(t(vapply(md$terms, slots_for, character(4))))
+```
+
+# True parameter values
+
+For a `random_diagonal` prior, coefficient `k` of a term with standard
+deviation `sd` has precision `Q[k] / sd^2`, so we draw it with standard
+deviation `sd / sqrt(Q[k])`.
+
+```{r simulate}
+sd_true <- c(
+  sqrt_pm_hiwp = 0.30,
+  sqrt_pm_iwp = 0.80,
+  sqrt_pm_hrpoly_1 = 0.15,
+  y_gaussian_sd = 0.20
+)
+
+# diagonal prior precision weights, per term, aligned to A's columns
+prec_weights <- rep(NA_real_, n_gamma)
+names(prec_weights) <- info$gamma$gamma_label
+for (term_here in md$terms) {
+  q_here <- adlaplace::precision(term_here, md$term_data$data)
+  if (is.null(q_here)) next
+  prec_weights[colnames(q_here)] <- Matrix::diag(q_here)
+}
+
+gamma_true <- rep(0, n_gamma)
+has_prior <- !is.na(prec_weights)
+gamma_sd <- sd_true[info$gamma$label[has_prior]] / sqrt(prec_weights[has_prior])
+gamma_true[has_prior] <- stats::rnorm(sum(has_prior), sd = gamma_sd)
+
+# the boundary polynomial has a flat prior (sd = Inf); give it a fixed slope
+gamma_true[!has_prior] <- 0.1
+
+dat$y <- as.numeric(md$term_data$A %*% gamma_true) +
+  stats::rnorm(nrow(dat), sd = sd_true[["y_gaussian_sd"]])
+```
+
+Rebuild the model data with the simulated response, and assemble the parameter
+vector `x = c(beta, gamma, theta)`. With `transform_theta = TRUE` the theta
+block holds log standard deviations.
+
+```{r x_vector}
+md <- adlaplace::model_data(model_terms, data = dat)
+info <- md$term_data$info
+
+theta_true <- log(sd_true[info$theta$label])
+x <- c(gamma_true, theta_true)
+length(x)
+```
+
+# Building the AD pack
+
+```{r ad_pack}
+config <- list(
+  transform_theta = TRUE,
+  obs_groups = adlaplace::obs_groups(md$term_data$A, num_shards = 3L),
+  verbose = FALSE
+)
+ap <- adlaplace::ad_pack(md, config, num_threads = 1L)
+dens_ptr <- adlaplace::clone_ad_pack_ptr(ap@ptr)
+n_shard <- adlaplace:::n_groups(dens_ptr)
+n_shard
+```
+
+`ad_pack()` tapes the shards in the order `observations`, `random`,
+`parameters`, and each observation shard expands into one AD group per column
+of `config$obs_groups`. That is enough to reconstruct the shard index to name
+map.
+
+```{r shard_map}
+shard_index_map <- function(model_data, config) {
+  shard_list <- c(model_data$observations, model_data$random,
+    model_data$parameters)
+  ad_kind <- vapply(shard_list, function(s) s@ad_kind, character(1))
+  n_groups_each <- ifelse(ad_kind == "observations",
+    ncol(config$obs_groups), 1L)
+  out <- data.frame(
+    name = rep(names(shard_list), times = n_groups_each),
+    ad_kind = rep(ad_kind, times = n_groups_each),
+    density = rep(vapply(shard_list, function(s) s@density, character(1)),
+      times = n_groups_each),
+    row.names = NULL
+  )
+  out$shard <- seq_len(nrow(out)) - 1L
+  out[, c("shard", "name", "ad_kind", "density")]
+}
+
+shard_map <- shard_index_map(md, config)
+stopifnot(nrow(shard_map) == n_shard)
+shard_map
+```
+
+# Log density per shard
+
+```{r per_shard}
+shard_map$log_dens <- vapply(shard_map$shard, function(s) {
+  adlaplace::joint_log_dens(dens_ptr, x, ad_shards = s, negative = FALSE)
+}, numeric(1))
+shard_map
+
+all.equal(
+  sum(shard_map$log_dens),
+  adlaplace::joint_log_dens(dens_ptr, x, negative = FALSE)
+)
+```
+
+# Manual evaluation of the random shards
+
+Every random shard here uses the `random_diagonal` density. With `tau =
+exp(-2 * log_sd)` and diagonal prior weights `Q`, the C++ code evaluates
+
+$$
+\log p(\gamma \mid \sigma) =
+  \tfrac{1}{2}\sum_k \log Q_k
+  - \tfrac{\tau}{2}\sum_k Q_k \gamma_k^2
+  - n \log \sigma
+  - \tfrac{n}{2}\log(2\pi).
+$$
+
+The shard's own `gamma_map` and `theta_map` say which global entries of `x` it
+reads, so the manual version can be written without reference to term names.
+
+```{r manual_fun}
+manual_random_diagonal <- function(shard, x, n_beta, n_gamma) {
+  gm <- methods::as(shard@gamma_map, "TsparseMatrix")
+  gamma_rows <- gm@i[order(gm@j)] + 1L
+
+  tm <- methods::as(shard@theta_map, "TsparseMatrix")
+  theta_rows <- tm@i[order(tm@j)] + 1L
+  stopifnot(length(theta_rows) == 1L)
+
+  q_weights <- as.numeric(shard@precision)
+  log_sd <- x[n_beta + n_gamma + theta_rows]
+  tau <- exp(-2 * log_sd)
+  gamma_here <- x[n_beta + gamma_rows]
+  n_here <- length(q_weights)
+
+  0.5 * sum(log(q_weights)) -
+    0.5 * tau * sum(q_weights * gamma_here^2) -
+    n_here * log_sd -
+    n_here * 0.5 * log(2 * pi)
+}
+```
+
+```{r manual_compare}
+random_rows <- shard_map[shard_map$ad_kind == "random", ]
+comparison <- do.call(rbind, lapply(seq_len(nrow(random_rows)), function(i) {
+  nm <- random_rows$name[i]
+  shard <- md$random[[nm]]
+  data.frame(
+    name = nm,
+    n_gamma = ncol(shard@gamma_map),
+    adlaplace = random_rows$log_dens[i],
+    manual = manual_random_diagonal(shard, x, n_beta, n_gamma)
+  )
+}))
+comparison$difference <- comparison$adlaplace - comparison$manual
+comparison
+
+stopifnot(max(abs(comparison$difference)) < 1e-12)
+stopifnot("sqrt_pm_hiwp" %in% comparison$name)
+```
+
+The C++ densities agree with the manual formula to machine precision for every
+random shard, including `hiwp`.
+
+The `hiwp` log standard deviation is not a flat direction of the joint density:
+shifting it changes the value.
+
+```{r theta_not_flat}
+theta_hiwp <- which(info$theta$label == "sqrt_pm_hiwp")
+x_shifted <- x
+x_shifted[n_beta + n_gamma + theta_hiwp] <-
+  x_shifted[n_beta + n_gamma + theta_hiwp] + 3
+
+c(
+  base = adlaplace::joint_log_dens(dens_ptr, x, negative = FALSE),
+  theta_shifted = adlaplace::joint_log_dens(dens_ptr, x_shifted, negative = FALSE)
+)
+```
+
+# Label ordering and `random_info()`
+
+`design()`, `precision()`, and `random_info()` agree on the column / label
+order (basis fastest within each `by` group). `random_info()` also calls
+`add_by_levels()` so it works on a freshly constructed term.
+
+```{r ordering}
+term_here <- hiwp_terms$sqrt_pm_hiwp
+a_cols <- colnames(adlaplace::design(term_here, dat))
+q_cols <- colnames(adlaplace::precision(term_here, dat))
+r_labels <- adlaplace::random_info(term_here, dat)$gamma_label
+
+data.frame(design = a_cols, precision = q_cols, random_info = r_labels)
+
+c(
+  design_vs_precision = identical(a_cols, q_cols),
+  design_vs_random_info = identical(a_cols, r_labels)
+)
+```

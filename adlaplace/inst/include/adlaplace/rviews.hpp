@@ -127,6 +127,7 @@ struct CscPattern {
 
 struct Config {
   bool verbose;
+  bool compact_tape;
   std::vector<unsigned char> transform_theta;
   int num_threads;
 
@@ -265,6 +266,7 @@ inline bool transform_theta_at(const Config& config, std::size_t theta_row) {
 
 inline Config::Config(const Rcpp::List& cfg)
   : verbose(adlaplace_get_bool(cfg, "verbose", false)),
+    compact_tape(adlaplace_get_bool(cfg, "compact_tape", true)),
     transform_theta(adlaplace_read_transform_theta(cfg)),
     num_threads(adlaplace_get_int(cfg, "num_threads", 1))
 {
