@@ -19,7 +19,8 @@ outer_gr(x, config, cache, ad_pack, control_inner = list(), ...)
 \code{gamma} solution. If \code{cache$gamma} is missing or the wrong length,
 it is initialized from \code{config$gamma} (if present) or zeros of length
 \code{ad_pack@sizes["gamma"]}. Both functions update \code{cache$gamma} after
-each evaluation.}
+each evaluation, and share \code{cache$fg_x} / \code{cache$fg_result} for the
+latest combined objective/gradient evaluation.}
 
 \item{ad_pack}{\code{ad_pack} object from \code{\link{ad_pack}}.}
 
@@ -42,6 +43,11 @@ the inner problem over \code{gamma} via \code{\link{log_lik_laplace}} and update
 \code{cache} environment with the latest inner solution.
 }
 \details{
+L-BFGS-B requests \code{fn} then \code{gr} at the same parameter vector. Both wrappers
+share one \code{log_lik_laplace(..., deriv = TRUE)} evaluation at that point: the
+objective is free once the profile gradient has been computed. Results are stored in
+\code{cache$fg_x} / \code{cache$fg_result} and reused until \code{x} changes.
+
 \describe{
 \item{\code{outer_fn()}}{Returns the scalar objective negative log likelihood.}
 \item{\code{outer_gr()}}{Returns the gradient.}

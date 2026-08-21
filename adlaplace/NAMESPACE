@@ -94,14 +94,12 @@ importClassesFrom(Matrix,Matrix)
 importClassesFrom(Matrix,dgCMatrix)
 importClassesFrom(Matrix,ngCMatrix)
 importFrom(Rcpp,evalCpp)
-importFrom(stats,
-  coef,
-  confint,
-  fitted,
-  logLik,
-  nobs,
-  predict,
-  qnorm,
-  vcov
-)
+importFrom(stats,coef)
+importFrom(stats,confint)
+importFrom(stats,fitted)
+importFrom(stats,logLik)
+importFrom(stats,nobs)
+importFrom(stats,predict)
+importFrom(stats,qnorm)
+importFrom(stats,vcov)
 useDynLib(adlaplace, .registration = TRUE)

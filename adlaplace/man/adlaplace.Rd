@@ -45,10 +45,10 @@ trust-region optimizer.}
 
 \item{hessian}{Logical. When \code{NULL} (default), set to \code{TRUE} if
 there are at most five outer parameters and \code{FALSE} otherwise.
-When \code{TRUE}, \code{optim} numerically differentiates the exact AD
-profile gradient at the optimum, giving the observed information used by
-\code{\link{vcov.adlaplace_fit}}, \code{\link{summary.adlaplace_fit}}, and
-\code{\link{confint.adlaplace_fit}}.}
+When \code{TRUE}, \code{\link[stats]{optimHess}} numerically differentiates
+the exact AD profile gradient at the optimum, giving the observed
+information used by \code{\link{vcov.adlaplace_fit}},
+\code{\link{summary.adlaplace_fit}}, and \code{\link{confint.adlaplace_fit}}.}
 
 \item{verbose}{Logical, print progress.}
 
