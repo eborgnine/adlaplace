@@ -20,8 +20,7 @@ hierarchical IWP (`hiwp`) smooths of order 2 on $\sqrt{\mathrm{PM}_{2.5}}$ and
 order 3 on temperature/10, each grouped by eco-region.
 
 Fitting never runs during knit: the `fit` chunk is `eval=FALSE`. Rendering
-loads a successful fit cache when present (`analysis_cache/res_hiwp_pm_temp.rds`,
-falling back to legacy `resPmTemp.rds` / `resPmTempR.rds`).
+loads a successful fit cache when present (`analysis_cache/res_hiwp_pm_temp.rds`).
 
 ```{r setup, include=FALSE}
 knitr::knit_hooks$set(margins = Pmisc::hook_plot_margins)
@@ -124,8 +123,8 @@ save(deaths, file = deaths_rds)
 formula_lhs <- adlaplace::dirichlet_multinom(
   "medical",
   by = c("cell", "eco_region", "year_week3_dow"),
-  init = 0.1,
-  parscale = 10
+  init = 0.2,
+  parscale = 1
 )
 formula_rhs <- c(
   adlaplace::linear("dom"),
@@ -135,7 +134,7 @@ formula_rhs <- c(
     ref_value = 8,
     knots = seq(0, 32, by = 2),
     by = "eco_region",
-    init = 1e-3, parscale = 10,
+    init = c(1e-5, 1e-3, 1e-6),
     lower = 1e-12
   ),
   adlaplaceHgp::hiwp(
@@ -144,7 +143,7 @@ formula_rhs <- c(
     ref_value = 25 / 10,
     knots = seq(-5, 42.5, by = 2.5) / 10,
     by = "eco_region",
-    init = 1e-3, parscale = 10,
+    init = c(1e-5, 1e-3, 1e-6, 1e-6),
     lower = 1e-12
   )
 )
@@ -182,10 +181,11 @@ fit <- adlaplace::adlaplace(
     num_shards = n_shards
   ),
   control = list(
-    maxit = 100,
+    maxit = 2000,
     trace = 3,
-    REPORT = 1,
-    pgtol = 1e-5
+    REPORT = 5,
+    factr = 1e3,
+    pgtol = 1e-8
   ),
   hessian = FALSE,
   verbose = FALSE
@@ -217,7 +217,6 @@ if (!fit_ok) {
   )
 } else {
   fit_save <- fit
-  fit_save$model_data <- NULL
   fit_save$ad_pack <- NULL
   dir.create("analysis_cache", showWarnings = FALSE)
   saveRDS(fit_save, fit_rds)
@@ -229,244 +228,22 @@ if (!fit_ok) {
 }
 ```
 
-```{r crash_probe, eval=FALSE}
-# --- crash probe: build AD + one inner_opt (10 threads) before full fit ---
-n_threads_dbg <- 10L
-message("debug 1/4: model_data...")
-utils::flush.console()
-md_dbg <- adlaplace::model_data(cc_formula, data = deaths, verbose = TRUE)
-message("debug 2/4: ad_pack(num_threads=", n_threads_dbg, ", shards=", n_shards, ")...")
-utils::flush.console()
-cfg_dbg <- list(
-  transform_theta = TRUE,
-  reorder_shards = "none",
-  num_threads = n_threads_dbg,
-  num_shards = n_shards,
-  verbose = FALSE,
-  obs_groups = adlaplace::obs_groups(
-    md_dbg$term_data$A,
-    elgm_matrix = md_dbg$term_data$elgm_matrix,
-    num_shards = n_shards,
-    min_shards = min(n_shards, n_threads_dbg * 4L)
-  )
-)
-ad_dbg <- adlaplace::ad_pack(md_dbg, cfg_dbg, num_threads = n_threads_dbg)
-message(
-  "debug 2/4 done: sizes beta=", ad_dbg@sizes[["beta"]],
-  " gamma=", ad_dbg@sizes[["gamma"]],
-  " theta=", ad_dbg@sizes[["theta"]]
-)
-utils::flush.console()
-
-par_meta_dbg <- md_dbg$term_data$info$parameters
-x0_dbg <- as.numeric(par_meta_dbg$init)
-g0_dbg <- rep(0, as.integer(ad_dbg@sizes[["gamma"]]))
-message(
-  "debug 3/4: inner_opt (deriv=FALSE, maxit=5, restart.gamma.clamp=Inf)..."
-)
-utils::flush.console()
-inner_dbg <- adlaplace::inner_opt(
-  parameters = x0_dbg,
-  gamma = g0_dbg,
-  ad_pack = ad_dbg,
-  control = list(
-    maxit = 5L,
-    report.level = 3,
-    report.freq = 1,
-    restart.gamma.clamp = Inf
-  ),
-  deriv = FALSE,
-  verbose = TRUE
-)
-message(
-  "debug 3/4 done: neg_log_lik=", format(inner_dbg$neg_log_lik),
-  " fval=", format(inner_dbg$inner_opt$fval)
-)
-utils::flush.console()
-
-message("debug 4/4: log_lik_laplace (deriv=TRUE)...")
-utils::flush.console()
-inner_dbg_d <- adlaplace::log_lik_laplace(
-  x = x0_dbg,
-  gamma = g0_dbg, # as.numeric(inner_dbg$inner_opt$solution),
-  ad_pack = ad_dbg,
-  control = list(
-    maxit = 5L,
-    report.level = 1,
-    report.freq = 1,
-    restart.gamma.clamp = Inf
-  ),
-  deriv = TRUE
-)
-inner_dbg_d$deriv$d_neg_log_lik
-message(
-  "debug 4/4 done: length(deriv$d_neg_log_lik)=",
-  length(inner_dbg_d$deriv$d_neg_log_lik)
-)
-utils::flush.console()
-
-# --- wrappers + zero-iter optim (same path as adlaplace() outer FG) ---
-cfg_dbg$verbose <- TRUE
-control_inner_dbg <- list(
-  maxit = 5L,
-  report.level = 1,
-  report.freq = 1,
-  restart.gamma.clamp = Inf
-)
-cache_dbg <- new.env(parent = emptyenv())
-cache_dbg$gamma <- as.numeric(inner_dbg$inner_opt$solution)
-
-message("debug 5a: outer_fn...")
-utils::flush.console()
-fn_dbg <- adlaplace::outer_fn(
-  x0_dbg,
-  config = cfg_dbg,
-  cache = cache_dbg,
-  ad_pack = ad_dbg,
-  control_inner = control_inner_dbg
-)
-message("debug 5a done: outer_fn = ", format(fn_dbg))
-utils::flush.console()
-
-message("debug 5b: outer_gr...")
-utils::flush.console()
-gr_dbg <- adlaplace::outer_gr(
-  x0_dbg,
-  config = cfg_dbg,
-  cache = cache_dbg,
-  ad_pack = ad_dbg,
-  control_inner = control_inner_dbg
-)
-message("debug 5b done: length(outer_gr) = ", length(gr_dbg))
-utils::flush.console()
-
-message("debug 6: optim(L-BFGS-B, maxit=0) via outer_fn/outer_gr...")
-utils::flush.console()
-opt_dbg <- stats::optim(
-  par = x0_dbg,
-  fn = adlaplace::outer_fn,
-  gr = adlaplace::outer_gr,
-  method = "L-BFGS-B",
-  lower = par_meta_dbg$lower,
-  upper = par_meta_dbg$upper,
-  control = list(
-    maxit = 0L,
-    trace = 4,
-    REPORT = 1,
-    parscale = par_meta_dbg$parscale
-  ),
-  config = cfg_dbg,
-  ad_pack = ad_dbg,
-  cache = cache_dbg,
-  control_inner = control_inner_dbg
-)
-message(
-  "debug 6 done: optim value = ", format(opt_dbg$value),
-  " counts = ", paste(names(opt_dbg$counts), opt_dbg$counts, collapse = ", ")
-)
-utils::flush.console()
-# --- end crash probe ---
-```
 
 
 ```{r load_cache, include=FALSE}
-# Prefer a lean adlaplace_fit with samples; else legacy hpolcc caches with samples.
-# Parameter plots use par_info with SEs when available (session `fit` or new RDS).
-.normalize_india_res <- function(obj, path) {
-  if (is.null(obj)) {
-    return(NULL)
-  }
-  # New adlaplace_fit: keep if any finite MLEs (sample optional).
-  if (!is.null(obj$par_info)) {
-    mle_ok <- any(is.finite(obj$par_info$mle_internal)) ||
-      any(is.finite(obj$par_info$mle))
-    if (!isTRUE(mle_ok)) {
-      message("skipping unusable cache (no finite MLE): ", path)
-      return(NULL)
-    }
-    return(obj)
-  }
-  # Legacy list with parameters + sample (resPmTemp*.rds).
-  if (!is.null(obj$sample$sim) && !is.null(obj$parameters$theta)) {
-    th <- obj$parameters$theta
-    if (!("se" %in% names(th))) {
-      th$se <- NA_real_
-    }
-    if (!("log" %in% names(th))) {
-      th$log <- NA
-    }
-    # Keep beta on the object for day-of-month labels; par_info stays theta
-    # for the scale-parameter table unless a newer fit supplies full par_info.
-    obj$par_info <- th
-    return(obj)
-  }
-  message("skipping unrecognized cache: ", path)
-  NULL
-}
-
-.par_info_has_dom_se <- function(pi) {
-  if (is.null(pi) || !nrow(pi)) {
-    return(FALSE)
-  }
-  dom <- grepl("dom", pi$label)
-  se <- if ("se" %in% names(pi)) pi$se else rep(NA_real_, nrow(pi))
-  se_i <- if ("se_internal" %in% names(pi)) {
-    pi$se_internal
-  } else {
-    se
-  }
-  any(dom & (is.finite(se) | is.finite(se_i)))
-}
-
-fit_candidates <- c(
-  fit_rds,
-  "resPmTemp.rds",
-  "resPmTempR.rds"
-)
-loaded <- list()
-for (f in fit_candidates) {
-  if (!file.exists(f)) {
-    next
-  }
-  message("trying: ", f)
-  obj <- .normalize_india_res(readRDS(f), f)
-  if (!is.null(obj)) {
-    loaded[[f]] <- obj
-    message("accepted: ", f)
-  }
-}
-
-# Session fit (interactive) overrides par_info when it has dom SEs.
-if (
-  exists("fit", inherits = TRUE) &&
-    !is.null(fit$par_info) &&
-    .par_info_has_dom_se(fit$par_info)
-) {
-  message("using session fit$par_info (has dom SEs)")
-  loaded[["__session_fit__"]] <- fit
-}
-
 res <- NULL
-# Prefer object with samples for RR figures.
-for (nm in names(loaded)) {
-  if (!is.null(loaded[[nm]]$sample$sim)) {
-    res <- loaded[[nm]]
-    message("sample from: ", nm)
-    break
-  }
-}
-if (is.null(res) && length(loaded)) {
-  res <- loaded[[1L]]
-}
-# Prefer par_info with dom SEs (new adlaplace_fit / session fit).
-for (nm in names(loaded)) {
-  if (.par_info_has_dom_se(loaded[[nm]]$par_info)) {
-    res$par_info <- loaded[[nm]]$par_info
-    if (!is.null(loaded[[nm]]$model_data)) {
-      res$model_data <- loaded[[nm]]$model_data
-    }
-    message("par_info (with SEs) from: ", nm)
-    break
+if (file.exists(fit_rds)) {
+  message("loading: ", fit_rds)
+  obj <- readRDS(fit_rds)
+  mle_ok <- !is.null(obj$par_info) && (
+    any(is.finite(obj$par_info$mle_internal)) ||
+      any(is.finite(obj$par_info$mle))
+  )
+  if (isTRUE(mle_ok)) {
+    res <- obj
+    message("accepted: ", fit_rds)
+  } else {
+    message("skipping unusable cache (no finite MLE): ", fit_rds)
   }
 }
 if (is.null(res)) {
@@ -487,60 +264,22 @@ for_global <- data.frame(
 )
 d_var <- character(0)
 s_group <- character(0)
-the_x_lim <- list(temp_div10 = c(5, 35), sqrt_pm = c(0, 200))
-the_y_lim <- list(temp_div10 = c(-5, 25), sqrt_pm = c(-5, 25))
+the_x_lim <- list(temp_div10 = c(4, 42), sqrt_pm = c(0, 220))
+the_y_lim <- list(temp_div10 = c(-4.5, 24), sqrt_pm = c(-3.8, 7.2))
 ```
 
 ```{r par_table, eval=(!is.null(res)), results='asis'}
 # Parameter MLEs (Mexico-style Pmisc::mdTable via canexposure::theta_table logic).
-th <- res$par_info
-if (all(c("term", "model", "mle") %in% names(th))) {
-  theta_table <- th[, c("term", "model", "mle"), drop = FALSE]
-} else {
-  model <- rep(NA_character_, nrow(th))
-  model[grepl("dirichlet_multinom|overdispersion", th$label)] <- "overdispersion"
-  model[grepl("_hiwp$", th$label)] <- "hiwp"
-  model[grepl("_iwp$", th$label)] <- "iwp"
-  model[grepl("hrpoly|rpoly", th$label)] <- "rpoly"
-  model[grepl("hfpoly|fpoly", th$label)] <- "fpoly"
-  term <- gsub(
-    "_(dirichlet_multinom_sd|overdispersion|hiwp|iwp)$",
-    "",
-    th$label
-  )
-  term <- gsub("^hrpoly_|^hfpoly_|^rpoly_|^fpoly_", "", term)
-  term <- gsub("_[0-9]+$", "", term)
-  term <- gsub("temp_div10|temperature_div10", "temp", term)
-  term <- gsub("^sqrt_", "", term)
-  mle <- if ("mle" %in% names(th) && any(is.finite(th$mle))) {
-    th$mle
-  } else {
-    th$mle_internal
-  }
-  theta_table <- data.frame(
-    term = term, model = model, mle = mle,
-    stringsAsFactors = FALSE
-  )
-}
-theta_table <- theta_table[!is.na(theta_table$model), , drop = FALSE]
-term_labs <- c(
-  temp = "temperature", temp_div10 = "temperature",
-  pm = "PM2.5", sqrt_pm = "PM2.5",
-  overdispersion = "obs", obs = "obs"
-)
-theta_table$term <- ifelse(
-  theta_table$term %in% names(term_labs),
-  unname(term_labs[theta_table$term]),
-  ifelse(
-    is.na(theta_table$term) | !nzchar(theta_table$term),
-    "obs",
-    theta_table$term
-  )
-)
+print(names(res$par_info))
+theta_table <- res$par_info[, intersect(names(res$par_info), c("label", "mle", "mle_internal", "init"))]
+theta_table <- theta_table[grep("dom", theta_table$label, invert = TRUE), ]
 rownames(theta_table) <- NULL
+colnames(theta_table) <- gsub("_", " ", colnames(theta_table))
+theta_table$label <- gsub("_", " ", theta_table$label)
+theta_table$label <- gsub("div10|sqrt", "", theta_table$label)
 Pmisc::mdTable(
   theta_table,
-  guessGroup = TRUE,
+  guessGroup = FALSE,
   mdToTex = any(commandArgs() == "mdToTex"),
   dec = 8,
   caption = "Parameter MLEs: Dirichlet-multinomial overdispersion and hierarchical IWP scale parameters."
@@ -633,9 +372,10 @@ for_global <- expand.grid(
 for_global$var_name <- unname(s_var_names[for_global$var])
 for_global$subcap <- paste(for_global$var_name, for_global$type)
 
-the_y_lim <- list()
 for (d in s_var) {
-  the_y_lim[[d]] <- c(-5, 25)
+  if (is.null(the_y_lim[[d]])) {
+    the_y_lim[[d]] <- c(-5, 45)
+  }
 }
 ```
 
