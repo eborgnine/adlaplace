@@ -1,4 +1,5 @@
 # Shared vignette mode switch (sourced from setup chunks; not a vignette itself).
+# Name must not start with "_" — R CMD build excludes such files from the tarball.
 # Full examples: CI (NOT_CRAN=true) and interactive knits.
 # Abbreviated: R CMD check on CRAN (_R_CHECK_PACKAGE_NAME_ set, NOT_CRAN unset).
 vignette_full <- identical(Sys.getenv("NOT_CRAN"), "true") ||

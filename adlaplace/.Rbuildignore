@@ -1,8 +1,9 @@
 ^\.DS_Store$
 ^\.lintr$
 ^\.gitignore$
-^\.cursor$
+^\.cursor
 ^\.\.Rcheck$
+^build$
 ^config\.
 ^config\.[0-9]+/
 ^vignettes/.*_files/

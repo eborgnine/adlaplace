@@ -24,7 +24,7 @@ a linear fixed effect. Fitting is done with `adlaplace()`.
 
 ```{r setup, include=FALSE}
 library(adlaplace)
-source("_vignette_full.R", local = TRUE)
+source("vignette_full.R", local = TRUE)
 fit_num_shards <- if (vignette_full) 200L else 8L
 fit_maxit <- if (vignette_full) 20L else 5L
 ```

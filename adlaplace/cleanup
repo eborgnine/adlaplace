@@ -7,7 +7,12 @@ rm -f src/Makevars src/Makevars.win
 rm -rf vignettes/*_files
 rm -f vignettes/*.html
 rm -f vignettes/*.knit.md
-rm -f vignettes/*.R
+# Tangled vignette scripts only (keep shared helpers such as vignette_full.R)
+for _rmd in vignettes/*.Rmd; do
+  [ -f "$_rmd" ] || continue
+  _base=$(basename "$_rmd" .Rmd)
+  rm -f "vignettes/${_base}.R"
+done
 
 # testthat creates tests/testthat/_snaps/ even without snapshot tests; remove
 # only when empty (silent — avoids git "Removed empty directory" noise)

@@ -17,7 +17,7 @@ taken from help files for mgcv::gamm
 ```{r setup, include=FALSE}
 library("Matrix")
 library("adlaplace")
-source("_vignette_full.R", local = TRUE)
+source("vignette_full.R", local = TRUE)
 ```
 
 ```{r gamm}
