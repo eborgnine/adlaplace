@@ -29,7 +29,7 @@ knitr::knit_hooks$set(plot = knitr::hook_plot_tex)
 knitr::opts_chunk$set(
   echo = FALSE, prompt = TRUE, comment = NA,
   dev = "pdf", margins = 1, fig.cap = " ", fig.pos = "hp",
-  fig.path = file.path("figure", "moreBayes"),
+  fig.path = file.path("figure", "moreBayes", ""),
   fig.width = 5, fig.height = 5,
   tidy = TRUE, tidy.opts = list(indent = 2, width.cutoff = 45)
 )
@@ -120,21 +120,32 @@ save(deaths, file = deaths_rds)
 ```
 
 ```{r formula_factory, include=FALSE}
+# Inits/parscale from the first fit (par_info). Theta parscale is on the
+# log-SD scale used by optim. Hierarchical SDs that sat at 1e-5/1e-6 are
+# restarted at 1e-3 (the start from which temp_div10_iwp did move).
 formula_lhs <- adlaplace::dirichlet_multinom(
   "medical",
   by = c("cell", "eco_region", "year_week3_dow"),
-  init = 0.2,
-  parscale = 1
+  init = 0.35,
+  parscale = 0.5
+)
+# Day-of-month MLEs vs reference day 1 (levels 0, 2, ..., 31).
+dom_init <- c(
+  0.336, -0.070, -0.095, -0.164, -0.021, -0.116, -0.146, -0.106,
+  -0.210, 0.277, -0.193, -0.002, -0.142, -0.110, 0.185, -0.131,
+  -0.063, -0.036, -0.193, 0.122, -0.196, -0.209, -0.271, -0.150,
+  -0.060, -0.191, -0.201, -0.109, -0.272, -0.185, -0.005
 )
 formula_rhs <- c(
-  adlaplace::linear("dom"),
+  adlaplace::linear("dom", init = dom_init, parscale = 0.1),
   adlaplaceHgp::hiwp(
     "sqrt_pm",
     p = 2,
     ref_value = 8,
     knots = seq(0, 32, by = 2),
     by = "eco_region",
-    init = c(1e-5, 1e-3, 1e-6),
+    init = c(1e-3, 1.2e-3, 1e-3),
+    parscale = c(1, 0.2, 1),
     lower = 1e-12
   ),
   adlaplaceHgp::hiwp(
@@ -143,7 +154,8 @@ formula_rhs <- c(
     ref_value = 25 / 10,
     knots = seq(-5, 42.5, by = 2.5) / 10,
     by = "eco_region",
-    init = c(1e-5, 1e-3, 1e-6, 1e-6),
+    init = c(1e-3, 0.84, 1e-3, 1e-3),
+    parscale = c(1, 0.5, 1, 1),
     lower = 1e-12
   )
 )
@@ -250,6 +262,31 @@ if (is.null(res)) {
   message("no usable fit cache; figures/tables will leave gaps")
 }
 
+# Knit does not refit, but exposure-response figures need cond_sim draws.
+if (
+  !is.null(res) && is.null(res$sample$sim) &&
+    !is.null(res$details) && !is.null(res$model_data)
+) {
+  wts <- if (exists("eco_weights")) eco_weights else NULL
+  message("cache has no sample; running cond_sim_iwp")
+  res$sample <- tryCatch(
+    adlaplaceHgp::cond_sim_iwp(
+      fit = res$details,
+      model_data = res$model_data,
+      n = 500L,
+      weights = wts
+    ),
+    error = function(e) {
+      message("cond_sim_iwp failed: ", conditionMessage(e))
+      NULL
+    }
+  )
+  if (!is.null(res$sample$sim)) {
+    saveRDS(res, fit_rds)
+    message("saved sample into ", fit_rds)
+  }
+}
+
 has_sample <- !is.null(res$sample$sim)
 s_var <- if (has_sample) names(res$sample$sim) else character(0)
 s_var_names <- c(temp_div10 = "temperature", sqrt_pm = "PM2.5")
@@ -264,13 +301,27 @@ for_global <- data.frame(
 )
 d_var <- character(0)
 s_group <- character(0)
-the_x_lim <- list(temp_div10 = c(4, 42), sqrt_pm = c(0, 220))
-the_y_lim <- list(temp_div10 = c(-4.5, 24), sqrt_pm = c(-3.8, 7.2))
+the_x_lim <- list(temp_div10 = c(4, 38), sqrt_pm = c(0, 440))
+the_y_lim <- list(temp_div10 = c(-4, 45), sqrt_pm = c(-4, 11))
+
+sample_x <- function(d_var) {
+  x_here <- res$sample$x[[d_var]]
+  if (is.data.frame(x_here) || (is.list(x_here) && !is.numeric(x_here))) {
+    x_here <- x_here[[1]]
+  }
+  x_here <- as.numeric(x_here)
+  if (grepl("sqrt", d_var)) {
+    x_here <- x_here^2
+  }
+  if (grepl("div10", d_var)) {
+    x_here <- x_here * 10
+  }
+  x_here
+}
 ```
 
 ```{r par_table, eval=(!is.null(res)), results='asis'}
 # Parameter MLEs (Mexico-style Pmisc::mdTable via canexposure::theta_table logic).
-print(names(res$par_info))
 theta_table <- res$par_info[, intersect(names(res$par_info), c("label", "mle", "mle_internal", "init"))]
 theta_table <- theta_table[grep("dom", theta_table$label, invert = TRUE), ]
 rownames(theta_table) <- NULL
@@ -371,22 +422,14 @@ for_global <- expand.grid(
 )
 for_global$var_name <- unname(s_var_names[for_global$var])
 for_global$subcap <- paste(for_global$var_name, for_global$type)
-
-for (d in s_var) {
-  if (is.null(the_y_lim[[d]])) {
-    the_y_lim[[d]] <- c(-5, 45)
-  }
-}
 ```
 
-```{r globalRes, fig.cap='Common component', fig.subcap = for_global$subcap, out.width='0.48\\linewidth', fig.height=5, fig.width=5, eval=isTRUE(has_sample) && nrow(for_global) > 0}
+```{r globalRes, fig.cap='Exposure-response: common component (left column of each pair) and population-weighted average. Grey: conditional draws. Green: pointwise 2.5/50/97.5\\% quantiles. Red: 80\\% global envelope.', fig.subcap = for_global$subcap, out.width='0.48\\linewidth', fig.height=5, fig.width=5, eval=isTRUE(has_sample) && nrow(for_global) > 0}
 par(mar = c(3, 3, 0, 0), bty = "l")
 
 for (d in seq_len(nrow(for_global))) {
   d_var <- for_global[d, "var"]
-  x_here <- res$sample$x[[d_var]]
-  if (grepl("sqrt", d_var)) x_here <- x_here^2
-  if (grepl("div10", d_var)) x_here <- x_here * 10
+  x_here <- sample_x(d_var)
 
   plot(
     NA,
@@ -404,13 +447,13 @@ for (d in seq_len(nrow(for_global))) {
     envelope_here <- res$sample$envelope$weighted[[d_var]]
     quantiles_here <- res$sample$quantiles$weighted[[d_var]]
   }
-  if (!is.null(quantiles_here)) {
+  if (!is.null(quantiles_here) && !inherits(quantiles_here, "try-error")) {
     matlines(
       x_here, 100 * (quantiles_here - 1),
       lty = c(2, 1, 2), lwd = c(1, 3, 1), col = "green"
     )
   }
-  if (!is.null(envelope_here)) {
+  if (!is.null(envelope_here) && !inherits(envelope_here, "try-error")) {
     matlines(
       x_here, 100 * (envelope_here - 1),
       lty = c(3, 2, 3), lwd = c(1, 2, 1), col = "red"
@@ -420,24 +463,26 @@ for (d in seq_len(nrow(for_global))) {
 ```
 
 ```{r byRegionTemplate, eval=FALSE, include=FALSE}
-x_here <- res$sample$x[[d_var]]
-s_group <- names(res$sample$envelope$group[[d_var]])
-if (grepl("sqrt", d_var)) x_here <- x_here^2
-if (grepl("div10", d_var)) x_here <- x_here * 10
+x_here <- sample_x(d_var)
+s_group <- names(res$sample$quantiles$group[[d_var]])
+if (!length(s_group)) {
+  s_group <- names(res$sample$envelope$group[[d_var]])
+}
 sim_global_here_y <- 100 * (res$sample$quantiles$common[[d_var]] - 1)
 
 for (d_group in s_group) {
   group_key <- as.character(d_group)
-  the_ye <- 100 * (res$sample$envelope$group[[d_var]][[group_key]] - 1)
-  the_yq <- 100 * (res$sample$quantiles$group[[d_var]][[group_key]] - 1)
-  if (is.null(the_yq)) {
+  the_yq_raw <- res$sample$quantiles$group[[d_var]][[group_key]]
+  the_ye_raw <- res$sample$envelope$group[[d_var]][[group_key]]
+  if (is.null(the_yq_raw) || inherits(the_yq_raw, "try-error")) {
     warning("missing group quantiles for ", d_var, " / ", d_group)
     next
   }
+  the_yq <- 100 * (the_yq_raw - 1)
   plot(
     x_here, sim_global_here_y[, 2],
     type = "l",
-    xlab = d_var, ylab = "100 x (RR-1)",
+    xlab = s_var_names[d_var], ylab = "100 x (RR-1)",
     col = "grey", xaxs = "i", lwd = 4,
     ylim = the_y_lim[[d_var]], xlim = the_x_lim[[d_var]]
   )
@@ -445,15 +490,20 @@ for (d_group in s_group) {
     x_here, the_yq,
     lty = c(2, 1, 2), lwd = c(1, 2, 1), col = "green"
   )
-  matlines(
-    x_here, the_ye,
-    lty = c(2, 1, 2), lwd = c(1, 2, 1), col = "red"
-  )
+  if (!is.null(the_ye_raw) && !inherits(the_ye_raw, "try-error")) {
+    matlines(
+      x_here, 100 * (the_ye_raw - 1),
+      lty = c(2, 1, 2), lwd = c(1, 2, 1), col = "red"
+    )
+  }
 }
 ```
 
 ```{r byRegionSetup1, eval=isTRUE(has_sample)}
-d_var <- grep("temp", names(res$sample$sim), value = TRUE)
+d_var <- grep("temp", names(res$sample$sim), value = TRUE)[1]
+if (is.na(d_var) || !nzchar(d_var)) {
+  d_var <- character(0)
+}
 s_group <- if (length(d_var)) {
   names(res$sample$quantiles$group[[d_var]])
 } else {
@@ -465,7 +515,10 @@ s_group <- if (length(d_var)) {
 ```
 
 ```{r byRegionSetup2, eval=isTRUE(has_sample)}
-d_var <- grep("[pP]m$", names(res$sample$sim), value = TRUE)
+d_var <- grep("sqrt_pm|^pm$|_pm$", names(res$sample$sim), value = TRUE)[1]
+if (is.na(d_var) || !nzchar(d_var)) {
+  d_var <- character(0)
+}
 s_group <- if (length(d_var)) {
   names(res$sample$quantiles$group[[d_var]])
 } else {
