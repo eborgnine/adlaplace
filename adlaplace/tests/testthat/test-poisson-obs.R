@@ -1,3 +1,28 @@
+test_that("poisson() falls back to stats::poisson when called bare", {
+  fam <- adlaplace::poisson()
+  expect_s3_class(fam, "family")
+  expect_identical(fam$family, "poisson")
+  expect_identical(fam$link, "log")
+})
+
+test_that("poisson term carries the expected slots and NULL theta_info", {
+  term <- adlaplace::poisson("Y")
+  expect_s4_class(term, "poisson")
+  expect_identical(term@density, "poisson_obs")
+  expect_identical(term@ad_kind, "observations")
+  expect_null(adlaplace::theta_info(term))
+})
+
+test_that("collect_terms parses poisson(y) on the LHS", {
+  terms <- adlaplace::collect_terms(adlaplace::poisson(y) ~ x)
+  pois_idx <- which(vapply(terms, function(x) {
+    methods::is(x, "poisson")
+  }, logical(1L)))
+  expect_length(pois_idx, 1L)
+  expect_identical(terms[[pois_idx]]@density, "poisson_obs")
+  expect_identical(terms[[pois_idx]]@name, "y")
+})
+
 test_that("poisson_obs matches dpois with an offset", {
   set.seed(7)
   n <- 40L

@@ -46,8 +46,9 @@ matrix, the scaled ICAR precision `Q_scaled`, and the `prec` list for
 `germany$map` is loaded from `inst/extdata/germany_map.gpkg` in the setup chunk.
 
 Latent vector $\gamma = (u_{\mathrm{struct}}, u_{\mathrm{iid}})$ has length
-$2n$: structured and iid effects on $n$ areas. Observations use `poisson_obs`
-with offset $\log E_i$.
+$2n$: structured and iid effects on $n$ areas. Observations use the
+`poisson()` response term (AD density `poisson_obs`) with offset
+$\log E_i$ in `config`.
 
 ```{r shards}
 n <- length(germany$Y)
@@ -59,6 +60,8 @@ A_obs <- cbind(
   Matrix::sparseMatrix(i = seq_len(n), j = seq_len(n), x = 1, dims = c(n, n))
 )
 X_obs <- Matrix::Matrix(0, n, 0)
+
+obs_term <- poisson("Y")
 
 config <- list(
   transform_theta = TRUE,
@@ -74,8 +77,8 @@ data_obs <- adlaplace:::density_data(
   A = A_obs,
   X = X_obs,
   theta_map = n_theta,
-  ad_kind = "observations",
-  density = "poisson_obs"
+  ad_kind = obs_term@ad_kind,
+  density = obs_term@density
 )
 
 model_struct <- adlaplace:::density_data(

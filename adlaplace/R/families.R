@@ -81,6 +81,75 @@ binomial <- function(x, size = NULL, link = "logit") {
   )
 }
 
+#' Poisson observation model term
+#'
+#' @description Model term for the observation-level Poisson log density with
+#' a log link, registered as \code{poisson_obs}. For each observation with
+#' linear predictor \code{eta = X beta + A gamma} and optional offset
+#' \code{o} (via \code{config$offset}), the mean is \code{exp(eta + o)} and
+#' the log density contribution is
+#' \code{y * eta - exp(eta + o) + y * o - lgamma(y + 1)}. There are no
+#' observation-level hyperparameters.
+#' @name poisson-class
+#' @aliases poisson
+#' @docType class
+#' @title Poisson observation term
+#' @exportClass poisson
+#'
+#' @section Slots (inherited from \code{model}):
+#' \describe{
+#'   \item{\code{ad_pack}}{Character scalar \code{"poisson_obs"}.}
+#'   \item{\code{ad_kind}}{Character scalar \code{"observations"}.}
+#' }
+NULL
+
+setClass(
+  "poisson",
+  contains = "model_term",
+  prototype = prototype(
+    knots = numeric(0),
+    ref_value = numeric(0),
+    p.order = as.integer(1),
+    init = numeric(0),
+    lower = numeric(0),
+    upper = numeric(0),
+    parscale = numeric(0),
+    model_role = factor("response", levels = .model_role_levels),
+    density = "poisson_obs",
+    ad_kind = "observations"
+  )
+)
+
+#' Poisson observation term constructor
+#'
+#' @description Creates a response term wired to the \code{poisson_obs} AD
+#' shard. There are no observation-level hyperparameters. An exposure or
+#' expected-count offset is supplied through \code{config$offset} when
+#' building AD shards (for example \code{log(E)} in disease mapping).
+#'
+#' When called with no response variable this function falls back to
+#' \code{stats::poisson()}, so \code{glm(..., family = poisson)} keeps
+#' working with \pkg{adlaplace} attached.
+#'
+#' @rdname poisson-class
+#' @param x Outcome variable name (non-negative counts).
+#' @param link Link passed to \code{stats::poisson()} in the fallback case.
+#' @return A \code{poisson} object (or a \code{stats::family} when called
+#'   with no response variable).
+#' @export
+poisson <- function(x, link = "log") {
+  if (missing(x)) {
+    return(stats::poisson(link = link))
+  }
+  x <- strip_term_name(as.character(x))
+  methods::new(
+    "poisson",
+    name = x,
+    label = paste(x, "poisson", sep = "_"),
+    formula = stats::as.formula(paste(x, "~."), env = new.env())
+  )
+}
+
 #' Gaussian observation model term
 #'
 #' @description Model term for the observation-level Gaussian log density
