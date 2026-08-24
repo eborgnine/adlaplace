@@ -24,12 +24,18 @@ a linear fixed effect. Fitting is done with `adlaplace()`.
 
 ```{r setup, include=FALSE}
 library(adlaplace)
+source("_vignette_full.R", local = TRUE)
+fit_num_shards <- if (vignette_full) 200L else 8L
+fit_maxit <- if (vignette_full) 20L else 5L
 ```
 
 ## Data
 
 ```{r data}
 data("london", package = "adlaplace")
+if (!vignette_full) {
+  london <- london[london$year == 2003, ]
+}
 head(london)
 quantile(london$pm10, na.rm = TRUE)
 quantile(london$tmean, na.rm = TRUE)
@@ -69,10 +75,10 @@ fit <- adlaplace(
   data = london,
   config = list(
     num_threads = 2L,
-    num_shards = 200L
+    num_shards = fit_num_shards
   ),
   control = list(
-    maxit = 20
+    maxit = fit_maxit
   ),
   verbose = FALSE
 )
@@ -85,7 +91,7 @@ fit$par_info
 The same model with overdispersion optimized on the natural scale
 (`log = FALSE`) should recover the same MLE and log-likelihood.
 
-```{r fit-natural-scale}
+```{r fit-natural-scale, eval = vignette_full}
 cc_formula_nat <- dirichlet_multinom(
   all,
   by = c("year", "month", "dow"),
@@ -127,7 +133,7 @@ all.equal(as.numeric(logLik(fit)), as.numeric(logLik(fit_nat)), tolerance = 1e-5
 ```
 
 
-```{r plot_results}
+```{r plot_results, eval = vignette_full}
 num_sim <- 200L
 num_grid <- 101L
 gamma_sims <- rmvnldl(n = num_sim, fit = fit)
@@ -161,7 +167,7 @@ for (D in smooth_vars) {
 Build `model_data`, shard map, and `ad_pack` without running outer optimization,
 then maximize the Laplace profile likelihood with `optim` directly.
 
-```{r for_dev}
+```{r for_dev, eval = vignette_full}
 md <- model_data(cc_formula, data = london, verbose = FALSE)
 config_dev <- list(
   transform_theta = TRUE,
@@ -209,7 +215,7 @@ bob <- stats::optim(
 At starting values, evaluate the full log-density and its gradient over all
 parameters (`beta`, inner `gamma`, and `theta`).
 
-```{r joint-log-dens}
+```{r joint-log-dens, eval = vignette_full}
 sz <- af@sizes
 gamma0 <- rep(0, nrow(md$term_data$info$gamma))
 x_full <- c(
@@ -240,7 +246,7 @@ bob <- hessian(dens_ptr, x_full)
 With outer parameters fixed at their starting values, `log_lik_laplace()`
 optimizes random effects and returns the log-likelihood.
 
-```{r likelihood}
+```{r likelihood, eval = vignette_full}
 x_outer <- par_info$init
 
 lik <- log_lik_laplace(

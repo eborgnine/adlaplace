@@ -14,6 +14,7 @@ vignette: >
 ```{r setup, include=FALSE}
 library("Matrix")
 library("adlaplace")
+source("_vignette_full.R", local = TRUE)
 ```
 
 This vignette walks through a hierarchical negative-binomial model: simulate data,
@@ -60,12 +61,12 @@ observation and hyperparameter terms, plus `random_diagonal` for random effects)
 
 ## Simulated data
 
-We generate 5000 observations, fixed effects, two random-effect groups, and
+We generate `r if (vignette_full) "5000" else "400"` observations, fixed effects, two random-effect groups, and
 Poisson–Gamma overdispersion. Outer parameters are stored on the log-SD scale
 (`transform_theta = TRUE`).
 
 ```{r theData}
-Nobs <- 5000
+Nobs <- if (vignette_full) 5000 else 400
 Nrandom1 <- 10
 Nrandom2 <- 25
 
@@ -108,7 +109,10 @@ config <- list(
   transform_theta = TRUE,
   # Warm-start near the data-generating values (close to the MLE).
   gamma = gamma,
-  obs_groups = adlaplace::obs_groups(Amat, num_shards = 50L),
+  obs_groups = adlaplace::obs_groups(
+    Amat,
+    num_shards = if (vignette_full) 50L else 8L
+  ),
   verbose = FALSE,
   package = "adlaplace"
 )
@@ -427,7 +431,10 @@ control_inner <- list(
 
 # Start near the truth (approx. MLE); few outer steps suffice.
 x_start <- x_outer + c(0.05, -0.05, 0.1, -0.1, 0.05)
-optim_control <- list(maxit = 25L, trace = 0, factr = 1e9, pgtol = 1e-3)
+optim_control <- list(
+  maxit = if (vignette_full) 25L else 5L,
+  trace = 0, factr = 1e9, pgtol = 1e-3
+)
 bounds <- list(lower = rep(-5, length(x_outer)), upper = rep(5, length(x_outer)))
 
 common_optim_args <- c(
@@ -466,7 +473,7 @@ Finite-difference checks along one outer coordinate validate the profile gradien
 the determinant derivative, and the chain rule through the inner mode
 $u(\beta, \theta)$. The finite-difference points should fall on the AD lines.
 
-```{r testLogLgrad, fig.height=7}
+```{r testLogLgrad, fig.height=7, eval = vignette_full}
 config$verbose <- FALSE
 par(mfrow = c(3, 2), mar = c(2, 2, 2, 0), mgp = c(1, 0.5, 0))
 
@@ -519,7 +526,7 @@ max_abs_hess_diff
 ```
 
 
-```{r checkDu}
+```{r checkDu, eval = vignette_full}
 seq_gamma1 <- seq.int(
   ad_pack@sizes["beta"] + 1L,
   length.out = ad_pack@sizes["gamma"]
@@ -558,7 +565,7 @@ and its AD gradient and Hessian. Finite-difference points should fall on
 the AD lines; Hessian panels compare AD Hessian rows to slopes of the
 AD gradient.
 
-```{r derivJointDens, fig.height=5}
+```{r derivJointDens, fig.height=5, eval = vignette_full}
 par(mfrow = c(4, 2), mar = c(2, 2, 2, 0), mgp = c(1, 0.5, 0))
 
 x_here <- res_mid$full_parameters
@@ -598,7 +605,7 @@ for (Dpar2 in s_par2) {
 
 Code verifying the omnibus interface gives the same results as barebones implementation.
 
-```{r checkNicerInterface}
+```{r checkNicerInterface, eval = vignette_full}
 dat <- cbind(
   data.frame(y = y),
   Adf,
@@ -647,7 +654,7 @@ Gauss–Hermite quadrature (`mvQuad`): nodes are drawn from the Laplace proposal
 `N(hat(gamma), H^{-1})` and reweighted by `joint_log_dens` relative to that
 Gaussian. Use a dens-safe clone when the fit handle has `num_threads > 1`.
 
-```{r meanEstimation}
+```{r meanEstimation, eval = vignette_full}
 library(mvQuad)
 mean_estimate <- mean_mvquad(
   parameters = log_lik2$parameters,

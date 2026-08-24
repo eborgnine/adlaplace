@@ -17,6 +17,7 @@ taken from help files for mgcv::gamm
 ```{r setup, include=FALSE}
 library("Matrix")
 library("adlaplace")
+source("_vignette_full.R", local = TRUE)
 ```
 
 ```{r gamm}
@@ -59,7 +60,7 @@ config <- list(
   transform_theta = TRUE,
   obs_groups = adlaplace::obs_groups(
     md$term_data$A,
-    num_shards = 100
+    num_shards = if (vignette_full) 100 else 10
   ),
   verbose = FALSE
 )
@@ -114,8 +115,8 @@ outer_fit <- stats::optim(
   gr = adlaplace::outer_gr,
   method = "L-BFGS-B",
   control = list(
-    maxit = 200,
-    trace = 1,
+    maxit = if (vignette_full) 200 else 8,
+    trace = if (vignette_full) 1 else 0,
     factr = 1e3,
     pgtol = 1e-12,
     parscale = md$term_data$info$parameters$parscale
@@ -164,7 +165,7 @@ Finite-difference checks along one outer coordinate validate the profile gradien
 the determinant derivative, and the chain rule through the inner mode
 $u(\beta, \theta)$.
 
-```{r testLogLgrad, fig.height=7}
+```{r testLogLgrad, fig.height=7, eval = vignette_full}
 # Finite-difference points should fall on the AD lines.
 par(mfrow = c(3, 2), mar = c(2, 2, 2, 0), mgp = c(1, 0.5, 0))
 
@@ -217,7 +218,7 @@ max(abs((hessian_outer - hessian_ad)@x), na.rm = TRUE)
 The same finite-difference idea applies to the full joint log density
 $-\log p(\beta, \gamma, \theta \mid y)$ and its AD gradient and Hessian.
 
-```{r derivJointDens, fig.height=5}
+```{r derivJointDens, fig.height=5, eval = vignette_full}
 # Finite-difference points should fall on the AD lines.
 par(mfrow = c(3, 2), mar = c(2, 2, 2, 0), mgp = c(1, 0.5, 0))
 
@@ -273,7 +274,7 @@ sim <- adlaplace::sim_fit(
   x = newx,
   data = md,
   fit = res,
-  n = 500L
+  n = if (vignette_full) 500L else 20L
 )
 
 matplot(newx$x2, sim, type = "l", col = "#00000010", lty = 1)

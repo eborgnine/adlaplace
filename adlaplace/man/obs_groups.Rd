@@ -3,6 +3,9 @@
 \name{obs_groups}
 \alias{obs_groups}
 \title{Partition observations into AD shards by sparsity pattern}
+\usage{
+obs_groups(A, elgm_matrix, num_shards, min_shards = 0)
+}
 \arguments{
 \item{A}{Random-effects design matrix (\code{nrow(A)} = number of observations).}
 

@@ -1,45 +1,3 @@
-#' Partition observations into AD shards by sparsity pattern
-#'
-#' The function partitions columns into \code{num_shards} shards using
-#' quantiles of the first right singular vector, optionally using \pkg{RSpectra}
-#' for efficiency when available.
-#'
-#' The resulting grouping is returned as a sparse matrix whose columns
-#' correspond to shards and whose entries are the singular-vector loadings.
-#' Shards are ordered from most heterogeneous to most homogeneous.
-#'
-#' @param A Random-effects design matrix (\code{nrow(A)} = number of observations).
-#' @param elgm_matrix A numeric matrix (or matrix-like object) for extended latent gaussian models.
-#' @param num_shards Integer giving the maximum number of shards to construct.
-#'   The actual number of shards may be smaller if fewer distinct loadings
-#'   are present.
-#' @param min_shards Integer giving the minimum number of shards. When there
-#'   are fewer distinct singular-vector loadings than \code{min_shards}, only
-#'   the largest exact-loading group is split until \code{min_shards} is reached
-#'   (or that group cannot be split further).
-#'
-#' @details
-#' If the \pkg{RSpectra} package is available, the leading singular vector
-#' is computed using \code{RSpectra::svds}; otherwise, a full singular value
-#' decomposition via \code{\link[base]{svd}} is used.
-#'
-#' Shard boundaries are defined by empirical quantiles of the loadings.
-#' Shards are subsequently reordered so that shards with larger within-shard
-#' variability appear first.
-#'
-#' @return
-#' A sparse matrix of class \code{"dgCMatrix"} (from \pkg{Matrix}), with
-#' one column per shard and one row per observation. Nonzero entries
-#' correspond to singular-vector loadings.
-#'
-#' @examples
-#' set.seed(1)
-#' A <- matrix(rnorm(100), 20, 5)
-#' G <- obs_groups(A, num_shards = 3)
-#' G
-#' @name obs_groups
-NULL
-
 #' Default observation shard map (one column, all observations)
 #'
 #' @param n_obs Number of observations (\code{length(y)}).
@@ -122,6 +80,45 @@ ensure_config_obs_groups <- function(
   config
 }
 
+#' Partition observations into AD shards by sparsity pattern
+#'
+#' The function partitions columns into \code{num_shards} shards using
+#' quantiles of the first right singular vector, optionally using \pkg{RSpectra}
+#' for efficiency when available.
+#'
+#' The resulting grouping is returned as a sparse matrix whose columns
+#' correspond to shards and whose entries are the singular-vector loadings.
+#' Shards are ordered from most heterogeneous to most homogeneous.
+#'
+#' @param A Random-effects design matrix (\code{nrow(A)} = number of observations).
+#' @param elgm_matrix A numeric matrix (or matrix-like object) for extended latent gaussian models.
+#' @param num_shards Integer giving the maximum number of shards to construct.
+#'   The actual number of shards may be smaller if fewer distinct loadings
+#'   are present.
+#' @param min_shards Integer giving the minimum number of shards. When there
+#'   are fewer distinct singular-vector loadings than \code{min_shards}, only
+#'   the largest exact-loading group is split until \code{min_shards} is reached
+#'   (or that group cannot be split further).
+#'
+#' @details
+#' If the \pkg{RSpectra} package is available, the leading singular vector
+#' is computed using \code{RSpectra::svds}; otherwise, a full singular value
+#' decomposition via \code{\link[base]{svd}} is used.
+#'
+#' Shard boundaries are defined by empirical quantiles of the loadings.
+#' Shards are subsequently reordered so that shards with larger within-shard
+#' variability appear first.
+#'
+#' @return
+#' A sparse matrix of class \code{"dgCMatrix"} (from \pkg{Matrix}), with
+#' one column per shard and one row per observation. Nonzero entries
+#' correspond to singular-vector loadings.
+#'
+#' @examples
+#' set.seed(1)
+#' A <- matrix(rnorm(100), 20, 5)
+#' G <- obs_groups(A, num_shards = 3)
+#' G
 #' @export
 obs_groups <- function(A, elgm_matrix, num_shards, min_shards = 0) {
   ATp <- Matrix::t(A)

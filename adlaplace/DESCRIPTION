@@ -6,7 +6,7 @@ Date: 2026-08-21
 Authors@R: person(given="Patrick", family="Brown", email="patrick.borgnine@gmail.com", role=c("aut","cre","cph"))
 Maintainer: Patrick Brown <patrick.borgnine@gmail.com>
 Description: Computes Laplace approximations for hierarchical models using
-    automatic differentiation (CppAD) and trust-region optimization.
+    automatic differentiation ('CppAD') and trust-region optimization.
 License: GPL (>= 2)
 Depends: R (>= 3.5.0)
 Imports: Matrix (>= 1.2.18), Rcpp (>= 1.0.3), methods, data.table, stats,

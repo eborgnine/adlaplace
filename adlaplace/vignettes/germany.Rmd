@@ -14,6 +14,7 @@ vignette: >
 ```{r setup, include=FALSE}
 library("Matrix")
 library("adlaplace")
+source("_vignette_full.R", local = TRUE)
 data("germany")
 # District polygons live in inst/extdata (not in data/germany.rda) so loading
 # the dataset does not require terra.
@@ -189,19 +190,21 @@ inner_res <- adlaplace::inner_opt(
   gamma = config$gamma,
   ad_pack = ad_pack,
   control = list(
-    maxit = 1000L,
-    report.level = 4,
-    report.freq = 5,
+    maxit = if (vignette_full) 1000L else 40L,
+    report.level = if (vignette_full) 4 else 0,
+    report.freq = if (vignette_full) 5 else 0,
     grad.tol = 1e-8,
     cg.tol = 1e-6
   ),
-  deriv = TRUE,
+  deriv = vignette_full,
   verbose = FALSE
 )
 
 inner_res$inner_opt$fval
 
-summary(inner_res$hessian$trace3)
+if (vignette_full) {
+  summary(inner_res$hessian$trace3)
+}
 ```
 
 ## Joint density derivative checks
@@ -209,7 +212,7 @@ summary(inner_res$hessian$trace3)
 The same finite-difference idea applies to the full joint log density
 $-\log p(\gamma, \theta \mid y)$ and its AD gradient and Hessian.
 
-```{r derivJointDens, fig.height=5}
+```{r derivJointDens, fig.height=5, eval = vignette_full}
 # Finite-difference points should fall on the AD lines.
 par(mfrow = c(4, 2), mar = c(2, 2, 2, 0), mgp = c(1, 0.5, 0))
 
@@ -300,7 +303,12 @@ opt <- optim(
   gr = adlaplace::outer_gr,
   method = "L-BFGS-B",
   lower = rep(-15, n_theta),
-  control = list(maxit = 200L, factr = 1e3, trace = 1, REPORT = 1),
+  control = list(
+    maxit = if (vignette_full) 200L else 8L,
+    factr = 1e3,
+    trace = if (vignette_full) 1 else 0,
+    REPORT = 1
+  ),
   config = config,
   ad_pack = ad_pack,
   cache = cache,
