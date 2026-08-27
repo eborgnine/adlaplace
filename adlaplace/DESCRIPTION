@@ -22,11 +22,11 @@ SystemRequirements: OpenMP
 NeedsCompilation: yes
 Collate:
     'RcppExports.R'
-    'ad_pack.R'
-    'ad_pack_ptr.R'
-    'aghq_ff.R'
     'classes.R'
     'density_data.R'
+    'ad_pack_ptr.R'
+    'ad_pack.R'
+    'aghq_ff.R'
     'deriv_scan.R'
     'dirichlet_multinom.R'
     'effects.R'

@@ -53,8 +53,18 @@ setClass(
   )
 )
 
-# External pointer class set in C++; register before the ad_pack slot type.
-methods::setOldClass("ad_pack_ptr")
+#' Raw AD handle (external pointer)
+#'
+#' S4 class for a C++ AD backend handle. Objects are created by
+#' \code{\link{ad_pack_ptr}}, combined with \code{\link{c.ad_pack_ptr}}, and
+#' typically passed to \code{\link{ad_pack}} to attach Hessian templates.
+#'
+#' @name ad_pack_ptr-class
+#' @aliases ad_pack_ptr-class
+#' @exportClass ad_pack_ptr
+#' @seealso \code{\link{ad_pack_ptr}}, \code{\link{ad_pack}},
+#'   \code{\link{clone_ad_pack_ptr}}
+setClass("ad_pack_ptr", contains = "externalptr")
 
 #' AD function with Hessian templates attached
 #'
