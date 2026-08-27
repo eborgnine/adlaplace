@@ -1,0 +1,160 @@
+---
+title: "Bernoulli mixed model for the bacteria data"
+author: "Patrick Brown"
+date: "`r Sys.Date()`"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+vignette: >
+  %\VignetteIndexEntry{Bernoulli mixed model for the bacteria data}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+library(adlaplace)
+source("vignette_full.R", local = TRUE)
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 6,
+  fig.height = 4
+)
+if (!requireNamespace("MASS", quietly = TRUE)) {
+  knitr::knit_exit()
+}
+```
+
+The **adlaplace** formula interface is meant for ordinary mixed models:
+write a response family, some covariates, and a random-effect term, then call
+`adlaplace()`. This vignette fits a Bernoulli GLMM to the `bacteria` data from
+**MASS** — presence of *Haemophilus influenzae* in children — with an
+independent random intercept for each child.
+
+## Data
+
+`y` is recorded as `"y"` / `"n"`. The Bernoulli term expects 0/1, so recode
+presence once and otherwise use the data as they come.
+
+```{r data}
+data(bacteria, package = "MASS")
+bacteria$present <- as.integer(bacteria$y == "y")
+```
+
+There are 220 swabs on 50 children (`ID`), a three-level treatment
+(`placebo`, `drug`, `drug+`), and follow-up `week` at 0, 2, 4, 6, and 11.
+
+```{r data-plot, fig.cap="Observed colonization rate by week and treatment."}
+rate <- aggregate(present ~ week + trt, data = bacteria, FUN = mean)
+cols <- c(placebo = "#4C78A8", drug = "#F58518", "drug+" = "#54A24B")
+
+plot(
+  present ~ week, data = rate, type = "n",
+  ylim = c(0, 1), ylab = "proportion present"
+)
+for (g in levels(bacteria$trt)) {
+  d <- rate[rate$trt == g, ]
+  lines(d$week, d$present, type = "b", pch = 19, col = cols[[g]])
+}
+legend("bottomleft", legend = names(cols), col = cols, pch = 19, lty = 1, bty = "n")
+```
+
+Colonization starts high and falls over the follow-up; both drug arms sit
+below placebo.
+
+## Model
+
+A logistic mixed model with treatment, a linear week effect, and a
+child-level independent random intercept is
+
+\[
+\begin{aligned}
+y_{ij} &\sim \mathrm{Bernoulli}(p_{ij}), \\
+\mathrm{logit}(p_{ij}) &= \beta_0 + \mathbf{x}_{ij}^\top\boldsymbol{\beta} + u_i, \\
+u_i &\sim N(0, \sigma^2).
+\end{aligned}
+\]
+
+That is the whole specification. The same model is one `adlaplace()` call.
+
+```{r fit}
+fit <- adlaplace(
+  binomial(present) ~ trt + week + iid(ID, init = 1),
+  data = bacteria
+)
+```
+
+`binomial(present)` is a Bernoulli likelihood (omit `size` for a single
+trial). Bare names such as `trt` and `week` become linear terms; factors
+drop the first level, so the two treatment coefficients are `drug` and
+`drug+` versus placebo. `iid(ID)` is an independent Gaussian intercept per
+child. An intercept is added automatically.
+
+The `init = 1` on `iid()` is a starting value for \(\sigma\) on the logit
+scale. A value near 1 is a reasonable default for binary data; a start
+that is much too small can sit at a near-zero local mode.
+
+## Estimates
+
+```{r summary}
+summary(fit)
+confint(fit)
+```
+
+The intercept is the logit probability at week 0 on placebo. Both treatment
+contrasts are negative (less colonization on drug), and `week_linear` is
+negative (colonization declines). `ID_iid` is the child-level standard
+deviation \(\sigma\).
+
+## Fitted probabilities
+
+`fitted()` returns the linear predictor, including each child's random
+intercept. Subject-specific fitted probabilities are `plogis(fitted(fit))`.
+
+```{r fitted-plot, fig.cap="Mean fitted probability by week and treatment (lines), with observed rates as points."}
+bacteria$p_hat <- plogis(fitted(fit))
+fit_rate <- aggregate(p_hat ~ week + trt, data = bacteria, FUN = mean)
+
+plot(
+  p_hat ~ week, data = fit_rate, type = "n",
+  ylim = c(0, 1), ylab = "probability present"
+)
+for (g in levels(bacteria$trt)) {
+  d <- fit_rate[fit_rate$trt == g, ]
+  o <- rate[rate$trt == g, ]
+  lines(d$week, d$p_hat, col = cols[[g]], lwd = 2)
+  points(o$week, o$present, col = cols[[g]], pch = 19)
+}
+legend("bottomleft", legend = names(cols), col = cols, lty = 1, lwd = 2, pch = 19, bty = "n")
+```
+
+## Child random effects
+
+With no smooth terms, `plot(fit)` shows the Laplace modes of the 50 child
+intercepts.
+
+```{r re-modes, fig.cap="Laplace modes of the child-level random intercepts."}
+plot(fit, main = "Child random intercepts")
+```
+
+`sim_iid()` draws from the same Laplace approximation and returns pointwise
+intervals, still without assembling Hessians or samplers by hand.
+
+```{r re-intervals, fig.cap="Child random intercepts, ordered, with 80% pointwise intervals."}
+set.seed(1)
+re <- sim_iid(fit, n = if (vignette_full) 400L else 80L)
+pw <- re$ID$pointwise
+ord <- order(pw[, "0.5"])
+pw <- pw[ord, ]
+idx <- seq_along(ord)
+
+plot(
+  idx, pw[, "0.5"],
+  ylim = range(pw),
+  xlab = "child (ordered by median)",
+  ylab = "random intercept",
+  pch = 19, cex = 0.6
+)
+arrows(idx, pw[, "0.1"], idx, pw[, "0.9"], length = 0, col = "grey50")
+abline(h = 0, lty = 2)
+```
