@@ -362,3 +362,56 @@ make_sun43_hs_start_from_gh <- function(quad, skew_strength = 0.01) {
   S <- weighted_cov(Z, w)
   make_sun43_hs_start_from_normal(mu, S, skew_strength = skew_strength)
 }
+
+#' Map mean and covariance to a SUN(4,2) hyperspherical start
+#'
+#' Exact Gaussian start on the joint hyperspherical layout of
+#' [make_sun42_hs_params()]: the six \eqn{U}-block free coordinates come from
+#' inverting \code{cov2cor(Sigma)}; all cross / \eqn{V} coordinates are zero.
+#' Optional \code{skew_strength} sets pair slots \code{z51,z62} to
+#' \code{atanh(skew_strength)}.
+#'
+#' @param mu Length-4 mean.
+#' @param Sigma \eqn{4\times 4} covariance.
+#' @param skew_strength Pair-slot \eqn{t=\tanh(z)} value in \eqn{(-1,1)}
+#'   (default 0).
+#' @return Named length-23 parameter vector for [make_sun42_hs_params()].
+#' @export
+make_sun42_hs_start_from_normal <- function(mu, Sigma, skew_strength = 0) {
+  mu <- as.numeric(mu)
+  if (length(mu) != 4L) stop("mu must have length 4")
+  Sigma <- as.matrix(Sigma)
+  if (!all(dim(Sigma) == c(4L, 4L))) stop("Sigma must be 4 x 4")
+  Sigma <- (Sigma + t(Sigma)) / 2
+  nu <- sqrt(pmax(diag(Sigma), 1e-8))
+  C <- stats::cov2cor(Sigma)
+  om <- .corr_free_from_C(C)
+
+  z <- setNames(numeric(15L), .sun_hs_z_names(4L, 2L))
+  z[c("z21", "z31", "z32", "z41", "z42", "z43")] <- om
+  if (abs(skew_strength) > 0) {
+    s <- max(min(as.numeric(skew_strength), 1 - 1e-8), -1 + 1e-8)
+    z[c("z51", "z62")] <- atanh(s)
+  }
+
+  c(
+    setNames(mu, paste0("xi", 1:4)),
+    setNames(nu, paste0("nu", 1:4)),
+    z
+  )
+}
+
+#' SUN(4,2) hyperspherical start from weighted sample moments
+#'
+#' @param quad List with \code{x} and \code{w}.
+#' @param skew_strength Passed to [make_sun42_hs_start_from_normal()].
+#' @return Named length-23 parameter vector.
+#' @export
+make_sun42_hs_start_from_gh <- function(quad, skew_strength = 0.01) {
+  Z <- as.matrix(quad$x)
+  w <- as.numeric(quad$w)
+  w <- w / sum(w)
+  mu <- weighted_mean(Z, w)
+  S <- weighted_cov(Z, w)
+  make_sun42_hs_start_from_normal(mu, S, skew_strength = skew_strength)
+}
