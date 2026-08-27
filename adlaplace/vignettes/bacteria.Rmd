@@ -1,12 +1,12 @@
 ---
-title: "Bernoulli mixed model for the bacteria data"
+title: "Bayesian Bernoulli mixed model for the bacteria data"
 author: "Patrick Brown"
 date: "`r Sys.Date()`"
 output:
   rmarkdown::html_vignette:
     toc: true
 vignette: >
-  %\VignetteIndexEntry{Bernoulli mixed model for the bacteria data}
+  %\VignetteIndexEntry{Bayesian Bernoulli mixed model for the bacteria data}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -20,29 +20,29 @@ knitr::opts_chunk$set(
   fig.width = 6,
   fig.height = 4
 )
-if (!requireNamespace("MASS", quietly = TRUE)) {
+if (!requireNamespace("MASS", quietly = TRUE) ||
+    !requireNamespace("aghq", quietly = TRUE)) {
   knitr::knit_exit()
 }
+aghq_k <- if (vignette_full) 5L else 3L
 ```
 
-The **adlaplace** formula interface is meant for ordinary mixed models:
-write a response family, some covariates, and a random-effect term, then call
-`adlaplace()`. This vignette fits a Bernoulli GLMM to the `bacteria` data from
-**MASS** — presence of *Haemophilus influenzae* in children — with an
-independent random intercept for each child.
+This vignette fits a Bayesian Bernoulli GLMM to the `bacteria` data from
+**MASS**, then integrates the Laplace-approximate marginal posterior for the
+random-effect standard deviation with **aghq**. The formula interface hides
+the AD / Laplace details: known-SD Gaussian priors on the former fixed
+effects, an exponential prior on the child-level SD, and one call to
+`adlaplace()` followed by `aghq::aghq()`.
 
 ## Data
-
-`y` is recorded as `"y"` / `"n"`. The Bernoulli term expects 0/1, so recode
-presence once and otherwise use the data as they come.
 
 ```{r data}
 data(bacteria, package = "MASS")
 bacteria$present <- as.integer(bacteria$y == "y")
 ```
 
-There are 220 swabs on 50 children (`ID`), a three-level treatment
-(`placebo`, `drug`, `drug+`), and follow-up `week` at 0, 2, 4, 6, and 11.
+There are 220 swabs on 50 children (`ID`), a three-level treatment, and
+follow-up `week` at 0, 2, 4, 6, and 11.
 
 ```{r data-plot, fig.cap="Observed colonization rate by week and treatment."}
 rate <- aggregate(present ~ week + trt, data = bacteria, FUN = mean)
@@ -59,57 +59,92 @@ for (g in levels(bacteria$trt)) {
 legend("bottomleft", legend = names(cols), col = cols, pch = 19, lty = 1, bty = "n")
 ```
 
-Colonization starts high and falls over the follow-up; both drug arms sit
-below placebo.
-
 ## Model
 
-A logistic mixed model with treatment, a linear week effect, and a
-child-level independent random intercept is
+The hierarchical model is
 
 \[
 \begin{aligned}
 y_{ij} &\sim \mathrm{Bernoulli}(p_{ij}), \\
-\mathrm{logit}(p_{ij}) &= \beta_0 + \mathbf{x}_{ij}^\top\boldsymbol{\beta} + u_i, \\
-u_i &\sim N(0, \sigma^2).
+\mathrm{logit}(p_{ij}) &= \alpha + \mathbf{x}_{ij}^\top\boldsymbol{\beta} + u_i, \\
+\alpha, \beta_k &\sim N(0, 10^2), \\
+u_i &\sim N(0, \sigma^2), \\
+\sigma &\sim \mathrm{Exp}(\text{median} = 1).
 \end{aligned}
 \]
 
-That is the whole specification. The same model is one `adlaplace()` call.
+Moving the intercept, treatment, and week coefficients into the random-effect
+block with known SDs leaves a **one-dimensional** outer parameter
+(\(\log\sigma\)). Nested Laplace then integrates the latent field; AGHQ
+integrates \(\log\sigma\).
 
 ```{r fit}
 fit <- adlaplace(
-  binomial(present) ~ trt + week + iid(ID, init = 1),
+  binomial(present) ~
+    intercept(sd = 10) +
+    linear(trt, sd = 10) +
+    rpoly(week, p = 1, sd = 10) +
+    iid(ID, init = 1) +
+    prior(theta = 0, dist = "exp", median = 1),
   data = bacteria
 )
-```
-
-`binomial(present)` is a Bernoulli likelihood (omit `size` for a single
-trial). Bare names such as `trt` and `week` become linear terms; factors
-drop the first level, so the two treatment coefficients are `drug` and
-`drug+` versus placebo. `iid(ID)` is an independent Gaussian intercept per
-child. An intercept is added automatically.
-
-The `init = 1` on `iid()` is a starting value for \(\sigma\) on the logit
-scale. A value near 1 is a reasonable default for binary data; a start
-that is much too small can sit at a near-zero local mode.
-
-## Estimates
-
-```{r summary}
 summary(fit)
-confint(fit)
 ```
 
-The intercept is the logit probability at week 0 on placebo. Both treatment
-contrasts are negative (less colonization on drug), and `week_linear` is
-negative (colonization declines). `ID_iid` is the child-level standard
-deviation \(\sigma\).
+`intercept(sd = 10)`, `linear(trt, sd = 10)`, and `rpoly(week, p = 1, sd = 10)`
+are known-SD Gaussian priors (no estimated \(\theta\)). `iid(ID)` supplies
+the child intercepts and their SD. `prior(theta = 0, ...)` puts an exponential
+prior on the first (0-based) theta — here the only one, `ID_iid`.
 
-## Fitted probabilities
+`adlaplace()` returns the MAP of \(\log\sigma\) under that prior. The outer
+vector has length one:
 
-`fitted()` returns the linear predictor, including each child's random
-intercept. Subject-specific fitted probabilities are `plogis(fitted(fit))`.
+```{r outer-dim}
+coef(fit)
+nrow(fit$par_info)
+```
+
+## Adaptive Gauss–Hermite quadrature
+
+`aghq_ff(fit)` wraps the same Laplace objective used by `adlaplace()` for
+**aghq**. Use `negate = TRUE` because the wrappers return the negated log
+posterior.
+
+```{r aghq}
+ff <- aghq_ff(fit)
+quad <- aghq::aghq(
+  ff = ff,
+  k = aghq_k,
+  startingvalue = fit$par_info$mle_internal,
+  control = aghq::default_control(negate = TRUE)
+)
+summary(quad)
+mode_log_sigma <- as.numeric(quad$optresults$mode)
+c(log_sigma = mode_log_sigma, sigma = exp(mode_log_sigma))
+```
+
+## Posterior of \(\sigma\)
+
+```{r sigma-plot, fig.cap="Normalized AGHQ nodes for the child-level SD."}
+naw <- quad$normalized_posterior$nodesandweights
+nodes <- as.numeric(naw[[1L]])
+w <- exp(as.numeric(naw$logpost_normalized))
+w <- w / sum(w)
+sigma <- exp(nodes)
+ord <- order(sigma)
+
+plot(
+  sigma[ord], w[ord],
+  type = "h", lwd = 3, col = "#4C78A8",
+  xlab = expression(sigma), ylab = "normalized weight"
+)
+abline(v = exp(mode_log_sigma), lty = 2)
+```
+
+## Fitted probabilities and child effects
+
+Subject-specific fitted probabilities at the MAP use `fitted(fit)` (modes of
+all random effects, including the former fixed effects).
 
 ```{r fitted-plot, fig.cap="Mean fitted probability by week and treatment (lines), with observed rates as points."}
 bacteria$p_hat <- plogis(fitted(fit))
@@ -127,18 +162,6 @@ for (g in levels(bacteria$trt)) {
 }
 legend("bottomleft", legend = names(cols), col = cols, lty = 1, lwd = 2, pch = 19, bty = "n")
 ```
-
-## Child random effects
-
-With no smooth terms, `plot(fit)` shows the Laplace modes of the 50 child
-intercepts.
-
-```{r re-modes, fig.cap="Laplace modes of the child-level random intercepts."}
-plot(fit, main = "Child random intercepts")
-```
-
-`sim_iid()` draws from the same Laplace approximation and returns pointwise
-intervals, still without assembling Hessians or samplers by hand.
 
 ```{r re-intervals, fig.cap="Child random intercepts, ordered, with 80% pointwise intervals."}
 set.seed(1)

@@ -91,6 +91,12 @@ EOF
       base=$(basename "$html")
       [ "$base" = "index.html" ] && continue
       title=$base
+      if [ -f "$html" ]; then
+        extracted=$(sed -n 's:.*<title>\([^<]*\)</title>.*:\1:p' "$html" | head -n1 | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+        if [ -n "$extracted" ]; then
+          title=$extracted
+        fi
+      fi
       echo "    <li><a href=\"${pkg}/${base}\">${title}</a></li>"
     done < <(find "${SITE}/${pkg}" -maxdepth 1 -type f -name '*.html' | sort)
     echo "  </ul>"

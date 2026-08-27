@@ -25,6 +25,7 @@ static LogDensSingleDataFn resolve_extra_density(const std::string& name) {
   if (name == "nbinom_extra") return nbinom_extra;
   if (name == "gaussian_extra") return gaussian_extra;
   if (name == "dirichlet_multinomial_extra") return dirichlet_multinomial_extra;
+  if (name == "exp_prior") return exp_prior;
   Rcpp::stop("unknown parameters density: %s", name.c_str());
 }
 

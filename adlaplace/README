@@ -23,6 +23,7 @@ Built HTML vignettes (from CI):
 - [Germany BYM example](https://eborgnine.github.io/adlaplace/adlaplace/germany.html)
 - [GAMM examples](https://eborgnine.github.io/adlaplace/adlaplace/gamm.html)
 - [Case-crossover models with adlaplace](https://eborgnine.github.io/adlaplace/adlaplace/casecrossover.html)
+- [Bayesian Bernoulli mixed model for the bacteria data](https://eborgnine.github.io/adlaplace/adlaplace/bacteria.html)
 - [Equivalence to Conditional Gamma-Poisson Model](https://eborgnine.github.io/adlaplace/adlaplace/dirichlet_multinom.html)
 
 ## Dependencies

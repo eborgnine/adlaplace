@@ -51,4 +51,9 @@ CppAD::vector<CppAD::AD<double>> dirichlet_multinomial_extra(
   const density_data& model,
   const Config& config);
 
+CppAD::vector<CppAD::AD<double>> exp_prior(
+  const CppAD::vector<CppAD::AD<double>>& x,
+  const density_data& model,
+  const Config& config);
+
 #endif

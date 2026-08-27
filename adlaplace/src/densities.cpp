@@ -398,3 +398,29 @@ CppAD::vector<CppAD::AD<double>> dirichlet_multinomial_extra(
   out[0] = contrib;
   return out;
 }
+
+CppAD::vector<CppAD::AD<double>> exp_prior(
+  const CppAD::vector<CppAD::AD<double>>& x,
+  const density_data& model,
+  const Config& config) {
+
+  if (model.y.size() < 1) {
+    Rcpp::stop("exp_prior requires y[0] = rate");
+  }
+  const double rate = model.y[0];
+  if (!(rate > 0.0)) {
+    Rcpp::stop("exp_prior rate must be positive");
+  }
+
+  const CppAD::AD<double> logSd = log_theta_ad(x, model, config);
+  const CppAD::AD<double> sd = CppAD::exp(logSd);
+  // Exp(rate) on SD plus Jacobian from u = log(sd): log λ - λ e^u + u
+  CppAD::vector<CppAD::AD<double>> out(1);
+  out[0] = CppAD::AD<double>(std::log(rate)) - CppAD::AD<double>(rate) * sd + logSd;
+
+  if (config.verbose) {
+    Rcpp::Rcout << "exp_prior rate " << rate << " logSd " << logSd
+                << " contrib " << out[0] << "\n";
+  }
+  return out;
+}

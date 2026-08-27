@@ -1,6 +1,9 @@
 #' intercept Model Term
 #'
 #' @description Creates and manages intercept model terms for fixed effects.
+#'   With a finite \code{sd}, the intercept is treated as a random effect with
+#'   a known-SD Gaussian prior (\code{N(0, sd^2)}), using
+#'   \code{random_diagonal} without a theta parameter.
 #' @name intercept-class
 #' @aliases intercept
 #' @docType class
@@ -20,7 +23,7 @@ NULL
 
 
 setClass("intercept",
-  representation = representation(),
+  slots = list(sd = "numeric"),
   contains = "model_term",
   prototype = list(
     name = "intercept",
@@ -29,6 +32,7 @@ setClass("intercept",
     ref_value = numeric(0),
     p.order = integer(0),
     knots = numeric(0),
+    sd = Inf,
     model_role = factor("fixed", levels = .model_role_levels),
     density = NA_character_,
     ad_kind = NA_character_
@@ -41,6 +45,9 @@ setClass("intercept",
 #' @param lower Lower bound for beta parameter (default: -Inf)
 #' @param upper Upper bound for beta parameter (default: Inf)
 #' @param parscale Parameter scale for optimization (default: 1)
+#' @param sd Prior standard deviation. \code{Inf} (default) keeps a fixed
+#'   effect; a finite positive value places a known-SD Gaussian prior and
+#'   moves the intercept into the random-effect block.
 #' @return A intercept term object
 #' @examples
 #' # Create a intercept term
@@ -49,13 +56,26 @@ setClass("intercept",
 intercept <- function(init = .my_beta_init,
                       lower = .my_beta_lower,
                       upper = .my_beta_upper,
-                      parscale = .my_beta_parscale) {
-  methods::new("intercept",
+                      parscale = .my_beta_parscale,
+                      sd = Inf) {
+  if (length(sd) != 1L || (!is.finite(sd) && !is.infinite(sd)) || sd <= 0) {
+    stop("sd must be a single positive numeric value (or Inf)", call. = FALSE)
+  }
+  known_sd <- is.finite(sd)
+  methods::new(
+    "intercept",
     label = "intercept",
     init = init,
     lower = lower,
     upper = upper,
-    parscale = parscale
+    parscale = parscale,
+    sd = sd,
+    model_role = factor(
+      if (known_sd) "random" else "fixed",
+      levels = .model_role_levels
+    ),
+    density = if (known_sd) "random_diagonal" else NA_character_,
+    ad_kind = if (known_sd) "random" else NA_character_
   )
 }
 
@@ -74,7 +94,9 @@ setMethod("design", "intercept", function(term, data) {
 #' @param data A data frame containing the term variable
 #' @export
 setMethod("beta_info", "intercept", function(term, data) {
-  
+  if (identical(as.character(term@model_role), "random")) {
+    return(NULL)
+  }
   data.frame(
     term = "intercept",
     model = "intercept",
@@ -88,9 +110,39 @@ setMethod("beta_info", "intercept", function(term, data) {
   )
 })
 
+#' @describeIn intercept-class Precision for known-SD intercept prior
+#' @export
+setMethod("precision", "intercept", function(term, data) {
+  if (!is.finite(term@sd)) {
+    return(NULL)
+  }
+  precision_mat <- Matrix::Diagonal(n = 1L, x = 1 / (term@sd^2))
+  dimnames(precision_mat) <- list("intercept", "intercept")
+  precision_mat
+})
+
+#' @describeIn intercept-class Random info for known-SD intercept prior
+#' @export
+setMethod("random_info", "intercept", function(term, data) {
+  if (!is.finite(term@sd)) {
+    return(NULL)
+  }
+  data.frame(
+    term = "intercept",
+    model = "intercept",
+    label = term@label,
+    by = NA, by_labels = NA,
+    basis = NA,
+    order = NA,
+    gamma_label = "intercept"
+  )
+})
+
 #' Linear Model Term
 #'
 #' @description Creates and manages linear model terms for fixed effects.
+#'   With a finite \code{sd}, coefficients are random effects with a known-SD
+#'   Gaussian prior (\code{N(0, sd^2)}).
 #' @name linear-class
 #' @aliases linear
 #' @docType class
@@ -109,12 +161,13 @@ setMethod("beta_info", "intercept", function(term, data) {
 NULL
 
 setClass("linear",
-  representation = representation(),
+  slots = list(sd = "numeric"),
   contains = "model_term",
   prototype = list(
     ref_value = numeric(0),
     p.order = integer(0),
     knots = numeric(0),
+    sd = Inf,
     model_role = factor("fixed", levels = .model_role_levels),
     density = NA_character_,
     ad_kind = NA_character_
@@ -129,6 +182,9 @@ setClass("linear",
 #' @param lower Lower bound for beta parameter (default: -Inf)
 #' @param upper Upper bound for beta parameter (default: Inf)
 #' @param parscale Parameter scale for optimization (default: 1)
+#' @param sd Prior standard deviation. \code{Inf} (default) keeps a fixed
+#'   effect; a finite positive value places a known-SD Gaussian prior and
+#'   moves the coefficients into the random-effect block.
 #' @return A linear term object
 #' @examples
 #' # Create a linear term
@@ -138,7 +194,8 @@ linear <- function(x,
                    init = .my_beta_init,
                    lower = .my_beta_lower,
                    upper = .my_beta_upper,
-                   parscale = .my_beta_parscale) {
+                   parscale = .my_beta_parscale,
+                   sd = Inf) {
   if (is.symbol(x) || is.name(x)) {
     x <- as.character(x)
   } else if (!is.character(x)) {
@@ -147,14 +204,26 @@ linear <- function(x,
   if (length(x) != 1L) {
     stop("x must be a single variable name", call. = FALSE)
   }
-  methods::new("linear",
+  if (length(sd) != 1L || (!is.finite(sd) && !is.infinite(sd)) || sd <= 0) {
+    stop("sd must be a single positive numeric value (or Inf)", call. = FALSE)
+  }
+  known_sd <- is.finite(sd)
+  methods::new(
+    "linear",
     name = x,
     label = paste(x, "linear", sep = "_"),
     formula = stats::as.formula(paste0("~ 0 + ", x)),
     init = init,
     lower = lower,
     upper = upper,
-    parscale = parscale
+    parscale = parscale,
+    sd = sd,
+    model_role = factor(
+      if (known_sd) "random" else "fixed",
+      levels = .model_role_levels
+    ),
+    density = if (known_sd) "random_diagonal" else NA_character_,
+    ad_kind = if (known_sd) "random" else NA_character_
   )
 }
 
@@ -176,6 +245,9 @@ setMethod("design", "linear", function(term, data) {
 #' @param data A data frame containing the term variable
 #' @export
 setMethod("beta_info", "linear", function(term, data) {
+  if (identical(as.character(term@model_role), "random")) {
+    return(NULL)
+  }
   the_colnames <- colnames(design(term, data))
   the_label <- term@label
 
@@ -192,6 +264,41 @@ setMethod("beta_info", "linear", function(term, data) {
   )
 
   return(result)
+})
+
+#' @describeIn linear-class Precision for known-SD linear prior
+#' @export
+setMethod("precision", "linear", function(term, data) {
+  if (!is.finite(term@sd)) {
+    return(NULL)
+  }
+  D <- design(term, data)
+  n <- ncol(D)
+  if (is.null(n) || n < 1L) {
+    return(NULL)
+  }
+  labels <- colnames(D)
+  precision_mat <- Matrix::Diagonal(n = n, x = rep_len(1 / (term@sd^2), n))
+  dimnames(precision_mat) <- list(labels, labels)
+  precision_mat
+})
+
+#' @describeIn linear-class Random info for known-SD linear prior
+#' @export
+setMethod("random_info", "linear", function(term, data) {
+  if (!is.finite(term@sd)) {
+    return(NULL)
+  }
+  the_colnames <- colnames(design(term, data))
+  data.frame(
+    term = term@name,
+    model = "linear",
+    label = term@label,
+    by = NA, by_labels = NA,
+    basis = NA,
+    order = NA,
+    gamma_label = the_colnames
+  )
 })
 
 #' Fixed Polynomial Model Term
@@ -311,4 +418,3 @@ setMethod("beta_info", "fpoly", function(term, data) {
 
   return(result)
 })
-

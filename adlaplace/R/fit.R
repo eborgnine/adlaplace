@@ -288,6 +288,9 @@ adlaplace <- function(
     model_data = md,
     ad_pack = af,
     config = config,
+    control = control,
+    control_inner = control_inner,
+    method = method,
     details = details,
     par_info = par_info,
     gamma = stats::setNames(

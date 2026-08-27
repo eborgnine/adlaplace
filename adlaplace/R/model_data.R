@@ -48,6 +48,7 @@ model_data <- function(formula, data, verbose = FALSE, na_omit = TRUE) {
   observations <- list()
   random <- list()
   random_parameters <- list()
+  prior_parameters <- list()
 
   for (term_here in the_terms) {
     if (!methods::is(term_here, "model_term")) {
@@ -84,9 +85,20 @@ model_data <- function(formula, data, verbose = FALSE, na_omit = TRUE) {
         random_parameters[[random_shards$parameter_name]] <- random_shards$parameter
       }
     }
+
+    if (identical(kind, "parameters")) {
+      prior_parameters[[term_here@label]] <- build_prior_shard(
+        term_here,
+        all_data,
+        shard_counts
+      )
+    }
   }
 
   parameters <- build_parameter_shards(observations, random_parameters)
+  if (length(prior_parameters) > 0L) {
+    parameters <- c(parameters, prior_parameters)
+  }
 
   list(
     term_data = all_data,

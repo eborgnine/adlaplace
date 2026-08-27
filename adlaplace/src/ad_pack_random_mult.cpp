@@ -29,13 +29,17 @@ random_diagonal_impl(const CppAD::vector<CppAD::AD<double>> &x,
                   static_cast<int>(Q.size()), static_cast<int>(Ngamma));
   }
 
-  const std::size_t t_global = model.theta_index(0);
-  const std::size_t t_row = model.theta_row(0);
-  CppAD::AD<double> logSd;
-  if (transform_theta_at(config, t_row)) {
-    logSd = x[t_global];
-  } else {
-    logSd = CppAD::log(x[t_global]);
+  // Empty theta_map: known-SD prior; Q already holds 1/sd^2 (treat theta = 1).
+  const bool has_theta = !model.theta_global.empty();
+  CppAD::AD<double> logSd = 0.0;
+  if (has_theta) {
+    const std::size_t t_global = model.theta_index(0);
+    const std::size_t t_row = model.theta_row(0);
+    if (transform_theta_at(config, t_row)) {
+      logSd = x[t_global];
+    } else {
+      logSd = CppAD::log(x[t_global]);
+    }
   }
 
   CppAD::AD<double> precision = CppAD::exp(-2 * logSd);
@@ -55,8 +59,13 @@ random_diagonal_impl(const CppAD::vector<CppAD::AD<double>> &x,
                            CppAD::AD<double>(Ngamma * ONEHALFLOGTWOPI);
 
   if (config.verbose) {
-    Rcpp::Rcout << "theta index " << t_global << " logVariance " << logSd
-                << " precision " << precision << "\n";
+    if (has_theta) {
+      Rcpp::Rcout << "theta index " << model.theta_index(0) << " logVariance "
+                  << logSd << " precision " << precision << "\n";
+    } else {
+      Rcpp::Rcout << "random_diagonal known-SD (no theta) precision "
+                  << precision << "\n";
+    }
     Rcpp::Rcout << "random_diagonal n_gamma " << Ngamma << " qDet " << qDet
                 << " qpart " << qpart << "\n";
   }
@@ -71,19 +80,27 @@ random_diagonal_sparsity(const density_data &model) {
 
   const std::vector<std::size_t> gamma_indices =
       model.all_gamma_global_indices();
-  const std::size_t theta_index = model.theta_index(0);
   const std::size_t n_gamma = gamma_indices.size();
   const std::size_t n_params = model.n_tape;
+  const bool has_theta = !model.theta_global.empty();
 
   CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> hessian;
-  hessian.resize(n_params, n_params, 3 * n_gamma + 1);
-  hessian.set(0, theta_index, theta_index);
-  std::size_t t = 1;
-  for (std::size_t k = 0; k < n_gamma; ++k) {
-    const std::size_t gi = gamma_indices[k];
-    hessian.set(t++, gi, gi);
-    hessian.set(t++, gi, theta_index);
-    hessian.set(t++, theta_index, gi);
+  if (has_theta) {
+    const std::size_t theta_index = model.theta_index(0);
+    hessian.resize(n_params, n_params, 3 * n_gamma + 1);
+    hessian.set(0, theta_index, theta_index);
+    std::size_t t = 1;
+    for (std::size_t k = 0; k < n_gamma; ++k) {
+      const std::size_t gi = gamma_indices[k];
+      hessian.set(t++, gi, gi);
+      hessian.set(t++, gi, theta_index);
+      hessian.set(t++, theta_index, gi);
+    }
+  } else {
+    hessian.resize(n_params, n_params, n_gamma);
+    for (std::size_t k = 0; k < n_gamma; ++k) {
+      hessian.set(k, gamma_indices[k], gamma_indices[k]);
+    }
   }
   return hessian;
 }

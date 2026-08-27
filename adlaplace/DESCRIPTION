@@ -13,7 +13,7 @@ Imports: Matrix (>= 1.2.18), Rcpp (>= 1.0.3), methods, data.table, stats,
     graphics, RCppAD
 Suggests: knitr, rmarkdown, trustOptim, testthat (>= 3.0.0),
     mvQuad, mgcv, MASS, nlme, sn, terra, GET, WoodburyMatrix, extraDistr,
-    RSpectra
+    RSpectra, aghq, numDeriv
 Config/testthat/edition: 3
 VignetteBuilder: knitr
 LinkingTo: Rcpp, RcppEigen, trustOptim, Matrix, RCppAD
@@ -24,6 +24,7 @@ Collate:
     'RcppExports.R'
     'ad_pack.R'
     'ad_pack_ptr.R'
+    'aghq_ff.R'
     'classes.R'
     'density_data.R'
     'deriv_scan.R'
@@ -45,6 +46,7 @@ Collate:
     'london-data.R'
     'mvn_utils.R'
     'prepare_model_rows.R'
+    'prior.R'
     'rpoly.R'
     'sim_iid.R'
     'term_data_setup.R'

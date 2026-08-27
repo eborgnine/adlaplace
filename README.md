@@ -64,6 +64,7 @@ HTML vignettes are published by CI to GitHub Pages:
 Examples:
 
 - [adlaplace overview](https://eborgnine.github.io/adlaplace/adlaplace/adlaplace.html)
+- [Bayesian Bernoulli mixed model for the bacteria data](https://eborgnine.github.io/adlaplace/adlaplace/bacteria.html)
 - [Case-crossover models](https://eborgnine.github.io/adlaplace/adlaplace/casecrossover.html)
 - [Dirichlet–multinomial equivalence](https://eborgnine.github.io/adlaplace/adlaplace/dirichlet_multinom.html)
 - [Germany BYM example](https://eborgnine.github.io/adlaplace/adlaplace/germany.html)
