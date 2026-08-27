@@ -415,3 +415,56 @@ make_sun42_hs_start_from_gh <- function(quad, skew_strength = 0.01) {
   S <- weighted_cov(Z, w)
   make_sun42_hs_start_from_normal(mu, S, skew_strength = skew_strength)
 }
+
+#' Map mean and covariance to a SUN(5,2) hyperspherical start
+#'
+#' Exact Gaussian start on the joint hyperspherical layout of
+#' [make_sun52_hs_params()]: the ten \eqn{U}-block free coordinates come from
+#' inverting \code{cov2cor(Sigma)}; all cross / \eqn{V} coordinates are zero.
+#' Optional \code{skew_strength} sets pair slots \code{z61,z72} to
+#' \code{atanh(skew_strength)}.
+#'
+#' @param mu Length-5 mean.
+#' @param Sigma \eqn{5\times 5} covariance.
+#' @param skew_strength Pair-slot \eqn{t=\tanh(z)} value in \eqn{(-1,1)}
+#'   (default 0).
+#' @return Named length-31 parameter vector for [make_sun52_hs_params()].
+#' @export
+make_sun52_hs_start_from_normal <- function(mu, Sigma, skew_strength = 0) {
+  mu <- as.numeric(mu)
+  if (length(mu) != 5L) stop("mu must have length 5")
+  Sigma <- as.matrix(Sigma)
+  if (!all(dim(Sigma) == c(5L, 5L))) stop("Sigma must be 5 x 5")
+  Sigma <- (Sigma + t(Sigma)) / 2
+  nu <- sqrt(pmax(diag(Sigma), 1e-8))
+  C <- stats::cov2cor(Sigma)
+  om <- .corr_free_from_C(C)
+
+  z <- setNames(numeric(21L), .sun_hs_z_names(5L, 2L))
+  z[seq_len(10L)] <- om
+  if (abs(skew_strength) > 0) {
+    s <- max(min(as.numeric(skew_strength), 1 - 1e-8), -1 + 1e-8)
+    z[c("z61", "z72")] <- atanh(s)
+  }
+
+  c(
+    setNames(mu, paste0("xi", 1:5)),
+    setNames(nu, paste0("nu", 1:5)),
+    z
+  )
+}
+
+#' SUN(5,2) hyperspherical start from weighted sample moments
+#'
+#' @param quad List with \code{x} and \code{w}.
+#' @param skew_strength Passed to [make_sun52_hs_start_from_normal()].
+#' @return Named length-31 parameter vector.
+#' @export
+make_sun52_hs_start_from_gh <- function(quad, skew_strength = 0.01) {
+  Z <- as.matrix(quad$x)
+  w <- as.numeric(quad$w)
+  w <- w / sum(w)
+  mu <- weighted_mean(Z, w)
+  S <- weighted_cov(Z, w)
+  make_sun52_hs_start_from_normal(mu, S, skew_strength = skew_strength)
+}

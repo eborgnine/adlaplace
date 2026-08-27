@@ -26,7 +26,7 @@
 }
 
 .evaluate_sun_slice <- function(par, quad,
-                                family = c("22", "33", "33hs", "32hs", "42hs", "43hs", "44"),
+                                family = c("22", "33", "33hs", "32hs", "42hs", "52hs", "43hs", "44"),
                                 n_points = NULL,
                                 n_shifts = NULL,
                                 n_threads = 1L) {
@@ -111,6 +111,23 @@
     if (is.null(n_shifts)) n_shifts <- 2L
     tape <- tryCatch(
       dsun42_hs_fun(
+        x = x,
+        par_seed = par,
+        weights = w,
+        n_points = as.integer(n_points),
+        n_shifts = as.integer(n_shifts),
+        n_threads = as.integer(n_threads)
+      ),
+      error = function(e) NULL
+    )
+  } else if (family == "52hs") {
+    if (length(par) != 31L) {
+      stop("par must have length 31 for SUN(5,2) hyperspherical")
+    }
+    if (is.null(n_points)) n_points <- 64L
+    if (is.null(n_shifts)) n_shifts <- 2L
+    tape <- tryCatch(
+      dsun52_hs_fun(
         x = x,
         par_seed = par,
         weights = w,
@@ -254,7 +271,7 @@ evaluate_sun44_slice <- function(par, quad,
                           verbose,
                           mvquad_opts,
                           optim_opts,
-                          family = c("22", "33", "33hs", "32hs", "42hs", "43hs", "44")) {
+                          family = c("22", "33", "33hs", "32hs", "42hs", "52hs", "43hs", "44")) {
   family <- match.arg(family)
   start <- as.numeric(start)
   npar <- length(start)
@@ -289,6 +306,13 @@ evaluate_sun44_slice <- function(par, quad,
     make_dp <- make_sun42_hs_params
     mq_default <- list(n_points = 64L, n_shifts = 2L)
     dsun_fun_create <- dsun42_hs_fun
+  } else if (family == "52hs") {
+    if (npar != 31L) {
+      stop("start must have length 31 for SUN(5,2) hyperspherical")
+    }
+    make_dp <- make_sun52_hs_params
+    mq_default <- list(n_points = 64L, n_shifts = 2L)
+    dsun_fun_create <- dsun52_hs_fun
   } else if (family == "43hs") {
     if (npar != 29L) {
       stop("start must have length 29 for SUN(4,3) hyperspherical")
@@ -310,6 +334,7 @@ evaluate_sun44_slice <- function(par, quad,
       "33hs" = sun33_hs_bounds(),
       "32hs" = sun32_hs_bounds(),
       "42hs" = sun42_hs_bounds(),
+      "52hs" = sun52_hs_bounds(),
       "43hs" = sun43_hs_bounds(),
       sun44_bounds()
     )
@@ -550,6 +575,22 @@ evaluate_sun42_hs_slice <- function(par, quad,
   )
 }
 
+#' Slice KL / cross-entropy of a SUN(5,2) hyperspherical fit
+#' @inheritParams evaluate_sun33_hs_slice
+#' @export
+evaluate_sun52_hs_slice <- function(par, quad,
+                                    n_points = 64L,
+                                    n_shifts = 2L,
+                                    n_threads = 1L) {
+  .evaluate_sun_slice(
+    par, quad,
+    family = "52hs",
+    n_points = n_points,
+    n_shifts = n_shifts,
+    n_threads = n_threads
+  )
+}
+
 #' Slice KL / cross-entropy of a SUN(4,3) hyperspherical fit
 #' @inheritParams evaluate_sun33_hs_slice
 #' @export
@@ -656,6 +697,36 @@ fit_sun42_hs_quad <- function(quad,
     mvquad_opts = mvquad_opts,
     optim_opts = optim_opts,
     family = "42hs"
+  )
+}
+
+#' Fit SUN(5,2) hyperspherical by minimising KL on a weighted quadrature
+#'
+#' @inheritParams fit_sun33_hs_quad
+#' @param start Length-31 hyperspherical start
+#'   (see [make_sun52_hs_start_from_normal()]).
+#' @param lower,upper Box constraints (defaults from [sun52_hs_bounds()]).
+#' @export
+fit_sun52_hs_quad <- function(quad,
+                              start,
+                              lower = NULL,
+                              upper = NULL,
+                              obj_scale = 1e4,
+                              mc.cores = 1L,
+                              verbose = FALSE,
+                              mvquad_opts = list(),
+                              optim_opts = list()) {
+  .fit_sun_quad(
+    quad = quad,
+    start = start,
+    lower = lower,
+    upper = upper,
+    obj_scale = obj_scale,
+    mc.cores = mc.cores,
+    verbose = verbose,
+    mvquad_opts = mvquad_opts,
+    optim_opts = optim_opts,
+    family = "52hs"
   )
 }
 
