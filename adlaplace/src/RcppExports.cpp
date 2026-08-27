@@ -234,8 +234,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // inner_opt
-Rcpp::List inner_opt(const Rcpp::NumericVector parameters, const Rcpp::NumericVector gamma, const Rcpp::S4& ad_pack, SEXP control, bool deriv, bool verbose);
-RcppExport SEXP _adlaplace_inner_opt(SEXP parametersSEXP, SEXP gammaSEXP, SEXP ad_packSEXP, SEXP controlSEXP, SEXP derivSEXP, SEXP verboseSEXP) {
+Rcpp::List inner_opt(const Rcpp::NumericVector parameters, const Rcpp::NumericVector gamma, const Rcpp::S4& ad_pack, SEXP control, bool deriv, bool verbose, bool return_hessians);
+RcppExport SEXP _adlaplace_inner_opt(SEXP parametersSEXP, SEXP gammaSEXP, SEXP ad_packSEXP, SEXP controlSEXP, SEXP derivSEXP, SEXP verboseSEXP, SEXP return_hessiansSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -245,7 +245,8 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< SEXP >::type control(controlSEXP);
     Rcpp::traits::input_parameter< bool >::type deriv(derivSEXP);
     Rcpp::traits::input_parameter< bool >::type verbose(verboseSEXP);
-    rcpp_result_gen = Rcpp::wrap(inner_opt(parameters, gamma, ad_pack, control, deriv, verbose));
+    Rcpp::traits::input_parameter< bool >::type return_hessians(return_hessiansSEXP);
+    rcpp_result_gen = Rcpp::wrap(inner_opt(parameters, gamma, ad_pack, control, deriv, verbose, return_hessians));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -332,7 +333,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_adlaplace_joint_log_dens", (DL_FUNC) &_adlaplace_joint_log_dens, 4},
     {"_adlaplace_grad", (DL_FUNC) &_adlaplace_grad, 5},
     {"_adlaplace_hessian", (DL_FUNC) &_adlaplace_hessian, 6},
-    {"_adlaplace_inner_opt", (DL_FUNC) &_adlaplace_inner_opt, 6},
+    {"_adlaplace_inner_opt", (DL_FUNC) &_adlaplace_inner_opt, 7},
     {"_adlaplace_fun_obj_fdfh", (DL_FUNC) &_adlaplace_fun_obj_fdfh, 5},
     {"_adlaplace_has_openmp", (DL_FUNC) &_adlaplace_has_openmp, 0},
     {"_adlaplace_warm_openmp_runtime", (DL_FUNC) &_adlaplace_warm_openmp_runtime, 0},

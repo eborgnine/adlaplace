@@ -20,6 +20,7 @@
 #include "adlaplace/ompad.hpp"
 #include "adlaplace/runtime.hpp"
 #include "adlaplace/chol_update.hpp"
+#include "adlaplace/profile_deriv.hpp"
 #include "adlaplace/trace_hinv_t_runtime.hpp"
 #include "adlaplace/trustoptim.hpp"
 
@@ -153,6 +154,8 @@ struct InnerOptResult {
   std::vector<double> half_h_inv_x_out;
   std::vector<double> h_inv_x_out;
   std::vector<double> trace3;
+  ProfileDerivResult profile;
+  bool has_profile = false;
   int iterations = NA_INTEGER;
   MB_Status status = SUCCESS;
   double trust_radius = NA_REAL;
@@ -362,6 +365,15 @@ InnerOptResult inner_opt(const std::vector<double> &parameters,
           backend.chol_pattern.half_H_inv_i, out.half_h_inv_x_out, n_gamma,
           backend.chol_pattern.trace_columns_p,
           backend.chol_pattern.trace_columns_i, verbose);
+
+      // Profile gradient assembly (same algebra as R log_lik_deriv).
+      if (R_finite(log_det)) {
+        out.profile = profile_deriv(
+            Houter, gradOuter, backend.chol_pattern.H_inv_p,
+            backend.chol_pattern.H_inv_i, out.h_inv_x_out, out.trace3, n_beta,
+            n_gamma, n_theta);
+        out.has_profile = true;
+      }
     }
     adlaplace_verbose_msg(
         verbose, "inner_opt: leaving CppadParallelScope (teardown next)...");
@@ -428,14 +440,22 @@ InnerOptResult inner_opt(const std::vector<double> &parameters,
 //' @param ad_pack \code{ad_pack} S4 object from \code{\link{ad_pack}}.
 //' @param control List of trust-region control parameters (see \pkg{trustOptim}).
 //' @param deriv Logical; if \code{TRUE}, also return outer gradient/Hessian
-//'   pieces and Cholesky-based quantities at the inner mode.
+//'   pieces, Cholesky-based quantities, and the profile gradient at the
+//'   inner mode.
 //' @param verbose Logical; if \code{TRUE}, print thread/shard diagnostics.
+//' @param return_hessians Logical; if \code{FALSE} and \code{deriv=TRUE},
+//'   skip converting sparse Hessians / inverses to R Matrix objects and
+//'   return only the scalar objective, \code{inner_opt$solution}, and
+//'   \code{deriv$d_neg_log_lik} (optimizer hot path).
 //'
 //' @return A list with \code{log_lik}, \code{neg_log_lik}, \code{parameters},
 //'   \code{full_parameters}, \code{inner_opt}, \code{gradient}
 //'   (list \code{inner}/\code{outer}), and \code{hessian}
 //'   (list \code{inner}/\code{outer}/\code{chol_inner}/\code{half_log_det};
-//'   with \code{deriv=TRUE} also \code{half_H_inv}, \code{H_inv}, \code{trace3}).
+//'   with \code{deriv=TRUE} and \code{return_hessians=TRUE} also
+//'   \code{half_H_inv}, \code{H_inv}, \code{trace3}).
+//'   With \code{deriv=TRUE}, also \code{deriv} (profile pieces including
+//'   \code{d_neg_log_lik}) and \code{dU}.
 //'   Objective and derivatives use the negative log-density convention.
 //'
 //' @details
@@ -447,7 +467,7 @@ InnerOptResult inner_opt(const std::vector<double> &parameters,
 Rcpp::List inner_opt(const Rcpp::NumericVector parameters,
                      const Rcpp::NumericVector gamma, const Rcpp::S4 &ad_pack,
                      SEXP control = R_NilValue, bool deriv = false,
-                     bool verbose = false) {
+                     bool verbose = false, bool return_hessians = true) {
   try {
     const Rcpp::List control_list(
         Rf_isNull(control) ? Rcpp::List() : Rcpp::as<Rcpp::List>(control));
@@ -459,6 +479,44 @@ Rcpp::List inner_opt(const Rcpp::NumericVector parameters,
 
     const InnerOptResult result = inner_opt(parameters_vec, gamma_vec, *backend,
                                             control_c, deriv, verbose);
+
+    Rcpp::List inner_opt_out = Rcpp::List::create(
+        Rcpp::Named("fval") = Rcpp::wrap(result.fval),
+        Rcpp::Named("solution") = Rcpp::wrap(result.solution),
+        Rcpp::Named("iterations") = Rcpp::wrap(result.iterations),
+        Rcpp::Named("status") =
+            Rcpp::wrap(std::string(MB_strerror(result.status))),
+        Rcpp::Named("trust.radius") = Rcpp::wrap(result.trust_radius),
+        Rcpp::Named("method") = Rcpp::wrap("Sparse"));
+
+    Rcpp::List out = Rcpp::List::create(
+        Rcpp::Named("log_lik") = Rcpp::wrap(result.log_lik),
+        Rcpp::Named("neg_log_lik") = Rcpp::wrap(result.neg_log_lik),
+        Rcpp::Named("parameters") = Rcpp::wrap(result.parameters),
+        Rcpp::Named("full_parameters") = Rcpp::wrap(result.full_parameters),
+        Rcpp::Named("inner_opt") = inner_opt_out);
+
+    if (deriv && result.has_profile) {
+      const ProfileDerivResult &pd = result.profile;
+      Rcpp::DataFrame deriv_df = Rcpp::DataFrame::create(
+          Rcpp::Named("d_det_upart") = Rcpp::wrap(pd.d_det_upart),
+          Rcpp::Named("d_det_tpart") = Rcpp::wrap(pd.d_det_tpart),
+          Rcpp::Named("grad_theta") = Rcpp::wrap(pd.grad_theta),
+          Rcpp::Named("grad_u") = Rcpp::wrap(pd.grad_u),
+          Rcpp::Named("d_det") = Rcpp::wrap(pd.d_det),
+          Rcpp::Named("d_neg_log_lik") = Rcpp::wrap(pd.d_neg_log_lik),
+          Rcpp::Named("d_log_lik") = Rcpp::wrap(pd.d_log_lik));
+      out["deriv"] = deriv_df;
+    }
+
+    // Optimizer hot path: scalar + gamma + short gradient only.
+    if (deriv && !return_hessians) {
+      out["gradient"] = Rcpp::List::create(
+          Rcpp::Named("inner") = R_NilValue, Rcpp::Named("outer") = R_NilValue);
+      out["hessian"] = Rcpp::List::create(
+          Rcpp::Named("half_log_det") = Rcpp::wrap(result.half_log_det));
+      return out;
+    }
 
     const Rcpp::List chol_inner = chol_inner_numeric(
         *backend, result.x_out, result.d_out, result.linv_x_out, deriv);
@@ -479,23 +537,16 @@ Rcpp::List inner_opt(const Rcpp::NumericVector parameters,
       hessian_out["trace3"] = Rcpp::wrap(result.trace3);
     }
 
-    return Rcpp::List::create(
-        Rcpp::Named("log_lik") = Rcpp::wrap(result.log_lik),
-        Rcpp::Named("neg_log_lik") = Rcpp::wrap(result.neg_log_lik),
-        Rcpp::Named("parameters") = Rcpp::wrap(result.parameters),
-        Rcpp::Named("full_parameters") = Rcpp::wrap(result.full_parameters),
-        Rcpp::Named("inner_opt") = Rcpp::List::create(
-            Rcpp::Named("fval") = Rcpp::wrap(result.fval),
-            Rcpp::Named("solution") = Rcpp::wrap(result.solution),
-            Rcpp::Named("iterations") = Rcpp::wrap(result.iterations),
-            Rcpp::Named("status") =
-                Rcpp::wrap(std::string(MB_strerror(result.status))),
-            Rcpp::Named("trust.radius") = Rcpp::wrap(result.trust_radius),
-            Rcpp::Named("method") = Rcpp::wrap("Sparse")),
-        Rcpp::Named("gradient") = Rcpp::List::create(
-            Rcpp::Named("inner") = Rcpp::wrap(result.grad_inner),
-            Rcpp::Named("outer") = Rcpp::wrap(result.grad_outer)),
-        Rcpp::Named("hessian") = hessian_out);
+    out["gradient"] = Rcpp::List::create(
+        Rcpp::Named("inner") = Rcpp::wrap(result.grad_inner),
+        Rcpp::Named("outer") = Rcpp::wrap(result.grad_outer));
+    out["hessian"] = hessian_out;
+
+    if (deriv && result.has_profile) {
+      out["dU"] = Rcpp::wrap(result.profile.dU);
+    }
+
+    return out;
   } catch (const Rcpp::exception &e) {
     Rcpp::stop("inner_opt failed: %s", e.what());
   } catch (...) {

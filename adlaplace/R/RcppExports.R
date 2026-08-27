@@ -196,14 +196,22 @@ create_ad_shard_random_mult <- function(model, config) {
 #' @param ad_pack \code{ad_pack} S4 object from \code{\link{ad_pack}}.
 #' @param control List of trust-region control parameters (see \pkg{trustOptim}).
 #' @param deriv Logical; if \code{TRUE}, also return outer gradient/Hessian
-#'   pieces and Cholesky-based quantities at the inner mode.
+#'   pieces, Cholesky-based quantities, and the profile gradient at the
+#'   inner mode.
 #' @param verbose Logical; if \code{TRUE}, print thread/shard diagnostics.
+#' @param return_hessians Logical; if \code{FALSE} and \code{deriv=TRUE},
+#'   skip converting sparse Hessians / inverses to R Matrix objects and
+#'   return only the scalar objective, \code{inner_opt$solution}, and
+#'   \code{deriv$d_neg_log_lik} (optimizer hot path).
 #'
 #' @return A list with \code{log_lik}, \code{neg_log_lik}, \code{parameters},
 #'   \code{full_parameters}, \code{inner_opt}, \code{gradient}
 #'   (list \code{inner}/\code{outer}), and \code{hessian}
 #'   (list \code{inner}/\code{outer}/\code{chol_inner}/\code{half_log_det};
-#'   with \code{deriv=TRUE} also \code{half_H_inv}, \code{H_inv}, \code{trace3}).
+#'   with \code{deriv=TRUE} and \code{return_hessians=TRUE} also
+#'   \code{half_H_inv}, \code{H_inv}, \code{trace3}).
+#'   With \code{deriv=TRUE}, also \code{deriv} (profile pieces including
+#'   \code{d_neg_log_lik}) and \code{dU}.
 #'   Objective and derivatives use the negative log-density convention.
 #'
 #' @details
@@ -211,8 +219,8 @@ create_ad_shard_random_mult <- function(model, config) {
 #' \pkg{trustOptim}.
 #'
 #' @export
-inner_opt <- function(parameters, gamma, ad_pack, control = NULL, deriv = FALSE, verbose = FALSE) {
-    .Call(`_adlaplace_inner_opt`, parameters, gamma, ad_pack, control, deriv, verbose)
+inner_opt <- function(parameters, gamma, ad_pack, control = NULL, deriv = FALSE, verbose = FALSE, return_hessians = TRUE) {
+    .Call(`_adlaplace_inner_opt`, parameters, gamma, ad_pack, control, deriv, verbose, return_hessians)
 }
 
 .fun_obj_fdfh_cpp <- function(parameters, gamma, ad_pack, inner = TRUE, verbose = FALSE) {

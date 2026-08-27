@@ -125,23 +125,63 @@ local_poly_positive_axis <- function(knots, refined_x, p) {
   dif <- diff(knots)
   nn <- length(refined_x)
   n <- length(knots)
-  D <- matrix(0, nrow = nn, ncol = n - 1)
-  for (j in 1:nn) {
-    for (i in 1:(n - 1)) {
-      if (refined_x[j] <= knots[i]) {
-        D[j, i] <- 0
-      } else if (refined_x[j] <= knots[i + 1] & refined_x[j] >= knots[i]) {
-        D[j, i] <- (1 / factorial(p)) * (refined_x[j] - knots[i])^p
+  n_cols <- n - 1L
+  if (nn < 1L || n_cols < 1L) {
+    return(Matrix::sparseMatrix(
+      i = integer(0),
+      j = integer(0),
+      x = numeric(0),
+      dims = c(nn, max(0L, n_cols)),
+      repr = "C"
+    ))
+  }
+
+  # Upper bound: every (row, col) may be nonzero past the leftmost knots.
+  max_nnz <- as.integer(nn) * as.integer(n_cols)
+  i_idx <- integer(max_nnz)
+  j_idx <- integer(max_nnz)
+  x_val <- numeric(max_nnz)
+  nnz <- 0L
+  fact_p <- factorial(p)
+  k_seq <- seq_len(p)
+  fact_k <- factorial(k_seq)
+  fact_pk <- factorial(p - k_seq)
+
+  for (j in seq_len(nn)) {
+    xj <- refined_x[[j]]
+    for (i in seq_len(n_cols)) {
+      if (xj <= knots[[i]]) {
+        next
+      }
+      if (xj <= knots[[i + 1L]] && xj >= knots[[i]]) {
+        val <- (1 / fact_p) * (xj - knots[[i]])^p
       } else {
-        k <- 1:p
-        D[j, i] <- sum(
-          (dif[i]^k) * ((refined_x[j] - knots[i + 1])^(p - k)) /
-            (factorial(k) * factorial(p - k))
+        val <- sum(
+          (dif[[i]]^k_seq) * ((xj - knots[[i + 1L]])^(p - k_seq)) /
+            (fact_k * fact_pk)
         )
+      }
+      if (val != 0) {
+        nnz <- nnz + 1L
+        i_idx[[nnz]] <- j
+        j_idx[[nnz]] <- i
+        x_val[[nnz]] <- val
       }
     }
   }
-  D
+
+  if (nnz < max_nnz) {
+    length(i_idx) <- nnz
+    length(j_idx) <- nnz
+    length(x_val) <- nnz
+  }
+  Matrix::sparseMatrix(
+    i = i_idx,
+    j = j_idx,
+    x = x_val,
+    dims = c(nn, n_cols),
+    repr = "C"
+  )
 }
 
 local_poly <- function(knots, refined_x, p) {

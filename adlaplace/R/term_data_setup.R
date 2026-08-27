@@ -70,6 +70,37 @@ parse_term_data_setup_terms <- function(formula, verbose = FALSE) {
   terms
 }
 
+#' Column-bind design blocks; coerce to sparse when any block is sparse.
+#'
+#' Drops \code{NULL} pieces. When any remaining piece inherits
+#' \code{sparseMatrix}, every piece is coerced to \code{dgCMatrix} before
+#' \code{cbind} so a leading dense block cannot strip the \code{Matrix} class.
+#' When none are sparse, returns a base dense matrix via \code{cbind}.
+#'
+#' @param pieces List of design matrices (may include \code{NULL}).
+#' @return A design matrix (base \code{matrix} or \code{dgCMatrix}).
+#' @keywords internal
+cbind_design_blocks <- function(pieces) {
+  pieces <- Filter(Negate(is.null), pieces)
+  if (!length(pieces)) {
+    return(NULL)
+  }
+  any_sparse <- any(vapply(
+    pieces,
+    function(m) inherits(m, "sparseMatrix"),
+    logical(1L)
+  ))
+  if (any_sparse) {
+    pieces <- lapply(pieces, function(m) {
+      if (inherits(m, "dgCMatrix")) {
+        return(m)
+      }
+      as_dgC(m)
+    })
+  }
+  do.call(cbind, pieces)
+}
+
 #' @keywords internal
 bind_design_matrices <- function(terms, data) {
   terms <- lapply(terms, add_by_levels, data)
@@ -79,13 +110,19 @@ bind_design_matrices <- function(terms, data) {
   terms_with_gamma <- vapply(terms, function(t) methods::slot(t, "model_role") == "random", logical(1L))
 
   if (any(terms_with_beta)) {
-    x_matrix <- do.call(cbind, design_list[terms_with_beta])
+    x_matrix <- cbind_design_blocks(design_list[terms_with_beta])
+    if (is.null(x_matrix)) {
+      x_matrix <- matrix(nrow = nrow(data), ncol = 0)
+    }
   } else {
     x_matrix <- matrix(nrow = nrow(data), ncol = 0)
   }
 
   if (any(terms_with_gamma)) {
-    a_matrix <- do.call(cbind, design_list[terms_with_gamma])
+    a_matrix <- cbind_design_blocks(design_list[terms_with_gamma])
+    if (is.null(a_matrix)) {
+      a_matrix <- matrix(nrow = nrow(data), ncol = 0)
+    }
   } else {
     a_matrix <- matrix(nrow = nrow(data), ncol = 0)
   }

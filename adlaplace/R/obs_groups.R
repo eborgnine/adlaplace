@@ -47,9 +47,10 @@ ensure_config_obs_groups <- function(
   if (!is.null(config[["obs_groups"]])) {
     return(config)
   }
-  if (is.null(A) || !methods::is(A, "Matrix") || ncol(A) < 1L) {
+  if (is.null(A) || ncol(A) < 1L) {
     return(config)
   }
+  A <- as_dgC(A)
   if (is.null(num_shards)) {
     num_shards <- config[["num_shards"]]
   }

@@ -24,6 +24,7 @@ test_that("hgp term constructors produce design and precision matrices", {
   expect_equal(rsiwp_term@label, "x_mult_rsiwp")
   A_rsiwp <- design(rsiwp_term, data)
   P_rsiwp <- precision(rsiwp_term, data)
+  expect_s4_class(A_rsiwp, "dgCMatrix")
   expect_gt(ncol(A_rsiwp), 0L)
   expect_gt(nrow(P_rsiwp), 0L)
 

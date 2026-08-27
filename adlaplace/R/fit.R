@@ -177,28 +177,23 @@ adlaplace <- function(
     ))
   }
 
-  # Prefer the last combined outer_fn/outer_gr evaluation at opt$par.
-  details <- NULL
-  if (!is.null(cache$fg_result) &&
-    !is.null(cache$fg_x) &&
-    length(cache$fg_x) == length(opt$par) &&
-    isTRUE(all(cache$fg_x == as.numeric(opt$par)))) {
-    details <- cache$fg_result
-  }
-  if (is.null(details)) {
-    details <- log_lik_laplace(
-      x = opt$par,
-      gamma = cache$gamma,
-      ad_pack = af,
-      config = config,
-      control = control_inner,
-      deriv = TRUE
-    )
-    cache$gamma <- details$inner_opt$solution
-    cache$fg_x <- as.numeric(opt$par)
-    cache$fg_result <- details
-  } else {
-    cache$gamma <- details$inner_opt$solution
+  # Always run a full Laplace evaluation at the MLE for fit$details
+  # (hessians, H_inv, dU, etc.). Slim outer_fn/outer_gr cache must not be reused.
+  details <- log_lik_laplace(
+    x = opt$par,
+    gamma = cache$gamma,
+    ad_pack = af,
+    config = config,
+    control = control_inner,
+    deriv = TRUE,
+    return_hessians = TRUE
+  )
+  cache$gamma <- details$inner_opt$solution
+  cache$fg_x <- as.numeric(opt$par)
+  cache$neg_log_lik <- details$neg_log_lik
+  cache$d_neg_log_lik <- as.numeric(details$deriv$d_neg_log_lik)
+  if (exists("fg_result", envir = cache, inherits = FALSE)) {
+    rm("fg_result", envir = cache)
   }
 
   if (hessian) {
@@ -230,7 +225,8 @@ adlaplace <- function(
     details <- details_at_opt
     cache$gamma <- gamma_at_opt
     cache$fg_x <- as.numeric(opt$par)
-    cache$fg_result <- details_at_opt
+    cache$neg_log_lik <- details_at_opt$neg_log_lik
+    cache$d_neg_log_lik <- as.numeric(details_at_opt$deriv$d_neg_log_lik)
   }
 
   vc <- NULL

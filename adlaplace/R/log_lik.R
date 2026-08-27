@@ -6,9 +6,10 @@
 #' \code{cache} environment with the latest inner solution.
 #'
 #' L-BFGS-B requests \code{fn} then \code{gr} at the same parameter vector. Both wrappers
-#' share one \code{log_lik_laplace(..., deriv = TRUE)} evaluation at that point: the
-#' objective is free once the profile gradient has been computed. Results are stored in
-#' \code{cache$fg_x} / \code{cache$fg_result} and reused until \code{x} changes.
+#' share one \code{inner_opt(..., deriv = TRUE, return_hessians = FALSE)} evaluation
+#' at that point: the objective is free once the profile gradient has been computed.
+#' Cached numerics are stored in \code{cache$fg_x}, \code{cache$neg_log_lik}, and
+#' \code{cache$d_neg_log_lik} and reused until \code{x} changes.
 #'
 #' \describe{
 #' \item{\code{outer_fn()}}{Returns the scalar objective negative log likelihood.}
@@ -26,8 +27,8 @@
 #'   \code{gamma} solution. If \code{cache$gamma} is missing or the wrong length,
 #'   it is initialized from \code{config$gamma} (if present) or zeros of length
 #'   \code{ad_pack@sizes["gamma"]}. Both functions update \code{cache$gamma} after
-#'   each evaluation, and share \code{cache$fg_x} / \code{cache$fg_result} for the
-#'   latest combined objective/gradient evaluation.
+#'   each evaluation, and share \code{cache$fg_x} / \code{cache$neg_log_lik} /
+#'   \code{cache$d_neg_log_lik} for the latest combined objective/gradient evaluation.
 #'
 #' @return
 #' \itemize{
@@ -79,10 +80,15 @@ outer_gr <- function(
     control_inner = control_inner,
     ...
   )
-  result$deriv$d_neg_log_lik
+  result$d_neg_log_lik
 }
 
 #' Combined outer Laplace evaluation with per-\code{x} cache
+#'
+#' Calls \code{inner_opt(..., deriv = TRUE, return_hessians = FALSE)} so the
+#' optimizer path returns only a scalar and short gradient (no Matrix objects).
+#' Cached fields: \code{gamma}, \code{fg_x}, \code{neg_log_lik},
+#' \code{d_neg_log_lik}.
 #'
 #' @noRd
 .outer_fg <- function(
@@ -92,25 +98,30 @@ outer_gr <- function(
   if (!is.null(cache$fg_x) &&
     length(cache$fg_x) == length(x_num) &&
     isTRUE(all(cache$fg_x == x_num)) &&
-    !is.null(cache$fg_result)) {
-    return(cache$fg_result)
+    !is.null(cache$neg_log_lik) &&
+    !is.null(cache$d_neg_log_lik)) {
+    return(list(
+      neg_log_lik = cache$neg_log_lik,
+      d_neg_log_lik = cache$d_neg_log_lik,
+      inner_opt = list(solution = cache$gamma)
+    ))
   }
 
   num_gamma <- as.integer(ad_pack@sizes["gamma"])
   cache$gamma <- resolve_gamma_start(config, cache, num_gamma)
 
   if (isTRUE(config$verbose)) {
-    message("outer_fg: calling log_lik_laplace(deriv=TRUE)...")
+    message("outer_fg: calling inner_opt(deriv=TRUE, return_hessians=FALSE)...")
     utils::flush.console()
   }
-  result <- adlaplace::log_lik_laplace(
-    x = x,
-    config = config,
+  result <- adlaplace::inner_opt(
+    parameters = x_num,
     gamma = cache$gamma,
     control = control_inner,
     ad_pack = ad_pack,
     deriv = TRUE,
-    ...
+    return_hessians = FALSE,
+    verbose = isTRUE(config[["verbose"]])
   )
   if (isTRUE(config$verbose)) {
     message(
@@ -120,14 +131,24 @@ outer_gr <- function(
     utils::flush.console()
   }
 
+  d_neg <- as.numeric(result$deriv$d_neg_log_lik)
   assign("gamma", result$inner_opt$solution, cache)
   assign("fg_x", x_num, cache)
-  assign("fg_result", result, cache)
+  assign("neg_log_lik", result$neg_log_lik, cache)
+  assign("d_neg_log_lik", d_neg, cache)
+  # Clear any leftover full Laplace result so fit.R does not reuse a slim cache.
+  if (exists("fg_result", envir = cache, inherits = FALSE)) {
+    rm("fg_result", envir = cache)
+  }
   if (is.null(cache$fg_evals)) {
     cache$fg_evals <- 0L
   }
   cache$fg_evals <- cache$fg_evals + 1L
-  result
+  list(
+    neg_log_lik = result$neg_log_lik,
+    d_neg_log_lik = d_neg,
+    inner_opt = list(solution = result$inner_opt$solution)
+  )
 }
 
 #' Log-likelihood with inner Laplace optimization
@@ -159,6 +180,9 @@ outer_gr <- function(
 #'   Other backends must export a compatible \code{ad_pack()} builder and \code{inner_opt()}.
 #' @param deriv Logical scalar. If \code{TRUE}, include derivative quantities in
 #'   the output (gradient, intermediate derivatives).
+#' @param return_hessians Logical. Forwarded to \code{\link{inner_opt}}. When
+#'   \code{FALSE} with \code{deriv=TRUE}, skip Matrix Hessian objects (optimizer
+#'   path). Default \code{TRUE} for diagnostic / post-fit evaluations.
 #'
 #' @details
 #' The default \pkg{adlaplace} backend uses a single AD handle. This function
@@ -169,7 +193,8 @@ outer_gr <- function(
 #'
 #' When \code{deriv=FALSE}, the return value mirrors \code{\link{inner_opt}()}
 #' with \code{inner_opt}, top-level \code{gradient}, and \code{hessian}.
-#' When \code{deriv=TRUE}, the same list is augmented with \code{deriv} and
+#' When \code{deriv=TRUE}, the profile gradient is assembled in C++ inside
+#' \code{inner_opt}; the same list is augmented with \code{deriv} and
 #' profile-derivative pieces in \code{gradient$outer}.
 #'
 #' @return A list. With \code{deriv=FALSE}, same structure as
@@ -196,7 +221,8 @@ log_lik_laplace <- function(
   ad_pack,
   data,
   package = c(config[["package"]], "adlaplace")[1L],
-  deriv = FALSE
+  deriv = FALSE,
+  return_hessians = TRUE
 ) {
   if (missing(ad_pack)) {
     if (missing(data)) {
@@ -250,6 +276,7 @@ log_lik_laplace <- function(
     control = control,
     ad_pack = ad_pack,
     deriv = deriv,
+    return_hessians = return_hessians,
     verbose = isTRUE(config[["verbose"]])
   )
   result <- restructure_laplace_result(result_inner, control_inner = control)
@@ -258,27 +285,25 @@ log_lik_laplace <- function(
     return(result)
   }
 
-  the_deriv <- log_lik_deriv(
-    full_parameters = result$full_parameters,
-    hessian_pack = result$hessian,
-    grad = result$gradient$outer$grad,
-    ad_pack = ad_pack,
-    verbose = isTRUE(config[["verbose"]])
-  )
+  # Profile gradient is assembled in C++ inside inner_opt.
+  if (is.null(result_inner$deriv)) {
+    stop(
+      "inner_opt(..., deriv = TRUE) did not return deriv; rebuild adlaplace",
+      call. = FALSE
+    )
+  }
+  result$deriv <- result_inner$deriv
 
-  if (!is.null(the_deriv$extra$half_H_inv)) {
-    result$hessian$half_H_inv <- the_deriv$extra$half_H_inv
-  }
-  if (!is.null(the_deriv$extra$H_inv)) {
-    result$hessian$H_inv <- the_deriv$extra$H_inv
-  }
-  result$gradient$outer$trace3 <- the_deriv$extra$trace3
-  result$gradient$outer$dU <- the_deriv$extra$dU
-  if (!is.null(result$hessian$trace3)) {
-    result$hessian$trace3 <- NULL
+  if (isTRUE(return_hessians)) {
+    if (!is.null(result_inner$dU)) {
+      result$gradient$outer$dU <- result_inner$dU
+    }
+    if (!is.null(result$hessian$trace3)) {
+      result$gradient$outer$trace3 <- result$hessian$trace3
+      result$hessian$trace3 <- NULL
+    }
   }
 
-  result$deriv <- the_deriv$deriv
   result
 }
 
@@ -286,7 +311,7 @@ log_lik_laplace <- function(
 restructure_laplace_result <- function(result_inner, control_inner = NULL) {
   keep <- setdiff(
     names(result_inner),
-    c("opt", "inner_opt", "gradient", "hessian")
+    c("opt", "inner_opt", "gradient", "hessian", "deriv", "dU")
   )
   out <- result_inner[keep]
   inner <- result_inner$inner_opt
