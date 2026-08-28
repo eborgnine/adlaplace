@@ -1,6 +1,6 @@
 # Workflow derived from https://github.com/r-lib/actions/tree/v2/examples
 # Checks local packages in order:
-#   RCppAD → adlaplace → adlaplaceExample → adlaplaceHgp → hpolcc → adlaplaceFem
+#   RCppAD → adlaplace → adlaplaceExample → adlaplaceHgp → adlaplaceFem
 # Per package: build+install, then one of:
 #   - --as-cran: macOS without OpenMP
 #   - plain (non --as-cran): Windows, Ubuntu, and macOS with OpenMP
@@ -242,36 +242,6 @@ jobs:
           build_args: 'c("--no-manual")'
           check-dir: '"../.ci-check/adlaplaceHgp-as-cran"'
           artifact-name: ${{ matrix.config.id }}-adlaplaceHgp-as-cran
-
-      # ----- hpolcc -----
-      - name: Build and install hpolcc
-        run: bash .github/scripts/install-local-pkg.sh hpolcc
-
-      - name: Check hpolcc (plain)
-        if: ${{ matrix.config.check_plain }}
-        uses: r-lib/actions/check-r-package@v2
-        with:
-          # Our check dirs live at ../.ci-check/; the action's failure-time
-          # artifact upload cannot handle '..' in paths, so keep it off.
-          upload-results: never
-          working-directory: hpolcc
-          args: 'c("--no-manual")'
-          build_args: 'c("--no-manual")'
-          check-dir: '"../.ci-check/hpolcc-plain"'
-          artifact-name: ${{ matrix.config.id }}-hpolcc-plain
-
-      - name: Check hpolcc (as-cran)
-        if: ${{ matrix.config.check_as_cran }}
-        uses: r-lib/actions/check-r-package@v2
-        with:
-          # Our check dirs live at ../.ci-check/; the action's failure-time
-          # artifact upload cannot handle '..' in paths, so keep it off.
-          upload-results: never
-          working-directory: hpolcc
-          args: 'c("--no-manual", "--as-cran")'
-          build_args: 'c("--no-manual")'
-          check-dir: '"../.ci-check/hpolcc-as-cran"'
-          artifact-name: ${{ matrix.config.id }}-hpolcc-as-cran
 
       # ----- adlaplaceFem (Ubuntu: with INLA; macOS/Windows: without) -----
       # INLA pulls in units (and friends); the R-hub image does not ship udunits2.

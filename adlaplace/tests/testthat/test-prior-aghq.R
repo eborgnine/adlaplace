@@ -152,7 +152,7 @@ test_that("bacteria Bayesian formula has one outer parameter and aghq runs", {
     adlaplace::binomial(present) ~
       adlaplace::intercept(sd = 10) +
       adlaplace::linear(trt, sd = 10) +
-      adlaplace::rpoly(week, p = 1, sd = 10) +
+      adlaplace::linear(week, sd = 10) +
       adlaplace::iid(ID, init = 1) +
       adlaplace::prior(theta = 0, dist = "exp", median = 1),
     data = bacteria,

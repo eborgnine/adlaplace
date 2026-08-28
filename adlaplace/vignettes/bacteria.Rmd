@@ -83,7 +83,7 @@ fit <- adlaplace(
   binomial(present) ~
     intercept(sd = 10) +
     linear(trt, sd = 10) +
-    rpoly(week, p = 1, sd = 10) +
+    linear(week, sd = 10) +
     iid(ID, init = 1) +
     prior(theta = 0, dist = "exp", median = 1),
   data = bacteria
@@ -91,7 +91,7 @@ fit <- adlaplace(
 summary(fit)
 ```
 
-`intercept(sd = 10)`, `linear(trt, sd = 10)`, and `rpoly(week, p = 1, sd = 10)`
+`intercept(sd = 10)`, `linear(trt, sd = 10)`, and `linear(week, sd = 10)`
 are known-SD Gaussian priors (no estimated \(\theta\)). `iid(ID)` supplies
 the child intercepts and their SD. `prior(theta = 0, ...)` puts an exponential
 prior on the first (0-based) theta — here the only one, `ID_iid`.
@@ -139,6 +139,158 @@ plot(
   xlab = expression(sigma), ylab = "normalized weight"
 )
 abline(v = exp(mode_log_sigma), lty = 2)
+```
+
+The nested approximation for a coefficient \(\gamma_j\) (intercept, treatment,
+week) is a **mixture of normals**: at AGHQ node \(\theta_k = \log\sigma_k\)
+with weight \(w_k\),
+
+\[
+\gamma_j \mid \theta_k, y \;\approx\; N\bigl(\hat\gamma_j(\theta_k),\;
+[H(\theta_k)^{-1}]_{jj}\bigr),
+\qquad
+p(\gamma_j \mid y) \;\approx\; \sum_k w_k\, \varphi\bigl(\gamma_j;\,
+\hat\gamma_j(\theta_k),\, [H(\theta_k)^{-1}]_{jj}\bigr).
+\]
+
+```{r mixture-normals}
+gamma_info <- fit$model_data$term_data$info$gamma
+coef_idx <- which(gamma_info$model != "iid")
+coef_lab <- gamma_info$gamma_label[coef_idx]
+ctrl_mix <- list(
+  maxit = if (vignette_full) 100L else 20L,
+  report.level = 0,
+  report.freq = 0
+)
+
+mix_mean <- matrix(NA_real_, length(nodes), length(coef_idx))
+mix_sd <- mix_mean
+colnames(mix_mean) <- colnames(mix_sd) <- coef_lab
+gamma_start <- fit$gamma
+
+for (k in seq_along(nodes)) {
+  ll <- log_lik_laplace(
+    x = nodes[[k]],
+    ad_pack = fit$ad_pack,
+    config = fit$config,
+    gamma = gamma_start,
+    deriv = FALSE,
+    control = ctrl_mix
+  )
+  gamma_start <- ll$inner_opt$solution
+  names(gamma_start) <- names(fit$gamma)
+  half <- laplace_half_H_inv(ll)
+  mix_mean[k, ] <- gamma_start[coef_lab]
+  mix_sd[k, ] <- sqrt(Matrix::rowSums(half[coef_idx, , drop = FALSE]^2))
+}
+
+mix_dnorm <- function(x, mean, sd) {
+  dens <- vapply(
+    seq_along(w),
+    function(k) stats::dnorm(x, mean[[k]], sd[[k]]),
+    numeric(length(x))
+  )
+  as.numeric(dens %*% w)
+}
+
+mix_qnorm <- function(p, mean, sd) {
+  lo <- min(mean - 8 * sd)
+  hi <- max(mean + 8 * sd)
+  stats::uniroot(
+    function(q) sum(w * stats::pnorm(q, mean, sd)) - p,
+    lower = lo,
+    upper = hi
+  )$root
+}
+
+pretty_coef <- function(lab) {
+  if (identical(lab, "intercept")) {
+    return("intercept")
+  }
+  if (startsWith(lab, "trt_linear_")) {
+    lev <- sub("^trt_linear_trt", "", lab)
+    return(paste0("trt: ", lev, " vs placebo"))
+  }
+  if (startsWith(lab, "week_linear_")) {
+    return("week")
+  }
+  lab
+}
+```
+
+```{r intercept-trt-plot, fig.cap="Marginal posteriors of the intercept and treatment contrasts (mixture of Laplace Gaussians over AGHQ nodes)."}
+int_lab <- coef_lab[gamma_info$model[coef_idx] == "intercept"]
+trt_lab <- coef_lab[gamma_info$term[coef_idx] == "trt"]
+
+par(mfrow = c(1, 2), mar = c(4, 4, 1.5, 0.5))
+
+int_m <- mix_mean[, int_lab]
+int_s <- mix_sd[, int_lab]
+xr <- seq(min(int_m - 4 * int_s), max(int_m + 4 * int_s), length.out = 200)
+plot(
+  xr, mix_dnorm(xr, int_m, int_s),
+  type = "l", lwd = 2, col = "#4C78A8",
+  xlab = "intercept", ylab = "density"
+)
+
+trt_cols <- unname(cols[c("drug", "drug+")])
+lo_trt <- mix_mean[, trt_lab, drop = FALSE] - 4 * mix_sd[, trt_lab, drop = FALSE]
+hi_trt <- mix_mean[, trt_lab, drop = FALSE] + 4 * mix_sd[, trt_lab, drop = FALSE]
+xg <- seq(min(lo_trt), max(hi_trt), length.out = 200)
+dens_trt <- lapply(trt_lab, function(lab) {
+  mix_dnorm(xg, mix_mean[, lab], mix_sd[, lab])
+})
+ymax <- max(unlist(dens_trt))
+plot(
+  xg, dens_trt[[1]],
+  type = "l", lwd = 2, col = trt_cols[[1]],
+  xlab = "treatment effect (logit)", ylab = "density",
+  ylim = c(0, ymax)
+)
+if (length(trt_lab) > 1L) {
+  lines(xg, dens_trt[[2]], lwd = 2, col = trt_cols[[2]])
+}
+legend(
+  "topright",
+  legend = vapply(trt_lab, pretty_coef, character(1)),
+  col = trt_cols[seq_along(trt_lab)],
+  lty = 1, lwd = 2, bty = "n"
+)
+par(mfrow = c(1, 1))
+```
+
+Posterior quantiles invert the mixture CDF. The child-level SD uses the AGHQ
+nodes (a discrete mixture on \(\log\sigma\)). Child-specific IID intercepts
+are omitted.
+
+```{r posterior-quantiles}
+probs <- c(0.025, 0.5, 0.975)
+q_coef <- t(vapply(
+  coef_lab,
+  function(lab) {
+    vapply(probs, mix_qnorm, numeric(1), mean = mix_mean[, lab], sd = mix_sd[, lab])
+  },
+  numeric(length(probs))
+))
+sigma_q <- vapply(probs, function(p) {
+  o <- order(sigma)
+  cw <- cumsum(w[o])
+  sigma[o][which(cw >= p)[1L]]
+}, numeric(1))
+
+post_q <- rbind(
+  data.frame(
+    parameter = vapply(coef_lab, pretty_coef, character(1)),
+    q_coef,
+    row.names = NULL
+  ),
+  data.frame(
+    parameter = "sigma (ID)",
+    matrix(sigma_q, nrow = 1L, dimnames = list(NULL, as.character(probs)))
+  )
+)
+names(post_q) <- c("parameter", "2.5%", "50%", "97.5%")
+knitr::kable(post_q, digits = 3)
 ```
 
 ## Fitted probabilities and child effects
