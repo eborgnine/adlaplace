@@ -83,10 +83,18 @@ knitr::kable(hb_summary(hb), digits = 0)
 ```
 
 ```{r knot-plot, fig.cap="Hierarchical knot regions (coarse extent and west/east refinements) over village locations."}
-plot(coarse, col = c(NA, "grey90"), legend = FALSE, main = NULL)
-terra::plot(west, add = TRUE, col = c(NA, "coral"), legend = FALSE)
-terra::plot(east, add = TRUE, col = c(NA, "coral"), legend = FALSE)
+e0 <- terra::ext(coarse)
+ew <- terra::ext(west)
+ee <- terra::ext(east)
+plot(
+  c(e0[1], e0[2]), c(e0[3], e0[4]),
+  type = "n", asp = 1, xlab = "", ylab = "",
+  panel.first = rect(e0[1], e0[3], e0[2], e0[4], col = "grey90", border = "grey40")
+)
+rect(ew[1], ew[3], ew[2], ew[4], col = rgb(1, 0.4, 0.3, 0.35), border = "coral")
+rect(ee[1], ee[3], ee[2], ee[4], col = rgb(1, 0.4, 0.3, 0.35), border = "coral")
 points(terra::crds(loaloa), pch = 16, cex = 0.6)
+legend("topright", legend = c("coarse", "clusters"), fill = c("grey90", "coral"), bty = "n")
 ```
 
 (`geostatsp` / `terra` may mask `matern`, so call it with `::`.)
