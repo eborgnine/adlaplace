@@ -273,18 +273,22 @@ worldMapT <- terra::crop(
 ```
 
 ```{r plot-surfaces-compare, fig.width=8, fig.height=if (plot_compare) 8 else 4, fig.cap="Posterior mean and SD of the spatial field (glgm vs adlaplace when both available)."}
-n_panels <- if (plot_compare) 4L else 2L
-opar <- par(mfrow = c(if (plot_compare) 2L else 1L, 2L), mar = c(1, 1, 2, 4))
-on.exit(par(opar), add = TRUE)
+opar <- par(mfrow = c(if (plot_compare) 2L else 1L, 2L))
 
+# map.new() defaults to zero margins, so ask for a strip to hold the title.
+# legendBreaks() restores par(no.readonly = TRUE) on exit, and re-applying
+# mfrow moves the panel pointer to the last cell, which would send the next
+# map.new() to a fresh page; save and restore mfg to keep the mfrow layout.
 plot_field <- function(r, cols, main) {
-  mapmisc::map.new(loaloa)
+  mapmisc::map.new(loaloa, mar = c(0, 0, 2, 0))
   terra::plot(
     r,
     add = TRUE, col = cols$col, breaks = cols$breaks, legend = FALSE
   )
   terra::plot(worldMapT, add = TRUE, border = "grey20", lwd = 0.7, col = NA)
+  mfg <- par("mfg")
   mapmisc::legendBreaks("right", cols)
+  par(mfg = mfg)
   title(main = main, line = 0.4, cex.main = 0.95)
 }
 
@@ -296,6 +300,7 @@ if (plot_compare) {
   plot_field(loaFit$raster[["random.sd"]], sd_col, "glgm SD")
 }
 plot_field(my_sim[["sd"]], sd_col, "adlaplace SD")
+par(opar)
 ```
 
 
