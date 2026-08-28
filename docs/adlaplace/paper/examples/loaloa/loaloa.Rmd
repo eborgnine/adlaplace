@@ -1,0 +1,34 @@
+---
+title: "Loaloa with hierarchical FEM knots"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Loaloa with hierarchical FEM knots}
+  %\VignetteEngine{knitr::rmarkdown}
+---
+
+Supplement mirroring the loaloa example in the main paper. See the
+`adlaplaceFem` package vignette `vignettes/loaloa.Rmd` for the full fit.
+
+```{r setup}
+library(adlaplaceFem)
+library(geostatsp)
+library(terra)
+data("loaloa", package = "geostatsp")
+loaloa <- terra::unwrap(loaloa)
+```
+
+```{r knots}
+coarse <- geostatsp::squareRaster(loaloa, cells = 6, buffer = 300 * 1000)
+west <- terra::rast(
+  terra::ext(c(3.9e5, 8.1e5, 3.7e5, 7.7e5)),
+  resolution = 75 * 1000
+)
+east <- terra::rast(
+  terra::ext(c(9.9e5, 1.19e6, 3.7e5, 7.7e5)),
+  resolution = 75 * 1000
+)
+knots_grid <- list(coarse, list(west, east))
+hb_summary(hb_knots(knots_grid, degree = 3L))
+```
+
+The model uses `adlaplaceFem::matern(geometry, knots = knots_grid, shape = 2L)`.

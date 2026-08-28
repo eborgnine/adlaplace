@@ -23,7 +23,11 @@ matern_shape_degree <- function(shape) {
 #' @noRd
 matern_fem_grams <- function(knots, degree) {
   kn <- resolve_knots_list(knots, degree = degree)
-  # Grams depend only on knots; use a dummy interior point for assembly
+  if (inherits(kn, "hb_knots")) {
+    fem <- fem_bspline_hb(numeric(0), numeric(0), kn, degree = degree)
+    fem$A <- NULL
+    return(fem)
+  }
   mid_x <- mean(range(kn$x))
   mid_y <- mean(range(kn$y))
   fem <- fem_bspline_xy(mid_x, mid_y, knots = kn, degree = degree)
@@ -68,8 +72,9 @@ setClass(
 )
 
 #' @param x Name of the geometry / coordinate column in `data`.
-#' @param knots Knot lines as `list(x = ..., y = ...)` or a terra
-#'   `SpatRaster` (extent endpoints plus interior cell centers).
+#' @param knots Knot lines as `list(x = ..., y = ...)`, a terra `SpatRaster`
+#'   (extent endpoints plus interior cell centers), or a hierarchical list of
+#'   `SpatRaster` levels `list(raster0, raster1, list(raster2a, raster2b), ...)`.
 #' @param shape Matern smoothness nu (`1` or `2`). Default `1L` (SPDE alpha = 2,
 #'   quadratic B-splines). Use `2` for nu = 2 / cubic B-splines.
 #' @param init Initial values for `(range, sd)` on the natural scale, where
@@ -95,7 +100,7 @@ matern <- function(x,
                    log = TRUE) {
   x <- adlaplace::strip_term_name(as.character(x))
   degree <- matern_shape_degree(shape)
-  knots <- matern_knots(knots)
+  knots <- matern_knots(knots, degree = degree)
   fem <- matern_fem_grams(knots, degree = degree)
 
   density <- if (identical(degree, 3L)) {
@@ -156,12 +161,10 @@ setMethod("design", "matern", function(term, data) {
       call. = FALSE
     )
   }
-  A <- tensor_design(
+  A <- fem_design_xy(
+    fem,
     xy[, 1L],
-    xy[, 2L],
-    fem$knots$x,
-    fem$knots$y,
-    fem$degree
+    xy[, 2L]
   )
   colnames(A) <- paste0(term@label, "_b", seq_len(ncol(A)))
   A

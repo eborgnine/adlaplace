@@ -63,12 +63,33 @@ loaloa_for_fit <- geostatsp:::gm.dataSpatial(
 
 ## Knot lines
 
-Use a coarse knot raster over a buffered region around the villages; pass it
-directly as `knots` to `matern()` (extent endpoints plus interior cell centers; see
-`knots_from_spatraster()`).
+Use a **hierarchical** knot specification: a coarse grid over a region buffered
+by about 300 km (Neumann padding), with finer rectangles over the main village
+clusters (west and east). Pass the list directly as `knots` to `matern()`.
+
+```{r knots}
+coarse <- geostatsp::squareRaster(loaloa, cells = 6, buffer = 300 * 1000)
+west <- terra::rast(
+  terra::ext(c(3.9e5, 8.1e5, 3.7e5, 7.7e5)),
+  resolution = 75 * 1000
+)
+east <- terra::rast(
+  terra::ext(c(9.9e5, 1.19e6, 3.7e5, 7.7e5)),
+  resolution = 75 * 1000
+)
+knots_grid <- list(coarse, list(west, east))
+hb <- hb_knots(knots_grid, degree = 3L)
+knitr::kable(hb_summary(hb), digits = 0)
+```
+
+```{r knot-plot, fig.cap="Hierarchical knot regions (coarse extent and west/east refinements) over village locations."}
+plot(coarse, col = c(NA, "grey90"), legend = FALSE, main = NULL)
+terra::plot(west, add = TRUE, col = c(NA, "coral"), legend = FALSE)
+terra::plot(east, add = TRUE, col = c(NA, "coral"), legend = FALSE)
+points(terra::crds(loaloa), pch = 16, cex = 0.6)
+```
+
 (`geostatsp` / `terra` may mask `matern`, so call it with `::`.)
-
-
 
 ## Fit
 
@@ -77,7 +98,6 @@ geostatsp Matérn **shape = 2** is ν = 2 (SPDE α = 3 in 2D), so we pass
 from the `geometry` column (WKT) in the model data frame.
 
 ```{r model_setup, cache=FALSE}
-knots_grid <- geostatsp::squareRaster(loaloa, cells = 6, buffer = 300 * 1000)
 loaloa_df <- as.data.frame(loaloa_for_fit$data, geom = "WKT")
 
 loaloa_model <- adlaplace::binomial(y, size = N) ~

@@ -138,6 +138,39 @@ $$
 \mathbf{G}_2=\mathbf{G}_{2,x}\otimes\mathbf{C}_y+\mathbf{C}_x\otimes\mathbf{G}_{2,y}+2\,\mathbf{G}_x\otimes\mathbf{G}_y.
 $$
 
+# Hierarchical B-splines
+
+For spatial domains where data are concentrated in subregions, pass a **list of
+`SpatRaster` levels** to `matern()` instead of a single uniform grid:
+
+```r
+knots <- list(
+  coarse_raster,                         # level 0: padded domain
+  study_raster,                          # level 1: finer over study region
+  list(west_raster, east_raster)         # level 2: two rectangles at same level
+)
+matern(geometry, knots = knots, shape = 2L)
+```
+
+Each level adds knot lines strictly inside its extent to the parent grid, giving
+nested spaces $V^0 \subset V^1 \subset \cdots \subset V^L$. A truncated
+hierarchical (THB) basis keeps level-$\ell$ tensor B-splines active when their
+support lies in the level-$\ell$ region but not in finer regions. Every active
+function embeds in the finest space via a sparse map $\mathbf{S}$, so the Gram
+matrices become
+
+$$
+\mathbf{C}_H = \mathbf{S}^\top \mathbf{C}_L \mathbf{S},\quad
+\mathbf{G}_H = \mathbf{S}^\top \mathbf{G}_L \mathbf{S},\ \ldots
+$$
+
+with $\mathbf{C}_L,\mathbf{G}_L,\ldots$ the usual Kronecker Grams on the finest
+level. The SPDE precision formulas and C++ `random_fem_*` kernels are unchanged.
+Inspect the layout with `hb_summary(hb_knots(knots, degree))`.
+
+Cost scales with the finest global knot grid; local refinement adds resolution
+where needed without refining the entire padded domain.
+
 # Numerical comparison: Matérn vs FEM
 
 Fix α = 2, $\nu=1$, $\kappa=2$, $\tau$ chosen so the Matérn marginal variance is 1:

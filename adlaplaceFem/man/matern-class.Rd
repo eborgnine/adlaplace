@@ -38,8 +38,9 @@ matern(
 \arguments{
 \item{x}{Name of the geometry / coordinate column in \code{data}.}
 
-\item{knots}{Knot lines as \code{list(x = ..., y = ...)} or a terra
-\code{SpatRaster} (extent endpoints plus interior cell centers).}
+\item{knots}{Knot lines as \code{list(x = ..., y = ...)}, a terra \code{SpatRaster}
+(extent endpoints plus interior cell centers), or a hierarchical list of
+\code{SpatRaster} levels \code{list(raster0, raster1, list(raster2a, raster2b), ...)}.}
 
 \item{shape}{Matern smoothness nu (\code{1} or \code{2}). Default \code{1L} (SPDE alpha = 2,
 quadratic B-splines). Use \code{2} for nu = 2 / cubic B-splines.}
@@ -56,7 +57,7 @@ Matern field. Internally converted to SPDE \verb{(kappa, tau)}.}
 \item{log}{Whether each theta is optimized on the log scale (recycled to
 \verb{(range, sd)}).}
 
-\item{term}{A \code{\link[=matern-class]{matern}} term.}
+\item{term}{A \code{\linkS4class{matern}} term.}
 
 \item{data}{Model data frame (passed by adlaplace generics).}
 }
@@ -68,11 +69,11 @@ Formula term for a 2D Matern GRF via tensor-product B-spline FEM, wired to
 adlaplaceFem kernels \code{random_fem_ssq_2} / \code{random_fem_det_2} (shape nu = 1)
 or \code{random_fem_ssq_3} / \code{random_fem_det_3} (nu = 2). The quadratic form is a
 random shard; the log-determinant is a parameters companion via
-\code{\link[adlaplace:extra_density]{adlaplace::extra_density()}}.
-The first argument is a \strong{column name} in \code{data} (like \code{\link[adlaplace:iid]{adlaplace::iid()}}):
+\code{\link[adlaplace:model-generics]{adlaplace::extra_density()}}.
+The first argument is a \strong{column name} in \code{data} (like \code{\link[adlaplace:iid-class]{adlaplace::iid()}}):
 that column holds observation locations as a 2-column matrix, WKT text, or
 HEX WKB points. Knot lines are supplied at construction; the observation
-design matrix is built later in \code{\link[adlaplace:design]{design()}} from \code{data}.
+design matrix is built later in \code{\link[=design]{design()}} from \code{data}.
 }
 \details{
 In 2D, B-spline degree and SPDE order alpha equal \code{shape + 1}.
