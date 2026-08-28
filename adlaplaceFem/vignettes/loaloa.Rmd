@@ -63,12 +63,63 @@ loaloa_for_fit <- geostatsp:::gm.dataSpatial(
 
 ## Knot lines
 
-Use a coarse knot raster over a buffered region around the villages; pass it
-directly as `knots` to `matern()` (extent endpoints plus interior cell centers; see
-`knots_from_spatraster()`).
+Use a **hierarchical** knot specification: a coarse grid over a region buffered
+by about 300 km (Neumann padding), with finer rectangles over the main village
+clusters (west and east). Pass the list directly as `knots` to `matern()`.
+
+```{r knots}
+coarse <- geostatsp::squareRaster(loaloa, cells = 6, buffer = 300 * 1000)
+west <- terra::rast(
+  terra::ext(c(3.9e5, 8.1e5, 3.7e5, 7.7e5)),
+  resolution = 75 * 1000
+)
+east <- terra::rast(
+  terra::ext(c(9.9e5, 1.19e6, 3.7e5, 7.7e5)),
+  resolution = 75 * 1000
+)
+knots_grid <- list(coarse, list(west, east))
+hb <- hb_knots(knots_grid, degree = 3L)
+knitr::kable(hb_summary(hb), digits = 0)
+```
+
+```{r knot-plot, fig.cap="Hierarchical knot regions (coarse extent and west/east refinements) over village locations."}
+draw_raster_grid <- function(r, col = "grey40", lwd = 0.6) {
+  e <- terra::ext(r)
+  xs <- seq(e$xmin, e$xmax, length.out = terra::ncol(r) + 1L)
+  ys <- seq(e$ymin, e$ymax, length.out = terra::nrow(r) + 1L)
+  segments(xs, e$ymin, xs, e$ymax, col = col, lwd = lwd)
+  segments(e$xmin, ys, e$xmax, ys, col = col, lwd = lwd)
+}
+
+data("worldMap", package = "mapmisc")
+africa_bg <- terra::project(terra::unwrap(worldMap), loaloa)
+africa_bg <- terra::crop(africa_bg, terra::extend(terra::ext(coarse), 5e4))
+
+e0 <- terra::ext(coarse)
+mapmisc::map.new(coarse, buffer = 0)
+terra::plot(africa_bg, add = TRUE, col = "grey95", border = "grey50", lwd = 0.6)
+rect(e0[1], e0[3], e0[2], e0[4], col = rgb(0.85, 0.85, 0.85, 0.35), border = "grey30")
+draw_raster_grid(coarse, col = "grey45", lwd = 0.7)
+ew <- terra::ext(west)
+ee <- terra::ext(east)
+rect(ew[1], ew[3], ew[2], ew[4], col = rgb(1, 0.4, 0.3, 0.2), border = "coral", lwd = 1.2)
+rect(ee[1], ee[3], ee[2], ee[4], col = rgb(1, 0.4, 0.3, 0.2), border = "coral", lwd = 1.2)
+draw_raster_grid(west, col = "coral3", lwd = 0.8)
+draw_raster_grid(east, col = "coral3", lwd = 0.8)
+terra::plot(africa_bg, add = TRUE, border = "grey30", lwd = 0.8, col = NA)
+points(terra::crds(loaloa), pch = 16, cex = 0.55)
+legend(
+  "topright",
+  legend = c("coarse cells", "cluster cells", "villages"),
+  col = c("grey45", "coral3", "black"),
+  lty = c(1, 1, NA),
+  pch = c(NA, NA, 16),
+  lwd = c(1, 1, NA),
+  bty = "n"
+)
+```
+
 (`geostatsp` / `terra` may mask `matern`, so call it with `::`.)
-
-
 
 ## Fit
 
@@ -77,7 +128,6 @@ geostatsp Matérn **shape = 2** is ν = 2 (SPDE α = 3 in 2D), so we pass
 from the `geometry` column (WKT) in the model data frame.
 
 ```{r model_setup, cache=FALSE}
-knots_grid <- geostatsp::squareRaster(loaloa, cells = 6, buffer = 300 * 1000)
 loaloa_df <- as.data.frame(loaloa_for_fit$data, geom = "WKT")
 
 loaloa_model <- adlaplace::binomial(y, size = N) ~
@@ -203,66 +253,73 @@ Posterior mean and SD of the spatial field from both fits (glgm when available):
 
 ```{r plot-surfaces-setup, include=FALSE}
 my_col <- mapmisc::colourScale(
-  my_sim[[grep("sd", names(my_sim), invert = TRUE)]],
+  my_sim[["mean"]],
   style = "equal", digits = 2, breaks = 9, col = "Spectral"
 )
 sd_col <- mapmisc::colourScale(
-  my_sim[[grep("sd", names(my_sim))]],
+  my_sim[["sd"]],
   style = "equal", digits = 2, breaks = 9
 )
-plot_compare <- exists("loaFit") && length(loaFit$parameters)
-plot_alone <- !plot_compare
-```
-
-```{r plot-surfaces-compare, fig.width=8, fig.height=8, fig.cap="Posterior mean and SD of the spatial field (glgm vs adlaplace)."}
+sim_layers <- paste0("sim", 1:6)
+# Breaks come from the whole six-draw brick so the scale spans every panel;
+# the draws range wider than the posterior mean. dec (not digits) rounds to a
+# multiple, so dec = -log10(0.5) puts the breaks on halves.
+sim_col <- mapmisc::colourScale(
+  my_sim[[sim_layers]],
+  style = "equal", dec = -log10(0.5), breaks = 9, col = "Spectral"
+)
+plot_compare <- exists("loaFit") &&
+  length(loaFit$parameters) &&
+  inherits(loaFit$raster, "SpatRaster") &&
+  "random.mean" %in% names(loaFit$raster)
 data("worldMap", package = "mapmisc")
-worldMap <- terra::unwrap(worldMap)
-worldMap <- terra::crop(worldMap, terra::ext(c(-2, 10, -10, 5) * 1e6))
-worldMapT <- terra::project(worldMap, loaloa)
-mapmisc::map.new(loaloa)
-if (plot_compare) {
-  terra::plot(
-    loaFit$raster[["random.mean"]],
-    add = TRUE, col = my_col$col, breaks = my_col$breaks, legend = FALSE
-  )
-}
-terra::plot(worldMapT, add = TRUE)
-mapmisc::legendBreaks("right", my_col)
-
-mapmisc::map.new(loaloa)
-terra::plot(
-  my_sim[["mean"]],
-  add = TRUE, col = my_col$col, breaks = my_col$breaks, legend = FALSE
+worldMapT <- terra::project(terra::unwrap(worldMap), loaloa)
+worldMapT <- terra::crop(
+  worldMapT,
+  terra::extend(terra::ext(loaloa_for_fit$grid), 1e5)
 )
-terra::plot(worldMapT, add = TRUE)
-mapmisc::legendBreaks("right", my_col)
+```
 
-mapmisc::map.new(loaloa)
-if (plot_compare) {
+```{r plot-surfaces-compare, fig.width=8, fig.height=if (plot_compare) 8 else 4, fig.cap="Posterior mean and SD of the spatial field (glgm vs adlaplace when both available)."}
+opar <- par(mfrow = c(if (plot_compare) 2L else 1L, 2L))
+
+# map.new() defaults to zero margins, so ask for a strip to hold the title.
+# legendBreaks() restores par(no.readonly = TRUE) on exit, and re-applying
+# mfrow moves the panel pointer to the last cell, which would send the next
+# map.new() to a fresh page; save and restore mfg to keep the mfrow layout.
+plot_field <- function(r, cols, main) {
+  mapmisc::map.new(loaloa, mar = c(0, 0, 2, 0))
   terra::plot(
-    loaFit$raster[["random.sd"]],
-    add = TRUE, col = sd_col$col, breaks = sd_col$breaks, legend = FALSE
+    r,
+    add = TRUE, col = cols$col, breaks = cols$breaks, legend = FALSE
   )
+  terra::plot(worldMapT, add = TRUE, border = "grey20", lwd = 0.7, col = NA)
+  mfg <- par("mfg")
+  mapmisc::legendBreaks("right", cols)
+  par(mfg = mfg)
+  title(main = main, line = 0.4, cex.main = 0.95)
 }
-terra::plot(worldMapT, add = TRUE)
-mapmisc::legendBreaks("right", sd_col)
 
-mapmisc::map.new(loaloa)
-terra::plot(
-  my_sim[["sd"]],
-  add = TRUE, col = sd_col$col, breaks = sd_col$breaks, legend = FALSE
-)
-terra::plot(worldMapT, add = TRUE)
-mapmisc::legendBreaks("right", sd_col)
+if (plot_compare) {
+  plot_field(loaFit$raster[["random.mean"]], my_col, "glgm mean")
+}
+plot_field(my_sim[["mean"]], my_col, "adlaplace mean")
+if (plot_compare) {
+  plot_field(loaFit$raster[["random.sd"]], sd_col, "glgm SD")
+}
+plot_field(my_sim[["sd"]], sd_col, "adlaplace SD")
+par(opar)
 ```
 
 
 
 
-Four posterior draws of the adlaplace Matérn field:
+Six posterior draws of the adlaplace Matérn field:
 
 ```{r plot-sims, fig.width=8, fig.height=8}
-sim_layers <- paste0("sim", 1:6)
-terra::plot(my_sim[[sim_layers]], nc = 2, col = my_col$col, breaks = my_col$breaks, legend = FALSE)
-mapmisc::legendBreaks("right", my_col, bty = "n")
+terra::plot(
+  my_sim[[sim_layers]],
+  nc = 2, col = sim_col$col, breaks = sim_col$breaks, legend = FALSE
+)
+mapmisc::legendBreaks("right", sim_col, bty = "n")
 ```

@@ -48,11 +48,9 @@ matern_est <- function(fit, eval_grid, n = 0L) {
     stop("missing matern coefficients in fit$gamma", call. = FALSE)
   }
 
-  A <- fem_bspline(
-    eval_grid,
-    mat@fem$knots,
-    degree = mat@fem$degree
-  )$A
+  fem <- ensure_matern_fem(mat)
+  xy <- terra::xyFromCell(eval_grid, seq_len(terra::ncell(eval_grid)))
+  A <- fem_design_xy(fem, xy[, 1L], xy[, 2L])
   mu <- as.numeric(A %*% g_hat)
 
   half <- adlaplace::laplace_half_H_inv(fit$details)

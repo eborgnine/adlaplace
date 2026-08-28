@@ -1,19 +1,28 @@
 #' Resolve knot lines for matern()
 #'
-#' Accepts `list(x = ..., y = ...)` or a terra `SpatRaster`. For a raster,
-#' axis knot lines are the extent endpoints plus interior cell centers.
+#' Accepts `list(x = ..., y = ...)`, a terra `SpatRaster`, or a hierarchical
+#' list of `SpatRaster` refinement levels (see [hb_knots()]).
 #'
 #' @param knots Knot specification.
-#' @return `list(x = ..., y = ...)` of numeric knot-line positions.
+#' @param degree B-spline degree used to expand knot lines.
+#' @return `list(x = ..., y = ...)` of numeric knot-line positions, or an
+#'   `"hb_knots"` object for hierarchical specifications.
 #' @keywords internal
 #' @noRd
-matern_knots <- function(knots) {
+matern_knots <- function(knots, degree = 2L) {
+  if (inherits(knots, "hb_knots")) {
+    return(knots)
+  }
   if (inherits(knots, "SpatRaster")) {
-    return(knots_from_spatraster(knots, degree = 2L))
+    return(knots_from_spatraster(knots, degree = degree))
+  }
+  if (is_hierarchical_knots(knots)) {
+    return(hb_knots(knots, degree = degree))
   }
   if (!is.list(knots) || is.null(knots$x) || is.null(knots$y)) {
     stop(
-      "knots must be list(x = ..., y = ...) or a SpatRaster",
+      "knots must be list(x = ..., y = ...), a SpatRaster, ",
+      "or a hierarchical list of SpatRaster levels",
       call. = FALSE
     )
   }
