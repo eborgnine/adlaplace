@@ -92,6 +92,18 @@ fem_bspline_xy <- function(x, y, knots, degree = 2L) {
     stop("degree must be >= 2")
   }
   kn <- resolve_knots_list(knots, degree = degree)
+  if (inherits(kn, "hb_knots")) {
+    return(fem_bspline_hb(x, y, kn, degree = degree))
+  }
+  fem <- fem_tensor_grams(kn, degree = degree)
+  fem$A <- tensor_design(x, y, kn$x, kn$y, degree)
+  fem
+}
+
+#' Assemble 2D Kronecker Gram matrices on a tensor-product knot grid
+#' @keywords internal
+#' @noRd
+fem_tensor_grams <- function(kn, degree) {
   nx <- n_basis_knots(kn$x, degree)
   ny <- n_basis_knots(kn$y, degree)
 
@@ -146,10 +158,8 @@ fem_bspline_xy <- function(x, y, knots, degree = 2L) {
     G3 <- methods::as(Matrix::drop0(G3), "dgCMatrix")
   }
 
-  A <- tensor_design(x, y, kn$x, kn$y, degree)
-
   list(
-    A = A,
+    A = NULL,
     C = C,
     G = G,
     G2 = G2,
@@ -158,6 +168,57 @@ fem_bspline_xy <- function(x, y, knots, degree = 2L) {
     knots = kn,
     n_basis = c(x = nx, y = ny)
   )
+}
+
+#' Hierarchical B-spline FEM assembly via finest-level Grams and basis map S
+#' @keywords internal
+#' @noRd
+fem_bspline_hb <- function(x, y, hb, degree = 2L) {
+  degree <- as.integer(degree)
+  nlev <- hb$n_levels
+  kn_fine <- hb$levels[[nlev]]$knots
+  fem_fine <- fem_tensor_grams(kn_fine, degree = degree)
+  S <- hb_basis_map(hb, degree = degree)
+  n_active <- ncol(S)
+
+  out <- list(
+    A = NULL,
+    C = hb_project_gram(fem_fine$C, S),
+    G = hb_project_gram(fem_fine$G, S),
+    G2 = hb_project_gram(fem_fine$G2, S),
+    G3 = if (!is.null(fem_fine$G3)) {
+      hb_project_gram(fem_fine$G3, S)
+    } else {
+      NULL
+    },
+    degree = degree,
+    knots = hb,
+    knots_finest = kn_fine,
+    n_basis = c(x = n_active, y = 1L),
+    S = S,
+    hb = hb
+  )
+  if (length(x) && length(y)) {
+    out$A <- fem_design_xy(out, x, y)
+  }
+  out
+}
+
+#' Design matrix for plain or hierarchical FEM objects
+#' @keywords internal
+#' @noRd
+fem_design_xy <- function(fem, x, y) {
+  if (!is.null(fem$S)) {
+    A_fine <- tensor_design(
+      x, y,
+      fem$knots_finest$x,
+      fem$knots_finest$y,
+      fem$degree
+    )
+    return(methods::as(A_fine %*% fem$S, "dgCMatrix"))
+  }
+  kn <- fem$knots
+  tensor_design(x, y, kn$x, kn$y, fem$degree)
 }
 
 #' Sparse design matrix for tensor-product B-splines at (x, y)
