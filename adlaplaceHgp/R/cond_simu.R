@@ -54,6 +54,9 @@ get_group_effect <- function(
 
 get_one_envelope <- function(x, probs) {
   if (requireNamespace("GET", quietly = TRUE) && !is.null(x)) {
+    # GET::create_curve_set requires a base matrix (is.matrix()); sparse
+    # Matrix objects from design %*% sims fail that check.
+    x <- as.matrix(x)
     result <- GET::central_region(
       GET::create_curve_set(
         list(obs = x)
@@ -356,7 +359,7 @@ build_iwp_simulations <- function(
     } else {
       fixed_pred[[D]] <- rep(0, nrow(newx_here))
     }
-    sim_f[[D]] <- sim_global[[D]] + drop(fixed_pred[[D]])
+    sim_f[[D]] <- as.matrix(sim_global[[D]] + drop(fixed_pred[[D]]))
   }
 
   list(
@@ -367,7 +370,7 @@ build_iwp_simulations <- function(
 
 append_common_sim_summaries <- function(result, sim_f, probs, probs_envelope) {
   result$x <- lapply(result$x, "[[", 1)
-  result$sim <- lapply(sim_f, exp)
+  result$sim <- lapply(sim_f, function(sim_here) as.matrix(exp(sim_here)))
   result$quantiles$common <- lapply(result$sim, function(sim_here) {
     t(apply(sim_here, 1, stats::quantile, probs = probs))
   })
