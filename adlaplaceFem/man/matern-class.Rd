@@ -73,7 +73,7 @@ random shard; the log-determinant is a parameters companion via
 The first argument is a \strong{column name} in \code{data} (like \code{\link[adlaplace:iid-class]{adlaplace::iid()}}):
 that column holds observation locations as a 2-column matrix, WKT text, or
 HEX WKB points. Knot lines are supplied at construction; the observation
-design matrix is built later in \code{\link[=design]{design()}} from \code{data}.
+design matrix is built later in \code{\link[adlaplace:model-generics]{adlaplace::design()}} from \code{data}.
 }
 \details{
 In 2D, B-spline degree and SPDE order alpha equal \code{shape + 1}.
