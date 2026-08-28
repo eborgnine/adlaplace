@@ -1,4 +1,4 @@
-#' @include RcppExports.R
+#' @include RcppExports.R classes.R density_data.R ad_pack_ptr.R
 #' @keywords internal
 effective_num_threads <- function(num_threads) {
   num_threads <- as.integer(num_threads)[1]

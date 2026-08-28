@@ -1,3 +1,6 @@
+#' @include density_data.R
+NULL
+
 #' Build raw AD handle for one density shard
 #'
 #' Constructs CppAD tapes for a single shard. The density kind and name come

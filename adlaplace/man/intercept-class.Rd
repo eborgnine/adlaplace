@@ -6,18 +6,25 @@
 \alias{intercept}
 \alias{design,intercept-method}
 \alias{beta_info,intercept-method}
+\alias{precision,intercept-method}
+\alias{random_info,intercept-method}
 \title{intercept Model Term}
 \usage{
 intercept(
   init = .my_beta_init,
   lower = .my_beta_lower,
   upper = .my_beta_upper,
-  parscale = .my_beta_parscale
+  parscale = .my_beta_parscale,
+  sd = Inf
 )
 
 \S4method{design}{intercept}(term, data)
 
 \S4method{beta_info}{intercept}(term, data)
+
+\S4method{precision}{intercept}(term, data)
+
+\S4method{random_info}{intercept}(term, data)
 }
 \arguments{
 \item{init}{Initial value for beta parameter (default: 0)}
@@ -28,6 +35,10 @@ intercept(
 
 \item{parscale}{Parameter scale for optimization (default: 1)}
 
+\item{sd}{Prior standard deviation. \code{Inf} (default) keeps a fixed
+effect; a finite positive value places a known-SD Gaussian prior and
+moves the intercept into the random-effect block.}
+
 \item{term}{A intercept term object}
 
 \item{data}{A data frame containing the term variable}
@@ -37,6 +48,9 @@ A intercept term object
 }
 \description{
 Creates and manages intercept model terms for fixed effects.
+  With a finite \code{sd}, the intercept is treated as a random effect with
+  a known-SD Gaussian prior (\code{N(0, sd^2)}), using
+  \code{random_diagonal} without a theta parameter.
 }
 \details{
 intercept Model Term
@@ -46,6 +60,10 @@ intercept Model Term
 \item \code{design(intercept)}: Creates design matrix for intercept term
 
 \item \code{beta_info(intercept)}: Extracts beta parameter information for intercept term
+
+\item \code{precision(intercept)}: Precision for known-SD intercept prior
+
+\item \code{random_info(intercept)}: Random info for known-SD intercept prior
 
 }}
 \section{Methods}{

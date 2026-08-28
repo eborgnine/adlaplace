@@ -12,7 +12,8 @@ log_lik_laplace(
   ad_pack,
   data,
   package = c(config[["package"]], "adlaplace")[1L],
-  deriv = FALSE
+  deriv = FALSE,
+  return_hessians = TRUE
 )
 }
 \arguments{
@@ -44,6 +45,10 @@ Other backends must export a compatible \code{ad_pack()} builder and \code{inner
 
 \item{deriv}{Logical scalar. If \code{TRUE}, include derivative quantities in
 the output (gradient, intermediate derivatives).}
+
+\item{return_hessians}{Logical. Forwarded to \code{\link{inner_opt}}. When
+\code{FALSE} with \code{deriv=TRUE}, skip Matrix Hessian objects (optimizer
+path). Default \code{TRUE} for diagnostic / post-fit evaluations.}
 }
 \value{
 A list. With \code{deriv=FALSE}, same structure as
@@ -70,7 +75,8 @@ supplied.
 
 When \code{deriv=FALSE}, the return value mirrors \code{\link{inner_opt}()}
 with \code{inner_opt}, top-level \code{gradient}, and \code{hessian}.
-When \code{deriv=TRUE}, the same list is augmented with \code{deriv} and
+When \code{deriv=TRUE}, the profile gradient is assembled in C++ inside
+\code{inner_opt}; the same list is augmented with \code{deriv} and
 profile-derivative pieces in \code{gradient$outer}.
 }
 \note{

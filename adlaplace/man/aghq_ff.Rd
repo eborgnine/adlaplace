@@ -14,7 +14,7 @@ aghq_ff(fit, control_inner = NULL)
 }
 \value{
 A list with \code{fn}, \code{gr}, and \code{he}. The Hessian is
-a numerical Jacobian of \code{gr} (no AD outer Hessian is available).
+  a numerical Jacobian of \code{gr} (no AD outer Hessian is available).
 }
 \description{
 Returns \code{list(fn, gr, he)} suitable for \code{\link[aghq]{aghq}},

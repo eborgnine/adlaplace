@@ -6,6 +6,8 @@
 \alias{linear}
 \alias{design,linear-method}
 \alias{beta_info,linear-method}
+\alias{precision,linear-method}
+\alias{random_info,linear-method}
 \title{Linear Model Term}
 \usage{
 linear(
@@ -13,12 +15,17 @@ linear(
   init = .my_beta_init,
   lower = .my_beta_lower,
   upper = .my_beta_upper,
-  parscale = .my_beta_parscale
+  parscale = .my_beta_parscale,
+  sd = Inf
 )
 
 \S4method{design}{linear}(term, data)
 
 \S4method{beta_info}{linear}(term, data)
+
+\S4method{precision}{linear}(term, data)
+
+\S4method{random_info}{linear}(term, data)
 }
 \arguments{
 \item{x}{Variable name (character) or symbol in a formula (e.g. \code{linear(x)} in
@@ -32,6 +39,10 @@ linear(
 
 \item{parscale}{Parameter scale for optimization (default: 1)}
 
+\item{sd}{Prior standard deviation. \code{Inf} (default) keeps a fixed
+effect; a finite positive value places a known-SD Gaussian prior and
+moves the coefficients into the random-effect block.}
+
 \item{term}{A linear term object}
 
 \item{data}{A data frame containing the term variable}
@@ -41,6 +52,8 @@ A linear term object
 }
 \description{
 Creates and manages linear model terms for fixed effects.
+  With a finite \code{sd}, coefficients are random effects with a known-SD
+  Gaussian prior (\code{N(0, sd^2)}).
 }
 \details{
 Linear Model Term
@@ -50,6 +63,10 @@ Linear Model Term
 \item \code{design(linear)}: Creates design matrix for linear term
 
 \item \code{beta_info(linear)}: Extracts beta parameter information for linear term
+
+\item \code{precision(linear)}: Precision for known-SD linear prior
+
+\item \code{random_info(linear)}: Random info for known-SD linear prior
 
 }}
 \section{Methods}{
