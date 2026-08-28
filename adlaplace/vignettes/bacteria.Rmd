@@ -278,18 +278,13 @@ sigma_q <- vapply(probs, function(p) {
   sigma[o][which(cw >= p)[1L]]
 }, numeric(1))
 
-post_q <- rbind(
-  data.frame(
-    parameter = vapply(coef_lab, pretty_coef, character(1)),
-    q_coef,
-    row.names = NULL
-  ),
-  data.frame(
-    parameter = "sigma (ID)",
-    matrix(sigma_q, nrow = 1L, dimnames = list(NULL, as.character(probs)))
-  )
+post_q <- data.frame(
+  parameter = c(vapply(coef_lab, pretty_coef, character(1)), "sigma (ID)"),
+  `2.5%` = c(q_coef[, 1L], sigma_q[[1L]]),
+  `50%` = c(q_coef[, 2L], sigma_q[[2L]]),
+  `97.5%` = c(q_coef[, 3L], sigma_q[[3L]]),
+  check.names = FALSE
 )
-names(post_q) <- c("parameter", "2.5%", "50%", "97.5%")
 knitr::kable(post_q, digits = 3)
 ```
 
