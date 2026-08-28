@@ -260,6 +260,14 @@ sd_col <- mapmisc::colourScale(
   my_sim[["sd"]],
   style = "equal", digits = 2, breaks = 9
 )
+sim_layers <- paste0("sim", 1:6)
+# Breaks come from the whole six-draw brick so the scale spans every panel;
+# the draws range wider than the posterior mean. dec (not digits) rounds to a
+# multiple, so dec = -log10(0.5) puts the breaks on halves.
+sim_col <- mapmisc::colourScale(
+  my_sim[[sim_layers]],
+  style = "equal", dec = -log10(0.5), breaks = 9, col = "Spectral"
+)
 plot_compare <- exists("loaFit") &&
   length(loaFit$parameters) &&
   inherits(loaFit$raster, "SpatRaster") &&
@@ -306,10 +314,12 @@ par(opar)
 
 
 
-Four posterior draws of the adlaplace Matérn field:
+Six posterior draws of the adlaplace Matérn field:
 
 ```{r plot-sims, fig.width=8, fig.height=8}
-sim_layers <- paste0("sim", 1:6)
-terra::plot(my_sim[[sim_layers]], nc = 2, col = my_col$col, breaks = my_col$breaks, legend = FALSE)
-mapmisc::legendBreaks("right", my_col, bty = "n")
+terra::plot(
+  my_sim[[sim_layers]],
+  nc = 2, col = sim_col$col, breaks = sim_col$breaks, legend = FALSE
+)
+mapmisc::legendBreaks("right", sim_col, bty = "n")
 ```
