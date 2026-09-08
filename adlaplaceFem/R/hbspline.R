@@ -1,97 +1,175 @@
 #' Hierarchical tensor-product B-spline knot specifications
 #'
-#' Builds nested B-spline spaces from a list of refinement levels. Each level is
-#' a terra `SpatRaster` or a list of rasters defining rectangular refinement
-#' regions at the same level.
+#' Builds nested knot-line locations from a coarse terra raster and optional
+#' inner refinement extents. Knot **lines** do not depend on B-spline degree;
+#' pass the result to [hb_basis()] or [matern()] to form the THB space.
 #'
-#' @param knots A list of levels: `list(raster0, raster1, list(raster2a, raster2b), ...)`.
-#'   Level 0 defines the coarse padded domain; later levels add knot lines inside
-#'   their extents. Legacy `list(x = ..., y = ...)` is not hierarchical.
-#' @param degree B-spline degree (must be `>= 2`).
-#' @return An `"hb_knots"` object used internally by [fem_bspline()] and [matern()].
+#' Each element of `inner` is one refinement level: a single extent, or a list
+#' of extents for sibling boxes at that level. `list(ext)` and `list(list(ext))`
+#' are the same one-level, one-box specification. `list(ext1, ext2)` is two
+#' levels; siblings are `list(list(ext1, ext2))`. Extents are snapped to `outer`
+#' cell edges and clipped to the parent level.
+#'
+#' @param outer A terra `SpatRaster` giving the padded domain (level 0) and
+#'   level-0 cell size.
+#' @param inner `NULL` (outer only), one extent, or a list of levels. An extent
+#'   is a `SpatExtent`, `c(xmin, xmax, ymin, ymax)`, or a `SpatRaster` /
+#'   `SpatVector` (extent only; resolution is ignored).
+#' @param fact Integer `>= 2`, recycled to `length(inner)`. `fact[i]` is the
+#'   cell-size ratio from the previous level, so level-`i` resolution is
+#'   `res(outer) / prod(fact[1:i])`.
+#' @return An `"hb_knots"` object (breakpoints, snapped regions, resolution).
 #' @export
-hb_knots <- function(knots, degree = 2L) {
-  degree <- as.integer(degree)[1L]
-  if (degree < 2L) {
-    stop("degree must be >= 2", call. = FALSE)
+hb_knots <- function(outer, inner = NULL, fact = 2L) {
+  if (inherits(outer, "hb_knots")) {
+    return(outer)
   }
-  if (inherits(knots, "hb_knots")) {
-    if (!identical(knots$degree, degree)) {
-      stop("hb_knots degree mismatch", call. = FALSE)
+  if (!requireNamespace("terra", quietly = TRUE)) {
+    stop(
+      "terra is required for hb_knots(); install.packages(\"terra\")",
+      call. = FALSE
+    )
+  }
+  if (!inherits(outer, "SpatRaster")) {
+    stop("outer must be a terra SpatRaster", call. = FALSE)
+  }
+
+  inner_levels <- normalize_inner_levels(inner)
+  n_refine <- length(inner_levels)
+  fact <- as.integer(fact)
+  if (n_refine == 0L) {
+    fact <- integer(0)
+  } else {
+    if (length(fact) == 1L) {
+      fact <- rep(fact, n_refine)
     }
-    return(knots)
+    if (length(fact) != n_refine) {
+      stop("fact must have length 1 or length(inner)", call. = FALSE)
+    }
+    if (any(is.na(fact)) || any(fact < 2L)) {
+      stop("each fact value must be an integer >= 2", call. = FALSE)
+    }
   }
-  levels_raw <- normalize_hb_levels(knots)
-  n_levels <- length(levels_raw)
-  if (n_levels < 1L) {
-    stop("hierarchical knots require at least one level", call. = FALSE)
-  }
+
+  n_levels <- n_refine + 1L
+  edges <- outer_cell_edges(outer)
+  res0 <- c(terra::xres(outer), terra::yres(outer))
+  bp0 <- knots_from_spatraster(outer, degree = 2L)
+  omega0 <- list(raster_extent_list(outer))
 
   level_data <- vector("list", n_levels)
-  bx_prev <- NULL
-  by_prev <- NULL
+  level_data[[1L]] <- list(
+    breakpoints = list(x = bp0$x, y = bp0$y),
+    regions = omega0,
+    omega = omega0,
+    resolution = res0
+  )
 
-  for (lev in seq_len(n_levels)) {
-    raw <- levels_raw[[lev]]
-    regions <- lapply(raw$rasters, raster_extent_list)
-    if (lev == 1L) {
-      bp <- axis_breakpoints_from_rasters(raw$rasters)
-      bx <- bp$x
-      by <- bp$y
-      omega <- regions
-    } else {
-      omega <- regions
-      for (reg in regions) {
-        if (!rect_contained_in_union(reg, level_data[[lev - 1L]]$omega)) {
-          stop(
-            "refinement extent at level ", lev - 1L,
-            " must lie inside the parent domain",
-            call. = FALSE
-          )
-        }
+  bx_prev <- bp0$x
+  by_prev <- bp0$y
+  res_prev <- res0
+
+  for (i in seq_len(n_refine)) {
+    regions <- lapply(inner_levels[[i]], function(reg) {
+      snapped <- snap_extent_to_breaks(reg, edges$x, edges$y)
+      clipped <- clip_region_to_omega(snapped, level_data[[i]]$omega)
+      if (is.null(clipped)) {
+        stop(
+          "refinement extent at inner level ", i,
+          " must lie inside the parent domain",
+          call. = FALSE
+        )
       }
-      regions <- lapply(regions, function(reg) {
-        snap_extent_to_breaks(reg, bx_prev, by_prev)
-      })
-      new_x <- interior_breakpoints_from_rasters(raw$rasters, axis = "x")
-      new_y <- interior_breakpoints_from_rasters(raw$rasters, axis = "y")
-      bx <- sort(unique(c(bx_prev, new_x)))
-      by <- sort(unique(c(by_prev, new_y)))
-    }
-    open_x <- axis_to_open_knots(bx, degree)
-    open_y <- axis_to_open_knots(by, degree)
-    level_data[[lev]] <- list(
+      clipped
+    })
+    res_i <- res_prev / as.numeric(fact[i])
+    rasters <- lapply(regions, function(reg) region_raster(reg, res_i))
+    new_x <- interior_breakpoints_from_rasters(rasters, axis = "x")
+    new_y <- interior_breakpoints_from_rasters(rasters, axis = "y")
+    bx <- sort(unique(c(bx_prev, new_x)))
+    by <- sort(unique(c(by_prev, new_y)))
+    level_data[[i + 1L]] <- list(
       breakpoints = list(x = bx, y = by),
-      knots = list(x = open_x, y = open_y),
       regions = regions,
       omega = regions,
-      n_basis = c(
-        x = n_basis_knots(open_x, degree),
-        y = n_basis_knots(open_y, degree)
-      )
+      resolution = res_i
     )
     bx_prev <- bx
     by_prev <- by
+    res_prev <- res_i
   }
 
   structure(
     list(
       levels = level_data,
-      degree = degree,
-      n_levels = n_levels
+      n_levels = n_levels,
+      fact = unname(fact)
     ),
     class = c("hb_knots", "list")
   )
 }
 
-#' @describeIn hb_knots Per-level active basis counts and total hierarchical dof.
-#' @param hb An `"hb_knots"` object from [hb_knots()].
+#' Truncated hierarchical B-spline space
+#'
+#' Expands [hb_knots()] breakpoint lines to open knot vectors and builds the
+#' THB embedding (active sets and sparse map `S`) for a B-spline `degree`.
+#'
+#' @param knots An `"hb_knots"` object from [hb_knots()].
+#' @param degree B-spline degree (must be `>= 2`).
+#' @return An `"hb_basis"` object used by [fem_bspline()] and [matern()].
+#' @export
+hb_basis <- function(knots, degree = 2L) {
+  degree <- as.integer(degree)[1L]
+  if (degree < 2L) {
+    stop("degree must be >= 2", call. = FALSE)
+  }
+  if (inherits(knots, "hb_basis")) {
+    if (!identical(knots$degree, degree)) {
+      stop("hb_basis degree mismatch", call. = FALSE)
+    }
+    return(knots)
+  }
+  if (!inherits(knots, "hb_knots")) {
+    stop("knots must be an hb_knots object from hb_knots()", call. = FALSE)
+  }
+
+  levels <- lapply(knots$levels, function(lev) {
+    open_x <- axis_to_open_knots(lev$breakpoints$x, degree)
+    open_y <- axis_to_open_knots(lev$breakpoints$y, degree)
+    lev$knots <- list(x = open_x, y = open_y)
+    lev$n_basis <- c(
+      x = n_basis_knots(open_x, degree),
+      y = n_basis_knots(open_y, degree)
+    )
+    lev
+  })
+
+  hb <- structure(
+    list(
+      levels = levels,
+      degree = degree,
+      n_levels = knots$n_levels,
+      fact = knots$fact,
+      knots = knots
+    ),
+    class = c("hb_basis", "list")
+  )
+  hb$active <- hb_active_sets(hb, degree)
+  hb$S <- hb_basis_map(hb, degree)
+  hb
+}
+
+#' @describeIn hb_basis Per-level active basis counts and total hierarchical dof.
+#' @param hb An `"hb_basis"` object from [hb_basis()].
 #' @export
 hb_summary <- function(hb) {
-  if (!inherits(hb, "hb_knots")) {
-    stop("hb must be an hb_knots object", call. = FALSE)
+  if (!inherits(hb, "hb_basis")) {
+    stop("hb must be an hb_basis object from hb_basis()", call. = FALSE)
   }
-  active <- hb_active_sets(hb, hb$degree)
+  active <- hb$active
+  if (is.null(active)) {
+    active <- hb_active_sets(hb, hb$degree)
+  }
   rows <- lapply(seq_along(active), function(lev) {
     data.frame(
       level = lev - 1L,
@@ -106,12 +184,94 @@ hb_summary <- function(hb) {
   out
 }
 
-#' Detect hierarchical knot list form
 #' @keywords internal
 #' @noRd
-is_hierarchical_knots <- function(knots) {
-  if (!is.list(knots) || inherits(knots, "hb_knots")) {
-    return(inherits(knots, "hb_knots"))
+is_extent_like <- function(x) {
+  inherits(x, "SpatExtent") ||
+    inherits(x, "SpatRaster") ||
+    inherits(x, "SpatVector") ||
+    (is.numeric(x) && length(x) == 4L && is.null(dim(x)))
+}
+
+#' @keywords internal
+#' @noRd
+coerce_extent_region <- function(x) {
+  if (!requireNamespace("terra", quietly = TRUE)) {
+    stop("terra is required for hb_knots()", call. = FALSE)
+  }
+  e <- if (inherits(x, "SpatExtent")) {
+    x
+  } else if (inherits(x, "SpatRaster") || inherits(x, "SpatVector")) {
+    terra::ext(x)
+  } else if (is.numeric(x) && length(x) == 4L) {
+    terra::ext(x[1], x[2], x[3], x[4])
+  } else {
+    stop(
+      "each inner region must be a SpatExtent, length-4 numeric, ",
+      "SpatRaster, or SpatVector",
+      call. = FALSE
+    )
+  }
+  list(xmin = e$xmin, xmax = e$xmax, ymin = e$ymin, ymax = e$ymax)
+}
+
+#' @keywords internal
+#' @noRd
+normalize_inner_levels <- function(inner) {
+  if (is.null(inner)) {
+    return(list())
+  }
+  if (is_extent_like(inner)) {
+    return(list(list(coerce_extent_region(inner))))
+  }
+  if (!is.list(inner) || !length(inner)) {
+    stop("inner must be NULL, an extent, or a list of levels", call. = FALSE)
+  }
+  lapply(inner, function(level) {
+    if (is_extent_like(level)) {
+      list(coerce_extent_region(level))
+    } else if (is.list(level) && length(level) >= 1L) {
+      lapply(level, coerce_extent_region)
+    } else {
+      stop(
+        "each inner level must be an extent or a list of extents",
+        call. = FALSE
+      )
+    }
+  })
+}
+
+#' @keywords internal
+#' @noRd
+outer_cell_edges <- function(r) {
+  e <- terra::ext(r)
+  list(
+    x = as.numeric(e$xmin) + seq(0, terra::ncol(r)) * terra::xres(r),
+    y = as.numeric(e$ymin) + seq(0, terra::nrow(r)) * terra::yres(r)
+  )
+}
+
+#' @keywords internal
+#' @noRd
+region_raster <- function(reg, resolution) {
+  dx <- resolution[1]
+  dy <- if (length(resolution) > 1L) resolution[2] else resolution[1]
+  nc <- max(1L, as.integer(round((reg$xmax - reg$xmin) / dx)))
+  nr <- max(1L, as.integer(round((reg$ymax - reg$ymin) / dy)))
+  terra::rast(
+    terra::ext(reg$xmin, reg$xmax, reg$ymin, reg$ymax),
+    ncols = nc,
+    nrows = nr
+  )
+}
+
+#' Detect the retired list-of-SpatRaster hierarchical form
+#' @keywords internal
+#' @noRd
+is_legacy_raster_levels <- function(knots) {
+  if (!is.list(knots) || inherits(knots, "hb_knots") ||
+      inherits(knots, "hb_basis")) {
+    return(FALSE)
   }
   if (!is.null(knots$x) && !is.null(knots$y)) {
     return(FALSE)
@@ -119,39 +279,20 @@ is_hierarchical_knots <- function(knots) {
   if (length(knots) < 1L) {
     return(FALSE)
   }
-  all(vapply(knots, is_hb_level_element, logical(1L)))
+  all(vapply(knots, function(x) {
+    inherits(x, "SpatRaster") ||
+      (is.list(x) && length(x) >= 1L &&
+         all(vapply(x, function(z) inherits(z, "SpatRaster"), logical(1L))))
+  }, logical(1L)))
 }
 
 #' @keywords internal
 #' @noRd
-is_hb_level_element <- function(x) {
-  if (inherits(x, "SpatRaster")) {
-    return(TRUE)
-  }
-  is.list(x) && length(x) >= 1L &&
-    all(vapply(x, function(z) inherits(z, "SpatRaster"), logical(1L)))
-}
-
-#' @keywords internal
-#' @noRd
-normalize_hb_levels <- function(knots) {
-  if (!is.list(knots)) {
-    stop("hierarchical knots must be a list of levels", call. = FALSE)
-  }
-  lapply(knots, function(level) {
-    if (inherits(level, "SpatRaster")) {
-      list(rasters = list(level))
-    } else if (is.list(level) && all(vapply(level, function(z) {
-      inherits(z, "SpatRaster")
-    }, logical(1L)))) {
-      list(rasters = level)
-    } else {
-      stop(
-        "each hierarchical level must be a SpatRaster or list of SpatRasters",
-        call. = FALSE
-      )
-    }
-  })
+stop_legacy_raster_levels <- function() {
+  stop(
+    "hierarchical knots must be created with hb_knots(outer, inner, fact)",
+    call. = FALSE
+  )
 }
 
 #' @keywords internal
@@ -202,14 +343,54 @@ snap_extent_to_breaks <- function(reg, bx, by, tol = 1e-6) {
   snap1 <- function(v, br) {
     br <- sort(unique(as.numeric(br)))
     v <- as.numeric(v)
-    c(
-      max(br[br <= v[1] + tol]),
-      min(br[br >= v[2] - tol])
-    )
+    lo <- br[br <= v[1] + tol]
+    hi <- br[br >= v[2] - tol]
+    if (!length(lo) || !length(hi)) {
+      stop(
+        "inner extent cannot be snapped to outer cell boundaries",
+        call. = FALSE
+      )
+    }
+    c(max(lo), min(hi))
   }
   xs <- snap1(c(reg$xmin, reg$xmax), bx)
   ys <- snap1(c(reg$ymin, reg$ymax), by)
+  if (xs[2] <= xs[1] || ys[2] <= ys[1]) {
+    stop("snapped inner extent has zero area", call. = FALSE)
+  }
   list(xmin = xs[1], xmax = xs[2], ymin = ys[1], ymax = ys[2])
+}
+
+#' @keywords internal
+#' @noRd
+intersect_rect <- function(a, b) {
+  list(
+    xmin = max(a$xmin, b$xmin),
+    xmax = min(a$xmax, b$xmax),
+    ymin = max(a$ymin, b$ymin),
+    ymax = min(a$ymax, b$ymax)
+  )
+}
+
+#' Intersect a snapped box with the parent region union.
+#' @keywords internal
+#' @noRd
+clip_region_to_omega <- function(reg, omega) {
+  hits <- lapply(omega, function(o) intersect_rect(reg, o))
+  ok <- vapply(hits, function(h) {
+    h$xmax > h$xmin + 1e-9 && h$ymax > h$ymin + 1e-9
+  }, logical(1L))
+  if (!any(ok)) {
+    return(NULL)
+  }
+  hits <- hits[ok]
+  if (length(hits) == 1L) {
+    return(hits[[1]])
+  }
+  area <- vapply(hits, function(h) {
+    (h$xmax - h$xmin) * (h$ymax - h$ymin)
+  }, numeric(1))
+  hits[[which.max(area)]]
 }
 
 #' @keywords internal

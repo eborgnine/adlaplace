@@ -103,19 +103,16 @@ axis_to_open_knots <- function(t, degree) {
 #' @keywords internal
 #' @noRd
 resolve_knots_list <- function(knots, degree) {
-  if (inherits(knots, "hb_knots")) {
-    if (!identical(knots$degree, as.integer(degree)[1L])) {
-      stop("hb_knots degree does not match requested degree", call. = FALSE)
-    }
+  if (inherits(knots, "hb_knots") || inherits(knots, "hb_basis")) {
     return(knots)
   }
-  if (is_hierarchical_knots(knots)) {
-    return(hb_knots(knots, degree = degree))
+  if (is_legacy_raster_levels(knots)) {
+    stop_legacy_raster_levels()
   }
   if (!is.list(knots) || is.null(knots$x) || is.null(knots$y)) {
     stop(
       "knots must be list(x = ..., y = ...), a SpatRaster, ",
-      "or a hierarchical list of SpatRaster levels",
+      "or an hb_knots object from hb_knots(outer, inner, fact)",
       call. = FALSE
     )
   }

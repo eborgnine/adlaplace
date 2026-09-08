@@ -6,10 +6,14 @@ fem_cov_hierarchical <- function(sites_eval, knots_coarse, knots_refine) {
     return(NULL)
   }
   coarse_r <- terra::rast(terra::ext(-0.2, 1.2, -0.2, 1.2), resolution = 0.2)
-  fine_r <- terra::rast(terra::ext(0.2, 0.8, 0.2, 0.8), resolution = 0.1)
+  kn <- adlaplaceFem::hb_knots(
+    outer = coarse_r,
+    inner = terra::ext(0.2, 0.8, 0.2, 0.8),
+    fact = 2
+  )
   fem <- adlaplaceFem::fem_bspline(
     sites_eval,
-    list(coarse_r, fine_r),
+    kn,
     degree = 2L
   )
   Q <- adlaplaceFem::fem_precision(

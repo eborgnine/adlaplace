@@ -23,7 +23,7 @@ matern_shape_degree <- function(shape) {
 #' @noRd
 matern_fem_grams <- function(knots, degree) {
   kn <- resolve_knots_list(knots, degree = degree)
-  if (inherits(kn, "hb_knots")) {
+  if (inherits(kn, "hb_knots") || inherits(kn, "hb_basis")) {
     fem <- fem_bspline_hb(numeric(0), numeric(0), kn, degree = degree)
     fem$A <- NULL
     return(fem)
@@ -73,8 +73,8 @@ setClass(
 
 #' @param x Name of the geometry / coordinate column in `data`.
 #' @param knots Knot lines as `list(x = ..., y = ...)`, a terra `SpatRaster`
-#'   (extent endpoints plus interior cell centers), or a hierarchical list of
-#'   `SpatRaster` levels `list(raster0, raster1, list(raster2a, raster2b), ...)`.
+#'   (extent endpoints plus interior cell centers), or an `"hb_knots"` object
+#'   from [hb_knots()].
 #' @param shape Matern smoothness nu (`1` or `2`). Default `1L` (SPDE alpha = 2,
 #'   quadratic B-splines). Use `2` for nu = 2 / cubic B-splines.
 #' @param init Initial values for `(range, sd)` on the natural scale, where

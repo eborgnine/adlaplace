@@ -28,17 +28,18 @@ if (requireNamespace("adlaplaceFem", quietly = TRUE) &&
     grid = geostatsp::squareRaster(loaloa, cells = 200, buffer = 1e4)
   )
 
-  coarse <- geostatsp::squareRaster(loaloa, cells = 6, buffer = 300 * 1000)
-  west <- terra::rast(
-    terra::ext(c(3.9e5, 8.1e5, 3.7e5, 7.7e5)),
-    resolution = 75 * 1000
+  loaloa_knots <- hb_knots(
+    outer = geostatsp::squareRaster(loaloa, cells = 6, buffer = 300 * 1000),
+    inner = list(
+      terra::ext(loaloa),
+      list(
+        terra::ext(3.9e5, 8.1e5, 3.7e5, 7.7e5),
+        terra::ext(9.9e5, 1.19e6, 3.7e5, 7.7e5)
+      )
+    ),
+    fact = c(2, 4)
   )
-  east <- terra::rast(
-    terra::ext(c(9.9e5, 1.19e6, 3.7e5, 7.7e5)),
-    resolution = 75 * 1000
-  )
-  knots_grid <- list(coarse, list(west, east))
-  hb_dof <- hb_summary(hb_knots(knots_grid, degree = 3L))
+  hb_dof <- hb_summary(hb_basis(loaloa_knots, degree = 3L))
 
   loaloa_df <- as.data.frame(loaloa_for_fit$data, geom = "WKT")
   loaloa_model <- adlaplace::binomial(y, size = N) ~
@@ -46,7 +47,7 @@ if (requireNamespace("adlaplaceFem", quietly = TRUE) &&
     adlaplace::iid(villageID, init = 0.2) +
     adlaplaceFem::matern(
       geometry,
-      knots = knots_grid,
+      knots = loaloa_knots,
       shape = 2L,
       init = c(100 * 1000, 0.2),
       lower = c(1 * 1000, 0.001)

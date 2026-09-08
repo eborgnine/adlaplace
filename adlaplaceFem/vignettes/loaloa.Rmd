@@ -64,25 +64,41 @@ loaloa_for_fit <- geostatsp::geostatData(
 ## Knot lines
 
 Use a **hierarchical** knot specification: a coarse grid over a region buffered
-by about 300 km (Neumann padding), with finer rectangles over the main village
-clusters (west and east). Pass the list directly as `knots` to `matern()`.
+by about 300 km (Neumann padding), then the study extent, then finer
+rectangles over the west and east village clusters. Pass the `hb_knots()`
+result as `knots` to `matern()`.
 
 ```{r knots}
-coarse <- geostatsp::squareRaster(loaloa, cells = 6, buffer = 300 * 1000)
-west <- terra::rast(
-  terra::ext(c(3.9e5, 8.1e5, 3.7e5, 7.7e5)),
-  resolution = 75 * 1000
+loaloa_knots <- hb_knots(
+  outer = geostatsp::squareRaster(loaloa, cells = 6, buffer = 300 * 1000),
+  inner = list(
+    terra::ext(loaloa),
+    list(
+      terra::ext(3.9e5, 8.1e5, 3.7e5, 7.7e5),
+      terra::ext(9.9e5, 1.19e6, 3.7e5, 7.7e5)
+    )
+  ),
+  fact = c(2, 4)
 )
-east <- terra::rast(
-  terra::ext(c(9.9e5, 1.19e6, 3.7e5, 7.7e5)),
-  resolution = 75 * 1000
-)
-knots_grid <- list(coarse, list(west, east))
-hb <- hb_knots(knots_grid, degree = 3L)
-knitr::kable(hb_summary(hb), digits = 0)
+```
+
+```{r knots-summary}
+knitr::kable(hb_summary(hb_basis(loaloa_knots, degree = 3L)), digits = 0)
 ```
 
 ```{r knot-plot, fig.cap="Hierarchical knot regions (coarse extent and west/east refinements) over village locations."}
+level_raster <- function(lev, i = 1L) {
+  r <- lev$regions[[i]]
+  terra::rast(
+    terra::ext(r$xmin, r$xmax, r$ymin, r$ymax),
+    resolution = lev$resolution
+  )
+}
+coarse <- level_raster(loaloa_knots$levels[[1]])
+study <- level_raster(loaloa_knots$levels[[2]])
+west <- level_raster(loaloa_knots$levels[[3]], 1L)
+east <- level_raster(loaloa_knots$levels[[3]], 2L)
+
 draw_raster_grid <- function(r, col = "grey40", lwd = 0.6) {
   e <- terra::ext(r)
   xs <- seq(e$xmin, e$xmax, length.out = terra::ncol(r) + 1L)
@@ -100,6 +116,9 @@ mapmisc::map.new(coarse, buffer = 0)
 terra::plot(africa_bg, add = TRUE, col = "grey95", border = "grey50", lwd = 0.6)
 rect(e0[1], e0[3], e0[2], e0[4], col = rgb(0.85, 0.85, 0.85, 0.35), border = "grey30")
 draw_raster_grid(coarse, col = "grey45", lwd = 0.7)
+es <- terra::ext(study)
+rect(es[1], es[3], es[2], es[4], col = rgb(0.4, 0.6, 1, 0.12), border = "steelblue", lwd = 1)
+draw_raster_grid(study, col = "steelblue", lwd = 0.5)
 ew <- terra::ext(west)
 ee <- terra::ext(east)
 rect(ew[1], ew[3], ew[2], ew[4], col = rgb(1, 0.4, 0.3, 0.2), border = "coral", lwd = 1.2)
@@ -110,11 +129,11 @@ terra::plot(africa_bg, add = TRUE, border = "grey30", lwd = 0.8, col = NA)
 points(terra::crds(loaloa), pch = 16, cex = 0.55)
 legend(
   "topright",
-  legend = c("coarse cells", "cluster cells", "villages"),
-  col = c("grey45", "coral3", "black"),
-  lty = c(1, 1, NA),
-  pch = c(NA, NA, 16),
-  lwd = c(1, 1, NA),
+  legend = c("coarse cells", "study cells", "cluster cells", "villages"),
+  col = c("grey45", "steelblue", "coral3", "black"),
+  lty = c(1, 1, 1, NA),
+  pch = c(NA, NA, NA, 16),
+  lwd = c(1, 1, 1, NA),
   bty = "n"
 )
 ```
@@ -135,7 +154,7 @@ loaloa_model <- adlaplace::binomial(y, size = N) ~
   adlaplace::iid(villageID, init = 0.2) +
   adlaplaceFem::matern(
     geometry,
-    knots = knots_grid,
+    knots = loaloa_knots,
     shape = 2L,
     # range = practical rho = sqrt(8*nu)/kappa (m); sd = field SD
     init = c(100 * 1000, 0.2),
@@ -167,7 +186,7 @@ loaFit <- geostatsp::glgm(
       model = "iid"
     ),
   loaloa,
-  grid = 100,
+  grid = 20,
   covariates = list(elev_s = elev_s_r, evi_s = evi_s_r),
   family = "binomial",
   Ntrials = loaloa$N,

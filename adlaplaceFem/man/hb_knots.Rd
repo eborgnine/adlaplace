@@ -2,32 +2,34 @@
 % Please edit documentation in R/hbspline.R
 \name{hb_knots}
 \alias{hb_knots}
-\alias{hb_summary}
 \title{Hierarchical tensor-product B-spline knot specifications}
 \usage{
-hb_knots(knots, degree = 2L)
-
-hb_summary(hb)
+hb_knots(outer, inner = NULL, fact = 2L)
 }
 \arguments{
-\item{knots}{A list of levels: \code{list(raster0, raster1, list(raster2a, raster2b), ...)}.
-Level 0 defines the coarse padded domain; later levels add knot lines inside
-their extents. Legacy \code{list(x = ..., y = ...)} is not hierarchical.}
+\item{outer}{A terra \code{SpatRaster} giving the padded domain (level 0) and
+level-0 cell size.}
 
-\item{degree}{B-spline degree (must be \verb{>= 2}).}
+\item{inner}{\code{NULL} (outer only), one extent, or a list of levels. An extent
+is a \code{SpatExtent}, \code{c(xmin, xmax, ymin, ymax)}, or a \code{SpatRaster} /
+\code{SpatVector} (extent only; resolution is ignored).}
 
-\item{hb}{An \code{"hb_knots"} object from \code{\link[=hb_knots]{hb_knots()}}.}
+\item{fact}{Integer \verb{>= 2}, recycled to \code{length(inner)}. \code{fact[i]} is the
+cell-size ratio from the previous level, so level-\code{i} resolution is
+\code{res(outer) / prod(fact[1:i])}.}
 }
 \value{
-An \code{"hb_knots"} object used internally by \code{\link[=fem_bspline]{fem_bspline()}} and \code{\link[=matern]{matern()}}.
+An \code{"hb_knots"} object (breakpoints, snapped regions, resolution).
 }
 \description{
-Builds nested B-spline spaces from a list of refinement levels. Each level is
-a terra \code{SpatRaster} or a list of rasters defining rectangular refinement
-regions at the same level.
+Builds nested knot-line locations from a coarse terra raster and optional
+inner refinement extents. Knot \strong{lines} do not depend on B-spline degree;
+pass the result to \code{\link[=hb_basis]{hb_basis()}} or \code{\link[=matern]{matern()}} to form the THB space.
 }
-\section{Functions}{
-\itemize{
-\item \code{hb_summary()}: Per-level active basis counts and total hierarchical dof.
-
-}}
+\details{
+Each element of \code{inner} is one refinement level: a single extent, or a list
+of extents for sibling boxes at that level. \code{list(ext)} and \code{list(list(ext))}
+are the same one-level, one-box specification. \code{list(ext1, ext2)} is two
+levels; siblings are \code{list(list(ext1, ext2))}. Extents are snapped to \code{outer}
+cell edges and clipped to the parent level.
+}

@@ -140,24 +140,27 @@ $$
 
 # Hierarchical B-splines
 
-For spatial domains where data are concentrated in subregions, pass a **list of
-`SpatRaster` levels** to `matern()` instead of a single uniform grid:
+For spatial domains where data are concentrated in subregions, build
+hierarchical knot lines with [hb_knots()] and pass the result to `matern()`:
 
 ```r
-knots <- list(
-  coarse_raster,                         # level 0: padded domain
-  study_raster,                          # level 1: finer over study region
-  list(west_raster, east_raster)         # level 2: two rectangles at same level
+kn <- hb_knots(
+  outer = coarse_raster,                 # level 0: padded domain
+  inner = list(
+    terra::ext(study),                   # level 1: study region
+    list(west_ext, east_ext)             # level 2: sibling rectangles
+  ),
+  fact = c(2, 4)
 )
-matern(geometry, knots = knots, shape = 2L)
+matern(geometry, knots = kn, shape = 2L)
 ```
 
-Each level adds knot lines strictly inside its extent to the parent grid, giving
-nested spaces $V^0 \subset V^1 \subset \cdots \subset V^L$. A truncated
-hierarchical (THB) basis keeps level-$\ell$ tensor B-splines active when their
-support lies in the level-$\ell$ region but not in finer regions. Every active
-function embeds in the finest space via a sparse map $\mathbf{S}$, so the Gram
-matrices become
+`fact[i]` is the cell-size ratio from the previous level. Each inner extent is
+snapped to the outer raster's cell edges. This gives nested spaces
+$V^0 \subset V^1 \subset \cdots \subset V^L$. A truncated hierarchical (THB)
+basis keeps level-$\ell$ tensor B-splines active when their support lies in the
+level-$\ell$ region but not in finer regions. Every active function embeds in
+the finest space via a sparse map $\mathbf{S}$, so the Gram matrices become
 
 $$
 \mathbf{C}_H = \mathbf{S}^\top \mathbf{C}_L \mathbf{S},\quad
@@ -166,7 +169,7 @@ $$
 
 with $\mathbf{C}_L,\mathbf{G}_L,\ldots$ the usual Kronecker Grams on the finest
 level. The SPDE precision formulas and C++ `random_fem_*` kernels are unchanged.
-Inspect the layout with `hb_summary(hb_knots(knots, degree))`.
+Inspect the layout with `hb_summary(hb_basis(kn, degree))`.
 
 Cost scales with the finest global knot grid; local refinement adds resolution
 where needed without refining the entire padded domain.

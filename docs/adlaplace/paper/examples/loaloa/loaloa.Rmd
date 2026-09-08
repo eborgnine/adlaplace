@@ -18,17 +18,18 @@ loaloa <- terra::unwrap(loaloa)
 ```
 
 ```{r knots}
-coarse <- geostatsp::squareRaster(loaloa, cells = 6, buffer = 300 * 1000)
-west <- terra::rast(
-  terra::ext(c(3.9e5, 8.1e5, 3.7e5, 7.7e5)),
-  resolution = 75 * 1000
+loaloa_knots <- hb_knots(
+  outer = geostatsp::squareRaster(loaloa, cells = 6, buffer = 300 * 1000),
+  inner = list(
+    terra::ext(loaloa),
+    list(
+      terra::ext(3.9e5, 8.1e5, 3.7e5, 7.7e5),
+      terra::ext(9.9e5, 1.19e6, 3.7e5, 7.7e5)
+    )
+  ),
+  fact = c(2, 4)
 )
-east <- terra::rast(
-  terra::ext(c(9.9e5, 1.19e6, 3.7e5, 7.7e5)),
-  resolution = 75 * 1000
-)
-knots_grid <- list(coarse, list(west, east))
-hb_summary(hb_knots(knots_grid, degree = 3L))
+hb_summary(hb_basis(loaloa_knots, degree = 3L))
 ```
 
-The model uses `adlaplaceFem::matern(geometry, knots = knots_grid, shape = 2L)`.
+The model uses `adlaplaceFem::matern(geometry, knots = loaloa_knots, shape = 2L)`.

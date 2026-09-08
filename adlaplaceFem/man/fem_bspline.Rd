@@ -21,7 +21,8 @@ plain \code{list(x, y)} of axis sequences, the full tensor grid is formed with
 \item{knots}{Knot-line positions on each axis: \code{list(x = seq(...), y = seq(...))}
 of unique increasing breakpoints (domain endpoints included). These are
 expanded to open B-spline knot vectors. With terra, a \code{SpatRaster} whose
-grid defines knot lines is also accepted.}
+grid defines knot lines, or an \code{"hb_knots"} object from \code{\link[=hb_knots]{hb_knots()}}, is
+also accepted.}
 
 \item{degree}{B-spline degree; must be \verb{>= 2}. Default \code{2} (alpha = 2). Use
 \code{degree = 3} when assembling \code{G3} for alpha = 3.}

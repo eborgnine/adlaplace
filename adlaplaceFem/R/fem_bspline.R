@@ -14,7 +14,8 @@
 #' @param knots Knot-line positions on each axis: `list(x = seq(...), y = seq(...))`
 #'   of unique increasing breakpoints (domain endpoints included). These are
 #'   expanded to open B-spline knot vectors. With terra, a `SpatRaster` whose
-#'   grid defines knot lines is also accepted.
+#'   grid defines knot lines, or an `"hb_knots"` object from [hb_knots()], is
+#'   also accepted.
 #' @param degree B-spline degree; must be `>= 2`. Default `2` (alpha = 2). Use
 #'   `degree = 3` when assembling `G3` for alpha = 3.
 #' @param ... Passed to methods (unused for `list` / `data.frame`).
@@ -92,7 +93,7 @@ fem_bspline_xy <- function(x, y, knots, degree = 2L) {
     stop("degree must be >= 2")
   }
   kn <- resolve_knots_list(knots, degree = degree)
-  if (inherits(kn, "hb_knots")) {
+  if (inherits(kn, "hb_knots") || inherits(kn, "hb_basis")) {
     return(fem_bspline_hb(x, y, kn, degree = degree))
   }
   fem <- fem_tensor_grams(kn, degree = degree)
@@ -175,10 +176,13 @@ fem_tensor_grams <- function(kn, degree) {
 #' @noRd
 fem_bspline_hb <- function(x, y, hb, degree = 2L) {
   degree <- as.integer(degree)
+  if (inherits(hb, "hb_knots") && !inherits(hb, "hb_basis")) {
+    hb <- hb_basis(hb, degree = degree)
+  }
   nlev <- hb$n_levels
   kn_fine <- hb$levels[[nlev]]$knots
   fem_fine <- fem_tensor_grams(kn_fine, degree = degree)
-  S <- hb_basis_map(hb, degree = degree)
+  S <- if (!is.null(hb$S)) hb$S else hb_basis_map(hb, degree = degree)
   n_active <- ncol(S)
 
   out <- list(
@@ -192,7 +196,7 @@ fem_bspline_hb <- function(x, y, hb, degree = 2L) {
       NULL
     },
     degree = degree,
-    knots = hb,
+    knots = if (inherits(hb$knots, "hb_knots")) hb$knots else hb,
     knots_finest = kn_fine,
     n_basis = c(x = n_active, y = 1L),
     S = S,
