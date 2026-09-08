@@ -111,6 +111,8 @@ jobs:
           install-quarto: false
 
       # Union of DESCRIPTION deps across local packages, excluding the locals themselves.
+      # macOS uses CRAN binaries only (see install-cran-deps.R) so terra/sf are
+      # not compiled from source and Homebrew GDAL is not required.
       - name: Install CRAN dependencies (exclude local packages)
         run: Rscript .github/scripts/install-cran-deps.R
 

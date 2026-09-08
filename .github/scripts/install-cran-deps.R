@@ -52,6 +52,17 @@ if (nzchar(pak_lib)) {
   library(pak)
 }
 
+# macOS only: CRAN binaries, no source. New terra (and similar) releases often
+# reach CRAN before macOS binaries exist; compiling them needs Homebrew GDAL.
+# Windows already uses binaries; Linux uses P3M binaries + can compile.
+if (identical(Sys.info()[["sysname"]], "Darwin")) {
+  plat <- tryCatch(pak::system_r_platform(), error = function(e) "macos")
+  options(pkg.platforms = plat)
+  options(pkgType = "binary")
+  options(install.packages.compile.from.source = "never")
+  message("macOS: CRAN binaries only (pkg.platforms = ", plat, ")")
+}
+
 # Hard deps only for transitive packages: keeps geostatsp installable without
 # its archived Suggests (RandomFields). Our Suggests remain direct targets.
 pak::pkg_install(pkgs, dependencies = NA)
