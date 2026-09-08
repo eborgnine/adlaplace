@@ -15,6 +15,8 @@ Level 0 defines the coarse padded domain; later levels add knot lines inside
 their extents. Legacy \code{list(x = ..., y = ...)} is not hierarchical.}
 
 \item{degree}{B-spline degree (must be \verb{>= 2}).}
+
+\item{hb}{An \code{"hb_knots"} object from \code{\link[=hb_knots]{hb_knots()}}.}
 }
 \value{
 An \code{"hb_knots"} object used internally by \code{\link[=fem_bspline]{fem_bspline()}} and \code{\link[=matern]{matern()}}.

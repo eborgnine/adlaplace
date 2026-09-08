@@ -85,6 +85,7 @@ hb_knots <- function(knots, degree = 2L) {
 }
 
 #' @describeIn hb_knots Per-level active basis counts and total hierarchical dof.
+#' @param hb An `"hb_knots"` object from [hb_knots()].
 #' @export
 hb_summary <- function(hb) {
   if (!inherits(hb, "hb_knots")) {
