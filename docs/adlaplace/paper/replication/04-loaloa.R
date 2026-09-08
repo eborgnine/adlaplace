@@ -21,7 +21,7 @@ if (requireNamespace("adlaplaceFem", quietly = TRUE) &&
   evi_s_r <- (evi_r - mean(terra::values(evi_r), na.rm = TRUE)) /
     sd(terra::values(evi_r), na.rm = TRUE)
 
-  loaloa_for_fit <- geostatsp:::gm.dataSpatial(
+  loaloa_for_fit <- geostatsp::geostatData(
     formula = y ~ elev + evi,
     data = loaloa,
     covariates = list(elev = elev_s_r, evi = evi_s_r),
