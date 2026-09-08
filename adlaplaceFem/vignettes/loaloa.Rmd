@@ -78,7 +78,7 @@ loaloa_knots <- hb_knots(
       terra::ext(9.9e5, 1.19e6, 3.7e5, 7.7e5)
     )
   ),
-  fact = c(2, 4)
+  fact = 2
 )
 ```
 
