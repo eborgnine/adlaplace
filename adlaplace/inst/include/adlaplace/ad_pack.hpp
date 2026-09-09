@@ -140,6 +140,160 @@ inline void adpack_fill_global_patterns(AdTape &gp) {
   }
 }
 
+// Carrier for the patterns the calibration sweeps need. Hessian members keep
+// both triangles; the upper-triangle views are what AdTape stores.
+struct AdpackPatterns {
+  CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> grad;
+  CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> grad_inner;
+  CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> hessian;
+  CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> hessian_inner;
+  CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> hessian_upper;
+  CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> hessian_inner_upper;
+};
+
+// Pure index work: inner/upper subsets of the given patterns. Touches no tape.
+inline AdpackPatterns
+adpack_build_patterns(AdTape &gp, const std::size_t n_params,
+                      const std::vector<int> &subset,
+                      const CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> &grad,
+                      const CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)>
+                          &hessian_full,
+                      const bool verbose = false) {
+
+  gp.w.resize(1);
+  gp.w[0] = 1.0;
+  gp.x.resize(n_params);
+
+  AdpackPatterns pats;
+  pats.grad = grad;
+  pats.hessian = hessian_full;
+
+  std::vector<unsigned char> insubset(n_params, 0);
+  for (std::size_t v : subset) {
+    if (v < n_params) {
+      insubset[v] = 1;
+    }
+  }
+
+  const auto &full_cols = pats.grad.col();
+  {
+    std::size_t k = 0;
+    for (std::size_t j : full_cols) {
+      k += insubset[j];
+    }
+    pats.grad_inner.resize(1, n_params, k);
+
+    std::size_t t = 0;
+    for (std::size_t j : full_cols) {
+      if (insubset[j])
+        pats.grad_inner.set(t++, 0, j);
+    }
+  }
+
+  {
+    const auto &r = pats.hessian.row();
+    const auto &c = pats.hessian.col();
+    const std::size_t k = pats.hessian.nnz();
+
+    std::size_t k_upper = 0, k_inner = 0, k_inner_upper = 0;
+
+    for (std::size_t idx = 0; idx < k; ++idx) {
+      const std::size_t i = r[idx], j = c[idx];
+      const bool is_upper = (i <= j);
+      const bool is_inner = insubset[i] && insubset[j];
+
+      if (is_upper)
+        ++k_upper;
+      if (is_inner)
+        ++k_inner;
+      if (is_upper && is_inner)
+        ++k_inner_upper;
+    }
+
+    pats.hessian_upper.resize(n_params, n_params, k_upper);
+    pats.hessian_inner.resize(n_params, n_params, k_inner);
+    pats.hessian_inner_upper.resize(n_params, n_params, k_inner_upper);
+
+    std::size_t tu = 0, ti = 0, tiu = 0;
+    for (std::size_t idx = 0; idx < k; ++idx) {
+      const std::size_t i = r[idx], j = c[idx];
+      const bool is_upper = (i <= j);
+      const bool is_inner = insubset[i] && insubset[j];
+
+      if (is_upper)
+        pats.hessian_upper.set(tu++, i, j);
+      if (is_inner)
+        pats.hessian_inner.set(ti++, i, j);
+      if (is_upper && is_inner)
+        pats.hessian_inner_upper.set(tiu++, i, j);
+    }
+  }
+
+  if (verbose) {
+    Rcpp::Rcout << "  sparsity: grad " << pats.grad.nnz() << ", grad_inner "
+                << pats.grad_inner.nnz() << ", hes full" << pats.hessian.nnz()
+                << ", hes upper" << pats.hessian_upper.nnz() << ", hes_inner "
+                << pats.hessian_inner_upper.nnz() << "\n";
+  }
+
+  return pats;
+}
+
+// Assign the four rcv patterns onto the pack and map them to global indices.
+// Safe with or without a recorded tape.
+inline void adpack_install_patterns(AdTape &gp, const AdpackPatterns &pats) {
+  gp.pattern_grad =
+      CppAD::sparse_rcv<CPPAD_TESTVECTOR(size_t), CPPAD_TESTVECTOR(double)>(
+          pats.grad);
+  gp.pattern_grad_inner =
+      CppAD::sparse_rcv<CPPAD_TESTVECTOR(size_t), CPPAD_TESTVECTOR(double)>(
+          pats.grad_inner);
+  gp.pattern_hessian =
+      CppAD::sparse_rcv<CPPAD_TESTVECTOR(size_t), CPPAD_TESTVECTOR(double)>(
+          pats.hessian_upper);
+  gp.pattern_hessian_inner =
+      CppAD::sparse_rcv<CPPAD_TESTVECTOR(size_t), CPPAD_TESTVECTOR(double)>(
+          pats.hessian_inner_upper);
+  adpack_fill_global_patterns(gp);
+}
+
+// One-time CppAD coloring / reverse sweeps that fill the work_* objects
+// EvalShard later reuses. Requires a recorded tape. Interleaves rcv
+// construction with each sweep, matching the original adpack_sparsity order.
+inline void adpack_calibrate(const CPPAD_TESTVECTOR(double) & x, AdTape &gp,
+                             AdpackPatterns &pats) {
+  gp.fun.Forward(0, x);
+
+  gp.pattern_grad =
+      CppAD::sparse_rcv<CPPAD_TESTVECTOR(size_t), CPPAD_TESTVECTOR(double)>(
+          pats.grad);
+  gp.fun.sparse_jac_rev(x, gp.pattern_grad, pats.grad, JAC_COLOR,
+                        gp.work_grad);
+
+  gp.pattern_grad_inner =
+      CppAD::sparse_rcv<CPPAD_TESTVECTOR(size_t), CPPAD_TESTVECTOR(double)>(
+          pats.grad_inner);
+  gp.fun.sparse_jac_rev(x, gp.pattern_grad_inner, pats.grad_inner, JAC_COLOR,
+                        gp.work_inner_grad);
+
+  gp.pattern_hessian =
+      CppAD::sparse_rcv<CPPAD_TESTVECTOR(size_t), CPPAD_TESTVECTOR(double)>(
+          pats.hessian_upper);
+  gp.fun.sparse_hes(x, gp.w, gp.pattern_hessian, pats.hessian, HESS_COLOR,
+                    gp.work_hess);
+
+  gp.pattern_hessian_inner =
+      CppAD::sparse_rcv<CPPAD_TESTVECTOR(size_t), CPPAD_TESTVECTOR(double)>(
+          pats.hessian_inner_upper);
+  gp.fun.sparse_hes(x, gp.w, gp.pattern_hessian_inner, pats.hessian_inner,
+                    HESS_COLOR, gp.work_inner_hess);
+
+  adpack_fill_global_patterns(gp);
+  // Drop the calibration Taylor buffer in the same DSO that recorded the
+  // tape. Later drain from adlaplace.so then sees cap_order 0 and is a no-op.
+  gp.fun.capacity_order(0);
+}
+
 inline void adpack_sparsity(const CPPAD_TESTVECTOR(double) & x,
                             const std::vector<int> &subset, AdTape &gp,
                             const bool verbose = false,
@@ -164,110 +318,9 @@ inline void adpack_sparsity(const CPPAD_TESTVECTOR(double) & x,
     adpack_discover_hessian(gp, hessian_here, n_params);
   }
 
-  gp.w.resize(1);
-  gp.w[0] = 1.0;
-  gp.x.resize(n_params);
-
-  CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> grad_inner;
-  CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> hessian_upper;
-  CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> hessian_inner;
-  CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> hessian_inner_upper;
-
-  const auto &full_cols = grad.col();
-
-  std::vector<unsigned char> insubset(n_params, 0);
-  for (std::size_t v : subset) {
-    if (v < n_params) {
-      insubset[v] = 1;
-    }
-  }
-
-  {
-    std::size_t k = 0;
-    for (std::size_t j : full_cols) {
-      k += insubset[j];
-    }
-    grad_inner.resize(1, n_params, k);
-
-    std::size_t t = 0;
-    for (std::size_t j : full_cols) {
-      if (insubset[j])
-        grad_inner.set(t++, 0, j);
-    }
-  }
-
-  {
-    const auto &r = hessian_here.row();
-    const auto &c = hessian_here.col();
-    const std::size_t k = hessian_here.nnz();
-
-    std::size_t k_upper = 0, k_inner = 0, k_inner_upper = 0;
-
-    for (std::size_t idx = 0; idx < k; ++idx) {
-      const std::size_t i = r[idx], j = c[idx];
-      const bool is_upper = (i <= j);
-      const bool is_inner = insubset[i] && insubset[j];
-
-      if (is_upper)
-        ++k_upper;
-      if (is_inner)
-        ++k_inner;
-      if (is_upper && is_inner)
-        ++k_inner_upper;
-    }
-
-    hessian_upper.resize(n_params, n_params, k_upper);
-    hessian_inner.resize(n_params, n_params, k_inner);
-    hessian_inner_upper.resize(n_params, n_params, k_inner_upper);
-
-    std::size_t tu = 0, ti = 0, tiu = 0;
-    for (std::size_t idx = 0; idx < k; ++idx) {
-      const std::size_t i = r[idx], j = c[idx];
-      const bool is_upper = (i <= j);
-      const bool is_inner = insubset[i] && insubset[j];
-
-      if (is_upper)
-        hessian_upper.set(tu++, i, j);
-      if (is_inner)
-        hessian_inner.set(ti++, i, j);
-      if (is_upper && is_inner)
-        hessian_inner_upper.set(tiu++, i, j);
-    }
-  }
-
-  if (verbose) {
-    Rcpp::Rcout << "  sparsity: grad " << grad.nnz() << ", grad_inner "
-                << grad_inner.nnz() << ", hes full" << hessian_here.nnz()
-                << ", hes upper" << hessian_upper.nnz() << ", hes_inner "
-                << hessian_inner_upper.nnz() << "\n";
-  }
-
-  gp.fun.Forward(0, x);
-
-  gp.pattern_grad =
-      CppAD::sparse_rcv<CPPAD_TESTVECTOR(size_t), CPPAD_TESTVECTOR(double)>(
-          grad);
-  gp.fun.sparse_jac_rev(x, gp.pattern_grad, grad, JAC_COLOR, gp.work_grad);
-
-  gp.pattern_grad_inner =
-      CppAD::sparse_rcv<CPPAD_TESTVECTOR(size_t), CPPAD_TESTVECTOR(double)>(
-          grad_inner);
-  gp.fun.sparse_jac_rev(x, gp.pattern_grad_inner, grad_inner, JAC_COLOR,
-                        gp.work_inner_grad);
-
-  gp.pattern_hessian =
-      CppAD::sparse_rcv<CPPAD_TESTVECTOR(size_t), CPPAD_TESTVECTOR(double)>(
-          hessian_upper);
-  gp.fun.sparse_hes(x, gp.w, gp.pattern_hessian, hessian_here, HESS_COLOR,
-                    gp.work_hess);
-
-  gp.pattern_hessian_inner =
-      CppAD::sparse_rcv<CPPAD_TESTVECTOR(size_t), CPPAD_TESTVECTOR(double)>(
-          hessian_inner_upper);
-  gp.fun.sparse_hes(x, gp.w, gp.pattern_hessian_inner, hessian_inner,
-                    HESS_COLOR, gp.work_inner_hess);
-
-  adpack_fill_global_patterns(gp);
+  AdpackPatterns pats =
+      adpack_build_patterns(gp, n_params, subset, grad, hessian_here, verbose);
+  adpack_calibrate(x, gp, pats);
 }
 
 inline size_t count_obs_shards(const density_data &model, const Rcpp::List &config) {

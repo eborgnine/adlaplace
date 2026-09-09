@@ -141,7 +141,7 @@ hb_basis <- function(knots, degree = 2L) {
     class = c("hb_basis", "list")
   )
   hb$active <- hb_active_sets(hb, degree)
-  hb$S <- hb_basis_map(hb, degree)
+  hb$S <- hb_basis_map(hb, degree, active = hb$active)
   hb
 }
 
@@ -521,15 +521,6 @@ rect_contained_in_union <- function(reg, omega) {
   }, logical(1L)))
 }
 
-#' @keywords internal
-#' @noRd
-box_contained_in_union <- function(xmin, xmax, ymin, ymax, omega, tol = 1e-6) {
-  any(vapply(omega, function(o) {
-    xmin >= o$xmin - tol && xmax <= o$xmax + tol &&
-      ymin >= o$ymin - tol && ymax <= o$ymax + tol
-  }, logical(1L)))
-}
-
 #' Greville abscissae for an open B-spline knot vector
 #' @keywords internal
 #' @noRd
@@ -584,19 +575,41 @@ refine_matrix_1d <- function(knots_coarse, knots_fine, degree) {
     lam <- 1e-12 * max(1, mean(diag(btB)))
     R <- solve(btB + diag(lam, ncol(Bfine)), crossprod(Bfine, Bcoarse))
   }
-  methods::as(R, "dgCMatrix")
+  # Structural zeros come back as roundoff (~1e-17). Left in place they become
+  # explicit nonzeros, making R -- and hence S -- dense in all but name.
+  R[abs(R) < 1e-13 * max(1, max(abs(R)))] <- 0
+  Matrix::drop0(methods::as(R, "dgCMatrix"))
 }
 
-#' Support interval [left, right] for 1D B-spline basis index
+#' Support bounds for every 1D basis index on an axis
 #' @keywords internal
 #' @noRd
-bspline_support_1d <- function(knots, degree, index) {
+bspline_support_bounds <- function(knots, degree, n) {
   degree <- as.integer(degree)
-  i <- as.integer(index)
-  c(left = knots[i + 1L], right = knots[i + degree + 1L])
+  i <- seq_len(n)
+  list(left = knots[i + 1L], right = knots[i + degree + 1L])
+}
+
+#' Logical `n_x` by `n_y` matrix: support box inside the union of `omega`
+#' @keywords internal
+#' @noRd
+supports_in_union <- function(sx, sy, omega, tol = 1e-6) {
+  out <- matrix(FALSE, length(sx$left), length(sy$left))
+  for (o in omega) {
+    inx <- sx$left >= o$xmin - tol & sx$right <= o$xmax + tol
+    iny <- sy$left >= o$ymin - tol & sy$right <= o$ymax + tol
+    if (any(inx) && any(iny)) {
+      out <- out | outer(inx, iny, "&")
+    }
+  }
+  out
 }
 
 #' Active hierarchical basis indices per level
+#'
+#' Level 0 keeps every function not already covered by level 1; finer levels
+#' keep functions whose support lies in that level's regions but not in the
+#' next finer regions. Indices are column-major (`i + (j - 1) * n_x`).
 #' @keywords internal
 #' @noRd
 hb_active_sets <- function(hb, degree) {
@@ -607,61 +620,48 @@ hb_active_sets <- function(hb, degree) {
 
   for (lev in seq_len(n_levels)) {
     kn <- levs[[lev]]$open_knots
-    nx <- levs[[lev]]$n_basis["x"]
-    ny <- levs[[lev]]$n_basis["y"]
-    omega_l <- levs[[lev]]$rasters
-    omega_lp1 <- if (lev < n_levels) {
-      levs[[lev + 1L]]$rasters
+    nx <- as.integer(levs[[lev]]$n_basis[["x"]])
+    ny <- as.integer(levs[[lev]]$n_basis[["y"]])
+    sx <- bspline_support_bounds(kn$x, degree, nx)
+    sy <- bspline_support_bounds(kn$y, degree, ny)
+    omega_lp1 <- if (lev < n_levels) levs[[lev + 1L]]$rasters else list()
+
+    in_lp1 <- if (length(omega_lp1)) {
+      supports_in_union(sx, sy, omega_lp1)
     } else {
-      list()
+      matrix(FALSE, nx, ny)
+    }
+    keep <- if (lev == 1L) {
+      !in_lp1
+    } else {
+      supports_in_union(sx, sy, levs[[lev]]$rasters) & !in_lp1
     }
 
-    idx <- integer(0)
-    pairs <- vector("list", 0)
-    for (j in seq_len(ny)) {
-      sy <- bspline_support_1d(kn$y, degree, j)
-      for (i in seq_len(nx)) {
-        sx <- bspline_support_1d(kn$x, degree, i)
-        in_l <- box_contained_in_union(
-          sx["left"], sx["right"], sy["left"], sy["right"], omega_l
-        )
-        in_lp1 <- length(omega_lp1) > 0L && box_contained_in_union(
-          sx["left"], sx["right"], sy["left"], sy["right"], omega_lp1
-        )
-        if (lev == 1L) {
-          if (!in_lp1 || length(omega_lp1) == 0L) {
-            idx <- c(idx, i + (j - 1L) * nx)
-            pairs[[length(pairs) + 1L]] <- c(i, j)
-          }
-        } else if (in_l && !in_lp1) {
-          idx <- c(idx, i + (j - 1L) * nx)
-          pairs[[length(pairs) + 1L]] <- c(i, j)
-        }
-      }
-    }
-    active[[lev]] <- list(idx = idx, ij = pairs, n_x = nx, n_y = ny)
+    idx <- which(keep)
+    i <- ((idx - 1L) %% nx) + 1L
+    j <- ((idx - 1L) %/% nx) + 1L
+    active[[lev]] <- list(
+      idx = idx,
+      i = i,
+      j = j,
+      ij = .mapply(c, list(i, j), NULL),
+      n_x = nx,
+      n_y = ny
+    )
   }
   active
 }
 
-#' Cumulative 1D refinement from level l to finest
+#' Cumulative refinement (level l to finest) from pairwise matrices
+#'
+#' `mats[[lev]]` maps level `lev` to level `lev + 1`; the returned list holds
+#' the product from each level up to the finest.
 #' @keywords internal
 #' @noRd
-hb_cumulative_refine_1d <- function(hb, axis = c("x", "y")) {
-  axis <- match.arg(axis)
-  levs <- hb_levels(hb)
-  n_levels <- length(levs)
-  degree <- hb$degree
-  mats <- vector("list", n_levels - 1L)
-  for (lev in seq_len(n_levels - 1L)) {
-    coarse <- levs[[lev]]$open_knots[[axis]]
-    fine <- levs[[lev + 1L]]$open_knots[[axis]]
-    mats[[lev]] <- refine_matrix_1d(coarse, fine, degree)
-  }
+hb_cumulative_from_pairwise <- function(mats, n_finest) {
+  n_levels <- length(mats) + 1L
   cum <- vector("list", n_levels)
-  cum[[n_levels]] <- Matrix::Diagonal(
-    n = levs[[n_levels]]$n_basis[[axis]]
-  )
+  cum[[n_levels]] <- Matrix::Diagonal(n = n_finest)
   if (n_levels > 1L) {
     for (lev in seq(n_levels - 1L, 1L)) {
       cum[[lev]] <- cum[[lev + 1L]] %*% mats[[lev]]
@@ -670,62 +670,177 @@ hb_cumulative_refine_1d <- function(hb, axis = c("x", "y")) {
   cum
 }
 
+#' Cumulative 1D refinement from level l to finest
+#' @keywords internal
+#' @noRd
+hb_cumulative_refine_1d <- function(hb, axis = c("x", "y")) {
+  axis <- match.arg(axis)
+  levs <- hb_levels(hb)
+  hb_cumulative_from_pairwise(
+    hb_pairwise_refine_1d(hb, axis),
+    levs[[length(levs)]]$n_basis[[axis]]
+  )
+}
+
 #' Sparse basis map S: hierarchical coefficients to finest-level basis
 #' @param truncate If `TRUE` (default), build truncated (THB) basis functions for
 #'   a partition of unity; if `FALSE`, use the untruncated hierarchical embedding.
 #' @keywords internal
 #' @noRd
-hb_basis_map <- function(hb, degree, truncate = TRUE) {
+hb_basis_map <- function(hb, degree, truncate = TRUE, active = NULL) {
   degree <- as.integer(degree)
-  active <- hb_active_sets(hb, degree)
+  if (is.null(active)) {
+    active <- hb_active_sets(hb, degree)
+  }
   levs <- hb_levels(hb)
   n_levels <- length(levs)
-  nx_f <- levs[[n_levels]]$n_basis["x"]
-  ny_f <- levs[[n_levels]]$n_basis["y"]
+  nx_f <- as.integer(levs[[n_levels]]$n_basis[["x"]])
+  ny_f <- as.integer(levs[[n_levels]]$n_basis[["y"]])
 
-  cum_x <- hb_cumulative_refine_1d(hb, "x")
-  cum_y <- hb_cumulative_refine_1d(hb, "y")
   refine_x <- hb_pairwise_refine_1d(hb, "x")
   refine_y <- hb_pairwise_refine_1d(hb, "y")
+  cum_x <- hb_cumulative_from_pairwise(refine_x, nx_f)
+  cum_y <- hb_cumulative_from_pairwise(refine_y, ny_f)
 
-  cols <- list()
-  for (lev in seq_len(n_levels)) {
-    if (!length(active[[lev]]$idx)) {
-      next
-    }
-    nx <- active[[lev]]$n_x
-    ny <- active[[lev]]$n_y
-    for (k in seq_along(active[[lev]]$idx)) {
-      ij <- active[[lev]]$ij[[k]]
-      i <- ij[1L]
-      j <- ij[2L]
-      v <- sparse_unit(nx * ny, i + (j - 1L) * nx)
-      if (lev < n_levels && truncate) {
-        Tx <- refine_x[[lev]]
-        Ty <- refine_y[[lev]]
-        T <- Matrix::kronecker(Ty, Tx)
-        w <- T %*% v
-        mask <- active_mask_vector(active[[lev + 1L]]$idx, nrow(T))
-        w_sub <- w * mask
-        Rx <- cum_x[[lev + 1L]]
-        Ry <- cum_y[[lev + 1L]]
-        T2 <- Matrix::kronecker(Ry, Rx)
-        col <- T2 %*% (w - w_sub)
-      } else if (lev < n_levels) {
-        Rx <- cum_x[[lev]]
-        Ry <- cum_y[[lev]]
-        col <- Matrix::kronecker(Rx[, i, drop = FALSE], Ry[, j, drop = FALSE])
-      } else {
-        col <- sparse_unit(nx_f * ny_f, i + (j - 1L) * nx_f)
-      }
-      cols[[length(cols) + 1L]] <- col
-    }
-  }
-  if (!length(cols)) {
+  n_col <- sum(vapply(active, function(a) length(a$idx), integer(1L)))
+  if (!n_col) {
     stop("hierarchical basis has no active functions", call. = FALSE)
   }
-  S <- Reduce(Matrix::cbind2, cols)
-  methods::as(S, "dgCMatrix")
+  rows <- vector("list", n_col)
+  vals <- vector("list", n_col)
+  lens <- integer(n_col)
+  col_id <- 0L
+
+  for (lev in seq_len(n_levels)) {
+    act <- active[[lev]]
+    n_act <- length(act$idx)
+    if (!n_act) {
+      next
+    }
+
+    # Finest level: the hierarchical function *is* a finest tensor function.
+    if (lev == n_levels) {
+      for (k in seq_len(n_act)) {
+        col_id <- col_id + 1L
+        rows[[col_id]] <- act$idx[k]
+        vals[[col_id]] <- 1
+        lens[col_id] <- 1L
+      }
+      next
+    }
+
+    if (truncate) {
+      # (Ty %x% Tx) vec(X) = vec(Tx X t(Ty)) with x fastest, and X = E_ij, so
+      # the level-(l+1) coefficients are the outer product of two sparse
+      # columns. Truncation zeroes the entries active at level l+1, then
+      # cum_{l+1} lifts the remainder to the finest level. No Kronecker needed.
+      Tx <- as_dgc_matrix(refine_x[[lev]])
+      Ty <- as_dgc_matrix(refine_y[[lev]])
+      Rx <- cum_x[[lev + 1L]]
+      Ryt <- Matrix::t(cum_y[[lev + 1L]])
+      nx1 <- as.integer(levs[[lev + 1L]]$n_basis[["x"]])
+      ny1 <- as.integer(levs[[lev + 1L]]$n_basis[["y"]])
+      truncated <- logical(nx1 * ny1)
+      if (length(active[[lev + 1L]]$idx)) {
+        truncated[active[[lev + 1L]]$idx] <- TRUE
+      }
+      for (k in seq_len(n_act)) {
+        cx <- dgc_column(Tx, act$i[k])
+        cy <- dgc_column(Ty, act$j[k])
+        col_id <- col_id + 1L
+        if (!length(cx$i) || !length(cy$i)) {
+          rows[[col_id]] <- integer(0)
+          vals[[col_id]] <- numeric(0)
+          next
+        }
+        nxr <- length(cx$i)
+        nyr <- length(cy$i)
+        wi <- rep.int(cx$i, nyr)
+        wj <- rep(cy$i, each = nxr)
+        wv <- rep.int(cx$x, nyr) * rep(cy$x, each = nxr)
+        keep <- !truncated[wi + (wj - 1L) * nx1]
+        if (!any(keep)) {
+          rows[[col_id]] <- integer(0)
+          vals[[col_id]] <- numeric(0)
+          next
+        }
+        W <- Matrix::sparseMatrix(
+          i = wi[keep], j = wj[keep], x = wv[keep],
+          dims = c(nx1, ny1)
+        )
+        out <- dgc_nonzeros(Rx %*% W %*% Ryt, nx_f)
+        rows[[col_id]] <- out$idx
+        vals[[col_id]] <- out$x
+        lens[col_id] <- length(out$idx)
+      }
+      next
+    }
+
+    # Untruncated embedding: vec(Rx[, i] %o% Ry[, j]), x fastest.
+    Rx <- as_dgc_matrix(cum_x[[lev]])
+    Ry <- as_dgc_matrix(cum_y[[lev]])
+    for (k in seq_len(n_act)) {
+      cx <- dgc_column(Rx, act$i[k])
+      cy <- dgc_column(Ry, act$j[k])
+      col_id <- col_id + 1L
+      nxr <- length(cx$i)
+      nyr <- length(cy$i)
+      if (!nxr || !nyr) {
+        rows[[col_id]] <- integer(0)
+        vals[[col_id]] <- numeric(0)
+        next
+      }
+      rows[[col_id]] <- rep.int(cx$i, nyr) +
+        (rep(cy$i, each = nxr) - 1L) * nx_f
+      vals[[col_id]] <- rep.int(cx$x, nyr) * rep(cy$x, each = nxr)
+      lens[col_id] <- nxr * nyr
+    }
+  }
+
+  Matrix::sparseMatrix(
+    i = unlist(rows, use.names = FALSE),
+    j = rep.int(seq_len(n_col), lens),
+    x = unlist(vals, use.names = FALSE),
+    dims = c(nx_f * ny_f, n_col)
+  )
+}
+
+#' Coerce any Matrix to dgCMatrix
+#' @keywords internal
+#' @noRd
+as_dgc_matrix <- function(M) {
+  if (methods::is(M, "dgCMatrix")) {
+    return(M)
+  }
+  methods::as(
+    methods::as(methods::as(M, "dMatrix"), "generalMatrix"),
+    "CsparseMatrix"
+  )
+}
+
+#' Nonzero rows and values of one dgCMatrix column
+#' @keywords internal
+#' @noRd
+dgc_column <- function(M, j) {
+  lo <- M@p[j]
+  hi <- M@p[j + 1L]
+  if (hi == lo) {
+    return(list(i = integer(0), x = numeric(0)))
+  }
+  sel <- (lo + 1L):hi
+  list(i = M@i[sel] + 1L, x = M@x[sel])
+}
+
+#' Column-major linear indices and values of all nonzeros in a sparse matrix
+#' @keywords internal
+#' @noRd
+dgc_nonzeros <- function(M, n_row) {
+  M <- as_dgc_matrix(M)
+  counts <- diff(M@p)
+  list(
+    idx = (M@i + 1L) + (rep.int(seq_along(counts), counts) - 1L) * n_row,
+    x = M@x
+  )
 }
 
 #' Pairwise 1D refinement matrices between consecutive levels
@@ -743,32 +858,6 @@ hb_pairwise_refine_1d <- function(hb, axis = c("x", "y")) {
     mats[[lev]] <- refine_matrix_1d(coarse, fine, degree)
   }
   mats
-}
-
-#' Sparse unit vector
-#' @keywords internal
-#' @noRd
-sparse_unit <- function(n, index) {
-  methods::as(
-    Matrix::sparseMatrix(
-      i = as.integer(index),
-      j = 1L,
-      x = 1,
-      dims = c(as.integer(n), 1L)
-    ),
-    "dgCMatrix"
-  )
-}
-
-#' Mask vector with 1 at active tensor indices
-#' @keywords internal
-#' @noRd
-active_mask_vector <- function(active_idx, n) {
-  m <- numeric(n)
-  if (length(active_idx)) {
-    m[active_idx] <- 1
-  }
-  m
 }
 
 #' Map a sparse Gram from finest level to hierarchical basis

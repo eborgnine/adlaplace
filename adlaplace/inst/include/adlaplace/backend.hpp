@@ -13,7 +13,7 @@
 // Bump when AdTape / ad_shard / ad_pack layout or the backend
 // registration contract changes. packs_to_ad_fun stamps this into ad_pack;
 // adlaplace checks it when consuming a backend-built handle.
-#define ADLAPLACE_ABI_VERSION 3
+#define ADLAPLACE_ABI_VERSION 4
 
 // Symbolic LDL pattern from hessian_map()$chol_inner_list (L1, Linv, perm,
 // half_H_inv, H_inv).
@@ -115,6 +115,15 @@ inline AdTape clone_group_pack(const AdTape& src) {
   return dst;
 }
 
+inline void ad_tape_release_eval_buffers(AdTape& gp) {
+  if (gp.fun.Domain() > 0) {
+    gp.fun.capacity_order(0);
+  }
+  gp.trace.direction.clear();
+  gp.trace.direction_zeros.clear();
+  gp.trace.wthree.clear();
+}
+
 struct ad_shard;
 
 using ShardFactory = ad_shard* (*)(AdTape&&);
@@ -154,6 +163,12 @@ struct ad_shard {
     int* pattern_hes_outer_row,
     int* pattern_hes_outer_col) = 0;
   virtual int assign_memory() = 0;
+  // Taylor drain must run in the DSO that recorded the tape (macOS
+  // thread_alloc is per shared library). Override rather than calling
+  // capacity_order from adlaplace.so on a backend-built ADFun.
+  virtual void release_eval_buffers() {
+    ad_tape_release_eval_buffers(pack);
+  }
   virtual int trace_hinv_t(
     const double* x,
     const int* LinvPt_p,

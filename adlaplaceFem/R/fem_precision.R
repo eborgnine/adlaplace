@@ -29,24 +29,38 @@ fem_precision <- function(kappa, tau, C, G, G2, G3 = NULL, alpha = 2L) {
 }
 
 #' Align Gram values onto an upper-triangle CSC pattern
+#'
+#' Both `M` and the target `(p, i)` pattern are CSC, so each nonzero gets a
+#' column-major key and the two sets are matched in one pass. Reading
+#' `M[row, col]` per pattern entry instead costs an S4 dispatch each time,
+#' which runs into minutes for a few hundred thousand entries.
 #' @keywords internal
 #' @noRd
 align_gram_to_pattern <- function(M, p, i, n) {
   M <- methods::as(methods::as(M, "generalMatrix"), "CsparseMatrix")
   x <- numeric(length(i))
-  for (col in seq_len(n) - 1L) {
-    from <- p[col + 1L]
-    to <- p[col + 2L] - 1L
-    # Empty CSC columns have from == p[col+2]; seq.int(from, from-1) is
-    # decreasing and can yield NA / invalid subscripts -- skip them.
-    if (from > to) {
-      next
-    }
-    for (pos in from:to) {
-      row <- i[pos + 1L]
-      x[pos + 1L] <- M[row + 1L, col + 1L]
-    }
+  if (!length(i) || !length(M@x)) {
+    return(x)
   }
+  # rep.int over diff() spreads column indices across nonzeros and handles
+  # empty CSC columns (repeated pointers) without a special case.
+  m_counts <- diff(M@p)
+  m_col <- rep.int(seq_along(m_counts) - 1L, m_counts)
+  upper <- M@i <= m_col
+  if (!any(upper)) {
+    return(x)
+  }
+  p_counts <- diff(p)
+  p_col <- rep.int(seq_along(p_counts) - 1L, p_counts)
+  # as.numeric keeps keys exact when n * n would overflow integer
+  pos <- match(
+    M@i[upper] + as.numeric(m_col[upper]) * n,
+    i + as.numeric(p_col) * n
+  )
+  # A nonzero of M outside the pattern is ignored, matching the per-entry
+  # read this replaces (it only ever visited pattern positions).
+  found <- !is.na(pos)
+  x[pos[found]] <- M@x[upper][found]
   x
 }
 

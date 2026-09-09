@@ -26,6 +26,138 @@ test_that("hb_basis works for fact-4 local refinement", {
   expect_gt(nrow(hb$S), 0)
 })
 
+# Reference THB map built with explicit Kronecker products, i.e. the direct
+# transcription of S's definition. hb_basis_map() instead uses
+# (Ty %x% Tx) vec(X) = vec(Tx X t(Ty)); this pins that identity down.
+naive_hb_basis_map <- function(hb) {
+  levs <- hb$levels
+  n_levels <- length(levs)
+  active <- hb$active
+  nx_f <- levs[[n_levels]]$n_basis[["x"]]
+  ny_f <- levs[[n_levels]]$n_basis[["y"]]
+  refine_x <- adlaplaceFem:::hb_pairwise_refine_1d(hb, "x")
+  refine_y <- adlaplaceFem:::hb_pairwise_refine_1d(hb, "y")
+  cum_x <- adlaplaceFem:::hb_cumulative_from_pairwise(refine_x, nx_f)
+  cum_y <- adlaplaceFem:::hb_cumulative_from_pairwise(refine_y, ny_f)
+  cols <- list()
+  for (lev in seq_len(n_levels)) {
+    act <- active[[lev]]
+    for (k in seq_along(act$idx)) {
+      i <- act$i[k]
+      j <- act$j[k]
+      if (lev < n_levels) {
+        v <- numeric(act$n_x * act$n_y)
+        v[i + (j - 1L) * act$n_x] <- 1
+        w <- as.numeric(
+          Matrix::kronecker(refine_y[[lev]], refine_x[[lev]]) %*% v
+        )
+        mask <- numeric(length(w))
+        mask[active[[lev + 1L]]$idx] <- 1
+        col <- as.numeric(
+          Matrix::kronecker(cum_y[[lev + 1L]], cum_x[[lev + 1L]]) %*%
+            (w - w * mask)
+        )
+      } else {
+        col <- numeric(nx_f * ny_f)
+        col[i + (j - 1L) * nx_f] <- 1
+      }
+      cols[[length(cols) + 1L]] <- col
+    }
+  }
+  do.call(cbind, cols)
+}
+
+test_that("hb_basis_map matches the naive Kronecker construction", {
+  for (deg in c(2L, 3L)) {
+    kn <- hb_knots(
+      unit_box(),
+      list(c(0, 1, 0, 1), c(0.25, 0.75, 0.25, 0.75)),
+      fact = c(2, 4)
+    )
+    hb <- hb_basis(kn, degree = deg)
+    expect_equal(
+      max(abs(as.matrix(hb$S) - naive_hb_basis_map(hb))),
+      0,
+      tolerance = 1e-10
+    )
+  }
+})
+
+test_that("S is sparse, not dense with roundoff", {
+  kn <- hb_knots(
+    unit_box(),
+    list(c(0, 1, 0, 1), c(0.25, 0.75, 0.25, 0.75)),
+    fact = c(2, 4)
+  )
+  S <- hb_basis(kn, degree = 3L)$S
+  expect_lt(Matrix::nnzero(S) / prod(dim(S)), 0.05)
+})
+
+test_that("untruncated map represents coarse functions exactly", {
+  degree <- 2L
+  kn <- hb_knots(unit_box(), c(0.25, 0.75, 0.25, 0.75), fact = 2)
+  hb <- hb_basis(kn, degree = degree)
+  S <- adlaplaceFem:::hb_basis_map(
+    hb, degree,
+    truncate = FALSE, active = hb$active
+  )
+  levs <- hb$levels
+  kf <- levs[[length(levs)]]$open_knots
+  k0 <- levs[[1L]]$open_knots
+  pts <- expand.grid(x = seq(0.05, 0.95, by = 0.1), y = seq(0.05, 0.95, by = 0.1))
+  A <- adlaplaceFem:::tensor_design(pts$x, pts$y, kf$x, kf$y, degree)
+  Bx <- as.matrix(adlaplaceFem:::bspline_eval(k0$x, pts$x, degree, 0L))
+  By <- as.matrix(adlaplaceFem:::bspline_eval(k0$y, pts$y, degree, 0L))
+  act <- hb$active[[1L]]
+  # Each untruncated column is the level-0 tensor function itself, re-expressed
+  # in the finest basis, so evaluating it must reproduce Bx[, i] * By[, j].
+  for (k in seq_len(min(8L, length(act$idx)))) {
+    expect_equal(
+      as.numeric(A %*% S[, k, drop = FALSE]),
+      Bx[, act$i[k]] * By[, act$j[k]],
+      tolerance = 1e-8
+    )
+  }
+})
+
+test_that("hb_active_sets matches a naive support scan", {
+  degree <- 3L
+  kn <- hb_knots(
+    unit_box(),
+    list(c(0, 1, 0, 1), c(0.25, 0.75, 0.25, 0.75)),
+    fact = c(2, 2)
+  )
+  hb <- hb_basis(kn, degree = degree)
+  levs <- hb$levels
+  inside <- function(sx, sy, omega) {
+    any(vapply(omega, function(o) {
+      sx[1] >= o$xmin - 1e-6 && sx[2] <= o$xmax + 1e-6 &&
+        sy[1] >= o$ymin - 1e-6 && sy[2] <= o$ymax + 1e-6
+    }, logical(1L)))
+  }
+  for (lev in seq_along(levs)) {
+    kx <- levs[[lev]]$open_knots$x
+    ky <- levs[[lev]]$open_knots$y
+    nx <- levs[[lev]]$n_basis[["x"]]
+    ny <- levs[[lev]]$n_basis[["y"]]
+    om_l <- levs[[lev]]$rasters
+    om_n <- if (lev < length(levs)) levs[[lev + 1L]]$rasters else list()
+    want <- integer(0)
+    for (j in seq_len(ny)) {
+      sy <- c(ky[j + 1L], ky[j + degree + 1L])
+      for (i in seq_len(nx)) {
+        sx <- c(kx[i + 1L], kx[i + degree + 1L])
+        in_n <- length(om_n) > 0L && inside(sx, sy, om_n)
+        ok <- if (lev == 1L) !in_n else inside(sx, sy, om_l) && !in_n
+        if (ok) {
+          want <- c(want, i + (j - 1L) * nx)
+        }
+      }
+    }
+    expect_equal(hb$active[[lev]]$idx, want)
+  }
+})
+
 test_that("single-level hierarchy matches tensor product", {
   outer <- unit_box()
   sites <- expand.grid(x = seq(0.1, 0.9, by = 0.2), y = seq(0.1, 0.9, by = 0.2))

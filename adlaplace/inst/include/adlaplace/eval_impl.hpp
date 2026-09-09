@@ -311,6 +311,10 @@ public:
       pattern_hes_outer_col);
   }
 
+  void release_eval_buffers() override {
+    ad_tape_release_eval_buffers(pack);
+  }
+
   int assign_memory() override {
     AdTape& gp = pack;
     const std::size_t n_params = gp.fun.Domain();

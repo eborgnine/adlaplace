@@ -60,8 +60,9 @@ ad_pack* combine_ad_fun(const std::vector<ad_pack*>& parts) {
   const std::size_t n_beta = layout->pack.n_beta;
   const std::size_t n_theta = layout->pack.n_theta;
 
-  std::vector<AdTape> merged;
-  std::vector<ShardFactory> merged_factories;
+  auto* groups = new ad_pack();
+  groups->abi_version = ADLAPLACE_ABI_VERSION;
+  groups->fun.reserve(16);
   size_t shard_index = 0;
 
   for (ad_pack* part : parts) {
@@ -78,19 +79,15 @@ ad_pack* combine_ad_fun(const std::vector<ad_pack*>& parts) {
       shard->pack.shard_index = shard_index++;
       shard->pack.n_beta = n_beta;
       shard->pack.n_theta = n_theta;
-      merged_factories.push_back(shard->factory ? shard->factory : adlaplace_make_ad_shard);
-      merged.push_back(std::move(shard->pack));
-      delete shard;
+      groups->fun.push_back(shard);
     }
     part->fun.clear();
     ad_fun_destroy(part);
   }
 
-  auto* groups = new ad_pack();
-  groups->abi_version = ADLAPLACE_ABI_VERSION;
-  groups->fun.reserve(merged.size());
-  for (size_t g = 0; g < merged.size(); ++g) {
-    groups->fun.push_back(merged_factories[g](std::move(merged[g])));
+  if (groups->fun.empty()) {
+    delete groups;
+    Rcpp::stop("c_ad_pack_ptr: no valid shards to combine");
   }
   return groups;
 }

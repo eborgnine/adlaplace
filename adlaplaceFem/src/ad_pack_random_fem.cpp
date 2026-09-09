@@ -7,8 +7,10 @@
 #include "adlaplace/extension.hpp"
 
 #include "fem_logdet_atomic.hpp"
+#include "fem_ssq_analytic.hpp"
 
 #include <cmath>
+#include <memory>
 #include <set>
 #include <string>
 #include <utility>
@@ -24,6 +26,13 @@ const double ONEHALFLOGTWOPI = 0.91893853320467274178032973640561763976;
 
 // Declared by ADLAPLACE_DEFINE_BACKEND in backend.cpp
 extern ad_shard *adlaplace_fem_make_shard(AdTape &&);
+
+// Defined in backend.cpp, where FemSsqShard can see EvalShard. Builds the
+// same ad_pack as packs_to_ad_fun but with the analytic ssq shard, which
+// needs constructor data the fixed ShardFactory signature cannot carry.
+extern ad_pack *fem_ssq_packs_to_ad_fun(std::vector<AdTape> &&, std::size_t,
+                                        std::size_t,
+                                        std::shared_ptr<const femssq::Data>);
 
 namespace {
 
@@ -82,6 +91,20 @@ FemCholPayload read_fem_payload(const density_data &model) {
   return out;
 }
 
+// Symmetry weights for the upper-triangle storage: 1 on the diagonal, 2 off
+// it, so a single pass over the stored nonzeros gives a full quadratic form.
+std::vector<double> fem_symmetry_weights(const FemCholPayload &pay) {
+  std::vector<double> w(pay.Q_i.size());
+  for (std::size_t col = 0; col + 1 < pay.Q_p.size(); ++col) {
+    for (int pos = pay.Q_p[col]; pos < pay.Q_p[col + 1]; ++pos) {
+      const std::size_t row =
+          static_cast<std::size_t>(pay.Q_i[static_cast<std::size_t>(pos)]);
+      w[static_cast<std::size_t>(pos)] = (row == col) ? 1.0 : 2.0;
+    }
+  }
+  return w;
+}
+
 // Register the constant part of Q(theta) with the fem_logdet atomic:
 // Q = a*C + b*G + c*G2 (+ d*G3), so the atomic only sees the coefficient
 // scalars while the Grams, pattern, and symbolic factor stay fixed.
@@ -91,14 +114,7 @@ std::size_t register_fem_logdet_payload(const FemCholPayload &pay) {
   atom.Q_p = pay.Q_p;
   atom.Q_i = pay.Q_i;
   atom.n = pay.Q_p.size() - 1;
-  atom.w.resize(pay.Q_i.size());
-  for (std::size_t col = 0; col + 1 < pay.Q_p.size(); ++col) {
-    for (int pos = pay.Q_p[col]; pos < pay.Q_p[col + 1]; ++pos) {
-      const std::size_t row =
-          static_cast<std::size_t>(pay.Q_i[static_cast<std::size_t>(pos)]);
-      atom.w[static_cast<std::size_t>(pos)] = (row == col) ? 1.0 : 2.0;
-    }
-  }
+  atom.w = fem_symmetry_weights(pay);
   atom.M.push_back(pay.C_x);
   atom.M.push_back(pay.G_x);
   atom.M.push_back(pay.G2_x);
@@ -116,32 +132,50 @@ std::size_t register_fem_logdet_payload(const FemCholPayload &pay) {
       std::move(atom));
 }
 
-// Public theta (range, sd): practical range rho = sqrt(8*nu)/kappa and field
-// SD. In 2D, nu = Alpha - 1. Convert on tape to SPDE (kappa, tau).
+// Which tape slots hold the two thetas, and whether each already arrives
+// logged (transform_theta) or has to be logged here.
+struct FemThetaSpec {
+  std::size_t t0_tape = 0;
+  std::size_t t1_tape = 0;
+  bool range_is_log = false;
+  bool sd_is_log = false;
+};
+
+FemThetaSpec fem_theta_spec(const density_data &model, const Config &config) {
+  FemThetaSpec spec;
+  spec.t0_tape = model.theta_index(0);
+  spec.t1_tape = model.theta_index(1);
+  spec.range_is_log = transform_theta_at(config, model.theta_row(0));
+  spec.sd_is_log = transform_theta_at(config, model.theta_row(1));
+  return spec;
+}
+
+// Coefficients c of Q(theta) = sum_j c_j * M_j with M = (C, G, G2, [G3]).
+//
+// Public theta is (range, sd): practical range rho = sqrt(8*nu)/kappa and
+// field SD, with nu = Alpha - 1 in 2D. This is the single definition of the
+// theta -> coefficient map; the quadratic form, the log-determinant atomic,
+// and the analytic shard's coefficient tape all go through it so they cannot
+// drift apart.
 template <int Alpha>
-void fem_kappa_tau2(const CppAD::vector<CppAD::AD<double>> &x,
-                    const density_data &model, const Config &config,
-                    CppAD::AD<double> &k2, CppAD::AD<double> &k4,
-                    CppAD::AD<double> &k6, CppAD::AD<double> &tau2) {
-  const std::size_t t0_global = model.theta_index(0);
-  const std::size_t t0_row = model.theta_row(0);
-  const std::size_t t1_global = model.theta_index(1);
-  const std::size_t t1_row = model.theta_row(1);
-  CppAD::AD<double> log_range = x[t0_global];
-  CppAD::AD<double> log_sd = x[t1_global];
-  if (!transform_theta_at(config, t0_row)) {
+void fem_Q_coefficients(const CppAD::AD<double> &raw_range,
+                        const CppAD::AD<double> &raw_sd, bool range_is_log,
+                        bool sd_is_log,
+                        CppAD::vector<CppAD::AD<double>> &out) {
+  CppAD::AD<double> log_range = raw_range;
+  CppAD::AD<double> log_sd = raw_sd;
+  if (!range_is_log) {
     log_range = CppAD::log(log_range);
   }
-  if (!transform_theta_at(config, t1_row)) {
+  if (!sd_is_log) {
     log_sd = CppAD::log(log_sd);
   }
   const CppAD::AD<double> range = CppAD::exp(log_range);
   const CppAD::AD<double> sd = CppAD::exp(log_sd);
   const CppAD::AD<double> kappa =
       CppAD::sqrt(CppAD::AD<double>(8.0 * (Alpha - 1))) / range;
-  k2 = kappa * kappa;
-  k4 = k2 * k2;
-  k6 = k4 * k2;
+  const CppAD::AD<double> k2 = kappa * kappa;
+  const CppAD::AD<double> k4 = k2 * k2;
   // Alpha=2: sigma^2 = 1/(4 pi kappa^2 tau^2)
   // Alpha=3: sigma^2 = 1/(8 pi kappa^4 tau^2)
   const CppAD::AD<double> tau =
@@ -149,26 +183,58 @@ void fem_kappa_tau2(const CppAD::vector<CppAD::AD<double>> &x,
                          (kappa * sd * CppAD::sqrt(CppAD::AD<double>(PIx4)))
                    : CppAD::AD<double>(1) /
                          (k2 * sd * CppAD::sqrt(CppAD::AD<double>(PIx8)));
-  tau2 = tau * tau;
+  const CppAD::AD<double> tau2 = tau * tau;
+
+  out.resize(Alpha == 2 ? 3 : 4);
+  if constexpr (Alpha == 2) {
+    out[0] = tau2 * k4;
+    out[1] = CppAD::AD<double>(2) * tau2 * k2;
+    out[2] = tau2;
+  } else {
+    const CppAD::AD<double> k6 = k4 * k2;
+    out[0] = tau2 * k6;
+    out[1] = CppAD::AD<double>(3) * tau2 * k4;
+    out[2] = CppAD::AD<double>(3) * tau2 * k2;
+    out[3] = tau2;
+  }
 }
 
 template <int Alpha>
 std::vector<CppAD::AD<double>>
-assemble_Q_x(const FemCholPayload &pay, const CppAD::AD<double> &k2,
-             const CppAD::AD<double> &k4, const CppAD::AD<double> &k6,
-             const CppAD::AD<double> &tau2) {
+assemble_Q_x(const FemCholPayload &pay,
+             const CppAD::vector<CppAD::AD<double>> &c) {
   std::vector<CppAD::AD<double>> Q_x(pay.Q_i.size());
   for (std::size_t k = 0; k < Q_x.size(); ++k) {
-    if constexpr (Alpha == 2) {
-      Q_x[k] = tau2 * (k4 * pay.C_x[k] +
-                       CppAD::AD<double>(2) * k2 * pay.G_x[k] + pay.G2_x[k]);
-    } else {
-      Q_x[k] =
-          tau2 * (k6 * pay.C_x[k] + CppAD::AD<double>(3) * k4 * pay.G_x[k] +
-                  CppAD::AD<double>(3) * k2 * pay.G2_x[k] + pay.G3_x[k]);
+    CppAD::AD<double> v =
+        c[0] * pay.C_x[k] + c[1] * pay.G_x[k] + c[2] * pay.G2_x[k];
+    if constexpr (Alpha == 3) {
+      v += c[3] * pay.G3_x[k];
     }
+    Q_x[k] = v;
   }
   return Q_x;
+}
+
+// Domain 2, Range m tape of the coefficient map, used by the analytic shard
+// to get c, dc/dtheta, and d2c/dtheta2 without hand-differentiating the
+// range/sd -> kappa/tau composition or the optional log transform.
+template <int Alpha>
+CppAD::ADFun<double> make_fem_coef_fun(const FemThetaSpec &spec, double seed0,
+                                       double seed1) {
+  if (!spec.range_is_log && !(seed0 > 0.0)) {
+    seed0 = 1.0;
+  }
+  if (!spec.sd_is_log && !(seed1 > 0.0)) {
+    seed1 = 1.0;
+  }
+  CppAD::vector<CppAD::AD<double>> ax(2);
+  ax[0] = seed0;
+  ax[1] = seed1;
+  CppAD::Independent(ax);
+  CppAD::vector<CppAD::AD<double>> ay;
+  fem_Q_coefficients<Alpha>(ax[0], ax[1], spec.range_is_log, spec.sd_is_log,
+                            ay);
+  return CppAD::ADFun<double>(ax, ay);
 }
 
 template <int Alpha>
@@ -180,9 +246,11 @@ random_fem_ssq(const CppAD::vector<CppAD::AD<double>> &x, const density_data &mo
     Rcpp::stop("precision alpha (%d) does not match kernel alpha (%d)",
                pay.alpha, Alpha);
   }
-  CppAD::AD<double> k2, k4, k6, tau2;
-  fem_kappa_tau2<Alpha>(x, model, config, k2, k4, k6, tau2);
-  const auto Q_x = assemble_Q_x<Alpha>(pay, k2, k4, k6, tau2);
+  const FemThetaSpec spec = fem_theta_spec(model, config);
+  CppAD::vector<CppAD::AD<double>> c;
+  fem_Q_coefficients<Alpha>(x[spec.t0_tape], x[spec.t1_tape],
+                            spec.range_is_log, spec.sd_is_log, c);
+  const auto Q_x = assemble_Q_x<Alpha>(pay, c);
 
   const std::size_t n = pay.Q_p.size() - 1;
   const std::vector<std::size_t> gidx = model.all_gamma_global_indices();
@@ -216,25 +284,15 @@ random_fem_det(const CppAD::vector<CppAD::AD<double>> &x, const density_data &mo
     Rcpp::stop("precision alpha (%d) does not match kernel alpha (%d)",
                pay.alpha, Alpha);
   }
-  CppAD::AD<double> k2, k4, k6, tau2;
-  fem_kappa_tau2<Alpha>(x, model, config, k2, k4, k6, tau2);
-
   const std::size_t n = pay.Q_p.size() - 1;
   const std::size_t call_id = register_fem_logdet_payload<Alpha>(pay);
 
   // Coefficients of Q = a*C + b*G + c*G2 (+ d*G3); the atomic handles the
   // factorization and Tr(Q^{-1} dQ) derivatives in doubles, off the tape.
-  CppAD::vector<CppAD::AD<double>> ax(Alpha == 2 ? 3 : 4);
-  if constexpr (Alpha == 2) {
-    ax[0] = tau2 * k4;
-    ax[1] = CppAD::AD<double>(2) * tau2 * k2;
-    ax[2] = tau2;
-  } else {
-    ax[0] = tau2 * k6;
-    ax[1] = CppAD::AD<double>(3) * tau2 * k4;
-    ax[2] = CppAD::AD<double>(3) * tau2 * k2;
-    ax[3] = tau2;
-  }
+  const FemThetaSpec spec = fem_theta_spec(model, config);
+  CppAD::vector<CppAD::AD<double>> ax;
+  fem_Q_coefficients<Alpha>(x[spec.t0_tape], x[spec.t1_tape],
+                            spec.range_is_log, spec.sd_is_log, ax);
   CppAD::vector<CppAD::AD<double>> ay(1);
   femlogdet::fem_logdet_atomic_instance()(call_id, ax, ay);
   const CppAD::AD<double> log_det = ay[0];
@@ -277,6 +335,45 @@ random_fem_ssq_sparsity(const density_data &model) {
   return hessian;
 }
 
+// Gradient sparsity of -0.5 gamma' Q(theta) gamma: every gamma tape slot
+// (Q has a full diagonal) plus the two thetas. Columns are emitted in
+// ascending order to match for_jac_sparsity.
+CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)>
+fem_ssq_grad_sparsity(const density_data &model) {
+  std::set<std::size_t> cols;
+  for (std::size_t g : model.all_gamma_global_indices()) {
+    cols.insert(g);
+  }
+  cols.insert(model.theta_index(0));
+  cols.insert(model.theta_index(1));
+
+  CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> grad;
+  grad.resize(1, model.n_tape, cols.size());
+  std::size_t k = 0;
+  for (std::size_t j : cols) {
+    grad.set(k++, 0, j);
+  }
+  return grad;
+}
+
+template <int Alpha>
+AdTape build_fem_ssq_pack(density_data model, const Config &cfg,
+                          bool verbose) {
+  validate_config_matches_model(cfg, model, false);
+  if (Rf_isNull(model.precision)) {
+    Rcpp::stop("precision is required for random densities");
+  }
+  model.apply_tape_domain(cfg, "all", 0);
+  AdTape pack;
+  pack.owner_thread_assigned = false;
+  adpack_attach_tape_maps(pack, model);
+  AdpackPatterns pats = adpack_build_patterns(
+      pack, model.n_tape, model.seq_gamma, fem_ssq_grad_sparsity(model),
+      random_fem_ssq_sparsity(model), verbose);
+  adpack_install_patterns(pack, pats);
+  return pack;
+}
+
 CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)>
 random_fem_det_sparsity(const density_data &model) {
   const std::size_t idx_range = model.theta_index(0);
@@ -293,15 +390,74 @@ random_fem_det_sparsity(const density_data &model) {
   return hessian;
 }
 
+// Immutable data for the analytic ssq shard. Built from the compacted model
+// so gidx / theta indices are tape positions, matching the tape the patterns
+// were discovered on.
+template <int Alpha>
+std::shared_ptr<const femssq::Data>
+make_fem_ssq_data(density_data model, const Config &cfg) {
+  model.apply_tape_domain(cfg, "all", 0);
+  const FemCholPayload pay = read_fem_payload(model);
+
+  auto data = std::make_shared<femssq::Data>();
+  data->alpha = Alpha;
+  data->n = pay.Q_p.size() - 1;
+  data->Q_p = pay.Q_p;
+  data->Q_i = pay.Q_i;
+  data->w = fem_symmetry_weights(pay);
+  data->M.push_back(pay.C_x);
+  data->M.push_back(pay.G_x);
+  data->M.push_back(pay.G2_x);
+  if (Alpha == 3) {
+    data->M.push_back(pay.G3_x);
+  }
+
+  data->gidx = model.all_gamma_global_indices();
+  if (data->gidx.size() != data->n) {
+    Rcpp::stop("random_fem: length(gamma) (%d) != nrow(Q) (%d)",
+               static_cast<int>(data->gidx.size()),
+               static_cast<int>(data->n));
+  }
+
+  const FemThetaSpec spec = fem_theta_spec(model, cfg);
+  data->t_tape[0] = spec.t0_tape;
+  data->t_tape[1] = spec.t1_tape;
+  const double seed0 = cfg.theta.size() > 0 ? cfg.theta[0] : 1.0;
+  const double seed1 = cfg.theta.size() > 1 ? cfg.theta[1] : 1.0;
+  data->coef_fun = make_fem_coef_fun<Alpha>(spec, seed0, seed1);
+  return data;
+}
+
 template <int Alpha>
 SEXP create_ad_shard_random_fem_ssq(SEXP model, Rcpp::List config) {
   const density_data ad_model(model);
+  const Config cfg(config);
+  const bool fem_analytic = adlaplace_get_bool(config, "fem_analytic", true);
+  // Tape is forced on for the AD path. For analytic evaluation the default
+  // is no tape (skip recording and sparse_hes coloring). fem_tape = TRUE
+  // keeps a recorded, calibrated tape under analytic evaluation so tests
+  // can compare hand-built patterns against for_jac_sparsity. get_tape_sizes
+  // reports domain/size_op/size_var = 0 when the tape is skipped.
+  const bool fem_tape =
+      !fem_analytic || adlaplace_get_bool(config, "fem_tape", false);
+
   std::vector<AdTape> packs;
-  packs.push_back(build_ad_fun_random_with_pattern(
-      ad_model, config, random_fem_ssq<Alpha>, random_fem_ssq_sparsity));
-  return make_ad_pack_ptr(packs_to_ad_fun(std::move(packs), ad_model.num_beta,
-                                         ad_model.num_theta,
-                                         adlaplace_fem_make_shard));
+  if (fem_tape) {
+    packs.push_back(build_ad_fun_random_with_pattern(
+        ad_model, config, random_fem_ssq<Alpha>, random_fem_ssq_sparsity));
+  } else {
+    packs.push_back(build_fem_ssq_pack<Alpha>(ad_model, cfg, cfg.verbose));
+  }
+
+  if (!fem_analytic) {
+    return make_ad_pack_ptr(packs_to_ad_fun(std::move(packs),
+                                            ad_model.num_beta,
+                                            ad_model.num_theta,
+                                            adlaplace_fem_make_shard));
+  }
+  return make_ad_pack_ptr(fem_ssq_packs_to_ad_fun(
+      std::move(packs), ad_model.num_beta, ad_model.num_theta,
+      make_fem_ssq_data<Alpha>(ad_model, cfg)));
 }
 
 LogDensSingleDataFn resolve_fem_det(const std::string &name) {

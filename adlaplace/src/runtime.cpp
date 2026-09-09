@@ -4,8 +4,6 @@
 #include "adlaplace/omp_compat.hpp"
 #include "adlaplace/ompad.hpp"
 
-extern ad_shard* adlaplace_make_ad_shard(AdTape&&);
-
 void adlaplace_release_shard_eval_buffers(ad_pack& backend) {
   if (omp_in_parallel() != 0) {
     Rcpp::stop(
@@ -13,11 +11,7 @@ void adlaplace_release_shard_eval_buffers(ad_pack& backend) {
         "parallel region");
   }
   for (std::size_t s = 0; s < backend.fun.size(); ++s) {
-    AdTape& gp = shard_handle(&backend, s)->pack;
-    gp.fun.capacity_order(0);
-    gp.trace.direction.clear();
-    gp.trace.direction_zeros.clear();
-    gp.trace.wthree.clear();
+    shard_handle(&backend, s)->release_eval_buffers();
   }
 }
 
@@ -29,32 +23,23 @@ ad_pack* clone_ad_pack(const ad_pack* src) {
     Rcpp::stop("clone_ad_pack: source has no AD shards");
   }
 
-  std::vector<AdTape> packs;
-  std::vector<ShardFactory> factories;
-  packs.reserve(src->fun.size());
-  factories.reserve(src->fun.size());
-
+  ad_pack* copy = new ad_pack();
+  copy->abi_version = src->abi_version;
+  copy->fun.reserve(src->fun.size());
   for (ad_shard* shard : src->fun) {
     if (!shard) {
       continue;
     }
-    factories.push_back(shard->factory ? shard->factory : adlaplace_make_ad_shard);
-    AdTape pack = clone_group_pack(shard->pack);
-    // Dens-safe clone: clear OpenMP affinity from multi-thread ad_pack().
-    pack.owner_thread = 0;
-    pack.owner_thread_assigned = false;
-    packs.push_back(std::move(pack));
+    // Virtual clone keeps the dynamic type (e.g. FemSsqShard). Reconstructing
+    // from AdTape via ShardFactory cannot carry subclass payload.
+    ad_shard* cloned = shard->clone();
+    cloned->pack.owner_thread = 0;
+    cloned->pack.owner_thread_assigned = false;
+    copy->fun.push_back(cloned);
   }
-
-  if (packs.empty()) {
+  if (copy->fun.empty()) {
+    delete copy;
     Rcpp::stop("clone_ad_pack: source has no valid shards");
-  }
-
-  ad_pack* copy = new ad_pack();
-  copy->abi_version = src->abi_version;
-  copy->fun.reserve(packs.size());
-  for (size_t g = 0; g < packs.size(); ++g) {
-    copy->fun.push_back(factories[g](std::move(packs[g])));
   }
   copy->configured_num_threads = 1;
   copy->num_threads_configured = false;

@@ -130,7 +130,10 @@ Rcpp::List get_sizes(SEXP handle, int group) {
 //' @param handle External pointer of class \code{ad_pack_ptr}.
 //' @param group 0-based group index.
 //' @return List with \code{domain}, \code{n_global}, \code{size_op},
-//'   \code{size_var}, and pattern nnz counts.
+//'   \code{size_var}, and pattern nnz counts. \code{domain} /
+//'   \code{size_op} / \code{size_var} are zero when the shard never
+//'   recorded a tape (e.g. analytic FEM ssq with \code{fem_tape = FALSE});
+//'   \code{n_global} and the nnz fields remain valid.
 //' @keywords internal
 // [[Rcpp::export]]
 Rcpp::List get_tape_sizes(SEXP handle, int group) {
