@@ -7,22 +7,24 @@
 hb_knots(outer, inner = NULL, fact = 2L)
 }
 \arguments{
-\item{outer}{A terra \code{SpatRaster} giving the padded domain (level 0) and
-level-0 cell size.}
+\item{outer}{Level-0 box: \code{list(xmin, xmax, ymin, ymax, resolution)}, or a
+terra \code{SpatRaster} (converted to that list). \code{resolution} is \code{dx} or
+\code{c(dx, dy)}.}
 
 \item{inner}{\code{NULL} (outer only), one extent, or a list of levels. An extent
-is a \code{SpatExtent}, \code{c(xmin, xmax, ymin, ymax)}, or a \code{SpatRaster} /
-\code{SpatVector} (extent only; resolution is ignored).}
+is \code{c(xmin, xmax, ymin, ymax)}, a terra \code{SpatExtent}, or
+\code{list(xmin, xmax, ymin, ymax)}.}
 
 \item{fact}{Integer \verb{>= 2}, recycled to \code{length(inner)}. \code{fact[i]} is the
 cell-size ratio from the previous level, so level-\code{i} resolution is
-\code{res(outer) / prod(fact[1:i])}.}
+\code{outer$resolution / prod(fact[1:i])}.}
 }
 \value{
-An \code{"hb_knots"} object (breakpoints, snapped regions, resolution).
+An \code{"hb_knots"} list, one element per level, each with \code{knots} and
+\code{rasters} (\code{xmin}, \code{xmax}, \code{ymin}, \code{ymax}, \code{resolution}).
 }
 \description{
-Builds nested knot-line locations from a coarse terra raster and optional
+Builds nested knot-line locations from a coarse raster box and optional
 inner refinement extents. Knot \strong{lines} do not depend on B-spline degree;
 pass the result to \code{\link[=hb_basis]{hb_basis()}} or \code{\link[=matern]{matern()}} to form the THB space.
 }
@@ -30,6 +32,7 @@ pass the result to \code{\link[=hb_basis]{hb_basis()}} or \code{\link[=matern]{m
 Each element of \code{inner} is one refinement level: a single extent, or a list
 of extents for sibling boxes at that level. \code{list(ext)} and \code{list(list(ext))}
 are the same one-level, one-box specification. \code{list(ext1, ext2)} is two
-levels; siblings are \code{list(list(ext1, ext2))}. Extents are snapped to \code{outer}
-cell edges and clipped to the parent level.
+levels; siblings are \code{list(list(ext1, ext2))}. Extents are snapped to the
+nested cell grid at that level (spacing \code{outer$resolution / prod(fact[1:i])})
+and clipped to the parent level.
 }

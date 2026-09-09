@@ -179,8 +179,9 @@ fem_bspline_hb <- function(x, y, hb, degree = 2L) {
   if (inherits(hb, "hb_knots") && !inherits(hb, "hb_basis")) {
     hb <- hb_basis(hb, degree = degree)
   }
-  nlev <- hb$n_levels
-  kn_fine <- hb$levels[[nlev]]$knots
+  levs <- hb$levels
+  nlev <- length(levs)
+  kn_fine <- levs[[nlev]]$open_knots
   fem_fine <- fem_tensor_grams(kn_fine, degree = degree)
   S <- if (!is.null(hb$S)) hb$S else hb_basis_map(hb, degree = degree)
   n_active <- ncol(S)

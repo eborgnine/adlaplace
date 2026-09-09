@@ -145,9 +145,12 @@ hierarchical knot lines with [hb_knots()] and pass the result to `matern()`:
 
 ```r
 kn <- hb_knots(
-  outer = coarse_raster,                 # level 0: padded domain
+  outer = list(                          # level 0: padded domain
+    xmin = ..., xmax = ..., ymin = ..., ymax = ...,
+    resolution = c(dx, dy)
+  ),
   inner = list(
-    terra::ext(study),                   # level 1: study region
+    c(xmin, xmax, ymin, ymax),           # level 1: study region
     list(west_ext, east_ext)             # level 2: sibling rectangles
   ),
   fact = c(2, 4)
@@ -156,7 +159,7 @@ matern(geometry, knots = kn, shape = 2L)
 ```
 
 `fact[i]` is the cell-size ratio from the previous level. Each inner extent is
-snapped to the outer raster's cell edges. This gives nested spaces
+snapped to that level's nested cell grid. This gives nested spaces
 $V^0 \subset V^1 \subset \cdots \subset V^L$. A truncated hierarchical (THB)
 basis keeps level-$\ell$ tensor B-splines active when their support lies in the
 level-$\ell$ region but not in finer regions. Every active function embeds in

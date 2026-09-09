@@ -70,34 +70,29 @@ result as `knots` to `matern()`.
 
 ```{r knots}
 loaloa_knots <- hb_knots(
-  outer = geostatsp::squareRaster(loaloa, cells = 6, buffer = 300 * 1000),
+  outer = geostatsp::squareRaster(loaloa, cells = 4, buffer = 100 * 1000),
   inner = list(
     terra::ext(loaloa),
     list(
-      terra::ext(3.9e5, 8.1e5, 3.7e5, 7.7e5),
-      terra::ext(9.9e5, 1.19e6, 3.7e5, 7.7e5)
+      terra::ext(715346.2, 807973.3, 444011.3, 547709.5),
+      terra::ext(657647.4, 766139.5, 676077.0, 753953.7)
     )
   ),
   fact = 2
 )
 ```
 
+
+
 ```{r knots-summary}
 knitr::kable(hb_summary(hb_basis(loaloa_knots, degree = 3L)), digits = 0)
 ```
 
 ```{r knot-plot, fig.cap="Hierarchical knot regions (coarse extent and west/east refinements) over village locations."}
-level_raster <- function(lev, i = 1L) {
-  r <- lev$regions[[i]]
-  terra::rast(
-    terra::ext(r$xmin, r$xmax, r$ymin, r$ymax),
-    resolution = lev$resolution
-  )
-}
-coarse <- level_raster(loaloa_knots$levels[[1]])
-study <- level_raster(loaloa_knots$levels[[2]])
-west <- level_raster(loaloa_knots$levels[[3]], 1L)
-east <- level_raster(loaloa_knots$levels[[3]], 2L)
+coarse <- do.call(terra::rast, loaloa_knots[[1]]$rasters[[1]])
+study <- do.call(terra::rast, loaloa_knots[[2]]$rasters[[1]])
+west <- do.call(terra::rast, loaloa_knots[[3]]$rasters[[1]])
+east <- do.call(terra::rast, loaloa_knots[[3]]$rasters[[2]])
 
 draw_raster_grid <- function(r, col = "grey40", lwd = 0.6) {
   e <- terra::ext(r)
@@ -146,7 +141,7 @@ geostatsp Matérn **shape = 2** is ν = 2 (SPDE α = 3 in 2D), so we pass
 `shape = 2` to `matern()` (cubic B-splines / `random_fem_ssq_3`). Locations come
 from the `geometry` column (WKT) in the model data frame.
 
-```{r model_setup, cache=FALSE}
+```{r model_setup}
 loaloa_df <- as.data.frame(loaloa_for_fit$data, geom = "WKT")
 
 loaloa_model <- adlaplace::binomial(y, size = N) ~
@@ -168,7 +163,7 @@ loaloa_model <- adlaplace::binomial(y, size = N) ~
 fit <- adlaplace::adlaplace(
   loaloa_model,
   data = loaloa_df,
-  control = list(maxit = 200, trace = 3, REPORT = 1),
+  control = list(maxit = 50, trace = 3, REPORT = 1),
   config = list(num_threads = 2L, num_shards = 20L),
   verbose = FALSE
 )

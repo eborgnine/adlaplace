@@ -2,13 +2,11 @@
 # Append to fem-run chunk in adlaplace.Rmd after fem_corr_df is built
 
 fem_cov_hierarchical <- function(sites_eval, knots_coarse, knots_refine) {
-  if (!requireNamespace("terra", quietly = TRUE)) {
-    return(NULL)
-  }
-  coarse_r <- terra::rast(terra::ext(-0.2, 1.2, -0.2, 1.2), resolution = 0.2)
   kn <- adlaplaceFem::hb_knots(
-    outer = coarse_r,
-    inner = terra::ext(0.2, 0.8, 0.2, 0.8),
+    outer = list(
+      xmin = -0.2, xmax = 1.2, ymin = -0.2, ymax = 1.2, resolution = 0.2
+    ),
+    inner = c(0.2, 0.8, 0.2, 0.8),
     fact = 2
   )
   fem <- adlaplaceFem::fem_bspline(

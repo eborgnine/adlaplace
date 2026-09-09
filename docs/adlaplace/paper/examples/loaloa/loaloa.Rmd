@@ -21,11 +21,11 @@ loaloa <- terra::unwrap(loaloa)
 loaloa_knots <- hb_knots(
   outer = geostatsp::squareRaster(loaloa, cells = 6, buffer = 300 * 1000),
   inner = list(
-    terra::ext(loaloa),
-    list(
-      terra::ext(3.9e5, 8.1e5, 3.7e5, 7.7e5),
-      terra::ext(9.9e5, 1.19e6, 3.7e5, 7.7e5)
-    )
+      as.vector(terra::ext(loaloa)),
+      list(
+        c(3.9e5, 8.1e5, 3.7e5, 7.7e5),
+        c(9.9e5, 1.19e6, 3.7e5, 7.7e5)
+      )
   ),
   fact = c(2, 4)
 )

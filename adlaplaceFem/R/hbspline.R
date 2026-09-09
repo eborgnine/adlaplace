@@ -1,38 +1,33 @@
 #' Hierarchical tensor-product B-spline knot specifications
 #'
-#' Builds nested knot-line locations from a coarse terra raster and optional
+#' Builds nested knot-line locations from a coarse raster box and optional
 #' inner refinement extents. Knot **lines** do not depend on B-spline degree;
 #' pass the result to [hb_basis()] or [matern()] to form the THB space.
 #'
 #' Each element of `inner` is one refinement level: a single extent, or a list
 #' of extents for sibling boxes at that level. `list(ext)` and `list(list(ext))`
 #' are the same one-level, one-box specification. `list(ext1, ext2)` is two
-#' levels; siblings are `list(list(ext1, ext2))`. Extents are snapped to `outer`
-#' cell edges and clipped to the parent level.
+#' levels; siblings are `list(list(ext1, ext2))`. Extents are snapped to the
+#' nested cell grid at that level (spacing `outer$resolution / prod(fact[1:i])`)
+#' and clipped to the parent level.
 #'
-#' @param outer A terra `SpatRaster` giving the padded domain (level 0) and
-#'   level-0 cell size.
+#' @param outer Level-0 box: `list(xmin, xmax, ymin, ymax, resolution)`, or a
+#'   terra `SpatRaster` (converted to that list). `resolution` is `dx` or
+#'   `c(dx, dy)`.
 #' @param inner `NULL` (outer only), one extent, or a list of levels. An extent
-#'   is a `SpatExtent`, `c(xmin, xmax, ymin, ymax)`, or a `SpatRaster` /
-#'   `SpatVector` (extent only; resolution is ignored).
+#'   is `c(xmin, xmax, ymin, ymax)`, a terra `SpatExtent`, or
+#'   `list(xmin, xmax, ymin, ymax)`.
 #' @param fact Integer `>= 2`, recycled to `length(inner)`. `fact[i]` is the
 #'   cell-size ratio from the previous level, so level-`i` resolution is
-#'   `res(outer) / prod(fact[1:i])`.
-#' @return An `"hb_knots"` object (breakpoints, snapped regions, resolution).
+#'   `outer$resolution / prod(fact[1:i])`.
+#' @return An `"hb_knots"` list, one element per level, each with `knots` and
+#'   `rasters` (`xmin`, `xmax`, `ymin`, `ymax`, `resolution`).
 #' @export
 hb_knots <- function(outer, inner = NULL, fact = 2L) {
   if (inherits(outer, "hb_knots")) {
     return(outer)
   }
-  if (!requireNamespace("terra", quietly = TRUE)) {
-    stop(
-      "terra is required for hb_knots(); install.packages(\"terra\")",
-      call. = FALSE
-    )
-  }
-  if (!inherits(outer, "SpatRaster")) {
-    stop("outer must be a terra SpatRaster", call. = FALSE)
-  }
+  spec0 <- coerce_outer_spec(outer)
 
   inner_levels <- normalize_inner_levels(inner)
   n_refine <- length(inner_levels)
@@ -52,27 +47,30 @@ hb_knots <- function(outer, inner = NULL, fact = 2L) {
   }
 
   n_levels <- n_refine + 1L
-  edges <- outer_cell_edges(outer)
-  res0 <- c(terra::xres(outer), terra::yres(outer))
-  bp0 <- knots_from_spatraster(outer, degree = 2L)
-  omega0 <- list(raster_extent_list(outer))
+  bp0 <- knots_from_spec(spec0)
+  outer_box <- list(
+    xmin = spec0$xmin,
+    xmax = spec0$xmax,
+    ymin = spec0$ymin,
+    ymax = spec0$ymax
+  )
 
   level_data <- vector("list", n_levels)
   level_data[[1L]] <- list(
-    breakpoints = list(x = bp0$x, y = bp0$y),
-    regions = omega0,
-    omega = omega0,
-    resolution = res0
+    knots = list(x = unname(bp0$x), y = unname(bp0$y)),
+    rasters = list(spec0)
   )
 
   bx_prev <- bp0$x
   by_prev <- bp0$y
-  res_prev <- res0
+  res_prev <- spec0$resolution
 
   for (i in seq_len(n_refine)) {
-    regions <- lapply(inner_levels[[i]], function(reg) {
-      snapped <- snap_extent_to_breaks(reg, edges$x, edges$y)
-      clipped <- clip_region_to_omega(snapped, level_data[[i]]$omega)
+    res_i <- res_prev / as.numeric(fact[i])
+    edges_i <- spec_cell_edges(raster_spec(outer_box, res_i))
+    boxes <- lapply(inner_levels[[i]], function(reg) {
+      snapped <- snap_extent_to_breaks(reg, edges_i$x, edges_i$y)
+      clipped <- clip_region_to_omega(snapped, level_data[[i]]$rasters)
       if (is.null(clipped)) {
         stop(
           "refinement extent at inner level ", i,
@@ -82,31 +80,21 @@ hb_knots <- function(outer, inner = NULL, fact = 2L) {
       }
       clipped
     })
-    res_i <- res_prev / as.numeric(fact[i])
-    rasters <- lapply(regions, function(reg) region_raster(reg, res_i))
-    new_x <- interior_breakpoints_from_rasters(rasters, axis = "x")
-    new_y <- interior_breakpoints_from_rasters(rasters, axis = "y")
+    specs <- lapply(boxes, function(reg) raster_spec(reg, res_i))
+    new_x <- interior_breakpoints_from_specs(specs, axis = "x")
+    new_y <- interior_breakpoints_from_specs(specs, axis = "y")
     bx <- sort(unique(c(bx_prev, new_x)))
     by <- sort(unique(c(by_prev, new_y)))
     level_data[[i + 1L]] <- list(
-      breakpoints = list(x = bx, y = by),
-      regions = regions,
-      omega = regions,
-      resolution = res_i
+      knots = list(x = unname(bx), y = unname(by)),
+      rasters = specs
     )
     bx_prev <- bx
     by_prev <- by
     res_prev <- res_i
   }
 
-  structure(
-    list(
-      levels = level_data,
-      n_levels = n_levels,
-      fact = unname(fact)
-    ),
-    class = c("hb_knots", "list")
-  )
+  structure(level_data, class = c("hb_knots", "list"))
 }
 
 #' Truncated hierarchical B-spline space
@@ -133,10 +121,10 @@ hb_basis <- function(knots, degree = 2L) {
     stop("knots must be an hb_knots object from hb_knots()", call. = FALSE)
   }
 
-  levels <- lapply(knots$levels, function(lev) {
-    open_x <- axis_to_open_knots(lev$breakpoints$x, degree)
-    open_y <- axis_to_open_knots(lev$breakpoints$y, degree)
-    lev$knots <- list(x = open_x, y = open_y)
+  levels <- lapply(unclass(knots), function(lev) {
+    open_x <- axis_to_open_knots(lev$knots$x, degree)
+    open_y <- axis_to_open_knots(lev$knots$y, degree)
+    lev$open_knots <- list(x = open_x, y = open_y)
     lev$n_basis <- c(
       x = n_basis_knots(open_x, degree),
       y = n_basis_knots(open_y, degree)
@@ -148,8 +136,6 @@ hb_basis <- function(knots, degree = 2L) {
     list(
       levels = levels,
       degree = degree,
-      n_levels = knots$n_levels,
-      fact = knots$fact,
       knots = knots
     ),
     class = c("hb_basis", "list")
@@ -186,33 +172,138 @@ hb_summary <- function(hb) {
 
 #' @keywords internal
 #' @noRd
+is_named_extent <- function(x) {
+  is.list(x) && all(c("xmin", "xmax", "ymin", "ymax") %in% names(x))
+}
+
+#' @keywords internal
+#' @noRd
+is_raster_spec <- function(x) {
+  is_named_extent(x) &&
+    "resolution" %in% names(x) &&
+    is.numeric(x$resolution) &&
+    length(x$resolution) %in% c(1L, 2L)
+}
+
+#' @keywords internal
+#' @noRd
 is_extent_like <- function(x) {
   inherits(x, "SpatExtent") ||
     inherits(x, "SpatRaster") ||
     inherits(x, "SpatVector") ||
+    is_named_extent(x) ||
     (is.numeric(x) && length(x) == 4L && is.null(dim(x)))
 }
 
 #' @keywords internal
 #' @noRd
-coerce_extent_region <- function(x) {
-  if (!requireNamespace("terra", quietly = TRUE)) {
-    stop("terra is required for hb_knots()", call. = FALSE)
-  }
-  e <- if (inherits(x, "SpatExtent")) {
-    x
-  } else if (inherits(x, "SpatRaster") || inherits(x, "SpatVector")) {
-    terra::ext(x)
-  } else if (is.numeric(x) && length(x) == 4L) {
-    terra::ext(x[1], x[2], x[3], x[4])
+extent_from_numeric4 <- function(x) {
+  nms <- names(x)
+  if (!is.null(nms) && all(c("xmin", "xmax", "ymin", "ymax") %in% nms)) {
+    list(
+      xmin = unname(x[["xmin"]]),
+      xmax = unname(x[["xmax"]]),
+      ymin = unname(x[["ymin"]]),
+      ymax = unname(x[["ymax"]])
+    )
   } else {
+    list(
+      xmin = unname(x[[1L]]),
+      xmax = unname(x[[2L]]),
+      ymin = unname(x[[3L]]),
+      ymax = unname(x[[4L]])
+    )
+  }
+}
+
+#' @keywords internal
+#' @noRd
+validate_extent_region <- function(reg) {
+  if (!is.finite(reg$xmin) || !is.finite(reg$xmax) ||
+      !is.finite(reg$ymin) || !is.finite(reg$ymax) ||
+      reg$xmax <= reg$xmin || reg$ymax <= reg$ymin) {
     stop(
-      "each inner region must be a SpatExtent, length-4 numeric, ",
-      "SpatRaster, or SpatVector",
+      "each extent must have finite xmin < xmax and ymin < ymax",
       call. = FALSE
     )
   }
-  list(xmin = e$xmin, xmax = e$xmax, ymin = e$ymin, ymax = e$ymax)
+  reg
+}
+
+#' @keywords internal
+#' @noRd
+coerce_extent_region <- function(x) {
+  if (is.numeric(x) && length(x) == 4L && is.null(dim(x))) {
+    return(validate_extent_region(extent_from_numeric4(x)))
+  }
+  if (is_named_extent(x)) {
+    return(validate_extent_region(list(
+      xmin = unname(x$xmin),
+      xmax = unname(x$xmax),
+      ymin = unname(x$ymin),
+      ymax = unname(x$ymax)
+    )))
+  }
+  if (inherits(x, "SpatExtent")) {
+    return(validate_extent_region(list(
+      xmin = x$xmin,
+      xmax = x$xmax,
+      ymin = x$ymin,
+      ymax = x$ymax
+    )))
+  }
+  if (inherits(x, "SpatRaster") || inherits(x, "SpatVector")) {
+    if (!requireNamespace("terra", quietly = TRUE)) {
+      stop(
+        "terra is required to read SpatRaster or SpatVector extents",
+        call. = FALSE
+      )
+    }
+    e <- terra::ext(x)
+    return(validate_extent_region(list(
+      xmin = e$xmin,
+      xmax = e$xmax,
+      ymin = e$ymin,
+      ymax = e$ymax
+    )))
+  }
+  stop(
+    "each inner region must be c(xmin, xmax, ymin, ymax), a SpatExtent, ",
+    "or list(xmin, xmax, ymin, ymax)",
+    call. = FALSE
+  )
+}
+
+#' @keywords internal
+#' @noRd
+coerce_outer_spec <- function(outer) {
+  if (is_raster_spec(outer)) {
+    spec <- raster_spec(
+      list(
+        xmin = outer$xmin,
+        xmax = outer$xmax,
+        ymin = outer$ymin,
+        ymax = outer$ymax
+      ),
+      as.numeric(outer$resolution)
+    )
+    return(validate_raster_spec(spec))
+  }
+  if (inherits(outer, "SpatRaster")) {
+    if (!requireNamespace("terra", quietly = TRUE)) {
+      stop("terra is required when outer is a SpatRaster", call. = FALSE)
+    }
+    e <- terra::ext(outer)
+    spec <- raster_spec(
+      list(xmin = e$xmin, xmax = e$xmax, ymin = e$ymin, ymax = e$ymax),
+      c(terra::xres(outer), terra::yres(outer))
+    )
+    return(validate_raster_spec(spec))
+  }
+  stop(
+    "outer must be list(xmin, xmax, ymin, ymax, resolution) or a SpatRaster",
+    call. = FALSE
+  )
 }
 
 #' @keywords internal
@@ -243,26 +334,78 @@ normalize_inner_levels <- function(inner) {
 
 #' @keywords internal
 #' @noRd
-outer_cell_edges <- function(r) {
-  e <- terra::ext(r)
+raster_spec <- function(reg, resolution) {
+  resolution <- unname(as.numeric(resolution))
+  if (length(resolution) == 1L) {
+    resolution <- c(resolution, resolution)
+  }
+  if (length(resolution) != 2L) {
+    stop("resolution must be a positive numeric scalar or c(dx, dy)", call. = FALSE)
+  }
   list(
-    x = as.numeric(e$xmin) + seq(0, terra::ncol(r)) * terra::xres(r),
-    y = as.numeric(e$ymin) + seq(0, terra::nrow(r)) * terra::yres(r)
+    xmin = unname(reg$xmin),
+    xmax = unname(reg$xmax),
+    ymin = unname(reg$ymin),
+    ymax = unname(reg$ymax),
+    resolution = resolution
   )
 }
 
 #' @keywords internal
 #' @noRd
-region_raster <- function(reg, resolution) {
-  dx <- resolution[1]
-  dy <- if (length(resolution) > 1L) resolution[2] else resolution[1]
-  nc <- max(1L, as.integer(round((reg$xmax - reg$xmin) / dx)))
-  nr <- max(1L, as.integer(round((reg$ymax - reg$ymin) / dy)))
-  terra::rast(
-    terra::ext(reg$xmin, reg$xmax, reg$ymin, reg$ymax),
-    ncols = nc,
-    nrows = nr
+validate_raster_spec <- function(spec) {
+  spec <- raster_spec(spec, spec$resolution)
+  validate_extent_region(spec)
+  if (any(!is.finite(spec$resolution)) || any(spec$resolution <= 0)) {
+    stop("resolution must be a positive numeric scalar or c(dx, dy)", call. = FALSE)
+  }
+  spec
+}
+
+#' @keywords internal
+#' @noRd
+spec_dims <- function(spec) {
+  dx <- spec$resolution[1L]
+  dy <- if (length(spec$resolution) > 1L) spec$resolution[2L] else spec$resolution[1L]
+  list(
+    dx = dx,
+    dy = dy,
+    ncol = max(1L, as.integer(round((spec$xmax - spec$xmin) / dx))),
+    nrow = max(1L, as.integer(round((spec$ymax - spec$ymin) / dy)))
   )
+}
+
+#' @keywords internal
+#' @noRd
+spec_cell_edges <- function(spec) {
+  d <- spec_dims(spec)
+  list(
+    x = spec$xmin + seq(0, d$ncol) * d$dx,
+    y = spec$ymin + seq(0, d$nrow) * d$dy
+  )
+}
+
+#' Unique axis knot lines from a raster spec (extent endpoints + cell centers).
+#' @keywords internal
+#' @noRd
+knots_from_spec <- function(spec) {
+  d <- spec_dims(spec)
+  xs <- spec$xmin + (seq_len(d$ncol) - 0.5) * d$dx
+  ys <- spec$ymin + (seq_len(d$nrow) - 0.5) * d$dy
+  list(
+    x = c(spec$xmin, xs[xs > spec$xmin & xs < spec$xmax], spec$xmax),
+    y = c(spec$ymin, ys[ys > spec$ymin & ys < spec$ymax], spec$ymax)
+  )
+}
+
+#' Level list from hb_knots (the object itself) or hb_basis$levels
+#' @keywords internal
+#' @noRd
+hb_levels <- function(hb) {
+  if (inherits(hb, "hb_basis")) {
+    return(hb$levels)
+  }
+  unclass(hb)
 }
 
 #' Detect the retired list-of-SpatRaster hierarchical form
@@ -297,40 +440,16 @@ stop_legacy_raster_levels <- function() {
 
 #' @keywords internal
 #' @noRd
-raster_extent_list <- function(r) {
-  if (!requireNamespace("terra", quietly = TRUE)) {
-    stop("terra is required for hierarchical SpatRaster knots", call. = FALSE)
-  }
-  ext <- terra::ext(r)
-  list(xmin = ext$xmin, xmax = ext$xmax, ymin = ext$ymin, ymax = ext$ymax)
-}
-
-#' @keywords internal
-#' @noRd
-axis_breakpoints_from_rasters <- function(rasters) {
-  xs <- numeric(0)
-  ys <- numeric(0)
-  for (r in rasters) {
-    kl <- knots_from_spatraster(r, degree = 2L)
-    xs <- c(xs, kl$x)
-    ys <- c(ys, kl$y)
-  }
-  list(x = sort(unique(xs)), y = sort(unique(ys)))
-}
-
-#' @keywords internal
-#' @noRd
-interior_breakpoints_from_rasters <- function(rasters, axis = c("x", "y")) {
+interior_breakpoints_from_specs <- function(specs, axis = c("x", "y")) {
   axis <- match.arg(axis)
   vals <- numeric(0)
-  for (r in rasters) {
-    ext <- terra::ext(r)
-    kl <- knots_from_spatraster(r, degree = 2L)
+  for (spec in specs) {
+    kl <- knots_from_spec(spec)
     lines <- kl[[axis]]
     inside <- if (axis == "x") {
-      lines > ext$xmin & lines < ext$xmax
+      lines > spec$xmin & lines < spec$xmax
     } else {
-      lines > ext$ymin & lines < ext$ymax
+      lines > spec$ymin & lines < spec$ymax
     }
     vals <- c(vals, lines[inside])
   }
@@ -347,7 +466,7 @@ snap_extent_to_breaks <- function(reg, bx, by, tol = 1e-6) {
     hi <- br[br >= v[2] - tol]
     if (!length(lo) || !length(hi)) {
       stop(
-        "inner extent cannot be snapped to outer cell boundaries",
+        "inner extent cannot be snapped to the nested cell grid",
         call. = FALSE
       )
     }
@@ -435,18 +554,36 @@ refine_matrix_1d <- function(knots_coarse, knots_fine, degree) {
   if (n_coarse == n_fine && identical(knots_coarse, knots_fine)) {
     return(Matrix::Diagonal(n = n_fine))
   }
-  grev <- greville_abscissae(knots_coarse, degree)
-  uk <- sort(unique(as.numeric(knots_coarse)))
-  # Exact nested-space refinement via collocation on all coarse breakpoint spans
-  x_eval <- unique(c(
-    grev,
-    uk,
-    seq(uk[1], uk[length(uk)], length.out = max(4L * n_coarse, 20L))
-  ))
+  uk_c <- sort(unique(as.numeric(knots_coarse)))
+  uk_f <- sort(unique(as.numeric(knots_fine)))
+  # Sample every fine span; a coarse-only grid misses locally refined
+  # functions and makes Bfine^T Bfine singular (e.g. fact >= 4).
+  n_per <- degree + 3L
+  n_span <- max(length(uk_f) - 1L, 1L)
+  span_pts <- unlist(lapply(seq_len(n_span), function(s) {
+    a <- uk_f[s]
+    b <- uk_f[s + 1L]
+    if (!is.finite(a) || !is.finite(b) || b <= a) {
+      return(numeric(0))
+    }
+    seq(a, b, length.out = n_per + 2L)[-c(1L, n_per + 2L)]
+  }), use.names = FALSE)
+  x_eval <- sort(unique(c(
+    greville_abscissae(knots_coarse, degree),
+    greville_abscissae(knots_fine, degree),
+    uk_c,
+    uk_f,
+    span_pts
+  )))
   Bfine <- as.matrix(bspline_eval(knots_fine, x_eval, degree, 0L))
   Bcoarse <- as.matrix(bspline_eval(knots_coarse, x_eval, degree, 0L))
-  # Bcoarse = Bfine %*% R  =>  R = solve least squares
-  R <- Matrix::solve(Matrix::crossprod(Bfine), Matrix::crossprod(Bfine, Bcoarse))
+  # Bcoarse = Bfine %*% R; QR avoids squaring the condition number
+  R <- qr.coef(qr(Bfine, LAPACK = TRUE), Bcoarse)
+  if (anyNA(R)) {
+    btB <- crossprod(Bfine)
+    lam <- 1e-12 * max(1, mean(diag(btB)))
+    R <- solve(btB + diag(lam, ncol(Bfine)), crossprod(Bfine, Bcoarse))
+  }
   methods::as(R, "dgCMatrix")
 }
 
@@ -464,18 +601,17 @@ bspline_support_1d <- function(knots, degree, index) {
 #' @noRd
 hb_active_sets <- function(hb, degree) {
   degree <- as.integer(degree)
-  n_levels <- hb$n_levels
-  omega_next <- list(list(xmin = -Inf, xmax = Inf, ymin = -Inf, ymax = Inf))
-  # placeholder; level L uses empty omega_{L+1}
+  levs <- hb_levels(hb)
+  n_levels <- length(levs)
   active <- vector("list", n_levels)
 
   for (lev in seq_len(n_levels)) {
-    kn <- hb$levels[[lev]]$knots
-    nx <- hb$levels[[lev]]$n_basis["x"]
-    ny <- hb$levels[[lev]]$n_basis["y"]
-    omega_l <- hb$levels[[lev]]$omega
+    kn <- levs[[lev]]$open_knots
+    nx <- levs[[lev]]$n_basis["x"]
+    ny <- levs[[lev]]$n_basis["y"]
+    omega_l <- levs[[lev]]$rasters
     omega_lp1 <- if (lev < n_levels) {
-      hb$levels[[lev + 1L]]$omega
+      levs[[lev + 1L]]$rasters
     } else {
       list()
     }
@@ -493,7 +629,6 @@ hb_active_sets <- function(hb, degree) {
           sx["left"], sx["right"], sy["left"], sy["right"], omega_lp1
         )
         if (lev == 1L) {
-          # level 0 uses full domain; active when not contained in level 1 region
           if (!in_lp1 || length(omega_lp1) == 0L) {
             idx <- c(idx, i + (j - 1L) * nx)
             pairs[[length(pairs) + 1L]] <- c(i, j)
@@ -514,17 +649,18 @@ hb_active_sets <- function(hb, degree) {
 #' @noRd
 hb_cumulative_refine_1d <- function(hb, axis = c("x", "y")) {
   axis <- match.arg(axis)
-  n_levels <- hb$n_levels
+  levs <- hb_levels(hb)
+  n_levels <- length(levs)
   degree <- hb$degree
   mats <- vector("list", n_levels - 1L)
   for (lev in seq_len(n_levels - 1L)) {
-    coarse <- hb$levels[[lev]]$knots[[axis]]
-    fine <- hb$levels[[lev + 1L]]$knots[[axis]]
+    coarse <- levs[[lev]]$open_knots[[axis]]
+    fine <- levs[[lev + 1L]]$open_knots[[axis]]
     mats[[lev]] <- refine_matrix_1d(coarse, fine, degree)
   }
   cum <- vector("list", n_levels)
   cum[[n_levels]] <- Matrix::Diagonal(
-    n = hb$levels[[n_levels]]$n_basis[[axis]]
+    n = levs[[n_levels]]$n_basis[[axis]]
   )
   if (n_levels > 1L) {
     for (lev in seq(n_levels - 1L, 1L)) {
@@ -542,9 +678,10 @@ hb_cumulative_refine_1d <- function(hb, axis = c("x", "y")) {
 hb_basis_map <- function(hb, degree, truncate = TRUE) {
   degree <- as.integer(degree)
   active <- hb_active_sets(hb, degree)
-  n_levels <- hb$n_levels
-  nx_f <- hb$levels[[n_levels]]$n_basis["x"]
-  ny_f <- hb$levels[[n_levels]]$n_basis["y"]
+  levs <- hb_levels(hb)
+  n_levels <- length(levs)
+  nx_f <- levs[[n_levels]]$n_basis["x"]
+  ny_f <- levs[[n_levels]]$n_basis["y"]
 
   cum_x <- hb_cumulative_refine_1d(hb, "x")
   cum_y <- hb_cumulative_refine_1d(hb, "y")
@@ -596,12 +733,13 @@ hb_basis_map <- function(hb, degree, truncate = TRUE) {
 #' @noRd
 hb_pairwise_refine_1d <- function(hb, axis = c("x", "y")) {
   axis <- match.arg(axis)
-  n_levels <- hb$n_levels
+  levs <- hb_levels(hb)
+  n_levels <- length(levs)
   degree <- hb$degree
   mats <- vector("list", n_levels - 1L)
   for (lev in seq_len(n_levels - 1L)) {
-    coarse <- hb$levels[[lev]]$knots[[axis]]
-    fine <- hb$levels[[lev + 1L]]$knots[[axis]]
+    coarse <- levs[[lev]]$open_knots[[axis]]
+    fine <- levs[[lev + 1L]]$open_knots[[axis]]
     mats[[lev]] <- refine_matrix_1d(coarse, fine, degree)
   }
   mats
