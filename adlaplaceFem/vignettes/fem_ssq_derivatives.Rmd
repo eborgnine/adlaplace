@@ -1,0 +1,486 @@
+---
+title: "The FEM quadratic form: closed-form derivatives and how they are implemented"
+author: "Patrick Brown"
+date: "`r Sys.Date()`"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+vignette: >
+  %\VignetteIndexEntry{The FEM quadratic form: closed-form derivatives and how they are implemented}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup}
+library(adlaplace)
+library(adlaplaceFem)
+library(Matrix)
+```
+
+# The term
+
+The FEM Matérn prior on the spline weights contributes two terms to the joint
+log-density (see `vignette("fem_joint_density")`): a quadratic form,
+`random_fem_ssq_*`, and a log-determinant, `random_fem_det_*`. This vignette is
+about the first,
+
+$$
+f(\boldsymbol\gamma,\boldsymbol\theta)
+= -\tfrac12\,\boldsymbol\gamma^\top \mathbf{Q}(\boldsymbol\theta)\,\boldsymbol\gamma ,
+$$
+
+where $\boldsymbol\gamma\in\mathbb{R}^n$ holds the spline weights (the random
+effects, one per active basis function) and $\boldsymbol\theta=(\mathrm{range},
+\mathrm{sd})$, optionally on the log scale.
+
+Splitting the Gaussian log-density this way matters because the two halves have
+opposite cost profiles. The quadratic form is arithmetically trivial but
+involves all $n$ weights, so its Hessian is an $n\times n$ sparse block. The
+log-determinant needs a sparse factorization but depends on $\boldsymbol\theta$
+alone, so its Hessian is $2\times2$. `adlaplaceFem` therefore handles them by
+different mechanisms: the determinant is a CppAD atomic operation
+(`src/fem_logdet_atomic.hpp`), while the quadratic form bypasses the tape
+entirely with closed-form derivatives (`src/fem_ssq_analytic.hpp` and
+`src/fem_ssq_shard.hpp`). The last section explains why the split falls that
+way.
+
+# Structure that makes closed forms possible
+
+Two facts about this term do all the work.
+
+**1. $\mathbf{Q}$ is a linear combination of constant matrices.** The
+SPDE precision assembles as
+
+$$
+\mathbf{Q}(\boldsymbol\theta) = \sum_{j=1}^{m} c_j(\boldsymbol\theta)\,\mathbf{M}_j ,
+\qquad
+\mathbf{M} = \begin{cases}
+(\mathbf{C},\mathbf{G},\mathbf{G}_2) & \alpha=2,\ m=3,\\
+(\mathbf{C},\mathbf{G},\mathbf{G}_2,\mathbf{G}_3) & \alpha=3,\ m=4.
+\end{cases}
+$$
+
+The Gram matrices are fixed once the basis is chosen; they carry no
+$\boldsymbol\theta$ dependence at all. Every hyperparameter enters through
+$m = 3$ or $4$ scalars.
+
+**2. $f$ is quadratic in $\boldsymbol\gamma$.** So the $\boldsymbol\gamma$
+Hessian block is constant in $\boldsymbol\gamma$, and third derivatives in
+$\boldsymbol\gamma$ alone vanish.
+
+Together these mean every derivative the Laplace approximation needs is a
+handful of $O(\mathrm{nnz}(\mathbf{Q}))$ passes over arrays that are already in
+memory.
+
+# The coefficient map
+
+With $\nu = \alpha - 1$ in two dimensions, the public $(\mathrm{range},
+\mathrm{sd})$ pair converts to the SPDE parameters as
+
+$$
+\kappa = \frac{\sqrt{8\nu}}{\mathrm{range}},
+\qquad
+\tau = \begin{cases}
+\bigl(\kappa\,\sigma\sqrt{4\pi}\bigr)^{-1} & \alpha=2,\\[2pt]
+\bigl(\kappa^2\sigma\sqrt{8\pi}\bigr)^{-1} & \alpha=3,
+\end{cases}
+\qquad \sigma = \mathrm{sd},
+$$
+
+so that `sd` is the marginal standard deviation of the field
+(`vignette("fem_matern_methods")` derives this). The coefficients are then
+
+| $\alpha$ | $\mathbf{Q}$ | $\mathbf{c}(\boldsymbol\theta)$ |
+|---|---|---|
+| 2 | $\tau^2(\kappa^4\mathbf{C} + 2\kappa^2\mathbf{G} + \mathbf{G}_2)$ | $\tau^2(\kappa^4,\ 2\kappa^2,\ 1)$ |
+| 3 | $\tau^2(\kappa^6\mathbf{C} + 3\kappa^4\mathbf{G} + 3\kappa^2\mathbf{G}_2 + \mathbf{G}_3)$ | $\tau^2(\kappa^6,\ 3\kappa^4,\ 3\kappa^2,\ 1)$ |
+
+There is exactly one definition of this map in the package,
+`fem_Q_coefficients<Alpha>()` in `src/ad_pack_random_fem.cpp`, and three
+consumers go through it: the AD quadratic form, the log-determinant atomic, and
+the analytic shard's coefficient tape. Keeping it single-sourced is deliberate —
+the three would otherwise drift apart silently, and a mismatch between the
+determinant's $\mathbf{Q}$ and the quadratic form's $\mathbf{Q}$ produces a
+plausible-looking but wrong likelihood.
+
+# The derivatives
+
+Write $q_j = \boldsymbol\gamma^\top\mathbf{M}_j\boldsymbol\gamma$, so that
+$f = -\tfrac12\sum_j c_j q_j$. Everything follows by the product rule, since the
+$\mathbf{M}_j$ are constant.
+
+| Block | Closed form |
+|---|---|
+| $\partial f/\partial\boldsymbol\gamma$ | $-\mathbf{Q}\boldsymbol\gamma$ |
+| $\partial f/\partial\theta_k$ | $-\tfrac12\sum_j \dfrac{\partial c_j}{\partial\theta_k}\,q_j$ |
+| $\partial^2 f/\partial\boldsymbol\gamma\,\partial\boldsymbol\gamma^\top$ | $-\mathbf{Q}$ |
+| $\partial^2 f/\partial\boldsymbol\gamma\,\partial\theta_k$ | $-\bigl(\partial\mathbf{Q}/\partial\theta_k\bigr)\boldsymbol\gamma$ |
+| $\partial^2 f/\partial\theta_k\,\partial\theta_l$ | $-\tfrac12\sum_j \dfrac{\partial^2 c_j}{\partial\theta_k\partial\theta_l}\,q_j$ |
+
+with $\partial\mathbf{Q}/\partial\theta_k = \sum_j (\partial c_j/\partial\theta_k)\mathbf{M}_j$,
+another linear combination over the same sparsity pattern.
+
+The third row is the one that pays for the whole design. The
+$\boldsymbol\gamma$-$\boldsymbol\gamma$ Hessian block **is the precision matrix
+itself**, up to sign, and it does not depend on $\boldsymbol\gamma$. Once
+$\mathbf{Q}$ has been assembled for the current $\boldsymbol\theta$ — which the
+value and gradient already require — the Hessian block needs no further
+arithmetic, just a copy with a sign flip. Note also that only $q_j$ couples to
+$\boldsymbol\gamma$ in the two $\boldsymbol\theta$ rows, so the $m$ scalars
+$q_j$ are the only $\boldsymbol\gamma$-dependent quantities needed there.
+
+# The third-order term
+
+The Laplace approximation's derivative needs more than the Hessian. Correcting
+$\tfrac12\log\det\mathbf{H}$ for the movement of the inner mode requires
+$\operatorname{tr}(\mathbf{H}^{-1}\partial\mathbf{H}/\partial\theta_k)$, which
+`adlaplace` obtains through the `trace_hinv_t` shard method: for each column
+$\mathbf{v}$ of a factor of $\mathbf{H}^{-1}$, accumulate the third derivative
+of the log-density contracted twice with $\mathbf{v}$.
+
+It is tempting to say the third derivative of a quadratic form is zero, but that
+is only true of the $\boldsymbol\gamma\boldsymbol\gamma\boldsymbol\gamma$ block.
+The mixed block is not zero, and it is the entire answer:
+
+$$
+\frac{\partial^3 f}{\partial\theta_k\,\partial\boldsymbol\gamma\,\partial\boldsymbol\gamma^\top}
+= -\frac{\partial\mathbf{Q}}{\partial\theta_k}.
+$$
+
+The directions `adlaplace` supplies are scattered into $\boldsymbol\gamma$ slots
+only, so $\mathbf{v}_{\boldsymbol\theta}=\mathbf{0}$. The order-2 Taylor
+coefficient of $f$ along such a direction is
+$-\tfrac12\mathbf{v}^\top\mathbf{Q}(\boldsymbol\theta)\mathbf{v}$, whose
+gradient is identically zero on every $\boldsymbol\gamma$ coordinate, leaving
+two numbers per column:
+
+$$
+\text{trace contribution to }\theta_k
+= -\tfrac12\,\mathbf{v}^\top\frac{\partial\mathbf{Q}}{\partial\theta_k}\mathbf{v}.
+$$
+
+Only first derivatives of the coefficient map are needed for this, and the
+result is exactly zero on all $n$ gamma coordinates — a strong invariant, and
+one the tests assert directly.
+
+Because $\mathbf{v}$ is sparse, `trace_hinv_t` in the shard stamps
+$\operatorname{supp}(\mathbf{v})$ and visits only the pattern entries whose row
+and column are both stamped, so the per-column cost is
+$O(\sum_{c\,\in\,\mathrm{supp}}\mathrm{nnz}(\mathbf{Q}_{\cdot c}))$ rather than
+$O(n)$. Every upper-triangle pair $(r,c)$ with $r \le c$ lives in CSC column
+$c$, so iterating stamped columns and testing row stamps visits each pair
+exactly once.
+
+# What this replaces
+
+Taping the quadratic form puts one multiply-add chain on the AD tape per nonzero
+of $\mathbf{Q}$, and three consumers then sweep it.
+
+| Quantity | AD tape path | Closed form |
+|---|---|---|
+| Value | `Forward(0)` | one fused pass for all $q_j$ |
+| Gradient | `Forward(0)` + `Reverse(1)` | one extra sparse matvec |
+| Hessian | `Forward(1)`/`Reverse(2)` **per color**; the color count is the distance-2 chromatic number of $\mathbf{Q}$'s graph, in the hundreds for this stencil | copy $\mathbf{Q}$ values, $O(\mathrm{nnz})$ |
+| Trace | `Forward(0,1,2)` + `Reverse(3)` **per assigned gamma column**, and every gamma column is assigned to this shard | $O(\lvert\mathrm{supp}\rvert)$ per column, two scalars out |
+| Build | record the tape, then four calibration sweeps including the symmetric Hessian coloring | patterns constructed directly, no tape |
+
+The trace row is likely the largest single per-iteration cost in a taped fit,
+ahead of even the Hessian coloring. The build row accounts for most of the long
+pause with no output before `optim()` starts on a large mesh.
+
+Two points are worth separating, because they explain why this is a shard rather
+than a CppAD atomic. First, the Hessian and trace losses happen in CppAD's
+*drivers* — `sparse_hes` recovers Hessian values by probing with directional
+derivatives, and `EvalShard::trace_hinv_t` clears and fills a dense direction
+vector of length $n$ once per column. An atomic sits underneath both and cannot
+remove either, because `atomic_four` exposes forward and reverse products but no
+hook for handing over sparse Hessian values. Second, an atomic for this term
+would have domain $n+2$, so every call marshals dense vectors of that length.
+Replacing the shard is the level at which both costs disappear.
+
+# Storage and the three primitives
+
+All $m$ Gram matrices share one sparsity pattern — the upper triangle of
+$\mathbf{Q}$ in CSC form, from `fem_precision_payload()`. `femssq::Data` holds
+that pattern once (`Q_p`, `Q_i`) plus $m$ aligned value vectors in `M`, along
+with per-entry symmetry weights `w` (1 on the diagonal, 2 off it) so that a
+single pass over the stored upper triangle yields a full symmetric quadratic
+form.
+
+Three primitives in `fem_ssq_analytic.hpp` do all the linear algebra:
+
+| Primitive | Computes | Used for |
+|---|---|---|
+| `combine(d, coef, out)` | `out[k]` $=\sum_j$ `coef[j] * M[j][k]` | assembling $\mathbf{Q}$ and each $\partial\mathbf{Q}/\partial\theta_k$ |
+| `sym_matvec(d, A, x, y)` | $\mathbf{y}=\mathbf{A}\mathbf{x}$ for symmetric $\mathbf{A}$ in upper-triangle CSC | $-\mathbf{Q}\boldsymbol\gamma$ and the cross Hessian blocks |
+| `sym_quad_all(d, x, out)` | `out[j]` $=\mathbf{x}^\top\mathbf{M}_j\mathbf{x}$ for all $j$ | the $m$ scalars $q_j$, in one pass |
+
+`sym_quad_all` is fused over $j$ on purpose: the pattern traversal and the
+$w_k x_r x_c$ product are shared across all $m$ Grams, so computing all $m$
+quadratic forms costs barely more than computing one.
+
+`sym_matvec` accumulates the mirrored contribution separately from the direct
+one, so a diagonal entry is not counted twice.
+
+# Per-evaluation state
+
+`femssq::Workspace` holds everything that changes with the parameters:
+coefficient values and derivatives (`c`, `dc`, `d2c`), the combined value
+vectors (`Q_x`, `dQ_x[k]`), and the derived vectors (`gamma`, `Qg`, `dQg[k]`,
+`quad`). `update_theta()` takes an `order` argument so each entry point pays
+only for what it needs — order 0 for the value, 1 to add $\partial
+c/\partial\theta$ and $\partial\mathbf{Q}/\partial\theta_k$, 2 to add
+$\partial^2 c/\partial\theta^2$.
+
+The `trace_hinv_t` scratch deserves a note. Instead of clearing an
+$n$-vector per column, the workspace keeps `v_dense` alongside a `stamp` array
+and an integer `stamp_tag`; a row counts only when its stamp matches the current
+tag, so stale values are never read and nothing needs zeroing.
+
+# Where AD survives
+
+One piece is still automatic differentiation, and correctly so. The map
+$\boldsymbol\theta\mapsto\mathbf{c}$ is recorded as a `CppAD::ADFun<double>`
+with domain 2 and range $m$ (`make_fem_coef_fun<Alpha>()`), and `update_theta`
+calls `Forward`, `Jacobian`, and $m$ tiny `Hessian` calls on it. This avoids
+hand-differentiating the $(\mathrm{range},\mathrm{sd}) \to (\kappa,\tau)$
+composition together with the optional log transform — four cases, all easy to
+get subtly wrong — and it costs nothing next to the $O(m\cdot\mathrm{nnz})$
+combine passes.
+
+This is the same principle that makes the log-determinant a good atomic: AD is
+cheap and reliable on a two-dimensional domain. It is expensive on an
+$n$-dimensional one. The design applies AD exactly where the domain is small.
+
+Because CppAD sweeps are not thread safe, each shard clone takes its own copy of
+this tape in `Workspace::init`, so threads never share one.
+
+# Wiring into adlaplace
+
+`ad_shard` is a virtual interface, and `adlaplaceFem` already owns the shard
+factory through `ADLAPLACE_DEFINE_BACKEND()`. `FemSsqShard` derives from
+`ad_shard` and overrides the evaluation methods; the whole change is contained
+in `adlaplaceFem`, with no ABI bump.
+
+| Method | Behaviour |
+|---|---|
+| `f` | $q_j$ pass, then $-\tfrac12\sum_j c_j q_j$ |
+| `f_grad` | adds one `sym_matvec` for $-\mathbf{Q}\boldsymbol\gamma$ |
+| `f_grad_hess` | adds `sym_matvec` per $\theta_k$, then fills Hessian nonzeros from slot maps |
+| `trace_hinv_t` | stamped support loop, two scalars scattered to the theta slots |
+| `get_sizes`, `get_sparse_pattern` | delegate to the free helpers `pack_sparsity_sizes` / `get_pattern` |
+| `assign_memory` | nothing to do: no sweeps means no Taylor workspace |
+| `clone` | copies the `shared_ptr` to the immutable data |
+
+The bookkeeping that connects closed-form values to the pack's sparsity
+patterns is the one genuinely fiddly part. At construction the shard classifies
+every nonzero of the four patterns it was handed:
+
+- `GradSlots` marks each gradient nonzero as a gamma row, a theta index, or
+  ignorable.
+- `HesSlots` marks each Hessian nonzero as `kGammaGamma` (carrying a position
+  into `Q_i`), `kGammaTheta` (a gamma row and a theta index), `kThetaTheta`, or
+  `kIgnore`.
+
+These are built by reading `pack.pattern_grad`, `pattern_grad_inner`,
+`pattern_hessian`, and `pattern_hessian_inner` directly, so the nonzero ordering
+is correct by construction rather than by assuming how the analytic pattern
+happened to be enumerated.
+
+Two conventions must match `EvalShard` exactly, and they differ from each other:
+
+- `out_f` and `out_grad` are **accumulated** with `+=`, since several shards
+  contribute to the same slots.
+- `out_hes[map[D]]` is **assigned** with `=`. Structurally present entries whose
+  analytic value is zero must therefore be written as explicit zeros rather than
+  skipped, which is what the `kIgnore` branch does.
+
+# Three modes
+
+Because the closed forms are worth trusting only if they are checked, the
+density keeps the AD path available through two config flags.
+
+| `fem_analytic` | `fem_tape` | Behaviour |
+|---|---|---|
+| `TRUE` | `FALSE` | Default. Closed-form evaluation, tape never recorded, no build-time coloring. |
+| `TRUE` | `TRUE` | Closed-form evaluation over a recorded and calibrated tape. Lets tests compare hand-built patterns against `for_jac_sparsity`, and A/B the build cost. |
+| `FALSE` | (forced `TRUE`) | The AD `EvalShard` path, used as the reference oracle for values. |
+
+In the default mode `get_tape_sizes()` reports `domain`, `size_op`, and
+`size_var` as zero. That is a diagnostic only; nothing downstream consumes it,
+and the zeros do not indicate a broken pack.
+
+# Verification
+
+A small model, built three ways from the same FEM ingredients.
+
+```{r pack}
+ssq_pack <- function(alpha = 2L, analytic = TRUE, tape = !analytic,
+                     range = sqrt(8) / 1.5, sd = 0.8, nk = 4L) {
+  degree <- if (alpha == 2L) 2L else 3L
+  knots_list <- list(
+    x = seq(0, 1, length.out = nk),
+    y = seq(0, 1, length.out = nk)
+  )
+  sites <- do.call(expand.grid, knots_list)
+  fem <- fem_bspline(sites, knots_list, degree = degree)
+  prec <- fem_precision_payload(fem, alpha = alpha)
+  nr <- nrow(fem$C)
+
+  config <- list(
+    gamma = rep(0, nr),
+    theta = c(log(range), log(sd)),
+    transform_theta = TRUE,
+    fem_analytic = analytic,
+    fem_tape = tape
+  )
+  dd <- adlaplace::density_data(
+    gamma_map = Matrix::Diagonal(nr),
+    theta_map = list(c(1L, 2L), 2L),
+    ad_kind = "random",
+    density = paste0("random_fem_ssq_", alpha),
+    package = "adlaplaceFem",
+    precision = prec
+  )
+  list(
+    ptr = adlaplace::ad_pack_ptr(dd, config),
+    fem = fem,
+    n_gamma = nr,
+    theta = c(log(range), log(sd))
+  )
+}
+
+notape <- ssq_pack(analytic = TRUE, tape = FALSE)
+taped <- ssq_pack(analytic = TRUE, tape = TRUE)
+ad <- ssq_pack(analytic = FALSE)
+
+c(n_gamma = notape$n_gamma)
+```
+
+The default mode records no tape, while the patterns are identical to the ones
+the tape would have discovered:
+
+```{r tape-sizes}
+rbind(
+  notape = unlist(adlaplace:::get_tape_sizes(notape$ptr, 0L)),
+  taped = unlist(adlaplace:::get_tape_sizes(taped$ptr, 0L))
+)
+```
+
+`domain` and `size_op` collapse to zero, but `nnz_grad` and `nnz_hes` agree.
+
+All three modes agree on the value, gradient, and Hessian:
+
+```{r agree}
+set.seed(3)
+x <- c(rnorm(notape$n_gamma), notape$theta)
+
+f_of <- function(p) adlaplace::joint_log_dens(p$ptr, x, negative = FALSE)
+g_of <- function(p, inner) {
+  as.numeric(adlaplace::grad(p$ptr, x, inner = inner, negative = FALSE))
+}
+H_of <- function(p, inner) {
+  as.matrix(adlaplace::hessian(p$ptr, x, inner = inner, negative = FALSE))
+}
+
+data.frame(
+  quantity = c("log density", "gradient (outer)", "Hessian (outer)"),
+  notape_vs_AD = c(
+    abs(f_of(notape) - f_of(ad)),
+    max(abs(g_of(notape, FALSE) - g_of(ad, FALSE))),
+    max(abs(H_of(notape, FALSE) - H_of(ad, FALSE)))
+  ),
+  taped_vs_AD = c(
+    abs(f_of(taped) - f_of(ad)),
+    max(abs(g_of(taped, FALSE) - g_of(ad, FALSE))),
+    max(abs(H_of(taped, FALSE) - H_of(ad, FALSE)))
+  )
+)
+```
+
+The sharpest single check is the identity
+$\partial^2 f/\partial\boldsymbol\gamma\partial\boldsymbol\gamma^\top = -\mathbf{Q}$.
+Assembling $\mathbf{Q}$ independently in R from $\kappa$ and $\tau$ must
+reproduce the gamma block of the inner Hessian exactly, at any
+$\boldsymbol\gamma$:
+
+```{r minus-Q}
+kappa <- 1.5
+sd <- 0.8
+tau <- 1 / (kappa * sd * sqrt(4 * pi))
+nr <- notape$n_gamma
+
+H_inner <- H_of(notape, TRUE)
+Q <- as.matrix(fem_precision(
+  kappa = kappa, tau = tau,
+  notape$fem$C, notape$fem$G, notape$fem$G2,
+  alpha = 2L
+))
+
+c(max_abs_diff = max(abs(H_inner[seq_len(nr), seq_len(nr)] + Q)))
+```
+
+Finally the third-order trace. All modes agree, and the analytic result is
+exactly zero on every gamma coordinate:
+
+```{r trace}
+af_notape <- adlaplace::ad_pack(notape$ptr, num_threads = 1L)
+af_ad <- adlaplace::ad_pack(ad$ptr, num_threads = 1L)
+
+half <- af_notape@chol_inner_list$half_H_inv
+half <- methods::as(methods::as(half, "generalMatrix"), "CsparseMatrix")
+set.seed(5)
+half@x[] <- rnorm(length(half@x))
+cols <- af_notape@chol_inner_list$trace_columns
+
+t_notape <- adlaplace::trace_hinv_t(af_notape, x, half, cols)
+t_ad <- adlaplace::trace_hinv_t(af_ad, x, half, cols)
+
+c(
+  rel_diff_vs_AD = max(abs(t_notape - t_ad)) / max(abs(t_ad)),
+  max_abs_on_gamma = max(abs(t_notape[seq_len(nr)])),
+  theta_1 = t_notape[nr + 1L],
+  theta_2 = t_notape[nr + 2L]
+)
+```
+
+The two theta entries are the whole contribution; the gamma entries are
+structurally zero rather than numerically small.
+
+`tests/testthat/test-fem-ssq-analytic.R` runs these comparisons across
+$\alpha \in \{2,3\}$ crossed with `transform_theta`, adds the pattern-equality
+assertion between the hand-built and tape-discovered patterns, and exercises a
+clone under OpenMP.
+
+# Why the log-determinant is an atomic instead
+
+The two FEM terms illustrate the two available extension points, and the choice
+between them turns on the size of the domain.
+
+| | `random_fem_det_*` | `random_fem_ssq_*` |
+|---|---|---|
+| Mechanism | `CppAD::atomic_four` | custom `ad_shard` |
+| Domain of the hand-written code | $m = 3$ or $4$ coefficients | $n+2$ parameters |
+| Derivative route | trace identity $\mathrm{d}\log\det\mathbf{Q} = \operatorname{tr}(\mathbf{Q}^{-1}\mathrm{d}\mathbf{Q})$, evaluated with a sparse LDL and a Takahashi selected inverse | direct differentiation of a quadratic form |
+| Highest order implemented | reverse order 1 | closed form throughout |
+| Sits on a tape | yes | no |
+
+The determinant is a natural atomic because the coefficients are the only
+inputs: it is called with a 3- or 4-vector, CppAD's sparsity and coloring
+machinery sees a $2\times2$ Hessian, and the atomic can decline orders above 1
+outright — which it does. It gets away with that because `trace_columns_from_pattern`
+assigns trace columns by matching a shard's `grad_inner` against the gamma
+slots, and the determinant depends on $\boldsymbol\theta$ only, so it is never
+assigned any.
+
+The quadratic form is the opposite case on every axis. It is the term that gets
+assigned every gamma column, its Hessian block is an $n\times n$ sparse matrix
+that CppAD would rediscover by coloring, and an atomic wrapping it would have to
+marshal dense $(n+2)$-vectors on every call. Its expensive structure lives at
+the level the shard controls, not inside a tape, so the shard is the right
+extension point.
+
+One structural precondition makes this possible: `random_fem_ssq_*` is alone in
+its pack, so the shard can own the entire term. A shard replaces a whole tape,
+so if this term ever had to share a tape with others, an atomic would become the
+only option.
