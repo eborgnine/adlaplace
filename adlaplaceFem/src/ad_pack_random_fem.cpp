@@ -470,7 +470,146 @@ LogDensSingleDataFn resolve_fem_det(const std::string &name) {
   Rcpp::stop("unknown parameters density: %s", name.c_str());
 }
 
+// Numeric LDL log-determinant of Q(range, sd) for debugging. Returns the
+// same path the random_fem_det_* atomic uses, plus the D pivots.
+template <int Alpha>
+Rcpp::List fem_logdet_debug_impl(const FemCholPayload &pay, double range,
+                                 double sd, bool range_is_log,
+                                 bool sd_is_log) {
+  if (pay.alpha != Alpha) {
+    Rcpp::stop("precision alpha (%d) does not match requested alpha (%d)",
+               pay.alpha, Alpha);
+  }
+  FemThetaSpec spec;
+  spec.t0_tape = 0;
+  spec.t1_tape = 1;
+  spec.range_is_log = range_is_log;
+  spec.sd_is_log = sd_is_log;
+
+  CppAD::vector<CppAD::AD<double>> ax(2);
+  ax[0] = range;
+  ax[1] = sd;
+  CppAD::Independent(ax);
+  CppAD::vector<CppAD::AD<double>> ay;
+  fem_Q_coefficients<Alpha>(ax[0], ax[1], spec.range_is_log, spec.sd_is_log,
+                            ay);
+  CppAD::ADFun<double> coef_fun(ax, ay);
+
+  CPPAD_TESTVECTOR(double) tv(2);
+  tv[0] = range;
+  tv[1] = sd;
+  const CPPAD_TESTVECTOR(double) cv = coef_fun.Forward(0, tv);
+  const std::size_t m = cv.size();
+  Rcpp::NumericVector coef(m);
+  for (std::size_t j = 0; j < m; ++j) {
+    coef[j] = cv[j];
+  }
+
+  const std::size_t nnz = pay.Q_i.size();
+  const std::size_t n = pay.Q_p.size() - 1;
+  std::vector<double> Q_x(nnz, 0.0);
+  for (std::size_t k = 0; k < nnz; ++k) {
+    double v = coef[0] * pay.C_x[k] + coef[1] * pay.G_x[k] +
+               coef[2] * pay.G2_x[k];
+    if constexpr (Alpha == 3) {
+      v += coef[3] * pay.G3_x[k];
+    }
+    Q_x[k] = v;
+  }
+
+  std::vector<double> L_x(pay.L1_i.size(), 0.0);
+  std::vector<double> D(n, 0.0);
+  const double log_det = adlaplace::chol::chol_update_csc(
+      pay.Q_p, pay.Q_i, Q_x, pay.perm, pay.L1_p, pay.L1_i, L_x, D);
+
+  int n_bad = 0;
+  int first_bad = NA_INTEGER;
+  for (std::size_t j = 0; j < n; ++j) {
+    if (D[j] <= 0.0 || !std::isfinite(D[j])) {
+      if (n_bad == 0) {
+        first_bad = static_cast<int>(j);
+      }
+      ++n_bad;
+    }
+  }
+
+  return Rcpp::List::create(
+      Rcpp::Named("logdet") = log_det, Rcpp::Named("coef") = coef,
+      Rcpp::Named("D") = Rcpp::NumericVector(D.begin(), D.end()),
+      Rcpp::Named("first_bad") = first_bad, Rcpp::Named("n_bad") = n_bad,
+      Rcpp::Named("n") = static_cast<int>(n), Rcpp::Named("alpha") = Alpha);
+}
+
+FemCholPayload read_fem_payload_list(Rcpp::List prec) {
+  for (const char *key :
+       {"Q_p", "Q_i", "C_x", "G_x", "G2_x", "chol", "alpha"}) {
+    if (!prec.containsElementNamed(key)) {
+      Rcpp::stop("fem_logdet_debug: precision missing '%s'", key);
+    }
+  }
+  FemCholPayload out;
+  out.alpha = Rcpp::as<int>(prec["alpha"]);
+  out.Q_p = Rcpp::as<std::vector<int>>(prec["Q_p"]);
+  out.Q_i = Rcpp::as<std::vector<int>>(prec["Q_i"]);
+  out.C_x = Rcpp::as<std::vector<double>>(prec["C_x"]);
+  out.G_x = Rcpp::as<std::vector<double>>(prec["G_x"]);
+  out.G2_x = Rcpp::as<std::vector<double>>(prec["G2_x"]);
+  out.G3_x = prec.containsElementNamed("G3_x")
+                 ? Rcpp::as<std::vector<double>>(prec["G3_x"])
+                 : std::vector<double>(out.Q_i.size(), 0.0);
+  Rcpp::List chol = prec["chol"];
+  if (!chol.containsElementNamed("perm") || !chol.containsElementNamed("L1")) {
+    Rcpp::stop("fem_logdet_debug: chol must contain perm and L1");
+  }
+  out.perm = Rcpp::as<std::vector<int>>(chol["perm"]);
+  Rcpp::S4 L1 = chol["L1"];
+  Rcpp::IntegerVector Lp = L1.slot("p");
+  Rcpp::IntegerVector Li = L1.slot("i");
+  out.L1_p.assign(Lp.begin(), Lp.end());
+  out.L1_i.assign(Li.begin(), Li.end());
+  return out;
+}
+
 } // namespace
+
+//' Sparse LDL log-determinant of a FEM precision at given (range, sd)
+//'
+//' Exercises the same \code{chol_update_csc} path used by
+//' \code{random_fem_det_*}. Useful for diagnosing non-finite joint densities.
+//'
+//' @param precision List from \code{\link{fem_precision_payload}}.
+//' @param range,sd Practical range and field SD (natural or log scale).
+//' @param log_scale Logical length-1 or length-2: whether \code{range}/\code{sd}
+//'   are already on the log scale. Default \code{FALSE} (\code{NULL}).
+//' @return List with \code{logdet}, \code{coef}, \code{D}, \code{first_bad},
+//'   \code{n_bad}, \code{n}, \code{alpha}.
+//' @export
+// [[Rcpp::export]]
+Rcpp::List fem_logdet_debug(
+    Rcpp::List precision, double range, double sd,
+    Rcpp::Nullable<Rcpp::LogicalVector> log_scale = R_NilValue) {
+  const FemCholPayload pay = read_fem_payload_list(precision);
+  bool range_is_log = false;
+  bool sd_is_log = false;
+  if (log_scale.isNotNull()) {
+    Rcpp::LogicalVector ls(log_scale);
+    if (ls.size() >= 1) {
+      range_is_log = ls[0];
+    }
+    if (ls.size() >= 2) {
+      sd_is_log = ls[1];
+    } else if (ls.size() == 1) {
+      sd_is_log = ls[0];
+    }
+  }
+  if (pay.alpha == 2) {
+    return fem_logdet_debug_impl<2>(pay, range, sd, range_is_log, sd_is_log);
+  }
+  if (pay.alpha == 3) {
+    return fem_logdet_debug_impl<3>(pay, range, sd, range_is_log, sd_is_log);
+  }
+  Rcpp::stop("fem_logdet_debug: alpha must be 2 or 3, got %d", pay.alpha);
+}
 
 //' Build raw AD handle for a random_fem_ssq_2 term
 //'

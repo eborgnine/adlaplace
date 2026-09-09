@@ -11,6 +11,20 @@ Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
 Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
+// fem_logdet_debug
+Rcpp::List fem_logdet_debug(Rcpp::List precision, double range, double sd, Rcpp::Nullable<Rcpp::LogicalVector> log_scale);
+RcppExport SEXP _adlaplaceFem_fem_logdet_debug(SEXP precisionSEXP, SEXP rangeSEXP, SEXP sdSEXP, SEXP log_scaleSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::List >::type precision(precisionSEXP);
+    Rcpp::traits::input_parameter< double >::type range(rangeSEXP);
+    Rcpp::traits::input_parameter< double >::type sd(sdSEXP);
+    Rcpp::traits::input_parameter< Rcpp::Nullable<Rcpp::LogicalVector> >::type log_scale(log_scaleSEXP);
+    rcpp_result_gen = Rcpp::wrap(fem_logdet_debug(precision, range, sd, log_scale));
+    return rcpp_result_gen;
+END_RCPP
+}
 // create_ad_shard_random_fem_ssq_2
 SEXP create_ad_shard_random_fem_ssq_2(SEXP model, Rcpp::List config);
 RcppExport SEXP _adlaplaceFem_create_ad_shard_random_fem_ssq_2(SEXP modelSEXP, SEXP configSEXP) {
@@ -50,6 +64,7 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
+    {"_adlaplaceFem_fem_logdet_debug", (DL_FUNC) &_adlaplaceFem_fem_logdet_debug, 4},
     {"_adlaplaceFem_create_ad_shard_random_fem_ssq_2", (DL_FUNC) &_adlaplaceFem_create_ad_shard_random_fem_ssq_2, 2},
     {"_adlaplaceFem_create_ad_shard_random_fem_ssq_3", (DL_FUNC) &_adlaplaceFem_create_ad_shard_random_fem_ssq_3, 2},
     {"_adlaplaceFem_get_ad_pack_raw_parameters", (DL_FUNC) &_adlaplaceFem_get_ad_pack_raw_parameters, 3},

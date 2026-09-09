@@ -3,6 +3,7 @@
 export(fem_Q_structure)
 export(fem_bspline)
 export(fem_chol_pattern)
+export(fem_logdet_debug)
 export(fem_precision)
 export(fem_precision_payload)
 export(hb_basis)

@@ -81,10 +81,20 @@ hb_knots <- function(outer, inner = NULL, fact = 2L) {
       clipped
     })
     specs <- lapply(boxes, function(reg) raster_spec(reg, res_i))
-    new_x <- interior_breakpoints_from_specs(specs, axis = "x")
-    new_y <- interior_breakpoints_from_specs(specs, axis = "y")
-    bx <- sort(unique(c(bx_prev, new_x)))
-    by <- sort(unique(c(by_prev, new_y)))
+    # Half-resolution lattice: endpoints and cell centres are integer /
+    # half-integer multiples of res_i. Quantize *new* sibling lines onto that
+    # lattice so overlapping boxes agree bitwise, then tolerance-dedup the
+    # union with inherited lines (do not re-quantize bx_prev / by_prev).
+    step <- min(res_i) / 2
+    tol <- 1e-6 * min(res_i)
+    new_x <- interior_breakpoints_from_specs(
+      specs, axis = "x", origin = outer_box$xmin, step = step, tol = tol
+    )
+    new_y <- interior_breakpoints_from_specs(
+      specs, axis = "y", origin = outer_box$ymin, step = step, tol = tol
+    )
+    bx <- dedup_breaks(c(bx_prev, new_x), tol)
+    by <- dedup_breaks(c(by_prev, new_y), tol)
     level_data[[i + 1L]] <- list(
       knots = list(x = unname(bx), y = unname(by)),
       rasters = specs
@@ -131,6 +141,31 @@ hb_basis <- function(knots, degree = 2L) {
     )
     lev
   })
+
+  # Near-zero spans blow up G2 (~h^-2) and G3 (~h^-4) and make Q indefinite.
+  for (lev in seq_along(levels)) {
+    res <- levels[[lev]]$rasters[[1L]]$resolution
+    min_res <- min(as.numeric(res))
+    thr <- 1e-4 * min_res
+    for (axis in c("x", "y")) {
+      bp <- levels[[lev]]$knots[[axis]]
+      if (length(bp) < 2L) {
+        next
+      }
+      spans <- diff(bp)
+      bad <- which(spans < thr)
+      if (length(bad)) {
+        stop(
+          "hb_basis: degenerate knot span at level ", lev - 1L,
+          " axis ", axis, ": min(diff) = ", format(min(spans)),
+          " (threshold ", format(thr),
+          "). Near-duplicate knot lines from overlapping refinements ",
+          "must be collapsed in hb_knots().",
+          call. = FALSE
+        )
+      }
+    }
+  }
 
   hb <- structure(
     list(
@@ -438,9 +473,35 @@ stop_legacy_raster_levels <- function() {
   )
 }
 
+#' Collapse near-duplicate breakpoints that differ only by floating-point noise.
 #' @keywords internal
 #' @noRd
-interior_breakpoints_from_specs <- function(specs, axis = c("x", "y")) {
+dedup_breaks <- function(v, tol) {
+  v <- sort(unique(as.numeric(v)))
+  if (length(v) < 2L) {
+    return(v)
+  }
+  v[c(TRUE, diff(v) > tol)]
+}
+
+#' Snap breakpoints onto origin + k * step so sibling boxes agree bitwise.
+#' @keywords internal
+#' @noRd
+quantize_breaks <- function(v, origin, step) {
+  v <- as.numeric(v)
+  if (!length(v) || !is.finite(step) || step <= 0) {
+    return(v)
+  }
+  origin + round((v - origin) / step) * step
+}
+
+#' @keywords internal
+#' @noRd
+interior_breakpoints_from_specs <- function(specs,
+                                            axis = c("x", "y"),
+                                            origin = 0,
+                                            step = NULL,
+                                            tol = NULL) {
   axis <- match.arg(axis)
   vals <- numeric(0)
   for (spec in specs) {
@@ -453,7 +514,14 @@ interior_breakpoints_from_specs <- function(specs, axis = c("x", "y")) {
     }
     vals <- c(vals, lines[inside])
   }
-  sort(unique(vals))
+  if (!is.null(step) && is.finite(step) && step > 0) {
+    vals <- quantize_breaks(vals, origin, step)
+  }
+  if (is.null(tol)) {
+    sort(unique(vals))
+  } else {
+    dedup_breaks(vals, tol)
+  }
 }
 
 #' @keywords internal

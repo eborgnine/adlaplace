@@ -93,6 +93,27 @@ fem_precision_payload <- function(fem, alpha = 2L) {
     stop("fem$G3 is required for alpha = 3 (use degree >= 3 in fem_bspline)")
   }
   struct <- fem_Q_structure(C, G, G2, G3)
+  if (any(diff(struct@p) == 0L)) {
+    stop(
+      "fem_precision_payload: Q structure has empty rows/columns",
+      call. = FALSE
+    )
+  }
+  for (nm in c("C", "G", "G2")) {
+    Mx <- get(nm)
+    if (any(!is.finite(Mx@x))) {
+      stop(
+        "fem_precision_payload: non-finite values in Gram matrix ", nm,
+        call. = FALSE
+      )
+    }
+  }
+  if (!is.null(G3) && any(!is.finite(G3@x))) {
+    stop(
+      "fem_precision_payload: non-finite values in Gram matrix G3",
+      call. = FALSE
+    )
+  }
   chol <- fem_chol_pattern(struct)
   pat <- upper_csc_pattern(struct)
   out <- list(
