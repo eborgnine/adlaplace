@@ -123,7 +123,23 @@ struct CscPattern {
   std::size_t nnz() const { return i.size(); }
 };
 
+// Owned numeric CSC (dgC / dsC / ngC). Empty x means pattern-only.
+struct CscMatrix {
+  std::vector<int> i;
+  std::vector<int> p;
+  std::vector<double> x;
+  int nrow_ = 0;
+  int ncol_ = 0;
 
+  CscMatrix() = default;
+  explicit CscMatrix(const DgCView& v);
+  explicit CscMatrix(const Rcpp::S4& sm);
+
+  int nrow() const { return nrow_; }
+  int ncol() const { return ncol_; }
+  std::size_t nnz() const { return i.size(); }
+  bool has_x() const { return !x.empty(); }
+};
 
 struct Config {
   bool verbose;
@@ -219,6 +235,34 @@ inline CscPattern::CscPattern(const Rcpp::S4& sm) : dim(2, 0) {
     Rcpp::NumericVector xRound = Rcpp::round(xR, 0);
     Rcpp::IntegerVector xRint = Rcpp::as<Rcpp::IntegerVector>(xRound);
     x = adlaplace_as_int_vec(xRint);
+  }
+}
+
+inline CscMatrix::CscMatrix(const DgCView& v)
+  : i(adlaplace_as_int_vec(v.i)),
+    p(adlaplace_as_int_vec(v.p)),
+    nrow_(v.nrow()),
+    ncol_(v.ncol())
+{
+  if (v.has_x) {
+    x.assign(v.x.begin(), v.x.end());
+  }
+}
+
+inline CscMatrix::CscMatrix(const Rcpp::S4& sm) {
+  Rcpp::IntegerVector Ii = sm.slot("i");
+  Rcpp::IntegerVector Pp = sm.slot("p");
+  Rcpp::IntegerVector Dim = sm.slot("Dim");
+  i = adlaplace_as_int_vec(Ii);
+  p = adlaplace_as_int_vec(Pp);
+  nrow_ = Dim.size() > 0 ? Dim[0] : 0;
+  ncol_ = Dim.size() > 1 ? Dim[1] : 0;
+  // Pattern-only Matrix classes (nMatrix / ngC / ntC / ...) have no x slot.
+  if (sm.inherits("nMatrix") || !sm.hasSlot("x")) {
+    x.clear();
+  } else {
+    Rcpp::NumericVector xR = sm.slot("x");
+    x.assign(xR.begin(), xR.end());
   }
 }
 

@@ -18,6 +18,7 @@
 #include <cppad/cppad.hpp>
 
 #include "adlaplace/chol_update_impl.hpp"
+#include "adlaplace/rviews.hpp"
 #include "adlaplace/takahashi_impl.hpp"
 
 #include <cmath>
@@ -32,17 +33,15 @@ namespace femlogdet {
 // Immutable per-model data, registered at tape-build time and looked up by
 // the atomic's call_id during forward/reverse sweeps.
 struct Payload {
-	std::vector<int> Q_p;
-	std::vector<int> Q_i;
+	CscMatrix Q;
 	// Symmetry weights per stored (upper-triangle) nonzero: 1 diagonal,
 	// 2 off-diagonal.
 	std::vector<double> w;
-	// Gram value vectors aligned with Q_p/Q_i; one per coefficient.
+	// Gram value vectors aligned with Q.nnz(); one per coefficient.
 	std::vector<std::vector<double>> M;
 	std::vector<int> perm;
 	std::vector<int> perm_inv;
-	std::vector<int> L1_p;
-	std::vector<int> L1_i;
+	CscMatrix L1;
 	std::size_t n = 0;
 
 	std::size_t m() const { return M.size(); }
@@ -59,7 +58,7 @@ inline bool scalar_invalid(const adlaplace::chol::Dual& v) {
 template <typename Scalar>
 Scalar fem_logdet_eval(const Payload& pay, const std::vector<Scalar>& x,
                        std::vector<Scalar>* grad_out) {
-	const std::size_t nnz = pay.Q_i.size();
+	const std::size_t nnz = pay.Q.nnz();
 	const std::size_t m = pay.m();
 
 	std::vector<Scalar> Q_x(nnz, Scalar(0));
@@ -70,10 +69,10 @@ Scalar fem_logdet_eval(const Payload& pay, const std::vector<Scalar>& x,
 		}
 	}
 
-	std::vector<Scalar> L_x(pay.L1_i.size(), Scalar(0));
+	std::vector<Scalar> L_x(pay.L1.nnz(), Scalar(0));
 	std::vector<Scalar> D(pay.n, Scalar(0));
 	const Scalar log_det = adlaplace::chol::chol_update_csc(
-		pay.Q_p, pay.Q_i, Q_x, pay.perm, pay.L1_p, pay.L1_i, L_x, D);
+		pay.Q.p, pay.Q.i, Q_x, pay.perm, pay.L1.p, pay.L1.i, L_x, D);
 
 	if (grad_out != nullptr) {
 		grad_out->assign(m, Scalar(0));
@@ -86,11 +85,11 @@ Scalar fem_logdet_eval(const Payload& pay, const std::vector<Scalar>& x,
 			return log_det;
 		}
 		std::vector<Scalar> sigma;
-		adlaplace::chol::takahashi_selected_inv(pay.L1_p, pay.L1_i, L_x, D,
+		adlaplace::chol::takahashi_selected_inv(pay.L1.p, pay.L1.i, L_x, D,
 		                                        sigma);
 		std::vector<Scalar> S_x;
-		adlaplace::chol::selected_inv_scatter(pay.Q_p, pay.Q_i, pay.perm_inv,
-		                                      pay.L1_p, pay.L1_i, sigma, S_x);
+		adlaplace::chol::selected_inv_scatter(pay.Q.p, pay.Q.i, pay.perm_inv,
+		                                      pay.L1.p, pay.L1.i, sigma, S_x);
 		for (std::size_t j = 0; j < m; ++j) {
 			const std::vector<double>& Mj = pay.M[j];
 			Scalar g(0);

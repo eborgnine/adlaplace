@@ -28,6 +28,8 @@
 
 #include <cppad/cppad.hpp>
 
+#include "adlaplace/rviews.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <unordered_map>
@@ -47,11 +49,10 @@ struct Data {
   // Rows of Q, which is also the number of gamma.
   std::size_t n = 0;
   // Upper-triangle CSC pattern of Q, from fem_precision_payload().
-  std::vector<int> Q_p;
-  std::vector<int> Q_i;
+  CscMatrix Q;
   // 1 on the diagonal, 2 off it, so one pass gives a full quadratic form.
   std::vector<double> w;
-  // Gram value vectors aligned with Q_p/Q_i, one per coefficient.
+  // Gram value vectors aligned with Q.nnz(), one per coefficient.
   std::vector<std::vector<double>> M;
   // Gamma row -> tape index.
   std::vector<std::size_t> gidx;
@@ -62,7 +63,7 @@ struct Data {
   CppAD::ADFun<double> coef_fun;
 
   std::size_t m() const { return M.size(); }
-  std::size_t nnz() const { return Q_i.size(); }
+  std::size_t nnz() const { return Q.nnz(); }
 };
 
 // ---------------------------------------------------------------------------
@@ -95,9 +96,9 @@ inline void sym_matvec(const Data &d, const std::vector<double> &A,
     // Mirrored contributions land on y[col]; accumulate them separately so
     // the diagonal entry is not counted twice.
     double mirrored = 0.0;
-    for (int pos = d.Q_p[col]; pos < d.Q_p[col + 1]; ++pos) {
+    for (int pos = d.Q.p[col]; pos < d.Q.p[col + 1]; ++pos) {
       const std::size_t k = static_cast<std::size_t>(pos);
-      const std::size_t row = static_cast<std::size_t>(d.Q_i[k]);
+      const std::size_t row = static_cast<std::size_t>(d.Q.i[k]);
       y[row] += A[k] * xc;
       if (row != col) {
         mirrored += A[k] * x[row];
@@ -117,9 +118,9 @@ inline void sym_quad_all(const Data &d, const std::vector<double> &x,
     if (xc == 0.0) {
       continue;
     }
-    for (int pos = d.Q_p[col]; pos < d.Q_p[col + 1]; ++pos) {
+    for (int pos = d.Q.p[col]; pos < d.Q.p[col + 1]; ++pos) {
       const std::size_t k = static_cast<std::size_t>(pos);
-      const double fac = d.w[k] * xc * x[static_cast<std::size_t>(d.Q_i[k])];
+      const double fac = d.w[k] * xc * x[static_cast<std::size_t>(d.Q.i[k])];
       if (fac == 0.0) {
         continue;
       }
@@ -150,9 +151,9 @@ inline std::unordered_map<std::uint64_t, int> build_q_index(const Data &d) {
   std::unordered_map<std::uint64_t, int> map;
   map.reserve(d.nnz() * 2);
   for (std::size_t col = 0; col < d.n; ++col) {
-    for (int pos = d.Q_p[col]; pos < d.Q_p[col + 1]; ++pos) {
+    for (int pos = d.Q.p[col]; pos < d.Q.p[col + 1]; ++pos) {
       const std::uint64_t key =
-          static_cast<std::uint64_t>(d.Q_i[static_cast<std::size_t>(pos)]) +
+          static_cast<std::uint64_t>(d.Q.i[static_cast<std::size_t>(pos)]) +
           static_cast<std::uint64_t>(col) * static_cast<std::uint64_t>(d.n);
       map.emplace(key, pos);
     }

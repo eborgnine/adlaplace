@@ -99,6 +99,7 @@ Q_scaled <- INLA::inla.scale.model(
   constr = list(A = matrix(1, 1, nrow(adj)), e = 0)
 )
 Q_scaled <- methods::as(methods::as(Q_scaled, "generalMatrix"), "CsparseMatrix")
+Q_scaled <- Matrix::forceSymmetric(Q_scaled, uplo = "U")
 
 ev <- eigen(as.matrix(Q_scaled), symmetric = TRUE, only.values = TRUE)$values
 ev <- sort(ev, decreasing = TRUE)

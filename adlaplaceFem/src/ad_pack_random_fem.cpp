@@ -37,17 +37,33 @@ extern ad_pack *fem_ssq_packs_to_ad_fun(std::vector<AdTape> &&, std::size_t,
 namespace {
 
 struct FemCholPayload {
-  std::vector<int> Q_p;
-  std::vector<int> Q_i;
+  CscMatrix Q;   // pattern-only (x empty)
   std::vector<double> C_x;
   std::vector<double> G_x;
   std::vector<double> G2_x;
   std::vector<double> G3_x;
   std::vector<int> perm;
-  std::vector<int> L1_p;
-  std::vector<int> L1_i;
+  CscMatrix L1;  // pattern-only from chol$L1
   int alpha = 2;
 };
+
+void fill_fem_Q_pattern(CscMatrix &Q, Rcpp::List prec) {
+  Q.p = Rcpp::as<std::vector<int>>(prec["Q_p"]);
+  Q.i = Rcpp::as<std::vector<int>>(prec["Q_i"]);
+  if (Q.p.empty()) {
+    Rcpp::stop("random_fem Q_p must be non-empty");
+  }
+  Q.nrow_ = static_cast<int>(Q.p.size()) - 1;
+  Q.ncol_ = Q.nrow_;
+  Q.x.clear();
+}
+
+void fill_fem_L1_pattern(CscMatrix &L1, Rcpp::List chol) {
+  if (!chol.containsElementNamed("perm") || !chol.containsElementNamed("L1")) {
+    Rcpp::stop("random_fem chol must contain perm and L1");
+  }
+  L1 = CscMatrix(Rcpp::S4(chol["L1"]));
+}
 
 FemCholPayload read_fem_payload(const density_data &model) {
   if (Rf_isNull(model.precision) || TYPEOF(model.precision) != VECSXP) {
@@ -66,26 +82,18 @@ FemCholPayload read_fem_payload(const density_data &model) {
   }
   FemCholPayload out;
   out.alpha = Rcpp::as<int>(prec["alpha"]);
-  out.Q_p = Rcpp::as<std::vector<int>>(prec["Q_p"]);
-  out.Q_i = Rcpp::as<std::vector<int>>(prec["Q_i"]);
+  fill_fem_Q_pattern(out.Q, prec);
   out.C_x = Rcpp::as<std::vector<double>>(prec["C_x"]);
   out.G_x = Rcpp::as<std::vector<double>>(prec["G_x"]);
   out.G2_x = Rcpp::as<std::vector<double>>(prec["G2_x"]);
   out.G3_x = prec.containsElementNamed("G3_x")
                  ? Rcpp::as<std::vector<double>>(prec["G3_x"])
-                 : std::vector<double>(out.Q_i.size(), 0.0);
+                 : std::vector<double>(out.Q.nnz(), 0.0);
   Rcpp::List chol = prec["chol"];
-  if (!chol.containsElementNamed("perm") || !chol.containsElementNamed("L1")) {
-    Rcpp::stop("random_fem chol must contain perm and L1");
-  }
   out.perm = Rcpp::as<std::vector<int>>(chol["perm"]);
-  Rcpp::S4 L1 = chol["L1"];
-  Rcpp::IntegerVector Lp = L1.slot("p");
-  Rcpp::IntegerVector Li = L1.slot("i");
-  out.L1_p.assign(Lp.begin(), Lp.end());
-  out.L1_i.assign(Li.begin(), Li.end());
-  if (out.C_x.size() != out.Q_i.size() || out.G_x.size() != out.Q_i.size() ||
-      out.G2_x.size() != out.Q_i.size() || out.G3_x.size() != out.Q_i.size()) {
+  fill_fem_L1_pattern(out.L1, chol);
+  if (out.C_x.size() != out.Q.nnz() || out.G_x.size() != out.Q.nnz() ||
+      out.G2_x.size() != out.Q.nnz() || out.G3_x.size() != out.Q.nnz()) {
     Rcpp::stop("random_fem Gram coefficient vectors must match length(Q_i)");
   }
   return out;
@@ -94,11 +102,11 @@ FemCholPayload read_fem_payload(const density_data &model) {
 // Symmetry weights for the upper-triangle storage: 1 on the diagonal, 2 off
 // it, so a single pass over the stored nonzeros gives a full quadratic form.
 std::vector<double> fem_symmetry_weights(const FemCholPayload &pay) {
-  std::vector<double> w(pay.Q_i.size());
-  for (std::size_t col = 0; col + 1 < pay.Q_p.size(); ++col) {
-    for (int pos = pay.Q_p[col]; pos < pay.Q_p[col + 1]; ++pos) {
+  std::vector<double> w(pay.Q.nnz());
+  for (std::size_t col = 0; col + 1 < pay.Q.p.size(); ++col) {
+    for (int pos = pay.Q.p[col]; pos < pay.Q.p[col + 1]; ++pos) {
       const std::size_t row =
-          static_cast<std::size_t>(pay.Q_i[static_cast<std::size_t>(pos)]);
+          static_cast<std::size_t>(pay.Q.i[static_cast<std::size_t>(pos)]);
       w[static_cast<std::size_t>(pos)] = (row == col) ? 1.0 : 2.0;
     }
   }
@@ -111,9 +119,8 @@ std::vector<double> fem_symmetry_weights(const FemCholPayload &pay) {
 template <int Alpha>
 std::size_t register_fem_logdet_payload(const FemCholPayload &pay) {
   femlogdet::Payload atom;
-  atom.Q_p = pay.Q_p;
-  atom.Q_i = pay.Q_i;
-  atom.n = pay.Q_p.size() - 1;
+  atom.Q = pay.Q;
+  atom.n = static_cast<std::size_t>(pay.Q.ncol());
   atom.w = fem_symmetry_weights(pay);
   atom.M.push_back(pay.C_x);
   atom.M.push_back(pay.G_x);
@@ -126,8 +133,7 @@ std::size_t register_fem_logdet_payload(const FemCholPayload &pay) {
   for (std::size_t r = 0; r < atom.n; ++r) {
     atom.perm_inv[static_cast<std::size_t>(pay.perm[r])] = static_cast<int>(r);
   }
-  atom.L1_p = pay.L1_p;
-  atom.L1_i = pay.L1_i;
+  atom.L1 = pay.L1;
   return femlogdet::fem_logdet_atomic_instance().register_payload(
       std::move(atom));
 }
@@ -203,7 +209,7 @@ template <int Alpha>
 std::vector<CppAD::AD<double>>
 assemble_Q_x(const FemCholPayload &pay,
              const CppAD::vector<CppAD::AD<double>> &c) {
-  std::vector<CppAD::AD<double>> Q_x(pay.Q_i.size());
+  std::vector<CppAD::AD<double>> Q_x(pay.Q.nnz());
   for (std::size_t k = 0; k < Q_x.size(); ++k) {
     CppAD::AD<double> v =
         c[0] * pay.C_x[k] + c[1] * pay.G_x[k] + c[2] * pay.G2_x[k];
@@ -252,7 +258,7 @@ random_fem_ssq(const CppAD::vector<CppAD::AD<double>> &x, const density_data &mo
                             spec.range_is_log, spec.sd_is_log, c);
   const auto Q_x = assemble_Q_x<Alpha>(pay, c);
 
-  const std::size_t n = pay.Q_p.size() - 1;
+  const std::size_t n = static_cast<std::size_t>(pay.Q.ncol());
   const std::vector<std::size_t> gidx = model.all_gamma_global_indices();
   if (gidx.size() != n) {
     Rcpp::stop("random_fem: length(gamma) (%d) != nrow(Q) (%d)",
@@ -261,9 +267,9 @@ random_fem_ssq(const CppAD::vector<CppAD::AD<double>> &x, const density_data &mo
 
   CppAD::AD<double> qf = 0.0;
   for (std::size_t col = 0; col < n; ++col) {
-    for (int pos = pay.Q_p[col]; pos < pay.Q_p[col + 1]; ++pos) {
+    for (int pos = pay.Q.p[col]; pos < pay.Q.p[col + 1]; ++pos) {
       const std::size_t row =
-          static_cast<std::size_t>(pay.Q_i[static_cast<std::size_t>(pos)]);
+          static_cast<std::size_t>(pay.Q.i[static_cast<std::size_t>(pos)]);
       const CppAD::AD<double> v = Q_x[static_cast<std::size_t>(pos)];
       qf += (row == col ? CppAD::AD<double>(1) : CppAD::AD<double>(2)) *
             x[gidx[row]] * v * x[gidx[col]];
@@ -284,7 +290,7 @@ random_fem_det(const CppAD::vector<CppAD::AD<double>> &x, const density_data &mo
     Rcpp::stop("precision alpha (%d) does not match kernel alpha (%d)",
                pay.alpha, Alpha);
   }
-  const std::size_t n = pay.Q_p.size() - 1;
+  const std::size_t n = static_cast<std::size_t>(pay.Q.ncol());
   const std::size_t call_id = register_fem_logdet_payload<Alpha>(pay);
 
   // Coefficients of Q = a*C + b*G + c*G2 (+ d*G3); the atomic handles the
@@ -312,9 +318,9 @@ random_fem_ssq_sparsity(const density_data &model) {
 
   std::set<std::pair<std::size_t, std::size_t>> pairs;
   for (std::size_t col = 0; col < gidx.size(); ++col) {
-    for (int pos = pay.Q_p[col]; pos < pay.Q_p[col + 1]; ++pos) {
+    for (int pos = pay.Q.p[col]; pos < pay.Q.p[col + 1]; ++pos) {
       const std::size_t row =
-          static_cast<std::size_t>(pay.Q_i[static_cast<std::size_t>(pos)]);
+          static_cast<std::size_t>(pay.Q.i[static_cast<std::size_t>(pos)]);
       pairs.insert({gidx[row], gidx[col]});
       pairs.insert({gidx[col], gidx[row]});
     }
@@ -401,9 +407,8 @@ make_fem_ssq_data(density_data model, const Config &cfg) {
 
   auto data = std::make_shared<femssq::Data>();
   data->alpha = Alpha;
-  data->n = pay.Q_p.size() - 1;
-  data->Q_p = pay.Q_p;
-  data->Q_i = pay.Q_i;
+  data->n = static_cast<std::size_t>(pay.Q.ncol());
+  data->Q = pay.Q;
   data->w = fem_symmetry_weights(pay);
   data->M.push_back(pay.C_x);
   data->M.push_back(pay.G_x);
@@ -505,8 +510,8 @@ Rcpp::List fem_logdet_debug_impl(const FemCholPayload &pay, double range,
     coef[j] = cv[j];
   }
 
-  const std::size_t nnz = pay.Q_i.size();
-  const std::size_t n = pay.Q_p.size() - 1;
+  const std::size_t nnz = pay.Q.nnz();
+  const std::size_t n = static_cast<std::size_t>(pay.Q.ncol());
   std::vector<double> Q_x(nnz, 0.0);
   for (std::size_t k = 0; k < nnz; ++k) {
     double v = coef[0] * pay.C_x[k] + coef[1] * pay.G_x[k] +
@@ -517,10 +522,10 @@ Rcpp::List fem_logdet_debug_impl(const FemCholPayload &pay, double range,
     Q_x[k] = v;
   }
 
-  std::vector<double> L_x(pay.L1_i.size(), 0.0);
+  std::vector<double> L_x(pay.L1.nnz(), 0.0);
   std::vector<double> D(n, 0.0);
   const double log_det = adlaplace::chol::chol_update_csc(
-      pay.Q_p, pay.Q_i, Q_x, pay.perm, pay.L1_p, pay.L1_i, L_x, D);
+      pay.Q.p, pay.Q.i, Q_x, pay.perm, pay.L1.p, pay.L1.i, L_x, D);
 
   int n_bad = 0;
   int first_bad = NA_INTEGER;
@@ -549,24 +554,16 @@ FemCholPayload read_fem_payload_list(Rcpp::List prec) {
   }
   FemCholPayload out;
   out.alpha = Rcpp::as<int>(prec["alpha"]);
-  out.Q_p = Rcpp::as<std::vector<int>>(prec["Q_p"]);
-  out.Q_i = Rcpp::as<std::vector<int>>(prec["Q_i"]);
+  fill_fem_Q_pattern(out.Q, prec);
   out.C_x = Rcpp::as<std::vector<double>>(prec["C_x"]);
   out.G_x = Rcpp::as<std::vector<double>>(prec["G_x"]);
   out.G2_x = Rcpp::as<std::vector<double>>(prec["G2_x"]);
   out.G3_x = prec.containsElementNamed("G3_x")
                  ? Rcpp::as<std::vector<double>>(prec["G3_x"])
-                 : std::vector<double>(out.Q_i.size(), 0.0);
+                 : std::vector<double>(out.Q.nnz(), 0.0);
   Rcpp::List chol = prec["chol"];
-  if (!chol.containsElementNamed("perm") || !chol.containsElementNamed("L1")) {
-    Rcpp::stop("fem_logdet_debug: chol must contain perm and L1");
-  }
   out.perm = Rcpp::as<std::vector<int>>(chol["perm"]);
-  Rcpp::S4 L1 = chol["L1"];
-  Rcpp::IntegerVector Lp = L1.slot("p");
-  Rcpp::IntegerVector Li = L1.slot("i");
-  out.L1_p.assign(Lp.begin(), Lp.end());
-  out.L1_i.assign(Li.begin(), Li.end());
+  fill_fem_L1_pattern(out.L1, chol);
   return out;
 }
 

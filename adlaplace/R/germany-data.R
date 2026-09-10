@@ -18,9 +18,9 @@
 #'   \item{E}{Expected counts (length 544).}
 #'   \item{region}{District index (length 544).}
 #'   \item{adj}{District adjacency matrix (\code{dgCMatrix}, 544 x 544).}
-#'   \item{Q_scaled}{Scaled ICAR precision (\code{dgCMatrix}).}
-#'   \item{prec}{List passed to \code{density = "random_mult"}: \code{Q},
-#'     \code{log_det}, and \code{rank}.}
+#'   \item{Q_scaled}{Scaled ICAR precision (\code{dsCMatrix}, \code{uplo = "U"}).}
+#'   \item{prec}{List passed to \code{density = "random_mult"}: \code{Q}
+#'     (\code{dsCMatrix}, \code{uplo = "U"}), \code{log_det}, and \code{rank}.}
 #' }
 #' @source \pkg{INLA} \code{Germany} data and \code{germany.graph}.
 #' @references

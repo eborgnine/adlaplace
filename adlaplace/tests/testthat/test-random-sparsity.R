@@ -48,13 +48,12 @@ test_that("random_diagonal analytic sparsity is diagonal", {
 
 test_that("random_mult inner sparsity follows Q upper triangle (not CppAD conservative)", {
   nr <- 5L
-  Q <- Matrix::bandSparse(
+  Q <- adlaplace:::as_dsC_upper(Matrix::bandSparse(
     nr,
     k = 0:1,
     diagonals = list(rep(2, nr), rep(-0.8, nr - 1L)),
     symmetric = TRUE
-  )
-  Q <- methods::as(methods::as(Q, "generalMatrix"), "CsparseMatrix")
+  ))
   model <- adlaplace:::density_data(
     gamma_map = Matrix::sparseMatrix(
       i = seq_len(nr), j = seq_len(nr), x = 1, dims = c(nr, nr)
@@ -69,7 +68,7 @@ test_that("random_mult inner sparsity follows Q upper triangle (not CppAD conser
   pat <- adlaplace:::get_sparse_pattern(ptr, 0L)
 
   Qc <- Matrix::summary(Q)
-  Q_upper <- as.matrix(Qc[Qc$i <= Qc$j, c("i", "j")]) - 1L
+  Q_upper <- as.matrix(Qc[, c("i", "j")]) - 1L
   act_inner <- cbind(row = pat$row_hess_inner, col = pat$col_hess_inner)
   act_inner <- act_inner[order(act_inner[, 1], act_inner[, 2]), , drop = FALSE]
   Q_upper <- Q_upper[order(Q_upper[, 1], Q_upper[, 2]), , drop = FALSE]

@@ -7,6 +7,7 @@
 #define ADLAPLACE_MATH_LGAMMA_DEFINE
 #define ADLAPLACE_MATH_LOG_ERFC_DEFINE
 #include "adlaplace/atomics.hpp"
+#include "adlaplace/quadform_atomic.hpp"
 
 #include "adlaplace/register_impl.hpp"
 
@@ -38,6 +39,7 @@ void adlaplace_init_atomics() {
 
   adlaplace_init_lgamma_atomic();
   adlaplace_init_log_erfc_atomic();
+  adlaplace::quadform::init_quadform_atomic();
 }
 
 static ad_shard* first_shard(ad_pack* groups) {

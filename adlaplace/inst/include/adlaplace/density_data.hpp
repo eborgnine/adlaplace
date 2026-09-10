@@ -44,6 +44,11 @@ struct density_data {
   // Tape positions of gamma parameters present on the tape (inner subset).
   std::vector<int> seq_gamma;
 
+  // Owned copy of random_mult precision Q (dsCMatrix uplo=U), filled by
+  // cache_mult_precision_csc() at shard-build time.
+  CscMatrix mult_Q_;
+  bool has_mult_Q_ = false;
+
   explicit density_data(SEXP data_sexp);
 
   std::size_t theta_index(int col = 0) const;
@@ -51,6 +56,8 @@ struct density_data {
   std::vector<std::size_t> gamma_global_indices(int col = 0) const;
   std::vector<std::size_t> all_gamma_global_indices() const;
   DgCView mult_precision_Q() const;
+  void cache_mult_precision_csc();
+  const CscMatrix& mult_precision_csc() const;
   double mult_precision_rank() const;
   double mult_precision_log_det() const;
 
@@ -423,18 +430,45 @@ inline std::vector<std::size_t> density_data::all_gamma_global_indices() const {
 inline DgCView density_data::mult_precision_Q() const {
   if (Rf_isNull(precision) || TYPEOF(precision) != VECSXP) {
     Rcpp::stop(
-        "random_mult precision must be list(Q = <dgCMatrix>, log_det, rank)");
+        "random_mult precision must be list(Q = <dsCMatrix>, log_det, rank)");
   }
   Rcpp::List prec(precision);
   if (!prec.containsElementNamed("Q")) {
     Rcpp::stop("random_mult precision list must contain Q");
   }
   SEXP q_sexp = prec["Q"];
-  if (!Rf_inherits(q_sexp, "dgCMatrix") && !Rf_inherits(q_sexp, "ngCMatrix")) {
-    Rcpp::stop("random_mult precision Q must be a dgCMatrix "
-               "(convert with as(Q, \"generalMatrix\") for symmetric storage)");
+  if (Rf_inherits(q_sexp, "dgCMatrix")) {
+    Rcpp::stop(
+        "random_mult precision Q must be a dsCMatrix with uplo = \"U\"; "
+        "coerce in R with adlaplace:::as_dsC_upper(Q) "
+        "(C++ does not convert dgCMatrix)");
   }
-  return DgCView(Rcpp::as<Rcpp::S4>(q_sexp));
+  if (!Rf_inherits(q_sexp, "dsCMatrix")) {
+    Rcpp::stop(
+        "random_mult precision Q must be a dsCMatrix with uplo = \"U\"");
+  }
+  Rcpp::S4 q_s4(q_sexp);
+  const std::string uplo = Rcpp::as<std::string>(q_s4.slot("uplo"));
+  if (uplo != "U") {
+    Rcpp::stop(
+        "random_mult precision Q must have uplo = \"U\" (got \"%s\"); "
+        "coerce in R with adlaplace:::as_dsC_upper(Q)",
+        uplo.c_str());
+  }
+  return DgCView(q_s4);
+}
+
+inline void density_data::cache_mult_precision_csc() {
+  mult_Q_ = CscMatrix(mult_precision_Q());
+  has_mult_Q_ = true;
+}
+
+inline const CscMatrix& density_data::mult_precision_csc() const {
+  if (!has_mult_Q_) {
+    Rcpp::stop(
+        "mult_precision_csc: call cache_mult_precision_csc() before use");
+  }
+  return mult_Q_;
 }
 
 inline double density_data::mult_precision_rank() const {

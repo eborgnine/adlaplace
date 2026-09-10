@@ -75,7 +75,10 @@ get_sizes <- function(handle, group) {
 #' @param handle External pointer of class \code{ad_pack_ptr}.
 #' @param group 0-based group index.
 #' @return List with \code{domain}, \code{n_global}, \code{size_op},
-#'   \code{size_var}, and pattern nnz counts.
+#'   \code{size_var}, and pattern nnz counts. \code{domain} /
+#'   \code{size_op} / \code{size_var} are zero when the shard never
+#'   recorded a tape (e.g. analytic FEM ssq with \code{fem_tape = FALSE});
+#'   \code{n_global} and the nnz fields remain valid.
 #' @keywords internal
 get_tape_sizes <- function(handle, group) {
     .Call(`_adlaplace_get_tape_sizes`, handle, group)
@@ -151,6 +154,14 @@ clone_ad_pack_ptr_ <- function(handle) {
     .Call(`_adlaplace_clone_ad_pack_ptr_impl`, handle)
 }
 
+#' Build raw AD handle for a random_mult shard
+#'
+#' @param model An \code{density_data} S4 object with \code{precision} slot set.
+#' @param config Model configuration list.
+#' @return External pointer of class \code{ad_pack_ptr}.
+#' @keywords internal
+NULL
+
 #' Build raw AD handle for a random_diagonal shard
 #'
 #' @param model An \code{density_data} S4 object with \code{precision} slot set.
@@ -161,12 +172,6 @@ create_ad_shard_random_diagonal <- function(model, config) {
     .Call(`_adlaplace_create_ad_shard_random_diagonal`, model, config)
 }
 
-#' Build raw AD handle for a random_mult shard
-#'
-#' @param model An \code{density_data} S4 object with \code{precision} slot set.
-#' @param config Model configuration list.
-#' @return External pointer of class \code{ad_pack_ptr}.
-#' @keywords internal
 create_ad_shard_random_mult <- function(model, config) {
     .Call(`_adlaplace_create_ad_shard_random_mult`, model, config)
 }

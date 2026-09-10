@@ -174,6 +174,28 @@ as_dgC <- function(m) {
   m
 }
 
+#' Coerce a sparse matrix to upper-triangle \code{dsCMatrix} (\code{uplo = "U"}).
+#'
+#' Used for \code{random_mult} precision \code{Q}. The C++ backend rejects
+#' \code{dgCMatrix}; coerce here before building the tape.
+#' @keywords internal
+as_dsC_upper <- function(m) {
+  if (inherits(m, "dsCMatrix") && identical(m@uplo, "U")) {
+    return(Matrix::drop0(m))
+  }
+  Matrix::forceSymmetric(as_dgC(m), uplo = "U")
+}
+
+#' Normalize \code{random_mult} precision list so \code{Q} is \code{dsCMatrix}.
+#' @keywords internal
+normalize_random_mult_precision <- function(precision) {
+  if (is.null(precision) || !is.list(precision) || is.null(precision$Q)) {
+    return(precision)
+  }
+  precision$Q <- as_dsC_upper(precision$Q)
+  precision
+}
+
 #' Coerce a sparse matrix to \code{ngCMatrix} (Matrix >= 1.6).
 #' @keywords internal
 as_ngC <- function(m) {
@@ -487,6 +509,9 @@ density_data_from_mats <- function(y = numeric(0),
       call. = FALSE
     )
   }
+  if (identical(density, "random_mult")) {
+    precision <- normalize_random_mult_precision(precision)
+  }
   methods::new(
     "density_data",
     y = as.numeric(y),
@@ -541,7 +566,10 @@ density_data_from_mats <- function(y = numeric(0),
 #' @param density Registered AD density name for this shard (optional).
 #' @param ad_kind Shard kind (\code{"observations"}, \code{"parameters"}, \code{"random"}; optional).
 #' @param package Package recording AD tapes for this shard (optional).
-#' @param precision Optional precision payload (any R object).
+  #' @param precision Optional precision payload (any R object). For
+  #'   \code{density = "random_mult"}, a list with \code{Q} as
+  #'   \code{dsCMatrix} (\code{uplo = "U"}); \code{dgCMatrix} is coerced via
+  #'   \code{as_dsC_upper()}.
 #' @param weights Optional per-observation weights (e.g. binomial trial counts).
 #'   Empty means all ones.
 #' @export
@@ -590,6 +618,9 @@ density_data <- function(y = missing(),
     }
     pkg <- if (missing(package)) y@package else as.character(package)
     prec <- if (missing(precision)) y@precision else precision
+    if (identical(fun, "random_mult")) {
+      prec <- normalize_random_mult_precision(prec)
+    }
     wts <- if (missing(weights)) y@weights else as.numeric(weights)
     out <- methods::new(
       "density_data",

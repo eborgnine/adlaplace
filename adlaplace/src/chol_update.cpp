@@ -3,11 +3,13 @@
 
 #include <algorithm>
 #include <cmath>
+#include <utility>
 #include <vector>
 
 #include <Rcpp.h>
 #include <Rinternals.h>
 #include "adlaplace/backend.hpp"
+#include "adlaplace/rviews.hpp"
 
 namespace {
 
@@ -273,10 +275,9 @@ void copy_csc_pi_from_s4(
 	std::vector<int>& p_out,
 	std::vector<int>& i_out)
 {
-	const Rcpp::IntegerVector p = mat.slot("p");
-	const Rcpp::IntegerVector i = mat.slot("i");
-	p_out.assign(p.begin(), p.end());
-	i_out.assign(i.begin(), i.end());
+	CscMatrix m(mat);
+	p_out = std::move(m.p);
+	i_out = std::move(m.i);
 }
 
 CholPattern chol_pattern_from_list(const Rcpp::List& cil, const int n_gamma) {

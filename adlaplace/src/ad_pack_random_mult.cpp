@@ -5,6 +5,7 @@
 #include "adlaplace/ad_pack.hpp"
 #include "adlaplace/ad_pack_random.hpp"
 #include "adlaplace/atomics.hpp"
+#include "adlaplace/quadform_atomic.hpp"
 #include "adlaplace/register.hpp"
 #include "adlaplace/rviews.hpp"
 
@@ -43,17 +44,22 @@ random_diagonal_impl(const CppAD::vector<CppAD::AD<double>> &x,
   }
 
   CppAD::AD<double> precision = CppAD::exp(-2 * logSd);
-  CppAD::AD<double> qpart = 0.0;
   double logQsum = 0.0;
 
   const std::size_t nq = std::min(Ngamma, Q.size());
+  std::vector<double> diag_vals(nq);
+  CppAD::vector<CppAD::AD<double>> ax(nq);
   for (std::size_t k = 0; k < nq; ++k) {
-    const std::size_t gidx = gamma_indices[k];
     const double qk = Q[k];
-    qpart += x[gidx] * x[gidx] * qk;
+    diag_vals[k] = qk;
+    ax[k] = x[gamma_indices[k]];
     logQsum += std::log(qk);
   }
-  qpart *= CppAD::AD<double>(0.5) * precision;
+  const std::size_t call_id = adlaplace::quadform::register_diagonal(diag_vals);
+  CppAD::vector<CppAD::AD<double>> ay(1);
+  adlaplace::quadform::call_quadform(call_id, ax, ay);
+  const CppAD::AD<double> qpart =
+      CppAD::AD<double>(0.5) * precision * ay[0];
 
   CppAD::AD<double> qDet = logSd * CppAD::AD<double>(Ngamma) +
                            CppAD::AD<double>(Ngamma * ONEHALFLOGTWOPI);
@@ -108,16 +114,15 @@ random_diagonal_sparsity(const density_data &model) {
 CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)>
 random_mult_sparsity(const density_data &model) {
 
-  const DgCView Q = model.mult_precision_Q();
+  const CscMatrix &Q = model.mult_precision_csc();
   const std::size_t theta_index = model.theta_index(0);
   const std::size_t n_params = model.n_tape;
   const int n_term = model.gamma_map.ncol();
 
   std::set<std::pair<std::size_t, std::size_t>> pairs;
 
-  // gamma-gamma block: structural nonzeros of Q, mapped to global indices.
-  // Q uses general (full symmetric) storage, but insert both orders anyway
-  // in case only one triangle is stored.
+  // gamma-gamma block: structural nonzeros of upper-triangle Q, mapped to
+  // global indices. Insert both triangle orders for cppad.symmetric coloring.
   for (int col = 0; col < n_term; ++col) {
     const std::vector<std::size_t> gj_idx = model.gamma_global_indices(col);
     if (gj_idx.empty()) {
@@ -125,9 +130,10 @@ random_mult_sparsity(const density_data &model) {
     }
     const std::size_t gj = gj_idx[0];
 
-    for (int k = Q.p[col]; k < Q.p[col + 1]; ++k) {
+    for (int k = Q.p[static_cast<std::size_t>(col)];
+         k < Q.p[static_cast<std::size_t>(col) + 1]; ++k) {
       const std::vector<std::size_t> gi_idx =
-          model.gamma_global_indices(static_cast<int>(Q.i[k]));
+          model.gamma_global_indices(Q.i[static_cast<std::size_t>(k)]);
       if (gi_idx.empty()) {
         continue;
       }
@@ -172,12 +178,14 @@ CppAD::vector<CppAD::AD<double>>
 random_mult(const CppAD::vector<CppAD::AD<double>> &x, const density_data &model,
             const Config &config) {
 
-  const DgCView Q = model.mult_precision_Q();
+  const CscMatrix &Q = model.mult_precision_csc();
   const int n_term = model.gamma_map.ncol();
-  if (static_cast<std::size_t>(Q.nrow()) != static_cast<std::size_t>(n_term) ||
-      static_cast<std::size_t>(Q.ncol()) != static_cast<std::size_t>(n_term)) {
+  if (Q.nrow() != n_term || Q.ncol() != n_term) {
     Rcpp::stop("random_mult Q is %d x %d but gamma_map has %d columns",
                Q.nrow(), Q.ncol(), n_term);
+  }
+  if (!Q.has_x()) {
+    Rcpp::stop("random_mult Q has no numeric values");
   }
 
   const double rank = model.mult_precision_rank();
@@ -193,26 +201,29 @@ random_mult(const CppAD::vector<CppAD::AD<double>> &x, const density_data &model
   }
   const CppAD::AD<double> tau = CppAD::exp(-2 * logSd);
 
-  CppAD::AD<double> qf = 0.0;
-  for (int j = 0; j < Q.ncol(); ++j) {
+  // Register a copy of the shard-build cached CSC into the atomic payload.
+  const std::size_t n = static_cast<std::size_t>(n_term);
+  CppAD::vector<CppAD::AD<double>> ax(n);
+  for (int j = 0; j < n_term; ++j) {
     const std::vector<std::size_t> gj_idx = model.gamma_global_indices(j);
     if (gj_idx.empty()) {
       Rcpp::stop("gamma_map column %d has no structural nonzero", j + 1);
     }
-    const std::size_t gj = gj_idx[0];
-    const int p0 = Q.p[j];
-    const int p1 = Q.p[j + 1];
-    for (int k = p0; k < p1; ++k) {
-      const std::vector<std::size_t> gi_idx =
-          model.gamma_global_indices(static_cast<int>(Q.i[k]));
-      if (gi_idx.empty()) {
-        Rcpp::stop("gamma_map column %d has no structural nonzero", Q.i[k] + 1);
-      }
-      const std::size_t gi = gi_idx[0];
-      qf += x[gi] * Q.value(k) * x[gj];
+    ax[static_cast<std::size_t>(j)] = x[gj_idx[0]];
+  }
+  // Validate that every row index of Q also has a gamma mapping.
+  for (std::size_t k = 0; k < Q.i.size(); ++k) {
+    const int row = Q.i[k];
+    if (model.gamma_global_indices(row).empty()) {
+      Rcpp::stop("gamma_map column %d has no structural nonzero", row + 1);
     }
   }
-  const CppAD::AD<double> qpart = CppAD::AD<double>(0.5) * tau * qf;
+
+  const std::size_t call_id =
+      adlaplace::quadform::register_csc(CscMatrix(Q));
+  CppAD::vector<CppAD::AD<double>> ay(1);
+  adlaplace::quadform::call_quadform(call_id, ax, ay);
+  const CppAD::AD<double> qpart = CppAD::AD<double>(0.5) * tau * ay[0];
 
   if (config.verbose) {
     Rcpp::Rcout << "random_mult n_gamma " << n_term << " rank " << rank
@@ -253,8 +264,13 @@ SEXP create_ad_shard_random_diagonal(SEXP model, Rcpp::List config) {
 // [[Rcpp::export]]
 SEXP create_ad_shard_random_mult(SEXP model, Rcpp::List config) {
   const density_data ad_model(model);
+  // Cache Q on a local compacted model, then tape with the shared builder.
+  density_data model_cached = ad_model;
+  const Config cfg(config);
+  model_cached.apply_tape_domain(cfg, "all", 0);
+  model_cached.cache_mult_precision_csc();
   AdTape pack = build_ad_fun_random_with_pattern(
-      ad_model, config, random_mult, random_mult_sparsity);
+      model_cached, config, random_mult, random_mult_sparsity);
   std::vector<AdTape> packs;
   packs.push_back(std::move(pack));
   ad_pack *groups = packs_to_ad_fun(std::move(packs), ad_model.num_beta,

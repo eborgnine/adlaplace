@@ -236,9 +236,9 @@ public:
       for (int col_local : ws_.touched) {
         const std::size_t col = static_cast<std::size_t>(col_local);
         const double vc = ws_.v_dense[col];
-        for (int pos = d.Q_p[col]; pos < d.Q_p[col + 1]; ++pos) {
+        for (int pos = d.Q.p[col]; pos < d.Q.p[col + 1]; ++pos) {
           const std::size_t kk = static_cast<std::size_t>(pos);
-          const std::size_t row = static_cast<std::size_t>(d.Q_i[kk]);
+          const std::size_t row = static_cast<std::size_t>(d.Q.i[kk]);
           if (ws_.stamp[row] != ws_.stamp_tag) {
             continue;
           }
