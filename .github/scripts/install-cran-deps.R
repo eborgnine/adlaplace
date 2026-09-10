@@ -2,7 +2,8 @@
 # Install the union of Depends/Imports/LinkingTo/Suggests from local packages,
 # excluding the local packages themselves (those are built/installed later in CI).
 # Transitive Suggests are not installed (dependencies = NA) so unavailable CRAN
-# Suggests of our Suggests (e.g. geostatsp -> RandomFields) do not break the solve.
+# Suggests of our Suggests do not break the solve.
+# geostatsp is installed from R-universe (newer than CRAN); see below.
 
 locals <- c(
   "RCppAD",
@@ -52,7 +53,7 @@ if (nzchar(pak_lib)) {
   library(pak)
 }
 
-# macOS only: CRAN binaries, no source. New terra (and similar) releases often
+# macOS only: binaries, no source. New terra (and similar) releases often
 # reach CRAN before macOS binaries exist; compiling them needs Homebrew GDAL.
 # Windows already uses binaries; Linux uses P3M binaries + can compile.
 if (identical(Sys.info()[["sysname"]], "Darwin")) {
@@ -60,10 +61,23 @@ if (identical(Sys.info()[["sysname"]], "Darwin")) {
   options(pkg.platforms = plat)
   options(pkgType = "binary")
   options(install.packages.compile.from.source = "never")
-  message("macOS: CRAN binaries only (pkg.platforms = ", plat, ")")
+  message("macOS: binaries only (pkg.platforms = ", plat, ")")
 }
 
-# Hard deps only for transitive packages: keeps geostatsp installable without
-# its archived Suggests (RandomFields). Our Suggests remain direct targets.
-pak::pkg_install(pkgs, dependencies = NA)
+# adlaplaceFem needs geostatsp newer than CRAN. Use the package-specific
+# R-universe repo so other CRAN packages (terra, ...) stay on CRAN binaries.
+runiverse_geostatsp <- "https://eborgnine.r-universe.dev/geostatsp"
+if ("geostatsp" %in% pkgs) {
+  message("Installing geostatsp from R-universe: ", runiverse_geostatsp)
+  old_repos <- getOption("repos")
+  options(repos = c(geostatsp = runiverse_geostatsp, old_repos))
+  pak::pkg_install("geostatsp", dependencies = NA)
+  options(repos = old_repos)
+  pkgs <- setdiff(pkgs, "geostatsp")
+}
+
+# Hard deps only for transitive packages. Our Suggests remain direct targets.
+if (length(pkgs)) {
+  pak::pkg_install(pkgs, dependencies = NA)
+}
 message("CRAN dependency install complete.")

@@ -19,7 +19,8 @@ knitr::opts_chunk$set(
   fig.height = 5
 )
 has_geostatsp <- requireNamespace("geostatsp", quietly = TRUE) &&
-  requireNamespace("terra", quietly = TRUE)
+  requireNamespace("terra", quietly = TRUE) &&
+  isTRUE(utils::packageVersion("geostatsp") >= "2.2.0")
 ```
 
 ```{r pkgs}

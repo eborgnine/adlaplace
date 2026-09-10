@@ -91,6 +91,19 @@ jobs:
         with:
           r-version: ${{ matrix.config.r }}
           use-public-rspm: true
+          # Package-specific repo: adlaplaceFem needs geostatsp newer than CRAN.
+          extra-repositories: 'https://eborgnine.r-universe.dev/geostatsp'
+
+      # R-hub images skip setup-r; persist the same extra repo for later R sessions.
+      - name: Add R-universe geostatsp repository
+        if: ${{ matrix.config.container != null }}
+        shell: Rscript {0}
+        run: |
+          cat(
+            "options(repos = c(geostatsp = 'https://eborgnine.r-universe.dev/geostatsp', getOption('repos')))\n",
+            file = file.path(Sys.getenv("HOME"), ".Rprofile"),
+            append = TRUE
+          )
 
       - name: Install OpenMP (macOS Homebrew)
         if: ${{ matrix.config.openmp && runner.os == 'macOS' }}
@@ -111,8 +124,9 @@ jobs:
           install-quarto: false
 
       # Union of DESCRIPTION deps across local packages, excluding the locals themselves.
-      # macOS uses CRAN binaries only (see install-cran-deps.R) so terra/sf are
+      # macOS uses binaries only (see install-cran-deps.R) so terra/sf are
       # not compiled from source and Homebrew GDAL is not required.
+      # geostatsp is installed from R-universe (not CRAN).
       - name: Install CRAN dependencies (exclude local packages)
         run: Rscript .github/scripts/install-cran-deps.R
 
