@@ -162,17 +162,5 @@ else
   echo "configure: -fvisibility=hidden not supported; leaving default visibility" >&2
 fi
 
-# ---- Windows warning suppressions ----
-# Avoid -Wno-* on Unix (CRAN non-portable-flag NOTE). On Windows/Rtools45
-# GCC 14, Eigen + std::move false positives in bits/move.h become "significant
-# warnings" during R CMD INSTALL; suppress only there.
+# Do not pass -Wno-* (CRAN/winbuilder: non-portable compilation flag WARNING).
 WARN_CXXFLAGS=""
-case "${MAKEVARS_OUT:-}" in
-  *Makevars.win) WARN_CXXFLAGS="-Wno-uninitialized" ;;
-esac
-case "$UNAME_S" in
-  MINGW*|MSYS*|CYGWIN*) WARN_CXXFLAGS="-Wno-uninitialized" ;;
-esac
-if [ -n "$WARN_CXXFLAGS" ]; then
-  echo "configure: Windows: adding $WARN_CXXFLAGS (Eigen/libstdc++ false positives)" >&2
-fi

@@ -57,10 +57,3 @@ See the monorepo root [`README.md`](../README.md) for install order.
 Vignettes are abbreviated during `R CMD check` on CRAN (`NOT_CRAN` unset) to
 keep rebuild time under 10 minutes; full HTML is built in CI and published at
 <https://eborgnine.github.io/adlaplace/>.
-
-Comment for CRAN submission (Windows `-Wno-uninitialized`):
-
-```
-
-We pass -Wno-uninitialized on Windows which produces a NOTE about a non-portable warning-suppression flag.  Without -Wno-uninitialized Windows checks can fail with a “significant warning” because of a false-positive -Wuninitialized warning (std::move of packet types).  This is not an issue on other OS's.
-```
