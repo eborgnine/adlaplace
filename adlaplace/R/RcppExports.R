@@ -77,7 +77,7 @@ get_sizes <- function(handle, group) {
 #' @return List with \code{domain}, \code{n_global}, \code{size_op},
 #'   \code{size_var}, and pattern nnz counts. \code{domain} /
 #'   \code{size_op} / \code{size_var} are zero when the shard never
-#'   recorded a tape (e.g. analytic FEM ssq with \code{fem_tape = FALSE});
+#'   recorded a tape (e.g. analytic FEM ssq with \code{fem_analytic = TRUE});
 #'   \code{n_global} and the nnz fields remain valid.
 #' @keywords internal
 get_tape_sizes <- function(handle, group) {

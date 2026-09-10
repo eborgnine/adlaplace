@@ -5,6 +5,7 @@
 #include "adlaplace/ad_pack.hpp"
 #include "adlaplace/ad_pack_random.hpp"
 #include "adlaplace/extension.hpp"
+#include "adlaplace/quadform_atomic.hpp"
 
 #include "fem_logdet_atomic.hpp"
 #include "fem_ssq_analytic.hpp"
@@ -205,22 +206,6 @@ void fem_Q_coefficients(const CppAD::AD<double> &raw_range,
   }
 }
 
-template <int Alpha>
-std::vector<CppAD::AD<double>>
-assemble_Q_x(const FemCholPayload &pay,
-             const CppAD::vector<CppAD::AD<double>> &c) {
-  std::vector<CppAD::AD<double>> Q_x(pay.Q.nnz());
-  for (std::size_t k = 0; k < Q_x.size(); ++k) {
-    CppAD::AD<double> v =
-        c[0] * pay.C_x[k] + c[1] * pay.G_x[k] + c[2] * pay.G2_x[k];
-    if constexpr (Alpha == 3) {
-      v += c[3] * pay.G3_x[k];
-    }
-    Q_x[k] = v;
-  }
-  return Q_x;
-}
-
 // Domain 2, Range m tape of the coefficient map, used by the analytic shard
 // to get c, dc/dtheta, and d2c/dtheta2 without hand-differentiating the
 // range/sd -> kappa/tau composition or the optional log transform.
@@ -243,10 +228,24 @@ CppAD::ADFun<double> make_fem_coef_fun(const FemThetaSpec &spec, double seed0,
   return CppAD::ADFun<double>(ax, ay);
 }
 
+// Owned CSC for one Gram: shared Q pattern + that Gram's value vector.
+CscMatrix gram_csc(const CscMatrix &pattern, const std::vector<double> &vals) {
+  CscMatrix m;
+  m.p = pattern.p;
+  m.i = pattern.i;
+  m.x = vals;
+  m.nrow_ = pattern.nrow_;
+  m.ncol_ = pattern.ncol_;
+  return m;
+}
+
+// Taped path: qf = sum_j c_j(theta) * (gamma' M_j gamma) via quadform atomics
+// so the tape records O(m) atomic calls instead of O(nnz(Q)) products.
 template <int Alpha>
 CppAD::vector<CppAD::AD<double>>
 random_fem_ssq(const CppAD::vector<CppAD::AD<double>> &x, const density_data &model,
                const Config &config) {
+  adlaplace::quadform::init_quadform_atomic();
   const FemCholPayload pay = read_fem_payload(model);
   if (pay.alpha != Alpha) {
     Rcpp::stop("precision alpha (%d) does not match kernel alpha (%d)",
@@ -256,7 +255,6 @@ random_fem_ssq(const CppAD::vector<CppAD::AD<double>> &x, const density_data &mo
   CppAD::vector<CppAD::AD<double>> c;
   fem_Q_coefficients<Alpha>(x[spec.t0_tape], x[spec.t1_tape],
                             spec.range_is_log, spec.sd_is_log, c);
-  const auto Q_x = assemble_Q_x<Alpha>(pay, c);
 
   const std::size_t n = static_cast<std::size_t>(pay.Q.ncol());
   const std::vector<std::size_t> gidx = model.all_gamma_global_indices();
@@ -265,15 +263,21 @@ random_fem_ssq(const CppAD::vector<CppAD::AD<double>> &x, const density_data &mo
                static_cast<int>(gidx.size()), static_cast<int>(n));
   }
 
+  CppAD::vector<CppAD::AD<double>> ax(n);
+  for (std::size_t j = 0; j < n; ++j) {
+    ax[j] = x[gidx[j]];
+  }
+
+  const std::size_t m = c.size();
+  const std::vector<double> *grams[4] = {&pay.C_x, &pay.G_x, &pay.G2_x,
+                                         &pay.G3_x};
   CppAD::AD<double> qf = 0.0;
-  for (std::size_t col = 0; col < n; ++col) {
-    for (int pos = pay.Q.p[col]; pos < pay.Q.p[col + 1]; ++pos) {
-      const std::size_t row =
-          static_cast<std::size_t>(pay.Q.i[static_cast<std::size_t>(pos)]);
-      const CppAD::AD<double> v = Q_x[static_cast<std::size_t>(pos)];
-      qf += (row == col ? CppAD::AD<double>(1) : CppAD::AD<double>(2)) *
-            x[gidx[row]] * v * x[gidx[col]];
-    }
+  for (std::size_t j = 0; j < m; ++j) {
+    const std::size_t call_id = adlaplace::quadform::register_csc(
+        gram_csc(pay.Q, *grams[j]));
+    CppAD::vector<CppAD::AD<double>> ay(1);
+    adlaplace::quadform::call_quadform(call_id, ax, ay);
+    qf += c[j] * ay[0];
   }
 
   CppAD::vector<CppAD::AD<double>> result(1);
@@ -437,32 +441,23 @@ template <int Alpha>
 SEXP create_ad_shard_random_fem_ssq(SEXP model, Rcpp::List config) {
   const density_data ad_model(model);
   const Config cfg(config);
+  // Two modes only:
+  //   fem_analytic=TRUE  (default)  untaped FemSsqShard closed forms
+  //   fem_analytic=FALSE            EvalShard over a quadform-atomic tape
   const bool fem_analytic = adlaplace_get_bool(config, "fem_analytic", true);
-  // Tape is forced on for the AD path. For analytic evaluation the default
-  // is no tape (skip recording and sparse_hes coloring). fem_tape = TRUE
-  // keeps a recorded, calibrated tape under analytic evaluation so tests
-  // can compare hand-built patterns against for_jac_sparsity. get_tape_sizes
-  // reports domain/size_op/size_var = 0 when the tape is skipped.
-  const bool fem_tape =
-      !fem_analytic || adlaplace_get_bool(config, "fem_tape", false);
 
   std::vector<AdTape> packs;
-  if (fem_tape) {
-    packs.push_back(build_ad_fun_random_with_pattern(
-        ad_model, config, random_fem_ssq<Alpha>, random_fem_ssq_sparsity));
-  } else {
+  if (fem_analytic) {
     packs.push_back(build_fem_ssq_pack<Alpha>(ad_model, cfg, cfg.verbose));
+    return make_ad_pack_ptr(fem_ssq_packs_to_ad_fun(
+        std::move(packs), ad_model.num_beta, ad_model.num_theta,
+        make_fem_ssq_data<Alpha>(ad_model, cfg)));
   }
-
-  if (!fem_analytic) {
-    return make_ad_pack_ptr(packs_to_ad_fun(std::move(packs),
-                                            ad_model.num_beta,
-                                            ad_model.num_theta,
-                                            adlaplace_fem_make_shard));
-  }
-  return make_ad_pack_ptr(fem_ssq_packs_to_ad_fun(
-      std::move(packs), ad_model.num_beta, ad_model.num_theta,
-      make_fem_ssq_data<Alpha>(ad_model, cfg)));
+  packs.push_back(build_ad_fun_random_with_pattern(
+      ad_model, config, random_fem_ssq<Alpha>, random_fem_ssq_sparsity));
+  return make_ad_pack_ptr(packs_to_ad_fun(std::move(packs), ad_model.num_beta,
+                                          ad_model.num_theta,
+                                          adlaplace_fem_make_shard));
 }
 
 LogDensSingleDataFn resolve_fem_det(const std::string &name) {

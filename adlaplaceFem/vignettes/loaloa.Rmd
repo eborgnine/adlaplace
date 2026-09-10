@@ -89,7 +89,7 @@ loaloa_knots <- hb_knots(
 knitr::kable(hb_summary(hb_basis(loaloa_knots, degree = 3L)), digits = 0)
 ```
 
-```{r knot-plot, fig.cap="Hierarchical knot regions (coarse extent and west/east refinements) over village locations."}
+```{r knot-plot, fig.cap="Hierarchical knot regions (coarse extent and west/east refinements) over village locations.", echo=FALSE}
 coarse <- do.call(terra::rast, loaloa_knots[[1]]$rasters[[1]])
 study <- do.call(terra::rast, loaloa_knots[[2]]$rasters[[1]])
 west <- do.call(terra::rast, loaloa_knots[[3]]$rasters[[1]])
@@ -103,25 +103,25 @@ draw_raster_grid <- function(r, col = "grey40", lwd = 0.6) {
   segments(e$xmin, ys, e$xmax, ys, col = col, lwd = lwd)
 }
 
-data("worldMap", package = "mapmisc")
-africa_bg <- terra::project(terra::unwrap(worldMap), loaloa)
-africa_bg <- terra::crop(africa_bg, terra::extend(terra::ext(coarse), 5e4))
+
+africa_map <- mapmisc::openmap(loaloa,
+  zoom = 5, fact = 2, buffer = 200 * 1000
+)
 
 e0 <- terra::ext(coarse)
 mapmisc::map.new(coarse, buffer = 0)
-terra::plot(africa_bg, add = TRUE, col = "grey95", border = "grey50", lwd = 0.6)
+terra::plot(africa_map, add = TRUE)
 rect(e0[1], e0[3], e0[2], e0[4], col = rgb(0.85, 0.85, 0.85, 0.35), border = "grey30")
 draw_raster_grid(coarse, col = "grey45", lwd = 0.7)
 es <- terra::ext(study)
 rect(es[1], es[3], es[2], es[4], col = rgb(0.4, 0.6, 1, 0.12), border = "steelblue", lwd = 1)
-draw_raster_grid(study, col = "steelblue", lwd = 0.5)
+draw_raster_grid(study, col = "steelblue", lwd = 0.8)
 ew <- terra::ext(west)
 ee <- terra::ext(east)
 rect(ew[1], ew[3], ew[2], ew[4], col = rgb(1, 0.4, 0.3, 0.2), border = "coral", lwd = 1.2)
 rect(ee[1], ee[3], ee[2], ee[4], col = rgb(1, 0.4, 0.3, 0.2), border = "coral", lwd = 1.2)
 draw_raster_grid(west, col = "coral3", lwd = 0.8)
 draw_raster_grid(east, col = "coral3", lwd = 0.8)
-terra::plot(africa_bg, add = TRUE, border = "grey30", lwd = 0.8, col = NA)
 points(terra::crds(loaloa), pch = 16, cex = 0.55)
 legend(
   "topright",

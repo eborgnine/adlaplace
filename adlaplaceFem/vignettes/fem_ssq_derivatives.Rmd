@@ -295,16 +295,15 @@ Two conventions must match `EvalShard` exactly, and they differ from each other:
   analytic value is zero must therefore be written as explicit zeros rather than
   skipped, which is what the `kIgnore` branch does.
 
-# Three modes
+# Two modes
 
 Because the closed forms are worth trusting only if they are checked, the
-density keeps the AD path available through two config flags.
+density keeps an AD reference path behind one config flag.
 
-| `fem_analytic` | `fem_tape` | Behaviour |
-|---|---|---|
-| `TRUE` | `FALSE` | Default. Closed-form evaluation, tape never recorded, no build-time coloring. |
-| `TRUE` | `TRUE` | Closed-form evaluation over a recorded and calibrated tape. Lets tests compare hand-built patterns against `for_jac_sparsity`, and A/B the build cost. |
-| `FALSE` | (forced `TRUE`) | The AD `EvalShard` path, used as the reference oracle for values. |
+| `fem_analytic` | Behaviour |
+|---|---|
+| `TRUE` (default) | Closed-form `FemSsqShard` evaluation; tape never recorded. |
+| `FALSE` | Standard `EvalShard` over a CppAD tape that evaluates $\gamma^\top M_j\gamma$ with `quadform_atomic` (one call per Gram). |
 
 In the default mode `get_tape_sizes()` reports `domain`, `size_op`, and
 `size_var` as zero. That is a diagnostic only; nothing downstream consumes it,
@@ -312,10 +311,10 @@ and the zeros do not indicate a broken pack.
 
 # Verification
 
-A small model, built three ways from the same FEM ingredients.
+A small model, built both ways from the same FEM ingredients.
 
 ```{r pack}
-ssq_pack <- function(alpha = 2L, analytic = TRUE, tape = !analytic,
+ssq_pack <- function(alpha = 2L, analytic = TRUE,
                      range = sqrt(8) / 1.5, sd = 0.8, nk = 4L) {
   degree <- if (alpha == 2L) 2L else 3L
   knots_list <- list(
@@ -331,8 +330,7 @@ ssq_pack <- function(alpha = 2L, analytic = TRUE, tape = !analytic,
     gamma = rep(0, nr),
     theta = c(log(range), log(sd)),
     transform_theta = TRUE,
-    fem_analytic = analytic,
-    fem_tape = tape
+    fem_analytic = analytic
   )
   dd <- adlaplace::density_data(
     gamma_map = Matrix::Diagonal(nr),
@@ -350,30 +348,31 @@ ssq_pack <- function(alpha = 2L, analytic = TRUE, tape = !analytic,
   )
 }
 
-notape <- ssq_pack(analytic = TRUE, tape = FALSE)
-taped <- ssq_pack(analytic = TRUE, tape = TRUE)
+analytic <- ssq_pack(analytic = TRUE)
 ad <- ssq_pack(analytic = FALSE)
 
-c(n_gamma = notape$n_gamma)
+c(n_gamma = analytic$n_gamma)
 ```
 
-The default mode records no tape, while the patterns are identical to the ones
-the tape would have discovered:
+The default mode records no tape, while the patterns match the ones the
+atomic AD tape discovers:
 
 ```{r tape-sizes}
 rbind(
-  notape = unlist(adlaplace:::get_tape_sizes(notape$ptr, 0L)),
-  taped = unlist(adlaplace:::get_tape_sizes(taped$ptr, 0L))
+  analytic = unlist(adlaplace:::get_tape_sizes(analytic$ptr, 0L)),
+  ad = unlist(adlaplace:::get_tape_sizes(ad$ptr, 0L))
 )
 ```
 
-`domain` and `size_op` collapse to zero, but `nnz_grad` and `nnz_hes` agree.
+`domain` and `size_op` collapse to zero on the analytic pack, but `nnz_grad`
+and `nnz_hes` agree. The AD tape domain is $n+2$ with a small operator count
+from the Gram atomics rather than an $O(\mathrm{nnz}(Q))$ product loop.
 
-All three modes agree on the value, gradient, and Hessian:
+Both modes agree on the value, gradient, and Hessian:
 
 ```{r agree}
 set.seed(3)
-x <- c(rnorm(notape$n_gamma), notape$theta)
+x <- c(rnorm(analytic$n_gamma), analytic$theta)
 
 f_of <- function(p) adlaplace::joint_log_dens(p$ptr, x, negative = FALSE)
 g_of <- function(p, inner) {
@@ -385,15 +384,10 @@ H_of <- function(p, inner) {
 
 data.frame(
   quantity = c("log density", "gradient (outer)", "Hessian (outer)"),
-  notape_vs_AD = c(
-    abs(f_of(notape) - f_of(ad)),
-    max(abs(g_of(notape, FALSE) - g_of(ad, FALSE))),
-    max(abs(H_of(notape, FALSE) - H_of(ad, FALSE)))
-  ),
-  taped_vs_AD = c(
-    abs(f_of(taped) - f_of(ad)),
-    max(abs(g_of(taped, FALSE) - g_of(ad, FALSE))),
-    max(abs(H_of(taped, FALSE) - H_of(ad, FALSE)))
+  analytic_vs_AD = c(
+    abs(f_of(analytic) - f_of(ad)),
+    max(abs(g_of(analytic, FALSE) - g_of(ad, FALSE))),
+    max(abs(H_of(analytic, FALSE) - H_of(ad, FALSE)))
   )
 )
 ```
@@ -408,39 +402,39 @@ $\boldsymbol\gamma$:
 kappa <- 1.5
 sd <- 0.8
 tau <- 1 / (kappa * sd * sqrt(4 * pi))
-nr <- notape$n_gamma
+nr <- analytic$n_gamma
 
-H_inner <- H_of(notape, TRUE)
+H_inner <- H_of(analytic, TRUE)
 Q <- as.matrix(fem_precision(
   kappa = kappa, tau = tau,
-  notape$fem$C, notape$fem$G, notape$fem$G2,
+  analytic$fem$C, analytic$fem$G, analytic$fem$G2,
   alpha = 2L
 ))
 
 c(max_abs_diff = max(abs(H_inner[seq_len(nr), seq_len(nr)] + Q)))
 ```
 
-Finally the third-order trace. All modes agree, and the analytic result is
+Finally the third-order trace. Both modes agree, and the analytic result is
 exactly zero on every gamma coordinate:
 
 ```{r trace}
-af_notape <- adlaplace::ad_pack(notape$ptr, num_threads = 1L)
+af_analytic <- adlaplace::ad_pack(analytic$ptr, num_threads = 1L)
 af_ad <- adlaplace::ad_pack(ad$ptr, num_threads = 1L)
 
-half <- af_notape@chol_inner_list$half_H_inv
+half <- af_analytic@chol_inner_list$half_H_inv
 half <- methods::as(methods::as(half, "generalMatrix"), "CsparseMatrix")
 set.seed(5)
 half@x[] <- rnorm(length(half@x))
-cols <- af_notape@chol_inner_list$trace_columns
+cols <- af_analytic@chol_inner_list$trace_columns
 
-t_notape <- adlaplace::trace_hinv_t(af_notape, x, half, cols)
+t_analytic <- adlaplace::trace_hinv_t(af_analytic, x, half, cols)
 t_ad <- adlaplace::trace_hinv_t(af_ad, x, half, cols)
 
 c(
-  rel_diff_vs_AD = max(abs(t_notape - t_ad)) / max(abs(t_ad)),
-  max_abs_on_gamma = max(abs(t_notape[seq_len(nr)])),
-  theta_1 = t_notape[nr + 1L],
-  theta_2 = t_notape[nr + 2L]
+  rel_diff_vs_AD = max(abs(t_analytic - t_ad)) / max(abs(t_ad)),
+  max_abs_on_gamma = max(abs(t_analytic[seq_len(nr)])),
+  theta_1 = t_analytic[nr + 1L],
+  theta_2 = t_analytic[nr + 2L]
 )
 ```
 
@@ -457,13 +451,13 @@ clone under OpenMP.
 The two FEM terms illustrate the two available extension points, and the choice
 between them turns on the size of the domain.
 
-| | `random_fem_det_*` | `random_fem_ssq_*` |
-|---|---|---|
-| Mechanism | `CppAD::atomic_four` | custom `ad_shard` |
-| Domain of the hand-written code | $m = 3$ or $4$ coefficients | $n+2$ parameters |
-| Derivative route | trace identity $\mathrm{d}\log\det\mathbf{Q} = \operatorname{tr}(\mathbf{Q}^{-1}\mathrm{d}\mathbf{Q})$, evaluated with a sparse LDL and a Takahashi selected inverse | direct differentiation of a quadratic form |
-| Highest order implemented | reverse order 1 | closed form throughout |
-| Sits on a tape | yes | no |
+| | `random_fem_det_*` | `random_fem_ssq_*` (analytic) | `random_fem_ssq_*` (AD) |
+|---|---|---|---|
+| Mechanism | `CppAD::atomic_four` | custom `ad_shard` | `quadform_atomic` on a tape |
+| Domain of the hand-written code | $m = 3$ or $4$ coefficients | $n+2$ parameters | fixed Grams; $n$ on each atomic call |
+| Derivative route | trace identity $\mathrm{d}\log\det\mathbf{Q} = \operatorname{tr}(\mathbf{Q}^{-1}\mathrm{d}\mathbf{Q})$, evaluated with a sparse LDL and a Takahashi selected inverse | direct differentiation of a quadratic form | atomic forward/reverse of $\gamma^\top M_j\gamma$, then chain through $c_j(\theta)$ |
+| Highest order implemented | reverse order 1 | closed form throughout | Taylor / reverse through order 2 |
+| Sits on a tape | yes | no | yes |
 
 The determinant is a natural atomic because the coefficients are the only
 inputs: it is called with a 3- or 4-vector, CppAD's sparsity and coloring
@@ -473,14 +467,14 @@ assigns trace columns by matching a shard's `grad_inner` against the gamma
 slots, and the determinant depends on $\boldsymbol\theta$ only, so it is never
 assigned any.
 
-The quadratic form is the opposite case on every axis. It is the term that gets
-assigned every gamma column, its Hessian block is an $n\times n$ sparse matrix
-that CppAD would rediscover by coloring, and an atomic wrapping it would have to
-marshal dense $(n+2)$-vectors on every call. Its expensive structure lives at
-the level the shard controls, not inside a tape, so the shard is the right
-extension point.
+The quadratic form's production path is the opposite case: it is the term that
+gets assigned every gamma column, its Hessian block is an $n\times n$ sparse
+matrix, and the expensive structure lives at the shard level. The AD reference
+path still uses atomics, but only for the *fixed* Grams $M_j$ (scalar
+$y_j = \gamma^\top M_j\gamma$), with $\tau$/range coefficients kept outside —
+the same split `random_mult` uses for a fixed $Q$.
 
-One structural precondition makes this possible: `random_fem_ssq_*` is alone in
-its pack, so the shard can own the entire term. A shard replaces a whole tape,
-so if this term ever had to share a tape with others, an atomic would become the
-only option.
+One structural precondition makes the analytic shard possible: `random_fem_ssq_*`
+is alone in its pack, so the shard can own the entire term. A shard replaces a
+whole tape, so if this term ever had to share a tape with others, the atomic AD
+path would become the only option.
