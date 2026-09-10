@@ -2,7 +2,10 @@
 #define ADLAPLACE_CHOL_UPDATE_HPP
 
 #include <Rcpp.h>
+#include "adlaplace/eigen_diagnostics.hpp"
+ADLAPLACE_EIGEN_DIAG_PUSH_MAYBE
 #include <Eigen/SparseCore>
+ADLAPLACE_EIGEN_DIAG_POP
 
 #include "adlaplace/backend.hpp"
 #include "adlaplace/chol_update_impl.hpp"

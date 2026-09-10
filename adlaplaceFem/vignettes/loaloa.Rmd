@@ -70,13 +70,14 @@ rectangles over the west and east village clusters. Pass the `hb_knots()`
 result as `knots` to `matern()`.
 
 ```{r knots}
-loaloa_knots <- hb_knots(
+loaloa_knots <- adlaplaceFem::hb_knots(
   outer = geostatsp::squareRaster(loaloa, cells = 4, buffer = 100 * 1000),
   inner = list(
     terra::ext(loaloa),
     list(
-      terra::ext(715346.2, 807973.3, 444011.3, 547709.5),
-      terra::ext(657647.4, 766139.5, 676077.0, 753953.7)
+      terra::ext(3.9e5, 5.5e5, 5.4e5, 7.4e5),
+      terra::ext(6e5, 8.1e5, 3.7e5, 7.4e5),
+      terra::ext(1e6, 1.19e6, 400000, 600000)
     )
   ),
   fact = 2

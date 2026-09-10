@@ -3,7 +3,10 @@
 
 #include <cppad/cppad.hpp>
 #include <Rcpp.h>
+#include "adlaplace/eigen_diagnostics.hpp"
+ADLAPLACE_EIGEN_DIAG_PUSH_MAYBE
 #include <Eigen/SparseCore>
+ADLAPLACE_EIGEN_DIAG_POP
 #include <cstddef>
 #include <vector>
 

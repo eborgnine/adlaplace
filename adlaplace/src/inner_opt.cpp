@@ -5,7 +5,10 @@
 #include <cstdlib>
 #include <string>
 // Eigen (SparseCholesky pulls SparseCore + OrderingMethods)
+#include "adlaplace/eigen_diagnostics.hpp"
+ADLAPLACE_EIGEN_DIAG_PUSH_MAYBE
 #include <Eigen/SparseCholesky>
+ADLAPLACE_EIGEN_DIAG_POP
 
 // Rcpp
 #include <Rcpp.h>
