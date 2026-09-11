@@ -125,6 +125,23 @@ void cppad_parallel_setup(std::size_t num_threads) {
   num_threads = 1;
 #endif
 
+  // Never shrink the CppAD/OpenMP team within a process: decreasing the team
+  // size (e.g. 4 -> 2) leaves CppAD thread_alloc / libomp global state
+  // inconsistent on Windows, which aborts the next parallel eval (or, with
+  // hold_memory=false, deadlocks on process exit). The matrix showed
+  // SAME_SIZE (2 -> 2) passes while BASELINE (4 -> 2) crashes, and neither
+  // warm_openmp_runtime() nor ADLAPLACE_HOLD_MEMORY=0 fixes it. So clamp a
+  // request for a smaller *parallel* team up to the process-wide high-water
+  // mark. Serial (num_threads == 1) is left alone -- the 4 -> 1 teardown path
+  // is the normal CppadParallelScope exit and is safe. Escape hatch:
+  // ADLAPLACE_CLAMP_TEAM_THREADS=0 disables the clamp for debugging.
+  if (num_threads > 1 && max_team_num_threads > num_threads) {
+    const char *clamp_env = std::getenv("ADLAPLACE_CLAMP_TEAM_THREADS");
+    if (clamp_env == nullptr || clamp_env[0] != '0' || clamp_env[1] != '\0') {
+      num_threads = max_team_num_threads;
+    }
+  }
+
   if (num_threads != cppad_team_num_threads) {
     cppad_parallel_teardown();
   }

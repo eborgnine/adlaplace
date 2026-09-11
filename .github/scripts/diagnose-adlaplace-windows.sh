@@ -48,13 +48,30 @@ echo "===== testthat diagnose: control=${ctrl_ec} repro_15_then_22=${repro_ec} =
 
 repro="${root}/.github/scripts/repro-15-22-matrix.R"
 
+# Per-variant timeout (seconds). A hung Rscript (e.g. libomp deadlock on
+# process exit) would otherwise block the whole matrix and the workflow job.
+# `timeout` is available in rtools45 /usr/bin (coreutils). If missing, run
+# without a timeout (fallback).
+VARIANT_TIMEOUT="${VARIANT_TIMEOUT:-120}"
+
+run_with_timeout() {
+  # Uses the global VARIANT_TIMEOUT. Args are the command + its args.
+  if command -v timeout >/dev/null 2>&1; then
+    timeout -k 10 "${VARIANT_TIMEOUT}" "$@"
+  else
+    "$@"
+  fi
+}
+
 run_variant() {
   name="$1"; shift
   env_overrides="$1"; shift
   echo "::group::matrix: ${name}"
-  echo "+ ${env_overrides} Rscript repro-15-22-matrix.R"
+  echo "+ ${env_overrides} Rscript repro-15-22-matrix.R (timeout ${VARIANT_TIMEOUT}s)"
   set +e
-  env ${env_overrides} Rscript "${repro}" 2>&1
+  # run_with_timeout wraps the env+Rscript invocation; the env vars are
+  # passed via `env` (an external command timeout can exec).
+  run_with_timeout env ${env_overrides} Rscript "${repro}" 2>&1
   ec=$?
   set -e
   echo "exit_code=${ec}"
@@ -76,6 +93,12 @@ run_variant "SKIP_A_B2" \
 # SAME_SIZE: A=2 (not 4), B=2. Does the team-size CHANGE (4->2) matter?
 run_variant "SAME_SIZE_A2_B2" \
   "ADLAPLACE_REPRO_PHASE_A_THREADS=2 ADLAPLACE_REPRO_PHASE_A_ITERS=20 ADLAPLACE_REPRO_PHASE_B_THREADS=2 ADLAPLACE_REPRO_INTERLUDE=none"
+
+# SAME_SIZE_A4_B4: A=4, B=4. Directly confirms 4->4 (no decrease) works on
+# Windows. SAME_SIZE_A2_B2 only proved 2->2; this rules out a 4-specific
+# issue and validates the clamp-to-max mitigation (which makes B run at 4).
+run_variant "SAME_SIZE_A4_B4" \
+  "ADLAPLACE_REPRO_PHASE_A_THREADS=4 ADLAPLACE_REPRO_PHASE_A_ITERS=20 ADLAPLACE_REPRO_PHASE_B_THREADS=4 ADLAPLACE_REPRO_INTERLUDE=none"
 
 # INTERLUDE_GC: A=4 then gc() then B=2. Does finalizing phase A's ad_pack fix it?
 run_variant "INTERLUDE_GC_A4_B2" \
