@@ -175,13 +175,6 @@ jobs:
       - name: Build and install adlaplace
         run: bash .github/scripts/install-local-pkg.sh adlaplace
 
-      # Pin the Windows hard-abort around ad_pack_ptr / pack compose before the
-      # full check (continue so we still get .ci-check Rout + dump on failure).
-      - name: Diagnose adlaplace early crash path
-        if: ${{ matrix.config.id == 'windows' }}
-        continue-on-error: true
-        run: bash .github/scripts/diagnose-adlaplace-windows.sh
-
       - name: Check adlaplace (plain)
         if: ${{ matrix.config.check_plain }}
         uses: r-lib/actions/check-r-package@v2
@@ -207,13 +200,6 @@ jobs:
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
           check-dir: '"../.ci-check/adlaplace-as-cran"'
           artifact-name: ${{ matrix.config.id }}-adlaplace-as-cran
-
-      # If the full check aborted mid-suite, re-run the early files once more
-      # so the job log has LocationReporter breadcrumbs even when Rout is empty.
-      - name: Re-diagnose adlaplace after check failure
-        if: ${{ failure() && matrix.config.id == 'windows' }}
-        continue-on-error: true
-        run: bash .github/scripts/diagnose-adlaplace-windows.sh
 
       # ----- adlaplaceExample -----
       - name: Build and install adlaplaceExample

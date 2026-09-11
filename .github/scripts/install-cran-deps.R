@@ -5,13 +5,20 @@
 # Suggests of our Suggests do not break the solve.
 # geostatsp is installed from R-universe (newer than CRAN); see below.
 
-locals <- c(
-  "RCppAD",
-  "adlaplace",
-  "adlaplaceExample",
-  "adlaplaceHgp",
-  "adlaplaceFem"
-)
+# Optional CLI args restrict which local package DESCRIPTIONs are scanned
+# (e.g. Rscript install-cran-deps.R RCppAD adlaplace).
+cli_locals <- commandArgs(trailingOnly = TRUE)
+locals <- if (length(cli_locals)) {
+  cli_locals
+} else {
+  c(
+    "RCppAD",
+    "adlaplace",
+    "adlaplaceExample",
+    "adlaplaceHgp",
+    "adlaplaceFem"
+  )
+}
 
 dep_types <- c("Depends", "Imports", "LinkingTo", "Suggests")
 
