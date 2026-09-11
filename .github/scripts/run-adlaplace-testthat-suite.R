@@ -1,7 +1,8 @@
 #!/usr/bin/env Rscript
 # Same-process adlaplace testthat run (Windows abort hunter).
 #
-# Full suite (default): test_check() + Location reporter — closest to R CMD check.
+# Full suite (default): test_dir() on source tests/ + installed package.
+# (test_check() looks under the installed library, which has no tests/.)
 # Prefix/slice: one-process alphabetical test_file() loop for binary search.
 #
 # Usage:
@@ -29,6 +30,20 @@ say <- function(...) {
   flush.console()
 }
 
+quit_status <- function(status) {
+  quit(save = "no", status = as.integer(status))
+}
+
+results_failed <- function(res) {
+  df <- as.data.frame(res)
+  if (!nrow(df)) {
+    return(FALSE)
+  }
+  failed <- if ("failed" %in% names(df)) sum(df$failed, na.rm = TRUE) else 0
+  errored <- if ("error" %in% names(df)) sum(df$error, na.rm = TRUE) else 0
+  (failed + errored) > 0
+}
+
 if (!requireNamespace("testthat", quietly = TRUE)) {
   stop("testthat is required", call. = FALSE)
 }
@@ -45,25 +60,41 @@ say(
 library(testthat)
 library(adlaplace)
 
+root <- normalizePath(getwd())
+test_path <- file.path(root, "adlaplace", "tests", "testthat")
+if (!dir.exists(test_path)) {
+  stop("missing test dir: ", test_path, call. = FALSE)
+}
+files_all <- sort(list.files(test_path, pattern = "^test-.*\\.R$", full.names = TRUE))
+n <- length(files_all)
+if (!n) {
+  stop("no test-*.R under ", test_path, call. = FALSE)
+}
+say("test_dir", test_path, "n_files", n)
+
 reporter <- MultiReporter$new(list(
   LocationReporter$new(),
   FailReporter$new()
 ))
 
 if (!slice) {
-  say("mode test_check(adlaplace)")
-  # Mirrors tests/testthat.R under R CMD check.
-  test_check("adlaplace", reporter = reporter)
-  say("SUITE DONE ok (test_check)")
-  quit(save = "no", status = 0L)
-}
-
-root <- normalizePath(getwd())
-test_dir <- file.path(root, "adlaplace", "tests", "testthat")
-files <- sort(list.files(test_dir, pattern = "^test-.*\\.R$", full.names = TRUE))
-n <- length(files)
-if (!n) {
-  stop("no test-*.R under ", test_dir, call. = FALSE)
+  # Closest to R CMD check's testthat.R, but tests come from the source tree
+  # because installed packages do not ship tests/.
+  say("mode test_dir(source tests, load_package=installed)")
+  res <- test_dir(
+    test_path,
+    package = "adlaplace",
+    load_package = "installed",
+    reporter = reporter,
+    stop_on_failure = FALSE,
+    stop_on_warning = FALSE
+  )
+  if (results_failed(res)) {
+    say("SUITE DONE with failures")
+    quit_status(1L)
+  }
+  say("SUITE DONE ok (test_dir)")
+  quit_status(0L)
 }
 
 if (is.na(from)) {
@@ -77,22 +108,31 @@ if (!is.na(max_files)) {
 }
 from <- max(1L, as.integer(from))
 to <- min(n, as.integer(to))
-files <- files[seq.int(from, to)]
+files <- files_all[seq.int(from, to)]
 
 say("mode test_file slice", sprintf("%d:%d/%d", from, to, n))
 
+any_fail <- FALSE
 for (i in seq_along(files)) {
   f <- files[[i]]
   idx <- from + i - 1L
   say(sprintf("===== FILE %d/%d %s =====", idx, n, basename(f)))
-  test_file(
+  res <- test_file(
     f,
     reporter = reporter,
     package = "adlaplace",
     stop_on_failure = FALSE,
     stop_on_warning = FALSE
   )
+  if (results_failed(res)) {
+    any_fail <- TRUE
+  }
   say(sprintf("===== END FILE %d/%d %s =====", idx, n, basename(f)))
 }
 
+if (any_fail) {
+  say("SUITE DONE with failures", sprintf("slice %d:%d", from, to))
+  quit_status(1L)
+}
 say("SUITE DONE ok", sprintf("slice %d:%d", from, to))
+quit_status(0L)

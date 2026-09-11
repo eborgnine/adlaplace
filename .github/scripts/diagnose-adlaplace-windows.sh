@@ -40,6 +40,8 @@ if [ "${suite_ec}" -eq 0 ]; then
   exit 0
 fi
 
+# Soft failures and hard aborts both non-zero. Bisect only helps if R actually
+# ran tests (look for n_files in the group above; "No test files" is fixed).
 echo "===== full suite failed/aborted (exit=${suite_ec}); binary-search prefixes ====="
 n_files=$(find adlaplace/tests/testthat -name 'test-*.R' | wc -l | tr -d ' ')
 lo=1
