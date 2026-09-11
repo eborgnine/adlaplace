@@ -170,7 +170,9 @@ if (interlude == "gc" || interlude == "gcwarm") {
 }
 if (interlude == "warm" || interlude == "gcwarm") {
   say("INTERLUDE warm_openmp_runtime()")
-  adlaplace::warm_openmp_runtime()
+  # warm_openmp_runtime() is @keywords internal (not in NAMESPACE), so use
+  # triple-colon internal access from this standalone script.
+  adlaplace:::warm_openmp_runtime()
   say("INTERLUDE warm done")
 }
 
