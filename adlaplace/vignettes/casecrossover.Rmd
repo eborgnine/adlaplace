@@ -191,9 +191,7 @@ par_info <- md$term_data$info$parameters
 cache <- new.env(parent = emptyenv())
 cache$gamma <- rep(0, nrow(md$term_data$info$gamma))
 control_dev <- list(
-  maxit = 200, trace = 0, REPORT = 1,
-  factr = 1e3,
-  pgtol = 1e-8,
+  maxit = 10, trace = 3, REPORT = 5,
   parscale = par_info$parscale
 )
 control_inner <- list(report.level = 0)
