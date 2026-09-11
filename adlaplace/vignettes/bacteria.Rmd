@@ -13,7 +13,12 @@ vignette: >
 
 ```{r setup, include=FALSE}
 library(adlaplace)
-source("vignette_full.R", local = TRUE)
+if (file.exists("vignette_full.R")) {
+  source("vignette_full.R", local = TRUE)
+} else {
+  vignette_full <- TRUE
+  vignette_num_threads <- 2L
+}
 knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>",

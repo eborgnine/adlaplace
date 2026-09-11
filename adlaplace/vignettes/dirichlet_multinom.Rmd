@@ -14,7 +14,12 @@ vignette: >
 # Equivalence to Conditional Gamma-Poisson Model
 
 ```{r setup, include=FALSE}
-source("vignette_full.R", local = TRUE)
+if (file.exists("vignette_full.R")) {
+  source("vignette_full.R", local = TRUE)
+} else {
+  vignette_full <- TRUE
+  vignette_num_threads <- 2L
+}
 ```
 
 The Dirichlet-multinomial distribution with parameter $\alpha$ is equivalent to a conditional Gamma-Poisson model. This equivalence provides an alternative interpretation and can be useful for understanding the properties of the distribution.

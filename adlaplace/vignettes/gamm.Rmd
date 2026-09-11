@@ -17,7 +17,12 @@ taken from help files for mgcv::gamm
 ```{r setup, include=FALSE}
 library("Matrix")
 library("adlaplace")
-source("vignette_full.R", local = TRUE)
+if (file.exists("vignette_full.R")) {
+  source("vignette_full.R", local = TRUE)
+} else {
+  vignette_full <- TRUE
+  vignette_num_threads <- 2L
+}
 ```
 
 ```{r gamm}
