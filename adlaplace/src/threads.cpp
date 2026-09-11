@@ -115,7 +115,59 @@ void debug_teardown_flush(std::size_t) {}
 void debug_teardown_restored() {}
 #endif
 
+bool clamp_team_threads_enabled() {
+  const char *env = std::getenv("ADLAPLACE_CLAMP_TEAM_THREADS");
+  // Default on. Escape hatch: ADLAPLACE_CLAMP_TEAM_THREADS=0.
+  return !(env != nullptr && env[0] == '0' && env[1] == '\0');
+}
+
 } // namespace
+
+std::size_t adlaplace_latch_parallel_threads(std::size_t requested) {
+  if (requested < 1)
+    requested = 1;
+#ifndef _OPENMP
+  return 1;
+#else
+  // Serial (1) is the normal CppadParallelScope teardown / dens path and must
+  // not latch or clamp. Only parallel requests (>1) raise / obey the mark.
+  if (requested == 1)
+    return 1;
+
+  if (requested > max_team_num_threads)
+    max_team_num_threads = requested;
+
+  // Clamp-up only on Windows: decreasing the OpenMP/CppAD team size within one
+  // R process aborts there (matrix: A4->B2 = 127, A4->B4 = 0). Other platforms
+  // still track the high-water mark for teardown flush, but honor the request
+  // so tests / users can change thread counts in-process.
+#if defined(_WIN32)
+  if (clamp_team_threads_enabled() && max_team_num_threads > requested)
+    return max_team_num_threads;
+#endif
+  return requested;
+#endif
+}
+
+//' Latch (and optionally raise) the process-wide parallel team size.
+//'
+//' For \code{requested > 1}, updates the process high-water mark. On Windows,
+//' returns that mark after raising it (so later smaller requests cannot shrink
+//' the effective team -- a decrease aborts under rtools/libomp). On other
+//' platforms the requested count is returned unchanged. Serial
+//' \code{requested = 1} is always returned unchanged.
+//'
+//' @param requested Positive integer thread count.
+//' @return Integer effective thread count.
+//' @keywords internal
+// [[Rcpp::export(rng = false)]]
+int latch_parallel_threads(int requested) {
+  if (requested < 1) {
+    Rcpp::stop("requested must be a positive integer");
+  }
+  return static_cast<int>(
+      adlaplace_latch_parallel_threads(static_cast<std::size_t>(requested)));
+}
 
 void cppad_parallel_setup(std::size_t num_threads) {
   require_serial_main_thread("cppad_parallel_setup");
@@ -124,6 +176,12 @@ void cppad_parallel_setup(std::size_t num_threads) {
 #ifndef _OPENMP
   num_threads = 1;
 #endif
+
+  // Never shrink the CppAD/OpenMP team within a process: decreasing the team
+  // size (e.g. 4 -> 2) leaves CppAD thread_alloc / libomp global state
+  // inconsistent on Windows. Latch raises/clamps parallel requests; serial
+  // (1) is left alone for normal CppadParallelScope teardown.
+  num_threads = adlaplace_latch_parallel_threads(num_threads);
 
   if (num_threads != cppad_team_num_threads) {
     cppad_parallel_teardown();
@@ -223,7 +281,10 @@ void cppad_parallel_teardown() {
   CppAD::thread_alloc::hold_memory(false);
   CppAD::parallel_ad<double>();
   cppad_team_num_threads = 1;
-  max_team_num_threads = 1;
+  // Keep process-wide high-water mark across teardowns so a later request for
+  // a smaller parallel team can be clamped back up. Resetting this here would
+  // disable the clamp after every CppadParallelScope exit (the Windows 4->2
+  // abort path).
   debug_teardown_restored();
 }
 

@@ -3,6 +3,7 @@
 #include <Rinternals.h>
 #include "adlaplace/register.hpp"
 #include "adlaplace/runtime.hpp"
+#include "adlaplace/ompad.hpp"
 
 //' Build raw AD handle for observation shards only
 //'
@@ -230,6 +231,13 @@ void assign_owner_threads(
   if (num_threads < 1) {
     Rcpp::stop("num_threads must be a positive integer");
   }
+  // Latch before assigning owners so shard affinity and later OpenMP widths
+  // cannot shrink after a larger parallel team was used in this process.
+  // Without this, fun_obj_fdfh derives num_threads from thread_groups.size()
+  // (owner map) and can still run a 2-thread OpenMP region after a 4-thread
+  // session -- the Windows abort path.
+  num_threads = static_cast<int>(
+      adlaplace_latch_parallel_threads(static_cast<std::size_t>(num_threads)));
   ad_pack* groups = ad_fun_from_handle(handle);
   const std::size_t n_threads = static_cast<std::size_t>(num_threads);
   const std::size_t n_shards = groups->fun.size();

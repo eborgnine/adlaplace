@@ -7,7 +7,7 @@
 using namespace Rcpp;
 
 #ifdef RCPP_USE_GLOBAL_ROSTREAM
-    Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
+Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
 Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
@@ -271,6 +271,16 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// latch_parallel_threads
+int latch_parallel_threads(int requested);
+RcppExport SEXP _adlaplace_latch_parallel_threads(SEXP requestedSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::traits::input_parameter< int >::type requested(requestedSEXP);
+    rcpp_result_gen = Rcpp::wrap(latch_parallel_threads(requested));
+    return rcpp_result_gen;
+END_RCPP
+}
 // has_openmp
 bool has_openmp();
 RcppExport SEXP _adlaplace_has_openmp() {
@@ -341,6 +351,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_adlaplace_hessian", (DL_FUNC) &_adlaplace_hessian, 6},
     {"_adlaplace_inner_opt", (DL_FUNC) &_adlaplace_inner_opt, 7},
     {"_adlaplace_fun_obj_fdfh", (DL_FUNC) &_adlaplace_fun_obj_fdfh, 5},
+    {"_adlaplace_latch_parallel_threads", (DL_FUNC) &_adlaplace_latch_parallel_threads, 1},
     {"_adlaplace_has_openmp", (DL_FUNC) &_adlaplace_has_openmp, 0},
     {"_adlaplace_warm_openmp_runtime", (DL_FUNC) &_adlaplace_warm_openmp_runtime, 0},
     {"_adlaplace_trace_hinv_t", (DL_FUNC) &_adlaplace_trace_hinv_t, 5},
@@ -353,7 +364,6 @@ RcppExport void R_init_adlaplace(DllInfo *dll) {
     R_useDynamicSymbols(dll, FALSE);
     // Install live-ad_pack registry hooks so make_ad_pack_ptr / ad_fun_destroy
     // (register_impl.hpp, included in this DSO) track handles for
-    // cppad_parallel_teardown to reset on team-size changes. No-op in backend
-    // DSOs (their hook slots stay null).
+    // cppad_parallel_teardown. No-op in backend DSOs (their hook slots stay null).
     adlaplace_install_registry_hooks();
 }
