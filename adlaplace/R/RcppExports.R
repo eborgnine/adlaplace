@@ -154,14 +154,6 @@ clone_ad_pack_ptr_ <- function(handle) {
     .Call(`_adlaplace_clone_ad_pack_ptr_impl`, handle)
 }
 
-#' Build raw AD handle for a random_mult shard
-#'
-#' @param model An \code{density_data} S4 object with \code{precision} slot set.
-#' @param config Model configuration list.
-#' @return External pointer of class \code{ad_pack_ptr}.
-#' @keywords internal
-NULL
-
 #' Build raw AD handle for a random_diagonal shard
 #'
 #' @param model An \code{density_data} S4 object with \code{precision} slot set.
@@ -172,6 +164,12 @@ create_ad_shard_random_diagonal <- function(model, config) {
     .Call(`_adlaplace_create_ad_shard_random_diagonal`, model, config)
 }
 
+#' Build raw AD handle for a random_mult shard
+#'
+#' @param model An \code{density_data} S4 object with \code{precision} slot set.
+#' @param config Model configuration list.
+#' @return External pointer of class \code{ad_pack_ptr}.
+#' @keywords internal
 create_ad_shard_random_mult <- function(model, config) {
     .Call(`_adlaplace_create_ad_shard_random_mult`, model, config)
 }
@@ -230,6 +228,21 @@ inner_opt <- function(parameters, gamma, ad_pack, control = NULL, deriv = FALSE,
 
 .fun_obj_fdfh_cpp <- function(parameters, gamma, ad_pack, inner = TRUE, verbose = FALSE) {
     .Call(`_adlaplace_fun_obj_fdfh`, parameters, gamma, ad_pack, inner, verbose)
+}
+
+#' Latch (and optionally raise) the process-wide parallel team size.
+#'
+#' For \code{requested > 1}, returns the process high-water mark after
+#' updating it with \code{requested} (so later smaller requests cannot shrink
+#' the effective team). Serial \code{requested = 1} is returned unchanged.
+#' Used by \code{ad_pack()} / owner assignment so OpenMP width and shard
+#' owner maps stay consistent after a larger team was used.
+#'
+#' @param requested Positive integer thread count.
+#' @return Integer effective thread count.
+#' @keywords internal
+latch_parallel_threads <- function(requested) {
+    .Call(`_adlaplace_latch_parallel_threads`, requested)
 }
 
 #' Whether this build was compiled with OpenMP support.
