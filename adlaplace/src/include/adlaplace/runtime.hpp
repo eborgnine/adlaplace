@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "adlaplace/backend.hpp"
+#include "adlaplace/ompad.hpp"
 #include "adlaplace/rviews.hpp"
 
 // Flushable verbose breadcrumb (endl flushes so last line survives aborts).
@@ -82,6 +83,23 @@ inline std::vector<std::vector<std::size_t>> thread_groups_from_backend(ad_pack&
   std::vector<std::vector<std::size_t>> groups(max_t + 1);
   for (std::size_t s = 0; s < n; ++s) {
     groups[owners[s]].push_back(s);
+  }
+  return groups;
+}
+
+// Owner-derived groups, padded with empty trailing groups up to the process
+// parallel-team high-water mark (Windows clamp-up). Callers must use
+// groups.size() as the OpenMP / CppadParallelScope / AD_Func_Opt width so the
+// team never shrinks after a larger session, while shard owners still follow
+// the requested num_threads from ad_pack().
+inline std::vector<std::vector<std::size_t>>
+thread_groups_for_parallel_eval(ad_pack& backend) {
+  std::vector<std::vector<std::size_t>> groups =
+      thread_groups_from_backend(backend);
+  const std::size_t team =
+      adlaplace_latch_parallel_threads(groups.empty() ? 1 : groups.size());
+  if (team > groups.size()) {
+    groups.resize(team);
   }
   return groups;
 }

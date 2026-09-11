@@ -9,11 +9,10 @@ effective_num_threads <- function(num_threads) {
   if (!isTRUE(has_openmp())) {
     return(1L)
   }
-  # Process-wide latch (Windows): after a larger parallel team was used, later
-  # smaller requests are raised so owner maps / OpenMP widths do not shrink
-  # (Windows abort when team size decreases within one R process). No-op clamp
-  # on other platforms.
-  as.integer(latch_parallel_threads(num_threads))
+  # Owner maps / parallel_map follow the requested count. Windows OpenMP/CppAD
+  # team clamp-up (anti-shrink) happens at eval via padded thread groups, not
+  # by rewriting owners here.
+  num_threads
 }
 
 #' @keywords internal

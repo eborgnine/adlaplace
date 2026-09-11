@@ -152,13 +152,16 @@ std::size_t adlaplace_latch_parallel_threads(std::size_t requested) {
 //' Latch (and optionally raise) the process-wide parallel team size.
 //'
 //' For \code{requested > 1}, updates the process high-water mark. On Windows,
-//' returns that mark after raising it (so later smaller requests cannot shrink
-//' the effective team -- a decrease aborts under rtools/libomp). On other
+//' returns that mark after raising it so OpenMP/CppAD team setup never shrinks
+//' within one R process (a decrease aborts under rtools/libomp). At eval time
+//' empty trailing thread groups are padded to this width; shard owners from
+//' \code{ad_pack()} still follow the requested \code{num_threads}. On other
 //' platforms the requested count is returned unchanged. Serial
 //' \code{requested = 1} is always returned unchanged.
 //'
 //' @param requested Positive integer thread count.
-//' @return Integer effective thread count.
+//' @return Integer effective OpenMP/CppAD team size (may exceed requested on
+//'   Windows after a larger parallel team was used in this process).
 //' @keywords internal
 // [[Rcpp::export(rng = false)]]
 int latch_parallel_threads(int requested) {
@@ -179,8 +182,9 @@ void cppad_parallel_setup(std::size_t num_threads) {
 
   // Never shrink the CppAD/OpenMP team within a process: decreasing the team
   // size (e.g. 4 -> 2) leaves CppAD thread_alloc / libomp global state
-  // inconsistent on Windows. Latch raises/clamps parallel requests; serial
-  // (1) is left alone for normal CppadParallelScope teardown.
+  // inconsistent on Windows. Latch raises/clamps parallel requests for the
+  // team width only; shard owners stay at the requested count from ad_pack().
+  // Serial (1) is left alone for normal CppadParallelScope teardown.
   num_threads = adlaplace_latch_parallel_threads(num_threads);
 
   if (num_threads != cppad_team_num_threads) {

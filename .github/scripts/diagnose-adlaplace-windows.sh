@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Windows diagnose for R-CMD-check test failures after the team-size latch.
+# Windows diagnose: hard-abort regression + owner-map / team-latch isolation.
 #
-# Main CI now gets past the old hard abort (15 then 22) but fails expectations
-# in test-log-lik-deriv-parallel.R and test-reorder-shards.R that assert
-#   owners == (0:(n-1)) %% 2
-# after earlier tests have raised the process high-water mark to 4.
+# After the team-size latch, R-CMD-check on Windows failed modulo-2 owner
+# assertions when earlier tests raised the high-water mark to 4. The product
+# fix keeps owners at the requested num_threads and pads empty groups at eval
+# so the OpenMP/CppAD team never shrinks. This script guards both behaviors.
 #
 # Stages:
 #   1. Regression: file 22 alone + files 15 then 22 (abort should stay gone).
-#   2. testthat isolation of the new failures (files 28 / 42 alone vs after 15).
+#   2. testthat isolation (files 28 / 42 alone vs after 15, clamp on/off).
 #   3. Minimal owner-modulo matrix (warmup 4 then probe 2), with/without clamp.
 #
 # Alphabetical indices:
@@ -17,9 +17,8 @@
 #   28 = test-log-lik-deriv-parallel.R
 #   42 = test-reorder-shards.R
 #
-# Exit code is non-zero if the latch-poisoned owner expectations still fail
-# (AFTER4_* or PROBE_AFTER4), so the workflow stays red while the issue is open.
-# The summary table always prints every variant.
+# Exit code is non-zero if AFTER4_* or PROBE_AFTER4 fail (owner maps widened
+# again, or eval padding broken). The summary table always prints every variant.
 set -uo pipefail
 
 root="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -118,13 +117,14 @@ echo "variant|env|exit_code"
 cat "${results}"
 echo "===== interpret ====="
 echo "0 = ok; 1 = testthat/owner mismatch; 127 = hard abort"
-echo "Expect ALONE_* and PROBE_ALONE_2 / PROBE_SAME_SIZE_4 = 0."
-echo "If AFTER4_* / PROBE_AFTER4 = 1 with clamp on, latch is breaking %%2 owner tests."
-echo "If AFTER4_*_NOCLAMP / PROBE_AFTER4_NOCLAMP = 127, old decrease-abort remains."
+echo "Expect ALONE_*, AFTER4_* (clamp on), PROBE_ALONE_2, PROBE_AFTER4, PROBE_SAME_SIZE_4 = 0."
+echo "Owners follow requested num_threads; Windows pads empty groups at eval so the team never shrinks."
+echo "If AFTER4_* / PROBE_AFTER4 = 1, owner maps are still being widened by the latch."
+echo "If AFTER4_*_NOCLAMP / PROBE_AFTER4_NOCLAMP = 127, old decrease-abort remains (expected without clamp)."
 echo "===== diagnose done ====="
 
-# Fail the job while the latch still breaks owner expectations after a
-# larger parallel team (the open main-CI failure mode).
+# Fail the job if owner expectations still break after a larger parallel team
+# (the R-CMD-check failure mode this diagnose isolates).
 after28=$(grep '^AFTER4_15_THEN_28|' "${results}" | cut -d'|' -f3)
 after42=$(grep '^AFTER4_15_THEN_42|' "${results}" | cut -d'|' -f3)
 probe=$(grep '^PROBE_AFTER4|' "${results}" | cut -d'|' -f3)

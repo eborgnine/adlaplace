@@ -168,7 +168,7 @@ InnerOptResult inner_opt(const std::vector<double> &parameters,
                          bool verbose) {
   adlaplace_require_owner_threads_assigned(backend);
   const std::vector<std::vector<size_t>> thread_groups =
-      thread_groups_from_backend(backend);
+      thread_groups_for_parallel_eval(backend);
   const int num_threads = static_cast<int>(thread_groups.size());
   using Tvec = Eigen::VectorXd;
   using THess = Eigen::SparseMatrix<double>;
@@ -563,7 +563,7 @@ Rcpp::List fun_obj_fdfh(const Rcpp::NumericVector &parameters,
   adlaplace_require_owner_threads_assigned(*backend);
 
   const std::vector<std::vector<std::size_t>> thread_groups =
-      thread_groups_from_backend(*backend);
+      thread_groups_for_parallel_eval(*backend);
   const int num_threads = static_cast<int>(thread_groups.size());
 
   const std::size_t n_beta =
