@@ -7,9 +7,15 @@
 using namespace Rcpp;
 
 #ifdef RCPP_USE_GLOBAL_ROSTREAM
-Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
+    Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
 Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
+
+// Live-ad_pack registry hook installer (defined in threads.cpp). Called from
+// R_init_adlaplace so this DSO tracks ad_pack handles for
+// cppad_parallel_teardown. Declared here (not in a header) because it is
+// internal to adlaplace.so.
+void adlaplace_install_registry_hooks();
 
 // get_ad_pack_raw_obs
 SEXP get_ad_pack_raw_obs(SEXP model, Rcpp::List config, std::string name);
@@ -345,4 +351,9 @@ static const R_CallMethodDef CallEntries[] = {
 RcppExport void R_init_adlaplace(DllInfo *dll) {
     R_registerRoutines(dll, NULL, CallEntries, NULL, NULL);
     R_useDynamicSymbols(dll, FALSE);
+    // Install live-ad_pack registry hooks so make_ad_pack_ptr / ad_fun_destroy
+    // (register_impl.hpp, included in this DSO) track handles for
+    // cppad_parallel_teardown to reset on team-size changes. No-op in backend
+    // DSOs (their hook slots stay null).
+    adlaplace_install_registry_hooks();
 }

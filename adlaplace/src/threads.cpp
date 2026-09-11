@@ -1,11 +1,14 @@
 #include "adlaplace/omp_compat.hpp"
 #include "adlaplace/ompad.hpp"
 #include "adlaplace/runtime.hpp"
+#include "adlaplace/ad_pack_registry.hpp"
 
 #include <Rcpp.h>
 #include <cppad/cppad.hpp>
 #include <cppad/utility/thread_alloc.hpp>
 #include <cstdlib>
+#include <mutex>
+#include <set>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -13,6 +16,60 @@
 namespace {
 
 std::size_t cppad_team_num_threads = 1;
+
+// High-water mark of cppad_team_num_threads across the process lifetime.
+// cppad_parallel_teardown() flushes thread_alloc free-lists for every thread
+// that ever participated in a parallel team, not just the current team size.
+// Rationale: when a caller does setup(4) -> teardown -> setup(2), the guard
+// inside setup(2) fires teardown while cppad_team_num_threads is already 1
+// (reset by the prior teardown). Without this mark, the 4-thread free-lists
+// would never be flushed and the next team would inherit stale per-thread
+// allocator state, which on Windows libomp aborts the process.
+std::size_t max_team_num_threads = 1;
+
+// Live ad_pack handles created by this DSO (adlaplace.so). Used by
+// cppad_parallel_teardown to clear stale per-shard owner_thread assignments
+// when the team size changes between independent callers. All access is on
+// OpenMP thread 0 (R main thread / R GC); the mutex is belt-and-braces for
+// the rare case of a finalizer racing with teardown on the same thread.
+std::set<ad_pack *>& live_ad_packs() {
+  static std::set<ad_pack *> s;
+  return s;
+}
+
+std::mutex& registry_mutex() {
+  static std::mutex m;
+  return m;
+}
+
+void registry_add(ad_pack *p) {
+  if (!p) return;
+  std::lock_guard<std::mutex> lk(registry_mutex());
+  live_ad_packs().insert(p);
+}
+
+void registry_remove(ad_pack *p) {
+  if (!p) return;
+  std::lock_guard<std::mutex> lk(registry_mutex());
+  live_ad_packs().erase(p);
+}
+
+// Clear owner_thread / owner_thread_assigned on every shard of every live
+// ad_pack. Called from cppad_parallel_teardown so the next team cannot
+// reference a stale thread id from the torn-down team.
+void registry_reset_owner_threads() {
+  std::lock_guard<std::mutex> lk(registry_mutex());
+  for (ad_pack *groups : live_ad_packs()) {
+    if (!groups) continue;
+    for (ad_shard *shard : groups->fun) {
+      if (!shard) continue;
+      shard->pack.owner_thread = 0;
+      shard->pack.owner_thread_assigned = false;
+    }
+    groups->configured_num_threads = 1;
+    groups->num_threads_configured = false;
+  }
+}
 
 bool in_parallel_wrapper() { return omp_in_parallel() != 0; }
 
@@ -73,6 +130,9 @@ void cppad_parallel_setup(std::size_t num_threads) {
   }
 
   cppad_team_num_threads = num_threads;
+  if (num_threads > max_team_num_threads) {
+    max_team_num_threads = num_threads;
+  }
   set_num_threads_wrapper(num_threads);
 
   if (num_threads == 1) {
@@ -122,7 +182,13 @@ void warm_openmp_runtime() {
 void cppad_parallel_teardown() {
   require_serial_main_thread("cppad_parallel_teardown");
 
-  const std::size_t n_flush = cppad_team_num_threads;
+  // Flush thread_alloc free-lists for every thread that ever participated in
+  // a parallel team in this process, not just the current team size. The
+  // current cppad_team_num_threads may already be 1 (e.g. when teardown is
+  // re-entered via the guard inside cppad_parallel_setup), in which case the
+  // old code skipped the flush entirely and left stale per-thread allocator
+  // state behind. max_team_num_threads remembers the high-water mark.
+  const std::size_t n_flush = max_team_num_threads;
   if (n_flush > 1) {
     debug_teardown_flush(n_flush);
     set_num_threads_wrapper(n_flush);
@@ -146,11 +212,18 @@ void cppad_parallel_teardown() {
 #endif
   }
 
+  // Clear stale per-shard OpenMP owner_thread assignments on every live
+  // ad_pack so the next team cannot reference a thread id from the team we
+  // just tore down. Also drops configured_num_threads so a subsequent
+  // ad_pack() call must reassign owner threads before any parallel eval.
+  adlaplace_registry::reset_owner_threads();
+
   set_num_threads_wrapper(1);
   CppAD::thread_alloc::parallel_setup(1, nullptr, nullptr);
   CppAD::thread_alloc::hold_memory(false);
   CppAD::parallel_ad<double>();
   cppad_team_num_threads = 1;
+  max_team_num_threads = 1;
   debug_teardown_restored();
 }
 
@@ -261,3 +334,28 @@ void adlaplace_debug_raise_if_any(const char *) {}
 void adlaplace_debug_print_load_banner() {}
 
 #endif
+
+// --- Live-ad_pack registry hook installation (adlaplace.so only) ----------
+//
+// registry_add / registry_remove / registry_reset_owner_threads live in the
+// anonymous namespace above. Expose them through stable names and install
+// into the ad_pack_registry hook slots so register_impl.hpp (included by
+// this DSO) can register/unregister ad_pack handles and cppad_parallel_teardown
+// can reset live shards' owner_thread affinity. Called once from
+// R_init_adlaplace. Backend DSOs never call this; their hook slots stay null
+// and the register_/unregister wrappers are no-ops there.
+
+namespace adlaplace_detail {
+
+void registry_add_hook(ad_pack *p) { registry_add(p); }
+void registry_remove_hook(ad_pack *p) { registry_remove(p); }
+void registry_reset_owner_threads_hook() { registry_reset_owner_threads(); }
+
+}  // namespace adlaplace_detail
+
+void adlaplace_install_registry_hooks() {
+  adlaplace_registry::add_hook() = &adlaplace_detail::registry_add_hook;
+  adlaplace_registry::remove_hook() = &adlaplace_detail::registry_remove_hook;
+  adlaplace_registry::reset_hook() =
+      &adlaplace_detail::registry_reset_owner_threads_hook;
+}
