@@ -50,7 +50,7 @@ inline std::vector<double> trace_hinv_t_parallel(
 
   adlaplace_require_owner_threads_assigned(backend);
   const std::vector<std::vector<std::size_t>> thread_groups =
-    thread_groups_from_backend(backend);
+    thread_groups_for_parallel_eval(backend);
   const int num_threads = static_cast<int>(thread_groups.size());
 
   if (verbose) {
@@ -115,7 +115,7 @@ inline std::vector<double> trace_hinv_t_impl(
 
   adlaplace_require_owner_threads_assigned(backend);
   const std::vector<std::vector<std::size_t>> thread_groups =
-    thread_groups_from_backend(backend);
+    thread_groups_for_parallel_eval(backend);
   const int num_threads = static_cast<int>(thread_groups.size());
 
   if (verbose && adlaplace_debug_enabled()) {

@@ -16,12 +16,14 @@
 
 struct ad_pack;
 
-// Process-wide parallel-team latch (Option A). For requested > 1, raises the
-// high-water mark. On Windows, returns max(requested, high-water) so owner
-// maps and OpenMP widths cannot shrink after a larger team was used (that
-// decrease aborts under rtools/libomp). Other platforms return requested
-// unchanged. Serial requests (0/1) are always unchanged. Used by
-// assign_owner_threads, R effective_num_threads, and cppad_parallel_setup.
+// Process-wide parallel-team latch. For requested > 1, raises the high-water
+// mark. On Windows, returns max(requested, high-water) so OpenMP/CppAD team
+// setup never shrinks after a larger team was used (that decrease aborts under
+// rtools/libomp). Other platforms return requested unchanged. Serial requests
+// (0/1) are always unchanged. Used by cppad_parallel_setup and by
+// thread_groups_for_parallel_eval (pads empty groups to the team width).
+// Owner maps from ad_pack()/assign_owner_threads always follow the requested
+// count; they must not use the clamped return.
 std::size_t adlaplace_latch_parallel_threads(std::size_t requested);
 
 void cppad_parallel_setup(std::size_t num_threads);

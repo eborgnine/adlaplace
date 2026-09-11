@@ -1,5 +1,5 @@
-# Windows-only: pin hard abort (cppad-teardown → fun-obj multi-thread).
-# Installs local RCppAD + adlaplace, then runs files 15 then 22 in one process.
+# Windows-only: isolate latch side-effects vs the old 15→22 hard abort.
+# Installs local RCppAD + adlaplace, then runs suite/owner-modulo variants.
 on:
   workflow_dispatch:
   schedule:
@@ -52,5 +52,13 @@ jobs:
       - name: Build and install adlaplace
         run: bash .github/scripts/install-local-pkg.sh adlaplace
 
-      - name: Diagnose files 15 then 22
+      - name: Diagnose owner latch vs abort
         run: bash .github/scripts/diagnose-adlaplace-windows.sh
+
+      - name: Upload matrix results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-diagnose-matrix-results
+          path: .matrix-results.txt
+          if-no-files-found: ignore
