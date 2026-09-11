@@ -100,3 +100,5 @@ docs/paper/examples/bacteria/bacteria_files/libs/quarto-html/popper.min.js
 
 # Windows diagnose matrix output (runtime artifact)
 .matrix-results.txt
+.vignette-timing.txt
+.vignette-out/

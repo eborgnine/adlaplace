@@ -244,7 +244,7 @@ ad_fun_plain <- c(
 )
 ad_pack <- adlaplace::ad_pack(
   adlaplace::clone_ad_pack_ptr(ad_fun_plain),
-  num_threads = 2L
+  num_threads = vignette_num_threads
 )
 ```
 
@@ -624,7 +624,7 @@ config2 <- list(
     num_shards = 50L
   )
 )
-ad_fun2 <- ad_pack(md, config2, num_threads = 2L)
+ad_fun2 <- ad_pack(md, config2, num_threads = vignette_num_threads)
 # Serial dens for mean_mvquad: clone clears multi-thread affinity, then
 # ad_pack(..., num_threads = 1) rebuilds templates on a dens-safe handle.
 ad_fun2_dens <- ad_pack(clone_ad_pack_ptr(ad_fun2@ptr), num_threads = 1L)

@@ -68,7 +68,7 @@ config <- list(
 
 
 ```{r ad_fun_create}
-config$num_threads <- 2L
+config$num_threads <- vignette_num_threads
 control_inner <- list(maxit = 100L, report.level = 0, report.freq = 0)
 ad_pack <- adlaplace::ad_pack(md, config, num_threads = config$num_threads)
 # Serial dens/grad/hess: clone clears multi-thread affinity.

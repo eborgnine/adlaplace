@@ -74,7 +74,7 @@ fit <- adlaplace(
   formula = cc_formula,
   data = london,
   config = list(
-    num_threads = 2L,
+    num_threads = vignette_num_threads,
     num_shards = fit_num_shards
   ),
   control = list(
@@ -117,7 +117,7 @@ fit_nat <- adlaplace(
   formula = cc_formula_nat,
   data = london,
   config = list(
-    num_threads = 2L,
+    num_threads = vignette_num_threads,
     num_shards = 100L
   ),
   control = list(
@@ -171,7 +171,7 @@ then maximize the Laplace profile likelihood with `optim` directly.
 md <- model_data(cc_formula, data = london, verbose = FALSE)
 config_dev <- list(
   transform_theta = TRUE,
-  num_threads = 2L,
+  num_threads = vignette_num_threads,
   verbose = FALSE
 )
 config_dev$obs_groups <- obs_groups(
@@ -190,7 +190,7 @@ control_dev <- list(
   parscale = par_info$parscale
 )
 control_inner <- list(report.level = 0)
-af <- ad_pack(md, config_dev, num_threads = 2L)
+af <- ad_pack(md, config_dev, num_threads = vignette_num_threads)
 slotNames(af)
 dim(config_dev$obs_groups)
 par_info

@@ -1,9 +1,9 @@
-# Windows-only: isolate latch side-effects vs the old 15→22 hard abort.
-# Installs local RCppAD + adlaplace, then runs suite/owner-modulo variants.
+# Windows-only: time adlaplace vignettes at 1 vs 4 OpenMP threads.
+# Installs local RCppAD + adlaplace (OpenMP), then knits every vignette twice.
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 3 * * 0'   # Sundays 03:00 UTC (after main R-CMD-check)
+    - cron: '0 3 * * 0'   # Sundays 03:00 UTC
 
 name: Windows-adlaplace-diagnose
 
@@ -13,11 +13,12 @@ permissions:
 jobs:
   diagnose:
     runs-on: windows-latest
-    name: windows adlaplace test diagnose
+    name: windows vignette 1 vs 4 threads
 
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
       R_KEEP_PKG_SOURCE: yes
+      NOT_CRAN: 'true'
 
     defaults:
       run:
@@ -40,7 +41,9 @@ jobs:
 
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
-          packages: any::rcmdcheck, any::testthat
+          working-directory: adlaplace
+          extra-packages: any::rmarkdown, any::knitr
+          needs: vignette
           install-quarto: false
 
       - name: Install CRAN deps (RCppAD + adlaplace only)
@@ -52,13 +55,15 @@ jobs:
       - name: Build and install adlaplace
         run: bash .github/scripts/install-local-pkg.sh adlaplace
 
-      - name: Diagnose owner latch vs abort
+      - name: Time vignettes at 1 vs 4 threads
         run: bash .github/scripts/diagnose-adlaplace-windows.sh
 
-      - name: Upload matrix results
+      - name: Upload vignette timing results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: windows-diagnose-matrix-results
-          path: .matrix-results.txt
+          name: windows-vignette-timing
+          path: |
+            .vignette-timing.txt
+            .vignette-out/
           if-no-files-found: ignore

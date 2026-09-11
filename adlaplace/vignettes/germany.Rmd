@@ -118,7 +118,7 @@ ptr_struct <- adlaplace::ad_pack_ptr(data = model_struct, config = config)
 ad_fun_plain <- c(ptr_obs, ptr_struct, ptr_iid)
 ad_pack <- adlaplace::ad_pack(
   adlaplace::clone_ad_pack_ptr(ad_fun_plain),
-  num_threads = 2L
+  num_threads = vignette_num_threads
 )
 ```
 
