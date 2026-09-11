@@ -2,13 +2,13 @@
 # Same-process adlaplace testthat run (Windows abort hunter).
 #
 # Full suite (default): test_dir() on source tests/ + installed package.
-# (test_check() looks under the installed library, which has no tests/.)
-# Prefix/slice: one-process alphabetical test_file() loop for binary search.
+# Contiguous slice: --from= / --to= / --max-files=
+# Explicit indices: --only=15,22  (1-based alphabetical test-*.R order)
 #
 # Usage:
 #   Rscript run-adlaplace-testthat-suite.R
 #   Rscript run-adlaplace-testthat-suite.R --from=1 --to=20
-#   Rscript run-adlaplace-testthat-suite.R --max-files=20
+#   Rscript run-adlaplace-testthat-suite.R --only=15,22
 
 args <- commandArgs(trailingOnly = TRUE)
 parse_flag <- function(name, default = NA_integer_) {
@@ -20,10 +20,21 @@ parse_flag <- function(name, default = NA_integer_) {
   as.integer(sub(pref, "", hit[[1L]]))
 }
 
+parse_only <- function() {
+  pref <- "--only="
+  hit <- args[startsWith(args, pref)]
+  if (!length(hit)) {
+    return(integer())
+  }
+  raw <- sub(pref, "", hit[[1L]])
+  as.integer(strsplit(raw, ",", fixed = TRUE)[[1L]])
+}
+
 max_files <- parse_flag("max-files")
 from <- parse_flag("from")
 to <- parse_flag("to")
-slice <- !is.na(from) || !is.na(to) || !is.na(max_files)
+only <- parse_only()
+slice <- length(only) > 0L || !is.na(from) || !is.na(to) || !is.na(max_files)
 
 say <- function(...) {
   cat(format(Sys.time(), "%H:%M:%OS3"), paste(...), "\n", sep = " ")
@@ -42,6 +53,34 @@ results_failed <- function(res) {
   failed <- if ("failed" %in% names(df)) sum(df$failed, na.rm = TRUE) else 0
   errored <- if ("error" %in% names(df)) sum(df$error, na.rm = TRUE) else 0
   (failed + errored) > 0
+}
+
+run_files <- function(files, indices, n, reporter) {
+  any_fail <- FALSE
+  label <- paste(indices, collapse = ",")
+  say("mode test_file only", label, sprintf("n=%d", n))
+  for (i in seq_along(files)) {
+    f <- files[[i]]
+    idx <- indices[[i]]
+    say(sprintf("===== FILE %d/%d %s =====", idx, n, basename(f)))
+    res <- test_file(
+      f,
+      reporter = reporter,
+      package = "adlaplace",
+      stop_on_failure = FALSE,
+      stop_on_warning = FALSE
+    )
+    if (results_failed(res)) {
+      any_fail <- TRUE
+    }
+    say(sprintf("===== END FILE %d/%d %s =====", idx, n, basename(f)))
+  }
+  if (any_fail) {
+    say("SUITE DONE with failures", label)
+    quit_status(1L)
+  }
+  say("SUITE DONE ok", label)
+  quit_status(0L)
 }
 
 if (!requireNamespace("testthat", quietly = TRUE)) {
@@ -78,8 +117,6 @@ reporter <- MultiReporter$new(list(
 ))
 
 if (!slice) {
-  # Closest to R CMD check's testthat.R, but tests come from the source tree
-  # because installed packages do not ship tests/.
   say("mode test_dir(source tests, load_package=installed)")
   res <- test_dir(
     test_path,
@@ -97,6 +134,13 @@ if (!slice) {
   quit_status(0L)
 }
 
+if (length(only)) {
+  if (any(is.na(only)) || any(only < 1L) || any(only > n)) {
+    stop("--only= indices must be in 1:", n, call. = FALSE)
+  }
+  run_files(files_all[only], only, n, reporter)
+}
+
 if (is.na(from)) {
   from <- 1L
 }
@@ -108,31 +152,5 @@ if (!is.na(max_files)) {
 }
 from <- max(1L, as.integer(from))
 to <- min(n, as.integer(to))
-files <- files_all[seq.int(from, to)]
-
-say("mode test_file slice", sprintf("%d:%d/%d", from, to, n))
-
-any_fail <- FALSE
-for (i in seq_along(files)) {
-  f <- files[[i]]
-  idx <- from + i - 1L
-  say(sprintf("===== FILE %d/%d %s =====", idx, n, basename(f)))
-  res <- test_file(
-    f,
-    reporter = reporter,
-    package = "adlaplace",
-    stop_on_failure = FALSE,
-    stop_on_warning = FALSE
-  )
-  if (results_failed(res)) {
-    any_fail <- TRUE
-  }
-  say(sprintf("===== END FILE %d/%d %s =====", idx, n, basename(f)))
-}
-
-if (any_fail) {
-  say("SUITE DONE with failures", sprintf("slice %d:%d", from, to))
-  quit_status(1L)
-}
-say("SUITE DONE ok", sprintf("slice %d:%d", from, to))
-quit_status(0L)
+indices <- seq.int(from, to)
+run_files(files_all[indices], indices, n, reporter)

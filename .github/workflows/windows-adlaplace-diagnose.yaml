@@ -1,5 +1,5 @@
-# Windows-only: pin hard aborts in adlaplace testthat (order/state).
-# Installs local RCppAD + adlaplace, then runs same-process suite + bisect.
+# Windows-only: pin hard abort (cppad-teardown → fun-obj multi-thread).
+# Installs local RCppAD + adlaplace, then runs files 15 then 22 in one process.
 on:
   workflow_dispatch:
   schedule:
@@ -52,5 +52,5 @@ jobs:
       - name: Build and install adlaplace
         run: bash .github/scripts/install-local-pkg.sh adlaplace
 
-      - name: Diagnose Windows test abort
+      - name: Diagnose files 15 then 22
         run: bash .github/scripts/diagnose-adlaplace-windows.sh
