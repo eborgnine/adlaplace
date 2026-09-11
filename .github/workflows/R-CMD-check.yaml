@@ -310,6 +310,20 @@ jobs:
           check-dir: '"../.ci-check/adlaplaceFem-as-cran"'
           artifact-name: ${{ matrix.config.id }}-adlaplaceFem-as-cran
 
+      # r-lib/actions cannot upload check-dir paths with '..'; dump + upload here.
+      - name: Dump .ci-check logs
+        if: failure()
+        run: bash .github/scripts/dump-ci-check-logs.sh .ci-check
+
+      - name: Upload .ci-check artifact
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-check-${{ matrix.config.id }}
+          path: .ci-check
+          if-no-files-found: warn
+          retention-days: 14
+
       # =====================================================================
       # Ubuntu only: stage vignette HTML for GitHub Pages
       # =====================================================================
