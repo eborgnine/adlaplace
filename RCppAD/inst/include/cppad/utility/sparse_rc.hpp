@@ -375,6 +375,7 @@ public:
    // move semantics constructor
    // (none of the default constructor values are used by destructor)
    sparse_rc(sparse_rc&& other)
+   : nr_(0), nc_(0), nnz_(0)
    {  swap(other); }
    //
    // destructor

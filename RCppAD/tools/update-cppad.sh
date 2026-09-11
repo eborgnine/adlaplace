@@ -138,6 +138,24 @@ redirect_cout "local/var_op/atomic_op.hpp"
 redirect_cout "core/ad_fun.hpp"
 redirect_cout "core/fun_construct.hpp"
 
+# sparse_rc move ctor: init scalars before swap (GCC 14 -Wuninitialized)
+patch_sparse_rc () {
+  f="$DEST/utility/sparse_rc.hpp"
+  tmp="$f.rcppad.tmp"
+  marker="   sparse_rc(sparse_rc&& other)"
+  if ! grep -qF "$marker" "$f"; then
+    echo "update-cppad: WARNING: sparse_rc move ctor marker not found (skip patch)" >&2
+    return 0
+  fi
+  # Idempotent: skip if already patched
+  if grep -qF "   : nr_(0), nc_(0), nnz_(0)" "$f"; then
+    return 0
+  fi
+  awk -v m="$marker" '{ print; if ($0 == m) print "   : nr_(0), nc_(0), nnz_(0)" }' "$f" > "$tmp"
+  mv "$tmp" "$f"
+}
+patch_sparse_rc
+
 # Document patches
 cat > "$DEST/README.RCppAD.md" <<EOF
 # RCppAD patches on top of CppAD $VERSION
@@ -149,6 +167,8 @@ Applied by \`tools/update-cppad.sh\` (re-run after each upstream refresh):
 3. \`local/temp_file.hpp\` — inline definition (headers-only; no libcppad_lib).
 4. \`local/var_op/atomic_op.hpp\`, \`core/ad_fun.hpp\`, \`core/fun_construct.hpp\` —
    \`std::cout\` → \`RCppAD::cppad_trace_stream()\`.
+5. \`utility/sparse_rc.hpp\` — move ctor initializes \`nr_\`/\`nc_\`/\`nnz_\` before
+   \`swap\` (avoids GCC 14 \`-Wuninitialized\` on Windows).
 
 Helper: \`inst/include/RCppAD/cppad_trace_stream.hpp\`.
 EOF

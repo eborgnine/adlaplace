@@ -1,0 +1,64 @@
+# Upstream issue draft for coin-or/CppAD
+
+Paste into https://github.com/coin-or/CppAD/issues/new (gh auth is currently
+invalid in this environment).
+
+## Title
+
+sparse_rc move constructor reads uninitialized nr_/nc_/nnz_ before swap
+
+## Body
+
+### Summary
+
+`CppAD::sparse_rc<SizeVector>::sparse_rc(sparse_rc&&)` has no member-initializer
+list and immediately calls `swap(other)`. That reads indeterminate `nr_`, `nc_`,
+and `nnz_` via `std::swap`. GCC 14 at `-O2` reports this as `-Wuninitialized`
+(often attributed to `bits/move.h`).
+
+### Location
+
+`include/cppad/utility/sparse_rc.hpp`:
+
+```cpp
+sparse_rc(sparse_rc&& other)
+{  swap(other); }
+```
+
+### Suggested fix
+
+Match the pattern already used by `CppAD::vector`:
+
+```cpp
+sparse_rc(sparse_rc&& other)
+: nr_(0), nc_(0), nnz_(0)
+{  swap(other); }
+```
+
+`sparse_rcv`'s move constructor is fine: its `swap` only exchanges already-
+constructed class members.
+
+### How it shows up
+
+Compiling an R package that move-constructs a type containing a `sparse_rc`
+member (e.g. via an implicit move constructor) with Rtools45 / GCC 14.3
+`-O2 -Wall` produces:
+
+```
+bits/move.h:234:11: warning: '...' is used uninitialized [-Wuninitialized]
+  inlined from sparse_rc::swap
+  inlined from sparse_rc(sparse_rc&&)
+```
+
+### Environment
+
+- CppAD 20260000.0
+- g++ (GCC) 14.3.0 (x86_64-w64-mingw32, Rtools45)
+
+## CRAN submission order
+
+1. Build/submit **RCppAD 1.20260000.0-1** first (`R CMD build RCppAD`).
+2. After it publishes on CRAN, resubmit **adlaplace** (winbuilder currently
+   Links against CRAN RCppAD, so the install WARNING stays until then).
+3. File the upstream issue above so a future CppAD refresh can drop the
+   RCppAD-local patch.

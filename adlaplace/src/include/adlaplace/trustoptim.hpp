@@ -81,10 +81,7 @@ struct TrustControl {
 #include <Rcpp.h>
 #include <Rinternals.h>
 
-#include "adlaplace/eigen_diagnostics.hpp"
-ADLAPLACE_EIGEN_DIAG_PUSH_MAYBE
 #include <Eigen/SparseCore>
-ADLAPLACE_EIGEN_DIAG_POP
 #include <numeric>
 #include <string>
 #include <vector>

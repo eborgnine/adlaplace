@@ -57,6 +57,6 @@ See the monorepo root [`README.md`](../README.md) for install order.
 Vignettes are abbreviated during `R CMD check` on CRAN (`NOT_CRAN` unset) to
 keep rebuild time under 10 minutes; full HTML is built in CI and published at
 <https://eborgnine.github.io/adlaplace/>.
-Eigen/`libstdc++` false-positive `-Wuninitialized` warnings (if any) are
-silenced with GCC diagnostic pragmas around Eigen includes
-(`eigen_diagnostics.hpp`), not with `-Wno-*` in `PKG_CXXFLAGS`.
+No `-Wno-*` flags are used in `PKG_CXXFLAGS`. The Windows `-Wuninitialized`
+report was a real uninitialized read in CppAD's `sparse_rc` move constructor,
+fixed in RCppAD (>= 1.20260000.0-1).
