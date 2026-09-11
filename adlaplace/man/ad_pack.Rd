@@ -50,7 +50,12 @@ with \code{observations}, \code{random}, \code{parameters}).}
 when omitted (only \code{shards}, \code{transform_theta}, etc. are needed).
 When \code{config$num_threads} is set, it overrides the \code{num_threads}
 argument for \code{density_data} and \code{model_data} methods.
-When \code{config$reorder_shards} is set, it overrides \code{reorder_shards}.}
+When \code{config$reorder_shards} is set, it overrides \code{reorder_shards}.
+\code{config$hessian_sparsity} (default \code{TRUE}) controls whether
+observation / parameter / random tapes discover and calibrate Hessian
+sparsity. Set \code{FALSE} for grad-only packs (usable with
+\code{\link{grad}}, not with \code{\link{inner_opt}} LDL / Hessian paths);
+see \code{\link{grad_obs_units}}.}
 
 \item{num_threads}{Positive integer; OpenMP thread count for \code{inner_opt}
 and parallel \code{trace_hinv_t}. Default \code{1L} (serial).}

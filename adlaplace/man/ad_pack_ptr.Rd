@@ -24,9 +24,13 @@ Constructs CppAD tapes for a single shard. The density kind and name come
 from \code{data@ad_kind} and \code{data@density}. For \code{ad_kind = "random"},
 \code{data@precision} is passed straight to the backend. For
 \code{random_diagonal} it must be a numeric vector of diagonal precision
-weights with \code{length == ncol(gamma_map)}. Missing precision means the
-shard is not built (e.g. diffuse \code{rpoly} with \code{sd = Inf} via
-\code{model_data()}); calling \code{ad_pack_ptr()} without it is an error.
+weights with \code{length == ncol(gamma_map)}. For \code{random_mult} it must
+be \code{list(Q, log_det, rank)} where \code{Q} is a square
+\code{dsCMatrix} with \code{uplo = "U"} (upper triangle only); use
+\code{adlaplace:::as_dsC_upper(Q)} to coerce a \code{dgCMatrix}. Missing
+precision means the shard is not built (e.g. diffuse \code{rpoly} with
+\code{sd = Inf} via \code{model_data()}); calling \code{ad_pack_ptr()}
+without it is an error.
 }
 \details{
 Merge handles for multiple shards with \code{c()} before calling

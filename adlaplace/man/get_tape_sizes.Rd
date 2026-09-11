@@ -13,7 +13,10 @@ get_tape_sizes(handle, group)
 }
 \value{
 List with \code{domain}, \code{n_global}, \code{size_op},
-  \code{size_var}, and pattern nnz counts.
+  \code{size_var}, and pattern nnz counts. \code{domain} /
+  \code{size_op} / \code{size_var} are zero when the shard never
+  recorded a tape (e.g. analytic FEM ssq with \code{fem_analytic = TRUE});
+  \code{n_global} and the nnz fields remain valid.
 }
 \description{
 CppAD tape sizes for one AD shard

@@ -1,0 +1,441 @@
+---
+title: "Strata-removal AMIP for case-crossover"
+author: "Patrick Brown"
+date: "`r Sys.Date()`"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+vignette: >
+  %\VignetteIndexEntry{Strata-removal AMIP for case-crossover}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+## Introduction
+
+This vignette applies the approximate maximum influence perturbation (AMIP)
+of Broderick, Giordano, and Meager to the London case-crossover model. After
+fitting, outer parameters (`beta`, `theta`) are held at the MLE and only the
+inner random effects `gamma` are allowed to move. The fit-time observation
+tapes supply the inner Hessian \(H\); per-stratum scores use streaming
+one-unit observation gradients (`grad_obs_units`) so scores do not require
+holding an identity shard pack. The most influential strata for flipping the
+PM10 effect at exposure 80 are identified, then a second inner optimization
+with those strata removed confirms the linear approximation. A full refit on
+the reduced data is compared on the PM10 relative-risk curve.
+
+```{r setup, include=FALSE}
+library(adlaplace)
+library(Matrix)
+if (file.exists("vignette_full.R")) {
+  source("vignette_full.R", local = TRUE)
+} else {
+  vignette_full <- TRUE
+  vignette_num_threads <- 2L
+}
+fit_num_shards <- if (vignette_full) 200L else 8L
+fit_maxit <- if (vignette_full) 200L else 15L
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+## Data and model
+
+Same London daily mortality / PM10 specification as the case-crossover vignette.
+Abbreviated knits use 2003 only.
+
+```{r data}
+data("london", package = "adlaplace")
+if (!vignette_full) {
+  london <- london[london$year == 2003, ]
+}
+
+london$month <- factor(format(london$date, "%b"), levels = month.abb)
+london$dow <- factor(format(london$date, "%a"),
+  levels = format(as.Date(4:10), "%a")
+)
+
+cc_formula <- dirichlet_multinom(
+  all,
+  by = c("year", "month", "dow"),
+  init = 0.02
+) ~ 0 + rh + iwp(
+  pm10,
+  p = 2,
+  knots = seq(0, 100, by = 10),
+  ref_value = 40,
+  init = 0.001
+) + iwp(
+  tmean,
+  p = 3,
+  knots = seq(-2, 30, by = 2),
+  init = 0.001,
+  ref_value = 20
+)
+```
+
+## Fit (outer MLE)
+
+Outer Hessian is not needed for this inner-only AMIP calculation.
+
+```{r fit}
+fit <- adlaplace(
+  formula = cc_formula,
+  data = london,
+  config = list(
+    num_threads = vignette_num_threads,
+    num_shards = fit_num_shards
+  ),
+  control = list(
+    maxit = fit_maxit,
+    trace = 3,
+    REPORT = 5
+  ),
+  verbose = FALSE,
+  hessian = FALSE
+)
+md <- fit$model_data
+x_outer <- as.numeric(fit$par_info$mle_internal)
+gamma0 <- as.numeric(fit$gamma)
+fit$par_info[, c("label", "mle", "mle_internal")]
+```
+
+
+
+## Inner mode and Hessian at the outer MLE
+
+Freeze `beta` and `theta` at the MLE; re-optimize `gamma` on the **fit** AD
+pack (coarse observation shards) and keep the inner Hessian \(H\). Per-stratum
+scores below do not need an identity retape.
+
+```{r inner-mode}
+n_strata <- ncol(md$term_data$elgm_matrix)
+af <- fit$ad_pack
+sz <- af@sizes
+io <- inner_opt(
+  parameters = x_outer,
+  gamma = gamma0,
+  ad_pack = af,
+  control = list(report.level = 0, report.freq = 0),
+  deriv = TRUE,
+  return_hessians = TRUE,
+  verbose = FALSE
+)
+gamma_hat <- as.numeric(io$inner_opt$solution)
+H <- io$hessian$inner
+n_strata
+as.integer(sz)
+```
+
+## Quantity of interest: PM10 effect at 80
+
+The PM10 smooth is centered at `ref_value = 40`, so the effect at 80 is a
+nontrivial linear functional \(\phi(\gamma) = a^\top\gamma\) of the IWP and
+random-polynomial coefficients.
+
+```{r phi-design}
+pm_terms <- Filter(
+  function(tt) {
+    identical(tt@name, "pm10") &&
+      identical(as.character(tt@model_role), "random")
+  },
+  md$terms
+)
+new_x <- data.frame(pm10 = 80)
+design_list <- lapply(pm_terms, design, data = new_x)
+design_list <- Filter(Negate(is.null), design_list)
+new_design <- as.matrix(do.call(cbind, design_list))
+
+gamma_lab <- md$term_data$info$gamma$gamma_label
+a <- numeric(length(gamma_lab))
+names(a) <- gamma_lab
+a[colnames(new_design)] <- as.numeric(new_design[1L, ])
+stopifnot(any(abs(a) > 0))
+
+phi_hat <- sum(a * gamma_hat)
+phi_hat
+```
+
+## Per-stratum influence scores
+
+Solve \(H v = a\) once, then form stratum scores
+\(\psi_s = -v^\top g_s\) from streaming one-unit observation gradients
+(`grad_obs_units`; same negative-log sign as `grad` / `inner_opt`). Temporary
+tapes use `hessian_sparsity = FALSE` and are discarded after each batch.
+
+```{r influence-scores}
+v <- as.numeric(Matrix::solve(H, a))
+x_full <- as.numeric(io$full_parameters)
+G <- grad_obs_units(
+  md$observations[[1]],
+  x_full,
+  batch_size = 32L,
+  inner = TRUE,
+  negative = TRUE
+)
+stopifnot(nrow(G) == length(v), ncol(G) == n_strata)
+psi <- as.numeric(-Matrix::crossprod(v, G))
+summary(psi)
+```
+
+## Approximate most influential set
+
+Leaving out stratum \(s\) changes \(\phi\) by approximately \(-\psi_s\). To flip
+the sign of \(\hat\phi > 0\) we need a negative change, so we drop the strata
+with the **largest positive** \(\psi_s\) until \(\sum \psi_s \ge \hat\phi\)
+(equivalently Broderick et al. applied to \(-\phi\)). If \(\hat\phi < 0\), drop
+the most negative scores instead. If that is impossible under the linear
+approximation, report that no small removal set is found.
+
+```{r amip-set}
+# Dropping S changes phi by approx -sum(psi[S]). Choose S so that sum(psi[S])
+# has the same sign as phi_hat and |sum| >= |phi_hat|.
+if (phi_hat > 0) {
+  ord <- order(psi, decreasing = TRUE)
+} else if (phi_hat < 0) {
+  ord <- order(psi)
+} else {
+  ord <- integer(0)
+}
+cum_psi <- if (length(ord)) cumsum(psi[ord]) else numeric(0)
+m_star <- if (phi_hat == 0 || !length(cum_psi)) {
+  NA_integer_
+} else {
+  which(cum_psi / phi_hat >= 1)[1L]
+}
+if (is.na(m_star)) {
+  drop_idx <- integer(0)
+  amip_alpha <- NA_real_
+  amip_change <- if (length(cum_psi)) -cum_psi[length(cum_psi)] else 0
+} else {
+  drop_idx <- ord[seq_len(m_star)]
+  amip_alpha <- length(drop_idx) / n_strata
+  amip_change <- -cum_psi[m_star]
+}
+
+c(
+  phi_hat = phi_hat,
+  n_drop = length(drop_idx),
+  alpha = amip_alpha,
+  approx_change = amip_change
+)
+
+dropped <- data.frame(
+  idx = drop_idx,
+  strata = colnames(md$term_data$elgm_matrix)[drop_idx],
+  psi = psi[drop_idx]
+)
+
+dropped
+```
+
+```{r psi-plot, fig.width=6, fig.height=3.5}
+par(mar = c(2.5, 2.5, 1, 0.5), bty = "l", mgp = c(1.5, 0.5, 0))
+
+parts <- strsplit(colnames(md$term_data$elgm_matrix), ".", fixed = TRUE)
+stratum_info <- data.frame(
+  year = as.integer(vapply(parts, `[[`, character(1L), 1L)),
+  month = vapply(parts, `[[`, character(1L), 2L),
+  dow = vapply(parts, `[[`, character(1L), 3L),
+  stringsAsFactors = FALSE
+)
+stratum_info$month <- factor(stratum_info$month, levels = month.abb)
+stratum_info$dow <- factor(stratum_info$dow,
+  levels = format(as.Date(4:10), "%a")
+)
+stratum_info$name <- paste(stratum_info$month, stratum_info$dow, sep = "\n")
+stratum_info$num <- stratum_info$year +
+  (as.integer(stratum_info$month) - 1) / 12 +
+  0.1 * (as.integer(stratum_info$dow) - 1) / 7
+
+Scol <- c("#000000", RColorBrewer::brewer.pal(11, "RdYlGn"))
+stratum_info$pch <- as.character(as.integer(stratum_info$dow))
+stratum_info$col <- Scol[as.integer(stratum_info$month)]
+stratum_info$pch[drop_idx] <- "o"
+stratum_info$col[drop_idx] <- "firebrick"
+
+plot(
+  stratum_info$num, psi,
+  pch = stratum_info$pch,
+  cex = 0.55, col = stratum_info$col,
+  xlab = "stratum", ylab = expression(psi[s])
+)
+
+text(
+  stratum_info$num[drop_idx], psi[drop_idx],
+  stratum_info$name[drop_idx],
+  cex = 0.5
+)
+
+legend("bottomright", legend = levels(stratum_info$month), fill = Scol, bty = "n", inset = 0)
+
+abline(h = 0, lty = 2, col = "grey50")
+```
+
+## Confirm by dropping nominated strata
+
+Rebuild observation tapes without the Approximate Most Influential Set, keep
+the outer MLE fixed, and re-optimize `gamma`. The resulting change in
+\(\phi(80)\) is an exact finite-sample lower bound on the worst-case
+strata-removal effect (Broderick et al.).
+
+```{r confirm, fig.width=6.5, fig.height=3.5}
+phi_from_gamma <- function(gamma) {
+  sum(a * as.numeric(gamma))
+}
+
+pm_curve <- function(gamma, grid = seq(0, 100, by = 2)) {
+  new_grid <- data.frame(pm10 = grid)
+  design_list <- lapply(pm_terms, design, data = new_grid)
+  design_list <- Filter(Negate(is.null), design_list)
+  D <- as.matrix(do.call(cbind, design_list))
+  g <- as.numeric(gamma)
+  names(g) <- gamma_lab
+  list(x = grid, f = as.numeric(D %*% g[colnames(D)]))
+}
+
+curve0 <- pm_curve(gamma_hat)
+
+if (!length(drop_idx)) {
+  phi_drop <- NA_real_
+  curve1 <- NULL
+  message("No strata dropped; skipping confirmation retape.")
+} else {
+  keep <- setdiff(seq.int(0L, n_strata - 1L), as.integer(drop_idx - 1L))
+  og_drop <- Matrix::sparseMatrix(
+    i = keep,
+    j = seq_along(keep) - 1L,
+    x = 1,
+    dims = c(n_strata, length(keep)),
+    index1 = FALSE
+  )
+  af_drop <- ad_pack(
+    md,
+    config = modifyList(fit$config, list(obs_groups = og_drop, verbose = FALSE)),
+    num_threads = vignette_num_threads,
+    reorder_shards = "none"
+  )
+  io_drop <- inner_opt(
+    parameters = x_outer,
+    gamma = gamma_hat,
+    ad_pack = af_drop,
+    control = list(report.level = 0, report.freq = 0),
+    deriv = FALSE,
+    return_hessians = FALSE,
+    verbose = FALSE
+  )
+  gamma_drop <- as.numeric(io_drop$inner_opt$solution)
+  phi_drop <- phi_from_gamma(gamma_drop)
+  curve1 <- pm_curve(gamma_drop)
+}
+
+c(
+  phi_full = phi_hat,
+  phi_dropped = phi_drop,
+  actual_change = if (is.finite(phi_drop)) phi_drop - phi_hat else NA_real_,
+  approx_change = if (length(drop_idx)) amip_change else NA_real_
+)
+```
+
+## Refit without AMIP strata
+
+Drop the nominated strata from the data and re-estimate the full outer MLE
+(smoothness and overdispersion included).
+
+```{r refit-drop}
+elgm <- md$term_data$elgm_matrix
+if (!length(drop_idx)) {
+  fit_drop <- NULL
+  phi_refit <- NA_real_
+  message("No strata dropped; skipping refit.")
+} else {
+  in_drop <- Matrix::rowSums(elgm[, drop_idx, drop = FALSE]) > 0
+  london_drop <- md$term_data$data[!in_drop, , drop = FALSE]
+  c(
+    n_full = nrow(md$term_data$data),
+    n_drop = nrow(london_drop),
+    n_strata_drop = length(drop_idx)
+  )
+  fit_drop <- adlaplace(
+    formula = cc_formula,
+    data = london_drop,
+    config = list(
+      num_threads = vignette_num_threads,
+      num_shards = fit_num_shards
+    ),
+    control = list(
+      maxit = fit_maxit,
+      trace = 3,
+      REPORT = 5
+    ),
+    verbose = FALSE,
+    hessian = FALSE
+  )
+  phi_refit <- sum(a * fit_drop$gamma[names(a)])
+  fit_drop$par_info[, c("label", "mle", "mle_internal")]
+}
+
+c(
+  phi_full = phi_hat,
+  phi_inner_drop = phi_drop,
+  phi_refit = phi_refit
+)
+```
+
+```{r plot_results, fig.width=6.5, fig.height=3.5}
+num_sim <- 200L
+num_grid <- 101L
+
+sim_full <- sim_random(
+  "pm10",
+  fit = fit,
+  num_grid = num_grid,
+  num_sim = num_sim,
+  transform = exp
+)
+q_full <- if (!is.null(sim_full$global)) sim_full$global else sim_full$pointwise
+
+sim_drop <- NULL
+q_drop <- NULL
+if (!is.null(fit_drop)) {
+  sim_drop <- sim_random(
+    "pm10",
+    fit = fit_drop,
+    new_x = data.frame(pm10 = sim_full$x),
+    num_sim = num_sim,
+    transform = exp
+  )
+  q_drop <- if (!is.null(sim_drop$global)) sim_drop$global else sim_drop$pointwise
+}
+
+
+par(mar = c(3, 3, 0, 0), mgp = c(1.5, 0.5, 0), bty = "l")
+matplot(
+  sim_drop$x, q_drop,
+  type = "l",
+  lty = c(3, 1, 3), col = "darkblue", lwd = 2,
+  xlab = "pm10", ylab = "RR", xaxs = "i",
+  ylim = c(0.975, 1.065), yaxs = "i", bty = "l"
+)
+
+matlines(sim_full$x, q_full, lty = c(3, 1, 3), col = "red", lwd = 2)
+abline(h = 1, lty = 3, col = "grey50")
+legend(
+  "topleft",
+  legend = c("full data", "AMIP strata removed"),
+  col = c("red", "darkblue"),
+  lwd = 2,
+  bty = "n"
+)
+```
+
+## Notes
+
+- Units of removal are **strata** (year–month–day-of-week matched sets), not
+  individual calendar days.
+- The inner confirmation keeps outer parameters at the original MLE: that is
+  sensitivity of \(\hat\gamma(\beta,\theta)\), not a refit of smoothness or
+  overdispersion. The refit chunk re-estimates the full outer MLE on the
+  reduced data.
+- Scores use streaming one-unit observation tapes (`grad_obs_units`); \(H\)
+  comes from the fit pack via `inner_opt`. Confirmation still retapes a
+  masked likelihood after dropping the nominated strata.

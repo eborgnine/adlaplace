@@ -91,10 +91,14 @@ setMethod("elgm_matrix", "dirichlet_multinom", function(term, data) {
     )
   }
 
-  interaction <- as.integer(
-    interaction(data[term@by], drop = TRUE, lex.order = FALSE)
-  )
-  if (mean(table(interaction) <= 1L) > 0.5) {
+  by_vars <- data[term@by]
+  by_codes <- lapply(by_vars, function(col) {
+    if (is.factor(col)) as.integer(col) else col
+  })
+  # lex.order = TRUE: first by-variable is the slowest (like order())
+  stratum <- interaction(by_codes, drop = TRUE, lex.order = TRUE)
+  stratum_id <- as.integer(stratum)
+  if (mean(table(stratum_id) <= 1L) > 0.5) {
     warning(
       "more than half of strata only have one observation, ",
       "might be missing the zeros in dataset?"
@@ -102,16 +106,23 @@ setMethod("elgm_matrix", "dirichlet_multinom", function(term, data) {
   }
 
   outcome <- as.numeric(data[[term@name[[1L]]]])
-  n_outcome <- as.numeric(rowsum(outcome, group = interaction, na.rm = TRUE))
-  n_days <- as.integer(tabulate(interaction))
+  n_outcome <- as.numeric(rowsum(outcome, group = stratum_id, na.rm = TRUE))
+  n_days <- as.integer(tabulate(stratum_id))
   keep <- which(n_outcome > 0 & n_days > 1L)
-  interaction_sub <- match(interaction, keep)
-  which_keep <- which(!is.na(interaction_sub))
+  stratum_sub <- match(stratum_id, keep)
+  which_keep <- which(!is.na(stratum_sub))
+
+  first <- match(seq_len(nlevels(stratum)), stratum_id)
+  stratum_names <- do.call(
+    paste,
+    c(lapply(by_vars, function(col) as.character(col)[first]), list(sep = "."))
+  )
 
   Matrix::sparseMatrix(
     i = which_keep,
-    j = interaction_sub[which_keep],
-    dims = c(nrow(data), length(keep))
+    j = stratum_sub[which_keep],
+    dims = c(nrow(data), length(keep)),
+    dimnames = list(NULL, stratum_names[keep])
   )
 })
 

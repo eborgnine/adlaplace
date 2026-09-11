@@ -40,6 +40,7 @@ Collate:
     'fixed_terms.R'
     'format_parameters.R'
     'germany-data.R'
+    'grad_obs_units.R'
     'hessian_map.R'
     'iid.R'
     'iwp.R'

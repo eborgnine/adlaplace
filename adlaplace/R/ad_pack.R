@@ -366,6 +366,11 @@ new_ad_pack_from_ptr <- function(
 #'   When \code{config$num_threads} is set, it overrides the \code{num_threads}
 #'   argument for \code{density_data} and \code{model_data} methods.
 #'   When \code{config$reorder_shards} is set, it overrides \code{reorder_shards}.
+#'   \code{config$hessian_sparsity} (default \code{TRUE}) controls whether
+#'   observation / parameter / random tapes discover and calibrate Hessian
+#'   sparsity. Set \code{FALSE} for grad-only packs (usable with
+#'   \code{\link{grad}}, not with \code{\link{inner_opt}} LDL / Hessian paths);
+#'   see \code{\link{grad_obs_units}}.
 #' @param num_threads Positive integer; OpenMP thread count for \code{inner_opt}
 #'   and parallel \code{trace_hinv_t}. Default \code{1L} (serial).
 #' @param reorder_shards Character; how to assign OpenMP owner threads when

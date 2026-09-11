@@ -76,7 +76,8 @@ inline AdTape build_ad_fun_random(
     Rcpp::Rcout << "build_ad_fun_random: computing sparsity...\n";
   }
 
-  adpack_sparsity(ad_params_G, model.seq_gamma, pack, cfg.verbose, hessian);
+  adpack_sparsity(ad_params_G, model.seq_gamma, pack, cfg.verbose, hessian,
+                  cfg.hessian_sparsity);
   return pack;
 }
 

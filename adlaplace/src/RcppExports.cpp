@@ -11,12 +11,6 @@ Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
 Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
-// Live-ad_pack registry hook installer (defined in threads.cpp). Called from
-// R_init_adlaplace so this DSO tracks ad_pack handles for
-// cppad_parallel_teardown. Declared here (not in a header) because it is
-// internal to adlaplace.so.
-void adlaplace_install_registry_hooks();
-
 // get_ad_pack_raw_obs
 SEXP get_ad_pack_raw_obs(SEXP model, Rcpp::List config, std::string name);
 RcppExport SEXP _adlaplace_get_ad_pack_raw_obs(SEXP modelSEXP, SEXP configSEXP, SEXP nameSEXP) {
@@ -239,6 +233,23 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// grad_obs_units_cpp
+Rcpp::S4 grad_obs_units_cpp(SEXP model, const Rcpp::NumericVector& x, Rcpp::List config, Rcpp::IntegerVector units, int batch_size, bool inner, bool negative);
+RcppExport SEXP _adlaplace_grad_obs_units_cpp(SEXP modelSEXP, SEXP xSEXP, SEXP configSEXP, SEXP unitsSEXP, SEXP batch_sizeSEXP, SEXP innerSEXP, SEXP negativeSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< SEXP >::type model(modelSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::NumericVector& >::type x(xSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type config(configSEXP);
+    Rcpp::traits::input_parameter< Rcpp::IntegerVector >::type units(unitsSEXP);
+    Rcpp::traits::input_parameter< int >::type batch_size(batch_sizeSEXP);
+    Rcpp::traits::input_parameter< bool >::type inner(innerSEXP);
+    Rcpp::traits::input_parameter< bool >::type negative(negativeSEXP);
+    rcpp_result_gen = Rcpp::wrap(grad_obs_units_cpp(model, x, config, units, batch_size, inner, negative));
+    return rcpp_result_gen;
+END_RCPP
+}
 // inner_opt
 Rcpp::List inner_opt(const Rcpp::NumericVector parameters, const Rcpp::NumericVector gamma, const Rcpp::S4& ad_pack, SEXP control, bool deriv, bool verbose, bool return_hessians);
 RcppExport SEXP _adlaplace_inner_opt(SEXP parametersSEXP, SEXP gammaSEXP, SEXP ad_packSEXP, SEXP controlSEXP, SEXP derivSEXP, SEXP verboseSEXP, SEXP return_hessiansSEXP) {
@@ -349,6 +360,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_adlaplace_joint_log_dens", (DL_FUNC) &_adlaplace_joint_log_dens, 4},
     {"_adlaplace_grad", (DL_FUNC) &_adlaplace_grad, 5},
     {"_adlaplace_hessian", (DL_FUNC) &_adlaplace_hessian, 6},
+    {"_adlaplace_grad_obs_units_cpp", (DL_FUNC) &_adlaplace_grad_obs_units_cpp, 7},
     {"_adlaplace_inner_opt", (DL_FUNC) &_adlaplace_inner_opt, 7},
     {"_adlaplace_fun_obj_fdfh", (DL_FUNC) &_adlaplace_fun_obj_fdfh, 5},
     {"_adlaplace_latch_parallel_threads", (DL_FUNC) &_adlaplace_latch_parallel_threads, 1},
@@ -362,8 +374,4 @@ static const R_CallMethodDef CallEntries[] = {
 RcppExport void R_init_adlaplace(DllInfo *dll) {
     R_registerRoutines(dll, NULL, CallEntries, NULL, NULL);
     R_useDynamicSymbols(dll, FALSE);
-    // Install live-ad_pack registry hooks so make_ad_pack_ptr / ad_fun_destroy
-    // (register_impl.hpp, included in this DSO) track handles for
-    // cppad_parallel_teardown. No-op in backend DSOs (their hook slots stay null).
-    adlaplace_install_registry_hooks();
 }

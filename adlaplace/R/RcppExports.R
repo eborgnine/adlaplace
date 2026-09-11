@@ -186,6 +186,28 @@ create_ad_shard_random_mult <- function(model, config) {
     .Call(`_adlaplace_hessian`, ad_pack, x, ad_shards, inner, verbose, negative)
 }
 
+#' Stream per-unit observation gradients (grad-only tapes)
+#'
+#' For each observation unit (ELGM stratum column, or row of \code{y} when
+#' there is no ELGM map), records a temporary one-unit observation tape with
+#' \code{hessian_sparsity = FALSE}, evaluates the sparse gradient at
+#' \code{x}, then destroys the tape. Does not run \code{inner_opt}.
+#'
+#' @param model Observation \code{density_data} S4 object.
+#' @param x Full parameter vector \code{c(beta, gamma, theta)}.
+#' @param config Config list (merged with grad-only defaults upstream).
+#' @param units Optional 0-based unit indices; empty means all units.
+#' @param batch_size Positive integer batch size for temporary tapes.
+#' @param inner If \code{TRUE}, return inner-\eqn{\gamma} gradients only
+#'   (rows are gamma). If \code{FALSE}, rows are the full parameter vector.
+#' @param negative If \code{TRUE}, negate the density gradient (minimization
+#'   sign, matching \code{\link{grad}}).
+#' @return A \code{dgCMatrix} with one column per unit.
+#' @keywords internal
+.grad_obs_units_cpp <- function(model, x, config, units, batch_size, inner, negative) {
+    .Call(`_adlaplace_grad_obs_units_cpp`, model, x, config, units, batch_size, inner, negative)
+}
+
 #' Inner optimization over gamma using trust-region CG (sparse)
 #'
 #' Runs the inner optimization over \eqn{\gamma} using the
@@ -232,14 +254,17 @@ inner_opt <- function(parameters, gamma, ad_pack, control = NULL, deriv = FALSE,
 
 #' Latch (and optionally raise) the process-wide parallel team size.
 #'
-#' For \code{requested > 1}, returns the process high-water mark after
-#' updating it with \code{requested} (so later smaller requests cannot shrink
-#' the effective team). Serial \code{requested = 1} is returned unchanged.
-#' Used by \code{ad_pack()} / owner assignment so OpenMP width and shard
-#' owner maps stay consistent after a larger team was used.
+#' For \code{requested > 1}, updates the process high-water mark. On Windows,
+#' returns that mark after raising it so OpenMP/CppAD team setup never shrinks
+#' within one R process (a decrease aborts under rtools/libomp). At eval time
+#' empty trailing thread groups are padded to this width; shard owners from
+#' \code{ad_pack()} still follow the requested \code{num_threads}. On other
+#' platforms the requested count is returned unchanged. Serial
+#' \code{requested = 1} is always returned unchanged.
 #'
 #' @param requested Positive integer thread count.
-#' @return Integer effective thread count.
+#' @return Integer effective OpenMP/CppAD team size (may exceed requested on
+#'   Windows after a larger parallel team was used in this process).
 #' @keywords internal
 latch_parallel_threads <- function(requested) {
     .Call(`_adlaplace_latch_parallel_threads`, requested)

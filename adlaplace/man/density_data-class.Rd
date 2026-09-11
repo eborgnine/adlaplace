@@ -66,7 +66,10 @@ otherwise an empty matrix.}
 
 \item{package}{Package recording AD tapes for this shard (optional).}
 
-\item{precision}{Optional precision payload (any R object).}
+\item{precision}{Optional precision payload (any R object). For
+\code{density = "random_mult"}, a list with \code{Q} as
+\code{dsCMatrix} (\code{uplo = "U"}); \code{dgCMatrix} is coerced via
+\code{as_dsC_upper()}.}
 
 \item{weights}{Optional per-observation weights (e.g. binomial trial counts).
 Empty means all ones.}

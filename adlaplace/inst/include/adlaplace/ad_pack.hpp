@@ -279,14 +279,17 @@ inline void adpack_calibrate(const CPPAD_TESTVECTOR(double) & x, AdTape &gp,
   gp.pattern_hessian =
       CppAD::sparse_rcv<CPPAD_TESTVECTOR(size_t), CPPAD_TESTVECTOR(double)>(
           pats.hessian_upper);
-  gp.fun.sparse_hes(x, gp.w, gp.pattern_hessian, pats.hessian, HESS_COLOR,
-                    gp.work_hess);
-
   gp.pattern_hessian_inner =
       CppAD::sparse_rcv<CPPAD_TESTVECTOR(size_t), CPPAD_TESTVECTOR(double)>(
           pats.hessian_inner_upper);
-  gp.fun.sparse_hes(x, gp.w, gp.pattern_hessian_inner, pats.hessian_inner,
-                    HESS_COLOR, gp.work_inner_hess);
+
+  // Grad-only packs leave Hessian patterns empty; skip sparse_hes calibration.
+  if (pats.hessian.nnz() > 0 || pats.hessian_upper.nnz() > 0) {
+    gp.fun.sparse_hes(x, gp.w, gp.pattern_hessian, pats.hessian, HESS_COLOR,
+                      gp.work_hess);
+    gp.fun.sparse_hes(x, gp.w, gp.pattern_hessian_inner, pats.hessian_inner,
+                      HESS_COLOR, gp.work_inner_hess);
+  }
 
   adpack_fill_global_patterns(gp);
   // Drop the calibration Taylor buffer in the same DSO that recorded the
@@ -298,7 +301,8 @@ inline void adpack_sparsity(const CPPAD_TESTVECTOR(double) & x,
                             const std::vector<int> &subset, AdTape &gp,
                             const bool verbose = false,
                             const CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)>
-                                &hessian = empty_sparse_rc()) {
+                                &hessian = empty_sparse_rc(),
+                            const bool hessian_sparsity = true) {
 
   const std::size_t n_params = x.size();
 
@@ -311,11 +315,16 @@ inline void adpack_sparsity(const CPPAD_TESTVECTOR(double) & x,
       Rcpp::Rcout << "using external Hessian sparsity pattern\n";
     }
     hessian_here = hessian;
-  } else {
+  } else if (hessian_sparsity) {
     if (verbose) {
       Rcpp::Rcout << "discovering Hessian sparsity pattern\n";
     }
     adpack_discover_hessian(gp, hessian_here, n_params);
+  } else {
+    if (verbose) {
+      Rcpp::Rcout << "skipping Hessian sparsity (grad-only)\n";
+    }
+    hessian_here = empty_sparse_rc();
   }
 
   AdpackPatterns pats =
@@ -376,7 +385,8 @@ inline std::vector<AdTape> build_ad_fun_obs(const density_data &model_in,
     }
     model.apply_tape_domain(cfg, "obs", d);
     const CPPAD_TESTVECTOR(double) ad_params_G = make_ad_params_seed(cfg, model);
-    adpack_sparsity(ad_params_G, model.seq_gamma, result[d], cfg.verbose);
+    adpack_sparsity(ad_params_G, model.seq_gamma, result[d], cfg.verbose,
+                    empty_sparse_rc(), cfg.hessian_sparsity);
   }
 
   return result;
@@ -417,7 +427,8 @@ inline AdTape build_ad_fun_parameters(
   if (cfg.verbose) {
     Rcpp::Rcout << "build_ad_fun_parameters: computing sparsity...\n";
   }
-  adpack_sparsity(ad_params_G, model.seq_gamma, pack, cfg.verbose, hessian);
+  adpack_sparsity(ad_params_G, model.seq_gamma, pack, cfg.verbose, hessian,
+                  cfg.hessian_sparsity);
   return pack;
 }
 
