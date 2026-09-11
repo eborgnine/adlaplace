@@ -240,7 +240,10 @@ void cppad_parallel_teardown() {
   CppAD::thread_alloc::hold_memory(false);
   CppAD::parallel_ad<double>();
   cppad_team_num_threads = 1;
-  max_team_num_threads = 1;
+  // Keep process-wide high-water mark across teardowns so a later request for
+  // a smaller parallel team can be clamped back up. Resetting this here would
+  // disable the clamp after every CppadParallelScope exit (the Windows 4->2
+  // abort path).
   debug_teardown_restored();
 }
 
