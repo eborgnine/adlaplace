@@ -247,7 +247,7 @@ stratum_info$num <- stratum_info$year +
   (as.integer(stratum_info$month) - 1) / 12 +
   0.1 * (as.integer(stratum_info$dow) - 1) / 7
 
-Scol <- c("#000000", RColorBrewer::brewer.pal(11, "RdYlGn"))
+Scol <- grey(seq(0.2, 0.8, length.out = 12))
 stratum_info$pch <- as.character(as.integer(stratum_info$dow))
 stratum_info$col <- Scol[as.integer(stratum_info$month)]
 stratum_info$pch[drop_idx] <- "o"
