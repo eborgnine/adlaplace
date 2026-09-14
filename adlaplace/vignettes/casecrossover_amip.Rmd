@@ -1,12 +1,12 @@
 ---
-title: "Strata-removal AMIP for case-crossover"
+title: "Approximate maximum influence perturbations"
 author: "Patrick Brown"
 date: "`r Sys.Date()`"
 output:
   rmarkdown::html_vignette:
     toc: true
 vignette: >
-  %\VignetteIndexEntry{Strata-removal AMIP for case-crossover}
+  %\VignetteIndexEntry{Approximate maximum influence perturbations}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -14,15 +14,19 @@ vignette: >
 ## Introduction
 
 This vignette applies the approximate maximum influence perturbation (AMIP)
-of Broderick, Giordano, and Meager to the London case-crossover model. After
-fitting, outer parameters (`beta`, `theta`) are held at the MLE and only the
-inner random effects `gamma` are allowed to move. The fit-time observation
-tapes supply the inner Hessian \(H\); per-stratum scores use streaming
-one-unit observation gradients (`grad_obs_units`) so scores do not require
-holding an identity shard pack. The most influential strata for flipping the
-PM10 effect at exposure 80 are identified, then a second inner optimization
-with those strata removed confirms the linear approximation. A full refit on
-the reduced data is compared on the PM10 relative-risk curve.
+of Broderick, Giordano, and Meager in two settings. After fitting, outer
+parameters (`beta`, `theta`) are held at the MLE and only the inner random
+effects `gamma` are allowed to move. The fit-time observation tapes supply
+the inner Hessian \(H\); per-unit scores use streaming one-unit observation
+gradients (`grad_obs_units`) so scores do not require holding an identity
+shard pack.
+
+The first example is the London case-crossover model: the most influential
+**strata** for flipping the PM10 effect at exposure 80. The second is the
+MASS `bacteria` Bernoulli GLMM: the most influential **swabs** for flipping
+the sign of the drug-versus-placebo treatment effect. In both cases an inner
+optimization with those units removed confirms the linear approximation, and
+a full refit on the reduced data is compared to the original fit.
 
 ```{r setup, include=FALSE}
 library(adlaplace)
@@ -35,10 +39,11 @@ if (file.exists("vignette_full.R")) {
 }
 fit_num_shards <- if (vignette_full) 200L else 8L
 fit_maxit <- if (vignette_full) 200L else 15L
+have_mass <- requireNamespace("MASS", quietly = TRUE)
 knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
 ```
 
-## Data and model
+## Case-crossover: PM10 at 80
 
 Same London daily mortality / PM10 specification as the case-crossover vignette.
 Abbreviated knits use 2003 only.
@@ -428,14 +433,301 @@ legend(
 )
 ```
 
+## Bacteria: sign-flip of the drug effect
+
+The MASS `bacteria` data are 220 swabs on 50 children, with a three-level
+treatment (`placebo`, `drug`, `drug+`) and follow-up week. Treatment
+coefficients are placed in the inner field with known-SD Gaussian priors, so
+the drug-versus-placebo contrast is a coordinate of \(\gamma\) and the same
+inner AMIP applies. There is no ELGM map, so `grad_obs_units` scores
+individual swabs. (Summing scores to children is not enough to flip this
+contrast under the linear approximation.)
+
+```{r bac-data, eval = have_mass}
+data(bacteria, package = "MASS")
+bacteria$present <- as.integer(bacteria$y == "y")
+bac_formula <- binomial(present) ~
+  intercept(sd = 10) +
+  linear(trt, sd = 10) +
+  linear(week, sd = 10) +
+  iid(ID, init = 1) +
+  prior(theta = 0, dist = "exp", median = 1)
+bac_maxit <- if (vignette_full) 200L else 80L
+bac_shards <- if (vignette_full) 20L else 8L
+```
+
+```{r bac-fit, eval = have_mass}
+fit_bac <- adlaplace(
+  formula = bac_formula,
+  data = bacteria,
+  config = list(
+    num_threads = vignette_num_threads,
+    num_shards = bac_shards
+  ),
+  control = list(
+    maxit = bac_maxit,
+    trace = 3,
+    REPORT = 5
+  ),
+  verbose = FALSE,
+  hessian = FALSE
+)
+md_bac <- fit_bac$model_data
+x_outer_bac <- as.numeric(fit_bac$par_info$mle_internal)
+gamma0_bac <- as.numeric(fit_bac$gamma)
+fit_bac$par_info[, c("label", "mle", "mle_internal")]
+```
+
+```{r bac-inner, eval = have_mass}
+n_obs_bac <- length(md_bac$term_data$y)
+af_bac <- fit_bac$ad_pack
+io_bac <- inner_opt(
+  parameters = x_outer_bac,
+  gamma = gamma0_bac,
+  ad_pack = af_bac,
+  control = list(report.level = 0, report.freq = 0),
+  deriv = TRUE,
+  return_hessians = TRUE,
+  verbose = FALSE
+)
+gamma_hat_bac <- as.numeric(io_bac$inner_opt$solution)
+names(gamma_hat_bac) <- names(fit_bac$gamma)
+H_bac <- io_bac$hessian$inner
+gamma_lab_bac <- md_bac$term_data$info$gamma$gamma_label
+trt_labs <- grep("^trt_linear_", gamma_lab_bac, value = TRUE)
+drug_lab <- trt_labs[endsWith(trt_labs, "drug")]
+if (!length(drug_lab)) {
+  drug_lab <- trt_labs[[1L]]
+}
+a_bac <- numeric(length(gamma_lab_bac))
+names(a_bac) <- gamma_lab_bac
+a_bac[[drug_lab]] <- 1
+phi_hat_bac <- sum(a_bac * gamma_hat_bac)
+c(target = drug_lab, phi_hat = phi_hat_bac)
+```
+
+Swab-level scores \(\psi_i = -v^\top g_i\).
+
+```{r bac-scores, eval = have_mass}
+v_bac <- as.numeric(Matrix::solve(H_bac, a_bac))
+x_full_bac <- as.numeric(io_bac$full_parameters)
+G_bac <- grad_obs_units(
+  md_bac$observations[[1]],
+  x_full_bac,
+  batch_size = 32L,
+  inner = TRUE,
+  negative = TRUE
+)
+stopifnot(nrow(G_bac) == length(v_bac), ncol(G_bac) == n_obs_bac)
+psi_bac <- as.numeric(-Matrix::crossprod(v_bac, G_bac))
+summary(psi_bac)
+```
+
+```{r bac-amip, eval = have_mass}
+if (phi_hat_bac > 0) {
+  ord_bac <- order(psi_bac, decreasing = TRUE)
+} else if (phi_hat_bac < 0) {
+  ord_bac <- order(psi_bac)
+} else {
+  ord_bac <- integer(0)
+}
+cum_psi_bac <- if (length(ord_bac)) cumsum(psi_bac[ord_bac]) else numeric(0)
+m_star_bac <- if (phi_hat_bac == 0 || !length(cum_psi_bac)) {
+  NA_integer_
+} else {
+  which(cum_psi_bac / phi_hat_bac >= 1)[1L]
+}
+if (is.na(m_star_bac)) {
+  drop_idx_bac <- integer(0)
+  amip_alpha_bac <- NA_real_
+  amip_change_bac <- if (length(cum_psi_bac)) -cum_psi_bac[length(cum_psi_bac)] else 0
+} else {
+  drop_idx_bac <- ord_bac[seq_len(m_star_bac)]
+  amip_alpha_bac <- length(drop_idx_bac) / n_obs_bac
+  amip_change_bac <- -cum_psi_bac[m_star_bac]
+}
+
+c(
+  phi_hat = phi_hat_bac,
+  n_drop = length(drop_idx_bac),
+  alpha = amip_alpha_bac,
+  approx_change = amip_change_bac
+)
+
+dropped_bac <- md_bac$term_data$data[drop_idx_bac, c("ID", "week", "trt"), drop = FALSE]
+dropped_bac$psi <- psi_bac[drop_idx_bac]
+table(dropped_bac$trt)
+xtabs(~ week + trt, dropped_bac)
+```
+
+```{r bac-psi-plot, eval = have_mass, fig.width=6, fig.height=3.5}
+par(mar = c(2.5, 2.5, 1, 0.5), bty = "l", mgp = c(1.5, 0.5, 0))
+dat_bac <- md_bac$term_data$data
+trt_cols <- c(placebo = "#4C78A8", drug = "#F58518", "drug+" = "#54A24B")
+pch_bac <- rep(19, n_obs_bac)
+col_bac <- unname(trt_cols[as.character(dat_bac$trt)])
+pch_bac[drop_idx_bac] <- 1
+col_bac[drop_idx_bac] <- "firebrick"
+
+plot(
+  seq_len(n_obs_bac), psi_bac,
+  pch = pch_bac, cex = 0.55, col = col_bac,
+  xlab = "swab", ylab = expression(psi[i])
+)
+legend(
+  "bottomright",
+  legend = names(trt_cols),
+  col = trt_cols, pch = 19, bty = "n", inset = 0
+)
+abline(h = 0, lty = 2, col = "grey50")
+```
+
+Inner confirmation drops the nominated swabs, keeps \(\theta\) at the
+original MLE, and re-optimizes \(\gamma\).
+
+```{r bac-confirm, eval = have_mass}
+if (!length(drop_idx_bac)) {
+  phi_drop_bac <- NA_real_
+  gamma_drop_bac <- NULL
+  message("No swabs dropped; skipping confirmation retape.")
+} else {
+  keep_bac <- setdiff(
+    seq.int(0L, n_obs_bac - 1L),
+    as.integer(drop_idx_bac - 1L)
+  )
+  og_drop_bac <- Matrix::sparseMatrix(
+    i = keep_bac,
+    j = seq_along(keep_bac) - 1L,
+    x = 1,
+    dims = c(n_obs_bac, length(keep_bac)),
+    index1 = FALSE
+  )
+  af_drop_bac <- ad_pack(
+    md_bac,
+    config = modifyList(fit_bac$config, list(obs_groups = og_drop_bac, verbose = FALSE)),
+    num_threads = vignette_num_threads,
+    reorder_shards = "none"
+  )
+  io_drop_bac <- inner_opt(
+    parameters = x_outer_bac,
+    gamma = gamma_hat_bac,
+    ad_pack = af_drop_bac,
+    control = list(report.level = 0, report.freq = 0),
+    deriv = FALSE,
+    return_hessians = FALSE,
+    verbose = FALSE
+  )
+  gamma_drop_bac <- as.numeric(io_drop_bac$inner_opt$solution)
+  names(gamma_drop_bac) <- names(gamma_hat_bac)
+  phi_drop_bac <- sum(a_bac * gamma_drop_bac)
+}
+
+c(
+  phi_full = phi_hat_bac,
+  phi_dropped = phi_drop_bac,
+  actual_change = if (is.finite(phi_drop_bac)) phi_drop_bac - phi_hat_bac else NA_real_,
+  approx_change = if (length(drop_idx_bac)) amip_change_bac else NA_real_
+)
+```
+
+```{r bac-refit, eval = have_mass}
+if (!length(drop_idx_bac)) {
+  fit_bac_drop <- NULL
+  phi_refit_bac <- NA_real_
+  message("No swabs dropped; skipping refit.")
+} else {
+  bacteria_drop <- md_bac$term_data$data[-drop_idx_bac, , drop = FALSE]
+  c(
+    n_full = nrow(md_bac$term_data$data),
+    n_keep = nrow(bacteria_drop),
+    n_swab_drop = length(drop_idx_bac)
+  )
+  fit_bac_drop <- adlaplace(
+    formula = bac_formula,
+    data = bacteria_drop,
+    config = list(
+      num_threads = vignette_num_threads,
+      num_shards = bac_shards
+    ),
+    control = list(
+      maxit = bac_maxit,
+      trace = 3,
+      REPORT = 5
+    ),
+    verbose = FALSE,
+    hessian = FALSE
+  )
+  phi_refit_bac <- unname(fit_bac_drop$gamma[[drug_lab]])
+  fit_bac_drop$par_info[, c("label", "mle", "mle_internal")]
+}
+
+c(
+  phi_full = phi_hat_bac,
+  phi_inner_drop = phi_drop_bac,
+  phi_refit = phi_refit_bac
+)
+```
+
+Treatment logit effects with 80% pointwise intervals from the inner Laplace
+approximation. The targeted drug-versus-placebo contrast is the first pair.
+
+```{r bac-plot, eval = have_mass, fig.width=6, fig.height=3.5}
+num_sim_bac <- if (vignette_full) 200L else 80L
+sims_bac <- rmvnldl(n = num_sim_bac, fit = fit_bac)
+q_trt <- function(sims, labs, probs = c(0.1, 0.5, 0.9)) {
+  apply(sims[, labs, drop = FALSE], 2L, stats::quantile, probs = probs)
+}
+q_full_bac <- q_trt(sims_bac, trt_labs)
+q_drop_bac <- NULL
+if (!is.null(fit_bac_drop)) {
+  sims_bac_drop <- rmvnldl(n = num_sim_bac, fit = fit_bac_drop)
+  q_drop_bac <- q_trt(sims_bac_drop, trt_labs)
+}
+
+pretty_trt <- sub("^trt_linear_trt", "", trt_labs)
+ylim_bac <- range(q_full_bac, 0, finite = TRUE)
+if (!is.null(q_drop_bac)) {
+  ylim_bac <- range(ylim_bac, q_drop_bac, finite = TRUE)
+}
+par(mar = c(3, 3, 0.5, 0.5), mgp = c(1.5, 0.5, 0), bty = "l")
+plot(
+  NA, NA,
+  xlim = c(0.5, length(trt_labs) + 0.5),
+  ylim = ylim_bac,
+  xaxt = "n", xlab = "", ylab = "treatment effect (logit)"
+)
+axis(1, at = seq_along(trt_labs), labels = pretty_trt)
+abline(h = 0, lty = 3, col = "grey50")
+offset <- if (is.null(q_drop_bac)) 0 else 0.12
+for (j in seq_along(trt_labs)) {
+  x0 <- j - offset
+  arrows(x0, q_full_bac[1L, j], x0, q_full_bac[3L, j], length = 0, col = "red", lwd = 2)
+  points(x0, q_full_bac[2L, j], pch = 19, col = "red")
+  if (!is.null(q_drop_bac)) {
+    x1 <- j + offset
+    arrows(x1, q_drop_bac[1L, j], x1, q_drop_bac[3L, j], length = 0, col = "darkblue", lwd = 2)
+    points(x1, q_drop_bac[2L, j], pch = 19, col = "darkblue")
+  }
+}
+legend(
+  "topright",
+  legend = c("full data", "AMIP swabs removed"),
+  col = c("red", "darkblue"),
+  pch = 19, lwd = 2, bty = "n"
+)
+```
+
 ## Notes
 
-- Units of removal are **strata** (year–month–day-of-week matched sets), not
-  individual calendar days.
+- Case-crossover removal units are **strata** (year–month–day-of-week matched
+  sets), not individual calendar days. Bacteria removal units are **swabs**
+  (rows of the observation vector).
 - The inner confirmation keeps outer parameters at the original MLE: that is
   sensitivity of \(\hat\gamma(\beta,\theta)\), not a refit of smoothness or
-  overdispersion. The refit chunk re-estimates the full outer MLE on the
+  overdispersion. The refit chunks re-estimate the full outer MLE on the
   reduced data.
 - Scores use streaming one-unit observation tapes (`grad_obs_units`); \(H\)
   comes from the fit pack via `inner_opt`. Confirmation still retapes a
-  masked likelihood after dropping the nominated strata.
+  masked likelihood after dropping the nominated units.
+- The bacteria example needs **MASS**. Those chunks are skipped when it is
+  not installed.
