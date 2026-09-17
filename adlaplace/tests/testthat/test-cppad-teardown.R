@@ -88,6 +88,8 @@ test_that("serial log_lik_laplace deriv=TRUE still completes", {
 })
 
 test_that("repeated parallel log_lik_laplace deriv=TRUE survives thread_alloc teardown", {
+  # Four OpenMP threads exceed CRAN's two-core cap (CPU/elapsed NOTE).
+  skip_on_cran()
   skip_if_not(adlaplace:::has_openmp(), "OpenMP not available in this build")
   fx <- cppad_teardown_fixture(num_threads = 4L)
   args <- list(

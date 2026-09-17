@@ -3,7 +3,8 @@
 ^\.gitignore$
 ^\.cursor
 ^\.\.Rcheck$
-^build$
+# Do not ignore ^build$: R CMD build writes build/vignette.rds, which CRAN
+# incoming checks require when DESCRIPTION has VignetteBuilder.
 ^config\.
 ^config\.[0-9]+/
 ^vignettes/.*_files/
