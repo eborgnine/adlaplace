@@ -16,8 +16,10 @@ vignette: >
 This vignette applies the approximate maximum influence perturbation (AMIP)
 of Broderick, Giordano, and Meager in two settings. After fitting, outer
 parameters (`beta`, `theta`) are held at the MLE and only the inner random
-effects `gamma` are allowed to move. The fit-time observation tapes supply
-the inner Hessian \(H\); per-unit scores use streaming one-unit observation
+effects `gamma` are allowed to move. Package helpers
+`phi_gamma()`, `influence_scores()`, `amip_set()`, and `ad_pack_drop()`
+cover the shared pipeline: the fit-time observation tapes supply the
+inner Hessian \(H\); per-unit scores use streaming one-unit observation
 gradients (`grad_obs_units`) so scores do not require holding an identity
 shard pack.
 
@@ -99,45 +101,26 @@ fit <- adlaplace(
   hessian = FALSE
 )
 md <- fit$model_data
-x_outer <- as.numeric(fit$par_info$mle_internal)
-gamma0 <- as.numeric(fit$gamma)
+n_strata <- n_obs_units(fit)
 fit$par_info[, c("label", "mle", "mle_internal")]
-```
-
-
-
-## Inner mode and Hessian at the outer MLE
-
-Freeze `beta` and `theta` at the MLE; re-optimize `gamma` on the **fit** AD
-pack (coarse observation shards) and keep the inner Hessian \(H\). Per-stratum
-scores below do not need an identity retape.
-
-```{r inner-mode}
-n_strata <- ncol(md$term_data$elgm_matrix)
-af <- fit$ad_pack
-sz <- af@sizes
-io <- inner_opt(
-  parameters = x_outer,
-  gamma = gamma0,
-  ad_pack = af,
-  control = list(report.level = 0, report.freq = 0),
-  deriv = TRUE,
-  return_hessians = TRUE,
-  verbose = FALSE
-)
-gamma_hat <- as.numeric(io$inner_opt$solution)
-H <- io$hessian$inner
 n_strata
-as.integer(sz)
 ```
 
-## Quantity of interest: PM10 effect at 80
+## Quantity of interest and influence scores
 
 The PM10 smooth is centered at `ref_value = 40`, so the effect at 80 is a
 nontrivial linear functional \(\phi(\gamma) = a^\top\gamma\) of the IWP and
-random-polynomial coefficients.
+random-polynomial coefficients. `influence_scores()` freezes the outer MLE,
+re-optimizes \(\gamma\) on the fit pack (for \(H\)), and streams one-unit
+observation gradients to form \(\psi_s = -v^\top g_s\).
 
-```{r phi-design}
+```{r influence}
+a <- phi_gamma(fit, term = "pm10", new_x = data.frame(pm10 = 80))
+inf <- influence_scores(fit, a, batch_size = 32L)
+gamma_hat <- inf$gamma_hat
+phi_hat <- inf$phi
+psi <- inf$psi
+gamma_lab <- names(fit$gamma)
 pm_terms <- Filter(
   function(tt) {
     identical(tt@name, "pm10") &&
@@ -145,77 +128,22 @@ pm_terms <- Filter(
   },
   md$terms
 )
-new_x <- data.frame(pm10 = 80)
-design_list <- lapply(pm_terms, design, data = new_x)
-design_list <- Filter(Negate(is.null), design_list)
-new_design <- as.matrix(do.call(cbind, design_list))
-
-gamma_lab <- md$term_data$info$gamma$gamma_label
-a <- numeric(length(gamma_lab))
-names(a) <- gamma_lab
-a[colnames(new_design)] <- as.numeric(new_design[1L, ])
-stopifnot(any(abs(a) > 0))
-
-phi_hat <- sum(a * gamma_hat)
-phi_hat
-```
-
-## Per-stratum influence scores
-
-Solve \(H v = a\) once, then form stratum scores
-\(\psi_s = -v^\top g_s\) from streaming one-unit observation gradients
-(`grad_obs_units`; same negative-log sign as `grad` / `inner_opt`). Temporary
-tapes use `hessian_sparsity = FALSE` and are discarded after each batch.
-
-```{r influence-scores}
-v <- as.numeric(Matrix::solve(H, a))
-x_full <- as.numeric(io$full_parameters)
-G <- grad_obs_units(
-  md$observations[[1]],
-  x_full,
-  batch_size = 32L,
-  inner = TRUE,
-  negative = TRUE
-)
-stopifnot(nrow(G) == length(v), ncol(G) == n_strata)
-psi <- as.numeric(-Matrix::crossprod(v, G))
+c(phi_hat = phi_hat, n_strata = n_strata)
 summary(psi)
 ```
 
 ## Approximate most influential set
 
-Leaving out stratum \(s\) changes \(\phi\) by approximately \(-\psi_s\). To flip
-the sign of \(\hat\phi > 0\) we need a negative change, so we drop the strata
-with the **largest positive** \(\psi_s\) until \(\sum \psi_s \ge \hat\phi\)
-(equivalently Broderick et al. applied to \(-\phi\)). If \(\hat\phi < 0\), drop
-the most negative scores instead. If that is impossible under the linear
-approximation, report that no small removal set is found.
+Leaving out stratum \(s\) changes \(\phi\) by approximately \(-\psi_s\).
+`amip_set()` drops the largest same-sign scores until the linear
+approximation flips \(\hat\phi\). If that is impossible, it reports an
+empty removal set.
 
 ```{r amip-set}
-# Dropping S changes phi by approx -sum(psi[S]). Choose S so that sum(psi[S])
-# has the same sign as phi_hat and |sum| >= |phi_hat|.
-if (phi_hat > 0) {
-  ord <- order(psi, decreasing = TRUE)
-} else if (phi_hat < 0) {
-  ord <- order(psi)
-} else {
-  ord <- integer(0)
-}
-cum_psi <- if (length(ord)) cumsum(psi[ord]) else numeric(0)
-m_star <- if (phi_hat == 0 || !length(cum_psi)) {
-  NA_integer_
-} else {
-  which(cum_psi / phi_hat >= 1)[1L]
-}
-if (is.na(m_star)) {
-  drop_idx <- integer(0)
-  amip_alpha <- NA_real_
-  amip_change <- if (length(cum_psi)) -cum_psi[length(cum_psi)] else 0
-} else {
-  drop_idx <- ord[seq_len(m_star)]
-  amip_alpha <- length(drop_idx) / n_strata
-  amip_change <- -cum_psi[m_star]
-}
+S <- amip_set(psi, phi_hat)
+drop_idx <- S$idx
+amip_alpha <- S$alpha
+amip_change <- S$approx_change
 
 c(
   phi_hat = phi_hat,
@@ -278,8 +206,9 @@ abline(h = 0, lty = 2, col = "grey50")
 
 ## Confirm by dropping nominated strata
 
-Rebuild observation tapes without the Approximate Most Influential Set, keep
-the outer MLE fixed, and re-optimize `gamma`. The resulting change in
+`ad_pack_drop()` retapes the likelihood without the Approximate Most
+Influential Set (filtering the fit's coarse observation shards). Keep the
+outer MLE fixed and re-optimize `gamma`. The resulting change in
 \(\phi(80)\) is an exact finite-sample lower bound on the worst-case
 strata-removal effect (Broderick et al.).
 
@@ -305,22 +234,9 @@ if (!length(drop_idx)) {
   curve1 <- NULL
   message("No strata dropped; skipping confirmation retape.")
 } else {
-  keep <- setdiff(seq.int(0L, n_strata - 1L), as.integer(drop_idx - 1L))
-  og_drop <- Matrix::sparseMatrix(
-    i = keep,
-    j = seq_along(keep) - 1L,
-    x = 1,
-    dims = c(n_strata, length(keep)),
-    index1 = FALSE
-  )
-  af_drop <- ad_pack(
-    md,
-    config = modifyList(fit$config, list(obs_groups = og_drop, verbose = FALSE)),
-    num_threads = vignette_num_threads,
-    reorder_shards = "none"
-  )
+  af_drop <- ad_pack_drop(fit, drop_idx, num_threads = vignette_num_threads)
   io_drop <- inner_opt(
-    parameters = x_outer,
+    parameters = as.numeric(fit$par_info$mle_internal),
     gamma = gamma_hat,
     ad_pack = af_drop,
     control = list(report.level = 0, report.freq = 0),
@@ -473,79 +389,33 @@ fit_bac <- adlaplace(
   hessian = FALSE
 )
 md_bac <- fit_bac$model_data
-x_outer_bac <- as.numeric(fit_bac$par_info$mle_internal)
-gamma0_bac <- as.numeric(fit_bac$gamma)
-fit_bac$par_info[, c("label", "mle", "mle_internal")]
-```
-
-```{r bac-inner, eval = have_mass}
-n_obs_bac <- length(md_bac$term_data$y)
-af_bac <- fit_bac$ad_pack
-io_bac <- inner_opt(
-  parameters = x_outer_bac,
-  gamma = gamma0_bac,
-  ad_pack = af_bac,
-  control = list(report.level = 0, report.freq = 0),
-  deriv = TRUE,
-  return_hessians = TRUE,
-  verbose = FALSE
-)
-gamma_hat_bac <- as.numeric(io_bac$inner_opt$solution)
-names(gamma_hat_bac) <- names(fit_bac$gamma)
-H_bac <- io_bac$hessian$inner
+n_obs_bac <- n_obs_units(fit_bac)
 gamma_lab_bac <- md_bac$term_data$info$gamma$gamma_label
 trt_labs <- grep("^trt_linear_", gamma_lab_bac, value = TRUE)
 drug_lab <- trt_labs[endsWith(trt_labs, "drug")]
 if (!length(drug_lab)) {
   drug_lab <- trt_labs[[1L]]
 }
-a_bac <- numeric(length(gamma_lab_bac))
-names(a_bac) <- gamma_lab_bac
-a_bac[[drug_lab]] <- 1
-phi_hat_bac <- sum(a_bac * gamma_hat_bac)
-c(target = drug_lab, phi_hat = phi_hat_bac)
+fit_bac$par_info[, c("label", "mle", "mle_internal")]
 ```
 
-Swab-level scores \(\psi_i = -v^\top g_i\).
+Swab-level scores via the same helpers as the case-crossover example.
 
-```{r bac-scores, eval = have_mass}
-v_bac <- as.numeric(Matrix::solve(H_bac, a_bac))
-x_full_bac <- as.numeric(io_bac$full_parameters)
-G_bac <- grad_obs_units(
-  md_bac$observations[[1]],
-  x_full_bac,
-  batch_size = 32L,
-  inner = TRUE,
-  negative = TRUE
-)
-stopifnot(nrow(G_bac) == length(v_bac), ncol(G_bac) == n_obs_bac)
-psi_bac <- as.numeric(-Matrix::crossprod(v_bac, G_bac))
+```{r bac-influence, eval = have_mass}
+a_bac <- phi_gamma(fit_bac, coef = drug_lab)
+inf_bac <- influence_scores(fit_bac, a_bac, batch_size = 32L)
+gamma_hat_bac <- inf_bac$gamma_hat
+phi_hat_bac <- inf_bac$phi
+psi_bac <- inf_bac$psi
+c(target = drug_lab, phi_hat = phi_hat_bac, n_swabs = n_obs_bac)
 summary(psi_bac)
 ```
 
 ```{r bac-amip, eval = have_mass}
-if (phi_hat_bac > 0) {
-  ord_bac <- order(psi_bac, decreasing = TRUE)
-} else if (phi_hat_bac < 0) {
-  ord_bac <- order(psi_bac)
-} else {
-  ord_bac <- integer(0)
-}
-cum_psi_bac <- if (length(ord_bac)) cumsum(psi_bac[ord_bac]) else numeric(0)
-m_star_bac <- if (phi_hat_bac == 0 || !length(cum_psi_bac)) {
-  NA_integer_
-} else {
-  which(cum_psi_bac / phi_hat_bac >= 1)[1L]
-}
-if (is.na(m_star_bac)) {
-  drop_idx_bac <- integer(0)
-  amip_alpha_bac <- NA_real_
-  amip_change_bac <- if (length(cum_psi_bac)) -cum_psi_bac[length(cum_psi_bac)] else 0
-} else {
-  drop_idx_bac <- ord_bac[seq_len(m_star_bac)]
-  amip_alpha_bac <- length(drop_idx_bac) / n_obs_bac
-  amip_change_bac <- -cum_psi_bac[m_star_bac]
-}
+S_bac <- amip_set(psi_bac, phi_hat_bac)
+drop_idx_bac <- S_bac$idx
+amip_alpha_bac <- S_bac$alpha
+amip_change_bac <- S_bac$approx_change
 
 c(
   phi_hat = phi_hat_bac,
@@ -582,8 +452,8 @@ legend(
 abline(h = 0, lty = 2, col = "grey50")
 ```
 
-Inner confirmation drops the nominated swabs, keeps \(\theta\) at the
-original MLE, and re-optimizes \(\gamma\).
+Inner confirmation drops the nominated swabs with `ad_pack_drop()`, keeps
+\(\theta\) at the original MLE, and re-optimizes \(\gamma\).
 
 ```{r bac-confirm, eval = have_mass}
 if (!length(drop_idx_bac)) {
@@ -591,25 +461,13 @@ if (!length(drop_idx_bac)) {
   gamma_drop_bac <- NULL
   message("No swabs dropped; skipping confirmation retape.")
 } else {
-  keep_bac <- setdiff(
-    seq.int(0L, n_obs_bac - 1L),
-    as.integer(drop_idx_bac - 1L)
-  )
-  og_drop_bac <- Matrix::sparseMatrix(
-    i = keep_bac,
-    j = seq_along(keep_bac) - 1L,
-    x = 1,
-    dims = c(n_obs_bac, length(keep_bac)),
-    index1 = FALSE
-  )
-  af_drop_bac <- ad_pack(
-    md_bac,
-    config = modifyList(fit_bac$config, list(obs_groups = og_drop_bac, verbose = FALSE)),
-    num_threads = vignette_num_threads,
-    reorder_shards = "none"
+  af_drop_bac <- ad_pack_drop(
+    fit_bac,
+    drop_idx_bac,
+    num_threads = vignette_num_threads
   )
   io_drop_bac <- inner_opt(
-    parameters = x_outer_bac,
+    parameters = as.numeric(fit_bac$par_info$mle_internal),
     gamma = gamma_hat_bac,
     ad_pack = af_drop_bac,
     control = list(report.level = 0, report.freq = 0),
@@ -721,13 +579,13 @@ legend(
 
 - Case-crossover removal units are **strata** (year–month–day-of-week matched
   sets), not individual calendar days. Bacteria removal units are **swabs**
-  (rows of the observation vector).
+  (rows of the observation vector). Use `n_obs_units()` for the domain size.
 - The inner confirmation keeps outer parameters at the original MLE: that is
   sensitivity of \(\hat\gamma(\beta,\theta)\), not a refit of smoothness or
   overdispersion. The refit chunks re-estimate the full outer MLE on the
   reduced data.
-- Scores use streaming one-unit observation tapes (`grad_obs_units`); \(H\)
-  comes from the fit pack via `inner_opt`. Confirmation still retapes a
-  masked likelihood after dropping the nominated units.
+- Scores use streaming one-unit observation tapes (`grad_obs_units` inside
+  `influence_scores`); \(H\) comes from the fit pack via `inner_opt`.
+  Confirmation retapes a filtered likelihood with `ad_pack_drop()`.
 - The bacteria example needs **MASS**. Those chunks are skipped when it is
   not installed.

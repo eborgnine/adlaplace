@@ -137,6 +137,97 @@ test_that("grad_obs_units matches one-obs packs without ELGM", {
   expect_equal(as.matrix(G), as.matrix(G1), tolerance = 1e-10)
 })
 
+test_that("obs_groups_units identity matches grad_obs_units / obs_units pack", {
+  set.seed(11)
+  n_date <- 6L
+  n_per <- 4L
+  n <- n_date * n_per
+  data <- data.frame(
+    count = rpois(n, lambda = 2),
+    hum = rnorm(n),
+    region = rep(1:2, length.out = n),
+    date = rep(seq_len(n_date), each = n_per),
+    year = 2002L
+  )
+  formula <- dirichlet_multinom(
+    count,
+    by = c("year", "region", "date"),
+    init = 0.1
+  ) ~ hum + iid(date)
+  md <- model_data(formula = formula, data = data, verbose = FALSE)
+  obs <- md$observations$count
+  n_s <- n_obs_units(obs)
+  expect_equal(n_s, ncol(md$term_data$elgm_matrix))
+
+  n_beta <- nrow(obs@beta_map)
+  n_gamma <- nrow(obs@gamma_map)
+  n_theta <- nrow(obs@theta_map)
+  x <- c(
+    rep(0.1, n_beta),
+    rnorm(n_gamma, sd = 0.05),
+    rep(log(0.1), n_theta)
+  )
+
+  G <- grad_obs_units(obs, x, batch_size = 2L)
+  og_id <- obs_groups_units(n_s, grouping = "identity")
+  expect_equal(dim(og_id), c(n_s, n_s))
+  expect_equal(Matrix::nnzero(og_id), n_s)
+
+  # Single-unit pack via obs_groups_units matches grad_obs_units column.
+  s <- 2L
+  ptr_one <- ad_pack_ptr(
+    obs,
+    list(
+      beta = x[seq_len(n_beta)],
+      gamma = x[seq.int(n_beta + 1L, length.out = n_gamma)],
+      theta = x[seq.int(n_beta + n_gamma + 1L, length.out = n_theta)],
+      transform_theta = TRUE,
+      obs_groups = obs_groups_units(n_s, units = s, grouping = "identity"),
+      compact_tape = TRUE,
+      hessian_sparsity = FALSE,
+      verbose = FALSE
+    )
+  )
+  gamma_idx <- seq.int(n_beta + 1L, length.out = n_gamma)
+  g <- as.numeric(grad(ptr_one, x, ad_shards = 0L, inner = TRUE, negative = TRUE))
+  expect_equal(
+    as.numeric(G[, s + 1L]),
+    g[gamma_idx],
+    tolerance = 1e-6
+  )
+
+  # config$obs_units is honored when building obs_groups for density_data.
+  cfg_u <- list(obs_units = s)
+  cfg_u <- adlaplace:::ensure_config_obs_groups(
+    cfg_u,
+    A = NULL,
+    elgm_matrix = md$term_data$elgm_matrix,
+    n_domain = n_s
+  )
+  expect_equal(
+    as.matrix(cfg_u$obs_groups),
+    as.matrix(obs_groups_units(n_s, units = s, grouping = "identity"))
+  )
+
+  # filter grouping drops empty shards and keeps selected units.
+  og_coarse <- obs_groups(
+    md$term_data$A,
+    elgm_matrix = md$term_data$elgm_matrix,
+    num_shards = 3L
+  )
+  keep <- c(0L, 2L, 4L)
+  og_f <- obs_groups_units(
+    n_s,
+    units = keep,
+    grouping = "filter",
+    obs_groups = og_coarse
+  )
+  expect_equal(nrow(og_f), n_s)
+  expect_lte(ncol(og_f), ncol(og_coarse))
+  rows_hit <- sort(unique(methods::as(og_f, "TsparseMatrix")@i))
+  expect_equal(rows_hit, keep)
+})
+
 test_that("hessian_sparsity = FALSE skips Hessian patterns", {
   set.seed(5)
   n <- 20L

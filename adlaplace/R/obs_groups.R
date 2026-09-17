@@ -23,6 +23,154 @@ default_obs_groups <- function(n_obs) {
   )
 }
 
+#' Number of removable observation units
+#'
+#' Units are ELGM stratum columns when \code{elgm_matrix} has columns;
+#' otherwise rows of the observation vector \code{y}. Same domain as
+#' \code{\link{grad_obs_units}}.
+#'
+#' @param data An observation \code{density_data}, a \code{model_data()}
+#'   bundle, or an \code{"adlaplace_fit"}.
+#' @return Integer length-1 count of units.
+#' @export
+n_obs_units <- function(data) {
+  obs <- .resolve_obs_density(data)
+  elgm <- obs@elgm_matrix
+  if (methods::is(elgm, "Matrix") && ncol(elgm) > 0L) {
+    return(as.integer(ncol(elgm)))
+  }
+  as.integer(length(obs@y))
+}
+
+#' Build \code{obs_groups} for a subset of observation units
+#'
+#' Restricts which observation units are recorded on observation tapes.
+#' Domain indices are **0-based** (ELGM stratum columns, or rows of \code{y}).
+#'
+#' @param n_domain Number of units in the full domain.
+#' @param units Integer vector of 0-based unit indices to keep. Default all.
+#' @param grouping One of:
+#'   \describe{
+#'     \item{\code{"identity"}}{One shard column per selected unit (scores).}
+#'     \item{\code{"together"}}{One shard containing all selected units.}
+#'     \item{\code{"filter"}}{Start from \code{obs_groups}, drop unselected
+#'       rows, drop empty columns (keeps coarse fit sharding).}
+#'   }
+#' @param obs_groups Existing shard map; required when
+#'   \code{grouping = "filter"}.
+#' @return A \code{dgCMatrix} suitable for \code{config$obs_groups}.
+#' @seealso \code{\link{n_obs_units}}, \code{\link{grad_obs_units}},
+#'   \code{\link{ad_pack_drop}}
+#' @export
+obs_groups_units <- function(
+  n_domain,
+  units = NULL,
+  grouping = c("identity", "together", "filter"),
+  obs_groups = NULL
+) {
+  grouping <- match.arg(grouping)
+  n_domain <- as.integer(n_domain)[1L]
+  if (is.na(n_domain) || n_domain < 1L) {
+    stop("`n_domain` must be a positive integer", call. = FALSE)
+  }
+  if (is.null(units)) {
+    units <- seq.int(0L, n_domain - 1L)
+  } else {
+    units <- as.integer(units)
+  }
+  if (!length(units)) {
+    stop("`units` is empty", call. = FALSE)
+  }
+  if (any(is.na(units)) || any(units < 0L) || any(units >= n_domain)) {
+    stop(
+      "`units` must be 0-based indices in [0, ", n_domain, ")",
+      call. = FALSE
+    )
+  }
+  if (anyDuplicated(units)) {
+    stop("`units` must be unique", call. = FALSE)
+  }
+
+  if (identical(grouping, "identity")) {
+    n_u <- length(units)
+    return(Matrix::sparseMatrix(
+      i = units,
+      j = seq.int(0L, n_u - 1L),
+      x = rep(1, n_u),
+      dims = c(n_domain, n_u),
+      index1 = FALSE
+    ))
+  }
+
+  if (identical(grouping, "together")) {
+    return(Matrix::sparseMatrix(
+      i = units,
+      j = rep(0L, length(units)),
+      x = rep(1, length(units)),
+      dims = c(n_domain, 1L),
+      index1 = FALSE
+    ))
+  }
+
+  # grouping == "filter"
+  if (is.null(obs_groups)) {
+    stop(
+      "`obs_groups` is required when grouping = \"filter\"",
+      call. = FALSE
+    )
+  }
+  og <- as_dgC(obs_groups)
+  if (nrow(og) != n_domain) {
+    stop(
+      "`obs_groups` has ", nrow(og), " rows but n_domain = ", n_domain,
+      call. = FALSE
+    )
+  }
+  keep <- logical(n_domain)
+  keep[units + 1L] <- TRUE
+  og_t <- methods::as(og, "TsparseMatrix")
+  sel <- keep[og_t@i + 1L]
+  if (!any(sel)) {
+    stop("filtering obs_groups left no selected units", call. = FALSE)
+  }
+  i_keep <- og_t@i[sel]
+  j_keep <- og_t@j[sel]
+  x_keep <- if (length(og_t@x)) og_t@x[sel] else rep(1, sum(sel))
+  # Remap shard columns to drop empties, preserving relative order.
+  j_levels <- sort(unique(j_keep))
+  j_new <- match(j_keep, j_levels) - 1L
+  Matrix::sparseMatrix(
+    i = i_keep,
+    j = j_new,
+    x = x_keep,
+    dims = c(n_domain, length(j_levels)),
+    index1 = FALSE
+  )
+}
+
+#' @keywords internal
+.resolve_obs_density <- function(data) {
+  if (inherits(data, "adlaplace_fit")) {
+    data <- data$model_data
+  }
+  if (is.list(data) && !methods::is(data, "density_data")) {
+    if (is.null(data$observations) || !length(data$observations)) {
+      stop(
+        "`data` list must be a model_data() bundle with $observations",
+        call. = FALSE
+      )
+    }
+    data <- data$observations[[1L]]
+  }
+  if (!methods::is(data, "density_data")) {
+    stop("`data` must be a density_data observation shard", call. = FALSE)
+  }
+  if (!identical(as.character(data@ad_kind), "observations")) {
+    stop("`data@ad_kind` must be \"observations\"", call. = FALSE)
+  }
+  data
+}
+
 #' Build \code{config$obs_groups} from design / ELGM when missing
 #'
 #' Used by \code{\link{adlaplace}} and \code{\link{ad_pack}} so that
@@ -30,11 +178,18 @@ default_obs_groups <- function(n_obs) {
 #' When \code{elgm_matrix} has columns, shards index strata, not raw rows of
 #' \code{y}.
 #'
+#' When \code{config$obs_groups} is missing and \code{config$obs_units} is set
+#' (0-based unit indices), builds an identity shard map over those units via
+#' \code{\link{obs_groups_units}}. Optional \code{config$obs_units_grouping}
+#' selects \code{"identity"} (default) or \code{"together"}.
+#'
 #' @param config Config list (may already contain \code{obs_groups}).
 #' @param A Random-effects design (\code{term_data$A}).
 #' @param elgm_matrix Optional ELGM stratum map.
 #' @param num_shards Maximum shards (from \code{config$num_shards} if missing).
 #' @param num_threads Used for \code{min_shards} when ELGM is present.
+#' @param n_domain Optional unit-domain size for \code{obs_units}; inferred from
+#'   \code{elgm_matrix} or \code{nrow(A)} when omitted.
 #' @return \code{config} with \code{obs_groups} filled when possible.
 #' @keywords internal
 ensure_config_obs_groups <- function(
@@ -42,11 +197,51 @@ ensure_config_obs_groups <- function(
   A,
   elgm_matrix = NULL,
   num_shards = NULL,
-  num_threads = 1L
+  num_threads = 1L,
+  n_domain = NULL
 ) {
   if (!is.null(config[["obs_groups"]])) {
     return(config)
   }
+
+  obs_units <- config[["obs_units"]]
+  if (!is.null(obs_units)) {
+    if (is.null(n_domain)) {
+      has_elgm <- !is.null(elgm_matrix) &&
+        methods::is(elgm_matrix, "Matrix") &&
+        ncol(elgm_matrix) > 0L
+      if (has_elgm) {
+        n_domain <- ncol(elgm_matrix)
+      } else if (!is.null(A) && nrow(A) > 0L) {
+        n_domain <- nrow(A)
+      } else {
+        stop(
+          "config$obs_units set but cannot infer n_domain from elgm_matrix / A",
+          call. = FALSE
+        )
+      }
+    }
+    grouping <- config[["obs_units_grouping"]]
+    if (is.null(grouping)) {
+      grouping <- "identity"
+    }
+    grouping <- as.character(grouping)[1L]
+    if (!grouping %in% c("identity", "together")) {
+      stop(
+        "config$obs_units_grouping must be \"identity\" or \"together\" ",
+        "(use obs_groups_units(..., grouping = \"filter\") with an existing ",
+        "obs_groups for filter)",
+        call. = FALSE
+      )
+    }
+    config$obs_groups <- obs_groups_units(
+      n_domain = n_domain,
+      units = obs_units,
+      grouping = grouping
+    )
+    return(config)
+  }
+
   if (is.null(A) || ncol(A) < 1L) {
     return(config)
   }

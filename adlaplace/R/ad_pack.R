@@ -371,6 +371,9 @@ new_ad_pack_from_ptr <- function(
 #'   sparsity. Set \code{FALSE} for grad-only packs (usable with
 #'   \code{\link{grad}}, not with \code{\link{inner_opt}} LDL / Hessian paths);
 #'   see \code{\link{grad_obs_units}}.
+#'   When \code{config$obs_groups} is missing and \code{config$obs_units} is set
+#'   (0-based unit indices), observation shards are built via
+#'   \code{\link{obs_groups_units}} (see also \code{\link{ad_pack_drop}}).
 #' @param num_threads Positive integer; OpenMP thread count for \code{inner_opt}
 #'   and parallel \code{trace_hinv_t}. Default \code{1L} (serial).
 #' @param reorder_shards Character; how to assign OpenMP owner threads when
@@ -452,6 +455,28 @@ setMethod(
     }
     if (!is.null(config$reorder_shards)) {
       reorder_shards <- config$reorder_shards
+    }
+    if (identical(as.character(x@ad_kind), "observations") &&
+      is.null(config[["obs_groups"]]) &&
+      !is.null(config[["obs_units"]])) {
+      elgm <- x@elgm_matrix
+      n_domain <- if (methods::is(elgm, "Matrix") && ncol(elgm) > 0L) {
+        ncol(elgm)
+      } else {
+        length(x@y)
+      }
+      config <- ensure_config_obs_groups(
+        config,
+        A = NULL,
+        elgm_matrix = if (methods::is(elgm, "Matrix") && ncol(elgm) > 0L) {
+          elgm
+        } else {
+          NULL
+        },
+        num_shards = config$num_shards,
+        num_threads = num_threads,
+        n_domain = n_domain
+      )
     }
     ad_pack(
       ad_pack_ptr(x, config),

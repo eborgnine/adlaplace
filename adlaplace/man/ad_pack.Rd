@@ -55,7 +55,10 @@ When \code{config$reorder_shards} is set, it overrides \code{reorder_shards}.
 observation / parameter / random tapes discover and calibrate Hessian
 sparsity. Set \code{FALSE} for grad-only packs (usable with
 \code{\link{grad}}, not with \code{\link{inner_opt}} LDL / Hessian paths);
-see \code{\link{grad_obs_units}}.}
+see \code{\link{grad_obs_units}}.
+When \code{config$obs_groups} is missing and \code{config$obs_units} is set
+(0-based unit indices), observation shards are built via
+\code{\link{obs_groups_units}} (see also \code{\link{ad_pack_drop}}).}
 
 \item{num_threads}{Positive integer; OpenMP thread count for \code{inner_opt}
 and parallel \code{trace_hinv_t}. Default \code{1L} (serial).}

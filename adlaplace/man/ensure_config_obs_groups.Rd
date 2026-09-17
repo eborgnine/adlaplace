@@ -9,7 +9,8 @@ ensure_config_obs_groups(
   A,
   elgm_matrix = NULL,
   num_shards = NULL,
-  num_threads = 1L
+  num_threads = 1L,
+  n_domain = NULL
 )
 }
 \arguments{
@@ -22,6 +23,9 @@ ensure_config_obs_groups(
 \item{num_shards}{Maximum shards (from \code{config$num_shards} if missing).}
 
 \item{num_threads}{Used for \code{min_shards} when ELGM is present.}
+
+\item{n_domain}{Optional unit-domain size for \code{obs_units}; inferred from
+\code{elgm_matrix} or \code{nrow(A)} when omitted.}
 }
 \value{
 \code{config} with \code{obs_groups} filled when possible.
@@ -31,5 +35,11 @@ Used by \code{\link{adlaplace}} and \code{\link{ad_pack}} so that
 \code{num_shards} alone is enough for case-crossover (ELGM) models.
 When \code{elgm_matrix} has columns, shards index strata, not raw rows of
 \code{y}.
+}
+\details{
+When \code{config$obs_groups} is missing and \code{config$obs_units} is set
+(0-based unit indices), builds an identity shard map over those units via
+\code{\link{obs_groups_units}}. Optional \code{config$obs_units_grouping}
+selects \code{"identity"} (default) or \code{"together"}.
 }
 \keyword{internal}
