@@ -177,7 +177,8 @@ new_ad_pack_from_ptr <- function(
   num_threads = 1L,
   info = list(),
   verbose = FALSE,
-  reorder_shards = c("none", "gradient", "hessian", "third")
+  reorder_shards = c("none", "gradient", "hessian", "third"),
+  templates = NULL
 ) {
   if (!is(ptr, "ad_pack_ptr")) {
     stop("ptr must be an ad_pack_ptr external pointer")
@@ -200,48 +201,93 @@ new_ad_pack_from_ptr <- function(
   n_beta <- sz$n_beta
   n_theta <- sz$n_theta
   n_gamma <- sz$n_outer - n_beta - n_theta
-  if (verbose) {
-    cat(
-      "  collecting sparsity patterns (beta=", n_beta,
-      ", gamma=", n_gamma, ", theta=", n_theta, ")...\n",
-      sep = ""
-    )
-    utils::flush.console()
-  }
-  shard_ids <- seq_len(n_shards) - 1L
-  sparsity <- vector("list", n_shards)
-  for (i in seq_along(shard_ids)) {
-    g <- shard_ids[[i]]
-    if (verbose && n_shards > 1L) {
-      cat("    sparsity group ", i, "/", n_shards, "\n", sep = "")
-      utils::flush.console()
+
+  reuse <- NULL
+  if (!is.null(templates)) {
+    if (!methods::is(templates, "ad_pack")) {
+      stop("templates must be an ad_pack object", call. = FALSE)
     }
-    sparsity[[i]] <- c(get_sizes(ptr, g), get_sparse_pattern(ptr, g))
-  }
-  if (verbose) {
-    cat("  building Hessian map...\n")
-    utils::flush.console()
-  }
-  hessian_pack <- hessian_map(
-    sparsity_list = sparsity,
-    n_beta = n_beta,
-    n_gamma = n_gamma,
-    n_theta = n_theta
-  )
-  chol_inner_list <- hessian_pack$chol_inner_list
-  if (length(chol_inner_list) > 0L && !is.null(chol_inner_list$half_H_inv)) {
+    tsz <- templates@sizes
+    if (!identical(as.integer(tsz["beta"]), as.integer(n_beta)) ||
+      !identical(as.integer(tsz["gamma"]), as.integer(n_gamma)) ||
+      !identical(as.integer(tsz["theta"]), as.integer(n_theta))) {
+      stop(
+        "templates sizes do not match ptr (beta/gamma/theta)",
+        call. = FALSE
+      )
+    }
+    if (length(templates@group_sparsity) != n_shards) {
+      stop(
+        "templates have ", length(templates@group_sparsity),
+        " shards but ptr has ", n_shards,
+        call. = FALSE
+      )
+    }
+    reuse <- templates
     if (verbose) {
-      cat("  building trace column map...\n")
+      cat("  reusing Hessian templates from supplied ad_pack...\n")
       utils::flush.console()
     }
-    hessian_pack$chol_inner_list$trace_columns <- trace_columns_from_pattern(
-      group_sparsity = lapply(sparsity, function(shard) shard$grad_inner),
+  }
+
+  if (is.null(reuse)) {
+    if (verbose) {
+      cat(
+        "  collecting sparsity patterns (beta=", n_beta,
+        ", gamma=", n_gamma, ", theta=", n_theta, ")...\n",
+        sep = ""
+      )
+      utils::flush.console()
+    }
+    shard_ids <- seq_len(n_shards) - 1L
+    sparsity <- vector("list", n_shards)
+    for (i in seq_along(shard_ids)) {
+      g <- shard_ids[[i]]
+      if (verbose && n_shards > 1L) {
+        cat("    sparsity group ", i, "/", n_shards, "\n", sep = "")
+        utils::flush.console()
+      }
+      sparsity[[i]] <- c(get_sizes(ptr, g), get_sparse_pattern(ptr, g))
+    }
+    if (verbose) {
+      cat("  building Hessian map...\n")
+      utils::flush.console()
+    }
+    hessian_pack <- hessian_map(
+      sparsity_list = sparsity,
       n_beta = n_beta,
       n_gamma = n_gamma,
-      half_H_inv_pat = chol_inner_list$half_H_inv
+      n_theta = n_theta
     )
     chol_inner_list <- hessian_pack$chol_inner_list
+    if (length(chol_inner_list) > 0L && !is.null(chol_inner_list$half_H_inv)) {
+      if (verbose) {
+        cat("  building trace column map...\n")
+        utils::flush.console()
+      }
+      hessian_pack$chol_inner_list$trace_columns <- trace_columns_from_pattern(
+        group_sparsity = lapply(sparsity, function(shard) shard$grad_inner),
+        n_beta = n_beta,
+        n_gamma = n_gamma,
+        half_H_inv_pat = chol_inner_list$half_H_inv
+      )
+      chol_inner_list <- hessian_pack$chol_inner_list
+    }
+    group_sparsity <- lapply(sparsity, function(shard) shard$grad_inner)
+  } else {
+    hessian_pack <- list(
+      outer = reuse@outer,
+      inner = reuse@inner,
+      map_outer = reuse@map_outer,
+      map_inner = reuse@map_inner,
+      chol_inner = reuse@chol_inner,
+      chol_inner_list = reuse@chol_inner_list,
+      sizes = reuse@sizes
+    )
+    chol_inner_list <- hessian_pack$chol_inner_list
+    group_sparsity <- reuse@group_sparsity
   }
+
   if (verbose) {
     cat("  attaching Hessian templates to C++ handle...\n")
     utils::flush.console()
@@ -341,7 +387,7 @@ new_ad_pack_from_ptr <- function(
   methods::new(
     "ad_pack",
     ptr = ptr,
-    group_sparsity = lapply(sparsity, function(shard) shard$grad_inner),
+    group_sparsity = group_sparsity,
     outer = hessian_pack$outer,
     inner = hessian_pack$inner,
     map_outer = hessian_pack$map_outer,
@@ -388,6 +434,10 @@ new_ad_pack_from_ptr <- function(
 #'   symbolic \code{half_H_inv} / \code{trace_columns} sparsity (no numeric
 #'   Cholesky), then LPT.
 #'   Physical shard order is unchanged; only \code{owner_thread} is rewritten.
+#' @param templates Optional existing \code{ad_pack} whose Hessian templates
+#'   (and group sparsity) are reused when the new pack has identical
+#'   \code{beta}/\code{gamma}/\code{theta} sizes and the same number of shards.
+#'   Useful when rebuilding packs for modular inference over exposure samples.
 #' @param ... For \code{ad_pack_ptr} input, optional additional
 #'   \code{ad_pack_ptr} shards to combine before attaching templates.
 #' @return Object of class \code{ad_pack}.
@@ -395,7 +445,8 @@ new_ad_pack_from_ptr <- function(
 setGeneric(
   "ad_pack",
   function(x, config = NULL, num_threads = 1L,
-           reorder_shards = c("none", "gradient", "hessian", "third"), ...) {
+           reorder_shards = c("none", "gradient", "hessian", "third"),
+           templates = NULL, ...) {
     standardGeneric("ad_pack")
   }
 )
@@ -406,7 +457,8 @@ setMethod(
   "ad_pack",
   signature = c(x = "ad_pack_ptr"),
   function(x, config = NULL, num_threads = 1L,
-           reorder_shards = c("none", "gradient", "hessian", "third"), ...) {
+           reorder_shards = c("none", "gradient", "hessian", "third"),
+           templates = NULL, ...) {
     extras <- list(...)
     verbose <- FALSE
     if (!is.null(config)) {
@@ -435,7 +487,8 @@ setMethod(
       x,
       num_threads = num_threads,
       verbose = verbose,
-      reorder_shards = reorder_shards
+      reorder_shards = reorder_shards,
+      templates = templates
     )
   }
 )
@@ -446,7 +499,8 @@ setMethod(
   "ad_pack",
   signature = c(x = "density_data"),
   function(x, config, num_threads = 1L,
-           reorder_shards = c("none", "gradient", "hessian", "third"), ...) {
+           reorder_shards = c("none", "gradient", "hessian", "third"),
+           templates = NULL, ...) {
     if (missing(config) || is.null(config)) {
       stop("config is required for ad_pack(density_data, config)", call. = FALSE)
     }
@@ -482,6 +536,7 @@ setMethod(
       ad_pack_ptr(x, config),
       num_threads = num_threads,
       reorder_shards = reorder_shards,
+      templates = templates,
       config = config
     )
   }
@@ -493,7 +548,8 @@ setMethod(
   "ad_pack",
   signature = c(x = "list"),
   function(x, config, num_threads = 1L,
-           reorder_shards = c("none", "gradient", "hessian", "third"), ...) {
+           reorder_shards = c("none", "gradient", "hessian", "third"),
+           templates = NULL, ...) {
     if (!is_model_data_bundle(x)) {
       stop(
         "list `x` must be a bundle from model_data() with ",
@@ -604,10 +660,52 @@ setMethod(
       num_threads = num_threads,
       info = x$term_data$info,
       verbose = verbose,
-      reorder_shards = reorder_shards
+      reorder_shards = reorder_shards,
+      templates = templates
     )
   }
 )
+
+#' Rebuild an \code{ad_pack} for a new model-data design
+#'
+#' Covariate values in observation \code{XTp} are baked into CppAD tapes at
+#' build time, so they cannot be mutated in place. This helper retapes a new
+#' \code{model_data} bundle and reuses Hessian templates from \code{ad_pack}
+#' whenever sizes and shard counts match (identical sparsity across exposure
+#' samples). Prefer building a list of packs once for modular inference rather
+#' than calling this inside every likelihood evaluation.
+#'
+#' @param ad_pack Existing \code{ad_pack} whose templates may be reused.
+#' @param model_data A \code{model_data()} bundle with the same random-effect
+#'   structure and (typically) a different fixed-effect design matrix.
+#' @param config Configuration list passed to \code{\link{ad_pack}}.
+#' @param num_threads,reorder_shards Forwarded to \code{\link{ad_pack}}.
+#'
+#' @return A new \code{ad_pack}.
+#' @seealso \code{\link{ad_pack}}, \code{\link{replace_vars}}
+#' @export
+ad_pack_set_X <- function(
+  ad_pack,
+  model_data,
+  config = list(),
+  num_threads = 1L,
+  reorder_shards = c("none", "gradient", "hessian", "third")
+) {
+  if (!methods::is(ad_pack, "ad_pack")) {
+    stop("ad_pack must be an ad_pack object", call. = FALSE)
+  }
+  if (!is.list(model_data) ||
+    !all(c("observations", "random", "parameters") %in% names(model_data))) {
+    stop("model_data must be a model_data() bundle", call. = FALSE)
+  }
+  ad_pack(
+    model_data,
+    config = config,
+    num_threads = num_threads,
+    reorder_shards = reorder_shards,
+    templates = ad_pack
+  )
+}
 
 #' C++ backend entry points
 #'

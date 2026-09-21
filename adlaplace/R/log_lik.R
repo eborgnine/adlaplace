@@ -29,6 +29,8 @@
 #'   \code{ad_pack@sizes["gamma"]}. Both functions update \code{cache$gamma} after
 #'   each evaluation, and share \code{cache$fg_x} / \code{cache$neg_log_lik} /
 #'   \code{cache$d_neg_log_lik} for the latest combined objective/gradient evaluation.
+#'   For multi-pack / modular objectives, use one \code{cache} environment per
+#'   \code{ad_pack}; \code{cache$gamma} is that pack's inner warm start.
 #'
 #' @return
 #' \itemize{
@@ -64,6 +66,65 @@ outer_fn <- function(
     ...
   )
   result$neg_log_lik
+}
+
+#' Laplace-approximate log-likelihood (positive convention)
+#'
+#' Thin wrapper around \code{\link{log_lik_laplace}} that returns the
+#' \emph{positive} profile log-likelihood and its gradient with respect to the
+#' outer parameters \code{c(beta, theta)}. Prefer this over reading
+#' \code{inner_opt(...)$deriv$d_neg_log_lik} when building custom outer
+#' objectives (e.g. modular / multi-pack likelihoods).
+#'
+#' @param ad_pack An \code{ad_pack} object.
+#' @param par Numeric outer parameter vector \code{c(beta, theta)} on the
+#'   internal (log-theta) scale.
+#' @param gamma Numeric vector of random-effect modes used as the inner start.
+#' @param config Configuration list (may be empty).
+#' @param control_inner Control list for the inner trust-region solve.
+#' @param deriv Logical; if \code{TRUE} (default), return the profile gradient.
+#'
+#' @return A list with components
+#' \describe{
+#'   \item{log_lik}{Scalar Laplace-approximate marginal log-likelihood.}
+#'   \item{gradient}{Numeric vector \eqn{\nabla_\psi \ell}, or \code{NULL} when
+#'     \code{deriv = FALSE}.}
+#'   \item{gamma}{Inner modes at the optimum.}
+#' }
+#'
+#' @seealso \code{\link{log_lik_laplace}}, \code{\link{inner_opt}},
+#'   \code{\link{outer_fn}}
+#' @export
+laplace_loglik <- function(
+  ad_pack,
+  par,
+  gamma,
+  config = list(),
+  control_inner = list(),
+  deriv = TRUE
+) {
+  if (!methods::is(ad_pack, "ad_pack")) {
+    stop("ad_pack must be an ad_pack object", call. = FALSE)
+  }
+  res <- log_lik_laplace(
+    x = as.numeric(par),
+    gamma = gamma,
+    ad_pack = ad_pack,
+    config = config,
+    control = control_inner,
+    deriv = isTRUE(deriv),
+    return_hessians = FALSE
+  )
+  gradient <- if (isTRUE(deriv)) {
+    as.numeric(res$deriv$d_log_lik)
+  } else {
+    NULL
+  }
+  list(
+    log_lik = as.numeric(res$log_lik),
+    gradient = gradient,
+    gamma = as.numeric(res$inner_opt$solution)
+  )
 }
 
 #' @rdname outer_optim_wrappers

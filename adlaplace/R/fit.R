@@ -37,6 +37,10 @@ NULL
 #'   the exact AD profile gradient at the optimum, giving the observed
 #'   information used by \code{\link{vcov.adlaplace_fit}},
 #'   \code{\link{summary.adlaplace_fit}}, and \code{\link{confint.adlaplace_fit}}.
+#' @param start Optional numeric vector of outer starting values
+#'   \code{c(beta, theta)} on the \emph{internal} (log-theta) scale, length
+#'   \code{nrow(par_info)}. When \code{NULL} (default), term \code{init} values
+#'   are used.
 #' @param verbose Logical, print progress.
 #' @param na_omit Passed to \code{\link{model_data}()}.
 #'
@@ -70,7 +74,7 @@ NULL
 #' }
 #'
 #' @seealso \code{\link{summary.adlaplace_fit}}, \code{\link{predict.adlaplace_fit}},
-#'   \code{\link{log_lik_laplace}}, \code{\link{model_data}}
+#'   \code{\link{log_lik_laplace}}, \code{\link{model_data}}, \code{\link{fit_outer}}
 #'
 #' @examples
 #' \dontrun{
@@ -90,6 +94,7 @@ adlaplace <- function(
   control_inner = list(maxit = 100L, report.level = 0, report.freq = 0),
   method = "L-BFGS-B",
   hessian = NULL,
+  start = NULL,
   verbose = FALSE,
   na_omit = TRUE
 ) {
@@ -127,7 +132,6 @@ adlaplace <- function(
   af <- ad_pack(md, config, num_threads = config$num_threads)
 
   par_meta <- md$term_data$info$parameters
-  labels <- par_meta$label
   if (is.null(hessian)) {
     hessian <- length(par_meta$init) <= 5L
   }
@@ -139,31 +143,30 @@ adlaplace <- function(
   )
 
   cache <- new.env(parent = emptyenv())
-  cache$gamma <- rep(0, nrow(md$term_data$info$gamma))
+  cache$gamma <- if (!is.null(config$gamma) &&
+    length(config$gamma) == nrow(md$term_data$info$gamma)) {
+    as.numeric(config$gamma)
+  } else {
+    rep(0, nrow(md$term_data$info$gamma))
+  }
 
-  optim_args <- list(
-    par = par_meta$init,
+  outer <- fit_outer(
     fn = outer_fn,
     gr = outer_gr,
+    par_meta = par_meta,
     method = method,
     control = control_use,
-    hessian = FALSE,
+    hessian = hessian,
+    start = start,
     config = config,
     ad_pack = af,
     cache = cache,
     control_inner = control_inner
   )
-  if (method %in% c("L-BFGS-B", "Brent")) {
-    optim_args$lower <- par_meta$lower
-    optim_args$upper <- par_meta$upper
-  }
-  opt <- tryCatch(
-    do.call(stats::optim, optim_args),
-    error = function(e) e
-  )
-  if (inherits(opt, "error")) {
+
+  if (!is.null(outer$error)) {
     return(.adlaplace_fit_optim_failed(
-      err = opt,
+      err = simpleError(outer$error),
       cl = cl,
       formula = formula,
       md = md,
@@ -177,10 +180,9 @@ adlaplace <- function(
     ))
   }
 
-  # Always run a full Laplace evaluation at the MLE for fit$details
-  # (hessians, H_inv, dU, etc.). Slim outer_fn/outer_gr cache must not be reused.
+  # Full Laplace evaluation at the MLE for fit$details
   details <- log_lik_laplace(
-    x = opt$par,
+    x = outer$opt$par,
     gamma = cache$gamma,
     ad_pack = af,
     config = config,
@@ -189,31 +191,153 @@ adlaplace <- function(
     return_hessians = TRUE
   )
   cache$gamma <- details$inner_opt$solution
-  cache$fg_x <- as.numeric(opt$par)
+  cache$fg_x <- as.numeric(outer$opt$par)
   cache$neg_log_lik <- details$neg_log_lik
   cache$d_neg_log_lik <- as.numeric(details$deriv$d_neg_log_lik)
   if (exists("fg_result", envir = cache, inherits = FALSE)) {
     rm("fg_result", envir = cache)
   }
 
-  if (hessian) {
-    details_at_opt <- details
-    gamma_at_opt <- details$inner_opt$solution
+  details$outer_opt <- outer$opt
+  details$vcov <- outer$vcov
+
+  out <- list(
+    call = cl,
+    formula = formula,
+    model_data = md,
+    ad_pack = af,
+    config = config,
+    control = control,
+    control_inner = control_inner,
+    method = method,
+    details = details,
+    par_info = outer$par_info,
+    gamma = stats::setNames(
+      details$inner_opt$solution,
+      md$term_data$info$gamma$gamma_label
+    ),
+    nobs = length(md$term_data$y),
+    cache = cache
+  )
+  class(out) <- "adlaplace_fit"
+  out
+}
+
+#' Outer optimization scaffolding for Laplace profile likelihoods
+#'
+#' Runs \code{\link[stats]{optim}} on a user-supplied outer objective / gradient
+#' (typically \code{\link{outer_fn}} / \code{\link{outer_gr}}, or a modular
+#' average of several packs) and returns the standard \code{par_info} /
+#' \code{vcov} / \code{opt} structure used by \code{\link{adlaplace}}.
+#'
+#' @param fn,gr Objective and gradient functions with signature
+#'   \code{function(par, ...)}.
+#' @param par_meta Data frame of outer-parameter metadata with columns
+#'   \code{label}, \code{init}, \code{lower}, \code{upper}, \code{parscale},
+#'   \code{log} (as produced by \code{model_data()$term_data$info$parameters}).
+#' @param method \code{\link[stats]{optim}} method.
+#' @param control Control list for \code{optim}.
+#' @param hessian Logical; compute a numerical outer Hessian via
+#'   \code{\link[stats]{optimHess}} when \code{TRUE}.
+#' @param start Optional starting values on the internal scale; defaults to
+#'   \code{par_meta$init}.
+#' @param ... Extra arguments forwarded to \code{fn} / \code{gr} / \code{optimHess}
+#'   (e.g. \code{config}, \code{ad_pack}, \code{cache}, \code{control_inner}).
+#'
+#' @return A list with components \code{opt}, \code{par_info}, \code{vcov}, and
+#'   \code{error} (character message when \code{optim} fails, otherwise
+#'   \code{NULL}).
+#'
+#' @seealso \code{\link{adlaplace}}, \code{\link{outer_fn}}
+#' @export
+fit_outer <- function(
+  fn,
+  gr,
+  par_meta,
+  method = "L-BFGS-B",
+  control = list(),
+  hessian = FALSE,
+  start = NULL,
+  ...
+) {
+  labels <- par_meta$label
+  n_par <- length(par_meta$init)
+  if (is.null(start)) {
+    start <- as.numeric(par_meta$init)
+  } else {
+    start <- as.numeric(start)
+    if (length(start) != n_par) {
+      stop(
+        "length(start) (", length(start),
+        ") must equal number of outer parameters (", n_par, ")",
+        call. = FALSE
+      )
+    }
+    if (any(!is.finite(start))) {
+      stop("start must be finite", call. = FALSE)
+    }
+  }
+
+  control_use <- utils::modifyList(
+    list(maxit = 200L, parscale = par_meta$parscale),
+    control
+  )
+
+  optim_args <- list(
+    par = start,
+    fn = fn,
+    gr = gr,
+    method = method,
+    control = control_use,
+    hessian = FALSE,
+    ...
+  )
+  if (method %in% c("L-BFGS-B", "Brent")) {
+    optim_args$lower <- par_meta$lower
+    optim_args$upper <- par_meta$upper
+  }
+
+  opt <- tryCatch(
+    do.call(stats::optim, optim_args),
+    error = function(e) e
+  )
+  if (inherits(opt, "error")) {
+    return(list(
+      opt = NULL,
+      par_info = .par_info_na(par_meta),
+      vcov = NULL,
+      error = conditionMessage(opt)
+    ))
+  }
+
+  vc <- NULL
+  if (isTRUE(hessian)) {
     hess <- tryCatch(
       stats::optimHess(
         par = opt$par,
-        fn = outer_fn,
-        gr = outer_gr,
+        fn = fn,
+        gr = gr,
         control = control_use,
-        config = config,
-        ad_pack = af,
-        cache = cache,
-        control_inner = control_inner
+        ...
       ),
       error = function(e) e
     )
     if (!inherits(hess, "error") && all(is.finite(hess))) {
       opt$hessian <- hess
+      vc <- tryCatch(
+        solve(hess),
+        error = function(e) {
+          warning(
+            "outer Hessian is not invertible; vcov unavailable: ",
+            conditionMessage(e),
+            call. = FALSE
+          )
+          NULL
+        }
+      )
+      if (!is.null(vc)) {
+        dimnames(vc) <- list(labels, labels)
+      }
     } else if (inherits(hess, "error")) {
       warning(
         "outer Hessian failed; vcov unavailable: ",
@@ -221,34 +345,7 @@ adlaplace <- function(
         call. = FALSE
       )
     }
-    # Restore the optimum evaluation after finite-difference probes.
-    details <- details_at_opt
-    cache$gamma <- gamma_at_opt
-    cache$fg_x <- as.numeric(opt$par)
-    cache$neg_log_lik <- details_at_opt$neg_log_lik
-    cache$d_neg_log_lik <- as.numeric(details_at_opt$deriv$d_neg_log_lik)
   }
-
-  vc <- NULL
-  if (hessian && !is.null(opt$hessian) && all(is.finite(opt$hessian))) {
-    vc <- tryCatch(
-      solve(opt$hessian),
-      error = function(e) {
-        warning(
-          "outer Hessian is not invertible; vcov unavailable: ",
-          conditionMessage(e),
-          call. = FALSE
-        )
-        NULL
-      }
-    )
-    if (!is.null(vc)) {
-      dimnames(vc) <- list(labels, labels)
-    }
-  }
-
-  details$outer_opt <- opt
-  details$vcov <- vc
 
   mle_internal <- stats::setNames(opt$par, labels)
   se_internal <- if (!is.null(vc)) {
@@ -278,26 +375,30 @@ adlaplace <- function(
     stringsAsFactors = FALSE
   )
 
-  out <- list(
-    call = cl,
-    formula = formula,
-    model_data = md,
-    ad_pack = af,
-    config = config,
-    control = control,
-    control_inner = control_inner,
-    method = method,
-    details = details,
+  list(
+    opt = opt,
     par_info = par_info,
-    gamma = stats::setNames(
-      details$inner_opt$solution,
-      md$term_data$info$gamma$gamma_label
-    ),
-    nobs = length(md$term_data$y),
-    cache = cache
+    vcov = vc,
+    error = NULL
   )
-  class(out) <- "adlaplace_fit"
-  out
+}
+
+#' @noRd
+.par_info_na <- function(par_meta) {
+  n_par <- length(par_meta$label)
+  data.frame(
+    label = par_meta$label,
+    mle = rep(NA_real_, n_par),
+    se = rep(NA_real_, n_par),
+    mle_internal = rep(NA_real_, n_par),
+    se_internal = rep(NA_real_, n_par),
+    init = par_meta$init,
+    lower = par_meta$lower,
+    upper = par_meta$upper,
+    parscale = par_meta$parscale,
+    log = par_meta$log,
+    stringsAsFactors = FALSE
+  )
 }
 
 #' Build an adlaplace_fit after outer optim throws

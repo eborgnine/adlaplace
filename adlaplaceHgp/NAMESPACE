@@ -19,15 +19,19 @@ exportMethods(beta_info)
 exportMethods(design)
 exportMethods(precision)
 exportMethods(random_info)
+exportMethods(replace_vars)
 exportMethods(theta_info)
 import(Matrix)
-importFrom(adlaplace,beta_info)
-importFrom(adlaplace,by_group)
-importFrom(adlaplace,design)
-importFrom(adlaplace,fpoly)
-importFrom(adlaplace,iid)
-importFrom(adlaplace,iwp)
-importFrom(adlaplace,precision)
-importFrom(adlaplace,random_info)
-importFrom(adlaplace,rpoly)
-importFrom(adlaplace,theta_info)
+importFrom(adlaplace,
+  beta_info,
+  by_group,
+  design,
+  fpoly,
+  iid,
+  iwp,
+  precision,
+  random_info,
+  replace_vars,
+  rpoly,
+  theta_info
+)

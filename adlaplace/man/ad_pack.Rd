@@ -12,6 +12,7 @@ ad_pack(
   config = NULL,
   num_threads = 1L,
   reorder_shards = c("none", "gradient", "hessian", "third"),
+  templates = NULL,
   ...
 )
 
@@ -20,6 +21,7 @@ ad_pack(
   config = NULL,
   num_threads = 1L,
   reorder_shards = c("none", "gradient", "hessian", "third"),
+  templates = NULL,
   ...
 )
 
@@ -28,6 +30,7 @@ ad_pack(
   config = NULL,
   num_threads = 1L,
   reorder_shards = c("none", "gradient", "hessian", "third"),
+  templates = NULL,
   ...
 )
 
@@ -36,6 +39,7 @@ ad_pack(
   config = NULL,
   num_threads = 1L,
   reorder_shards = c("none", "gradient", "hessian", "third"),
+  templates = NULL,
   ...
 )
 }
@@ -75,6 +79,11 @@ longest-processing-time (LPT) assignment;
 symbolic \code{half_H_inv} / \code{trace_columns} sparsity (no numeric
 Cholesky), then LPT.
 Physical shard order is unchanged; only \code{owner_thread} is rewritten.}
+
+\item{templates}{Optional existing \code{ad_pack} whose Hessian templates
+(and group sparsity) are reused when the new pack has identical
+\code{beta}/\code{gamma}/\code{theta} sizes and the same number of shards.
+Useful when rebuilding packs for modular inference over exposure samples.}
 
 \item{...}{For \code{ad_pack_ptr} input, optional additional
 \code{ad_pack_ptr} shards to combine before attaching templates.}

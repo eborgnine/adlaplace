@@ -20,7 +20,9 @@ outer_gr(x, config, cache, ad_pack, control_inner = list(), ...)
 it is initialized from \code{config$gamma} (if present) or zeros of length
 \code{ad_pack@sizes["gamma"]}. Both functions update \code{cache$gamma} after
 each evaluation, and share \code{cache$fg_x} / \code{cache$neg_log_lik} /
-\code{cache$d_neg_log_lik} for the latest combined objective/gradient evaluation.}
+\code{cache$d_neg_log_lik} for the latest combined objective/gradient evaluation.
+For multi-pack / modular objectives, use one \code{cache} environment per
+\code{ad_pack}; \code{cache$gamma} is that pack's inner warm start.}
 
 \item{ad_pack}{\code{ad_pack} object from \code{\link{ad_pack}}.}
 

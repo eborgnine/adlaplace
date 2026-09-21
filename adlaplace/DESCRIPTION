@@ -1,8 +1,8 @@
 Package: adlaplace
 Type: Package
 Title: Laplace Approximations Using Automatic Differentiation
-Version: 0.7.0
-Date: 2026-09-17
+Version: 0.7.1
+Date: 2026-09-21
 Authors@R: person(given="Patrick", family="Brown", email="patrick.borgnine@gmail.com", role=c("aut","cre","cph"))
 Maintainer: Patrick Brown <patrick.borgnine@gmail.com>
 Description: Computes Laplace approximations for hierarchical models using
@@ -49,10 +49,10 @@ Collate:
     'mvn_utils.R'
     'prepare_model_rows.R'
     'prior.R'
+    'replace_vars.R'
     'rpoly.R'
     'sim_iid.R'
     'term_data_setup.R'
     'zzz.R'
 LazyData: true
 Config/roxygen2/version: 8.1.0
-RoxygenNote: 7.3.3

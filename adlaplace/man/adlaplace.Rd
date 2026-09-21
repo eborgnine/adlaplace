@@ -12,6 +12,7 @@ adlaplace(
   control_inner = list(maxit = 100L, report.level = 0, report.freq = 0),
   method = "L-BFGS-B",
   hessian = NULL,
+  start = NULL,
   verbose = FALSE,
   na_omit = TRUE
 )
@@ -49,6 +50,11 @@ When \code{TRUE}, \code{\link[stats]{optimHess}} numerically differentiates
 the exact AD profile gradient at the optimum, giving the observed
 information used by \code{\link{vcov.adlaplace_fit}},
 \code{\link{summary.adlaplace_fit}}, and \code{\link{confint.adlaplace_fit}}.}
+
+\item{start}{Optional numeric vector of outer starting values
+\code{c(beta, theta)} on the \emph{internal} (log-theta) scale, length
+\code{nrow(par_info)}. When \code{NULL} (default), term \code{init} values
+are used.}
 
 \item{verbose}{Logical, print progress.}
 
@@ -105,5 +111,5 @@ confint(fit)
 }
 \seealso{
 \code{\link{summary.adlaplace_fit}}, \code{\link{predict.adlaplace_fit}},
-  \code{\link{log_lik_laplace}}, \code{\link{model_data}}
+  \code{\link{log_lik_laplace}}, \code{\link{model_data}}, \code{\link{fit_outer}}
 }

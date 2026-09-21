@@ -13,7 +13,7 @@ Description: Hierarchical and random-slope integrated Wiener process model terms
 License: GPL (>= 2)
 Depends:
     R (>= 4.1.0),
-    adlaplace (>= 0.6.2)
+    adlaplace (>= 0.7.1)
 Imports: methods, stats, Matrix
 Suggests: GET, testthat (>= 3.0.0), knitr, rmarkdown
 VignetteBuilder: knitr
@@ -25,10 +25,10 @@ Collate:
     'cond_simu.R'
     'hiwp.R'
     'hrpoly.R'
+    'replace_vars.R'
     'rsfpoly.R'
     'rsiid.R'
     'rsiwp.R'
     'rsrpoly.R'
 NeedsCompilation: no
-Config/roxygen2/version: 8.0.0
-RoxygenNote: 7.3.3
+Config/roxygen2/version: 8.1.0
