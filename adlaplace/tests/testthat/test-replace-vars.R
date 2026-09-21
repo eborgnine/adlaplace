@@ -16,7 +16,7 @@ test_that("replace_vars on list of terms preserves structure", {
     c(sqrt_pm = "sqrt_pm_s1", geo_id = "region")
   )
   expect_equal(out[[1]]@name, "sqrt_pm_s1")
-  expect_equal(out[[2]]@by, c("region", "yearMonthDow"))
+  expect_equal(unname(out[[2]]@by), c("region", "yearMonthDow"))
 })
 
 test_that("replace_vars on formula rewrites symbols", {

@@ -25,10 +25,10 @@ Collate:
     'cond_simu.R'
     'hiwp.R'
     'hrpoly.R'
-    'replace_vars.R'
     'rsfpoly.R'
     'rsiid.R'
     'rsiwp.R'
     'rsrpoly.R'
+    'replace_vars.R'
 NeedsCompilation: no
 Config/roxygen2/version: 8.1.0

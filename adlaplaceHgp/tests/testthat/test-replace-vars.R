@@ -19,5 +19,5 @@ test_that("replace_vars rewrites hiwp name", {
   )[[1]]
   out <- adlaplace::replace_vars(term, c(sqrt_pm = "sqrt_pm_s2"))
   expect_equal(out@name, "sqrt_pm_s2")
-  expect_equal(out@by@term, "state")
+  expect_equal(unname(out@by@term), "state")
 })

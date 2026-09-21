@@ -40,7 +40,6 @@ setGeneric("replace_vars", function(x, map) standardGeneric("replace_vars"))
     return(f)
   }
   env <- environment(f)
-  lang <- as.list(f)
   replace_lang <- function(expr) {
     if (is.symbol(expr)) {
       nm <- as.character(expr)
@@ -50,16 +49,15 @@ setGeneric("replace_vars", function(x, map) standardGeneric("replace_vars"))
       return(expr)
     }
     if (is.call(expr)) {
-      args <- lapply(as.list(expr), replace_lang)
-      return(as.call(args))
-    }
-    if (is.list(expr)) {
-      return(lapply(expr, replace_lang))
+      parts <- lapply(as.list(expr), replace_lang)
+      return(as.call(parts))
     }
     expr
   }
-  out <- lapply(lang, replace_lang)
-  out <- as.formula(out, env = if (is.null(env)) emptyenv() else env)
+  parts <- lapply(as.list(f), replace_lang)
+  out <- as.call(parts)
+  class(out) <- "formula"
+  environment(out) <- if (is.null(env)) emptyenv() else env
   out
 }
 
