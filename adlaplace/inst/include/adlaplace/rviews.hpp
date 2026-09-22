@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstring>
 #include <numeric>
+#include <string>
 
 // View into integer vector SEXP (valid while parent SEXP is protected).
 struct IntVecView {
@@ -147,6 +148,9 @@ struct Config {
   // When false, skip Hessian sparsity discovery / sparse_hes calibration
   // (grad / sparse Jac only). Default true for Laplace / inner_opt packs.
   bool hessian_sparsity;
+  // Observation Hessian pattern: "analytic" (design / ELGM cliques) or
+  // "discover" (CppAD for_hes_sparsity). Default analytic.
+  std::string obs_hessian;
   std::vector<unsigned char> transform_theta;
   int num_threads;
 
@@ -311,10 +315,28 @@ inline bool transform_theta_at(const Config& config, std::size_t theta_row) {
   return config.transform_theta[theta_row] != 0;
 }
 
+inline std::string adlaplace_read_obs_hessian(const Rcpp::List& cfg) {
+  std::string v = "analytic";
+  if (cfg.containsElementNamed("obs_hessian") && !Rf_isNull(cfg["obs_hessian"])) {
+    v = Rcpp::as<std::string>(cfg["obs_hessian"]);
+  }
+  if (v != "analytic" && v != "discover") {
+    Rcpp::stop(
+      "config$obs_hessian must be \"analytic\" or \"discover\" (got \"%s\")",
+      v.c_str());
+  }
+  return v;
+}
+
+inline bool use_analytic_obs_hessian(const Config& cfg) {
+  return cfg.obs_hessian == "analytic";
+}
+
 inline Config::Config(const Rcpp::List& cfg)
   : verbose(adlaplace_get_bool(cfg, "verbose", false)),
     compact_tape(adlaplace_get_bool(cfg, "compact_tape", true)),
     hessian_sparsity(adlaplace_get_bool(cfg, "hessian_sparsity", true)),
+    obs_hessian(adlaplace_read_obs_hessian(cfg)),
     transform_theta(adlaplace_read_transform_theta(cfg)),
     num_threads(adlaplace_get_int(cfg, "num_threads", 1))
 {

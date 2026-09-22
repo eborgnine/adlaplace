@@ -60,6 +60,10 @@ observation / parameter / random tapes discover and calibrate Hessian
 sparsity. Set \code{FALSE} for grad-only packs (usable with
 \code{\link{grad}}, not with \code{\link{inner_opt}} LDL / Hessian paths);
 see \code{\link{grad_obs_units}}.
+\code{config$obs_hessian} is \code{"analytic"} (default) or \code{"discover"}.
+Analytic builds the observation Hessian pattern from design co-occurrence
+(and ELGM strata for Dirichlet-multinomial) instead of CppAD
+\code{for_hes_sparsity}. Use \code{"discover"} as an escape hatch.
 When \code{config$obs_groups} is missing and \code{config$obs_units} is set
 (0-based unit indices), observation shards are built via
 \code{\link{obs_groups_units}} (see also \code{\link{ad_pack_drop}}).}

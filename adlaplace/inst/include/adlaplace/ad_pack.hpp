@@ -345,6 +345,15 @@ inline size_t count_obs_shards(const density_data &model, const Rcpp::List &conf
   return ng > 0 ? ng : 1;
 }
 
+// Defined in obs_sparsity.hpp (included below). Forward-declared so
+// build_ad_fun_obs compiles if that header's include is skipped by
+// include-order (obs_sparsity.hpp -> ad_pack_random.hpp -> ad_pack.hpp).
+inline CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)>
+obs_hessian_sparsity(const density_data &model, const Config &cfg,
+                     std::size_t Dgroup);
+
+#include "adlaplace/obs_sparsity.hpp"
+
 inline std::vector<AdTape> build_ad_fun_obs(const density_data &model_in,
                                                const Rcpp::List &config,
                                                LogDensObsFn log_dens) {
@@ -385,8 +394,12 @@ inline std::vector<AdTape> build_ad_fun_obs(const density_data &model_in,
     }
     model.apply_tape_domain(cfg, "obs", d);
     const CPPAD_TESTVECTOR(double) ad_params_G = make_ad_params_seed(cfg, model);
+    CppAD::sparse_rc<CPPAD_TESTVECTOR(size_t)> hess = empty_sparse_rc();
+    if (cfg.hessian_sparsity && use_analytic_obs_hessian(cfg)) {
+      hess = obs_hessian_sparsity(model, cfg, d);
+    }
     adpack_sparsity(ad_params_G, model.seq_gamma, result[d], cfg.verbose,
-                    empty_sparse_rc(), cfg.hessian_sparsity);
+                    hess, cfg.hessian_sparsity);
   }
 
   return result;

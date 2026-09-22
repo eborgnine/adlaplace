@@ -89,8 +89,10 @@ setMethod("replace_vars", "model_term", function(x, map) {
     x@formula <- .replace_formula_symbols(x@formula, map)
     return(x)
   }
+  # Regenerate label while @name is still the old prefix (suffix strip depends on it)
+  new_label <- .regenerate_term_label(x, new_name)
   x@name <- new_name
-  x@label <- .regenerate_term_label(x, new_name)
+  x@label <- new_label
   x@formula <- .replace_formula_symbols(x@formula, map)
   x
 })

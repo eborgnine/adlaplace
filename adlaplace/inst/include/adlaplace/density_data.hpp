@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cstring>
 #include <cstddef>
+#include <string>
 #include <vector>
 
 struct density_data {
@@ -21,6 +22,7 @@ struct density_data {
   NumVecView weights;
 
   SEXP precision = R_NilValue;
+  std::string density;
 
   std::size_t num_beta = 0;
   std::size_t num_gamma = 0;
@@ -249,6 +251,14 @@ inline density_data::density_data(SEXP data_sexp) {
   y = NumVecView(ad_data_slot(data_sexp, "y"));
   weights = NumVecView(ad_data_slot(data_sexp, "weights"));
   precision = ad_data_slot(data_sexp, "precision");
+
+  SEXP dens_slot = ad_data_slot(data_sexp, "density");
+  if (TYPEOF(dens_slot) == STRSXP && XLENGTH(dens_slot) >= 1) {
+    SEXP s = STRING_ELT(dens_slot, 0);
+    if (s != NA_STRING) {
+      density = CHAR(s);
+    }
+  }
 
   num_beta = static_cast<std::size_t>(beta_map.nrow());
   num_gamma = static_cast<std::size_t>(gamma_map.nrow());
