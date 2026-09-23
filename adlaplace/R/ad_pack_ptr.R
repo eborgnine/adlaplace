@@ -25,9 +25,17 @@ NULL
 #'   \code{nrow(gamma_map)} are used as AD tape seeds.
 #'   \code{config$num_threads} does not assign OpenMP threads; use
 #'   \code{num_threads} on \code{\link{ad_pack}} after merging shards.
+#'   When \code{info} is supplied, missing \code{beta} / \code{theta} /
+#'   \code{gamma} / \code{transform_theta} are filled from it; explicit
+#'   \code{config} entries win. Missing \code{gamma} becomes zeros of length
+#'   \code{nrow(info$gamma)}.
+#' @param info Optional \code{model_data()$term_data$info} list. When provided,
+#'   tape seeds use \code{info$beta$init} and \code{info$theta$init} (the latter
+#'   on the log scale where \code{info$theta$log} is \code{TRUE}); \code{gamma}
+#'   defaults to zeros (\code{info$gamma} has no \code{init} column).
 #' @return External pointer of class \code{ad_pack_ptr}.
 #' @export
-ad_pack_ptr <- function(data, config) {
+ad_pack_ptr <- function(data, config = NULL, info = NULL) {
   if (missing(data) || !is(data, "density_data")) {
     stop("`data` must be an density_data object", call. = FALSE)
   }
@@ -41,6 +49,10 @@ ad_pack_ptr <- function(data, config) {
   }
 
   validate_density_data_maps(data, kind)
+  if (is.null(config)) {
+    config <- list()
+  }
+  config <- fill_config_from_info(config, info)
   config <- normalize_config_for_ptr(config, data, kind)
   validate_config_layout(data, config, kind)
 

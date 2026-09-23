@@ -570,41 +570,7 @@ setMethod(
     if (!is.null(config$reorder_shards)) {
       reorder_shards <- config$reorder_shards
     }
-    defaults <- list(
-      beta = init_from_info_block(x$term_data$info$beta),
-      theta = init_from_info_block(x$term_data$info$theta),
-      gamma = rep(0, nrow(x$term_data$info$gamma))
-    )
-    config_build <- utils::modifyList(defaults, config)
-    theta_info <- x$term_data$info$theta
-    n_theta <- nrow(theta_info)
-    force_no_log <- identical(config_build$transform_theta, FALSE)
-    log_flags <- if (force_no_log) {
-      rep(FALSE, n_theta)
-    } else if (is.logical(config_build$transform_theta) &&
-      length(config_build$transform_theta) == n_theta &&
-      n_theta > 0L) {
-      config_build$transform_theta
-    } else if (n_theta > 0L && "log" %in% names(theta_info)) {
-      flags <- theta_info$log
-      flags[is.na(flags)] <- TRUE
-      as.logical(flags)
-    } else {
-      rep(TRUE, n_theta)
-    }
-    config_build$transform_theta <- log_flags
-    if (is.null(config$theta) && n_theta > 0L) {
-      theta_for_log <- theta_info
-      if (!"log" %in% names(theta_for_log)) {
-        theta_for_log$log <- TRUE
-      }
-      theta_for_log$log <- log_flags
-      config_build$theta <- apply_theta_log(
-        theta_for_log,
-        cols = "init",
-        active = TRUE
-      )$init
-    }
+    config_build <- fill_config_from_info(config, x$term_data$info)
     config_build <- ensure_config_obs_groups(
       config_build,
       A = x$term_data$A,

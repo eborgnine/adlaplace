@@ -4,7 +4,7 @@
 \alias{ad_pack_ptr}
 \title{Build raw AD handle for one density shard}
 \usage{
-ad_pack_ptr(data, config)
+ad_pack_ptr(data, config = NULL, info = NULL)
 }
 \arguments{
 \item{data}{An \code{density_data} object with \code{ad_kind} and \code{ad_pack}
@@ -14,7 +14,16 @@ slots set.}
 \code{gamma} is optional; when missing, zeros of length
 \code{nrow(gamma_map)} are used as AD tape seeds.
 \code{config$num_threads} does not assign OpenMP threads; use
-\code{num_threads} on \code{\link{ad_pack}} after merging shards.}
+\code{num_threads} on \code{\link{ad_pack}} after merging shards.
+When \code{info} is supplied, missing \code{beta} / \code{theta} /
+\code{gamma} / \code{transform_theta} are filled from it; explicit
+\code{config} entries win. Missing \code{gamma} becomes zeros of length
+\code{nrow(info$gamma)}.}
+
+\item{info}{Optional \code{model_data()$term_data$info} list. When provided,
+tape seeds use \code{info$beta$init} and \code{info$theta$init} (the latter
+on the log scale where \code{info$theta$log} is \code{TRUE}); \code{gamma}
+defaults to zeros (\code{info$gamma} has no \code{init} column).}
 }
 \value{
 External pointer of class \code{ad_pack_ptr}.
