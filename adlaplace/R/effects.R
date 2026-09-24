@@ -51,9 +51,7 @@ collect_terms <- function(formula, verbose = FALSE) {
         message("Response '", lab, "' defaulting to gaussian(", lab, ")")
       }
       term_obj <- gaussian(lab)
-      term_obj <- list(term_obj)
-      names(term_obj) <- lab
-      return(term_obj)
+      return(name_single_term(term_obj))
     }
 
     parsed <- eval_term_label(lab, formula_env)
@@ -70,12 +68,7 @@ collect_terms <- function(formula, verbose = FALSE) {
     } else {
       term_obj <- linear(lab)
     }
-    if (!is.list(term_obj)) {
-      term_obj <- list(term_obj)
-      names(term_obj) <- lab
-    }
-
-    term_obj
+    name_single_term(term_obj)
   })
 
   terms_1 <- do.call(c, terms_1)
@@ -89,6 +82,35 @@ collect_terms <- function(formula, verbose = FALSE) {
   }
 
   terms_1
+}
+
+#' List name for one model term: class, data column, and \code{@mult}.
+#' A constructor that already returned several terms keeps its own names.
+#' @noRd
+name_single_term <- function(term_obj) {
+  if (!is.list(term_obj)) {
+    term_obj <- list(term_obj)
+  }
+  if (length(term_obj) != 1L) {
+    return(term_obj)
+  }
+  names(term_obj) <- term_element_name(term_obj[[1L]])
+  term_obj
+}
+
+#' @noRd
+term_element_name <- function(term) {
+  if (inherits(term, "intercept")) {
+    return("intercept")
+  }
+  pieces <- c(class(term)[1L], term@name)
+  if (methods::.hasSlot(term, "mult")) {
+    mult <- term@mult
+    if (length(mult) == 1L && !is.na(mult) && nzchar(mult)) {
+      pieces <- c(pieces, mult)
+    }
+  }
+  paste(pieces, collapse = "_")
 }
 
 #' Column-name formals coerced even when named (symbols -> character).

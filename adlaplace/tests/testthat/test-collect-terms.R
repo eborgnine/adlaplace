@@ -1,16 +1,16 @@
 test_that("collect_terms parses linear(x) without x in caller env", {
   f <- y ~ intercept() + linear(x)
   terms <- adlaplace::collect_terms(f)
-  expect_true(inherits(terms$`linear(x)`, "linear"))
-  expect_equal(terms$`linear(x)`@name, "x")
-  expect_equal(terms$`linear(x)`@label, "x_linear")
+  expect_true(inherits(terms$linear_x, "linear"))
+  expect_equal(terms$linear_x@name, "x")
+  expect_equal(terms$linear_x@label, "x_linear")
 })
 
 test_that("collect_terms parses bare covariate as linear", {
   f <- y ~ x1
   terms <- adlaplace::collect_terms(f)
-  expect_true(inherits(terms$x1, "linear"))
-  expect_equal(terms$x1@name, "x1")
+  expect_true(inherits(terms$linear_x1, "linear"))
+  expect_equal(terms$linear_x1@name, "x1")
 })
 
 test_that("collect_terms keeps bare outcome LHS out of model terms", {
@@ -57,4 +57,15 @@ test_that("collect_terms reports missing constructor vs evaluation failure", {
     adlaplace::collect_terms(f_nested),
     "named arguments"
   )
+})
+
+test_that("collect_terms names drop package prefixes and keep columns", {
+  skip_if_not_installed("adlaplaceExample")
+  skip_if_not_installed("adlaplaceHgp")
+  f <- adlaplaceExample::skewnormal(y) ~
+    adlaplace::iid(group) +
+    adlaplaceHgp::rsiid(group, mult = "x")
+  terms <- adlaplace::collect_terms(f)
+  expect_false(any(grepl("::", names(terms), fixed = TRUE)))
+  expect_true(all(c("skewnormal_y", "iid_group", "rsiid_group_x") %in% names(terms)))
 })

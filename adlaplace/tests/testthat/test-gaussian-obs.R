@@ -55,8 +55,8 @@ test_that("bare response defaults to gaussian and adlaplace() fits it", {
   dat <- data.frame(y = y, x = x, g = factor(g))
 
   terms <- adlaplace::collect_terms(y ~ x + iid(g))
-  expect_true(inherits(terms$y, "gaussian"))
-  expect_identical(terms$y@density, "gaussian_obs")
+  expect_true(inherits(terms$gaussian_y, "gaussian"))
+  expect_identical(terms$gaussian_y@density, "gaussian_obs")
 
   fit <- adlaplace(
     y ~ x + iid(g, init = 0.5),
