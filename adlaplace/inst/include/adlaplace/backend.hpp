@@ -13,7 +13,7 @@
 // Bump when AdTape / ad_shard / ad_pack layout or the backend
 // registration contract changes. packs_to_ad_fun stamps this into ad_pack;
 // adlaplace checks it when consuming a backend-built handle.
-#define ADLAPLACE_ABI_VERSION 4
+#define ADLAPLACE_ABI_VERSION 5
 
 // Symbolic LDL pattern from hessian_map()$chol_inner_list (L1, Linv, perm,
 // half_H_inv, H_inv).
@@ -29,6 +29,10 @@ struct CholPattern {
   std::vector<int> H_inv_i;
   std::vector<int> trace_columns_p;
   std::vector<int> trace_columns_i;
+  // Per-shard slots of a quadratic form into H_inv@x. Empty range means the
+  // shard has no precomputed index and trace_hinv_t walks columns.
+  std::vector<int> hinv_q_index_p;
+  std::vector<int> hinv_q_index_i;
   std::vector<int> perm;
   std::vector<int> perm_inv;
 };
@@ -183,6 +187,18 @@ struct ad_shard {
     std::size_t LinvPtColumns_p_len,
     std::size_t LinvPtColumns_i_len,
     double* out_trace) = 0;
+  // Frobenius product of this shard's Hessian factor with H_inv.
+  // Return 0 after writing out_trace. Return 1 to fall back to trace_hinv_t.
+  // q_to_hinv[k] is a 0-based slot of H_inv_x, or -1 when that entry is absent.
+  virtual int trace_hinv_from_h(
+    const double* /*x*/,
+    const double* /*H_inv_x*/,
+    const int* /*q_to_hinv*/,
+    std::size_t /*H_inv_x_len*/,
+    std::size_t /*q_to_hinv_len*/,
+    double* /*out_trace*/) {
+    return 1;
+  }
   virtual ad_shard* clone() const = 0;
 };
 

@@ -30,6 +30,10 @@ NULL
 #' Integrated Wiener Process Term Constructor
 #'
 #' @description Creates an integrated Wiener process (IWP) model term.
+#' The basis is divided by the mean knot spacing to the power \code{p}, and the
+#' penalty weights are the knot spacings divided by that mean spacing. Design
+#' entries and the standard-deviation parameter are then unchanged if \code{x}
+#' and the knots are rescaled by the same factor.
 #' @name iwp
 #' @param x Variable name.
 #' @param p Order of the integrated Wiener process (default: 2).
@@ -82,6 +86,10 @@ iwp <- function(
   iwp_name <- paste(c(x, "iwp"), collapse = "_")
 
   ref_value <- ref_align(ref_value, knots)
+  knot_spacing <- iwp_mean_spacing(knots)
+  if (!is.finite(knot_spacing) || knot_spacing <= 0) {
+    knot_spacing <- 1
+  }
 
   result[[iwp_name]] <- methods::new("iwp",
     name = x,
@@ -106,14 +114,16 @@ iwp <- function(
       result[[poly_name]] <- rpoly(
         x = x,
         p = p - 1,
-        ref_value = ref_value
+        ref_value = ref_value,
+        basis_scale = knot_spacing
       )
     } else {
       poly_name <- paste(c(x, "fpoly"), collapse = "_")
       result[[poly_name]] <- fpoly(
         x = x,
         p = p - 1,
-        ref_value = ref_value
+        ref_value = ref_value,
+        basis_scale = knot_spacing
       )
     }
   }
@@ -245,6 +255,30 @@ ref_align <- function(ref_value, knots) {
   knots[which.min(abs(knots - ref_value))]
 }
 
+#' Mean positive gap between finite knots.
+#'
+#' @keywords internal
+iwp_mean_spacing <- function(knots) {
+  knots <- sort(unique(knots[is.finite(knots)]))
+  if (length(knots) < 2L) {
+    return(NA_real_)
+  }
+  gaps <- diff(knots)
+  gaps <- gaps[gaps > 0]
+  if (!length(gaps)) {
+    return(NA_real_)
+  }
+  mean(gaps)
+}
+
+iwp_basis_divisor <- function(knots, p) {
+  spacing <- iwp_mean_spacing(knots)
+  if (!is.finite(spacing) || spacing <= 0 || p <= 0) {
+    return(1)
+  }
+  spacing^p
+}
+
 # Method definitions for iwp class
 #' @describeIn iwp-class Creates design matrix for IWP term
 #' @param term An iwp term object
@@ -257,11 +291,13 @@ setMethod("design", "iwp", function(term, data) {
     print(range(data[[term@name]]))
   }
 
+  shifted_knots <- term@knots - term@ref_value
   result <- local_poly(
-    term@knots - term@ref_value,
+    shifted_knots,
     data[[term@name]] - term@ref_value,
     term@p.order
   )
+  result <- result / iwp_basis_divisor(shifted_knots, term@p.order)
 
   knots_string <- formatC(seq.int(ncol(result)),
     width = ceiling(log10(ncol(result))), flag = "0"
@@ -276,7 +312,13 @@ setMethod("design", "iwp", function(term, data) {
 #' @param data A data frame containing the term variable
 #' @export
 setMethod("precision", "iwp", function(term, data) {
-  result <- Matrix::Matrix(compute_weights_precision(term@knots - term@ref_value))
+  shifted_knots <- term@knots - term@ref_value
+  weights <- compute_weights_precision(shifted_knots)
+  spacing <- iwp_mean_spacing(shifted_knots)
+  if (is.finite(spacing) && spacing > 0) {
+    weights <- weights / spacing
+  }
+  result <- Matrix::Matrix(weights)
 
   knots_string <- formatC(seq.int(nrow(result)),
     width = ceiling(log10(nrow(result))), flag = "0"

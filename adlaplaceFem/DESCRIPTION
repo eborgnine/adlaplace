@@ -1,7 +1,8 @@
 Package: adlaplaceFem
 Type: Package
 Title: Finite Element Approximations for Adlaplace
-Version: 0.7.0
+Version: 0.7.1
+Date: 2026-09-25
 Authors@R: person(given = "Patrick", family = "Brown",
     email = "patrick.borgnine@gmail.com",
     role = c("aut", "cre", "cph"))
@@ -19,7 +20,7 @@ License: GPL (>= 2)
 Depends:
     R (>= 4.1.0),
     adlaplace (>= 0.6.0)
-Imports: methods, stats, Matrix, splines, Rcpp, RCppAD
+Imports: methods, stats, Matrix, splines, Rcpp, RCppAD, parallel
 LinkingTo: Rcpp, adlaplace, RcppEigen, trustOptim, Matrix, RCppAD
 Suggests: terra, testthat (>= 3.0.0), geostatsp (>= 2.2.0), knitr, rmarkdown, mapmisc
 Additional_repositories: https://eborgnine.r-universe.dev
@@ -40,6 +41,7 @@ Collate:
     'matern-geometry.R'
     'matern.R'
     'matern_est.R'
+    'takahashi_davis.R'
     'zzz.R'
 NeedsCompilation: yes
 Config/roxygen2/version: 8.0.0

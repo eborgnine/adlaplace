@@ -151,6 +151,25 @@ outer_gr <- function(
 #' Cached fields: \code{gamma}, \code{fg_x}, \code{neg_log_lik},
 #' \code{d_neg_log_lik}.
 #'
+#' Warn when the inner trust-region solve did not report success.
+#'
+#' @noRd
+warn_if_inner_status <- function(result) {
+  status <- result[["inner_opt"]][["status"]]
+  if (is.null(status) || !length(status)) {
+    return(invisible(NULL))
+  }
+  status <- as.character(status[[1L]])
+  if (!identical(status, "Success")) {
+    warning(
+      "inner_opt status is ", status,
+      "; the Laplace approximation used this inner solution anyway",
+      call. = FALSE
+    )
+  }
+  invisible(status)
+}
+
 #' @noRd
 .outer_fg <- function(
   x, config, cache, ad_pack, control_inner = list(), ...
@@ -184,6 +203,7 @@ outer_gr <- function(
     return_hessians = FALSE,
     verbose = isTRUE(config[["verbose"]])
   )
+  warn_if_inner_status(result)
   if (isTRUE(config$verbose)) {
     message(
       "outer_fg: done neg_log_lik=", format(result$neg_log_lik),
@@ -340,6 +360,7 @@ log_lik_laplace <- function(
     return_hessians = return_hessians,
     verbose = isTRUE(config[["verbose"]])
   )
+  warn_if_inner_status(result_inner)
   result <- restructure_laplace_result(result_inner, control_inner = control)
 
   if (!deriv) {

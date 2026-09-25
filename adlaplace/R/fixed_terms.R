@@ -325,7 +325,8 @@ setClass("fpoly",
            init = "numeric",
            lower = "numeric",
            upper = "numeric",
-           parscale = "numeric"
+           parscale = "numeric",
+           basis_scale = "numeric"
          ),
          contains = "model_term",
          prototype = prototype(
@@ -334,6 +335,7 @@ setClass("fpoly",
            lower = numeric(0),
            upper = numeric(0),
            parscale = numeric(0),
+           basis_scale = 1,
            model_role = factor("fixed", levels = .model_role_levels),
            density = NA_character_,
            ad_kind = NA_character_
@@ -349,6 +351,9 @@ setClass("fpoly",
 #' @param lower Lower bounds for beta parameters.
 #' @param upper Upper bounds for beta parameters.
 #' @param parscale Parameter scales for optimization.
+#' @param basis_scale Positive scale for the covariate. Column \code{k} of the
+#'   raw polynomial is divided by \code{basis_scale^k}. \code{\link{iwp}} passes
+#'   the mean knot spacing when the polynomial is the fixed part of an IWP.
 #' @param term A `fpoly` term object.
 #' @param data A data frame containing the variables used in the term.
 #' @return A `fpoly` term object.
@@ -360,7 +365,11 @@ fpoly <- function(x, p = 2, ref_value = 0,
                   init = .my_beta_init,
                   lower = .my_beta_lower,
                   upper = .my_beta_upper,
-                  parscale = .my_beta_parscale) {
+                  parscale = .my_beta_parscale,
+                  basis_scale = 1) {
+  if (length(basis_scale) != 1 || !is.finite(basis_scale) || basis_scale <= 0) {
+    stop("basis_scale must be a single positive finite value")
+  }
   methods::new("fpoly",
     name = x,
     label = paste(x, "fpoly", sep = "_"),
@@ -370,7 +379,8 @@ fpoly <- function(x, p = 2, ref_value = 0,
     init = rep_len(init, p),
     lower = rep_len(lower, p),
     upper = rep_len(upper, p),
-    parscale = rep_len(parscale, p)
+    parscale = rep_len(parscale, p),
+    basis_scale = basis_scale
   )
 }
 
@@ -389,6 +399,7 @@ setMethod("design", "fpoly", function(term, data) {
     raw = TRUE
   )
   D <- D[, 1:ncol(D), drop = FALSE]
+  D <- scale_raw_poly_columns(D, term@basis_scale)
   seq_order <- seq.int(1, length.out = term@p.order)
 
   colnames(D) <- paste0(term@name, "_fpoly_", seq_order)

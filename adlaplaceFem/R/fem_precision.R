@@ -136,3 +136,58 @@ fem_precision_payload <- function(fem, alpha = 2L) {
   }
   out
 }
+
+#' Slots of a FEM quadratic form inside the joint inverse Hessian
+#'
+#' One 0-based index into \code{H_inv@x} per stored upper-triangle entry of
+#' \code{Q}, in that CSC order. \code{-1L} marks a pair the symbolic inverse
+#' does not store.
+#'
+#' @param shard A \code{density_data} shard.
+#' @param H_inv Symbolic upper triangle of the joint inverse Hessian.
+#' @return An integer vector, or \code{NULL} when \code{shard} is not a
+#'   \code{random_fem_ssq_*} density.
+#' @rdname hinv_trace_index
+#' @export
+setMethod("hinv_trace_index", "density_data", function(shard, H_inv) {
+  if (length(shard@density) != 1L ||
+    !grepl("^random_fem_ssq_", shard@density)) {
+    return(NULL)
+  }
+  prec <- shard@precision
+  if (is.null(prec) || is.null(prec$Q_p) || is.null(prec$Q_i)) {
+    stop("random_fem_ssq_ shard is missing precision$Q_p / Q_i", call. = FALSE)
+  }
+  Q_p <- as.integer(prec$Q_p)
+  Q_i <- as.integer(prec$Q_i)
+  n_local <- length(Q_p) - 1L
+  if (n_local < 1L || ncol(shard@gamma_map) != n_local) {
+    stop(
+      "gamma_map ncol must equal the Q dimension (", n_local, ")",
+      call. = FALSE
+    )
+  }
+  nnz_col <- diff(shard@gamma_map@p)
+  if (any(nnz_col != 1L)) {
+    stop("gamma_map must have exactly one nonzero per column", call. = FALSE)
+  }
+  # @i and @p are 0-based. One entry per column, in column order.
+  g_row <- shard@gamma_map@i[shard@gamma_map@p[-length(shard@gamma_map@p)] + 1L]
+  if (!length(Q_i)) {
+    return(integer(0))
+  }
+  q_counts <- diff(Q_p)
+  q_col <- rep.int(seq_along(q_counts) - 1L, q_counts)
+  gr <- g_row[Q_i + 1L]
+  gc <- g_row[q_col + 1L]
+  lo <- pmin(gr, gc)
+  hi <- pmax(gr, gc)
+  H_inv <- methods::as(H_inv, "CsparseMatrix")
+  n <- nrow(H_inv)
+  h_counts <- diff(H_inv@p)
+  h_col <- rep.int(seq_along(h_counts) - 1L, h_counts)
+  h_key <- H_inv@i + as.numeric(h_col) * n
+  q_key <- lo + as.numeric(hi) * n
+  pos <- match(q_key, h_key)
+  as.integer(ifelse(is.na(pos), -1L, pos - 1L))
+})

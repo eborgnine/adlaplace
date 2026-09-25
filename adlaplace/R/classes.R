@@ -79,7 +79,9 @@ setClass("ad_pack_ptr", contains = "externalptr")
 #' @slot chol_inner Symbolic LDL factor or empty sparse matrix.
 #' @slot chol_inner_list Numeric LDL list for C++ (\code{L1}, \code{Linv},
 #'   \code{perm}, \code{perm_inv}, \code{half_H_inv}, \code{H_inv}), plus
-#'   \code{trace_columns} (per-shard column indices for \code{trace_hinv_t}).
+#'   \code{trace_columns} (per-shard column indices for \code{trace_hinv_t}) and
+#'   \code{hinv_q_index} (per-shard slots of \eqn{Q} into \code{H_inv}, when a
+#'   shard defines \code{\link{hinv_trace_index}}).
 #' @slot sizes Named numeric vector \code{beta}/\code{gamma}/\code{theta}.
 #' @slot info List of parameter metadata (\code{beta}, \code{gamma},
 #'   \code{theta}, \code{parameters}); populated from \code{model_data()$term_data$info}

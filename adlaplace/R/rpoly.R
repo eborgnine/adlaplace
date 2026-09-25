@@ -20,12 +20,14 @@ NULL
 
 setClass("rpoly",
   slots = list(
-    sd = "numeric"
+    sd = "numeric",
+    basis_scale = "numeric"
   ),
   contains = "model_term",
   prototype = prototype(
     knots = numeric(0),
     sd = numeric(0),
+    basis_scale = 1,
     model_role = factor("random", levels = .model_role_levels),
     density = "random_diagonal",
     ad_kind = "random"
@@ -37,11 +39,15 @@ setClass("rpoly",
 #' @param p Polynomial degree (default: 2).
 #' @param ref_value Reference value for the polynomial.
 #' @param sd Standard deviation for random effects.
+#' @param basis_scale Positive scale for the covariate. Column \code{k} of the
+#'   raw polynomial is divided by \code{basis_scale^k}. The default \code{1}
+#'   leaves the raw polynomial unchanged. \code{\link{iwp}} passes the mean
+#'   knot spacing so the polynomial matches the normalized IWP basis.
 #' @param term A `rpoly` term object.
 #' @param data A data frame containing the variables used in the term.
 #' @return A `rpoly` term object.
 #' @export
-rpoly <- function(x, p = 2, ref_value = 0, sd = Inf) {
+rpoly <- function(x, p = 2, ref_value = 0, sd = Inf, basis_scale = 1) {
   if (!missing(sd) && (length(sd) != 1 || sd <= 0)) {
     stop("sd must be a single positive numeric value")
   }
@@ -51,6 +57,9 @@ rpoly <- function(x, p = 2, ref_value = 0, sd = Inf) {
   if (!missing(ref_value) && length(ref_value) != 1) {
     stop("ref_value must be a single value")
   }
+  if (length(basis_scale) != 1 || !is.finite(basis_scale) || basis_scale <= 0) {
+    stop("basis_scale must be a single positive finite value")
+  }
 
   methods::new("rpoly",
     name = x,
@@ -58,9 +67,19 @@ rpoly <- function(x, p = 2, ref_value = 0, sd = Inf) {
     formula = stats::as.formula(paste0("~ 0 + ", x), env = new.env()),
     p.order = as.integer(p),
     ref_value = ref_value,
-    sd = rep_len(sd, p)
-    # type is already set in prototype
+    sd = rep_len(sd, p),
+    basis_scale = basis_scale
   )
+}
+
+scale_raw_poly_columns <- function(D, basis_scale) {
+  if (length(basis_scale) != 1L || !is.finite(basis_scale) || basis_scale == 1) {
+    return(D)
+  }
+  for (j in seq_len(ncol(D))) {
+    D[, j] <- D[, j] / basis_scale^j
+  }
+  D
 }
 
 #' @describeIn rpoly-class Design method for rpoly objects
@@ -78,6 +97,7 @@ setMethod("design", "rpoly", function(term, data) {
     raw = TRUE
   )
   D <- D[, 1:ncol(D), drop = FALSE]
+  D <- scale_raw_poly_columns(D, term@basis_scale)
 
   colnames(D) <- paste0(term@name, "_rpoly_", seq.int(1, length.out = term@p.order))
   D

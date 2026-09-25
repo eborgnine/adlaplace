@@ -4,7 +4,7 @@
 \alias{matern_est}
 \title{Posterior mean, SD, and simulations of a matern field on a raster}
 \usage{
-matern_est(fit, eval_grid, n = 0L)
+matern_est(fit, eval_grid, n = 0L, cores = 1L)
 }
 \arguments{
 \item{fit}{An \code{"adlaplace_fit"} from \code{\link[adlaplace:adlaplace]{adlaplace::adlaplace()}} that includes
@@ -14,6 +14,12 @@ exactly one \code{\link[=matern]{matern()}} term.}
 
 \item{n}{Number of posterior simulations of the field. Default \code{0} (mean and
 sd only).}
+
+\item{cores}{Number of PSOCK workers used to build the design matrix.
+Each worker evaluates a contiguous block of cells, including
+\code{A_fine \%*\% S} for a hierarchical basis. Default \code{1} (no cluster).
+The posterior mean, SD, and simulations are formed on the calling process
+after the blocks are row-bound.}
 }
 \value{
 A \code{SpatRaster} with \code{n + 2} layers: \code{mean}, \code{sd}, and \code{sim1}...\code{simn}

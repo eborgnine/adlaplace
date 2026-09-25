@@ -116,3 +116,73 @@ test_that("align_gram_to_pattern matches a per-entry reference read", {
     reference_align(M, sub_p, sub_i, pat$n)
   )
 })
+
+sparse_max_abs_diff <- function(a, b) {
+  d <- methods::as(a - b, "dgCMatrix")@x
+  if (!length(d)) 0 else max(abs(d))
+}
+
+# Row r of the tensor design is kronecker(By[r, ], Bx[r, ]), with x-index fastest.
+tensor_kronecker_ref <- function(x, y, knots_x, knots_y, degree) {
+  Bx <- as.matrix(adlaplaceFem:::bspline_eval(knots_x, x, degree, 0L))
+  By <- as.matrix(adlaplaceFem:::bspline_eval(knots_y, y, degree, 0L))
+  nx <- ncol(Bx)
+  ref <- matrix(0, length(x), nx * ncol(By))
+  for (r in seq_along(x)) {
+    ref[r, ] <- as.numeric(kronecker(By[r, ], Bx[r, ]))
+  }
+  methods::as(Matrix::Matrix(ref, sparse = TRUE), "dgCMatrix")
+}
+
+test_that("tensor_design matches a per-cell Kronecker product", {
+  knots_list <- list(x = seq(0, 1, length.out = 5), y = seq(0, 1, length.out = 4))
+  x <- c(0.1, 0.5, 1, -0.2, 0.8, 0.3)
+  y <- c(0.2, 0.2, 0.9, 0.4, 1.2, 0)
+  for (degree in c(2L, 3L)) {
+    fem <- fem_bspline(data.frame(x = x, y = y), knots_list, degree = degree)
+    A <- adlaplaceFem:::tensor_design(x, y, fem$knots$x, fem$knots$y, degree)
+    ref <- tensor_kronecker_ref(x, y, fem$knots$x, fem$knots$y, degree)
+    expect_equal(dim(A), dim(ref))
+    expect_equal(sparse_max_abs_diff(A, ref), 0)
+  }
+})
+
+test_that("serial design blocks match one-shot evaluation, including row order", {
+  knots_list <- list(x = seq(0, 1, length.out = 5), y = seq(0, 1, length.out = 5))
+  x <- seq(0.05, 0.95, by = 0.1)
+  y <- seq(0.95, 0.05, by = -0.1)
+  fem <- fem_bspline(data.frame(x = x, y = y), knots_list, degree = 2L)
+  A1 <- adlaplaceFem:::fem_design_xy(fem, x, y)
+  A3 <- adlaplaceFem:::fem_design_blocks(fem, x, y, n_blocks = 3L)
+  expect_equal(dim(A3), dim(A1))
+  expect_equal(sparse_max_abs_diff(A3, A1), 0)
+  # First block is only the leading coordinates; a reversed rbind would miss them.
+  n1 <- length(parallel::splitIndices(length(x), 3L)[[1L]])
+  expect_equal(
+    sparse_max_abs_diff(A3[seq_len(n1), ], A1[seq_len(n1), ]),
+    0
+  )
+})
+
+test_that("hierarchical design blocks match a per-cell fine basis times S", {
+  kn <- hb_knots(
+    list(xmin = 0, xmax = 1, ymin = 0, ymax = 1, resolution = 0.25),
+    c(0.25, 0.75, 0.25, 0.75),
+    fact = 2
+  )
+  pts <- expand.grid(
+    x = seq(0.05, 0.95, by = 0.15),
+    y = seq(0.1, 0.9, by = 0.2)
+  )
+  x <- pts$x
+  y <- pts$y
+  fem <- fem_bspline(pts, kn, degree = 2L)
+  expect_true(!is.null(fem$S))
+  kf <- fem$knots_finest
+  A_fine <- tensor_kronecker_ref(x, y, kf$x, kf$y, fem$degree)
+  A_ref <- methods::as(A_fine %*% fem$S, "dgCMatrix")
+  A <- adlaplaceFem:::fem_design_xy(fem, x, y)
+  A_blocks <- adlaplaceFem:::fem_design_blocks(fem, x, y, n_blocks = 4L)
+  expect_equal(sparse_max_abs_diff(A, A_ref), 0)
+  expect_equal(sparse_max_abs_diff(A_blocks, A), 0)
+})

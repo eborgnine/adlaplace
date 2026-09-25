@@ -363,7 +363,8 @@ InnerOptResult inner_opt(const std::vector<double> &parameters,
           backend, x_vec, backend.chol_pattern.half_H_inv_p,
           backend.chol_pattern.half_H_inv_i, out.half_h_inv_x_out, n_gamma,
           backend.chol_pattern.trace_columns_p,
-          backend.chol_pattern.trace_columns_i, verbose);
+          backend.chol_pattern.trace_columns_i, verbose,
+          out.h_inv_x_out.data(), out.h_inv_x_out.size());
 
       // Profile gradient assembly (same algebra as R log_lik_deriv).
       if (R_finite(log_det)) {

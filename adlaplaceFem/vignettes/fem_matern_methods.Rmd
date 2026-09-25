@@ -121,6 +121,137 @@ $$
 These replace Galerkin expressions involving $\mathbf{C}^{-1}$, which destroy sparsity.
 Recommended B-spline degrees: $p=2$ for α = 2; $p=3$ for α = 3.
 
+# Derivatives
+
+The Gaussian prior on the weights $\mathbf{w}$ is
+
+$$
+\log\pi(\mathbf{w}\mid\theta)
+=
+\frac12\log\det\mathbf{Q}(\theta)
+-\frac12\mathbf{w}^\top\mathbf{Q}(\theta)\mathbf{w}
+-\frac{n}{2}\log(2\pi),
+$$
+
+with $\theta=(\log\mathrm{range},\log\mathrm{sd})$ and $n$ the number of weights.
+The two terms are separate AD groups. Both see the same sparse
+$\mathbf{Q}(\theta)=\sum_j c_j(\theta)\,\mathbf{M}_j$, where $\mathbf{M}_j$ runs over
+$(\mathbf{C},\mathbf{G},\mathbf{G}_2)$ for $\alpha=2$ and also $\mathbf{G}_3$ for
+$\alpha=3$. The scalars $c_j(\theta)$ are the coefficients in the formulas for
+$\mathbf{Q}_2$ and $\mathbf{Q}_3$ above, after substituting $\kappa$ and $\tau$
+from $(\mathrm{range},\mathrm{sd})$.
+
+The Laplace approximation differentiates this density in three places.
+The inner optimization needs the value, the gradient, and the Hessian in
+$\mathbf{w}$. The outer optimization needs first and second derivatives in
+$\theta$. The profile trace needs the contraction of $H^{-1}$ with third
+derivatives of the joint density; for this prior those third derivatives are
+nonzero only in $\theta$.
+
+## Quadratic form
+
+`random_fem_ssq_2` and `random_fem_ssq_3` contribute
+$f=-\frac12\mathbf{w}^\top\mathbf{Q}\mathbf{w}$.
+$\mathbf{Q}$ is linear in the $c_j$ and $f$ is exactly quadratic in
+$\mathbf{w}$, so the derivatives are
+
+$$
+\begin{aligned}
+\frac{\partial f}{\partial\mathbf{w}}
+&= -\mathbf{Q}\mathbf{w},\\
+\frac{\partial f}{\partial\theta_k}
+&= -\frac12\sum_j\frac{\partial c_j}{\partial\theta_k}\,
+  (\mathbf{w}^\top\mathbf{M}_j\mathbf{w}),\\
+\frac{\partial^2 f}{\partial\mathbf{w}\,\partial\mathbf{w}^\top}
+&= -\mathbf{Q},\\
+\frac{\partial^2 f}{\partial\mathbf{w}\,\partial\theta_k}
+&= -\frac{\partial\mathbf{Q}}{\partial\theta_k}\mathbf{w},\\
+\frac{\partial^2 f}{\partial\theta_a\,\partial\theta_b}
+&= -\frac12\sum_j
+  \frac{\partial^2 c_j}{\partial\theta_a\,\partial\theta_b}\,
+  (\mathbf{w}^\top\mathbf{M}_j\mathbf{w}).
+\end{aligned}
+$$
+
+Every one of these is a pass over the stored upper triangle of the Grams:
+combine the $c_j$ (or their $\theta$-derivatives) into $\mathbf{Q}$ or
+$\partial\mathbf{Q}/\partial\theta_k$, then one quadratic form or one sparse
+matrix-vector product. A two-input tape maps $\theta$ to the $c_j$ and supplies
+$\partial c_j/\partial\theta$ and $\partial^2 c_j/\partial\theta^2$. The
+products along the stored pattern of $\mathbf{Q}$ are not operations on that
+tape.
+
+Third derivatives in $\mathbf{w}$ are identically zero. In a direction
+$\mathbf{v}$ in the weight space the only surviving third-order term is
+
+$$
+\frac{\partial}{\partial\theta_k}
+\Bigl(\mathbf{v}^\top\frac{\partial^2 f}{\partial\mathbf{w}\,\partial\mathbf{w}^\top}\mathbf{v}\Bigr)
+=
+-\frac12\mathbf{v}^\top\frac{\partial\mathbf{Q}}{\partial\theta_k}\mathbf{v}.
+$$
+
+## Log-determinant atomic
+
+`random_fem_det_2` and `random_fem_det_3` contribute
+$\frac12\log\det\mathbf{Q}-\frac{n}{2}\log(2\pi)$.
+This term does not depend on $\mathbf{w}$, so its inner gradient and Hessian
+are zero. All of its derivatives are in $\theta$, obtained by differentiating
+in the coefficients $x_j=c_j(\theta)$ and chaining back through the same
+two-input map.
+
+The atomic `fem_logdet` accepts the coefficient vector $\mathbf{x}$ (length 3
+or 4) and returns $\log\det\mathbf{Q}(\mathbf{x})$ for
+$\mathbf{Q}=\sum_j x_j\mathbf{M}_j$. The sparse LDL and the selected inverse
+stay inside the atomic; the tape records only the call and the chain rule
+from $\mathbf{x}$ to $\theta$.
+
+One evaluation assembles the numeric values of $\mathbf{Q}$, factors it with
+the symbolic LDL pattern stored on the payload, and, when a derivative is
+required, forms the Takahashi selected inverse $\boldsymbol{\Sigma}$
+($\mathbf{Q}^{-1}$ on the sparsity pattern of the factor). The identity
+$d\log\det\mathbf{Q}=\operatorname{Tr}(\mathbf{Q}^{-1}\,d\mathbf{Q})$ then gives
+
+$$
+\frac{\partial\log\det\mathbf{Q}}{\partial x_j}
+=
+\operatorname{Tr}(\mathbf{Q}^{-1}\mathbf{M}_j)
+=
+\sum_k \omega_k (M_j)_k \Sigma_k,
+$$
+
+where the sum is over stored upper-triangle entries and $\omega_k$ is $1$ on
+the diagonal and $2$ off it.
+
+That selected inverse is `takahashi_davis`. For each column of $\mathbf{L}$,
+from last to first, the column of $\boldsymbol{\Sigma}$ is scattered into a
+work vector of length $n$, and the Takahashi update reads the vector by row
+index. The stored result is $\mathbf{Q}^{-1}$ on the sparsity pattern of
+$\mathbf{L}$. `fem_logdet` calls this function. A dual scalar in the work
+vector is what produces the directional derivative below.
+
+The same subset can be computed without a FEM model. From R,
+`takahashi_davis(Q)` returns a `dgCMatrix` of those entries in the original
+variable order. Pass `chol = fem_chol_pattern(Q)` when that symbolic factor
+is already known. From C++, a package with `LinkingTo: adlaplaceFem`
+includes `adlaplaceFem/takahashi_davis.hpp`. That function takes $\mathbf{L}$
+and $\mathbf{D}$. A caller that has only $\mathbf{Q}$ factors it with
+`chol_update_csc` from adlaplace first.
+
+Because $\mathbf{Q}$ is linear in $\mathbf{x}$, the second derivative has no
+$\operatorname{Tr}(\mathbf{Q}^{-1}\partial^2\mathbf{Q})$ term:
+
+$$
+\frac{\partial^2\log\det\mathbf{Q}}{\partial x_i\,\partial x_j}
+=
+-\operatorname{Tr}(\mathbf{Q}^{-1}\mathbf{M}_i\mathbf{Q}^{-1}\mathbf{M}_j).
+$$
+
+CppAD asks the atomic for this as a Hessian-vector product. The same LDL and
+Takahashi code runs with a dual scalar $(a,\dot a)$, so one factorization
+returns both $\partial\log\det\mathbf{Q}/\partial x_j$ and its directional
+derivative. The prior density uses half of these derivatives.
+
 # Tensor-product B-splines
 
 On a rectangle, with 1-D B-splines $B_i^x$ and $B_j^y$,
@@ -179,16 +310,18 @@ where needed without refining the entire padded domain.
 
 # Numerical comparison: Matérn vs FEM
 
-Fix α = 2, $\nu=1$, $\kappa=2$, $\tau$ chosen so the Matérn marginal variance is 1:
+Fix $\nu=1$ (SPDE order $\alpha=2$), $\kappa=3$, and marginal $\mathrm{sd}=1$.
+The practical range is $\rho=\sqrt{8\nu}/\kappa$. The analytic covariance below uses
+the Matérn kernel at that $(\kappa,\mathrm{sd})$. The FEM covariances use the
+same $(\rho,\mathrm{sd})$ through [matern_fem_covariance()], which returns
+$\mathbf{A}\mathbf{Q}^{-1}\mathbf{A}^\top$ at the geometry in `data`.
 
 ```{r params}
 nu <- 1
 kappa <- 3
-# sigma^2 = Gamma(nu) / ( Gamma(alpha) (4*pi)^{d/2} kappa^{2*nu} tau^2 ) with alpha=2, d=2
-# => 1 = 1 / (1 * 4*pi * kappa^2 * tau^2)  => tau^2 = 1/(4*pi*kappa^2)
-tau <- 1 / sqrt(4 * pi * kappa^2)
+sd <- 1
 rho <- sqrt(8 * nu) / kappa
-c(kappa = kappa, tau = tau, range = rho)
+c(kappa = kappa, range = rho, sd = sd)
 ```
 
 Evaluation sites (same for both grids):
@@ -204,11 +337,11 @@ knots_fine <- list(
 )
 
 set.seed(0)
-sites_eval <- data.frame(
+sites <- data.frame(
   x = runif(100),
   y = runif(100)
 )
-
+sites$geometry <- as.matrix(sites[c("x", "y")])
 
 matern_cov <- function(h, nu, kappa, sigma2 = 1) {
   h <- pmax(h, 1e-12)
@@ -216,28 +349,18 @@ matern_cov <- function(h, nu, kappa, sigma2 = 1) {
   sigma2 * (2^(1 - nu) / gamma(nu)) * (r^nu) * besselK(r, nu)
 }
 
-D <- as.matrix(dist(sites_eval))
-Sigma <- matern_cov(D, nu, kappa, sigma2 = 1)
-diag(Sigma) <- 1
+D <- as.matrix(dist(sites[c("x", "y")]))
+Sigma <- matern_cov(D, nu, kappa, sigma2 = sd^2)
+diag(Sigma) <- sd^2
 ```
 
-FEM covariance at the same sites: $\mathbf{A}\mathbf{Q}^{-1}\mathbf{A}^\top$ for two knot resolutions.
+FEM covariance at the same sites, for two knot resolutions:
 
 ```{r compare}
-fem_cov_at_sites <- function(sites_eval, knots_list) {
-  fem <- fem_bspline(
-    sites_eval,
-    knots_list,
-    degree = 2L
-  )
-  Q <- fem_precision(kappa, tau, fem$C, fem$G, fem$G2, alpha = 2L)
-  A <- fem$A
-  X <- Matrix::solve(Q, Matrix::t(A))
-  as.matrix(A %*% X)
-}
-
-Sig_coarse <- fem_cov_at_sites(sites_eval, knots_coarse)
-Sig_fine <- fem_cov_at_sites(sites_eval, knots_fine)
+term_coarse <- matern("geometry", knots = knots_coarse, shape = 1L)
+term_fine <- matern("geometry", knots = knots_fine, shape = 1L)
+Sig_coarse <- matern_fem_covariance(term_coarse, sites, range = rho, sd = sd)
+Sig_fine <- matern_fem_covariance(term_fine, sites, range = rho, sd = sd)
 
 rel_err <- function(S_hat, S) {
   sqrt(sum((S_hat - S)^2)) / sqrt(sum(S^2))

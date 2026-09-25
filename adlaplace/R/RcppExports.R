@@ -290,8 +290,8 @@ warm_openmp_runtime <- function() {
     invisible(.Call(`_adlaplace_warm_openmp_runtime`))
 }
 
-.trace_hinv_t_cpp <- function(ad_pack, x, LinvPt, LinvPtColumns, verbose = FALSE) {
-    .Call(`_adlaplace_trace_hinv_t`, ad_pack, x, LinvPt, LinvPtColumns, verbose)
+.trace_hinv_t_cpp <- function(ad_pack, x, LinvPt, LinvPtColumns, verbose = FALSE, H_inv_x = NULL) {
+    .Call(`_adlaplace_trace_hinv_t`, ad_pack, x, LinvPt, LinvPtColumns, verbose, H_inv_x)
 }
 
 #' Profile per-shard Reverse3 cost with dummy LinvPt directions

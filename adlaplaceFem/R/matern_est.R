@@ -9,10 +9,15 @@
 #' @param eval_grid A terra `SpatRaster` whose cell centers are evaluation sites.
 #' @param n Number of posterior simulations of the field. Default `0` (mean and
 #'   sd only).
+#' @param cores Number of PSOCK workers used to build the design matrix.
+#'   Each worker evaluates a contiguous block of cells, including
+#'   `A_fine %*% S` for a hierarchical basis. Default `1` (no cluster).
+#'   The posterior mean, SD, and simulations are formed on the calling process
+#'   after the blocks are row-bound.
 #' @return A `SpatRaster` with `n + 2` layers: `mean`, `sd`, and `sim1`...`simn`
 #'   when `n > 0`.
 #' @export
-matern_est <- function(fit, eval_grid, n = 0L) {
+matern_est <- function(fit, eval_grid, n = 0L, cores = 1L) {
   if (!inherits(fit, "adlaplace_fit")) {
     stop("fit must be an adlaplace_fit object", call. = FALSE)
   }
@@ -28,6 +33,10 @@ matern_est <- function(fit, eval_grid, n = 0L) {
   n <- as.integer(n)[1L]
   if (is.na(n) || n < 0L) {
     stop("n must be a non-negative integer", call. = FALSE)
+  }
+  cores <- as.integer(cores)[1L]
+  if (is.na(cores) || cores < 1L) {
+    stop("cores must be a positive integer", call. = FALSE)
   }
 
   terms <- fit$model_data$terms
@@ -50,7 +59,22 @@ matern_est <- function(fit, eval_grid, n = 0L) {
 
   fem <- ensure_matern_fem(mat)
   xy <- terra::xyFromCell(eval_grid, seq_len(terra::ncell(eval_grid)))
-  A <- fem_design_xy(fem, xy[, 1L], xy[, 2L])
+  # Stop the cluster before the coefficient products below. on.exit runs when
+  # this local() returns, including when design evaluation throws.
+  A <- local({
+    n_cells <- nrow(xy)
+    n_blocks <- if (n_cells < 2L) 1L else min(cores, n_cells)
+    if (n_blocks <= 1L) {
+      return(fem_design_blocks(fem, xy[, 1L], xy[, 2L], n_blocks = 1L))
+    }
+    cl <- parallel::makeCluster(n_blocks)
+    on.exit(parallel::stopCluster(cl), add = TRUE)
+    parallel::clusterEvalQ(cl, library(adlaplaceFem))
+    fem_design_blocks(
+      fem, xy[, 1L], xy[, 2L],
+      n_blocks = n_blocks, cl = cl
+    )
+  })
   mu <- as.numeric(A %*% g_hat)
 
   half <- adlaplace::laplace_half_H_inv(fit$details)

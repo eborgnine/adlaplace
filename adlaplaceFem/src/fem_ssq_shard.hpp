@@ -261,6 +261,60 @@ public:
     return 0;
   }
 
+  // sum_c v_c' (dQ/dtheta) v_c = sum_k w_k (dQ/dtheta)_k Hinv_{s_k},
+  // with s_k the precomputed slots of Q's upper triangle into H_inv.
+  int trace_hinv_from_h(const double *x, const double *H_inv_x,
+                        const int *q_to_hinv, std::size_t H_inv_x_len,
+                        std::size_t q_to_hinv_len,
+                        double *out_trace) override {
+    if (x == nullptr || out_trace == nullptr || H_inv_x == nullptr ||
+        q_to_hinv == nullptr) {
+      return 1;
+    }
+    const femssq::Data &d = *data_;
+    if (q_to_hinv_len != d.nnz() || d.w.size() != d.nnz()) {
+      return 1;
+    }
+    for (std::size_t k = 0; k < d.nnz(); ++k) {
+      const int s = q_to_hinv[k];
+      if (s < -1) {
+        return 1;
+      }
+      if (s >= 0 && static_cast<std::size_t>(s) >= H_inv_x_len) {
+        return 1;
+      }
+    }
+
+    if (pack.x.size() == 0) {
+      return 4;
+    }
+    gather(x);
+    load_state(1);
+
+    double total[femssq::kNumTheta] = {0.0, 0.0};
+    for (std::size_t k = 0; k < d.nnz(); ++k) {
+      const int s = q_to_hinv[k];
+      if (s < 0) {
+        continue;
+      }
+      const double fac = d.w[k] * H_inv_x[s];
+      for (std::size_t t = 0; t < femssq::kNumTheta; ++t) {
+        total[t] += fac * ws_.dQ_x[t][k];
+      }
+    }
+
+    const bool compacted =
+        pack.n_global > pack.x.size() &&
+        pack.tape_to_global.size() == pack.x.size();
+    for (std::size_t t = 0; t < femssq::kNumTheta; ++t) {
+      const std::size_t tape_idx = d.t_tape[t];
+      const std::size_t g =
+          compacted ? pack.tape_to_global[tape_idx] : tape_idx;
+      out_trace[g] += -0.5 * total[t];
+    }
+    return 0;
+  }
+
   ad_shard *clone() const override {
     return new FemSsqShard(clone_group_pack(pack), data_);
   }

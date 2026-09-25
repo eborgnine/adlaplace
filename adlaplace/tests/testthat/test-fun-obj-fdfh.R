@@ -105,6 +105,21 @@ test_that("fun_obj_fdfh matches direct eval (serial, inner=FALSE)", {
   expect_fun_obj_parity(m, inner = FALSE)
 })
 
+test_that("fun_obj_fdfh OpenMP region uses the requested team", {
+  skip_if_not(adlaplace:::has_openmp(), "OpenMP not available in this build")
+  m <- build_fun_obj_test_model(num_threads = 2L)
+  lines <- capture.output(adlaplace::fun_obj_fdfh(
+    m$ad_pack,
+    m$parameters,
+    m$gamma,
+    inner = TRUE,
+    verbose = TRUE
+  ))
+  team <- lines[grepl("parallel_team=", lines, fixed = TRUE)]
+  expect_true(length(team) >= 1L)
+  expect_true(any(grepl("parallel_team=2", team, fixed = TRUE)))
+})
+
 test_that("fun_obj_fdfh matches direct eval (multi-thread, inner=TRUE)", {
   skip_if_not(adlaplace:::has_openmp(), "OpenMP not available in this build")
   m <- build_fun_obj_test_model(num_threads = 2L)

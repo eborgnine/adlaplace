@@ -122,3 +122,58 @@ test_that("matern_est returns mean/sd and optional sims on SpatRaster", {
   expect_equal(names(out2), c("mean", "sd", "sim1", "sim2"))
   expect_equal(terra::values(out2$mean), terra::values(out0$mean))
 })
+
+psock_can_load_adlaplaceFem <- function() {
+  cl <- tryCatch(parallel::makeCluster(1L), error = function(e) NULL)
+  if (is.null(cl)) {
+    return(FALSE)
+  }
+  on.exit(parallel::stopCluster(cl), add = TRUE)
+  tryCatch({
+    parallel::clusterEvalQ(cl, library(adlaplaceFem))
+    TRUE
+  }, error = function(e) FALSE)
+}
+
+test_that("matern_est cores=2 matches cores=1", {
+  skip_if_not_installed("terra")
+  skip_if_not(
+    psock_can_load_adlaplaceFem(),
+    "adlaplaceFem is not installed for PSOCK workers"
+  )
+  set.seed(4)
+  n <- 16L
+  geom <- cbind(runif(n, 0.1, 0.9), runif(n, 0.1, 0.9))
+  knots_list <- list(x = seq(0, 1, length.out = 4), y = seq(0, 1, length.out = 4))
+  dat <- data.frame(y = rnorm(n), z = rnorm(n))
+  dat$geometry <- geom
+  fit <- adlaplace::adlaplace(
+    y ~ z + matern(geometry, knots = knots_list),
+    data = dat,
+    control = list(maxit = 40L)
+  )
+  eval_grid <- terra::rast(
+    nrows = 6, ncols = 4, xmin = 0, xmax = 1, ymin = 0, ymax = 1
+  )
+  set.seed(1)
+  out1 <- matern_est(fit, eval_grid, n = 2L, cores = 1L)
+  set.seed(1)
+  out2 <- matern_est(fit, eval_grid, n = 2L, cores = 2L)
+  expect_equal(names(out2), names(out1))
+  expect_equal(terra::values(out2), terra::values(out1))
+})
+
+test_that("matern_fem_covariance is finite and symmetric", {
+  set.seed(1)
+  knots_list <- list(x = seq(0, 1, length.out = 5), y = seq(0, 1, length.out = 5))
+  n <- 6L
+  geom <- cbind(runif(n), runif(n))
+  dat <- data.frame(geometry = I(geom))
+  dat$geometry <- geom
+  term <- matern("geometry", knots = knots_list, shape = 2L)
+  Sigma <- matern_fem_covariance(term, dat, range = 0.4, sd = 1.2)
+  expect_equal(dim(Sigma), c(n, n))
+  expect_true(all(is.finite(Sigma)))
+  expect_equal(Sigma, t(Sigma))
+  expect_true(all(diag(Sigma) > 0))
+})

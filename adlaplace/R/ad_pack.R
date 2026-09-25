@@ -171,6 +171,40 @@ build_parallel_map <- function(n_shards, num_threads, owner_threads = NULL) {
   map
 }
 
+#' Place each shard's \code{hinv_trace_index()} result on its AD group.
+#'
+#' Observation densities split into several groups and must not define an
+#' index. A quadratic-form density is one group; its integer vector is stored
+#' at that group and every other group stays \code{NULL}.
+#' @keywords internal
+hinv_q_index_list <- function(density_shards, group_counts, H_inv) {
+  group_counts <- as.integer(group_counts)
+  n_groups <- sum(group_counts)
+  out <- vector("list", n_groups)
+  offset <- 0L
+  for (i in seq_along(density_shards)) {
+    ng <- group_counts[[i]]
+    idx <- hinv_trace_index(density_shards[[i]], H_inv)
+    if (!is.null(idx)) {
+      if (ng != 1L) {
+        stop(
+          "hinv_trace_index requires a density with one AD group",
+          call. = FALSE
+        )
+      }
+      out[[offset + 1L]] <- as.integer(idx)
+    }
+    offset <- offset + ng
+  }
+  if (offset != n_groups) {
+    stop(
+      "group_counts do not sum to the number of AD groups",
+      call. = FALSE
+    )
+  }
+  out
+}
+
 #' @keywords internal
 new_ad_pack_from_ptr <- function(
   ptr,
@@ -178,7 +212,9 @@ new_ad_pack_from_ptr <- function(
   info = list(),
   verbose = FALSE,
   reorder_shards = c("none", "gradient", "hessian", "third"),
-  templates = NULL
+  templates = NULL,
+  density_shards = NULL,
+  group_counts = NULL
 ) {
   if (!is(ptr, "ad_pack_ptr")) {
     stop("ptr must be an ad_pack_ptr external pointer")
@@ -271,6 +307,16 @@ new_ad_pack_from_ptr <- function(
         n_gamma = n_gamma,
         half_H_inv_pat = chol_inner_list$half_H_inv
       )
+      if (!is.null(density_shards) && !is.null(chol_inner_list$H_inv)) {
+        if (is.null(group_counts)) {
+          stop("group_counts is required when density_shards is supplied", call. = FALSE)
+        }
+        hessian_pack$chol_inner_list$hinv_q_index <- hinv_q_index_list(
+          density_shards,
+          group_counts,
+          chol_inner_list$H_inv
+        )
+      }
       chol_inner_list <- hessian_pack$chol_inner_list
     }
     group_sparsity <- lapply(sparsity, function(shard) shard$grad_inner)
@@ -536,12 +582,16 @@ setMethod(
         n_domain = n_domain
       )
     }
-    ad_pack(
-      ad_pack_ptr(x, config),
+    ptr <- ad_pack_ptr(x, config)
+    verbose <- isTRUE(config[["verbose"]])
+    new_ad_pack_from_ptr(
+      ptr,
       num_threads = num_threads,
+      verbose = verbose,
       reorder_shards = reorder_shards,
       templates = templates,
-      config = config
+      density_shards = list(x),
+      group_counts = n_groups(ptr)
     )
   }
 )
@@ -597,6 +647,8 @@ setMethod(
       utils::flush.console()
     }
     ptrs <- vector("list", n_shards)
+    # c() clears each source pointer, so count groups before the merge.
+    group_counts <- integer(n_shards)
     for (i in seq_len(n_shards)) {
       shard <- shard_list[[i]]
       shard_name <- if (length(shard_names) >= i) shard_names[[i]] else NULL
@@ -616,8 +668,9 @@ setMethod(
         utils::flush.console()
       }
       ptrs[[i]] <- ad_pack_ptr(shard, config = config_build)
+      group_counts[[i]] <- n_groups(ptrs[[i]])
       if (verbose) {
-        cat("  [", i, "/", n_shards, "] done (", n_groups(ptrs[[i]]), " AD group(s)).\n", sep = "")
+        cat("  [", i, "/", n_shards, "] done (", group_counts[[i]], " AD group(s)).\n", sep = "")
         utils::flush.console()
       }
     }
@@ -631,7 +684,9 @@ setMethod(
       info = x$term_data$info,
       verbose = verbose,
       reorder_shards = reorder_shards,
-      templates = templates
+      templates = templates,
+      density_shards = shard_list,
+      group_counts = group_counts
     )
   }
 )
@@ -698,6 +753,9 @@ ad_pack_set_X <- function(
 #' @param parameters Numeric vector of length \code{Nbeta + Ntheta}.
 #' @param gamma Numeric vector of length \code{Ngamma}.
 #' @param LinvPt,LinvPtColumns Sparse factors for \code{trace_hinv_t()}.
+#' @param H_inv Optional numeric values of the joint inverse Hessian, in the
+#'   nonzero order of \code{chol_inner_list$H_inv}. A sparse matrix contributes
+#'   its \code{@x} slot. \code{NULL} keeps every shard on the column walk.
 #'
 #' @section Sign convention:
 #' With default \code{negative = TRUE}, \code{joint_log_dens()}, \code{grad()},
@@ -740,9 +798,18 @@ hessian <- function(ad_pack, x, ad_shards = NULL, inner = FALSE, verbose = FALSE
 
 #' @rdname adlaplace_cpp
 #' @export
-trace_hinv_t <- function(ad_pack, x, LinvPt, LinvPtColumns, verbose = FALSE) {
+trace_hinv_t <- function(ad_pack, x, LinvPt, LinvPtColumns, verbose = FALSE,
+                         H_inv = NULL) {
   ptr <- if (isS4(ad_pack) && methods::.hasSlot(ad_pack, "ptr")) ad_pack@ptr else ad_pack
-  .Call("_adlaplace_trace_hinv_t", ptr, x, LinvPt, LinvPtColumns, verbose)
+  H_inv_x <- NULL
+  if (!is.null(H_inv)) {
+    H_inv_x <- if (is.numeric(H_inv) && is.null(dim(H_inv))) {
+      as.numeric(H_inv)
+    } else {
+      as.numeric(methods::as(methods::as(H_inv, "generalMatrix"), "CsparseMatrix")@x)
+    }
+  }
+  .Call("_adlaplace_trace_hinv_t", ptr, x, LinvPt, LinvPtColumns, verbose, H_inv_x)
 }
 
 #' @rdname adlaplace_cpp

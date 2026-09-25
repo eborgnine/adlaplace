@@ -232,50 +232,55 @@ fem_design_xy <- function(fem, x, y) {
 tensor_design <- function(x, y, knots_x, knots_y, degree) {
   Bx <- bspline_eval(knots_x, x, degree, 0L)
   By <- bspline_eval(knots_y, y, degree, 0L)
-  nx <- ncol(Bx)
-  n <- length(x)
   Bx_t <- Matrix::summary(methods::as(Bx, "TsparseMatrix"))
   By_t <- Matrix::summary(methods::as(By, "TsparseMatrix"))
-
-  max_nnz <- as.integer(n * (degree + 1L)^2)
-  rows <- integer(max_nnz)
-  cols <- integer(max_nnz)
-  vals <- numeric(max_nnz)
-  pos <- 0L
-
-  split_x <- split(seq_len(nrow(Bx_t)), Bx_t$i)
-  split_y <- split(seq_len(nrow(By_t)), By_t$i)
-  common_rows <- intersect(names(split_x), names(split_y))
-  for (rn in common_rows) {
-    ix <- split_x[[rn]]
-    iy <- split_y[[rn]]
-    r <- as.integer(rn)
-    for (a in ix) {
-      i <- Bx_t$j[a]
-      bx <- Bx_t$x[a]
-      for (b in iy) {
-        pos <- pos + 1L
-        if (pos > length(rows)) {
-          rows <- c(rows, integer(length(rows)))
-          cols <- c(cols, integer(length(cols)))
-          vals <- c(vals, numeric(length(vals)))
-        }
-        rows[pos] <- r
-        cols[pos] <- i + (By_t$j[b] - 1L) * nx
-        vals[pos] <- bx * By_t$x[b]
-      }
-    }
-  }
-  if (pos == 0L) {
-    return(methods::as(Matrix::Matrix(0, n, nx * ncol(By), sparse = TRUE), "dgCMatrix"))
-  }
-  methods::as(
-    Matrix::sparseMatrix(
-      i = rows[seq_len(pos)],
-      j = cols[seq_len(pos)],
-      x = vals[seq_len(pos)],
-      dims = c(n, nx * ncol(By))
-    ),
-    "dgCMatrix"
+  tensor_design_triplets(
+    as.integer(Bx_t$i), as.integer(Bx_t$j), as.numeric(Bx_t$x),
+    as.integer(By_t$i), as.integer(By_t$j), as.numeric(By_t$x),
+    length(x), ncol(Bx), ncol(By)
   )
+}
+
+#' Design matrix on contiguous blocks of coordinates
+#'
+#' `n_blocks == 1` evaluates every coordinate in one call. Otherwise the
+#' coordinates are split in order and the blocks are row-bound, so row `k`
+#' stays the design at `(x[k], y[k])`. Pass a PSOCK `cl` to evaluate the
+#' blocks on workers; `NULL` evaluates them in the current process.
+#' @keywords internal
+#' @noRd
+fem_design_blocks <- function(fem, x, y, n_blocks = 1L, cl = NULL) {
+  n <- length(x)
+  if (length(y) != n) {
+    stop("x and y must have the same length", call. = FALSE)
+  }
+  n_blocks <- as.integer(n_blocks)[1L]
+  if (is.na(n_blocks) || n_blocks < 1L) {
+    stop("n_blocks must be a positive integer", call. = FALSE)
+  }
+  if (n < 2L) {
+    n_blocks <- 1L
+  } else {
+    n_blocks <- min(n_blocks, n)
+  }
+  if (n_blocks == 1L) {
+    return(fem_design_xy(fem, x, y))
+  }
+  blocks <- parallel::splitIndices(n, n_blocks)
+  pieces <- if (is.null(cl)) {
+    lapply(blocks, function(ii) fem_design_xy(fem, x[ii], y[ii]))
+  } else {
+    # baseenv() so the cluster does not serialize this call's frame.
+    # coords_x / coords_y: parLapply forwards `...` into clusterApply, which
+    # already has a formal argument named x.
+    worker <- function(ii, fem, coords_x, coords_y) {
+      adlaplaceFem:::fem_design_xy(fem, coords_x[ii], coords_y[ii])
+    }
+    environment(worker) <- baseenv()
+    parallel::parLapply(
+      cl, blocks, worker,
+      fem = fem, coords_x = x, coords_y = y
+    )
+  }
+  do.call(rbind, pieces)
 }

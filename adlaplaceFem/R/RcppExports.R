@@ -51,3 +51,11 @@ get_ad_pack_raw_parameters <- function(model, config, name) {
     .Call(`_adlaplaceFem_get_ad_pack_raw_parameters`, model, config, name)
 }
 
+takahashi_davis_matrix <- function(Q, perm, L1) {
+    .Call(`_adlaplaceFem_takahashi_davis_matrix`, Q, perm, L1)
+}
+
+tensor_design_triplets <- function(bx_i, bx_j, bx_x, by_i, by_j, by_x, n, nx, ny) {
+    .Call(`_adlaplaceFem_tensor_design_triplets`, bx_i, bx_j, bx_x, by_i, by_j, by_x, n, nx, ny)
+}
+

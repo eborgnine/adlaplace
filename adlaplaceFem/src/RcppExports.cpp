@@ -62,12 +62,46 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// takahashi_davis_matrix
+Rcpp::S4 takahashi_davis_matrix(Rcpp::S4 Q, Rcpp::IntegerVector perm, Rcpp::S4 L1);
+RcppExport SEXP _adlaplaceFem_takahashi_davis_matrix(SEXP QSEXP, SEXP permSEXP, SEXP L1SEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::S4 >::type Q(QSEXP);
+    Rcpp::traits::input_parameter< Rcpp::IntegerVector >::type perm(permSEXP);
+    Rcpp::traits::input_parameter< Rcpp::S4 >::type L1(L1SEXP);
+    rcpp_result_gen = Rcpp::wrap(takahashi_davis_matrix(Q, perm, L1));
+    return rcpp_result_gen;
+END_RCPP
+}
+// tensor_design_triplets
+Rcpp::S4 tensor_design_triplets(Rcpp::IntegerVector bx_i, Rcpp::IntegerVector bx_j, Rcpp::NumericVector bx_x, Rcpp::IntegerVector by_i, Rcpp::IntegerVector by_j, Rcpp::NumericVector by_x, int n, int nx, int ny);
+RcppExport SEXP _adlaplaceFem_tensor_design_triplets(SEXP bx_iSEXP, SEXP bx_jSEXP, SEXP bx_xSEXP, SEXP by_iSEXP, SEXP by_jSEXP, SEXP by_xSEXP, SEXP nSEXP, SEXP nxSEXP, SEXP nySEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::IntegerVector >::type bx_i(bx_iSEXP);
+    Rcpp::traits::input_parameter< Rcpp::IntegerVector >::type bx_j(bx_jSEXP);
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type bx_x(bx_xSEXP);
+    Rcpp::traits::input_parameter< Rcpp::IntegerVector >::type by_i(by_iSEXP);
+    Rcpp::traits::input_parameter< Rcpp::IntegerVector >::type by_j(by_jSEXP);
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type by_x(by_xSEXP);
+    Rcpp::traits::input_parameter< int >::type n(nSEXP);
+    Rcpp::traits::input_parameter< int >::type nx(nxSEXP);
+    Rcpp::traits::input_parameter< int >::type ny(nySEXP);
+    rcpp_result_gen = Rcpp::wrap(tensor_design_triplets(bx_i, bx_j, bx_x, by_i, by_j, by_x, n, nx, ny));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_adlaplaceFem_fem_logdet_debug", (DL_FUNC) &_adlaplaceFem_fem_logdet_debug, 4},
     {"_adlaplaceFem_create_ad_shard_random_fem_ssq_2", (DL_FUNC) &_adlaplaceFem_create_ad_shard_random_fem_ssq_2, 2},
     {"_adlaplaceFem_create_ad_shard_random_fem_ssq_3", (DL_FUNC) &_adlaplaceFem_create_ad_shard_random_fem_ssq_3, 2},
     {"_adlaplaceFem_get_ad_pack_raw_parameters", (DL_FUNC) &_adlaplaceFem_get_ad_pack_raw_parameters, 3},
+    {"_adlaplaceFem_takahashi_davis_matrix", (DL_FUNC) &_adlaplaceFem_takahashi_davis_matrix, 3},
+    {"_adlaplaceFem_tensor_design_triplets", (DL_FUNC) &_adlaplaceFem_tensor_design_triplets, 9},
     {NULL, NULL, 0}
 };
 

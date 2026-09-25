@@ -310,8 +310,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // trace_hinv_t
-Rcpp::NumericVector trace_hinv_t(SEXP ad_pack, const Rcpp::NumericVector& x, const Rcpp::S4& LinvPt, const Rcpp::S4& LinvPtColumns, bool verbose);
-RcppExport SEXP _adlaplace_trace_hinv_t(SEXP ad_packSEXP, SEXP xSEXP, SEXP LinvPtSEXP, SEXP LinvPtColumnsSEXP, SEXP verboseSEXP) {
+Rcpp::NumericVector trace_hinv_t(SEXP ad_pack, const Rcpp::NumericVector& x, const Rcpp::S4& LinvPt, const Rcpp::S4& LinvPtColumns, bool verbose, Rcpp::Nullable<Rcpp::NumericVector> H_inv_x);
+RcppExport SEXP _adlaplace_trace_hinv_t(SEXP ad_packSEXP, SEXP xSEXP, SEXP LinvPtSEXP, SEXP LinvPtColumnsSEXP, SEXP verboseSEXP, SEXP H_inv_xSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -320,7 +320,8 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const Rcpp::S4& >::type LinvPt(LinvPtSEXP);
     Rcpp::traits::input_parameter< const Rcpp::S4& >::type LinvPtColumns(LinvPtColumnsSEXP);
     Rcpp::traits::input_parameter< bool >::type verbose(verboseSEXP);
-    rcpp_result_gen = Rcpp::wrap(trace_hinv_t(ad_pack, x, LinvPt, LinvPtColumns, verbose));
+    Rcpp::traits::input_parameter< Rcpp::Nullable<Rcpp::NumericVector> >::type H_inv_x(H_inv_xSEXP);
+    rcpp_result_gen = Rcpp::wrap(trace_hinv_t(ad_pack, x, LinvPt, LinvPtColumns, verbose, H_inv_x));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -366,7 +367,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_adlaplace_latch_parallel_threads", (DL_FUNC) &_adlaplace_latch_parallel_threads, 1},
     {"_adlaplace_has_openmp", (DL_FUNC) &_adlaplace_has_openmp, 0},
     {"_adlaplace_warm_openmp_runtime", (DL_FUNC) &_adlaplace_warm_openmp_runtime, 0},
-    {"_adlaplace_trace_hinv_t", (DL_FUNC) &_adlaplace_trace_hinv_t, 5},
+    {"_adlaplace_trace_hinv_t", (DL_FUNC) &_adlaplace_trace_hinv_t, 6},
     {"_adlaplace_profile_shard_trace3_times", (DL_FUNC) &_adlaplace_profile_shard_trace3_times, 6},
     {NULL, NULL, 0}
 };

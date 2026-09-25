@@ -163,9 +163,28 @@ Only first derivatives of the coefficient map are needed for this, and the
 result is exactly zero on all $n$ gamma coordinates — a strong invariant, and
 one the tests assert directly.
 
-Because $\mathbf{v}$ is sparse, `trace_hinv_t` in the shard stamps
-$\operatorname{supp}(\mathbf{v})$ and visits only the pattern entries whose row
-and column are both stamped, so the per-column cost is
+This shard is assigned every column of $\mathrm{half\_H\_inv}$ that meets the
+spatial field, so the sum over those columns is the Frobenius product of
+$\partial\mathbf{Q}/\partial\theta_k$ with the joint inverse Hessian on the
+pattern of $\mathbf{Q}$. With the same upper-triangle weights $w_k$ (1 on the
+diagonal, 2 off it) the contribution to $\theta_k$ is
+
+$$
+-\frac12\sum_k w_k\Bigl(\frac{\partial\mathbf{Q}}{\partial\theta_k}\Bigr)_k
+(H^{-1})_{s_k}.
+$$
+
+The slots $s_k$ are computed in R at `ad_pack` time (`hinv_trace_index`, stored
+as `chol_inner_list$hinv_q_index`) and the dot is $O(\mathrm{nnz}(\mathbf{Q}))$.
+A pair of $\mathbf{Q}$ that the symbolic inverse does not store is a structural
+zero and is skipped. `inner_opt` already holds numeric $H^{-1}$ when it asks
+for the trace, so the production path does not walk columns.
+
+The stamped column loop remains the fallback when that index was not attached
+(`ad_pack` of a bare pointer) or only `half_H_inv` was supplied. Because
+$\mathbf{v}$ is sparse, the fallback stamps $\operatorname{supp}(\mathbf{v})$
+and visits only the pattern entries whose row and column are both stamped, so
+the per-column cost is
 $O(\sum_{c\,\in\,\mathrm{supp}}\mathrm{nnz}(\mathbf{Q}_{\cdot c}))$ rather than
 $O(n)$. Every upper-triangle pair $(r,c)$ with $r \le c$ lives in CSC column
 $c$, so iterating stamped columns and testing row stamps visits each pair
@@ -181,7 +200,7 @@ of $\mathbf{Q}$, and three consumers then sweep it.
 | Value | `Forward(0)` | one fused pass for all $q_j$ |
 | Gradient | `Forward(0)` + `Reverse(1)` | one extra sparse matvec |
 | Hessian | `Forward(1)`/`Reverse(2)` **per color**; the color count is the distance-2 chromatic number of $\mathbf{Q}$'s graph, in the hundreds for this stencil | copy $\mathbf{Q}$ values, $O(\mathrm{nnz})$ |
-| Trace | `Forward(0,1,2)` + `Reverse(3)` **per assigned gamma column**, and every gamma column is assigned to this shard | $O(\lvert\mathrm{supp}\rvert)$ per column, two scalars out |
+| Trace | `Forward(0,1,2)` + `Reverse(3)` **per assigned gamma column**, and every gamma column is assigned to this shard | dot of $\partial Q/\partial\theta$ with $H^{-1}$ at the stored slots, $O(\mathrm{nnz}(Q))$; column stamp loop if the index is absent |
 | Build | record the tape, then four calibration sweeps including the symmetric Hessian coloring | patterns constructed directly, no tape |
 
 The trace row is likely the largest single per-iteration cost in a taped fit,
@@ -259,15 +278,16 @@ this tape in `Workspace::init`, so threads never share one.
 
 `ad_shard` is a virtual interface, and `adlaplaceFem` already owns the shard
 factory through `ADLAPLACE_DEFINE_BACKEND()`. `FemSsqShard` derives from
-`ad_shard` and overrides the evaluation methods; the whole change is contained
-in `adlaplaceFem`, with no ABI bump.
+`ad_shard` and overrides the evaluation methods. `trace_hinv_from_h` is an
+extra virtual (ABI 5); the numeric work stays in `adlaplaceFem`.
 
 | Method | Behaviour |
 |---|---|
 | `f` | $q_j$ pass, then $-\tfrac12\sum_j c_j q_j$ |
 | `f_grad` | adds one `sym_matvec` for $-\mathbf{Q}\boldsymbol\gamma$ |
 | `f_grad_hess` | adds `sym_matvec` per $\theta_k$, then fills Hessian nonzeros from slot maps |
-| `trace_hinv_t` | stamped support loop, two scalars scattered to the theta slots |
+| `trace_hinv_from_h` | dot $w\cdot\partial Q/\partial\theta\cdot H^{-1}$ at `hinv_q_index`; two scalars on the theta slots |
+| `trace_hinv_t` | stamped support loop when the index or $H^{-1}$ is absent |
 | `get_sizes`, `get_sparse_pattern` | delegate to the free helpers `pack_sparsity_sizes` / `get_pattern` |
 | `assign_memory` | nothing to do: no sweeps means no Taylor workspace |
 | `clone` | copies the `shared_ptr` to the immutable data |

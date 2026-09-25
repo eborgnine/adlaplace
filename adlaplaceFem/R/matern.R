@@ -221,3 +221,41 @@ setMethod("theta_info", "matern", function(term) {
 setMethod("beta_info", "matern", function(term, data) {
   NULL
 })
+
+#' Covariance of a FEM Matérn field at data locations
+#'
+#' Evaluates the B-spline design `A` at the geometry column in `data` and
+#' returns `A Q^{-1} A'`. `Q` is the SPDE precision at the practical range
+#' `sqrt(8 * nu) / kappa` and marginal SD `sd`, with `nu = shape`.
+#'
+#' @param term A [`matern-class`] term with cached FEM Grams.
+#' @param data Data frame containing the geometry column named in `term`.
+#' @param range Practical Matérn range, in the same units as the coordinates.
+#' @param sd Marginal standard deviation of the Matérn field.
+#' @return A dense `n` by `n` covariance matrix, with `n = nrow(data)`.
+#' @export
+matern_fem_covariance <- function(term, data, range, sd) {
+  if (!methods::is(term, "matern")) {
+    stop("term must be a matern term", call. = FALSE)
+  }
+  range <- as.numeric(range)[1L]
+  sd <- as.numeric(sd)[1L]
+  if (!is.finite(range) || range <= 0 || !is.finite(sd) || sd <= 0) {
+    stop("range and sd must be positive", call. = FALSE)
+  }
+  nu <- term@p.order - 1
+  kappa <- sqrt(8 * nu) / range
+  tau <- if (term@p.order == 2L) {
+    1 / (kappa * sd * sqrt(4 * pi))
+  } else {
+    1 / (kappa^2 * sd * sqrt(8 * pi))
+  }
+  fem <- ensure_matern_fem(term)
+  Q <- fem_precision(
+    kappa, tau,
+    fem$C, fem$G, fem$G2, fem$G3,
+    alpha = term@p.order
+  )
+  A <- design(term, data)
+  as.matrix(A %*% Matrix::solve(Q, Matrix::t(A)))
+}

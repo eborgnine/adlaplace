@@ -62,7 +62,8 @@ Rcpp::NumericVector trace_hinv_t(
   const Rcpp::NumericVector& x,
   const Rcpp::S4& LinvPt,
   const Rcpp::S4& LinvPtColumns,
-  bool verbose = false
+  bool verbose = false,
+  Rcpp::Nullable<Rcpp::NumericVector> H_inv_x = R_NilValue
 ) {
   ::ad_pack* backend = resolve_ad_pack_eval(ad_pack);
 
@@ -82,6 +83,16 @@ Rcpp::NumericVector trace_hinv_t(
   const std::vector<int> LinvPtColumns_p_vec(LinvPtColumns_p.begin(), LinvPtColumns_p.end());
   const std::vector<int> LinvPtColumns_i_vec(LinvPtColumns_i.begin(), LinvPtColumns_i.end());
 
+  std::vector<double> hinv_vec;
+  const double* hinv_ptr = nullptr;
+  std::size_t hinv_len = 0;
+  if (H_inv_x.isNotNull()) {
+    const Rcpp::NumericVector v(H_inv_x.get());
+    hinv_vec.assign(v.begin(), v.end());
+    hinv_ptr = hinv_vec.data();
+    hinv_len = hinv_vec.size();
+  }
+
   const std::vector<double> trace_accum = adlaplace_trace::trace_hinv_t_impl(
     *backend,
     x_vec,
@@ -91,7 +102,9 @@ Rcpp::NumericVector trace_hinv_t(
     LinvPt_ncol,
     LinvPtColumns_p_vec,
     LinvPtColumns_i_vec,
-    verbose
+    verbose,
+    hinv_ptr,
+    hinv_len
   );
 
   return Rcpp::NumericVector(trace_accum.begin(), trace_accum.end());

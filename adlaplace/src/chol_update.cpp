@@ -329,6 +329,23 @@ CholPattern chol_pattern_from_list(const Rcpp::List& cil, const int n_gamma) {
 			pattern.trace_columns_i
 		);
 	}
+	if (cil.containsElementNamed("hinv_q_index")) {
+		const Rcpp::List idx = cil["hinv_q_index"];
+		const R_xlen_t n_idx = idx.size();
+		pattern.hinv_q_index_p.assign(static_cast<std::size_t>(n_idx) + 1, 0);
+		pattern.hinv_q_index_i.clear();
+		int acc = 0;
+		for (R_xlen_t s = 0; s < n_idx; ++s) {
+			SEXP el = idx[s];
+			if (el != R_NilValue) {
+				const Rcpp::IntegerVector v(el);
+				pattern.hinv_q_index_i.insert(
+					pattern.hinv_q_index_i.end(), v.begin(), v.end());
+				acc += static_cast<int>(v.size());
+			}
+			pattern.hinv_q_index_p[static_cast<std::size_t>(s) + 1] = acc;
+		}
+	}
 
 	pattern.perm.resize(static_cast<std::size_t>(n_gamma));
 	pattern.perm_inv.resize(static_cast<std::size_t>(n_gamma));

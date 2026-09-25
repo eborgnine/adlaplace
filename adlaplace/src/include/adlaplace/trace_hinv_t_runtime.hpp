@@ -26,7 +26,9 @@ inline std::vector<double> trace_hinv_t_parallel(
   const std::size_t LinvPt_ncol,
   const std::vector<int>& LinvPtColumns_p,
   const std::vector<int>& LinvPtColumns_i,
-  const bool verbose) {
+  const bool verbose,
+  const double* H_inv_x = nullptr,
+  std::size_t H_inv_x_len = 0) {
 
   const std::size_t Nparams = ad_tape_n_global(backend.fun[0]->pack);
   if (x.size() != Nparams) {
@@ -65,24 +67,45 @@ inline std::vector<double> trace_hinv_t_parallel(
     std::vector<double> trace_local(Nparams, 0.0);
     const std::vector<std::size_t>& shard_group =
       thread_groups[static_cast<std::size_t>(tid)];
+    const std::vector<int>& q_p = backend.chol_pattern.hinv_q_index_p;
+    const std::vector<int>& q_i = backend.chol_pattern.hinv_q_index_i;
+    const bool q_ok = q_p.size() == backend.fun.size() + 1;
     for (std::size_t s : shard_group) {
       ad_shard* shard = shard_handle(&backend, s);
       shard->assign_memory();
-      shard->trace_hinv_t(
-        x.data(),
-        LinvPt_p.data(),
-        LinvPt_i.data(),
-        LinvPt_x.data(),
-        LinvPt_ncol,
-        LinvPt_p_len,
-        LinvPt_i_len,
-        LinvPt_x_len,
-        LinvPtColumns_p.data(),
-        LinvPtColumns_i.data(),
-        LinvPtColumns_p_len,
-        LinvPtColumns_i_len,
-        trace_local.data()
-      );
+      int rc = 1;
+      if (H_inv_x != nullptr && q_ok) {
+        const int q0 = q_p[s];
+        const int q1 = q_p[s + 1];
+        if (q1 > q0 && q0 >= 0 &&
+            static_cast<std::size_t>(q1) <= q_i.size()) {
+          rc = shard->trace_hinv_from_h(
+            x.data(),
+            H_inv_x,
+            q_i.data() + q0,
+            H_inv_x_len,
+            static_cast<std::size_t>(q1 - q0),
+            trace_local.data()
+          );
+        }
+      }
+      if (rc != 0) {
+        shard->trace_hinv_t(
+          x.data(),
+          LinvPt_p.data(),
+          LinvPt_i.data(),
+          LinvPt_x.data(),
+          LinvPt_ncol,
+          LinvPt_p_len,
+          LinvPt_i_len,
+          LinvPt_x_len,
+          LinvPtColumns_p.data(),
+          LinvPtColumns_i.data(),
+          LinvPtColumns_p_len,
+          LinvPtColumns_i_len,
+          trace_local.data()
+        );
+      }
     }
 #pragma omp critical(trace_hinv_merge)
     {
@@ -108,7 +131,9 @@ inline std::vector<double> trace_hinv_t_impl(
   const std::size_t LinvPt_ncol,
   const std::vector<int>& LinvPtColumns_p,
   const std::vector<int>& LinvPtColumns_i,
-  const bool verbose) {
+  const bool verbose,
+  const double* H_inv_x = nullptr,
+  std::size_t H_inv_x_len = 0) {
   if (backend.fun.empty()) {
     return std::vector<double>();
   }
@@ -137,7 +162,9 @@ inline std::vector<double> trace_hinv_t_impl(
       LinvPt_ncol,
       LinvPtColumns_p,
       LinvPtColumns_i,
-      verbose
+      verbose,
+      H_inv_x,
+      H_inv_x_len
     );
     if (verbose && adlaplace_debug_enabled()) {
       Rcpp::Rcout << "trace_hinv_t: shard eval done\n";

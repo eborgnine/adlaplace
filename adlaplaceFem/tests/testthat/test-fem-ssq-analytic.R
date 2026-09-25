@@ -4,7 +4,8 @@
 # The AD shard is the reference oracle for values and for_jac / hes patterns.
 
 ssq_pack <- function(alpha, transform, analytic,
-                     seed_theta = c(1.4, 0.8)) {
+                     seed_theta = c(1.4, 0.8),
+                     permute_gamma = FALSE) {
   degree <- if (alpha == 2L) 2L else 3L
   nk <- if (alpha == 2L) 4L else 5L
   knots_list <- list(
@@ -22,8 +23,11 @@ ssq_pack <- function(alpha, transform, analytic,
     transform_theta = transform,
     fem_analytic = analytic
   )
+  g_i <- if (isTRUE(permute_gamma)) rev(seq_len(nr)) else seq_len(nr)
   dd <- adlaplace::density_data(
-    gamma_map = Matrix::Diagonal(nr),
+    gamma_map = Matrix::sparseMatrix(
+      i = g_i, j = seq_len(nr), dims = c(nr, nr)
+    ),
     theta_map = list(c(1L, 2L), 2L),
     ad_kind = "random",
     density = paste0("random_fem_ssq_", alpha),
@@ -32,9 +36,13 @@ ssq_pack <- function(alpha, transform, analytic,
   )
   list(
     ptr = adlaplace::ad_pack_ptr(dd, config),
+    dd = dd,
+    config = config,
     n_gamma = nr,
     theta = theta,
-    nnz_Q = length(prec$Q_i)
+    nnz_Q = length(prec$Q_i),
+    Q_p = prec$Q_p,
+    Q_i = prec$Q_i
   )
 }
 
@@ -176,6 +184,62 @@ test_that("analytic and taped+atomic agree on trace_hinv_t and vanish on gamma",
     )
     expect_lt(max(abs(t_ad[seq_len(analytic$n_gamma)])) / scale, 1e-10)
   }
+})
+
+# Numeric H_inv@x on the symbolic pattern, equal to tcrossprod(half).
+hinv_values <- function(half, H_pat) {
+  full <- as.matrix(Matrix::tcrossprod(half))
+  n <- nrow(H_pat)
+  counts <- diff(H_pat@p)
+  cols <- rep.int(seq_along(counts) - 1L, counts)
+  Matrix::sparseMatrix(
+    i = H_pat@i,
+    p = H_pat@p,
+    x = full[H_pat@i + cols * n + 1L],
+    dims = dim(H_pat),
+    index1 = FALSE
+  )
+}
+
+test_that("Hinv dot matches the column walk and reads the stored slots", {
+  pk <- ssq_pack(2L, TRUE, analytic = TRUE, permute_gamma = TRUE)
+  ad <- ssq_pack(2L, TRUE, analytic = FALSE, permute_gamma = TRUE)
+  af <- adlaplace::ad_pack(pk$dd, pk$config, num_threads = 1L)
+  af_ad <- adlaplace::ad_pack(ad$ptr, num_threads = 1L)
+
+  idx <- af@chol_inner_list$hinv_q_index
+  expect_length(idx, 1L)
+  expect_length(idx[[1L]], pk$nnz_Q)
+  q_counts <- diff(pk$Q_p)
+  q_col <- rep.int(seq_along(q_counts) - 1L, q_counts)
+  diag_k <- which(pk$Q_i == q_col)
+  expect_true(length(diag_k) > 0L)
+  expect_true(all(idx[[1L]][diag_k] >= 0L))
+
+  set.seed(11)
+  x <- c(rnorm(pk$n_gamma), pk$theta)
+  half <- af@chol_inner_list$half_H_inv
+  half <- methods::as(methods::as(half, "generalMatrix"), "CsparseMatrix")
+  set.seed(5)
+  half@x[] <- rnorm(length(half@x))
+  cols <- af@chol_inner_list$trace_columns
+  H <- hinv_values(half, af@chol_inner_list$H_inv)
+
+  t_dot <- adlaplace::trace_hinv_t(af, x, half, cols, H_inv = H)
+  t_col <- adlaplace::trace_hinv_t(af, x, half, cols)
+  t_ad <- adlaplace::trace_hinv_t(af_ad, x, half, cols)
+  scale <- max(abs(t_ad))
+  expect_lt(max(abs(t_dot - t_col)) / scale, 1e-10)
+  expect_lt(max(abs(t_dot - t_ad)) / scale, 1e-10)
+  expect_identical(t_dot[seq_len(pk$n_gamma)], rep(0, pk$n_gamma))
+  expect_gt(max(abs(t_dot[-seq_len(pk$n_gamma)])), 0)
+
+  # Moving every stored H_inv value must change the dot, so the shortcut
+  # consumed the index rather than falling back to the column walk.
+  H_bump <- H
+  H_bump@x[] <- H_bump@x + 10
+  t_bump <- adlaplace::trace_hinv_t(af, x, half, cols, H_inv = H_bump)
+  expect_gt(max(abs(t_bump - t_dot)), 1e-8)
 })
 
 test_that("no-tape ssq pack clones and evaluates under OpenMP", {

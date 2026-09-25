@@ -271,11 +271,16 @@ struct AD_Func_Opt {
     std::vector<double> f_local_log(static_cast<size_t>(num_threads), -99.0);
 #endif
 
+    int parallel_team = 1;
 #pragma omp parallel num_threads(num_threads)
     {
+#pragma omp single
+      parallel_team = omp_get_num_threads();
+
       double f_local = 0.0;
       std::vector<double> grad_local(Nparams, 0.0);
       std::vector<double> hess_local(hess_size, 0.0);
+      std::vector<double> hess_thread(hess_size, 0.0);
       std::vector<double> params_local(parameters.begin(), parameters.end());
       const std::vector<size_t> &shard_group = shard_group_for_thread();
       if (verbose && adlaplace_debug_enabled()) {
@@ -311,20 +316,19 @@ struct AD_Func_Opt {
           }
           continue;
         }
-
-#pragma omp critical(hess_sum)
-        {
-          for (size_t k = 0; k < hess_size; ++k) {
-            hess_upper_accum[k] -= hess_local[k];
-          }
+        for (size_t k = 0; k < hess_size; ++k) {
+          hess_thread[k] += hess_local[k];
         }
       }
 
-#pragma omp critical(grad_sum)
+#pragma omp critical(hess_sum)
       {
         f -= f_local;
         for (size_t k = 0; k < Nparams; ++k) {
           grad_full[k] -= grad_local[k];
+        }
+        for (size_t k = 0; k < hess_size; ++k) {
+          hess_upper_accum[k] -= hess_thread[k];
         }
       }
 
@@ -347,6 +351,9 @@ struct AD_Func_Opt {
     }
 
     adlaplace_debug_raise_if_any(phase);
+    if (verbose) {
+      Rcpp::Rcout << phase << " parallel_team=" << parallel_team << "\n";
+    }
     adlaplace_verbose_msg(
         verbose,
         std::string(phase) + ": after OpenMP api_err_shard=" +

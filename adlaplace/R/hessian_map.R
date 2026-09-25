@@ -299,3 +299,26 @@ trace_columns_from_pattern <- function(
     dims = c(n_gamma, length(which_columns_by_group1))
   )
 }
+
+#' Positions of a shard's quadratic form inside the joint inverse Hessian
+#'
+#' Called from \code{ad_pack()} after the symbolic \code{H_inv} pattern exists.
+#' The default method returns \code{NULL}, which leaves that shard on the
+#' \code{trace_hinv_t} column walk. A backend method may return an integer
+#' vector of 0-based slots into \code{H_inv@x}, one per stored entry of the
+#' shard's precision, with \code{-1L} where the pair is absent from the pattern.
+#'
+#' @param shard A \code{density_data} shard.
+#' @param H_inv Symbolic upper triangle of the joint inverse Hessian.
+#' @return An integer vector, or \code{NULL}.
+#' @export
+setGeneric(
+  "hinv_trace_index",
+  function(shard, H_inv) standardGeneric("hinv_trace_index")
+)
+
+#' @rdname hinv_trace_index
+#' @export
+setMethod("hinv_trace_index", "density_data", function(shard, H_inv) {
+  NULL
+})
