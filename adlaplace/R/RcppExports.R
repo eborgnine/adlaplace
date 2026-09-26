@@ -252,6 +252,10 @@ inner_opt <- function(parameters, gamma, ad_pack, control = NULL, deriv = FALSE,
     .Call(`_adlaplace_fun_obj_fdfh`, parameters, gamma, ad_pack, inner, verbose)
 }
 
+takahashi_davis_matrix <- function(Q, perm, L1) {
+    .Call(`_adlaplace_takahashi_davis_matrix`, Q, perm, L1)
+}
+
 #' Latch (and optionally raise) the process-wide parallel team size.
 #'
 #' For \code{requested > 1}, updates the process high-water mark. On Windows,

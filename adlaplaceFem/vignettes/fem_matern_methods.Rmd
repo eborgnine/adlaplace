@@ -231,12 +231,12 @@ $\mathbf{L}$. `fem_logdet` calls this function. A dual scalar in the work
 vector is what produces the directional derivative below.
 
 The same subset can be computed without a FEM model. From R,
-`takahashi_davis(Q)` returns a `dgCMatrix` of those entries in the original
-variable order. Pass `chol = fem_chol_pattern(Q)` when that symbolic factor
-is already known. From C++, a package with `LinkingTo: adlaplaceFem`
-includes `adlaplaceFem/takahashi_davis.hpp`. That function takes $\mathbf{L}$
-and $\mathbf{D}$. A caller that has only $\mathbf{Q}$ factors it with
-`chol_update_csc` from adlaplace first.
+`adlaplace::takahashi_davis(Q)` returns a `dgCMatrix` of those entries in the
+original variable order. Pass `chol = fem_chol_pattern(Q)` when that symbolic
+factor is already known. From C++, a package with `LinkingTo: adlaplace`
+includes `adlaplace/takahashi_impl.hpp`. `adlaplace::chol::takahashi_davis`
+takes $\mathbf{L}$ and $\mathbf{D}$. A caller that has only $\mathbf{Q}$
+factors it with `chol_update_csc` first.
 
 Because $\mathbf{Q}$ is linear in $\mathbf{x}$, the second derivative has no
 $\operatorname{Tr}(\mathbf{Q}^{-1}\partial^2\mathbf{Q})$ term:

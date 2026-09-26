@@ -282,6 +282,19 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// takahashi_davis_matrix
+Rcpp::S4 takahashi_davis_matrix(Rcpp::S4 Q, Rcpp::IntegerVector perm, Rcpp::S4 L1);
+RcppExport SEXP _adlaplace_takahashi_davis_matrix(SEXP QSEXP, SEXP permSEXP, SEXP L1SEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::S4 >::type Q(QSEXP);
+    Rcpp::traits::input_parameter< Rcpp::IntegerVector >::type perm(permSEXP);
+    Rcpp::traits::input_parameter< Rcpp::S4 >::type L1(L1SEXP);
+    rcpp_result_gen = Rcpp::wrap(takahashi_davis_matrix(Q, perm, L1));
+    return rcpp_result_gen;
+END_RCPP
+}
 // latch_parallel_threads
 int latch_parallel_threads(int requested);
 RcppExport SEXP _adlaplace_latch_parallel_threads(SEXP requestedSEXP) {
@@ -364,6 +377,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_adlaplace_grad_obs_units_cpp", (DL_FUNC) &_adlaplace_grad_obs_units_cpp, 7},
     {"_adlaplace_inner_opt", (DL_FUNC) &_adlaplace_inner_opt, 7},
     {"_adlaplace_fun_obj_fdfh", (DL_FUNC) &_adlaplace_fun_obj_fdfh, 5},
+    {"_adlaplace_takahashi_davis_matrix", (DL_FUNC) &_adlaplace_takahashi_davis_matrix, 3},
     {"_adlaplace_latch_parallel_threads", (DL_FUNC) &_adlaplace_latch_parallel_threads, 1},
     {"_adlaplace_has_openmp", (DL_FUNC) &_adlaplace_has_openmp, 0},
     {"_adlaplace_warm_openmp_runtime", (DL_FUNC) &_adlaplace_warm_openmp_runtime, 0},

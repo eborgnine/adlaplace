@@ -20,7 +20,6 @@
 #include "adlaplace/chol_update_impl.hpp"
 #include "adlaplace/rviews.hpp"
 #include "adlaplace/takahashi_impl.hpp"
-#include "adlaplaceFem/takahashi_davis.hpp"
 
 #include <cmath>
 #include <cstddef>
@@ -86,7 +85,7 @@ Scalar fem_logdet_eval(const Payload& pay, const std::vector<Scalar>& x,
 			return log_det;
 		}
 		std::vector<Scalar> sigma;
-		adlaplaceFem::takahashi_davis(pay.L1.p, pay.L1.i, L_x, D, sigma);
+		adlaplace::chol::takahashi_davis(pay.L1.p, pay.L1.i, L_x, D, sigma);
 		std::vector<Scalar> S_x;
 		adlaplace::chol::selected_inv_scatter(pay.Q.p, pay.Q.i, pay.perm_inv,
 		                                      pay.L1.p, pay.L1.i, sigma, S_x);

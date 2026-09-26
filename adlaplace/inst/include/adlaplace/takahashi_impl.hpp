@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstddef>
 #include <limits>
+#include <stdexcept>
 #include <vector>
 
 #include "adlaplace/chol_update_impl.hpp"
@@ -12,7 +13,7 @@
 namespace adlaplace {
 namespace chol {
 
-// Forward-mode dual number so chol_update_csc / takahashi_selected_inv can
+// Forward-mode dual number so chol_update_csc / takahashi_davis can
 // deliver directional derivatives (used for second-order atomic passes).
 struct Dual {
 	double val;
@@ -80,66 +81,117 @@ Scalar csc_sym_lower_entry(
 	return Scalar(0);
 }
 
-// Takahashi selected inverse: given the LDL factor of P H P' from
-// chol_update_csc (unit-lower L with pattern p_out/i_out and values x_out,
-// diagonal d_out), compute Sigma = (P H P')^{-1} on the pattern of L
-// (lower triangle including the diagonal). Recursion, for i >= j and
-// columns processed from last to first:
-//   Sigma_ij = delta_ij / d_j - sum_{k > j, L_kj != 0} L_kj * Sigma_ki
-// The fill-in closure of the Cholesky pattern guarantees every Sigma_ki
-// needed on the right-hand side lies on the pattern.
+// Takahashi–Davis selected inverse.
+//
+// Given the unit-lower CSC factor L and the LDL diagonal D of a symmetric
+// positive-definite matrix (diagonal of L explicit and equal to one; row
+// indices in each column sorted), write (L D L')^{-1} on the sparsity
+// pattern of L. Columns run from last to first. Already computed entries
+// are scattered into a work vector of length n and the Takahashi update
+// reads that vector by row index.
+//
+// Header-only. A package that lists LinkingTo: adlaplace compiles this
+// template into its own shared library:
+//
+//   #include <adlaplace/takahashi_impl.hpp>
+//   adlaplace::chol::takahashi_davis(Lp, Li, Lx, D, sigma);
+//
+// A caller that has only Q factors it first (chol_update_csc).
 template <typename Scalar>
-void takahashi_selected_inv(
-	const std::vector<int>& p_out,
-	const std::vector<int>& i_out,
-	const std::vector<Scalar>& x_out,
-	const std::vector<Scalar>& d_out,
+void takahashi_davis(
+	const std::vector<int>& Lp,
+	const std::vector<int>& Li,
+	const std::vector<Scalar>& Lx,
+	const std::vector<Scalar>& D,
 	std::vector<Scalar>& sigma)
 {
-	const std::size_t n = p_out.size() - 1;
-	sigma.assign(i_out.size(), Scalar(0));
+	if (Lp.size() < 2) {
+		throw std::invalid_argument("takahashi_davis: L has no columns");
+	}
+	const std::size_t n = Lp.size() - 1;
+	if (D.size() != n) {
+		throw std::invalid_argument("takahashi_davis: D length must equal nrow(L)");
+	}
+	if (Lx.size() != Li.size()) {
+		throw std::invalid_argument("takahashi_davis: Lx and Li lengths differ");
+	}
+	sigma.assign(Li.size(), Scalar(0));
 
+	std::vector<int> diag_pos(n, -1);
+	// Off-diagonal L(row, col) positions, grouped by row, so column j can
+	// walk the k < j with L(j, k) != 0 without scanning earlier columns.
+	struct Link {
+		int col;
+		int pos;
+	};
+	std::vector<std::vector<Link>> links(n);
+	for (std::size_t k = 0; k < n; ++k) {
+		for (int pos = Lp[k]; pos < Lp[k + 1]; ++pos) {
+			const int row = Li[static_cast<std::size_t>(pos)];
+			if (row == static_cast<int>(k)) {
+				diag_pos[k] = pos;
+				sigma[static_cast<std::size_t>(pos)] = Scalar(1) / D[k];
+			} else {
+				links[static_cast<std::size_t>(row)].push_back(
+				    Link{static_cast<int>(k), pos});
+			}
+		}
+		if (diag_pos[k] < 0) {
+			throw std::invalid_argument(
+			    "takahashi_davis: missing diagonal in L");
+		}
+	}
+	for (std::size_t row = 0; row < n; ++row) {
+		auto& hit = links[row];
+		// Decreasing column index: z[i] for i > k is already known.
+		std::sort(hit.begin(), hit.end(), [](const Link& a, const Link& b) {
+			return a.col > b.col;
+		});
+	}
+
+	std::vector<Scalar> z(n, Scalar(0));
 	for (std::size_t jj = n; jj-- > 0;) {
 		const std::size_t j = jj;
-		int diag_pos = -1;
-		// Off-diagonal entries of column j (any order: all Sigma_ki needed
-		// live in columns > j, already computed).
-		for (int pos = p_out[j]; pos < p_out[j + 1]; ++pos) {
-			const std::size_t i =
-				static_cast<std::size_t>(i_out[static_cast<std::size_t>(pos)]);
-			if (i == j) {
-				diag_pos = pos;
-				continue;
-			}
-			Scalar acc = Scalar(0);
-			for (int kpos = p_out[j]; kpos < p_out[j + 1]; ++kpos) {
-				const std::size_t k = static_cast<std::size_t>(
-					i_out[static_cast<std::size_t>(kpos)]);
-				if (k == j) {
-					continue; // unit diagonal of L
+		for (int pos = Lp[j]; pos < Lp[j + 1]; ++pos) {
+			z[static_cast<std::size_t>(Li[static_cast<std::size_t>(pos)])] =
+			    sigma[static_cast<std::size_t>(pos)];
+		}
+
+		const std::vector<Link>& hit = links[j];
+		for (std::size_t t = 0; t < hit.size(); ++t) {
+			const int k = hit[t].col;
+			Scalar zkj(0);
+			for (int p = Lp[static_cast<std::size_t>(k)];
+			     p < Lp[static_cast<std::size_t>(k) + 1]; ++p) {
+				const int i = Li[static_cast<std::size_t>(p)];
+				if (i > static_cast<int>(k)) {
+					zkj -= Lx[static_cast<std::size_t>(p)] *
+					       z[static_cast<std::size_t>(i)];
 				}
-				acc += x_out[static_cast<std::size_t>(kpos)] *
-					csc_sym_lower_entry(k, i, p_out, i_out, sigma);
 			}
-			sigma[static_cast<std::size_t>(pos)] = -acc;
+			z[static_cast<std::size_t>(k)] = zkj;
 		}
-		// Diagonal entry uses the off-diagonals of column j just computed
-		// (stored at the same positions as L's column j).
-		Scalar acc = Scalar(0);
-		for (int kpos = p_out[j]; kpos < p_out[j + 1]; ++kpos) {
-			const std::size_t k = static_cast<std::size_t>(
-				i_out[static_cast<std::size_t>(kpos)]);
-			if (k == j) {
-				continue;
+
+		for (std::size_t t = 0; t < hit.size(); ++t) {
+			const int k = hit[t].col;
+			const Scalar ljk = Lx[static_cast<std::size_t>(hit[t].pos)];
+			const std::size_t ks = static_cast<std::size_t>(k);
+			for (int p = Lp[ks]; p < Lp[ks + 1]; ++p) {
+				const std::size_t i =
+				    static_cast<std::size_t>(Li[static_cast<std::size_t>(p)]);
+				sigma[static_cast<std::size_t>(p)] -= z[i] * ljk;
 			}
-			acc += x_out[static_cast<std::size_t>(kpos)] *
-				sigma[static_cast<std::size_t>(kpos)];
 		}
-		if (diag_pos < 0) {
-			Rcpp::stop("takahashi_selected_inv: missing diagonal in column %d",
-			           static_cast<int>(j));
+
+		for (std::size_t t = 0; t < hit.size(); ++t) {
+			z[static_cast<std::size_t>(hit[t].col)] = Scalar(0);
 		}
-		sigma[static_cast<std::size_t>(diag_pos)] = Scalar(1) / d_out[j] - acc;
+		for (int pos = Lp[j]; pos < Lp[j + 1]; ++pos) {
+			const std::size_t i =
+			    static_cast<std::size_t>(Li[static_cast<std::size_t>(pos)]);
+			sigma[static_cast<std::size_t>(pos)] = z[i];
+			z[i] = Scalar(0);
+		}
 	}
 }
 

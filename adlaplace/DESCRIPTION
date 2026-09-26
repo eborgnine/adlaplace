@@ -53,6 +53,7 @@ Collate:
     'rpoly.R'
     'sim_iid.R'
     'term_data_setup.R'
+    'takahashi_davis.R'
     'zzz.R'
 LazyData: true
 Config/roxygen2/version: 8.1.0

@@ -2,7 +2,7 @@
 
 #include "adlaplace/chol_update_impl.hpp"
 #include "adlaplace/rviews.hpp"
-#include "adlaplaceFem/takahashi_davis.hpp"
+#include "adlaplace/takahashi_impl.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -43,7 +43,7 @@ Rcpp::S4 takahashi_davis_matrix(Rcpp::S4 Q, Rcpp::IntegerVector perm,
 
 	std::vector<double> sigma;
 	try {
-		adlaplaceFem::takahashi_davis(Lpat.p, Lpat.i, Lx, D, sigma);
+		adlaplace::chol::takahashi_davis(Lpat.p, Lpat.i, Lx, D, sigma);
 	} catch (const std::invalid_argument& err) {
 		Rcpp::stop("%s", err.what());
 	}
