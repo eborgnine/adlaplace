@@ -71,7 +71,7 @@ result as `knots` to `matern()`.
 
 ```{r knots}
 loaloa_knots <- adlaplaceFem::hb_knots(
-  outer = geostatsp::squareRaster(loaloa, cells = 6, buffer = 100 * 1000),
+  outer = geostatsp::squareRaster(loaloa, cells = 4, buffer = 100 * 1000),
   inner = list(
     terra::extend(terra::ext(loaloa), 30 * 1000),
     list(
