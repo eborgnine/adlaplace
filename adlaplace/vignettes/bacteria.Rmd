@@ -85,7 +85,7 @@ integrates \(\log\sigma\).
 
 ```{r fit}
 fit <- adlaplace(
-  binomial(present) ~
+  binom(present) ~
     intercept(sd = 10) +
     linear(trt, sd = 10) +
     linear(week, sd = 10) +

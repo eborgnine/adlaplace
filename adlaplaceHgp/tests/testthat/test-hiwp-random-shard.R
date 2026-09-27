@@ -21,7 +21,7 @@ test_that("hiwp builds a random_diagonal shard and matches design labels", {
   expect_identical(a_cols, r_labels)
 
   md <- adlaplace::model_data(
-    c(list(y = adlaplace::gaussian("y")), terms),
+    c(list(y = adlaplace::normal("y")), terms),
     data = data,
     verbose = FALSE
   )

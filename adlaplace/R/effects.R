@@ -23,7 +23,7 @@ strip_term_name <- function(x) {
 #'   are treated as column names in \code{data}; named arguments (e.g.
 #'   \code{x = sites} for spatial terms) are evaluated as objects in the
 #'   formula environment. The named argument \code{size} is also treated as a
-#'   column name when passed as a symbol (\code{binomial(y, size = N)}).
+#'   column name when passed as a symbol (\code{binom(y, size = N)}).
 #' @param verbose print extra information
 #' @return List of model term objects
 #'
@@ -48,9 +48,9 @@ collect_terms <- function(formula, verbose = FALSE) {
     # observation term; bare covariate symbols default to linear()
     if (identical(lab, response_label) && !grepl("[(]", lab)) {
       if (verbose) {
-        message("Response '", lab, "' defaulting to gaussian(", lab, ")")
+        message("Response '", lab, "' defaulting to normal(", lab, ")")
       }
-      term_obj <- gaussian(lab)
+      term_obj <- normal(lab)
       return(name_single_term(term_obj))
     }
 

@@ -3,21 +3,18 @@
 \docType{class}
 \name{binomial-class}
 \alias{binomial-class}
-\alias{binomial}
+\alias{binom}
 \title{Binomial observation term}
 \usage{
-binomial(x, size = NULL, link = "logit")
+binom(x, size = NULL)
 }
 \arguments{
 \item{x}{Outcome variable name (counts of successes; 0/1 when Bernoulli).}
 
 \item{size}{Optional column name for the number of trials per observation.}
-
-\item{link}{Link passed to \code{stats::binomial()} in the fallback case.}
 }
 \value{
-A \code{binomial} object (or a \code{stats::family} when called
-  with no response variable).
+A \code{binomial} object.
 }
 \description{
 Model term for the observation-level binomial log density with
@@ -32,11 +29,6 @@ Creates a response term wired to the \code{binomial_obs} AD
 shard. A Bernoulli likelihood (\code{size} omitted) has no observation-level
 hyperparameters. With \code{size}, trial counts are read from that column
 of \code{data} and stored as observation weights.
-
-When called with no response variable this function falls back to
-\code{stats::binomial()}, so \code{glm(..., family = binomial)} and
-\code{MASS::glmmPQL(..., family = binomial)} keep working with
-\pkg{adlaplace} attached.
 }
 \details{
 Binomial observation model term

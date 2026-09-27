@@ -8,7 +8,7 @@
 #' \code{size} is omitted, \code{N = 1} (Bernoulli). There are no
 #' observation-level hyperparameters.
 #' @name binomial-class
-#' @aliases binomial
+#' @aliases binom
 #' @docType class
 #' @title Binomial observation term
 #' @exportClass binomial
@@ -50,22 +50,12 @@ setClass(
 #' hyperparameters. With \code{size}, trial counts are read from that column
 #' of \code{data} and stored as observation weights.
 #'
-#' When called with no response variable this function falls back to
-#' \code{stats::binomial()}, so \code{glm(..., family = binomial)} and
-#' \code{MASS::glmmPQL(..., family = binomial)} keep working with
-#' \pkg{adlaplace} attached.
-#'
 #' @rdname binomial-class
 #' @param x Outcome variable name (counts of successes; 0/1 when Bernoulli).
 #' @param size Optional column name for the number of trials per observation.
-#' @param link Link passed to \code{stats::binomial()} in the fallback case.
-#' @return A \code{binomial} object (or a \code{stats::family} when called
-#'   with no response variable).
+#' @return A \code{binomial} object.
 #' @export
-binomial <- function(x, size = NULL, link = "logit") {
-  if (missing(x)) {
-    return(stats::binomial(link = link))
-  }
+binom <- function(x, size = NULL) {
   x <- strip_term_name(as.character(x))
   size_col <- if (is.null(size)) {
     character(0)
@@ -91,7 +81,7 @@ binomial <- function(x, size = NULL, link = "logit") {
 #' \code{y * eta - exp(eta + o) + y * o - lgamma(y + 1)}. There are no
 #' observation-level hyperparameters.
 #' @name poisson-class
-#' @aliases poisson
+#' @aliases pois
 #' @docType class
 #' @title Poisson observation term
 #' @exportClass poisson
@@ -127,20 +117,11 @@ setClass(
 #' expected-count offset is supplied through \code{config$offset} when
 #' building AD shards (for example \code{log(E)} in disease mapping).
 #'
-#' When called with no response variable this function falls back to
-#' \code{stats::poisson()}, so \code{glm(..., family = poisson)} keeps
-#' working with \pkg{adlaplace} attached.
-#'
 #' @rdname poisson-class
 #' @param x Outcome variable name (non-negative counts).
-#' @param link Link passed to \code{stats::poisson()} in the fallback case.
-#' @return A \code{poisson} object (or a \code{stats::family} when called
-#'   with no response variable).
+#' @return A \code{poisson} object.
 #' @export
-poisson <- function(x, link = "log") {
-  if (missing(x)) {
-    return(stats::poisson(link = link))
-  }
+pois <- function(x) {
   x <- strip_term_name(as.character(x))
   methods::new(
     "poisson",
@@ -155,10 +136,10 @@ poisson <- function(x, link = "log") {
 #' @description Model term for the observation-level Gaussian log density
 #' registered as \code{gaussian_obs}. This is the default observation term:
 #' a bare response symbol on the left-hand side of a formula (e.g.
-#' \code{y ~ x}) is coerced to \code{gaussian(y)} by
+#' \code{y ~ x}) is coerced to \code{normal(y)} by
 #' \code{\link{collect_terms}}.
 #' @name gaussian-class
-#' @aliases gaussian
+#' @aliases normal
 #' @docType class
 #' @title Gaussian observation term
 #' @exportClass gaussian
@@ -193,10 +174,6 @@ setClass(
 #' shard, with a single residual standard deviation parameter (log scale
 #' during optimization).
 #'
-#' When called with no arguments this function falls back to
-#' \code{stats::gaussian()}, so \code{glm(..., family = gaussian)} keeps
-#' working with \pkg{adlaplace} attached.
-#'
 #' @rdname gaussian-class
 #' @param x Outcome variable name.
 #' @param init Initial value for the residual standard deviation.
@@ -205,18 +182,14 @@ setClass(
 #' @param parscale Parameter scale for optimization.
 #' @param log Whether theta is optimized on the log scale.
 #' @param term A model term object (S4 methods).
-#' @return A \code{gaussian} object (or a \code{stats::family} when called
-#'   with no arguments).
+#' @return A \code{gaussian} object.
 #' @export
-gaussian <- function(x,
-                     init = 1,
-                     lower = .my_theta_lower,
-                     upper = .my_theta_upper,
-                     parscale = .my_theta_parscale,
-                     log = TRUE) {
-  if (missing(x)) {
-    return(stats::gaussian())
-  }
+normal <- function(x,
+                   init = 1,
+                   lower = .my_theta_lower,
+                   upper = .my_theta_upper,
+                   parscale = .my_theta_parscale,
+                   log = TRUE) {
   x <- strip_term_name(as.character(x))
   methods::new(
     "gaussian",

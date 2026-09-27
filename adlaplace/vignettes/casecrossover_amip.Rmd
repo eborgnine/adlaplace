@@ -362,7 +362,7 @@ contrast under the linear approximation.)
 ```{r bac-data, eval = have_mass}
 data(bacteria, package = "MASS")
 bacteria$present <- as.integer(bacteria$y == "y")
-bac_formula <- binomial(present) ~
+bac_formula <- binom(present) ~
   intercept(sd = 10) +
   linear(trt, sd = 10) +
   linear(week, sd = 10) +

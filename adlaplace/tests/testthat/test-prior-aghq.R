@@ -8,7 +8,7 @@ test_that("known-sd intercept/linear/rpoly create random shards without theta", 
   )
 
   md <- adlaplace::model_data(
-    adlaplace::binomial(y) ~
+    adlaplace::binom(y) ~
       adlaplace::intercept(sd = 5) +
       adlaplace::linear(trt, sd = 5) +
       adlaplace::rpoly(x, p = 1, sd = 5) +
@@ -64,7 +64,7 @@ test_that("prior maps 0-based theta id and builds parameters shard", {
     g = factor(rep(1:5, each = 6))
   )
   md <- adlaplace::model_data(
-    adlaplace::binomial(y) ~ adlaplace::intercept(sd = 10) +
+    adlaplace::binom(y) ~ adlaplace::intercept(sd = 10) +
       adlaplace::iid(g, init = 1) +
       adlaplace::prior(theta = 0, dist = "exp", median = 1),
     data = dat
@@ -78,7 +78,7 @@ test_that("prior maps 0-based theta id and builds parameters shard", {
 
   expect_error(
     adlaplace::model_data(
-      adlaplace::binomial(y) ~ adlaplace::iid(g) +
+      adlaplace::binom(y) ~ adlaplace::iid(g) +
         adlaplace::prior(theta = 3, dist = "exp", median = 1),
       data = dat
     ),
@@ -86,7 +86,7 @@ test_that("prior maps 0-based theta id and builds parameters shard", {
   )
   expect_error(
     adlaplace::model_data(
-      adlaplace::binomial(y) ~ adlaplace::iid(g) +
+      adlaplace::binom(y) ~ adlaplace::iid(g) +
         adlaplace::prior(theta = "nope", dist = "exp", median = 1),
       data = dat
     ),
@@ -101,7 +101,7 @@ test_that("prior accepts theta label", {
     g = factor(rep(1:4, each = 5))
   )
   md <- adlaplace::model_data(
-    adlaplace::binomial(y) ~ adlaplace::intercept(sd = 5) +
+    adlaplace::binom(y) ~ adlaplace::intercept(sd = 5) +
       adlaplace::iid(g, init = 1) +
       adlaplace::prior(theta = "g_iid", dist = "exp", median = 2),
     data = dat
@@ -149,7 +149,7 @@ test_that("bacteria Bayesian formula has one outer parameter and aghq runs", {
   bacteria$present <- as.integer(bacteria$y == "y")
 
   fit <- adlaplace::adlaplace(
-    adlaplace::binomial(present) ~
+    adlaplace::binom(present) ~
       adlaplace::intercept(sd = 10) +
       adlaplace::linear(trt, sd = 10) +
       adlaplace::linear(week, sd = 10) +

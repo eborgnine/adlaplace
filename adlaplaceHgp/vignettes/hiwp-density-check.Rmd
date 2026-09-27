@@ -60,7 +60,7 @@ the model data first and then draw the random effects from their own priors.
 
 ```{r model_data}
 model_terms <- c(
-  list(y_gaussian = adlaplace::gaussian("y", init = 0.2)),
+  list(y_gaussian = adlaplace::normal("y", init = 0.2)),
   hiwp_terms
 )
 dat$y <- 0

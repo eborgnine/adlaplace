@@ -44,15 +44,8 @@ test_that("binomial_obs matches dbinom and has correct gradient", {
   expect_equal(g, g_fd, tolerance = 1e-5)
 })
 
-test_that("binomial() falls back to stats::binomial when called bare", {
-  fam <- adlaplace::binomial()
-  expect_s3_class(fam, "family")
-  expect_identical(fam$family, "binomial")
-  expect_identical(fam$link, "logit")
-})
-
 test_that("binomial term carries the expected slots and NULL theta_info", {
-  term <- adlaplace::binomial("yn")
+  term <- adlaplace::binom("yn")
   expect_s4_class(term, "binomial")
   expect_identical(term@density, "binomial_obs")
   expect_identical(term@ad_kind, "observations")
@@ -67,7 +60,7 @@ test_that("adlaplace() fits binomial GLMM on bacteria data", {
   bacteria$wk <- as.integer(bacteria$week > 2)
 
   fit <- adlaplace::adlaplace(
-    binomial(yn) ~ trt + wk + iid(ID, init = 1),
+    binom(yn) ~ trt + wk + iid(ID, init = 1),
     data = bacteria,
     config = list(num_shards = 20L),
     control = list(maxit = 300L)

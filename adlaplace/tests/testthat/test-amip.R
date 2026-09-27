@@ -134,7 +134,7 @@ test_that("phi_gamma and influence_scores work on binomial without ELGM", {
   data(bacteria, package = "MASS")
   bacteria$present <- as.integer(bacteria$y == "y")
   fit <- adlaplace(
-    binomial(present) ~
+    binom(present) ~
       intercept(sd = 10) +
       linear(trt, sd = 10) +
       linear(week, sd = 10) +

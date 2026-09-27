@@ -42,7 +42,7 @@ if (requireNamespace("adlaplaceFem", quietly = TRUE) &&
   hb_dof <- hb_summary(hb_basis(loaloa_knots, degree = 3L))
 
   loaloa_df <- as.data.frame(loaloa_for_fit$data, geom = "WKT")
-  loaloa_model <- adlaplace::binomial(y, size = N) ~
+  loaloa_model <- adlaplace::binom(y, size = N) ~
     elev + evi +
     adlaplace::iid(villageID, init = 0.2) +
     adlaplaceFem::matern(

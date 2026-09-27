@@ -3,19 +3,16 @@
 \docType{class}
 \name{poisson-class}
 \alias{poisson-class}
-\alias{poisson}
+\alias{pois}
 \title{Poisson observation term}
 \usage{
-poisson(x, link = "log")
+pois(x)
 }
 \arguments{
 \item{x}{Outcome variable name (non-negative counts).}
-
-\item{link}{Link passed to \code{stats::poisson()} in the fallback case.}
 }
 \value{
-A \code{poisson} object (or a \code{stats::family} when called
-  with no response variable).
+A \code{poisson} object.
 }
 \description{
 Model term for the observation-level Poisson log density with
@@ -30,10 +27,6 @@ Creates a response term wired to the \code{poisson_obs} AD
 shard. There are no observation-level hyperparameters. An exposure or
 expected-count offset is supplied through \code{config$offset} when
 building AD shards (for example \code{log(E)} in disease mapping).
-
-When called with no response variable this function falls back to
-\code{stats::poisson()}, so \code{glm(..., family = poisson)} keeps
-working with \pkg{adlaplace} attached.
 }
 \details{
 Poisson observation model term

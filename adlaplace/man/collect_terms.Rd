@@ -13,7 +13,7 @@ collect_terms(formula, verbose = FALSE)
 are treated as column names in \code{data}; named arguments (e.g.
 \code{x = sites} for spatial terms) are evaluated as objects in the
 formula environment. The named argument \code{size} is also treated as a
-column name when passed as a symbol (\code{binomial(y, size = N)}).}
+column name when passed as a symbol (\code{binom(y, size = N)}).}
 
 \item{verbose}{print extra information}
 }

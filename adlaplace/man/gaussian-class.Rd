@@ -3,11 +3,11 @@
 \docType{class}
 \name{gaussian-class}
 \alias{gaussian-class}
-\alias{gaussian}
+\alias{normal}
 \alias{theta_info,gaussian-method}
 \title{Gaussian observation term}
 \usage{
-gaussian(
+normal(
   x,
   init = 1,
   lower = .my_theta_lower,
@@ -34,23 +34,18 @@ gaussian(
 \item{term}{A model term object (S4 methods).}
 }
 \value{
-A \code{gaussian} object (or a \code{stats::family} when called
-  with no arguments).
+A \code{gaussian} object.
 }
 \description{
 Model term for the observation-level Gaussian log density
 registered as \code{gaussian_obs}. This is the default observation term:
 a bare response symbol on the left-hand side of a formula (e.g.
-\code{y ~ x}) is coerced to \code{gaussian(y)} by
+\code{y ~ x}) is coerced to \code{normal(y)} by
 \code{\link{collect_terms}}.
 
 Creates a response term wired to the \code{gaussian_obs} AD
 shard, with a single residual standard deviation parameter (log scale
 during optimization).
-
-When called with no arguments this function falls back to
-\code{stats::gaussian()}, so \code{glm(..., family = gaussian)} keeps
-working with \pkg{adlaplace} attached.
 }
 \details{
 Gaussian observation model term

@@ -9,7 +9,7 @@ test_that("model_data keeps both random terms that share a grouping variable", {
   )
   md <- adlaplace::model_data(
     list(
-      adlaplace::gaussian("y"),
+      adlaplace::normal("y"),
       rsiid("grp", mult = "x1", ref_mult = 0)[[1]],
       rsiid("grp", mult = "x2", ref_mult = 0)[[1]]
     ),
@@ -45,7 +45,7 @@ test_that("rsiwp + iwp model_data A is sparse (IWP-1 shape)", {
   )
   temp_knots <- seq(-2.5, 3.5, by = 1)
   terms <- unlist(list(
-    adlaplace::gaussian("y"),
+    adlaplace::normal("y"),
     rsiwp(
       "time_years",
       mult = "sqrt_pm",

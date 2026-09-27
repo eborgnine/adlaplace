@@ -30,14 +30,14 @@ test_that("binomial_obs with size matches softplus kernel", {
   )
 })
 
-test_that("binomial(y, size = N) wires weights through model_data", {
+test_that("binom(y, size = N) wires weights through model_data", {
   dat <- data.frame(
     y = c(1L, 2L, 0L),
     N = c(5L, 8L, 3L),
     x1 = c(0.1, -0.2, 0.3)
   )
   md <- adlaplace::model_data(
-    binomial(y, size = N) ~ x1,
+    binom(y, size = N) ~ x1,
     data = dat
   )
   expect_equal(md$observations$y@weights, as.numeric(dat$N))
@@ -47,7 +47,7 @@ test_that("binomial(y, size = N) wires weights through model_data", {
 })
 
 test_that("collect_terms evaluates in formula env and coerces size", {
-  f <- binomial(y, size = N) ~ x1
+  f <- binom(y, size = N) ~ x1
   terms <- adlaplace::collect_terms(f)
   bin <- terms[[grep("binomial", names(terms))[1L]]]
   expect_s4_class(bin, "binomial")

@@ -84,9 +84,3 @@ test_that("bare response defaults to gaussian and adlaplace() fits it", {
   # the residual SD beats a null model fit
   expect_true(is.finite(as.numeric(logLik(fit))))
 })
-
-test_that("gaussian() with no arguments falls back to stats::gaussian", {
-  fam <- adlaplace::gaussian()
-  expect_s3_class(fam, "family")
-  expect_identical(fam$family, "gaussian")
-})

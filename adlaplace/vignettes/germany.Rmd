@@ -52,7 +52,7 @@ matrix, the scaled ICAR precision `Q_scaled`, and the `prec` list for
 
 Latent vector $\gamma = (u_{\mathrm{struct}}, u_{\mathrm{iid}})$ has length
 $2n$: structured and iid effects on $n$ areas. Observations use the
-`poisson()` response term (AD density `poisson_obs`) with offset
+`pois()` response term (AD density `poisson_obs`) with offset
 $\log E_i$ in `config`.
 
 ```{r shards}
@@ -66,7 +66,7 @@ A_obs <- cbind(
 )
 X_obs <- Matrix::Matrix(0, n, 0)
 
-obs_term <- poisson("Y")
+obs_term <- pois("Y")
 
 config <- list(
   transform_theta = TRUE,
