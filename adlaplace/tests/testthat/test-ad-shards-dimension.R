@@ -8,14 +8,10 @@ test_that("obs_groups partitions a modest design matrix", {
   expect_lte(ncol(G), 3L)
 })
 
-test_that("obs_groups source uses max(dim(ATp)) for large-matrix warning", {
-  src_path <- normalizePath(
-    file.path(testthat::test_path(".."), "..", "R", "obs_groups.R"),
-    mustWork = FALSE
-  )
-  skip_if_not(file.exists(src_path), "package source not available")
-  src <- paste(readLines(src_path, warn = FALSE), collapse = "\n")
-  expect_match(src, "max\\(dim\\(ATp\\)\\)\\s*>\\s*1e5")
+test_that("obs_groups uses max(dim(ATp)) for large-matrix warning", {
+  # deparse() canonicalizes 1e5 to 1e+05; the installed body has no R/ source.
+  src <- paste(deparse(body(obs_groups)), collapse = "\n")
+  expect_match(src, "max\\(dim\\(ATp\\)\\)\\s*>\\s*1e\\+05")
   expect_match(src, "max\\(dim\\(ATp\\)\\)\\s*>\\s*100")
 })
 
