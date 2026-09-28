@@ -49,9 +49,13 @@ A list containing the `iwp` term object and optionally polynomial terms.
 }
 \description{
 Creates an integrated Wiener process (IWP) model term.
+The basis is divided by the mean knot spacing to the power \code{p}, and the
+penalty weights are the knot spacings divided by that mean spacing. Design
+entries and the standard-deviation parameter are then unchanged if \code{x}
+and the knots are rescaled by the same factor.
 }
 \examples{
-# Example usage:
-# knots <- seq(0, 1, length.out = 5)
-# iwp_term <- iwp(x = "age", knots = knots)
+knots <- seq(0, 1, length.out = 5)
+iwp_term <- iwp(x = "age", knots = knots)
+iwp_term
 }

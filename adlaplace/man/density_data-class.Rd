@@ -74,6 +74,13 @@ otherwise an empty matrix.}
 \item{weights}{Optional per-observation weights (e.g. binomial trial counts).
 Empty means all ones.}
 }
+\value{
+An S4 object of class \code{"density_data"}: one
+  automatic-differentiation shard. Slots hold the response, the transposed
+  fixed- and random-effect design blocks, the maps from local design columns
+  into the global parameter vectors, the registered density name, and the
+  shard kind (\code{"observations"}, \code{"parameters"}, or \code{"random"}).
+}
 \description{
 Per-shard layout for AD density evaluation
 }

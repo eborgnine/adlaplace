@@ -25,6 +25,21 @@ setClass("iwp",
 #'   \item{\code{beta_info(term, data)}}{Extracts beta parameter information}
 #'   \item{\code{random_info(term, data)}}{Extracts random effects information}
 #' }
+#'
+#' @return
+#' \describe{
+#'   \item{\code{design}}{Numeric design matrix for the integrated Wiener
+#'     process basis, with one column per basis function and one row per
+#'     observation. Entries are the basis evaluated at \code{data}.}
+#'   \item{\code{precision}}{Sparse precision matrix for those basis
+#'     coefficients. The penalty is the integrated Wiener process prior.}
+#'   \item{\code{theta_info}}{One-row data frame describing the
+#'     standard-deviation parameter: label, initial value, bounds, parameter
+#'     scale, and whether optimization is on the log scale.}
+#'   \item{\code{random_info}}{Data frame with one row per random coefficient,
+#'     including \code{gamma_label}, the name of that coefficient in a fitted
+#'     model.}
+#' }
 NULL
 
 #' Integrated Wiener Process Term Constructor
@@ -49,9 +64,9 @@ NULL
 #' @param include_poly Whether to include polynomial terms.
 #' @return A list containing the `iwp` term object and optionally polynomial terms.
 #' @examples
-#' # Example usage:
-#' # knots <- seq(0, 1, length.out = 5)
-#' # iwp_term <- iwp(x = "age", knots = knots)
+#' knots <- seq(0, 1, length.out = 5)
+#' iwp_term <- iwp(x = "age", knots = knots)
+#' iwp_term
 #' @export
 iwp <- function(
   x, p = 2,

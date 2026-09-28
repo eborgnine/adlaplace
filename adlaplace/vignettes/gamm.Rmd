@@ -172,6 +172,7 @@ $u(\beta, \theta)$.
 
 ```{r testLogLgrad, fig.height=7, eval = vignette_full}
 # Finite-difference points should fall on the AD lines.
+oldpar <- par(no.readonly = TRUE)
 par(mfrow = c(3, 2), mar = c(2, 2, 2, 0), mgp = c(1, 0.5, 0))
 
 x1 <- outer_fit$par
@@ -216,6 +217,7 @@ hessian_ad <- adlaplace::hessian(
   negative = TRUE
 )
 max(abs((hessian_outer - hessian_ad)@x), na.rm = TRUE)
+par(oldpar)
 ```
 
 ## Joint density derivative checks
@@ -225,6 +227,7 @@ $-\log p(\beta, \gamma, \theta \mid y)$ and its AD gradient and Hessian.
 
 ```{r derivJointDens, fig.height=5, eval = vignette_full}
 # Finite-difference points should fall on the AD lines.
+oldpar <- par(no.readonly = TRUE)
 par(mfrow = c(3, 2), mar = c(2, 2, 2, 0), mgp = c(1, 0.5, 0))
 
 x_here <- c(
@@ -260,6 +263,7 @@ for (Dpar2 in c(Dpar_dens, 1L, length(x_here) - 2L, length(x_here) - 1L)) {
   )
   points(scan_j$mid, scan_j$fd_grad[, Dpar2], pch = 16)
 }
+par(oldpar)
 ```
 
 

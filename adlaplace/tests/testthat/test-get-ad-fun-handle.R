@@ -240,6 +240,56 @@ test_that("ad_pack variadic ad_pack_ptr matches explicit c() composition", {
   expect_equal(af_explicit@sizes, af_variadic@sizes)
 })
 
+test_that("variadic ad_pack matches ad_pack of an explicit c() composition", {
+  set.seed(17)
+  Nobs <- 12L
+  X <- Matrix::Matrix(cbind(1, rbinom(Nobs, 1, prob = 0.5)))
+  Amat <- Matrix::sparseMatrix(
+    i = seq_len(Nobs),
+    j = sample(3L, Nobs, replace = TRUE),
+    x = 1
+  )
+  config <- list(
+    beta = rep(0, 2),
+    theta = -1,
+    transform_theta = TRUE,
+    gamma = rep(0, ncol(Amat)),
+    obs_groups = adlaplace::obs_groups(Amat, num_shards = 3L),
+    verbose = FALSE
+  )
+  model <- test_ad_data(
+    y = rpois(Nobs, 2),
+    A = Amat,
+    X = X,
+    config = config
+  )
+  make_pair <- function() {
+    list(
+      adlaplace::ad_pack_ptr(as_shard(model, "observations", "nbinom_obs"), config),
+      adlaplace::ad_pack_ptr(as_shard(model, "parameters", "nbinom_extra"), config)
+    )
+  }
+  pair_explicit <- make_pair()
+  pair_variadic <- make_pair()
+  pack1 <- pair_variadic[[1L]]
+  pack2 <- pair_variadic[[2L]]
+
+  expected <- adlaplace::ad_pack(do.call(c, pair_explicit))
+  actual <- do.call(adlaplace::ad_pack, list(pack1, pack2))
+
+  expect_s4_class(actual, "ad_pack")
+  expect_identical(actual@sizes, expected@sizes)
+  expect_identical(actual@group_sparsity, expected@group_sparsity)
+  expect_identical(as.matrix(actual@parallel_map), as.matrix(expected@parallel_map))
+  expect_identical(actual@outer, expected@outer)
+  expect_identical(actual@inner, expected@inner)
+  x <- c(config$beta, config$gamma, config$theta)
+  expect_equal(
+    adlaplace::joint_log_dens(actual@ptr, x, negative = FALSE),
+    adlaplace::joint_log_dens(expected@ptr, x, negative = FALSE)
+  )
+})
+
 test_that("ad_pack variadic composition clears source pointers like c()", {
   skip_if_not(adlaplace:::has_openmp(), "OpenMP not available in this build")
   set.seed(15)

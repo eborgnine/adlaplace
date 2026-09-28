@@ -480,6 +480,7 @@ $u(\beta, \theta)$. The finite-difference points should fall on the AD lines.
 
 ```{r testLogLgrad, fig.height=7, eval = vignette_full}
 config$verbose <- FALSE
+oldpar <- par(no.readonly = TRUE)
 par(mfrow = c(3, 2), mar = c(2, 2, 2, 0), mgp = c(1, 0.5, 0))
 
 x1 <- outer_fit$par
@@ -528,6 +529,7 @@ hessian_plain <- adlaplace::hessian(
 )
 max_abs_hess_diff <- max(abs((hessian_outer - hessian_plain)@x), na.rm = TRUE)
 max_abs_hess_diff
+par(oldpar)
 ```
 
 
@@ -548,6 +550,7 @@ quantile(abs(dU_check - res_mid$gradient$outer$dU))
 quantile(abs(dU_check - dU_check2))
 quantile(abs(dU_check2 - res_mid$gradient$outer$dU))
 
+oldpar <- par(no.readonly = TRUE)
 par(mfrow = c(1, 1))
 plot(
   scan_ll$grid, scan_ll$dU_index[, Du],
@@ -561,6 +564,7 @@ points(
   c(dU_check[Du, Dpar], dU_check2[Du, Dpar]),
   col = c("red", "blue"), cex = c(5, 3)
 )
+par(oldpar)
 ```
 
 ## Joint density derivative checks
@@ -571,6 +575,7 @@ the AD lines; Hessian panels compare AD Hessian rows to slopes of the
 AD gradient.
 
 ```{r derivJointDens, fig.height=5, eval = vignette_full}
+oldpar <- par(no.readonly = TRUE)
 par(mfrow = c(4, 2), mar = c(2, 2, 2, 0), mgp = c(1, 0.5, 0))
 
 x_here <- res_mid$full_parameters
@@ -603,6 +608,7 @@ for (Dpar2 in s_par2) {
   )
   points(scan_j$mid, scan_j$fd_grad[, Dpar2], pch = 16)
 }
+par(oldpar)
 ```
 
 

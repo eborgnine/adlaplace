@@ -147,6 +147,7 @@ gamma_sims <- rmvnldl(n = num_sim, fit = fit)
 
 smooth_vars <- unique(fit$model_data$term_data$info$gamma$term)
 
+oldpar <- par(no.readonly = TRUE)
 par(mfrow = c(1, 2), mar = c(2.25, 2.25, 0, 0), bty = "l", mgp = c(1, 0.5, 0))
 for (D in smooth_vars) {
   sim_here <- sim_random(
@@ -166,6 +167,7 @@ for (D in smooth_vars) {
   )
   matlines(sim_here$x, q, lty = c(2, 1, 2), col = "red")
 }
+par(oldpar)
 ```
 
 

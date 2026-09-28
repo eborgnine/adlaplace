@@ -162,6 +162,7 @@ dropped
 ```
 
 ```{r psi-plot, fig.width=6, fig.height=3.5}
+oldpar <- par(no.readonly = TRUE)
 par(mar = c(2.5, 2.5, 1, 0.5), bty = "l", mgp = c(1.5, 0.5, 0))
 
 parts <- strsplit(colnames(md$term_data$elgm_matrix), ".", fixed = TRUE)
@@ -202,6 +203,7 @@ text(
 legend("bottomright", legend = levels(stratum_info$month), fill = Scol, bty = "n", inset = 0)
 
 abline(h = 0, lty = 2, col = "grey50")
+par(oldpar)
 ```
 
 ## Confirm by dropping nominated strata
@@ -329,6 +331,7 @@ if (!is.null(fit_drop)) {
 }
 
 
+oldpar <- par(no.readonly = TRUE)
 par(mar = c(3, 3, 0, 0), mgp = c(1.5, 0.5, 0), bty = "l")
 matplot(
   sim_drop$x, q_drop,
@@ -347,6 +350,7 @@ legend(
   lwd = 2,
   bty = "n"
 )
+par(oldpar)
 ```
 
 ## Bacteria: sign-flip of the drug effect
@@ -431,6 +435,7 @@ xtabs(~ week + trt, dropped_bac)
 ```
 
 ```{r bac-psi-plot, eval = have_mass, fig.width=6, fig.height=3.5}
+oldpar <- par(no.readonly = TRUE)
 par(mar = c(2.5, 2.5, 1, 0.5), bty = "l", mgp = c(1.5, 0.5, 0))
 dat_bac <- md_bac$term_data$data
 trt_cols <- c(placebo = "#4C78A8", drug = "#F58518", "drug+" = "#54A24B")
@@ -450,6 +455,7 @@ legend(
   col = trt_cols, pch = 19, bty = "n", inset = 0
 )
 abline(h = 0, lty = 2, col = "grey50")
+par(oldpar)
 ```
 
 Inner confirmation drops the nominated swabs with `ad_pack_drop()`, keeps
@@ -547,6 +553,7 @@ ylim_bac <- range(q_full_bac, 0, finite = TRUE)
 if (!is.null(q_drop_bac)) {
   ylim_bac <- range(ylim_bac, q_drop_bac, finite = TRUE)
 }
+oldpar <- par(no.readonly = TRUE)
 par(mar = c(3, 3, 0.5, 0.5), mgp = c(1.5, 0.5, 0), bty = "l")
 plot(
   NA, NA,
@@ -573,6 +580,7 @@ legend(
   col = c("red", "darkblue"),
   pch = 19, lwd = 2, bty = "n"
 )
+par(oldpar)
 ```
 
 ## Notes

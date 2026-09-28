@@ -15,7 +15,8 @@ fpoly(
   init = .my_beta_init,
   lower = .my_beta_lower,
   upper = .my_beta_upper,
-  parscale = .my_beta_parscale
+  parscale = .my_beta_parscale,
+  basis_scale = 1
 )
 
 \S4method{design}{fpoly}(term, data)
@@ -36,6 +37,10 @@ fpoly(
 \item{upper}{Upper bounds for beta parameters.}
 
 \item{parscale}{Parameter scales for optimization.}
+
+\item{basis_scale}{Positive scale for the covariate. Column \code{k} of the
+raw polynomial is divided by \code{basis_scale^k}. \code{\link{iwp}} passes
+the mean knot spacing when the polynomial is the fixed part of an IWP.}
 
 \item{term}{A `fpoly` term object.}
 

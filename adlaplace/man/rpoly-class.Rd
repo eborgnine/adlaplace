@@ -9,7 +9,7 @@
 \alias{random_info,rpoly-method}
 \title{Random Polynomial Model Term}
 \usage{
-rpoly(x, p = 2, ref_value = 0, sd = Inf)
+rpoly(x, p = 2, ref_value = 0, sd = Inf, basis_scale = 1)
 
 \S4method{design}{rpoly}(term, data)
 
@@ -25,6 +25,11 @@ rpoly(x, p = 2, ref_value = 0, sd = Inf)
 \item{ref_value}{Reference value for the polynomial.}
 
 \item{sd}{Standard deviation for random effects.}
+
+\item{basis_scale}{Positive scale for the covariate. Column \code{k} of the
+raw polynomial is divided by \code{basis_scale^k}. The default \code{1}
+leaves the raw polynomial unchanged. \code{\link{iwp}} passes the mean
+knot spacing so the polynomial matches the normalized IWP basis.}
 
 \item{term}{A `rpoly` term object.}
 

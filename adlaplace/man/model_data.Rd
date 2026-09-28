@@ -35,10 +35,15 @@ Parses a formula, builds design matrices, and returns formula terms plus
 each random-effect term.
 }
 \examples{
-\dontrun{
+set.seed(1)
+dat <- data.frame(
+  y = rpois(30, 2),
+  x1 = rnorm(30),
+  x2 = runif(30)
+)
 md <- model_data(
-  y ~ x1 + iwp(x2, p = 2, knots = seq(0, 1, len = 11)),
+  y ~ x1 + iwp(x2, p = 2, knots = seq(0, 1, length.out = 5)),
   data = dat
 )
-}
+names(md$terms)
 }

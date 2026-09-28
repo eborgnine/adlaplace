@@ -22,7 +22,7 @@ hessian(
   negative = TRUE
 )
 
-trace_hinv_t(ad_pack, x, LinvPt, LinvPtColumns, verbose = FALSE)
+trace_hinv_t(ad_pack, x, LinvPt, LinvPtColumns, verbose = FALSE, H_inv = NULL)
 
 fun_obj_fdfh(ad_pack, parameters, gamma, inner = TRUE, verbose = FALSE)
 }
@@ -47,6 +47,10 @@ parameter vector.}
 session phases.}
 
 \item{LinvPt, LinvPtColumns}{Sparse factors for \code{trace_hinv_t()}.}
+
+\item{H_inv}{Optional numeric values of the joint inverse Hessian, in the
+nonzero order of \code{chol_inner_list$H_inv}. A sparse matrix contributes
+its \code{@x} slot. \code{NULL} keeps every shard on the column walk.}
 
 \item{parameters}{Numeric vector of length \code{Nbeta + Ntheta}.}
 

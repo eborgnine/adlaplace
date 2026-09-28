@@ -36,9 +36,7 @@ share one model structure across exposure sample columns
 (e.g. \code{sqrt_pm} -> \code{sqrt_pm_s3}).
 }
 \examples{
-\dontrun{
 terms <- collect_terms(nbinom(y) ~ fpoly(sqrt_pm, p = 1))
 replace_vars(terms, c(sqrt_pm = "sqrt_pm_s1"))
-}
 
 }

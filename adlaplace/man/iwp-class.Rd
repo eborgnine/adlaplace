@@ -22,6 +22,21 @@
 
 \item{data}{A data frame containing the term variable}
 }
+\value{
+\describe{
+  \item{\code{design}}{Numeric design matrix for the integrated Wiener
+    process basis, with one column per basis function and one row per
+    observation. Entries are the basis evaluated at \code{data}.}
+  \item{\code{precision}}{Sparse precision matrix for those basis
+    coefficients. The penalty is the integrated Wiener process prior.}
+  \item{\code{theta_info}}{One-row data frame describing the
+    standard-deviation parameter: label, initial value, bounds, parameter
+    scale, and whether optimization is on the log scale.}
+  \item{\code{random_info}}{Data frame with one row per random coefficient,
+    including \code{gamma_label}, the name of that coefficient in a fitted
+    model.}
+}
+}
 \description{
 Creates and manages integrated Wiener process (IWP) model terms.
 }

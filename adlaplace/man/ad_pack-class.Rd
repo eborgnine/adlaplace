@@ -29,7 +29,9 @@ columns are threads, with one nonzero per shard row.}
 
 \item{\code{chol_inner_list}}{Numeric LDL list for C++ (\code{L1}, \code{Linv},
 \code{perm}, \code{perm_inv}, \code{half_H_inv}, \code{H_inv}), plus
-\code{trace_columns} (per-shard column indices for \code{trace_hinv_t}).}
+\code{trace_columns} (per-shard column indices for \code{trace_hinv_t}) and
+\code{hinv_q_index} (per-shard slots of \eqn{Q} into \code{H_inv}, when a
+shard defines \code{\link{hinv_trace_index}}).}
 
 \item{\code{sizes}}{Named numeric vector \code{beta}/\code{gamma}/\code{theta}.}
 

@@ -572,6 +572,11 @@ density_data_from_mats <- function(y = numeric(0),
   #'   \code{as_dsC_upper()}.
 #' @param weights Optional per-observation weights (e.g. binomial trial counts).
 #'   Empty means all ones.
+#' @return An S4 object of class \code{"density_data"}: one
+#'   automatic-differentiation shard. Slots hold the response, the transposed
+#'   fixed- and random-effect design blocks, the maps from local design columns
+#'   into the global parameter vectors, the registered density name, and the
+#'   shard kind (\code{"observations"}, \code{"parameters"}, or \code{"random"}).
 #' @export
 density_data <- function(y = missing(),
                     A = NULL,

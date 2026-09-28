@@ -1,12 +1,31 @@
 Package: adlaplace
 Type: Package
 Title: Laplace Approximations Using Automatic Differentiation
-Version: 0.7.2
-Date: 2026-09-22
+Version: 0.7.3
+Date: 2026-09-28
 Authors@R: person(given="Patrick", family="Brown", email="patrick.borgnine@gmail.com", role=c("aut","cre","cph"))
 Maintainer: Patrick Brown <patrick.borgnine@gmail.com>
-Description: Computes Laplace approximations for hierarchical models using
-    automatic differentiation ('CppAD') and trust-region optimization.
+Description: Computes Laplace-approximate maximum likelihood for hierarchical
+    and latent Gaussian models. A formula interface specifies observation
+    densities (Gaussian, Poisson, binomial, negative binomial, and
+    Dirichlet-multinomial) and random terms (independent effects and
+    integrated Wiener process smooths) together with fixed effects. Random
+    effects are maximized by a sparse trust-region method whose gradient and
+    Hessian come from automatic differentiation with 'CppAD'; fixed effects
+    and variance components are then estimated from the Laplace profile
+    likelihood and its profile gradient. The Laplace log-determinant uses a
+    sparse selected inverse. Optional post-fit tools include adaptive
+    Gauss-Hermite quadrature ('aghq') and approximate maximum influence
+    perturbations. Methods follow Tierney and Kadane (1986)
+    <doi:10.1080/01621459.1986.10478240>, Kristensen, Nielsen, Berg, Skaug,
+    and Bell (2016) <doi:10.18637/jss.v070.i05>, Braun (2014)
+    <doi:10.18637/jss.v060.i04>, Rue and Held (2005, ISBN:9781584884323),
+    Stringer, Brown, and Stafford (2022)
+    <doi:10.1080/10618600.2022.2099403>, Bilodeau, Stringer, and Tang (2022)
+    <doi:10.1080/01621459.2022.2141635>, Broderick, Giordano, and Meager
+    (2023) <doi:10.48550/arXiv.2011.14999>, 'CppAD'
+    <https://github.com/coin-or/CppAD>, and Erisman and Tinney (1975)
+    <doi:10.1145/360680.360704>.
 License: GPL (>= 2)
 Depends: R (>= 3.5.0)
 Imports: Matrix (>= 1.2.18), Rcpp (>= 1.0.3), methods, data.table, stats,
@@ -52,8 +71,8 @@ Collate:
     'replace_vars.R'
     'rpoly.R'
     'sim_iid.R'
-    'term_data_setup.R'
     'takahashi_davis.R'
+    'term_data_setup.R'
     'zzz.R'
 LazyData: true
 Config/roxygen2/version: 8.1.0

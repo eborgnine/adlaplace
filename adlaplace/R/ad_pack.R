@@ -509,29 +509,56 @@ setMethod(
   function(x, config = NULL, num_threads = 1L,
            reorder_shards = c("none", "gradient", "hessian", "third"),
            templates = NULL, ...) {
-    extras <- list(...)
+    # Formals before `...` are filled positionally. Extra ad_pack_ptr shards
+    # therefore bind to config, num_threads, reorder_shards, or templates
+    # whenever a later argument is supplied by name. Collect those shards in
+    # call order and compose them with c(), the same path as
+    # ad_pack(c(ptr1, ptr2, ...)). Never forward a pointer as templates.
+    parts <- list()
     verbose <- FALSE
-    if (!is.null(config)) {
-      if (is.list(config) && !is(config, "ad_pack_ptr")) {
-        # a genuine config list: only verbose / reorder_shards used at attach
-        verbose <- isTRUE(config[["verbose"]])
-        if (!is.null(config[["reorder_shards"]])) {
-          reorder_shards <- config[["reorder_shards"]]
-        }
-      } else {
-        # positional shorthand ad_pack(ptr1, ptr2, ...): treat as extra shard
-        extras <- c(list(config), extras)
-      }
+    config_reorder <- NULL
+
+    if (is(config, "ad_pack_ptr")) {
+      parts <- c(parts, list(config))
+    } else if (is.list(config)) {
+      # a genuine config list: only verbose / reorder_shards used at attach
+      verbose <- isTRUE(config[["verbose"]])
+      config_reorder <- config[["reorder_shards"]]
+    } else if (!is.null(config)) {
+      stop("additional arguments must be ad_pack_ptr", call. = FALSE)
     }
-    if (length(extras) > 0L) {
-      if (!all(vapply(extras, function(ptr) is(ptr, "ad_pack_ptr"), logical(1)))) {
+
+    if (is(num_threads, "ad_pack_ptr")) {
+      parts <- c(parts, list(num_threads))
+      num_threads <- 1L
+    }
+    if (is(reorder_shards, "ad_pack_ptr")) {
+      parts <- c(parts, list(reorder_shards))
+      reorder_shards <- "none"
+    }
+    if (!is.null(config_reorder)) {
+      reorder_shards <- config_reorder
+    }
+    if (is(templates, "ad_pack_ptr")) {
+      parts <- c(parts, list(templates))
+      templates <- NULL
+    } else if (!is.null(templates) && !methods::is(templates, "ad_pack")) {
+      stop("templates must be an ad_pack object", call. = FALSE)
+    }
+
+    dots <- list(...)
+    if (length(dots) > 0L) {
+      if (!all(vapply(dots, function(ptr) is(ptr, "ad_pack_ptr"), logical(1L)))) {
         stop("additional arguments must be ad_pack_ptr", call. = FALSE)
       }
+      parts <- c(parts, dots)
+    }
+    if (length(parts) > 0L) {
       if (verbose) {
-        cat("ad_pack: merging ", 1L + length(extras), " raw handle(s)...\n", sep = "")
+        cat("ad_pack: merging ", 1L + length(parts), " raw handle(s)...\n", sep = "")
         utils::flush.console()
       }
-      x <- do.call(c, c(list(x), extras))
+      x <- do.call(c, c(list(x), parts))
     }
     new_ad_pack_from_ptr(
       x,

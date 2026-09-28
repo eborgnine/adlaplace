@@ -9,12 +9,12 @@ takahashi_davis(Q, chol = NULL)
 \arguments{
 \item{Q}{Symmetric sparse positive-definite matrix.}
 
-\item{chol}{Optional list with \code{perm} (0-based) and \code{L1} (unit-lower
-factor), such as the list from \code{adlaplaceFem::fem_chol_pattern()}. When
-\code{NULL}, the symbolic factor is computed from \code{Q}.}
+\item{chol}{Optional list with `perm` (0-based) and `L1` (unit-lower
+factor), such as the list from `adlaplaceFem::fem_chol_pattern()`. When
+`NULL`, the symbolic factor is computed from `Q`.}
 }
 \value{
-A \code{dgCMatrix} of the selected inverse.
+A `dgCMatrix` of the selected inverse.
 }
 \description{
 Entries of \eqn{Q^{-1}} on the sparsity pattern of the Cholesky factor, in
@@ -22,9 +22,9 @@ the original variable order. Positions the factor does not store are absent,
 not zeros of the inverse.
 }
 \details{
-C++ callers \code{LinkingTo: adlaplace} and include
-\code{adlaplace/takahashi_impl.hpp}. That function is
-\code{adlaplace::chol::takahashi_davis} and takes the unit-lower factor
-\eqn{L} and the LDL diagonal \eqn{D}. A caller that has only \eqn{Q}
-factors it with \code{chol_update_csc} first.
+C++ callers `LinkingTo: adlaplace` and include
+`adlaplace/takahashi_impl.hpp`. That function is
+`adlaplace::chol::takahashi_davis` and takes the unit-lower factor \eqn{L}
+and the LDL diagonal \eqn{D}. A caller that has only \eqn{Q} factors it
+with `chol_update_csc` first.
 }

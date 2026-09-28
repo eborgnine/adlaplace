@@ -100,11 +100,30 @@ maximize the Laplace-approximate marginal likelihood with
 object with standard accessor methods.
 }
 \examples{
-\dontrun{
-fit <- adlaplace(
-  nbinom(y, lower = 1e-9, init = 0.15) ~ x + iid(g, init = 0.1),
-  data = dat, config = list(num_threads = 2L)
+set.seed(1)
+n <- 80
+g <- factor(sample(4, n, replace = TRUE))
+x <- rbinom(n, 1, 0.5)
+eta <- 0.5 + 0.4 * x + rnorm(4, sd = 0.3)[g]
+nb_sd <- 0.3
+z <- rgamma(n, nb_sd^(-2), nb_sd^(-2))
+dat <- data.frame(y = rpois(n, exp(eta) * z), x = x, g = g)
+md <- model_data(
+  nbinom(y, lower = 1e-9, init = 0.15) ~ x + iid(g, init = 0.3),
+  data = dat
 )
+config <- list(
+  transform_theta = TRUE,
+  obs_groups = obs_groups(md$term_data$A, num_shards = 5),
+  verbose = FALSE
+)
+ap <- ad_pack(md, config)
+cache <- new.env(parent = emptyenv())
+x0 <- md$term_data$info$parameters$init
+outer_fn(x = x0, config = config, cache = cache, ad_pack = ap)
+outer_gr(x = x0, config = config, cache = cache, ad_pack = ap)
+\donttest{
+fit <- adlaplace(md, config = list(num_shards = 5L, verbose = FALSE))
 summary(fit)
 confint(fit)
 }

@@ -22,6 +22,41 @@ NULL
 #' @param digits Number of significant digits to print.
 #' @param ... Passed to downstream methods.
 #'
+#' @return
+#' \describe{
+#'   \item{\code{coef}}{Named numeric vector of outer parameter estimates.
+#'     With \code{transform = TRUE} (the default), parameters stored on the
+#'     log scale (for example standard deviations) are exponentiated to the
+#'     natural scale.}
+#'   \item{\code{vcov}}{Variance-covariance matrix of the outer parameters on
+#'     the optimization scale. With \code{transform = TRUE}, rows and columns
+#'     for log-scale parameters are mapped to the natural scale by the delta
+#'     method.}
+#'   \item{\code{logLik}}{An object of class \code{"logLik"}: the
+#'     Laplace-approximate marginal log-likelihood, with attributes \code{df}
+#'     (number of outer parameters) and \code{nobs}.}
+#'   \item{\code{nobs}}{Integer number of observations.}
+#'   \item{\code{confint}}{Numeric matrix of Wald intervals, one row per outer
+#'     parameter. With \code{transform = TRUE}, endpoints for log-scale
+#'     parameters are exponentiated to the natural scale.}
+#'   \item{\code{fitted}}{Numeric vector of length \code{nobs}: the linear
+#'     predictor at the joint mode of the fixed effects and random effects.}
+#'   \item{\code{predict}}{Without \code{newdata}, the same vector as
+#'     \code{fitted}. With \code{newdata}, a matrix with \code{nrow(newdata)}
+#'     rows and \code{n} columns of linear predictors drawn from the Laplace
+#'     approximation to the random effects.}
+#'   \item{\code{summary}}{A list of class \code{"summary.adlaplace_fit"} with
+#'     the coefficient table (natural-scale estimates, standard errors, and
+#'     interval endpoints), the log-likelihood, degrees of freedom, the number
+#'     of observations and random effects, the outer optimizer convergence
+#'     code, and the maximum absolute profile gradient.}
+#'   \item{\code{print}, \code{print.summary}, \code{plot}}{No return value
+#'     used by the caller. They print or draw and return the input object
+#'     invisibly. \code{plot} draws each smooth term as curves simulated from
+#'     the Laplace approximation, with the pointwise mean highlighted, or the
+#'     random-effect modes when the model has no smooth term.}
+#' }
+#'
 #' @name adlaplace_fit-methods
 NULL
 

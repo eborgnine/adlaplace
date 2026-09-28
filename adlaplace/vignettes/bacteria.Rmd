@@ -227,6 +227,7 @@ pretty_coef <- function(lab) {
 int_lab <- coef_lab[gamma_info$model[coef_idx] == "intercept"]
 trt_lab <- coef_lab[gamma_info$term[coef_idx] == "trt"]
 
+oldpar <- par(no.readonly = TRUE)
 par(mfrow = c(1, 2), mar = c(4, 4, 1.5, 0.5))
 
 int_m <- mix_mean[, int_lab]
@@ -261,7 +262,7 @@ legend(
   col = trt_cols[seq_along(trt_lab)],
   lty = 1, lwd = 2, bty = "n"
 )
-par(mfrow = c(1, 1))
+par(oldpar)
 ```
 
 Posterior quantiles invert the mixture CDF. The child-level SD uses the AGHQ
