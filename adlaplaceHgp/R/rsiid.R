@@ -13,6 +13,7 @@
 #'   \item{\code{theta_info(term)}}{Extracts theta parameter information}
 #'   \item{\code{beta_info(term, data)}}{Extracts beta parameter information}
 #'   \item{\code{random_info(term, data)}}{Extracts random effects information}
+#'   \item{\code{replace_vars(x, map)}}{Rewrites the grouping factor and exposure multiplier}
 #' }
 NULL
 

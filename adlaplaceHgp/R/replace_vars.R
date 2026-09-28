@@ -1,4 +1,24 @@
+#' Replace data-column names in hierarchical model terms
+#'
+#' \code{hiwp} and \code{rsiid} methods for
+#' \code{\link[adlaplace]{replace_vars}}. Rewrites data-column references
+#' according to a named character map, including the \code{hiwp} grouping
+#' factor and the \code{rsiid} grouping factor and exposure multiplier.
+#'
+#' @param x An \code{hiwp} or \code{rsiid} term.
+#' @param map Named character vector: names are current column names, values
+#'   are replacement column names. Names absent from \code{map} are left
+#'   unchanged.
+#' @return An object of the same class as \code{x}, with column references,
+#'   labels, and formulas updated.
+#' @seealso \code{\link[adlaplace]{replace_vars}}
+#' @name replace_vars-methods
+#' @rdname replace_vars-methods
+#' @include hiwp.R rsiid.R
 #' @importFrom adlaplace replace_vars
+NULL
+
+#' @rdname replace_vars-methods
 #' @export
 setMethod("replace_vars", "hiwp", function(x, map) {
   if (is.null(map) || !length(map)) {
@@ -18,7 +38,7 @@ setMethod("replace_vars", "hiwp", function(x, map) {
   x
 })
 
-#' @importFrom adlaplace replace_vars
+#' @rdname replace_vars-methods
 #' @export
 setMethod("replace_vars", "rsiid", function(x, map) {
   if (is.null(map) || !length(map)) {
