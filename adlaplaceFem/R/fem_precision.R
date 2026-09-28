@@ -139,15 +139,23 @@ fem_precision_payload <- function(fem, alpha = 2L) {
 
 #' Slots of a FEM quadratic form inside the joint inverse Hessian
 #'
+#' \code{density_data} method for \code{\link[adlaplace]{hinv_trace_index}}.
 #' One 0-based index into \code{H_inv@x} per stored upper-triangle entry of
 #' \code{Q}, in that CSC order. \code{-1L} marks a pair the symbolic inverse
-#' does not store.
+#' does not store. Returns \code{NULL} when \code{shard} is not a
+#' \code{random_fem_ssq_*} density.
 #'
 #' @param shard A \code{density_data} shard.
 #' @param H_inv Symbolic upper triangle of the joint inverse Hessian.
 #' @return An integer vector, or \code{NULL} when \code{shard} is not a
 #'   \code{random_fem_ssq_*} density.
-#' @rdname hinv_trace_index
+#' @seealso \code{\link[adlaplace]{hinv_trace_index}}
+#' @name hinv_trace_index-methods
+#' @rdname hinv_trace_index-methods
+#' @aliases hinv_trace_index,density_data-method
+NULL
+
+#' @rdname hinv_trace_index-methods
 #' @export
 setMethod("hinv_trace_index", "density_data", function(shard, H_inv) {
   if (length(shard@density) != 1L ||
