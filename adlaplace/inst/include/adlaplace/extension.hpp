@@ -1,7 +1,7 @@
 #ifndef ADLAPLACE_EXTENSION_HPP
 #define ADLAPLACE_EXTENSION_HPP
 
-// Public API for backend packages (e.g. adlaplaceExample, adlaplaceFem) that
+// Public API for backend packages that
 // compile custom log densities and CppAD tape construction in their own shared
 // library.
 //

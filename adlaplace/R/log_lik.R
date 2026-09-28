@@ -175,11 +175,14 @@ warn_if_inner_status <- function(result) {
   }
   status <- as.character(status[[1L]])
   if (!identical(status, "Success")) {
-    warning(
-      "inner_opt status is ", status,
-      "; the Laplace approximation used this inner solution anyway",
-      call. = FALSE
-    )
+    warning(warningCondition(
+      paste0(
+        "inner_opt status is ", status,
+        "; the Laplace approximation used this inner solution anyway"
+      ),
+      class = "adlaplace_inner_status",
+      call = NULL
+    ))
   }
   invisible(status)
 }

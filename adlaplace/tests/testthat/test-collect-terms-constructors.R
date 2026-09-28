@@ -1,6 +1,6 @@
 test_that("constructor formulas parse via collect_terms", {
   skip_if_not_installed("mgcv")
-  dat <- mgcv::gamSim(6, n = 80, scale = 0.2, dist = "poisson")
+  dat <- quiet_gamsim(6, n = 80, scale = 0.2, dist = "poisson", verbose = FALSE)
 
   with(dat, {
     ctor_style <-

@@ -9,7 +9,7 @@ test_that("format_parameters returns list() for missing info", {
 
 test_that("format_parameters maps full_parameters onto info tables", {
   skip_if_not_installed("mgcv")
-  dat <- mgcv::gamSim(6, n = 80, scale = 0.2, dist = "poisson")
+  dat <- quiet_gamsim(6, n = 80, scale = 0.2, dist = "poisson", verbose = FALSE)
   md <- adlaplace::model_data(
     adlaplace::nbinom(y, lower = 1e-9) ~
       x1 +
@@ -45,7 +45,7 @@ test_that("format_parameters maps full_parameters onto info tables", {
 
 test_that("format_parameters matches parameters + gamma input", {
   skip_if_not_installed("mgcv")
-  dat <- mgcv::gamSim(6, n = 80, scale = 0.2, dist = "poisson")
+  dat <- quiet_gamsim(6, n = 80, scale = 0.2, dist = "poisson", verbose = FALSE)
   md <- adlaplace::model_data(
     adlaplace::nbinom(y, lower = 1e-9) ~ x1 + adlaplace::iid(fac, init = 0.25),
     data = dat,
@@ -75,7 +75,7 @@ test_that("format_parameters matches parameters + gamma input", {
 
 test_that("ad_pack from model_data stores info slot", {
   skip_if_not_installed("mgcv")
-  dat <- mgcv::gamSim(6, n = 80, scale = 0.2, dist = "poisson")
+  dat <- quiet_gamsim(6, n = 80, scale = 0.2, dist = "poisson", verbose = FALSE)
   md <- adlaplace::model_data(
     adlaplace::nbinom(y, lower = 1e-9) ~ x1 + adlaplace::iid(fac, init = 0.25),
     data = dat,
@@ -96,7 +96,7 @@ test_that("ad_pack from model_data stores info slot", {
 
 test_that("ad_pack from ptr has empty info", {
   skip_if_not_installed("mgcv")
-  dat <- mgcv::gamSim(6, n = 80, scale = 0.2, dist = "poisson")
+  dat <- quiet_gamsim(6, n = 80, scale = 0.2, dist = "poisson", verbose = FALSE)
   md <- adlaplace::model_data(
     adlaplace::nbinom(y, lower = 1e-9) ~ x1 + adlaplace::iid(fac, init = 0.25),
     data = dat,

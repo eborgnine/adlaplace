@@ -1,6 +1,6 @@
 test_that("term_data_setup defaults log to TRUE for all theta rows", {
   skip_if_not_installed("mgcv")
-  dat <- mgcv::gamSim(6, n = 80, scale = 0.2, dist = "poisson")
+  dat <- quiet_gamsim(6, n = 80, scale = 0.2, dist = "poisson", verbose = FALSE)
   md <- adlaplace::model_data(
     adlaplace::nbinom(y, lower = 1e-9) ~
       x1 +
@@ -46,7 +46,7 @@ test_that("apply_theta_log is a no-op when active is FALSE", {
 
 test_that("iid log=FALSE is selective in info$theta", {
   skip_if_not_installed("mgcv")
-  dat <- mgcv::gamSim(6, n = 60, scale = 0.2, dist = "poisson")
+  dat <- quiet_gamsim(6, n = 60, scale = 0.2, dist = "poisson", verbose = FALSE)
   md <- adlaplace::model_data(
     adlaplace::nbinom(y, lower = 1e-9) ~
       x1 +
@@ -70,13 +70,16 @@ test_that("fit$par_info has enriched columns and log-aware se", {
     x = rnorm(n),
     g = factor(g)
   )
-  fit <- adlaplace::adlaplace(
-    adlaplace::nbinom(y, lower = 1e-9, init = 0.2) ~
-      x + adlaplace::iid(g, init = 0.25),
-    data = dat,
-    config = list(num_shards = 4L),
-    control = list(maxit = 60L),
-    verbose = FALSE
+  fit <- suppressWarnings(
+    adlaplace::adlaplace(
+      adlaplace::nbinom(y, lower = 1e-9, init = 0.2) ~
+        x + adlaplace::iid(g, init = 0.25),
+      data = dat,
+      config = list(num_shards = 4L),
+      control = list(maxit = 60L),
+      verbose = FALSE
+    ),
+    classes = "adlaplace_inner_status"
   )
   expect_equal(
     names(fit$par_info),

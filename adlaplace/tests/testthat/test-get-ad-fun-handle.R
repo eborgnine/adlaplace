@@ -123,13 +123,16 @@ test_that("inner_opt deriv exports Linv matching chol_inner_list pattern", {
   Linv_ref <- Matrix::solve(ci$L1)
   expect_true(max(abs(ci$Linv - Linv_ref)) < 1e-8)
 
-  laplace <- adlaplace::log_lik_laplace(
-    x = c(config$beta, config$theta),
-    config = list(verbose = FALSE),
-    gamma = config$gamma,
-    ad_pack = af,
-    control = list(maxit = 3L, report.level = 0, report.freq = 0),
-    deriv = TRUE
+  laplace <- suppressWarnings(
+    adlaplace::log_lik_laplace(
+      x = c(config$beta, config$theta),
+      config = list(verbose = FALSE),
+      gamma = config$gamma,
+      ad_pack = af,
+      control = list(maxit = 3L, report.level = 0, report.freq = 0),
+      deriv = TRUE
+    ),
+    classes = "adlaplace_inner_status"
   )
   expect_true(!is.null(laplace$hessian$chol_inner$Linv))
   expect_true(!is.null(laplace$hessian$half_H_inv))

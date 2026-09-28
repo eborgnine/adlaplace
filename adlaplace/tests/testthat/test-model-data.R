@@ -12,7 +12,7 @@ test_that("model_data captures y from plain formula LHS", {
 
 test_that("model_data captures y from explicit observations term", {
   skip_if_not_installed("mgcv")
-  dat <- mgcv::gamSim(6, n = 80, scale = 0.2, dist = "poisson")
+  dat <- quiet_gamsim(6, n = 80, scale = 0.2, dist = "poisson", verbose = FALSE)
 
   md <- adlaplace::model_data(
     adlaplace::nbinom(y, lower = 1e-9) ~

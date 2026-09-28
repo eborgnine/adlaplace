@@ -59,13 +59,27 @@ test_that("collect_terms reports missing constructor vs evaluation failure", {
   )
 })
 
+if (!methods::isClass("toy_mult")) {
+  methods::setClass(
+    "toy_mult",
+    slots = c(mult = "character"),
+    contains = "model_term"
+  )
+}
+
 test_that("collect_terms names drop package prefixes and keep columns", {
-  skip_if_not_installed("adlaplaceExample")
-  skip_if_not_installed("adlaplaceHgp")
-  f <- adlaplaceExample::skewnormal(y) ~
-    adlaplace::iid(group) +
-    adlaplaceHgp::rsiid(group, mult = "x")
+  toy_mult <- function(x, mult) {
+    methods::new(
+      "toy_mult",
+      name = x,
+      label = paste(x, mult, "toy_mult", sep = "_"),
+      formula = stats::as.formula(paste0("~ 0 + ", x), env = new.env()),
+      mult = mult
+    )
+  }
+  f <- adlaplace::nbinom(y) ~ adlaplace::iid(group) + toy_mult(group, mult = "x")
+  environment(f) <- environment()
   terms <- adlaplace::collect_terms(f)
   expect_false(any(grepl("::", names(terms), fixed = TRUE)))
-  expect_true(all(c("skewnormal_y", "iid_group", "rsiid_group_x") %in% names(terms)))
+  expect_true(all(c("nbinom_y", "iid_group", "toy_mult_group_x") %in% names(terms)))
 })

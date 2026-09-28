@@ -53,3 +53,12 @@ test_random_shard <- function(data, config, gamma_ids, theta_id, Q,
     precision = Q
   )
 }
+
+#' \code{mgcv::gamSim(6)} always \code{cat()}s from a nested \code{gamSim(1)}
+#' call, even when \code{verbose = FALSE}. Capture that progress text.
+#' @keywords internal
+quiet_gamsim <- function(...) {
+  sim <- NULL
+  utils::capture.output(sim <- mgcv::gamSim(...))
+  sim
+}

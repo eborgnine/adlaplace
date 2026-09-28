@@ -10,8 +10,7 @@ takahashi_davis(Q, chol = NULL)
 \item{Q}{Symmetric sparse positive-definite matrix.}
 
 \item{chol}{Optional list with `perm` (0-based) and `L1` (unit-lower
-factor), such as the list from `adlaplaceFem::fem_chol_pattern()`. When
-`NULL`, the symbolic factor is computed from `Q`.}
+factor). When `NULL`, the symbolic factor is computed from `Q`.}
 }
 \value{
 A `dgCMatrix` of the selected inverse.

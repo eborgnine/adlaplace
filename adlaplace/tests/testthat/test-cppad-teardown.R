@@ -101,7 +101,10 @@ test_that("repeated parallel log_lik_laplace deriv=TRUE survives thread_alloc te
     deriv = TRUE
   )
   for (i in seq_len(20L)) {
-    ll <- do.call(adlaplace::log_lik_laplace, args)
+    ll <- suppressWarnings(
+      do.call(adlaplace::log_lik_laplace, args),
+      classes = "adlaplace_inner_status"
+    )
     expect_true(is.finite(ll$log_lik), info = paste("iter", i))
     expect_true(all(is.finite(ll$deriv$d_neg_log_lik)), info = paste("iter", i))
     expect_true(all(is.finite(ll$extra$trace3)), info = paste("iter", i))

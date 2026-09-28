@@ -1,6 +1,6 @@
 test_that("fill_config_from_info seeds beta/theta from info", {
   skip_if_not_installed("mgcv")
-  dat <- mgcv::gamSim(6, n = 80, scale = 0.2, dist = "poisson")
+  dat <- quiet_gamsim(6, n = 80, scale = 0.2, dist = "poisson", verbose = FALSE)
   md <- adlaplace::model_data(
     adlaplace::nbinom(y, lower = 1e-9) ~ x1 + adlaplace::iid(fac, init = 0.25),
     data = dat,
@@ -20,7 +20,7 @@ test_that("fill_config_from_info seeds beta/theta from info", {
 
 test_that("fill_config_from_info keeps explicit config beta/theta/gamma", {
   skip_if_not_installed("mgcv")
-  dat <- mgcv::gamSim(6, n = 40, scale = 0.2, dist = "poisson")
+  dat <- quiet_gamsim(6, n = 40, scale = 0.2, dist = "poisson", verbose = FALSE)
   md <- adlaplace::model_data(
     adlaplace::nbinom(y, lower = 1e-9) ~ x1 + adlaplace::iid(fac, init = 0.25),
     data = dat,
@@ -48,7 +48,7 @@ test_that("fill_config_from_info keeps explicit config beta/theta/gamma", {
 
 test_that("ad_pack_ptr with info matches explicit config", {
   skip_if_not_installed("mgcv")
-  dat <- mgcv::gamSim(6, n = 80, scale = 0.2, dist = "poisson")
+  dat <- quiet_gamsim(6, n = 80, scale = 0.2, dist = "poisson", verbose = FALSE)
   md <- adlaplace::model_data(
     adlaplace::nbinom(y, lower = 1e-9) ~ x1 + adlaplace::iid(fac, init = 0.25),
     data = dat,
