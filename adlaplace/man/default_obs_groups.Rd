@@ -10,8 +10,8 @@ default_obs_groups(n_obs)
 \item{n_obs}{Number of observations (\code{length(y)}).}
 }
 \value{
-A \code{dgCMatrix} with one shard column and structural ones mapping
-  each observation row to that shard (0-based row indices).
+A \code{ngCMatrix} with one shard column and a structural nonzero
+  mapping each observation row to that shard (0-based row indices).
 }
 \description{
 Default observation shard map (one column, all observations)

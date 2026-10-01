@@ -21,9 +21,9 @@ the largest exact-loading group is split until \code{min_shards} is reached
 (or that group cannot be split further).}
 }
 \value{
-A sparse matrix of class \code{"dgCMatrix"} (from \pkg{Matrix}), with
-one column per shard and one row per observation. Nonzero entries
-correspond to singular-vector loadings.
+A sparse matrix of class \code{"ngCMatrix"} (from \pkg{Matrix}), with
+one column per shard and one row per observation (or ELGM stratum).
+Nonzero entries mark shard membership; there is no \code{@x} slot.
 }
 \description{
 The function partitions columns into \code{num_shards} shards using
@@ -31,9 +31,10 @@ quantiles of the first right singular vector, optionally using \pkg{RSpectra}
 for efficiency when available.
 }
 \details{
-The resulting grouping is returned as a sparse matrix whose columns
-correspond to shards and whose entries are the singular-vector loadings.
-Shards are ordered from most heterogeneous to most homogeneous.
+The resulting grouping is returned as a pattern sparse matrix whose columns
+correspond to shards and whose nonzeros mark membership. Loadings are used
+only to form the partition. Shards are ordered from most heterogeneous to
+most homogeneous.
 
 
 If the \pkg{RSpectra} package is available, the leading singular vector

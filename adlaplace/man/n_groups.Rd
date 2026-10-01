@@ -15,4 +15,3 @@ Integer count of groups (shards).
 \description{
 Number of AD shards in an \code{ad_pack_ptr} handle
 }
-\keyword{internal}

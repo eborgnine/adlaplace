@@ -24,7 +24,6 @@ Rcpp::S4 make_obs_groups_identity_batch(
 
   Rcpp::IntegerVector i(n_batch);
   Rcpp::IntegerVector p(n_batch + 1);
-  Rcpp::NumericVector x(n_batch, 1.0);
   p[0] = 0;
   for (int j = 0; j < n_batch; ++j) {
     const int u = unit_ids[static_cast<std::size_t>(j)];
@@ -38,10 +37,9 @@ Rcpp::S4 make_obs_groups_identity_batch(
     p[j + 1] = j + 1;
   }
 
-  Rcpp::S4 mat("dgCMatrix");
+  Rcpp::S4 mat("ngCMatrix");
   mat.slot("i") = i;
   mat.slot("p") = p;
-  mat.slot("x") = x;
   mat.slot("Dim") = Rcpp::IntegerVector::create(n_domain, n_batch);
   return mat;
 }

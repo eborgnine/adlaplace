@@ -28,7 +28,7 @@ obs_groups_units(
 \code{grouping = "filter"}.}
 }
 \value{
-A \code{dgCMatrix} suitable for \code{config$obs_groups}.
+A \code{ngCMatrix} suitable for \code{config$obs_groups}.
 }
 \description{
 Restricts which observation units are recorded on observation tapes.

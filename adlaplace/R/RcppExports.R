@@ -52,7 +52,7 @@ adlaplace_attach_hessian <- function(handle, hessian_pack) {
 #'
 #' @param handle External pointer of class \code{ad_pack_ptr}.
 #' @return Integer count of groups (shards).
-#' @keywords internal
+#' @export
 n_groups <- function(handle) {
     .Call(`_adlaplace_n_groups`, handle)
 }

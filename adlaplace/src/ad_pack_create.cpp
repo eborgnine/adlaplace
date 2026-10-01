@@ -77,7 +77,7 @@ void adlaplace_attach_hessian(SEXP handle, Rcpp::List hessian_pack) {
 //'
 //' @param handle External pointer of class \code{ad_pack_ptr}.
 //' @return Integer count of groups (shards).
-//' @keywords internal
+//' @export
 // [[Rcpp::export]]
 int n_groups(SEXP handle) {
   ad_pack* groups = ad_fun_from_handle(handle);

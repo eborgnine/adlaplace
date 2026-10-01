@@ -1,26 +1,25 @@
 #' Default observation shard map (one column, all observations)
 #'
 #' @param n_obs Number of observations (\code{length(y)}).
-#' @return A \code{dgCMatrix} with one shard column and structural ones mapping
-#'   each observation row to that shard (0-based row indices).
+#' @return A \code{ngCMatrix} with one shard column and a structural nonzero
+#'   mapping each observation row to that shard (0-based row indices).
 #' @keywords internal
 default_obs_groups <- function(n_obs) {
   n_obs <- as.integer(n_obs)[1L]
   if (is.na(n_obs) || n_obs < 1L) {
-    return(Matrix::sparseMatrix(
+    return(as_ngC(Matrix::sparseMatrix(
       i = integer(0),
       j = integer(0),
       dims = c(0L, 1L),
       index1 = FALSE
-    ))
+    )))
   }
-  Matrix::sparseMatrix(
+  as_ngC(Matrix::sparseMatrix(
     i = seq.int(0L, n_obs - 1L),
     j = rep(0L, n_obs),
-    x = rep(1, n_obs),
     dims = c(n_obs, 1L),
     index1 = FALSE
-  )
+  ))
 }
 
 #' Number of removable observation units
@@ -58,7 +57,7 @@ n_obs_units <- function(data) {
 #'   }
 #' @param obs_groups Existing shard map; required when
 #'   \code{grouping = "filter"}.
-#' @return A \code{dgCMatrix} suitable for \code{config$obs_groups}.
+#' @return A \code{ngCMatrix} suitable for \code{config$obs_groups}.
 #' @seealso \code{\link{n_obs_units}}, \code{\link{grad_obs_units}},
 #'   \code{\link{ad_pack_drop}}
 #' @export
@@ -93,23 +92,21 @@ obs_groups_units <- function(
 
   if (identical(grouping, "identity")) {
     n_u <- length(units)
-    return(Matrix::sparseMatrix(
+    return(as_ngC(Matrix::sparseMatrix(
       i = units,
       j = seq.int(0L, n_u - 1L),
-      x = rep(1, n_u),
       dims = c(n_domain, n_u),
       index1 = FALSE
-    ))
+    )))
   }
 
   if (identical(grouping, "together")) {
-    return(Matrix::sparseMatrix(
+    return(as_ngC(Matrix::sparseMatrix(
       i = units,
       j = rep(0L, length(units)),
-      x = rep(1, length(units)),
       dims = c(n_domain, 1L),
       index1 = FALSE
-    ))
+    )))
   }
 
   # grouping == "filter"
@@ -119,7 +116,7 @@ obs_groups_units <- function(
       call. = FALSE
     )
   }
-  og <- as_dgC(obs_groups)
+  og <- as_ngC(obs_groups)
   if (nrow(og) != n_domain) {
     stop(
       "`obs_groups` has ", nrow(og), " rows but n_domain = ", n_domain,
@@ -135,17 +132,15 @@ obs_groups_units <- function(
   }
   i_keep <- og_t@i[sel]
   j_keep <- og_t@j[sel]
-  x_keep <- if (length(og_t@x)) og_t@x[sel] else rep(1, sum(sel))
   # Remap shard columns to drop empties, preserving relative order.
   j_levels <- sort(unique(j_keep))
   j_new <- match(j_keep, j_levels) - 1L
-  Matrix::sparseMatrix(
+  as_ngC(Matrix::sparseMatrix(
     i = i_keep,
     j = j_new,
-    x = x_keep,
     dims = c(n_domain, length(j_levels)),
     index1 = FALSE
-  )
+  ))
 }
 
 #' @keywords internal
@@ -282,9 +277,10 @@ ensure_config_obs_groups <- function(
 #' quantiles of the first right singular vector, optionally using \pkg{RSpectra}
 #' for efficiency when available.
 #'
-#' The resulting grouping is returned as a sparse matrix whose columns
-#' correspond to shards and whose entries are the singular-vector loadings.
-#' Shards are ordered from most heterogeneous to most homogeneous.
+#' The resulting grouping is returned as a pattern sparse matrix whose columns
+#' correspond to shards and whose nonzeros mark membership. Loadings are used
+#' only to form the partition. Shards are ordered from most heterogeneous to
+#' most homogeneous.
 #'
 #' @param A Random-effects design matrix (\code{nrow(A)} = number of observations).
 #' @param elgm_matrix A numeric matrix (or matrix-like object) for extended latent gaussian models.
@@ -306,9 +302,9 @@ ensure_config_obs_groups <- function(
 #' variability appear first.
 #'
 #' @return
-#' A sparse matrix of class \code{"dgCMatrix"} (from \pkg{Matrix}), with
-#' one column per shard and one row per observation. Nonzero entries
-#' correspond to singular-vector loadings.
+#' A sparse matrix of class \code{"ngCMatrix"} (from \pkg{Matrix}), with
+#' one column per shard and one row per observation (or ELGM stratum).
+#' Nonzero entries mark shard membership; there is no \code{@x} slot.
 #'
 #' @examples
 #' set.seed(1)
@@ -411,11 +407,10 @@ obs_groups <- function(A, elgm_matrix, num_shards, min_shards = 0) {
   shard_order <- order(shard_sd, decreasing = TRUE) - 1L
   shard_id_ordered <- match(shard_id, shard_order) - 1L
 
-  groupMat <- Matrix::sparseMatrix(
+  as_ngC(Matrix::sparseMatrix(
     i = seq(0, len = length(loadings)),
     j = shard_id_ordered,
-    x = loadings,
+    dims = c(length(loadings), max(shard_id_ordered) + 1L),
     index1 = FALSE
-  )
-  groupMat
+  ))
 }
