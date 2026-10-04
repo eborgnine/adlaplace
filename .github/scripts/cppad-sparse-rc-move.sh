@@ -27,18 +27,13 @@ cat << EOF > temp.cpp
 #include <cstddef>
 #include <iostream>
 #include <utility>
-#include <vector>
 //
-// sparse_rc: pre-fix CppAD move ctor. swap reads nr_/nc_/nnz_ uninitialized.
+// Move ctor swaps nr_/nc_/nnz_ before they are initialized.
 class sparse_rc {
 public:
     std::size_t nr_;
     std::size_t nc_;
     std::size_t nnz_;
-    std::vector<std::size_t> row_;
-    std::vector<std::size_t> col_;
-    std::vector<std::size_t> row_major_;
-    std::vector<std::size_t> col_major_;
     sparse_rc(void)
     : nr_(0), nc_(0), nnz_(0)
     { }
@@ -48,20 +43,14 @@ public:
     {  std::swap(nr_, other.nr_);
        std::swap(nc_, other.nc_);
        std::swap(nnz_, other.nnz_);
-       row_.swap(other.row_);
-       col_.swap(other.col_);
-       row_major_.swap(other.row_major_);
-       col_major_.swap(other.col_major_);
     }
 };
 //
-// Holder plays the role of AdTape: Eigen matrix plus the buggy pattern.
+// Eigen matrix in the same object. Moving it is what makes Rtools warn.
 struct Holder {
     Eigen::SparseMatrix<double> H;
     sparse_rc pattern;
 };
-//
-// Shard plays the role of ad_shard(AdTape&&).
 struct Shard {
     Holder pack;
     explicit Shard(Holder&& p)
