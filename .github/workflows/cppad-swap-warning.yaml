@@ -1,5 +1,5 @@
-# Brad Bell's swap.sh (coin-or/CppAD#259) on GCC 14/15/16 and on Windows
-# Rtools g++, plus the sparse_rc move that also includes Eigen.
+# Brad Bell's swap.sh (coin-or/CppAD#259) on GCC 14/15/16, Windows Rtools
+# g++, and MSYS2 MinGW g++, plus the sparse_rc move that also includes Eigen.
 on:
   workflow_dispatch:
   push:
@@ -67,6 +67,42 @@ jobs:
         with:
           r-version: 'release'
           use-public-rspm: true
+
+      - name: Compiler version
+        run: |
+          command -v g++
+          g++ --version
+
+      - name: Run Brad's swap.sh
+        run: |
+          work="$(mktemp -d)"
+          cd "$work"
+          bash "$GITHUB_WORKSPACE/.github/scripts/cppad-swap.sh"
+
+      - name: Run sparse_rc move repro
+        run: |
+          work="$(mktemp -d)"
+          cd "$work"
+          bash "$GITHUB_WORKSPACE/.github/scripts/cppad-sparse-rc-move.sh"
+
+  mingw-swap:
+    name: windows mingw g++
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v6
+
+      # Stock MinGW-w64 from MSYS2, not the Rtools toolchain.
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: false
+          install: mingw-w64-x86_64-gcc
+          path-type: inherit
 
       - name: Compiler version
         run: |
