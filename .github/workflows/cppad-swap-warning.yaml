@@ -1,6 +1,6 @@
-# Brad Bell's swap.sh (coin-or/CppAD#259) on GCC 14/15/16, plus the
-# CRAN-shaped case: Windows Rtools compiling current adlaplace against
-# RCppAD before the sparse_rc move-ctor initializer (b804867).
+# Brad Bell's swap.sh (coin-or/CppAD#259) on GCC 14/15/16 and on Windows
+# Rtools g++, plus the CRAN-shaped case: Rtools compiling current adlaplace
+# against RCppAD before the sparse_rc move-ctor initializer (b804867).
 on:
   workflow_dispatch:
   push:
@@ -46,8 +46,35 @@ jobs:
           cd "$work"
           bash "$GITHUB_WORKSPACE/.github/scripts/cppad-swap.sh"
 
+  rtools-swap:
+    name: windows Rtools g++ (swap.sh)
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: 'release'
+          use-public-rspm: true
+
+      - name: Compiler version
+        run: |
+          command -v g++
+          g++ --version
+
+      - name: Run Brad's swap.sh
+        run: |
+          work="$(mktemp -d)"
+          cd "$work"
+          bash "$GITHUB_WORKSPACE/.github/scripts/cppad-swap.sh"
+
   rtools:
-    name: windows Rtools g++
+    name: windows Rtools adlaplace
     runs-on: windows-latest
 
     env:
@@ -74,16 +101,9 @@ jobs:
           use-public-rspm: true
 
       - name: Compiler version
-        run: g++ --version
-
-      # -Werror makes a warning fail this step. Keep going either way: the
-      # package rebuild below is the CRAN-shaped result for this job.
-      - name: Run Brad's swap.sh
-        continue-on-error: true
         run: |
-          work="$(mktemp -d)"
-          cd "$work"
-          bash "$GITHUB_WORKSPACE/.github/scripts/cppad-swap.sh"
+          command -v g++
+          g++ --version
 
       # pak, without installing adlaplace's own deps (install-cran-deps does that
       # and skips the local packages). RCppAD Depends only on R.
