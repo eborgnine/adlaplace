@@ -147,14 +147,15 @@ jobs:
           command -v g++
           g++ --version
 
-      # swap.sh passes -Wlogical-op, -Wduplicated-cond, and
-      # -Wduplicated-branches with -Werror. Apple Clang rejects those flags.
+      # Apple Clang rejects -Wlogical-op, -Wduplicated-cond, and
+      # -Wduplicated-branches. Drop only those flags; the GCC jobs keep them.
       - name: Run Brad's swap.sh
-        continue-on-error: true
         run: |
           work="$(mktemp -d)"
           cd "$work"
-          bash "$GITHUB_WORKSPACE/.github/scripts/cppad-swap.sh"
+          sed -e '/-Wlogical-op/d' -e '/-Wduplicated-cond/d' -e '/-Wduplicated-branches/d' \
+            "$GITHUB_WORKSPACE/.github/scripts/cppad-swap.sh" > swap-clang.sh
+          bash swap-clang.sh
 
       - name: Run sparse_rc move repro
         run: |
