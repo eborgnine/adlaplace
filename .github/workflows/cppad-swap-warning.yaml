@@ -76,9 +76,6 @@ jobs:
           cd "$work"
           bash "$GITHUB_WORKSPACE/.github/scripts/cppad-swap.sh"
 
-      - name: Install RcppEigen
-        run: Rscript -e 'install.packages("RcppEigen")'
-
       - name: Run sparse_rc move repro
         run: |
           work="$(mktemp -d)"

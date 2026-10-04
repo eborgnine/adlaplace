@@ -7,9 +7,16 @@
 # https://github.com/coin-or/CppAD/issues/259
 set -e -u
 # -----------------------------------------------------------------------------
-eigen_inc=$(Rscript -e 'cat(system.file("include", package = "RcppEigen"))')
-if [ -z "$eigen_inc" ] || [ ! -d "$eigen_inc/Eigen" ]; then
-  echo "RcppEigen include directory not found (install RcppEigen first)" >&2
+# Upstream Eigen headers (header-only). Not the copy shipped by RcppEigen.
+eigen_ver=3.4.0
+eigen_inc="$PWD/eigen-${eigen_ver}"
+if [ ! -f "$eigen_inc/Eigen/Sparse" ]; then
+  curl -fsSL -o eigen.tar.gz \
+    "https://gitlab.com/libeigen/eigen/-/archive/${eigen_ver}/eigen-${eigen_ver}.tar.gz"
+  tar -xzf eigen.tar.gz
+fi
+if [ ! -f "$eigen_inc/Eigen/Sparse" ]; then
+  echo "Eigen ${eigen_ver} headers not found at ${eigen_inc}" >&2
   exit 1
 fi
 # -----------------------------------------------------------------------------
