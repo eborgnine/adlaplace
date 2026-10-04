@@ -1,5 +1,6 @@
 # Brad Bell's swap.sh (coin-or/CppAD#259) on GCC 14/15/16, Windows Rtools
-# g++, and MSYS2 MinGW g++, plus the sparse_rc move that also includes Eigen.
+# g++, MSYS2 MinGW g++, and macOS Apple Clang, plus the sparse_rc move that
+# also includes Eigen. Apple Clang does not warn on that move.
 on:
   workflow_dispatch:
   push:
@@ -117,6 +118,39 @@ jobs:
           g++ --version
 
       - name: Run Brad's swap.sh
+        run: |
+          work="$(mktemp -d)"
+          cd "$work"
+          bash "$GITHUB_WORKSPACE/.github/scripts/cppad-swap.sh"
+
+      - name: Run sparse_rc move repro
+        run: |
+          work="$(mktemp -d)"
+          cd "$work"
+          bash "$GITHUB_WORKSPACE/.github/scripts/cppad-sparse-rc-move.sh"
+
+  macos-clang:
+    name: macos Apple Clang
+    runs-on: macos-latest
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Compiler version
+        run: |
+          command -v g++
+          g++ --version
+
+      # swap.sh passes -Wlogical-op, -Wduplicated-cond, and
+      # -Wduplicated-branches with -Werror. Apple Clang rejects those flags.
+      - name: Run Brad's swap.sh
+        continue-on-error: true
         run: |
           work="$(mktemp -d)"
           cd "$work"
