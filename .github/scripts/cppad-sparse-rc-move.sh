@@ -1,29 +1,37 @@
 #! /usr/bin/env bash
-# Minimal stand-in for the adlaplace -Wuninitialized report.
-# Unlike Brad's swap.sh, the uninitialized scalars are read by the move
-# constructor itself, then that constructor runs as part of moving an
-# outer struct (the AdTape chain in the Rtools log).
+# Minimal stand-in for the adlaplace -Wuninitialized report on Rtools.
+# The move constructor reads nr_/nc_/nnz_ before they are set, then a holder
+# that also contains an Eigen::SparseMatrix is moved, as AdTape is.
+# The Rtools diagnostic shows up in a TU that includes Eigen; the three-scalar
+# version without Eigen did not warn.
 # https://github.com/coin-or/CppAD/issues/259
 set -e -u
 # -----------------------------------------------------------------------------
-echo_eval() {
-   echo $*
-   eval $*
-}
+eigen_inc=$(Rscript -e 'cat(system.file("include", package = "RcppEigen"))')
+if [ -z "$eigen_inc" ] || [ ! -d "$eigen_inc/Eigen" ]; then
+  echo "RcppEigen include directory not found (install RcppEigen first)" >&2
+  exit 1
+fi
 # -----------------------------------------------------------------------------
 #
 # temp.cpp
 cat << EOF > temp.cpp
+#include <Eigen/Sparse>
 #include <cstddef>
 #include <iostream>
 #include <utility>
+#include <vector>
 //
-// sparse_rc: move ctor has no initializer and swap reads nr_/nc_/nnz_.
+// sparse_rc: pre-fix CppAD move ctor. swap reads nr_/nc_/nnz_ uninitialized.
 class sparse_rc {
 public:
     std::size_t nr_;
     std::size_t nc_;
     std::size_t nnz_;
+    std::vector<std::size_t> row_;
+    std::vector<std::size_t> col_;
+    std::vector<std::size_t> row_major_;
+    std::vector<std::size_t> col_major_;
     sparse_rc(void)
     : nr_(0), nc_(0), nnz_(0)
     { }
@@ -33,41 +41,47 @@ public:
     {  std::swap(nr_, other.nr_);
        std::swap(nc_, other.nc_);
        std::swap(nnz_, other.nnz_);
+       row_.swap(other.row_);
+       col_.swap(other.col_);
+       row_major_.swap(other.row_major_);
+       col_major_.swap(other.col_major_);
     }
 };
 //
-// AdTape: implicit move constructor move-constructs unused_pattern.
-struct AdTape {
-    sparse_rc unused_pattern;
+// Holder plays the role of AdTape: Eigen matrix plus the buggy pattern.
+struct Holder {
+    Eigen::SparseMatrix<double> H;
+    sparse_rc pattern;
 };
 //
-// Passing and returning by value both call AdTape's move constructor.
-AdTape relocate(AdTape src)
-{  return src; }
+// Shard plays the role of ad_shard(AdTape&&).
+struct Shard {
+    Holder pack;
+    explicit Shard(Holder&& p)
+    : pack(std::move(p))
+    { }
+};
 //
 int main(void)
-{  AdTape in;
-   AdTape out = relocate(std::move(in));
-   std::cout << out.unused_pattern.nr_ << "\n";
+{  Holder in;
+   Shard shard(std::move(in));
+   std::cout << shard.pack.H.rows() << " " << shard.pack.pattern.nr_ << "\n";
    return 0;
 }
 EOF
 #
-# Same flags as Brad's swap.sh.
-echo_eval g++ temp.cpp -o temp \
-    -O2 \
-    -Wall \
-    -Wextra \
-    -Wpedantic \
-    -Wshadow \
-    -Wconversion \
-    -Wlogical-op \
-    -Wduplicated-cond \
-    -Wduplicated-branches \
-    -Wunused \
-    -Wold-style-cast \
-    -Woverloaded-virtual \
-    -Wnull-dereference \
-    -Wformat=2 -Werror
-#
-echo_eval ./temp
+# Rtools adlaplace line, plus -Werror=uninitialized.
+# Eigen's -Wignored-attributes notes are not this bug and do not fail the build.
+cmd=(
+  g++ temp.cpp -o temp
+  -std=gnu++20
+  -O2
+  -Wall
+  -DNDEBUG
+  -Werror=uninitialized
+  -I"$eigen_inc"
+)
+printf '%q ' "${cmd[@]}"
+echo
+"${cmd[@]}"
+./temp
