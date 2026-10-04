@@ -1,12 +1,14 @@
 # Brad Bell's swap.sh (coin-or/CppAD#259) on GCC 14/15/16 and on Windows
-# Rtools g++, plus the CRAN-shaped case: Rtools compiling current adlaplace
-# against RCppAD before the sparse_rc move-ctor initializer (b804867).
+# Rtools g++, a sparse_rc move-constructor repro of the same warning, plus
+# the CRAN-shaped case: Rtools compiling current adlaplace against RCppAD
+# before the sparse_rc move-ctor initializer (b804867).
 on:
   workflow_dispatch:
   push:
     paths:
       - .github/workflows/cppad-swap-warning.yaml
       - .github/scripts/cppad-swap.sh
+      - .github/scripts/cppad-sparse-rc-move.sh
 
 name: CppAD swap warning
 
@@ -46,6 +48,12 @@ jobs:
           cd "$work"
           bash "$GITHUB_WORKSPACE/.github/scripts/cppad-swap.sh"
 
+      - name: Run sparse_rc move repro
+        run: |
+          work="$(mktemp -d)"
+          cd "$work"
+          bash "$GITHUB_WORKSPACE/.github/scripts/cppad-sparse-rc-move.sh"
+
   rtools-swap:
     name: windows Rtools g++ (swap.sh)
     runs-on: windows-latest
@@ -72,6 +80,12 @@ jobs:
           work="$(mktemp -d)"
           cd "$work"
           bash "$GITHUB_WORKSPACE/.github/scripts/cppad-swap.sh"
+
+      - name: Run sparse_rc move repro
+        run: |
+          work="$(mktemp -d)"
+          cd "$work"
+          bash "$GITHUB_WORKSPACE/.github/scripts/cppad-sparse-rc-move.sh"
 
   rtools:
     name: windows Rtools adlaplace
