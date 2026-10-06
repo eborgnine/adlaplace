@@ -7,7 +7,7 @@
 matern_fem_covariance(term, data, range, sd)
 }
 \arguments{
-\item{term}{A \code{\linkS4class{matern}} term with cached FEM Grams.}
+\item{term}{A \code{\link[=matern-class]{matern}} term with cached FEM Grams.}
 
 \item{data}{Data frame containing the geometry column named in \code{term}.}
 

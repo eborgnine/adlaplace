@@ -3,10 +3,13 @@
 \name{replace_vars-methods}
 \alias{replace_vars-methods}
 \alias{replace_vars,hiwp-method}
+\alias{replace_vars,rsiwp-method}
 \alias{replace_vars,rsiid-method}
 \title{Replace data-column names in hierarchical model terms}
 \usage{
 \S4method{replace_vars}{hiwp}(x, map)
+
+\S4method{replace_vars}{rsiwp}(x, map)
 
 \S4method{replace_vars}{rsiid}(x, map)
 }
@@ -22,10 +25,11 @@ An object of the same class as \code{x}, with column references,
 labels, and formulas updated.
 }
 \description{
-\code{hiwp} and \code{rsiid} methods for
+\code{hiwp}, \code{rsiid}, and \code{rsiwp} methods for
 \code{\link[adlaplace]{replace_vars}}. Rewrites data-column references
 according to a named character map, including the \code{hiwp} grouping
-factor and the \code{rsiid} grouping factor and exposure multiplier.
+factor, the \code{rsiid} grouping factor and exposure multiplier, and the
+\code{rsiwp} exposure multiplier.
 }
 \seealso{
 \code{\link[adlaplace]{replace_vars}}

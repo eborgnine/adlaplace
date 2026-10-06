@@ -86,5 +86,5 @@ gram_1d <- function(knots, degree, deriv_a = 0L, deriv_b = 0L, n_quad = NULL) {
     Ba_w <- Matrix::Diagonal(x = ab$w) %*% Ba
     acc <- acc + Matrix::crossprod(Ba_w, Bb)
   }
-  methods::as(Matrix::drop0(acc), "dgCMatrix")
+  as_dgc_matrix(Matrix::drop0(acc))
 }

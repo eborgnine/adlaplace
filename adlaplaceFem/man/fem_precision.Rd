@@ -4,14 +4,14 @@
 \alias{fem_precision}
 \title{Assemble FEM Matern precision Q2 or Q3 from Grams}
 \usage{
-fem_precision(kappa, tau, C, G, G2, G3 = NULL, alpha = 2L)
+fem_precision(kappa, tau, C, G, G2 = NULL, G3 = NULL, alpha = 2L)
 }
 \arguments{
 \item{kappa, tau}{Positive SPDE parameters.}
 
 \item{C, G, G2, G3}{Sparse Grams from \code{\link[=fem_bspline]{fem_bspline()}}.}
 
-\item{alpha}{\code{2} or \code{3}.}
+\item{alpha}{\code{1} (1D Matern nu = 1/2: \verb{tau^2 (kappa^2 C + G)}), \code{2}, or \code{3}.}
 }
 \value{
 Sparse \code{dgCMatrix} precision.

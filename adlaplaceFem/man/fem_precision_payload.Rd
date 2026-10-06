@@ -9,7 +9,8 @@ fem_precision_payload(fem, alpha = 2L)
 \arguments{
 \item{fem}{Result of \code{\link[=fem_bspline]{fem_bspline()}} (or list with C, G, G2, optional G3).}
 
-\item{alpha}{\code{2} or \code{3}.}
+\item{alpha}{\code{1}, \code{2}, or \code{3}. Alpha 1 uses \code{C} and \code{G} only and stores a
+zero \code{G2} so the payload layout stays the same.}
 }
 \value{
 List for \code{density_data@precision}: Grams, chol pattern, and Q CSC

@@ -1,9 +1,10 @@
 #' Replace data-column names in hierarchical model terms
 #'
-#' \code{hiwp} and \code{rsiid} methods for
+#' \code{hiwp}, \code{rsiid}, and \code{rsiwp} methods for
 #' \code{\link[adlaplace]{replace_vars}}. Rewrites data-column references
 #' according to a named character map, including the \code{hiwp} grouping
-#' factor and the \code{rsiid} grouping factor and exposure multiplier.
+#' factor, the \code{rsiid} grouping factor and exposure multiplier, and the
+#' \code{rsiwp} exposure multiplier.
 #'
 #' @param x An \code{hiwp} or \code{rsiid} term.
 #' @param map Named character vector: names are current column names, values
@@ -14,7 +15,7 @@
 #' @seealso \code{\link[adlaplace]{replace_vars}}
 #' @name replace_vars-methods
 #' @rdname replace_vars-methods
-#' @include hiwp.R rsiid.R
+#' @include hiwp.R rsiid.R rsiwp.R
 #' @importFrom adlaplace replace_vars
 NULL
 
@@ -35,6 +36,21 @@ setMethod("replace_vars", "hiwp", function(x, map) {
       character(1)
     )
   }
+  x
+})
+
+#' @rdname replace_vars-methods
+#' @export
+setMethod("replace_vars", "rsiwp", function(x, map) {
+  if (is.null(map) || !length(map)) {
+    return(x)
+  }
+  map <- stats::setNames(as.character(map), names(map))
+  x <- methods::callNextMethod(x, map)
+  if (length(x@mult) && x@mult %in% names(map)) {
+    x@mult <- as.character(map[[x@mult]])
+  }
+  x@label <- paste(c(x@name, x@mult, "rsiwp"), collapse = "_")
   x
 })
 

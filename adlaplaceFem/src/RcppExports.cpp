@@ -25,6 +25,18 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// create_ad_shard_random_fem_ssq_1
+SEXP create_ad_shard_random_fem_ssq_1(SEXP model, Rcpp::List config);
+RcppExport SEXP _adlaplaceFem_create_ad_shard_random_fem_ssq_1(SEXP modelSEXP, SEXP configSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< SEXP >::type model(modelSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type config(configSEXP);
+    rcpp_result_gen = Rcpp::wrap(create_ad_shard_random_fem_ssq_1(model, config));
+    return rcpp_result_gen;
+END_RCPP
+}
 // create_ad_shard_random_fem_ssq_2
 SEXP create_ad_shard_random_fem_ssq_2(SEXP model, Rcpp::List config);
 RcppExport SEXP _adlaplaceFem_create_ad_shard_random_fem_ssq_2(SEXP modelSEXP, SEXP configSEXP) {
@@ -84,6 +96,7 @@ END_RCPP
 
 static const R_CallMethodDef CallEntries[] = {
     {"_adlaplaceFem_fem_logdet_debug", (DL_FUNC) &_adlaplaceFem_fem_logdet_debug, 4},
+    {"_adlaplaceFem_create_ad_shard_random_fem_ssq_1", (DL_FUNC) &_adlaplaceFem_create_ad_shard_random_fem_ssq_1, 2},
     {"_adlaplaceFem_create_ad_shard_random_fem_ssq_2", (DL_FUNC) &_adlaplaceFem_create_ad_shard_random_fem_ssq_2, 2},
     {"_adlaplaceFem_create_ad_shard_random_fem_ssq_3", (DL_FUNC) &_adlaplaceFem_create_ad_shard_random_fem_ssq_3, 2},
     {"_adlaplaceFem_get_ad_pack_raw_parameters", (DL_FUNC) &_adlaplaceFem_get_ad_pack_raw_parameters, 3},

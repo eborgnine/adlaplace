@@ -2,6 +2,7 @@
 
 export(fem_Q_structure)
 export(fem_bspline)
+export(fem_bspline_1d)
 export(fem_chol_pattern)
 export(fem_logdet_debug)
 export(fem_precision)
@@ -12,36 +13,47 @@ export(hb_summary)
 export(matern)
 export(matern_est)
 export(matern_fem_covariance)
+export(rsmatern)
 exportClasses(matern)
+exportClasses(rsmatern)
 exportMethods(beta_info)
 exportMethods(design)
 exportMethods(extra_density)
-exportMethods(hinv_trace_index)
 exportMethods(fem_bspline)
+exportMethods(hinv_trace_index)
 exportMethods(precision)
 exportMethods(random_info)
+exportMethods(replace_vars)
 exportMethods(theta_info)
 import(RCppAD)
-importFrom(Matrix,Diagonal)
-importFrom(Matrix,Matrix)
-importFrom(Matrix,drop0)
-importFrom(Matrix,kronecker)
-importFrom(Matrix,sparseMatrix)
-importFrom(Matrix,tcrossprod)
+importFrom(Matrix,
+  Diagonal,
+  Matrix,
+  drop0,
+  kronecker,
+  sparseMatrix,
+  tcrossprod
+)
 importFrom(Rcpp,evalCpp)
-importFrom(adlaplace,beta_info)
-importFrom(adlaplace,design)
-importFrom(adlaplace,extra_density)
-importFrom(adlaplace,hinv_trace_index)
-importFrom(adlaplace,precision)
-importFrom(adlaplace,random_info)
-importFrom(adlaplace,theta_info)
-importFrom(methods,as)
-importFrom(methods,new)
-importFrom(methods,setClass)
-importFrom(methods,setGeneric)
-importFrom(methods,setMethod)
-importFrom(methods,setOldClass)
-importFrom(methods,signature)
+importFrom(adlaplace,
+  beta_info,
+  by_group,
+  design,
+  extra_density,
+  hinv_trace_index,
+  precision,
+  random_info,
+  replace_vars,
+  theta_info
+)
+importFrom(methods,
+  as,
+  new,
+  setClass,
+  setGeneric,
+  setMethod,
+  setOldClass,
+  signature
+)
 importFrom(splines,splineDesign)
 useDynLib(adlaplaceFem, .registration = TRUE)

@@ -40,8 +40,8 @@ Collate:
     'knots.R'
     'matern-geometry.R'
     'matern.R'
+    'matern1d.R'
     'matern_est.R'
     'zzz.R'
 NeedsCompilation: yes
-Config/roxygen2/version: 8.0.0
-RoxygenNote: 7.3.3
+Config/roxygen2/version: 8.1.0

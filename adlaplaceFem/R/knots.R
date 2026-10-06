@@ -50,8 +50,8 @@ open_knot_vector <- function(range, degree, n_interior = 5L, interior = NULL) {
     stop("range must satisfy max > min")
   }
   degree <- as.integer(degree)
-  if (degree < 2L) {
-    stop("degree must be >= 2 for higher-order FEM Grams")
+  if (degree < 1L) {
+    stop("degree must be at least 1")
   }
   if (is.null(interior)) {
     n_interior <- as.integer(n_interior)

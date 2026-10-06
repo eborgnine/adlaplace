@@ -125,8 +125,11 @@ std::size_t register_fem_logdet_payload(const FemCholPayload &pay) {
   atom.w = fem_symmetry_weights(pay);
   atom.M.push_back(pay.C_x);
   atom.M.push_back(pay.G_x);
-  atom.M.push_back(pay.G2_x);
-  if (Alpha == 3) {
+  // Alpha 1 is the 1D Matern-1/2 precision tau^2 (kappa^2 C + G).
+  if constexpr (Alpha >= 2) {
+    atom.M.push_back(pay.G2_x);
+  }
+  if constexpr (Alpha >= 3) {
     atom.M.push_back(pay.G3_x);
   }
   atom.perm = pay.perm;
@@ -179,6 +182,20 @@ void fem_Q_coefficients(const CppAD::AD<double> &raw_range,
   }
   const CppAD::AD<double> range = CppAD::exp(log_range);
   const CppAD::AD<double> sd = CppAD::exp(log_sd);
+  // 1D, nu = 1/2: practical range rho = 2/kappa, and
+  // sigma^2 = 1/(2 kappa tau^2) so tau = 1/(sd * sqrt(2 kappa)).
+  // Q = tau^2 (kappa^2 C + G). The 2D map below is nu = Alpha - 1.
+  if constexpr (Alpha == 1) {
+    const CppAD::AD<double> kappa = CppAD::AD<double>(2) / range;
+    const CppAD::AD<double> tau =
+        CppAD::AD<double>(1) /
+        (sd * CppAD::sqrt(CppAD::AD<double>(2) * kappa));
+    const CppAD::AD<double> tau2 = tau * tau;
+    out.resize(2);
+    out[0] = tau2 * kappa * kappa;
+    out[1] = tau2;
+    return;
+  }
   const CppAD::AD<double> kappa =
       CppAD::sqrt(CppAD::AD<double>(8.0 * (Alpha - 1))) / range;
   const CppAD::AD<double> k2 = kappa * kappa;
@@ -416,8 +433,10 @@ make_fem_ssq_data(density_data model, const Config &cfg) {
   data->w = fem_symmetry_weights(pay);
   data->M.push_back(pay.C_x);
   data->M.push_back(pay.G_x);
-  data->M.push_back(pay.G2_x);
-  if (Alpha == 3) {
+  if constexpr (Alpha >= 2) {
+    data->M.push_back(pay.G2_x);
+  }
+  if constexpr (Alpha >= 3) {
     data->M.push_back(pay.G3_x);
   }
 
@@ -461,6 +480,9 @@ SEXP create_ad_shard_random_fem_ssq(SEXP model, Rcpp::List config) {
 }
 
 LogDensSingleDataFn resolve_fem_det(const std::string &name) {
+  if (name == "random_fem_det_1") {
+    return random_fem_det<1>;
+  }
   if (name == "random_fem_det_2") {
     return random_fem_det<2>;
   }
@@ -509,9 +531,11 @@ Rcpp::List fem_logdet_debug_impl(const FemCholPayload &pay, double range,
   const std::size_t n = static_cast<std::size_t>(pay.Q.ncol());
   std::vector<double> Q_x(nnz, 0.0);
   for (std::size_t k = 0; k < nnz; ++k) {
-    double v = coef[0] * pay.C_x[k] + coef[1] * pay.G_x[k] +
-               coef[2] * pay.G2_x[k];
-    if constexpr (Alpha == 3) {
+    double v = coef[0] * pay.C_x[k] + coef[1] * pay.G_x[k];
+    if constexpr (Alpha >= 2) {
+      v += coef[2] * pay.G2_x[k];
+    }
+    if constexpr (Alpha >= 3) {
       v += coef[3] * pay.G3_x[k];
     }
     Q_x[k] = v;
@@ -594,13 +618,28 @@ Rcpp::List fem_logdet_debug(
       sd_is_log = ls[0];
     }
   }
+  if (pay.alpha == 1) {
+    return fem_logdet_debug_impl<1>(pay, range, sd, range_is_log, sd_is_log);
+  }
   if (pay.alpha == 2) {
     return fem_logdet_debug_impl<2>(pay, range, sd, range_is_log, sd_is_log);
   }
   if (pay.alpha == 3) {
     return fem_logdet_debug_impl<3>(pay, range, sd, range_is_log, sd_is_log);
   }
-  Rcpp::stop("fem_logdet_debug: alpha must be 2 or 3, got %d", pay.alpha);
+  Rcpp::stop("fem_logdet_debug: alpha must be 1, 2, or 3, got %d", pay.alpha);
+}
+
+//' Build raw AD handle for a random_fem_ssq_1 term (1D Matern nu = 1/2)
+//'
+//' @param model An \code{density_data} S4 object with FEM precision payload.
+//' @param config Model configuration list.
+//' @return External pointer of class \code{ad_pack_ptr}.
+//' @keywords internal
+//' @noRd
+// [[Rcpp::export]]
+SEXP create_ad_shard_random_fem_ssq_1(SEXP model, Rcpp::List config) {
+  return create_ad_shard_random_fem_ssq<1>(model, config);
 }
 
 //' Build raw AD handle for a random_fem_ssq_2 term

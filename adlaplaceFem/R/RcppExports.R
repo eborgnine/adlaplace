@@ -17,6 +17,17 @@ fem_logdet_debug <- function(precision, range, sd, log_scale = NULL) {
     .Call(`_adlaplaceFem_fem_logdet_debug`, precision, range, sd, log_scale)
 }
 
+#' Build raw AD handle for a random_fem_ssq_1 term (1D Matern nu = 1/2)
+#'
+#' @param model An \code{density_data} S4 object with FEM precision payload.
+#' @param config Model configuration list.
+#' @return External pointer of class \code{ad_pack_ptr}.
+#' @keywords internal
+#' @noRd
+create_ad_shard_random_fem_ssq_1 <- function(model, config) {
+    .Call(`_adlaplaceFem_create_ad_shard_random_fem_ssq_1`, model, config)
+}
+
 #' Build raw AD handle for a random_fem_ssq_2 term
 #'
 #' @param model An \code{density_data} S4 object with FEM precision payload.

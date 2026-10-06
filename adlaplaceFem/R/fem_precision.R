@@ -2,17 +2,22 @@
 #'
 #' @param kappa,tau Positive SPDE parameters.
 #' @param C,G,G2,G3 Sparse Grams from [fem_bspline()].
-#' @param alpha `2` or `3`.
+#' @param alpha `1` (1D Matern nu = 1/2: `tau^2 (kappa^2 C + G)`), `2`, or `3`.
 #' @return Sparse `dgCMatrix` precision.
 #' @export
-fem_precision <- function(kappa, tau, C, G, G2, G3 = NULL, alpha = 2L) {
+fem_precision <- function(kappa, tau, C, G, G2 = NULL, G3 = NULL, alpha = 2L) {
   kappa <- as.numeric(kappa)
   tau <- as.numeric(tau)
   if (kappa <= 0 || tau <= 0) {
     stop("kappa and tau must be positive")
   }
   alpha <- as.integer(alpha)
-  if (alpha == 2L) {
+  if (alpha == 1L) {
+    Q <- tau^2 * (kappa^2 * C + G)
+  } else if (alpha == 2L) {
+    if (is.null(G2)) {
+      stop("G2 is required for alpha = 2")
+    }
     Q <- tau^2 * (kappa^4 * C + 2 * kappa^2 * G + G2)
   } else if (alpha == 3L) {
     if (is.null(G3)) {
@@ -20,7 +25,7 @@ fem_precision <- function(kappa, tau, C, G, G2, G3 = NULL, alpha = 2L) {
     }
     Q <- tau^2 * (kappa^6 * C + 3 * kappa^4 * G + 3 * kappa^2 * G2 + G3)
   } else {
-    stop("alpha must be 2 or 3")
+    stop("alpha must be 1, 2, or 3")
   }
   methods::as(
     methods::as(Matrix::drop0(Matrix::forceSymmetric(Q)), "generalMatrix"),
@@ -79,7 +84,8 @@ upper_csc_pattern <- function(S) {
 #' Build `random_fem_ssq_*` / `random_fem_det_*` precision payload for adlaplace
 #'
 #' @param fem Result of [fem_bspline()] (or list with C, G, G2, optional G3).
-#' @param alpha `2` or `3`.
+#' @param alpha `1`, `2`, or `3`. Alpha 1 uses `C` and `G` only and stores a
+#'   zero `G2` so the payload layout stays the same.
 #' @return List for `density_data@precision`: Grams, chol pattern, and Q CSC
 #'   coefficients aligned for on-tape assembly.
 #' @export
@@ -87,8 +93,13 @@ fem_precision_payload <- function(fem, alpha = 2L) {
   alpha <- as.integer(alpha)
   C <- fem$C
   G <- fem$G
-  G2 <- fem$G2
-  G3 <- if (alpha >= 3L) fem$G3 else NULL
+  if (alpha == 1L) {
+    G2 <- as_dgc_matrix(Matrix::Matrix(0, nrow(C), ncol(C), sparse = TRUE))
+    G3 <- NULL
+  } else {
+    G2 <- fem$G2
+    G3 <- if (alpha >= 3L) fem$G3 else NULL
+  }
   if (alpha >= 3L && is.null(G3)) {
     stop("fem$G3 is required for alpha = 3 (use degree >= 3 in fem_bspline)")
   }
