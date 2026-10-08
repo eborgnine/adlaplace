@@ -60,6 +60,10 @@ spacing.}
 \item{log}{Log-transform the two hyperparameters (default \code{TRUE}).}
 
 \item{parscale}{Optional length-2 step scale.}
+
+\item{term}{An \code{\link[=rsmatern-class]{rsmatern}} term.}
+
+\item{data}{Model data frame (passed by adlaplace generics).}
 }
 \value{
 An \code{rsmatern} term.
