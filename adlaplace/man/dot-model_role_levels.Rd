@@ -6,6 +6,12 @@
 \usage{
 .model_role_levels
 }
+\value{
+A character vector of length 3, with elements \code{"fixed"},
+  \code{"random"}, and \code{"response"} in that order. These are the
+  allowed levels of the \code{model_role} factor on \code{model_term}
+  objects, indicating a fixed effect, a random effect, or the response.
+}
 \description{
 Character vector of allowed levels for the \code{model_role} slot on
 \code{model_term} objects.
