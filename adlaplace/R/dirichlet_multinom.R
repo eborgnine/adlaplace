@@ -98,7 +98,10 @@ setMethod("elgm_matrix", "dirichlet_multinom", function(term, data) {
   # lex.order = TRUE: first by-variable is the slowest (like order())
   stratum <- interaction(by_codes, drop = TRUE, lex.order = TRUE)
   stratum_id <- as.integer(stratum)
-  if (mean(table(stratum_id) <= 1L) > 0.5) {
+  if (!any(!is.na(stratum_id))) {
+    stop("by variables did not form strata", call. = FALSE)
+  }
+  if (isTRUE(mean(table(stratum_id) <= 1L) > 0.5)) {
     warning(
       "more than half of strata only have one observation, ",
       "might be missing the zeros in dataset?"

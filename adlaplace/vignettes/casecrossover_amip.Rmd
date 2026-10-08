@@ -56,11 +56,6 @@ if (!vignette_full) {
   london <- london[london$year == 2003, ]
 }
 
-london$month <- factor(format(london$date, "%b"), levels = month.abb)
-london$dow <- factor(format(london$date, "%a"),
-  levels = format(as.Date(4:10), "%a")
-)
-
 cc_formula <- dirichlet_multinom(
   all,
   by = c("year", "month", "dow"),
@@ -172,10 +167,8 @@ stratum_info <- data.frame(
   dow = vapply(parts, `[[`, character(1L), 3L),
   stringsAsFactors = FALSE
 )
-stratum_info$month <- factor(stratum_info$month, levels = month.abb)
-stratum_info$dow <- factor(stratum_info$dow,
-  levels = format(as.Date(4:10), "%a")
-)
+stratum_info$month <- factor(stratum_info$month, levels = levels(london$month))
+stratum_info$dow <- factor(stratum_info$dow, levels = levels(london$dow))
 stratum_info$name <- paste(stratum_info$month, stratum_info$dow, sep = "\n")
 stratum_info$num <- stratum_info$year +
   (as.integer(stratum_info$month) - 1) / 12 +
