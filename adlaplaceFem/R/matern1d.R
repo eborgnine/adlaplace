@@ -279,6 +279,9 @@ setMethod("extra_density", "rsmatern", function(term) {
 #' @seealso [adlaplace::replace_vars()]
 #' @name replace_vars-methods
 #' @rdname replace_vars-methods
+NULL
+
+#' @rdname replace_vars-methods
 #' @export
 setMethod("replace_vars", "rsmatern", function(x, map) {
   if (is.null(map) || !length(map)) {

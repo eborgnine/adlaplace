@@ -241,6 +241,13 @@ tensor_design <- function(x, y, knots_x, knots_y, degree) {
   )
 }
 
+# Top-level so parLapply serializes the namespace, not fem_design_blocks's frame.
+# coords_x / coords_y: parLapply forwards `...` into clusterApply, which
+# already has a formal argument named x.
+fem_design_block_worker <- function(ii, fem, coords_x, coords_y) {
+  fem_design_xy(fem, coords_x[ii], coords_y[ii])
+}
+
 #' Design matrix on contiguous blocks of coordinates
 #'
 #' `n_blocks == 1` evaluates every coordinate in one call. Otherwise the
@@ -270,15 +277,8 @@ fem_design_blocks <- function(fem, x, y, n_blocks = 1L, cl = NULL) {
   pieces <- if (is.null(cl)) {
     lapply(blocks, function(ii) fem_design_xy(fem, x[ii], y[ii]))
   } else {
-    # baseenv() so the cluster does not serialize this call's frame.
-    # coords_x / coords_y: parLapply forwards `...` into clusterApply, which
-    # already has a formal argument named x.
-    worker <- function(ii, fem, coords_x, coords_y) {
-      adlaplaceFem:::fem_design_xy(fem, coords_x[ii], coords_y[ii])
-    }
-    environment(worker) <- baseenv()
     parallel::parLapply(
-      cl, blocks, worker,
+      cl, blocks, fem_design_block_worker,
       fem = fem, coords_x = x, coords_y = y
     )
   }

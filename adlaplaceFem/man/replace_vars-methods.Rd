@@ -2,6 +2,7 @@
 % Please edit documentation in R/matern1d.R
 \name{replace_vars-methods}
 \alias{replace_vars-methods}
+\alias{replace_vars,rsmatern-method}
 \title{Replace data-column names in an rsmatern term}
 \usage{
 \S4method{replace_vars}{rsmatern}(x, map)
