@@ -95,6 +95,8 @@ setClass(
 #'   spacing.
 #' @param log Log-transform the two hyperparameters (default `TRUE`).
 #' @param parscale Optional length-2 step scale.
+#' @param term An [`rsmatern-class`] term.
+#' @param data Model data frame (passed by adlaplace generics).
 #' @return An `rsmatern` term.
 #' @export
 #' @rdname rsmatern-class
@@ -265,6 +267,18 @@ setMethod("extra_density", "rsmatern", function(term) {
   "random_fem_det_1"
 })
 
+#' Replace data-column names in an rsmatern term
+#'
+#' Method for [adlaplace::replace_vars()]. Rewrites the time column, the
+#' exposure column (`mult`), and the grouping variable (`by`).
+#'
+#' @param x An `rsmatern` term.
+#' @param map Named character vector: names are current column names, values
+#'   are replacement column names. Names absent from `map` are left unchanged.
+#' @return The term with column references and the label updated.
+#' @seealso [adlaplace::replace_vars()]
+#' @name replace_vars-methods
+#' @rdname replace_vars-methods
 #' @export
 setMethod("replace_vars", "rsmatern", function(x, map) {
   if (is.null(map) || !length(map)) {
