@@ -1,6 +1,8 @@
 # Brad Bell's swap.sh (coin-or/CppAD#259) on GCC 14/15/16, Windows Rtools
 # g++, MSYS2 MinGW g++, and macOS Apple Clang, plus the sparse_rc move that
 # also includes Eigen. Apple Clang does not warn on that move.
+# GCC and Rtools also compile that move against upstream CppAD 302e241.
+# gcc:14 strips the initializer and requires the uninitialized warning.
 on:
   workflow_dispatch:
   push:
@@ -8,6 +10,7 @@ on:
       - .github/workflows/cppad-swap-warning.yaml
       - .github/scripts/cppad-swap.sh
       - .github/scripts/cppad-sparse-rc-move.sh
+      - .github/scripts/cppad-sparse-rc-upstream.sh
       - sparse_rc_move.cpp
 
 name: CppAD swap warning
@@ -50,11 +53,32 @@ jobs:
           cd "$work"
           bash "$GITHUB_WORKSPACE/.github/scripts/cppad-swap.sh"
 
-      - name: Run sparse_rc move repro
+      - name: Test upstream CppAD 302e241
         run: |
           work="$(mktemp -d)"
           cd "$work"
-          bash "$GITHUB_WORKSPACE/.github/scripts/cppad-sparse-rc-move.sh"
+          bash "$GITHUB_WORKSPACE/.github/scripts/cppad-sparse-rc-upstream.sh"
+
+      # Only gcc:14. The step passes when the stripped move constructor warns.
+      - name: Negative control (stripped initializer must warn)
+        if: matrix.image == 'gcc:14'
+        run: |
+          work="$(mktemp -d)"
+          cd "$work"
+          log="$(mktemp)"
+          set +e
+          bash "$GITHUB_WORKSPACE/.github/scripts/cppad-sparse-rc-move.sh" >"$log" 2>&1
+          status=$?
+          set -e
+          cat "$log"
+          if [ "$status" -eq 0 ]; then
+            echo "expected -Wuninitialized after stripping the initializer" >&2
+            exit 1
+          fi
+          if ! grep -q 'uninitialized' "$log"; then
+            echo "strip-initializer compile failed without -Wuninitialized" >&2
+            exit 1
+          fi
 
   rtools-swap:
     name: windows Rtools g++ (swap.sh)
@@ -85,11 +109,11 @@ jobs:
           cd "$work"
           bash "$GITHUB_WORKSPACE/.github/scripts/cppad-swap.sh"
 
-      - name: Run sparse_rc move repro
+      - name: Test upstream CppAD 302e241
         run: |
           work="$(mktemp -d)"
           cd "$work"
-          bash "$GITHUB_WORKSPACE/.github/scripts/cppad-sparse-rc-move.sh"
+          bash "$GITHUB_WORKSPACE/.github/scripts/cppad-sparse-rc-upstream.sh"
 
   mingw-swap:
     name: windows mingw g++
