@@ -1,7 +1,7 @@
 # Brad Bell's swap.sh (coin-or/CppAD#259) on GCC 14/15/16, Windows Rtools
 # g++, MSYS2 MinGW g++, and macOS Apple Clang, plus the sparse_rc move that
 # also includes Eigen. Apple Clang does not warn on that move.
-# GCC and Rtools also compile that move against upstream CppAD 302e241.
+# GCC, Rtools, and MSYS2 MinGW also compile that move against upstream CppAD 302e241.
 # gcc:14 strips the initializer and requires the uninitialized warning.
 on:
   workflow_dispatch:
@@ -147,11 +147,11 @@ jobs:
           cd "$work"
           bash "$GITHUB_WORKSPACE/.github/scripts/cppad-swap.sh"
 
-      - name: Run sparse_rc move repro
+      - name: Test upstream CppAD 302e241
         run: |
           work="$(mktemp -d)"
           cd "$work"
-          bash "$GITHUB_WORKSPACE/.github/scripts/cppad-sparse-rc-move.sh"
+          bash "$GITHUB_WORKSPACE/.github/scripts/cppad-sparse-rc-upstream.sh"
 
   macos-clang:
     name: macos Apple Clang
