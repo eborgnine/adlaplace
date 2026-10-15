@@ -13,8 +13,11 @@ export(hb_summary)
 export(matern)
 export(matern_est)
 export(matern_fem_covariance)
+export(mgp)
 export(rsmatern)
 exportClasses(matern)
+exportClasses(mgp)
+exportClasses(mgp_boundary)
 exportClasses(rsmatern)
 exportMethods(beta_info)
 exportMethods(design)
@@ -22,6 +25,7 @@ exportMethods(extra_density)
 exportMethods(fem_bspline)
 exportMethods(hinv_trace_index)
 exportMethods(precision)
+exportMethods(psd)
 exportMethods(random_info)
 exportMethods(replace_vars)
 exportMethods(theta_info)
@@ -42,6 +46,7 @@ importFrom(adlaplace,
   extra_density,
   hinv_trace_index,
   precision,
+  psd,
   random_info,
   replace_vars,
   theta_info

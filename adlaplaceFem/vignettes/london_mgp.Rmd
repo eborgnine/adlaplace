@@ -1,0 +1,271 @@
+---
+title: "Near-monotone mGP case-crossover for London PM10"
+author: "Patrick Brown"
+date: "`r Sys.Date()`"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+vignette: >
+  %\VignetteIndexEntry{Near-monotone mGP case-crossover for London PM10}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+## Background
+
+Daily mortality and PM10 in London (2002–2006) often show a near-monotone
+exposure–response: risk rises with pollution, with a base shape close to
+$\sqrt{\mathrm{PM}_{10}}$. The near-monotone Gaussian process (mGP) of
+[Zhang et al.](https://github.com/AgueroZZ/near_monotone_smoothing) places a
+spline penalty on the departure from that base model (Ramsay, 1998), while
+keeping $f(x_0)=f'(x_0)=0$ so case-crossover strata can absorb the intercept.
+
+This vignette fits a time-stratified case-crossover model with
+`mgp(pm10, a = 2)` and compares it to `iwp(pm10, p = 2)`.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 4.5
+)
+library(adlaplace)
+library(adlaplaceFem)
+if (file.exists("vignette_full.R")) {
+  source("vignette_full.R", local = TRUE)
+} else {
+  vignette_full <- TRUE
+  vignette_num_threads <- 2L
+}
+fit_num_shards <- if (vignette_full) 200L else 8L
+fit_maxit <- if (vignette_full) 200L else 15L
+```
+
+## Data
+
+```{r data}
+data("london", package = "adlaplace")
+london <- london[!is.na(london$pm10), ]
+if (!vignette_full) {
+  london <- london[london$year == 2003, ]
+}
+range(london$pm10)
+range(london$tmean, na.rm = TRUE)
+```
+
+PM10 ranges from about 8.1 to 99.6 $\mu\mathrm{g}/\mathrm{m}^3$.
+
+## Model
+
+Strata absorb the intercept (`0 +` on the RHS). Bare pre-built term objects
+are not formula-safe (they become `linear()`), so `mgp()` is written inline;
+`psd_prior(term = mgp(...), ...)` repeats the same call. Keep a copy of the
+term for later `psd()` plots.
+
+```{r model-spec}
+pm10_mgp <- mgp(
+  "pm10",
+  a = 2,
+  c = 0,
+  k = 30,
+  region = c(8, 100),
+  ref_value = "left"
+)
+
+cc_mgp <- dirichlet_multinom(
+  all,
+  by = c("year", "month", "dow"),
+  init = 0.02
+) ~ 0 + rh +
+  mgp(pm10, a = 2, c = 0, k = 30, region = c(8, 100), ref_value = "left") +
+  iwp(tmean, p = 3, knots = seq(-2, 30, by = 2), ref_value = 20, init = 0.001) +
+  psd_prior(
+    term = mgp(pm10, a = 2, c = 0, k = 30, region = c(8, 100), ref_value = "left"),
+    u = 0.01, alpha = 0.5, h = 5, x = 8
+  )
+```
+
+An IWP comparison uses a matched prior on the 5-unit predictive SD:
+
+```{r model-iwp}
+pm10_iwp <- iwp(
+  "pm10",
+  p = 2,
+  knots = seq(8, 100, by = 4),
+  ref_value = 8,
+  init = 0.001
+)
+cc_iwp <- dirichlet_multinom(
+  all,
+  by = c("year", "month", "dow"),
+  init = 0.02
+) ~ 0 + rh +
+  iwp(pm10, p = 2, knots = seq(8, 100, by = 4), ref_value = 8, init = 0.001) +
+  iwp(tmean, p = 3, knots = seq(-2, 30, by = 2), ref_value = 20, init = 0.001) +
+  psd_prior(
+    term = iwp(pm10, p = 2, knots = seq(8, 100, by = 4), ref_value = 8, init = 0.001),
+    u = 0.01, alpha = 0.5, h = 5
+  )
+```
+
+## Fit
+
+```{r fit}
+fit_mgp <- adlaplace(
+  formula = cc_mgp,
+  data = london,
+  config = list(
+    num_threads = vignette_num_threads,
+    num_shards = fit_num_shards
+  ),
+  control = list(maxit = fit_maxit, trace = 3, REPORT = 5),
+  verbose = FALSE,
+  hessian = vignette_full
+)
+fit_mgp$par_info
+```
+
+```{r fit-iwp}
+fit_iwp <- adlaplace(
+  formula = cc_iwp,
+  data = london,
+  config = list(
+    num_threads = vignette_num_threads,
+    num_shards = fit_num_shards
+  ),
+  control = list(maxit = fit_maxit, trace = 3, REPORT = 5),
+  verbose = FALSE,
+  hessian = vignette_full
+)
+```
+
+## Relative risk vs PM10
+
+```{r plot-rr}
+num_sim <- if (vignette_full) 200L else 40L
+num_grid <- 81L
+set.seed(1)
+sim_mgp <- sim_random(
+  "pm10",
+  fit = fit_mgp,
+  num_sim = num_sim,
+  num_grid = num_grid,
+  transform = exp
+)
+set.seed(1)
+sim_iwp <- sim_random(
+  "pm10",
+  fit = fit_iwp,
+  num_sim = num_sim,
+  num_grid = num_grid,
+  transform = exp
+)
+
+oldpar <- par(no.readonly = TRUE)
+par(mar = c(3, 3, 1, 1), bty = "l", mgp = c(1.8, 0.5, 0))
+plot(
+  sim_mgp$x, sim_mgp$pointwise[, "0.5"],
+  type = "l", lwd = 2, col = "#1b4f72",
+  xlab = expression(PM[10]), ylab = "RR",
+  ylim = range(sim_mgp$pointwise, sim_iwp$pointwise)
+)
+matlines(sim_mgp$x, sim_mgp$pointwise[, c("0.1", "0.9")], lty = 2, col = "#1b4f72")
+lines(sim_iwp$x, sim_iwp$pointwise[, "0.5"], lwd = 2, col = "#b03a2e")
+matlines(sim_iwp$x, sim_iwp$pointwise[, c("0.1", "0.9")], lty = 2, col = "#b03a2e")
+legend(
+  "topleft",
+  legend = c("mGP (a = 2)", "IWP (p = 2)"),
+  col = c("#1b4f72", "#b03a2e"),
+  lwd = 2,
+  bty = "n"
+)
+par(oldpar)
+```
+
+## Sensitivity in $a$
+
+```{r sensitivity, eval = vignette_full}
+fit_a <- function(a) {
+  fml <- dirichlet_multinom(all, by = c("year", "month", "dow"), init = 0.02) ~
+    0 + rh +
+    mgp(pm10, a = a, c = 0, k = 30, region = c(8, 100), ref_value = "left") +
+    iwp(tmean, p = 3, knots = seq(-2, 30, by = 2), ref_value = 20, init = 0.001) +
+    psd_prior(
+      term = mgp(pm10, a = a, c = 0, k = 30, region = c(8, 100), ref_value = "left"),
+      u = 0.01, alpha = 0.5, h = 5, x = 8
+    )
+  adlaplace(
+    fml,
+    data = london,
+    config = list(num_threads = vignette_num_threads, num_shards = fit_num_shards),
+    control = list(maxit = fit_maxit),
+    verbose = FALSE,
+    hessian = FALSE
+  )
+}
+fits <- lapply(c(1, 2, Inf), fit_a)
+logliks <- vapply(fits, function(f) as.numeric(stats::logLik(f)), numeric(1))
+data.frame(a = c(1, 2, Inf), logLik = logliks)
+
+fit_two <- adlaplace(
+  dirichlet_multinom(all, by = c("year", "month", "dow"), init = 0.02) ~
+    0 + rh +
+    mgp(pm10, a = 2, c = 0, k = 30, region = c(8, 100), ref_value = 40) +
+    iwp(tmean, p = 3, knots = seq(-2, 30, by = 2), ref_value = 20, init = 0.001) +
+    psd_prior(
+      term = mgp(pm10, a = 2, c = 0, k = 30, region = c(8, 100), ref_value = 40),
+      u = 0.01, alpha = 0.5, h = 5, x = 40
+    ),
+  data = london,
+  config = list(num_threads = vignette_num_threads, num_shards = fit_num_shards),
+  control = list(maxit = fit_maxit),
+  verbose = FALSE,
+  hessian = FALSE
+)
+as.numeric(stats::logLik(fit_two))
+```
+
+## Prior vs posterior predictive SD
+
+```{r psd-plots}
+sd_col <- if ("mle" %in% names(fit_mgp$par_info)) "mle" else "init"
+sd_mgp <- fit_mgp$par_info[[sd_col]][fit_mgp$par_info$label == "pm10_mgp"]
+sd_iwp <- fit_iwp$par_info[[sd_col]][fit_iwp$par_info$label == "pm10_iwp"]
+
+h <- 5
+x_grid <- seq(8, 90, length.out = 40)
+psd_mgp_x <- psd(pm10_mgp$pm10_mgp, h = h, x = x_grid, sd = sd_mgp)
+psd_iwp_x <- rep(psd(pm10_iwp$pm10_iwp, h = h, sd = sd_iwp), length(x_grid))
+
+oldpar <- par(no.readonly = TRUE)
+par(mfrow = c(1, 2), mar = c(3, 3, 1.5, 1), bty = "l", mgp = c(1.8, 0.5, 0))
+plot(
+  x_grid, psd_mgp_x,
+  type = "l", lwd = 2, col = "#1b4f72",
+  xlab = expression(PM[10]), ylab = expression(sigma[x](5)),
+  main = "PSD vs x",
+  ylim = range(psd_mgp_x, psd_iwp_x)
+)
+lines(x_grid, psd_iwp_x, lwd = 2, col = "#b03a2e")
+legend("topleft", c("mGP", "IWP"), col = c("#1b4f72", "#b03a2e"), lwd = 2, bty = "n")
+
+# Prior vs posterior on the PSD scale at x = 8
+rate_mgp <- psd_prior(pm10_mgp, u = 0.01, alpha = 0.5, h = 5, x = 8)@rate
+rate_iwp <- psd_prior(pm10_iwp, u = 0.01, alpha = 0.5, h = 5)@rate
+s <- seq(1e-4, 0.05, length.out = 200)
+plot(
+  s, dexp(s, rate = rate_mgp),
+  type = "l", lwd = 2, col = "#1b4f72",
+  xlab = expression(sigma[8](5)), ylab = "density",
+  main = "Prior density of PSD"
+)
+lines(s, dexp(s, rate = rate_iwp), lwd = 2, col = "#b03a2e")
+abline(v = psd(pm10_mgp$pm10_mgp, h = 5, x = 8, sd = sd_mgp), col = "#1b4f72", lty = 2)
+abline(v = psd(pm10_iwp$pm10_iwp, h = 5, sd = sd_iwp), col = "#b03a2e", lty = 2)
+legend("topright", c("mGP prior", "IWP prior", "posterior PSD"), lty = c(1, 1, 2), bty = "n")
+par(oldpar)
+```
+
+The left panel shows that the mGP predictive SD depends on $x$ (nonstationary),
+while the IWP predictive SD is constant.

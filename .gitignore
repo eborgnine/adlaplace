@@ -102,3 +102,5 @@ docs/paper/examples/bacteria/bacteria_files/libs/quarto-html/popper.min.js
 .matrix-results.txt
 .vignette-timing.txt
 .vignette-out/
+sandbox/ext/BayesGP/
+sandbox/ext/near_monotone_smoothing/

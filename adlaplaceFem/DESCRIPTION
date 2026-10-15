@@ -1,28 +1,36 @@
 Package: adlaplaceFem
 Type: Package
 Title: Finite Element Approximations for Adlaplace
-Version: 0.7.1
-Date: 2026-09-25
-Authors@R: person(given = "Patrick", family = "Brown",
-    email = "patrick.borgnine@gmail.com",
-    role = c("aut", "cre", "cph"))
-Author: Patrick Brown [aut, cre, cph]
+Version: 0.7.2
+Date: 2026-10-14
+Authors@R: c(
+    person(given = "Patrick", family = "Brown",
+      email = "patrick.borgnine@gmail.com",
+      role = c("aut", "cre", "cph")),
+    person(given = "Ziang", family = "Zhang",
+      email = "ziangzhang@uchicago.edu",
+      role = "aut",
+      comment = "near-monotone mGP FEM")
+  )
+Author: Patrick Brown [aut, cre, cph], Ziang Zhang [aut]
 Maintainer: Patrick Brown <patrick.borgnine@gmail.com>
 Description: Finite-element approximations for hierarchical models with the
     adlaplace Laplace approximation framework. Provides tensor-product
     B-spline FEM ingredients for Matern Gaussian random fields (mass, stiffness,
     and higher-order Grams), including hierarchical locally refined B-spline bases,
     design and Gram matrix construction on regular grids, optional terra
-    SpatRaster / SpatVector input, and AD tape builders for random_fem_ssq_* /
-    random_fem_det_*.
+    SpatRaster / SpatVector input, AD tape builders for random_fem_ssq_* /
+    random_fem_det_*, and a near-monotone mGP smoother (mgp) with a predictive
+    SD (psd) interface.
 SystemRequirements: OpenMP
 License: GPL (>= 2)
 Depends:
     R (>= 4.1.0),
-    adlaplace (>= 0.6.0)
+    adlaplace (>= 0.7.5)
 Imports: methods, stats, Matrix, splines, Rcpp, RCppAD, parallel
 LinkingTo: Rcpp, adlaplace, RcppEigen, trustOptim, Matrix, RCppAD
-Suggests: terra, testthat (>= 3.0.0), geostatsp (>= 2.2.0), knitr, rmarkdown, mapmisc
+Suggests: terra, testthat (>= 3.0.0), geostatsp (>= 2.2.0), knitr, rmarkdown,
+    mapmisc, fda, numDeriv
 Additional_repositories: https://eborgnine.r-universe.dev
 Config/testthat/edition: 3
 VignetteBuilder: knitr
@@ -42,6 +50,8 @@ Collate:
     'matern.R'
     'matern1d.R'
     'matern_est.R'
+    'mgp-fem.R'
+    'mgp.R'
     'zzz.R'
 NeedsCompilation: yes
 Config/roxygen2/version: 8.1.0
