@@ -2,11 +2,16 @@
 #'
 #' Cubic B-spline FEM for the near-monotone Gaussian process
 #' \eqn{L_a f = f'' - \alpha f' = \sigma\xi} with
-#' \eqn{\alpha(x) = -1/(a(x+c))}. The null space is spanned by
+#' \eqn{\alpha(x) = -1/(a\,x)}. The null space is spanned by
 #' \eqn{\{1, m(x)\}} where \eqn{m} is the normalized Box-Cox transform of
-#' \eqn{x+c}; the FEM weights drop the first two bases so
+#' \eqn{x}; the FEM weights drop the first two bases so
 #' \eqn{f(x_0) = f'(x_0) = 0}, and the slope column is returned separately as
 #' an [`mgp_boundary-class`] term (like [`adlaplace::iwp()`] returning `rpoly`).
+#'
+#' Knot specification matches [`adlaplace::iwp()`]: pass original-scale knot
+#' positions (including the domain ends). Knots must be strictly positive. The
+#' reference is snapped to the nearest knot. Bases on each side of `ref_value`
+#' are built from the knots on that side.
 #'
 #' The prior density uses adlaplace's `random_mult` kernel with a fixed
 #' precision `Q` (one SD theta). Use [adlaplace::psd()] /
@@ -17,10 +22,7 @@
 #' dependency at runtime).
 #'
 #' @slot a Curvature parameter (`Inf` gives IWP2: \eqn{\alpha = 0}, \eqn{m(u)=u}).
-#' @slot c Original-scale shift ensuring \eqn{x + c > 0}.
-#' @slot shift Internal shift \eqn{c_s = x_0 + c}.
-#' @slot region Length-2 numeric domain.
-#' @slot k Number of cubic B-spline bases per side before dropping two.
+#' @slot shift Internal shift \eqn{c_s = x_0} used in centred coordinates.
 #' @slot n_quad Gauss-Legendre nodes per knot span.
 #' @slot fem Cached list from the internal FEM assembler.
 #' @slot two_sided Logical; both sides of `ref_value` are active.
@@ -32,10 +34,7 @@ setClass(
   "mgp",
   slots = list(
     a = "numeric",
-    c = "numeric",
     shift = "numeric",
-    region = "numeric",
-    k = "integer",
     n_quad = "integer",
     fem = "list",
     two_sided = "logical"
@@ -48,10 +47,7 @@ setClass(
     package = "adlaplace",
     p.order = 2L,
     a = 2,
-    c = 0,
     shift = 0,
-    region = c(0, 1),
-    k = 30L,
     n_quad = 10L,
     fem = list(),
     two_sided = FALSE
@@ -66,8 +62,7 @@ setClass(
 #'
 #' @slot sd Prior SD for the boundary coefficient (`Inf` = flat).
 #' @slot a Curvature (same as the parent [`mgp-class`]).
-#' @slot c Original-scale shift.
-#' @slot shift Internal shift \eqn{c_s = x_0 + c}.
+#' @slot shift Internal shift \eqn{c_s = x_0}.
 #' @exportClass mgp_boundary
 #' @rdname mgp_boundary-class
 setClass(
@@ -75,7 +70,6 @@ setClass(
   slots = list(
     sd = "numeric",
     a = "numeric",
-    c = "numeric",
     shift = "numeric"
   ),
   contains = "model_term",
@@ -87,7 +81,6 @@ setClass(
     p.order = 1L,
     sd = Inf,
     a = 2,
-    c = 0,
     shift = 0
   )
 )
@@ -95,28 +88,28 @@ setClass(
 #' Near-monotone mGP constructor
 #'
 #' @param x Variable name.
-#' @param a Curvature; `2` gives \eqn{\sqrt{x+c}}, `1` gives `\log`,
+#' @param a Curvature; `2` gives \eqn{\sqrt{x}}, `1` gives `\log`,
 #'   `Inf` gives a linear base model (IWP2).
-#' @param c Original-scale shift. Default `0` when `min(region) > 0`,
-#'   otherwise `-min + 1e-6 * scale`.
-#' @param k Cubic B-spline bases per side before dropping the first two
-#'   (fda convention).
-#' @param region Length-2 numeric domain (required).
+#' @param knots Vector of knot locations on the original scale (required),
+#'   same convention as [`adlaplace::iwp()`]. Must be strictly positive.
 #' @param ref_value Reference location: `"left"` (default), `"middle"`,
-#'   `"right"`, or a numeric value inside `region`.
+#'   `"right"`, or a numeric value inside the knot range (snapped to the
+#'   nearest knot, like [`adlaplace::iwp()`]).
 #' @param boundary_sd Prior SD for the boundary column (`Inf` = flat).
 #' @param n_quad Gauss-Legendre nodes per knot span.
 #' @param init,lower,upper,parscale,log SD hyperparameter controls.
 #' @return Named list with the [`mgp-class`] term and its
 #'   [`mgp_boundary-class`] companion.
+#' @examples
+#' knots <- seq(8, 100, by = 4)
+#' mgp_term <- mgp(x = "pm10", a = 2, knots = knots, ref_value = 30)
+#' mgp_term
 #' @export
 #' @rdname mgp-class
 mgp <- function(
     x,
     a = 2,
-    c = NULL,
-    k = 30,
-    region = NULL,
+    knots,
     ref_value = "left",
     boundary_sd = Inf,
     n_quad = 10,
@@ -125,18 +118,20 @@ mgp <- function(
     upper = Inf,
     parscale = 1,
     log = TRUE) {
-  if (is.null(region)) {
-    stop("region is required for mgp()", call. = FALSE)
+  if (missing(knots)) {
+    stop("knots is required for mgp()", call. = FALSE)
   }
-  region <- range(as.numeric(region), na.rm = TRUE)
-  if (length(region) != 2L || any(!is.finite(region)) || diff(region) <= 0) {
-    stop("region must be a finite length-2 interval with positive length", call. = FALSE)
+  if (length(knots) < 2L) {
+    stop("knots must have length >= 2", call. = FALSE)
+  }
+  knots <- sort(unique(as.numeric(knots)))
+  if (length(knots) < 2L || any(!is.finite(knots))) {
+    stop("knots must have at least two finite positions", call. = FALSE)
   }
   if (length(a) != 1L || (!is.finite(a) && !isTRUE(all.equal(a, Inf))) || a == 0) {
     stop("a must be a single nonzero value, or Inf", call. = FALSE)
   }
   a <- as.numeric(a)
-  k <- as.integer(k)
   n_quad <- as.integer(n_quad)
   if (length(boundary_sd) != 1L || !(is.finite(boundary_sd) || is.infinite(boundary_sd)) ||
     boundary_sd <= 0) {
@@ -144,16 +139,15 @@ mgp <- function(
   }
 
   x <- adlaplace::strip_term_name(as.character(x))
-  c_val <- mgp_shift(c, region)
-  mgp_check_domain(region, c_val)
-  x0 <- mgp_reference(region, ref_value)
-  cs <- x0 + c_val
+  mgp_check_domain(knots)
+  x0 <- mgp_reference(knots, ref_value)
+  cs <- x0
   if (!is.finite(cs) || cs <= 0) {
-    stop("internal shift x0 + c must be positive", call. = FALSE)
+    stop("ref_value (internal shift) must be positive", call. = FALSE)
   }
 
   fem <- mgp_fem(
-    domain = region, x0 = x0, a = a, cs = cs, k = k, n_quad = n_quad
+    knots = knots, x0 = x0, a = a, cs = cs, n_quad = n_quad
   )
 
   the_f <- stats::as.formula(paste0("~ 0 + ", x), env = new.env())
@@ -167,7 +161,7 @@ mgp <- function(
     formula = the_f,
     p.order = 2L,
     ref_value = x0,
-    knots = region,
+    knots = knots,
     init = as.numeric(init)[1L],
     lower = as.numeric(lower)[1L],
     upper = as.numeric(upper)[1L],
@@ -178,10 +172,7 @@ mgp <- function(
     ad_kind = "random",
     package = "adlaplace",
     a = a,
-    c = c_val,
     shift = cs,
-    region = region,
-    k = k,
     n_quad = n_quad,
     fem = fem,
     two_sided = isTRUE(fem$two_sided)
@@ -194,14 +185,13 @@ mgp <- function(
     formula = the_f,
     p.order = 1L,
     ref_value = x0,
-    knots = region,
+    knots = knots,
     model_role = factor("random", levels = adlaplace::.model_role_levels),
     density = "random_diagonal",
     ad_kind = "random",
     package = "adlaplace",
     sd = as.numeric(boundary_sd)[1L],
     a = a,
-    c = c_val,
     shift = cs
   )
 
@@ -229,10 +219,11 @@ setMethod("design", "mgp", function(term, data) {
     stop("mgp covariate '", term@name, "' has non-finite values", call. = FALSE)
   }
   tol <- sqrt(.Machine$double.eps)
-  if (any(x < term@region[[1L]] - tol | x > term@region[[2L]] + tol)) {
+  kn <- range(term@knots)
+  if (any(x < kn[[1L]] - tol | x > kn[[2L]] + tol)) {
     stop(
-      "mgp covariate '", term@name, "' has values outside region [",
-      term@region[[1L]], ", ", term@region[[2L]], "]",
+      "mgp covariate '", term@name, "' has values outside knots [",
+      kn[[1L]], ", ", kn[[2L]], "]",
       call. = FALSE
     )
   }
@@ -330,9 +321,9 @@ setMethod("psd", "mgp", function(term, h, x = NULL, sd = 1, ...) {
   if (!is.finite(sd) || sd < 0) {
     stop("sd must be a non-negative finite value", call. = FALSE)
   }
-  if (any(x + term@c <= 0) || any(x + h + term@c <= 0)) {
+  if (any(x <= 0) || any(x + h <= 0)) {
     stop(
-      "psd() for mgp requires x + c > 0 and x + h + c > 0 on the original scale",
+      "psd() for mgp requires x > 0 and x + h > 0 on the original scale",
       call. = FALSE
     )
   }

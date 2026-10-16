@@ -1,21 +1,24 @@
 test_that("mgp constructor builds one- and two-sided FEM terms", {
-  one <- mgp("x", a = 2, c = 0, k = 12, region = c(1, 5), ref_value = "left")
+  one <- mgp("x", a = 2, knots = seq(1, 5, length.out = 10), ref_value = "left")
   expect_true(inherits(one$x_mgp, "mgp"))
   expect_true(inherits(one$x_mgp_boundary, "mgp_boundary"))
   expect_false(one$x_mgp@two_sided)
   expect_equal(one$x_mgp@ref_value, 1)
   expect_equal(one$x_mgp@shift, 1)
 
-  two <- mgp("x", a = 2, c = 0, k = 12, region = c(8, 100), ref_value = 40)
+  knots_two <- sort(unique(c(
+    seq(8, 40, length.out = 10),
+    seq(40, 100, length.out = 10)
+  )))
+  two <- mgp("x", a = 2, knots = knots_two, ref_value = 40)
   expect_true(two$x_mgp@two_sided)
   expect_equal(two$x_mgp@fem$pos_len, 60)
   expect_equal(two$x_mgp@fem$neg_len, 32)
-  n_side <- 12L - 2L
-  expect_equal(ncol(two$x_mgp@fem$Q), 2L * n_side)
+  expect_equal(ncol(two$x_mgp@fem$Q), 2L * 10L)
 })
 
 test_that("mgp design and precision have matching dimensions", {
-  term <- mgp("x", a = 2, c = 0, k = 10, region = c(1, 4), ref_value = "left")$x_mgp
+  term <- mgp("x", a = 2, knots = seq(1, 4, length.out = 8), ref_value = "left")$x_mgp
   dat <- data.frame(x = seq(1, 4, length.out = 20))
   B <- design(term, dat)
   prec <- precision(term, dat)
@@ -60,11 +63,11 @@ test_that("mgp FEM Q and design match BayesGP reference (fda)", {
 })
 
 test_that("mgp boundary matches boundary_basis_matrix", {
-  region <- c(8, 100)
+  knots <- seq(8, 100, length.out = 8)
   for (ref in list("left", "middle", "right", 40)) {
-    terms <- mgp("x", a = 2, c = 0, k = 10, region = region, ref_value = ref)
+    terms <- mgp("x", a = 2, knots = knots, ref_value = ref)
     bterm <- terms$x_mgp_boundary
-    x <- seq(region[1], region[2], length.out = 25)
+    x <- seq(min(knots), max(knots), length.out = 25)
     got <- as.numeric(design(bterm, data.frame(x = x)))
     ref_mat <- boundary_basis_matrix(
       x = x,
@@ -78,17 +81,14 @@ test_that("mgp boundary matches boundary_basis_matrix", {
 })
 
 test_that("psd(mgp) matches SS_cov", {
-  terms <- mgp("x", a = 2, c = 0.1, k = 12, region = c(0, 5), ref_value = "left")
+  terms <- mgp("x", a = 2, knots = seq(1, 5, length.out = 10), ref_value = "left")
   term <- terms$x_mgp
   for (a in c(2, 1, -1, 3, -3)) {
-    term@a <- a
-    term@fem$a <- a
+    term_a <- term
+    term_a@a <- a
     x0 <- term@ref_value
     h <- c(0.2, 0.5, 1)
     x <- x0 + c(0, 0.3, 1)
-    # Rebuild not needed for psd (uses a, shift only)
-    term_a <- term
-    term_a@a <- a
     got <- psd(term_a, h = h, x = x)
     u <- x - x0
     expect_equal(
@@ -100,13 +100,12 @@ test_that("psd(mgp) matches SS_cov", {
   }
 })
 
-test_that("mgp FEM prior SD approaches psd as k grows", {
-  region <- c(1, 6)
+test_that("mgp FEM prior SD approaches psd as knots densify", {
+  knots <- seq(1, 6, length.out = 58)
   x0 <- 1
   h <- 0.75
   a <- 2
-  c <- 0
-  terms <- mgp("x", a = a, c = c, k = 60, region = region, ref_value = x0)
+  terms <- mgp("x", a = a, knots = knots, ref_value = x0)
   term <- terms$x_mgp
   target <- psd(term, h = h, x = x0)
   B <- as.matrix(design(term, data.frame(x = x0 + h)))
@@ -116,7 +115,7 @@ test_that("mgp FEM prior SD approaches psd as k grows", {
 })
 
 test_that("psd_prior(mgp) matches prior_conversion_mgp rate", {
-  terms <- mgp("pm10", a = 2, c = 0, k = 12, region = c(8, 100), ref_value = "left")
+  terms <- mgp("pm10", a = 2, knots = seq(8, 100, length.out = 10), ref_value = "left")
   u <- 0.01
   alpha <- 0.5
   h <- 5
@@ -135,7 +134,7 @@ test_that("psd_prior(mgp) matches prior_conversion_mgp rate", {
 
 test_that("random_mult tape from mgp matches dense density", {
   skip_if_not_installed("numDeriv")
-  terms <- mgp("x", a = 2, c = 0, k = 8, region = c(1, 3), ref_value = "left")
+  terms <- mgp("x", a = 2, knots = seq(1, 3, length.out = 6), ref_value = "left")
   term <- terms$x_mgp
   prec <- precision(term, NULL)
   nr <- prec$rank
@@ -178,7 +177,7 @@ test_that("end-to-end mgp fit on a sqrt curve has finite logLik", {
   x <- seq(1, 9, length.out = 80)
   dat <- data.frame(x = x, y = sqrt(x) + rnorm(length(x), sd = 0.05))
   fit <- adlaplace(
-    normal(y) ~ 0 + mgp(x, a = 2, c = 0, k = 16, region = c(1, 9), ref_value = "left"),
+    normal(y) ~ 0 + mgp(x, a = 2, knots = seq(1, 9, length.out = 14), ref_value = "left"),
     data = dat,
     config = list(num_threads = 1L, num_shards = 1L),
     control = list(maxit = 40L),
@@ -195,7 +194,7 @@ test_that("london-2003 case-crossover with mgp returns finite logLik", {
   fit <- adlaplace(
     dirichlet_multinom(all, by = c("year", "month", "dow"), init = 0.02) ~
       0 + rh +
-      mgp(pm10, a = 2, c = 0, k = 16, region = c(8, 100), ref_value = "left") +
+      mgp(pm10, a = 2, knots = seq(8, 100, by = 4), ref_value = "left") +
       iwp(tmean, p = 3, knots = seq(-2, 30, by = 2), ref_value = 20, init = 0.001),
     data = london,
     config = list(num_threads = 1L, num_shards = 4L),
@@ -213,13 +212,13 @@ test_that("replace_vars and sim_random work with mgp", {
     x = seq(1, 5, length.out = 40),
     y = sqrt(seq(1, 5, length.out = 40)) + rnorm(40, sd = 0.1)
   )
-  terms <- mgp("x", a = 2, c = 0, k = 10, region = c(1, 5))
+  terms <- mgp("x", a = 2, knots = seq(1, 5, length.out = 8))
   terms2 <- replace_vars(terms, c(x = "z"))
   expect_identical(terms2$z_mgp@name, "z")
   expect_identical(names(terms2), c("z_mgp", "z_mgp_boundary"))
 
   fit <- adlaplace(
-    normal(y) ~ 0 + mgp(x, a = 2, c = 0, k = 10, region = c(1, 5)),
+    normal(y) ~ 0 + mgp(x, a = 2, knots = seq(1, 5, length.out = 8)),
     data = dat,
     config = list(num_threads = 1L, num_shards = 1L),
     control = list(maxit = 25L),

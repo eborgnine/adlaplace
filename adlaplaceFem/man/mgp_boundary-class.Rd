@@ -40,8 +40,6 @@ a finite \code{boundary_sd} uses \code{random_diagonal} with known SD.
 
 \item{\code{a}}{Curvature (same as the parent \code{\link[=mgp-class]{mgp}}).}
 
-\item{\code{c}}{Original-scale shift.}
-
-\item{\code{shift}}{Internal shift \eqn{c_s = x_0 + c}.}
+\item{\code{shift}}{Internal shift \eqn{c_s = x_0}.}
 }}
 

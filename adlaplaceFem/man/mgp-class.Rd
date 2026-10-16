@@ -16,9 +16,7 @@
 mgp(
   x,
   a = 2,
-  c = NULL,
-  k = 30,
-  region = NULL,
+  knots,
   ref_value = "left",
   boundary_sd = Inf,
   n_quad = 10,
@@ -46,19 +44,15 @@ mgp(
 \arguments{
 \item{x}{Location(s) on the original scale (default \code{ref_value}).}
 
-\item{a}{Curvature; \code{2} gives \eqn{\sqrt{x+c}}, \code{1} gives \verb{\\log},
+\item{a}{Curvature; \code{2} gives \eqn{\sqrt{x}}, \code{1} gives \verb{\\log},
 \code{Inf} gives a linear base model (IWP2).}
 
-\item{c}{Original-scale shift. Default \code{0} when \code{min(region) > 0},
-otherwise \code{-min + 1e-6 * scale}.}
-
-\item{k}{Cubic B-spline bases per side before dropping the first two
-(fda convention).}
-
-\item{region}{Length-2 numeric domain (required).}
+\item{knots}{Vector of knot locations on the original scale (required),
+same convention as \code{\link[adlaplace:iwp]{adlaplace::iwp()}}. Must be strictly positive.}
 
 \item{ref_value}{Reference location: \code{"left"} (default), \code{"middle"},
-\code{"right"}, or a numeric value inside \code{region}.}
+\code{"right"}, or a numeric value inside the knot range (snapped to the
+nearest knot, like \code{\link[adlaplace:iwp]{adlaplace::iwp()}}).}
 
 \item{boundary_sd}{Prior SD for the boundary column (\code{Inf} = flat).}
 
@@ -83,13 +77,18 @@ Named list with the \code{\link[=mgp-class]{mgp}} term and its
 \description{
 Cubic B-spline FEM for the near-monotone Gaussian process
 \eqn{L_a f = f'' - \alpha f' = \sigma\xi} with
-\eqn{\alpha(x) = -1/(a(x+c))}. The null space is spanned by
+\eqn{\alpha(x) = -1/(a\,x)}. The null space is spanned by
 \eqn{\{1, m(x)\}} where \eqn{m} is the normalized Box-Cox transform of
-\eqn{x+c}; the FEM weights drop the first two bases so
+\eqn{x}; the FEM weights drop the first two bases so
 \eqn{f(x_0) = f'(x_0) = 0}, and the slope column is returned separately as
 an \code{\link[=mgp_boundary-class]{mgp_boundary}} term (like \code{\link[adlaplace:iwp]{adlaplace::iwp()}} returning \code{rpoly}).
 }
 \details{
+Knot specification matches \code{\link[adlaplace:iwp]{adlaplace::iwp()}}: pass original-scale knot
+positions (including the domain ends). Knots must be strictly positive. The
+reference is snapped to the nearest knot. Bases on each side of \code{ref_value}
+are built from the knots on that side.
+
 The prior density uses adlaplace's \code{random_mult} kernel with a fixed
 precision \code{Q} (one SD theta). Use \code{\link[adlaplace:psd]{adlaplace::psd()}} /
 \code{\link[adlaplace:psd_prior]{adlaplace::psd_prior()}} for a PC prior on the predictive SD.
@@ -120,13 +119,7 @@ dependency at runtime).
 \describe{
 \item{\code{a}}{Curvature parameter (\code{Inf} gives IWP2: \eqn{\alpha = 0}, \eqn{m(u)=u}).}
 
-\item{\code{c}}{Original-scale shift ensuring \eqn{x + c > 0}.}
-
-\item{\code{shift}}{Internal shift \eqn{c_s = x_0 + c}.}
-
-\item{\code{region}}{Length-2 numeric domain.}
-
-\item{\code{k}}{Number of cubic B-spline bases per side before dropping two.}
+\item{\code{shift}}{Internal shift \eqn{c_s = x_0} used in centred coordinates.}
 
 \item{\code{n_quad}}{Gauss-Legendre nodes per knot span.}
 
@@ -135,6 +128,11 @@ dependency at runtime).
 \item{\code{two_sided}}{Logical; both sides of \code{ref_value} are active.}
 }}
 
+\examples{
+knots <- seq(8, 100, by = 4)
+mgp_term <- mgp(x = "pm10", a = 2, knots = knots, ref_value = 30)
+mgp_term
+}
 \seealso{
 \code{\link[adlaplace:psd]{adlaplace::psd()}}, \code{\link[adlaplace:psd_prior]{adlaplace::psd_prior()}}, \link[=mgp_boundary-class]{mgp_boundary}
 }

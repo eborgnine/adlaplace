@@ -10,6 +10,7 @@
 #include <mutex>
 #include <set>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -172,8 +173,23 @@ int latch_parallel_threads(int requested) {
       adlaplace_latch_parallel_threads(static_cast<std::size_t>(requested)));
 }
 
+// Rf_error longjmps and skips C++ destructors. Inside an OpenMP region that
+// aborts the process (thread_alloc free on the wrong thread). Throw instead
+// so callers can catch it before leaving the parallel region.
+void adlaplace_cppad_throw(bool, int, const char *, const char *,
+                           const char *msg) {
+  const char *text = (msg != nullptr && msg[0] != '\0') ? msg : "CppAD error";
+  throw std::runtime_error(text);
+}
+
+void install_throwing_cppad_handler() {
+  static CppAD::ErrorHandler handler(&adlaplace_cppad_throw);
+  (void)handler;
+}
+
 void cppad_parallel_setup(std::size_t num_threads) {
   require_serial_main_thread("cppad_parallel_setup");
+  install_throwing_cppad_handler();
   if (num_threads < 1)
     num_threads = 1;
 #ifndef _OPENMP
