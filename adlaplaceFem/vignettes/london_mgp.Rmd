@@ -68,7 +68,7 @@ inline. Copies of the terms are kept for later `psd()` plots.
 pm10_iwp <- iwp(
   "pm10",
   p = 2,
-  knots = seq(5, 105, by = 10),
+  knots = seq(5, 105, by = 20),
   ref_value = 25,
   init = 0.001
 )
@@ -76,7 +76,11 @@ pm10_mgp <- mgp("pm10",
   a = 2, knots = pm10_iwp[[1]]@knots,
   ref_value = pm10_iwp[[1]]@ref_value
 )
-pm10_tiwp <- iwp("sqrt_pm", p = 2, knots = seq(2, 10, by = 1), ref_value = 5, init = 0.001)
+pm10_tiwp <- iwp("sqrt_pm",
+  p = 2,
+  knots = seq(1, 11, by = 2),
+  ref_value = 5, init = 0.001
+)
 
 cc_base <- collect_terms(
   dirichlet_multinom(
@@ -106,6 +110,125 @@ fit_mgp <- adlaplace(
   hessian = vignette_full
 )
 fit_mgp$par_info
+```
+
+The inner solver can stop because the trust radius falls below
+`stop.trust.radius` and still hand that $\gamma$ to the Laplace
+approximation. That solver differentiates the joint log density, so compare
+its derivative to first differences along the random-effect coordinate with
+the largest gradient at the fitted point.
+
+```{r joint-deriv, fig.height = 4, fig.width = 9, eval = vignette_full}
+dens_ptr <- clone_ad_pack_ptr(fit_mgp$ad_pack@ptr)
+x_here <- as.numeric(fit_mgp$details$full_parameters)
+g_here <- grad(dens_ptr, x_here, negative = FALSE)
+n_beta <- as.integer(fit_mgp$ad_pack@sizes[["beta"]])
+n_gamma <- as.integer(fit_mgp$ad_pack@sizes[["gamma"]])
+gamma_idx <- seq.int(n_beta + 1L, length.out = n_gamma)
+Dpar <- gamma_idx[which.max(abs(g_here[gamma_idx]))]
+gamma_label <- names(fit_mgp$gamma)[Dpar - n_beta]
+
+Dpar <- length(x_here)
+
+scan_j <- deriv_scan_joint(
+  dens_ptr,
+  x = x_here,
+  index = Dpar,
+  width = 0.1,
+  n = 7L,
+  negative = FALSE
+)
+
+grad_at_mid <- (
+  scan_j$grad[-1L, Dpar] + scan_j$grad[-nrow(scan_j$grad), Dpar]
+) / 2
+hess_at_mid <- (
+  scan_j$hess_row[-1L, Dpar] + scan_j$hess_row[-nrow(scan_j$hess_row), Dpar]
+) / 2
+data.frame(
+  gamma = gamma_label,
+  max_abs_diff = max(abs(grad_at_mid - scan_j$fd_value)),
+  max_abs_diff_hess = max(abs(hess_at_mid - scan_j$fd_grad[, Dpar]))
+)
+
+oldpar <- par(no.readonly = TRUE)
+par(mfrow = c(1, 3), mar = c(3, 3, 2, 0.5), mgp = c(1.6, 0.5, 0))
+plot(
+  scan_j$grid, scan_j$value,
+  type = "b",
+  xlab = gamma_label, ylab = "joint log density"
+)
+plot(
+  scan_j$grid, scan_j$grad[, Dpar],
+  type = "l",
+  xlab = gamma_label, ylab = "derivative"
+)
+points(scan_j$mid, scan_j$fd_value, pch = 16)
+legend(
+  "topright",
+  legend = c("AD", "first difference"),
+  lty = c(1, NA), pch = c(NA, 16), bty = "n"
+)
+plot(
+  scan_j$grid, scan_j$hess_row[, Dpar],
+  type = "l",
+  xlab = gamma_label, ylab = "second derivative",
+  ylim = range(
+    c(scan_j$hess_row[, Dpar], scan_j$fd_grad[, Dpar]),
+    na.rm = TRUE
+  )
+)
+points(scan_j$mid, scan_j$fd_grad[, Dpar], pch = 16)
+par(oldpar)
+```
+
+The outer objective is the Laplace approximation to the log likelihood.
+The same first-difference check, along the PM10 mGP standard deviation,
+compares that profile derivative to the log likelihood itself.
+
+```{r loglik-deriv, fig.height = 4, eval = vignette_full}
+x_outer <- fit_mgp$par_info$mle_internal
+Dpar_ll <- match("pm10_mgp", fit_mgp$par_info$label)
+scan_label <- fit_mgp$par_info$label[Dpar_ll]
+
+scan_ll <- deriv_scan_laplace(
+  fit_mgp$ad_pack,
+  x = x_outer,
+  index = Dpar_ll,
+  width = 0.2,
+  n = 5L,
+  config = fit_mgp$config,
+  gamma = as.numeric(fit_mgp$gamma),
+  control = fit_mgp$control_inner
+)
+
+grad_ll_mid <- (
+  scan_ll$grad[-1L, Dpar_ll] + scan_ll$grad[-nrow(scan_ll$grad), Dpar_ll]
+) / 2
+data.frame(
+  parameter = scan_label,
+  max_abs_diff = max(abs(grad_ll_mid - scan_ll$fd_value))
+)
+
+oldpar <- par(no.readonly = TRUE)
+par(mfrow = c(1, 2), mar = c(3, 3, 2, 0.5), mgp = c(1.6, 0.5, 0))
+plot(
+  scan_ll$grid, scan_ll$value,
+  type = "b",
+  xlab = scan_label, ylab = "negative log likelihood"
+)
+plot(
+  scan_ll$grid, scan_ll$grad[, Dpar_ll],
+  type = "l",
+  xlab = scan_label, ylab = "derivative"
+)
+points(scan_ll$mid, scan_ll$fd_value, pch = 16)
+legend(
+  "topright",
+  legend = c("AD", "first difference"),
+  lty = c(1, NA), pch = c(NA, 16), bty = "n"
+)
+par(oldpar)
 ```
 
 ```{r fit-iwp, eval = vignette_full}
@@ -143,6 +266,7 @@ fit_tiwp$par_info
 `sim_random()` needs `fit$gamma` and `fit$details$hessian$chol_inner`.
 Those are always filled by the post-fit Laplace evaluation, but the curves
 below are full-build only (abbreviated `R CMD check` stops after `par_info`).
+The grey histogram is the distribution of PM10 in the case-crossover data.
 
 ```{r plot-rr, eval = vignette_full}
 num_sim <- 200L
@@ -171,14 +295,29 @@ sim_tiwp <- sim_random(
   num_sim = num_sim,
   transform = exp
 )
+rr_ylim <- range(sim_mgp$pointwise, sim_iwp$pointwise)
 oldpar <- par(no.readonly = TRUE)
 par(mar = c(3, 3, 1, 1), bty = "l", mgp = c(1.8, 0.5, 0))
 plot(
-  sim_mgp$x, sim_mgp$pointwise[, "0.5"],
-  type = "l", lwd = 2, col = "#1b4f72",
-  xlab = expression(PM[10]), ylab = "RR",
-  ylim = range(sim_mgp$pointwise, sim_iwp$pointwise)
+  NA, NA,
+  xlim = range(pm10_grid$pm10), ylim = rr_ylim,
+  xlab = expression(PM[10]), ylab = "RR"
 )
+hx <- london$pm10
+hx <- hx[is.finite(hx) & hx >= min(pm10_grid$pm10) & hx <= max(pm10_grid$pm10)]
+if (length(hx) > 10L) {
+  hb <- hist(hx, breaks = 30, plot = FALSE)
+  dens <- hb$counts / max(hb$counts)
+  y0 <- rr_ylim[1]
+  y1 <- y0 + 0.12 * diff(rr_ylim)
+  rect(
+    hb$breaks[-length(hb$breaks)], y0,
+    hb$breaks[-1L], y0 + dens * (y1 - y0),
+    col = adjustcolor("grey50", alpha.f = 0.25),
+    border = NA
+  )
+}
+lines(sim_mgp$x, sim_mgp$pointwise[, "0.5"], lwd = 2, col = "#1b4f72")
 matlines(sim_mgp$x, sim_mgp$pointwise[, c("0.1", "0.9")], lty = 2, col = "#1b4f72")
 lines(sim_iwp$x, sim_iwp$pointwise[, "0.5"], lwd = 2, col = "#b03a2e")
 matlines(sim_iwp$x, sim_iwp$pointwise[, c("0.1", "0.9")], lty = 2, col = "#b03a2e")
