@@ -6,6 +6,7 @@
 #include <Rcpp.h>
 #include <cppad/cppad.hpp>
 #include <cppad/utility/thread_alloc.hpp>
+#include <atomic>
 #include <cstdlib>
 #include <mutex>
 #include <set>
@@ -174,12 +175,20 @@ int latch_parallel_threads(int requested) {
 }
 
 // Rf_error longjmps and skips C++ destructors. Inside an OpenMP region that
-// aborts the process (thread_alloc free on the wrong thread). Throw instead
-// so callers can catch it before leaving the parallel region.
+// aborts the process (thread_alloc free on the wrong thread). Do not throw
+// either: Forward() runs under an OpenMP outlined function, and an exception
+// there is uncaught (std::terminate). Record the failure; callers check the
+// flag and reject the shard on the master thread.
 void adlaplace_cppad_throw(bool, int, const char *, const char *,
                            const char *msg) {
   const char *text = (msg != nullptr && msg[0] != '\0') ? msg : "CppAD error";
-  throw std::runtime_error(text);
+  {
+    std::lock_guard<std::mutex> lock(adlaplace_cppad_err_mu());
+    if (adlaplace_cppad_err_msg().empty()) {
+      adlaplace_cppad_err_msg() = text;
+    }
+  }
+  adlaplace_cppad_err_flag().store(1, std::memory_order_relaxed);
 }
 
 void install_throwing_cppad_handler() {
