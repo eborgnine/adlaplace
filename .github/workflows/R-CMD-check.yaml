@@ -1,6 +1,6 @@
 # Workflow derived from https://github.com/r-lib/actions/tree/v2/examples
 # Checks local packages in order:
-#   RCppAD → adlaplace → adlaplaceExample → adlaplaceHgp → adlaplaceFem
+#   RCppAD → adlaplace → adlaplaceExample → adlaplaceHgp → adlaplaceFem → captaintvp
 # Per package: build+install, then one of:
 #   - --as-cran: macOS without OpenMP
 #   - plain (non --as-cran): Windows, Ubuntu, and macOS with OpenMP
@@ -38,6 +38,13 @@ jobs:
             r: 'release'
             id: macos-no-omp
             label: 'macos-latest (no OpenMP, --as-cran)'
+            openmp: false
+            check_plain: false
+            check_as_cran: true
+          - os: macos-latest
+            r: 'oldrel-1'
+            id: macos-oldrel-no-omp
+            label: 'macos-oldrel (no OpenMP, --as-cran)'
             openmp: false
             check_plain: false
             check_as_cran: true
@@ -311,6 +318,32 @@ jobs:
           build_args: 'c("--no-manual","--compact-vignettes=gs+qpdf")'
           check-dir: '"../.ci-check/adlaplaceFem-as-cran"'
           artifact-name: ${{ matrix.config.id }}-adlaplaceFem-as-cran
+
+      # ----- captaintvp (independent of the adlaplace stack) -----
+      - name: Build and install captaintvp
+        run: bash .github/scripts/install-local-pkg.sh captaintvp
+
+      - name: Check captaintvp (plain)
+        if: ${{ matrix.config.check_plain }}
+        uses: r-lib/actions/check-r-package@v2
+        with:
+          upload-results: never
+          working-directory: captaintvp
+          args: 'c("--no-manual")'
+          build_args: 'c("--no-manual")'
+          check-dir: '"../.ci-check/captaintvp-plain"'
+          artifact-name: ${{ matrix.config.id }}-captaintvp-plain
+
+      - name: Check captaintvp (as-cran)
+        if: ${{ matrix.config.check_as_cran }}
+        uses: r-lib/actions/check-r-package@v2
+        with:
+          upload-results: never
+          working-directory: captaintvp
+          args: 'c("--no-manual", "--as-cran")'
+          build_args: 'c("--no-manual")'
+          check-dir: '"../.ci-check/captaintvp-as-cran"'
+          artifact-name: ${{ matrix.config.id }}-captaintvp-as-cran
 
       # r-lib/actions cannot upload check-dir paths with '..'; dump + upload here.
       - name: Dump .ci-check logs

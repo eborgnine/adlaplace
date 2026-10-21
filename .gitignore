@@ -75,7 +75,6 @@ sandbox/large_latex.md
 sandbox/limit_analysis.md
 sandbox/beta_dirichlet.md
 sandbox/concise_beta_dirichlet.md
-*.md
 .aider*
 *.bak
 *.tmp
@@ -104,3 +103,9 @@ docs/paper/examples/bacteria/bacteria_files/libs/quarto-html/popper.min.js
 .vignette-out/
 sandbox/ext/BayesGP/
 sandbox/ext/near_monotone_smoothing/
+
+# Sanitizer transcripts for the CppAD bug report. Markdown is tracked.
+!reproducers/
+!reproducers/**
+!reproducers/**/*.txt
+!reproducers/**/*.log

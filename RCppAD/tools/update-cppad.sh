@@ -156,6 +156,33 @@ patch_sparse_rc () {
 }
 patch_sparse_rc
 
+# ADFun move ctor: default-construct before swap (UBSAN invalid bool load)
+patch_adfun_move () {
+  f="$DEST/core/fun_construct.hpp"
+  tmp="$f.rcppad.tmp"
+  if ! grep -q 'ADFun(ADFun&& f)' "$f"; then
+    echo "update-cppad: WARNING: ADFun move ctor marker not found (skip patch)" >&2
+    return 0
+  fi
+  if grep -A1 '::ADFun(ADFun&& f)' "$f" | grep -q ': ADFun<Base, RecBase>()'; then
+    return 0
+  fi
+  awk '
+    /none of the default constructor values matter to the destructor/ {
+      print "// Initialize before swap. std::swap loads the destination bools."
+      next
+    }
+    /::ADFun\(ADFun&& f\)/ {
+      print
+      print ": ADFun<Base, RecBase>()"
+      next
+    }
+    { print }
+  ' "$f" > "$tmp"
+  mv "$tmp" "$f"
+}
+patch_adfun_move
+
 # Document patches
 cat > "$DEST/README.RCppAD.md" <<EOF
 # RCppAD patches on top of CppAD $VERSION
@@ -169,13 +196,19 @@ Applied by \`tools/update-cppad.sh\` (re-run after each upstream refresh):
    \`std::cout\` → \`RCppAD::cppad_trace_stream()\`.
 5. \`utility/sparse_rc.hpp\` — move ctor initializes \`nr_\`/\`nc_\`/\`nnz_\` before
    \`swap\` (avoids GCC 14 \`-Wuninitialized\` on Windows).
+6. \`core/fun_construct.hpp\` — \`ADFun(ADFun&&)\` delegates to \`ADFun()\` before
+   \`swap\` (avoids an UndefinedBehaviorSanitizer invalid-\`bool\` load).
 
 Helper: \`inst/include/RCppAD/cppad_trace_stream.hpp\`.
 EOF
 
 # Bump DESCRIPTION Version / Date
 desc="$ROOT/DESCRIPTION"
-pkg_ver="${VERSION}-1"
+pkg_ver="1.${VERSION}-1"
+current_ver=$(sed -n 's/^Version: *//p' "$desc" | head -n 1)
+case "$current_ver" in
+  "1.${VERSION}-"*) pkg_ver="$current_ver" ;;
+esac
 if command -v sed >/dev/null 2>&1; then
   tmpdesc="$desc.tmp"
   sed -e "s/^Version:.*/Version: $pkg_ver/" \

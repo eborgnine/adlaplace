@@ -1,0 +1,29 @@
+Package: captaintvp
+Type: Package
+Title: Univariate Trend Plus AR Models from CAPTAIN
+Version: 0.1.0
+Authors@R: person(given = "Patrick", family = "Brown",
+    email = "patrick.borgnine@gmail.com",
+    role = c("aut", "cre", "cph"))
+Description: Implements the univariate trend plus autoregression routines used by
+    the CAPTAIN toolbox air-passenger demonstration. The exported interface follows
+    fcast, aic, univ, and univopt, including integrated random-walk smoothing,
+    subset AR identification, and sequential spectral decomposition. Kalman
+    filtering and fixed-interval smoothing are carried out with 'KFAS'.
+License: GPL (>= 2)
+Depends: R (>= 4.1.0)
+Imports: KFAS, stats
+Suggests: knitr, rmarkdown, testthat (>= 3.0.0)
+VignetteBuilder: knitr
+Config/testthat/edition: 3
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+Collate:
+    '000.R'
+    'fcast.R'
+    'state-space.R'
+    'ar-identification.R'
+    'univ.R'
+    'univopt.R'
+NeedsCompilation: no
+Config/roxygen2/version: 8.1.0

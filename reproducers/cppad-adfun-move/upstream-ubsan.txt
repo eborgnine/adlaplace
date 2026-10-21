@@ -1,0 +1,5 @@
+compile: clang++ -std=c++17 -O1 -g -fsanitize=undefined -fno-sanitize-recover=undefined -I/var/folders/jg/qlm9ks895mg7y2y27yrl_bqw0000gn/T//adfun-move.kP1IiO/upstream-include /Users/patrick/research/adlaplace/reproducers/cppad-adfun-move/adfun_move.cpp -o /var/folders/jg/qlm9ks895mg7y2y27yrl_bqw0000gn/T//adfun-move.kP1IiO/adfun_move
+run: /var/folders/jg/qlm9ks895mg7y2y27yrl_bqw0000gn/T//adfun-move.kP1IiO/adfun_move
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__utility/swap.h:43:11: runtime error: load of value 190, which is not a valid value for type '__libcpp_remove_reference_t<bool &>' (aka 'bool')
+SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__utility/swap.h:43:11 
+./reproducers/cppad-adfun-move/run.sh: line 158: 65943 Abort trap: 6           "$work/adfun_move"

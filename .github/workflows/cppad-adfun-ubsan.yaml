@@ -1,0 +1,27 @@
+# Reproduce the upstream CppAD ADFun move-constructor sanitizer error.
+# The job is green when UndefinedBehaviorSanitizer reports the invalid bool.
+name: CppAD ADFun UBSAN
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/cppad-adfun-ubsan.yaml
+      - reproducers/cppad-adfun-move/**
+
+permissions:
+  contents: read
+
+jobs:
+  reproduce:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Reproduce the invalid-bool load
+        run: bash reproducers/cppad-adfun-move/reproduce.sh

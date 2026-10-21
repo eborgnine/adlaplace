@@ -198,7 +198,8 @@ test_that("dirichlet_multinomial analytic Hessian uses per-stratum cliques", {
   og <- obs_groups(
     md$term_data$A,
     elgm_matrix = md$term_data$elgm_matrix,
-    num_shards = 4L
+    num_shards = 4L,
+    min_shards = 4L
   )
   expect_equal(ncol(og), 4L)
 

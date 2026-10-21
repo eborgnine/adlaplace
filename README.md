@@ -10,6 +10,7 @@ This repository is a monorepo. The packages most users need are:
 | [`adlaplace`](adlaplace/) | Core Laplace / AD engine |
 | [`adlaplaceHgp`](adlaplaceHgp/) | IWP / hierarchical GP terms (`iwp`, `hiwp`, …) |
 | [`hpolcc`](hpolcc/) | Hierarchical case-crossover models (`hnlm`, `dirichlet_multinom`) |
+| [`captaintvp`](captaintvp/) | CAPTAIN-style univariate trend plus AR models (`univ`, `univopt`) |
 
 Related packages in the same tree: `adlaplaceExample` (custom-density backend example), `adlaplaceFem` (FEM Matérn), `admvn` (MVN / SUN AD utilities). All compiled packages that use CppAD depend on **RCppAD**.
 
@@ -71,6 +72,7 @@ Examples:
 - [GAMM examples](https://eborgnine.github.io/adlaplace/adlaplace/gamm.html)
 - [FEM Matérn methods](https://eborgnine.github.io/adlaplace/adlaplaceFem/fem_matern_methods.html)
 - [Loaloa FEM example](https://eborgnine.github.io/adlaplace/adlaplaceFem/loaloa.html)
+- [CAPTAIN air-passenger univdemo](https://eborgnine.github.io/adlaplace/captaintvp/univdemo-air.html)
 
 Case-crossover / `hnlm` usage is documented in the **adlaplace** `casecrossover` vignette (not a separate `hpolcc` HTML vignette). The site refreshes when the `R-CMD-check` workflow completes successfully (Sunday schedule or manual dispatch). Set the repo **Pages** source to **GitHub Actions** once if it is not already.
 

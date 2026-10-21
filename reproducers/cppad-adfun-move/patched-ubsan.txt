@@ -1,0 +1,3 @@
+compile: clang++ -std=c++17 -O1 -g -fsanitize=undefined -fno-sanitize-recover=undefined -I/var/folders/jg/qlm9ks895mg7y2y27yrl_bqw0000gn/T//adfun-move.wkrdfi/upstream-include /Users/patrick/research/adlaplace/reproducers/cppad-adfun-move/adfun_move.cpp -o /var/folders/jg/qlm9ks895mg7y2y27yrl_bqw0000gn/T//adfun-move.wkrdfi/adfun_move
+run: /var/folders/jg/qlm9ks895mg7y2y27yrl_bqw0000gn/T//adfun-move.wkrdfi/adfun_move
+moved ADFun size_var=0

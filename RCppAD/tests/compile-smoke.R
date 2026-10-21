@@ -40,10 +40,18 @@ run_cppad_compile_smoke <- function() {
   writeLines(
     c(
       "#include <cppad/cppad.hpp>",
-      "extern \"C\" void rcppad_smoke(void) {",
-      "  CppAD::AD<double> x = 1.0;",
-      "  CppAD::AD<double> y = x * x;",
-      "  (void) y;",
+      "#include <cstddef>",
+      "#include <cstring>",
+      "#include <new>",
+      "#include <utility>",
+      "extern \"C\" void rcppad_adfun_move(int* status) {",
+      "  using Fun = CppAD::ADFun<double>;",
+      "  Fun source;",
+      "  alignas(Fun) unsigned char storage[sizeof(Fun)];",
+      "  std::memset(storage, 0xBE, sizeof(storage));",
+      "  Fun* destination = new (storage) Fun(std::move(source));",
+      "  *status = destination->size_var() == 0 ? 0 : 1;",
+      "  destination->~Fun();",
       "}"
     ),
     file.path(tmp, "smoke.cpp")
@@ -91,6 +99,12 @@ run_cppad_compile_smoke <- function() {
       paste(status, collapse = "\n"),
       call. = FALSE
     )
+  }
+  dyn.load(so_candidates[[1L]])
+  on.exit(dyn.unload(so_candidates[[1L]]), add = TRUE)
+  out <- .C("rcppad_adfun_move", status = as.integer(-1L))
+  if (!identical(out$status, 0L)) {
+    stop("RCppAD ADFun move smoke returned status ", out$status, call. = FALSE)
   }
   invisible(TRUE)
 }

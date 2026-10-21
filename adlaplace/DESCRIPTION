@@ -20,13 +20,13 @@ Description: Computes Laplace-approximate maximum likelihood for hierarchical
 License: GPL (>= 2)
 Depends: R (>= 3.5.0)
 Imports: Matrix (>= 1.2.18), Rcpp (>= 1.0.3), methods, data.table, stats,
-    graphics, RCppAD
+    graphics, RCppAD (>= 1.20260000.0-2)
 Suggests: knitr, rmarkdown, trustOptim, testthat (>= 3.0.0),
     mvQuad, mgcv, MASS, nlme, sn, terra, GET, WoodburyMatrix, extraDistr,
     RSpectra, aghq, numDeriv
 Config/testthat/edition: 3
 VignetteBuilder: knitr
-LinkingTo: Rcpp, RcppEigen, trustOptim, Matrix, RCppAD
+LinkingTo: Rcpp, RcppEigen, trustOptim, Matrix, RCppAD (>= 1.20260000.0-2)
 Encoding: UTF-8
 SystemRequirements: OpenMP
 NeedsCompilation: yes

@@ -7,9 +7,10 @@
 #   make clean      # cleanup scripts + src/*.o,src/*.so
 #
 # Order: RCppAD → adlaplace → {Example, Hgp, Fem, admvn} → hpolcc
+# captaintvp is independent of that stack.
 # (hpolcc needs adlaplaceHgp; backends need adlaplace headers.)
 
-INSTALL_ORDER := RCppAD adlaplace adlaplaceExample adlaplaceHgp adlaplaceFem hpolcc
+INSTALL_ORDER := RCppAD adlaplace adlaplaceExample adlaplaceHgp adlaplaceFem hpolcc captaintvp
 
 .DEFAULT_GOAL := all
 

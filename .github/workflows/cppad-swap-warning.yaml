@@ -11,6 +11,9 @@ on:
       - .github/scripts/cppad-swap.sh
       - .github/scripts/cppad-sparse-rc-move.sh
       - .github/scripts/cppad-sparse-rc-upstream.sh
+      - .github/scripts/cppad-adfun-move-ubsan.sh
+      - reproducers/cppad-adfun-move/**
+      - RCppAD/inst/include/cppad/core/fun_construct.hpp
       - sparse_rc_move.cpp
 
 name: CppAD swap warning
@@ -58,6 +61,9 @@ jobs:
           work="$(mktemp -d)"
           cd "$work"
           bash "$GITHUB_WORKSPACE/.github/scripts/cppad-sparse-rc-upstream.sh"
+
+      - name: ADFun move under UBSAN
+        run: bash "$GITHUB_WORKSPACE/.github/scripts/cppad-adfun-move-ubsan.sh"
 
       # Only gcc:14. The step passes when the stripped move constructor warns.
       - name: Negative control (stripped initializer must warn)
@@ -186,3 +192,6 @@ jobs:
           work="$(mktemp -d)"
           cd "$work"
           bash "$GITHUB_WORKSPACE/.github/scripts/cppad-sparse-rc-move.sh"
+
+      - name: ADFun move under UBSAN
+        run: bash "$GITHUB_WORKSPACE/.github/scripts/cppad-adfun-move-ubsan.sh"

@@ -16,7 +16,8 @@ locals <- if (length(cli_locals)) {
     "adlaplace",
     "adlaplaceExample",
     "adlaplaceHgp",
-    "adlaplaceFem"
+    "adlaplaceFem",
+    "captaintvp"
   )
 }
 

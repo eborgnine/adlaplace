@@ -1,6 +1,5 @@
 cache
 analysis_cache
-*.md
 figure
 *.RData
 *.fdb_latexmk

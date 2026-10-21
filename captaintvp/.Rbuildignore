@@ -1,0 +1,6 @@
+^.*\.Rproj$
+^\.Rproj\.user$
+^\.gitignore$
+^captaintvp\.Rcheck$
+^.*\.tar\.gz$
+^\.cursor$

@@ -1,0 +1,183 @@
+---
+title: "Air-passenger univdemo"
+author: "Patrick Brown"
+date: "`r Sys.Date()`"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+vignette: >
+  %\VignetteIndexEntry{Air-passenger univdemo}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE, fig.width = 7, fig.height = 4.5)
+```
+
+This vignette follows CAPTAIN's `univdemo` script. The series is the monthly
+airline-passenger record shipped as `datasets::AirPassengers`, which is the
+same 144-value `air.dat` series used by the toolbox. Calls keep CAPTAIN's
+function names, argument order, and output names. MATLAB's multiple assignment
+is a list in R, and `NULL` stands in for `[]`.
+
+`fcast()` uses inclusive sample numbers: `[84 94]` removes samples 84 through
+94, and `[131 144]` removes samples 131 through 144. The forecasting line in
+the original script is drawn at sample 130, the last sample that remains
+observed.
+
+```{r data}
+library(captaintvp)
+
+air <- as.numeric(AirPassengers)
+TVP <- 1
+nvr0 <- 1e-4
+y <- fcast(air, rbind(c(84, 94), c(131, 144)))
+```
+
+```{r masked-series, fig.cap="Observed airline series and the series with interpolation and forecast samples removed."}
+plot(air, type = "l", col = "grey40", xlab = "Sample", ylab = "Passengers")
+lines(y, col = "firebrick")
+legend("topleft", c("air", "y"), col = c("grey40", "firebrick"), lty = 1, bty = "n")
+```
+
+The first fit is an integrated random walk with the demonstration's initial
+noise-variance ratio. `TVP = 1` is CAPTAIN's code for integration order 2.
+
+```{r initial-trend}
+initial <- univ(y, numeric(), TVP, nvr0)
+fit <- initial$fit
+fitse <- initial$fitse
+trend <- initial$trend
+```
+
+```{r initial-components, fig.cap="Masked observations, initial integrated-random-walk trend, and detrended residual."}
+residual <- y - trend
+plot(y, type = "l", col = "grey40", xlab = "Sample", ylab = "")
+lines(trend, col = "steelblue", lwd = 2)
+lines(residual, col = "darkorange")
+legend(
+  "topleft",
+  c("y", "trend", "y - trend"),
+  col = c("grey40", "steelblue", "darkorange"),
+  lty = 1, bty = "n"
+)
+```
+
+`aic()` searches orders 1 through 20 by the Gaussian criterion
+`n log(RSS / n) + 2p`, using one estimation sample for every order. CAPTAIN's
+published transcript selects order 14. On this implementation the minimum is
+higher, but the criterion falls sharply once the seasonal lags enter and order
+14 remains competitive with the minimum.
+
+```{r aic}
+poly <- aic(y - trend, 20)
+p <- length(poly) - 1
+aic_table <- attr(poly, "aic")
+p
+```
+
+```{r aic-path, fig.cap="AIC for the detrended perturbation. The dashed line is the minimizing order."}
+plot(aic_table$order, aic_table$aic, type = "b", xlab = "AR order", ylab = "AIC")
+abline(v = p, lty = 2)
+```
+
+The script then estimates the selected perturbation polynomial and rescales the
+trend NVR. The rescaling multiplies `nvr0` by the ratio of the initial
+concentrated disturbance variance to the AR innovation variance.
+
+```{r selected-model}
+estimated <- univopt(y, seq_len(p), TVP, nvr0, out = 0)
+nvr <- estimated$nvr
+ARp <- estimated$ARp
+nvr
+```
+
+For comparison with the CAPTAIN 9.0.6 transcript, the same estimator is also
+run at the published order 14. The signs of the large coefficients agree. The
+remaining differences come from the Kalman initialization and least-squares
+treatment of the internal gap; CAPTAIN's smoother is not available as source.
+
+```{r published-order}
+published_arp <- c(
+  -0.6076, -0.1137, -0.0526, 0.1670, -0.1447,
+  0.2348, -0.1281, 0.1891, -0.1225, 0.2281,
+  -0.1813, -0.8041, 0.4586, 0.3524
+)
+published_nvr <- 2.5934e-3
+order14 <- univopt(y, 1:14, TVP, nvr0, out = 0)
+comparison <- data.frame(
+  lag = seq_along(published_arp),
+  captaintvp = round(order14$ARp, 4),
+  CAPTAIN = published_arp,
+  difference = round(order14$ARp - published_arp, 4)
+)
+comparison
+c(captaintvp = order14$nvr, CAPTAIN = published_nvr)
+```
+
+The figures below use the published order so that they correspond to the
+transcript. With an AR perturbation and no extra observation noise, the fitted
+signal passes through the samples supplied to `univ()`. Uncertainty appears in
+the trend and seasonal split and, more visibly, across the missing samples.
+
+```{r final-fit}
+final <- univ(y, order14$ARp, TVP, order14$nvr)
+fit <- final$fit
+fitse <- final$fitse
+trend <- final$trend
+trendse <- final$trendse
+comp <- final$comp
+y0 <- final$y0
+```
+
+```{r data-and-trend, fig.cap="Airline series and the jointly smoothed trend."}
+plot(trend, type = "l", col = "steelblue", lwd = 2, xlab = "Sample", ylab = "Passengers")
+lines(air, col = "grey40")
+legend("topleft", c("trend", "air"), col = c("steelblue", "grey40"), lty = 1, bty = "n")
+```
+
+```{r seasonal-component, fig.cap="Autoregressive perturbation about the trend."}
+plot(comp, type = "l", col = "darkgreen", xlab = "Sample", ylab = "Component")
+title("Total seasonal component")
+```
+
+```{r fit-and-residuals, fig.cap="Fit, original data, and residuals, with the interpolation interval and forecast origin marked."}
+residual <- fit - air
+plot(fit, type = "l", col = "steelblue", xlab = "Sample", ylab = "", ylim = range(c(residual, air, fit)))
+lines(air, col = "firebrick")
+lines(residual, col = "grey40")
+abline(v = c(84, 94, 130), col = "firebrick", lty = 2)
+legend(
+  "topleft",
+  c("fit", "air", "fit - air"),
+  col = c("steelblue", "firebrick", "grey40"),
+  lty = 1, bty = "n"
+)
+title("Data, fit and residuals")
+```
+
+```{r forecast-band, fig.cap="Final two years with the smoothed fit and a two-standard-error band."}
+index <- seq_along(fit)
+window <- index >= 119
+plot(index[window], fit[window], type = "l", col = "steelblue",
+  xlab = "Sample", ylab = "Passengers", ylim = c(250, 700))
+points(index[window], air[window], col = "firebrick")
+lines(index[window], fit[window] + 2 * fitse[window], lty = 2, col = "steelblue")
+lines(index[window], fit[window] - 2 * fitse[window], lty = 2, col = "steelblue")
+abline(v = 130, col = "firebrick", lty = 2)
+legend("topleft", c("fit", "fit ± 2 fitse", "air"),
+  col = c("steelblue", "steelblue", "firebrick"),
+  lty = c(1, 2, NA), pch = c(NA, NA, 1), bty = "n")
+title("Data (o), fit and standard errors")
+```
+
+The band is narrow while observations are supplied and opens after sample 130.
+The interpolated values returned in `y0` use the fit only at the samples
+`fcast()` removed.
+
+```{r interpolation-check}
+missing <- which(is.na(y))
+all.equal(y0[missing], fit[missing])
+all.equal(y0[-missing], y[-missing])
+```
