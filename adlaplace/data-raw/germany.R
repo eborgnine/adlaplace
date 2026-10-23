@@ -2,6 +2,9 @@
 if (!requireNamespace("INLA", quietly = TRUE)) {
   stop("Install INLA to rebuild the germany dataset.", call. = FALSE)
 }
+if (!requireNamespace("geodata", quietly = TRUE)) {
+  stop("Install geodata to georeference the germany map.", call. = FALSE)
+}
 
 library(Matrix)
 library(terra)
@@ -61,7 +64,6 @@ gmap_1$in_merged <- gmap_1$id %in% gmap_3$id
 gmap_4 <- terra::vect(c(gmap_1[!gmap_1$in_merged, ], gmap_3))
 
 
-
 gmap <- terra::aggregate(gmap_4, "id")
 gmap <- gmap[match(unique(xy$id), gmap$id), ]
 
@@ -118,6 +120,33 @@ germany <- list(
     rank = nrow(adj) - 1L
   )
 )
+
+# INLA's Bym-map drawing is unreferenced (about 7--6401 by 17--8679).
+# Scale that box onto GADM 4.1 Germany, level 2, in ETRS89 / LCC Germany.
+germany_ll <- geodata::gadm(
+  "DEU",
+  level = 2,
+  version = "4.1",
+  path = file.path(tempdir(), "gadm")
+)
+germany_m <- terra::project(germany_ll, "EPSG:4839")
+
+place_germany <- function(v) {
+  g <- terra::geom(v)
+  e <- terra::ext(v)
+  east <- c(terra::xmin(germany_m), terra::xmax(germany_m))
+  north <- c(terra::ymin(germany_m), terra::ymax(germany_m))
+  g[, "x"] <- east[1] + (g[, "x"] - e$xmin) / (e$xmax - e$xmin) * diff(east)
+  g[, "y"] <- north[1] + (g[, "y"] - e$ymin) / (e$ymax - e$ymin) * diff(north)
+  out <- terra::vect(g, type = "polygons", crs = "EPSG:4839")
+  if (nrow(out) != nrow(v)) {
+    stop("georeferenced polygons do not match germany$map", call. = FALSE)
+  }
+  terra::values(out) <- terra::values(v)
+  out
+}
+
+gmap <- terra::simplifyGeom(place_germany(gmap))
 
 # Spatial map ships separately (inst/extdata) so data/germany.rda does not
 # require terra at load time (R CMD check non-ASCII / S4 dependency).

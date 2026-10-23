@@ -173,6 +173,75 @@ test_that("density_data does not require theta inference", {
   expect_silent(suppressWarnings(adlaplace:::density_data(y = 1, A = A, X = matrix(1, 1, 1))))
 })
 
+test_that("elgm columns set the design row count", {
+  n_y <- 4L
+  n_cell <- 7L
+  y <- rpois(n_y, 1)
+  A <- Matrix::sparseMatrix(
+    i = seq_len(n_cell),
+    j = rep(1L, n_cell),
+    x = 1,
+    dims = c(n_cell, 1L)
+  )
+  X <- Matrix::Matrix(1, n_cell, 1L)
+  elgm <- Matrix::sparseMatrix(
+    i = c(1L, 1L, 2L, 3L, 4L, 4L),
+    j = c(1L, 2L, 3L, 4L, 5L, 7L),
+    x = c(0.4, 0.6, 1, 1, 0.2, 0.8),
+    dims = c(n_y, n_cell)
+  )
+  model <- adlaplace:::density_data(
+    y = y,
+    A = A,
+    X = X,
+    elgm_matrix = elgm,
+    density = "poisson_aggregate",
+    ad_kind = "observations"
+  )
+  expect_equal(length(model@y), n_y)
+  expect_equal(dim(model@elgm_matrix), c(n_y, n_cell))
+  expect_equal(ncol(model@ATp), n_cell)
+  expect_equal(ncol(model@XTp), n_cell)
+
+  # Observation-level ELGM (strata) still aligns the design with y.
+  A_obs <- Matrix::Diagonal(n_y)
+  X_obs <- Matrix::Matrix(1, n_y, 1L)
+  elgm_strata <- Matrix::sparseMatrix(
+    i = seq_len(n_y),
+    j = c(1L, 1L, 2L, 2L),
+    dims = c(n_y, 2L)
+  )
+  expect_silent(adlaplace:::density_data(
+    y = y,
+    A = A_obs,
+    X = X_obs,
+    elgm_matrix = elgm_strata
+  ))
+
+  expect_error(
+    adlaplace:::density_data(y = y, A = A, X = X),
+    "nrow\\(A\\) \\(7\\) must match length\\(y\\) \\(4\\)"
+  )
+  expect_error(
+    adlaplace:::density_data(
+      y = y[-1L],
+      A = A,
+      X = X,
+      elgm_matrix = elgm
+    ),
+    "length\\(y\\) \\(3\\) must match nrow\\(elgm_matrix\\) \\(4\\)"
+  )
+  expect_error(
+    adlaplace:::density_data(
+      y = y,
+      A = A[1:3, , drop = FALSE],
+      X = X[1:3, , drop = FALSE],
+      elgm_matrix = elgm
+    ),
+    "must match ncol\\(elgm_matrix\\) \\(7\\) or length\\(y\\) \\(4\\)"
+  )
+})
+
 test_that("validate_config_layout allows missing theta when theta_map empty", {
   A <- Matrix::sparseMatrix(
     i = c(0L, 1L),

@@ -25,11 +25,14 @@ density_data(
 \item{y}{Response vector (default empty), or an existing \code{density_data} object
 to recast as another shard.}
 
-\item{A}{Random-effects design matrix (\code{nrow(A) = length(y)}; any
-\code{Matrix} class).}
+\item{A}{Random-effects design matrix (any \code{Matrix} class).
+When \code{elgm_matrix} is missing, \code{nrow(A) = length(y)}.
+When \code{elgm_matrix} is supplied, \code{length(y) = nrow(elgm_matrix)}
+and \code{nrow(A)} equals \code{ncol(elgm_matrix)} (design on ELGM
+columns) or \code{length(y)} (design on ELGM rows).}
 
-\item{X}{Fixed-effects design matrix (\code{nrow(X) = length(y)}; any
-\code{Matrix} class).}
+\item{X}{Fixed-effects design matrix (any \code{Matrix} class). Row
+alignment matches \code{A}.}
 
 \item{beta_map}{Beta parameter map (any \code{Matrix}; coerced to
 \code{ngCMatrix}), or a shorthand: length-1 integer \code{n} gives
@@ -57,8 +60,12 @@ otherwise an empty matrix.}
 \code{beta_map}. Column \code{j} selects global theta row for component
 \code{j}. If \code{NULL}, defaults to an empty matrix.}
 
-\item{elgm_matrix}{Optional ELGM map (any \code{Matrix}; coerced to
-\code{ngCMatrix}). If \code{NULL}, defaults to \code{Matrix::Matrix(nrow = length(y), ncol = 0)}.}
+\item{elgm_matrix}{Optional ELGM map (any \code{Matrix}). Pattern matrices
+are coerced to \code{ngCMatrix}. Numeric matrices are stored as
+\code{dgCMatrix}, so entry weights are kept. Rows index the response
+(\code{nrow(elgm_matrix) = length(y)}). Columns index either strata or
+the design rows of \code{A} and \code{X}. If \code{NULL}, defaults to
+\code{Matrix::Matrix(nrow = length(y), ncol = 0)}.}
 
 \item{density}{Registered AD density name for this shard (optional).}
 

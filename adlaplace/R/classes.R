@@ -26,7 +26,10 @@ NULL
 #'   local \code{A} columns into the global gamma block.
 #' @slot theta_map Theta parameter map (\code{ngCMatrix}). Column \code{j}
 #'   selects global theta row \code{r} for this shard's theta component \code{j}.
-#' @slot elgm_matrix Optional exposure-lag map (\code{ngCMatrix}; empty by default).
+#' @slot elgm_matrix Optional exposure-lag map (\code{CsparseMatrix}). A pattern
+#'   matrix (\code{ngCMatrix}) marks membership. A numeric \code{dgCMatrix}
+#'   stores a weight on each entry, such as population in a cell-region
+#'   intersection. Empty by default.
 #' @slot density Registered AD density name for this shard.
 #' @slot ad_kind Shard kind (\code{"observations"}, \code{"parameters"}, \code{"random"}).
 #' @slot package Package name whose shared library records tapes for this shard
@@ -34,7 +37,7 @@ NULL
 #' @slot precision Optional precision payload (any R object).
 #' @slot weights Optional per-observation weights (e.g. binomial trial counts).
 #'   Empty means all ones.
-#' @importClassesFrom Matrix Matrix ngCMatrix
+#' @importClassesFrom Matrix Matrix CsparseMatrix ngCMatrix dgCMatrix
 #' @exportClass density_data
 setClass(
   "density_data",
@@ -45,7 +48,7 @@ setClass(
     beta_map = "ngCMatrix",
     gamma_map = "ngCMatrix",
     theta_map = "ngCMatrix",
-    elgm_matrix = "ngCMatrix",
+    elgm_matrix = "CsparseMatrix",
     density = "character",
     ad_kind = "character",
     package = "character",
@@ -53,7 +56,8 @@ setClass(
     weights = "numeric"
   ),
   prototype = prototype(
-    weights = numeric(0)
+    weights = numeric(0),
+    elgm_matrix = methods::new("ngCMatrix")
   )
 )
 

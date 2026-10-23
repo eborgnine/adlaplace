@@ -48,7 +48,7 @@ precision is rank-deficient.
 The `germany` object includes case and expected counts, the district adjacency
 matrix, the scaled ICAR precision `Q_scaled`, and the `prec` list for
 `random_mult`. District boundaries are optional: when **terra** is available,
-`germany$map` is loaded from `inst/extdata/germany_map.gpkg` in the setup chunk.
+`germany$map` is loaded from `inst/extdata/germany_map.gpkg` (EPSG:4839) in the setup chunk.
 
 Latent vector $\gamma = (u_{\mathrm{struct}}, u_{\mathrm{iid}})$ has length
 $2n$: structured and iid effects on $n$ areas. Observations use the

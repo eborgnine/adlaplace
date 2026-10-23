@@ -20,24 +20,76 @@ setMethod("sizes", "density_data", function(x) {
 })
 
 #' @keywords internal
-validate_density_data_dims <- function(y, A, X) {
+elgm_has_columns <- function(elgm_matrix) {
+  !is.null(elgm_matrix) &&
+    !is.null(ncol(elgm_matrix)) &&
+    ncol(elgm_matrix) > 0L
+}
+
+#' Design-row count for \code{A} and \code{X}.
+#'
+#' Missing \code{elgm_matrix} (or zero columns) keeps designs aligned with
+#' \code{length(y)}. A supplied ELGM map indexes the response by rows, so
+#' \code{length(y)} must equal \code{nrow(elgm_matrix)}. Design rows then
+#' match \code{ncol(elgm_matrix)} (cell-level aggregate) or \code{length(y)}
+#' (observation-level strata).
+#' @keywords internal
+validate_density_data_dims <- function(y, A, X, elgm_matrix = NULL) {
   n_obs <- length(y)
-  if (n_obs == 0L) {
+  if (!is.null(elgm_matrix) &&
+      (is.null(nrow(elgm_matrix)) || is.null(ncol(elgm_matrix)))) {
+    stop("elgm_matrix must be a matrix")
+  }
+  has_elgm <- elgm_has_columns(elgm_matrix)
+  if (has_elgm && nrow(elgm_matrix) != n_obs) {
+    stop(
+      "length(y) (", n_obs, ") must match nrow(elgm_matrix) (",
+      nrow(elgm_matrix), ")"
+    )
+  }
+  if (!has_elgm && n_obs == 0L) {
     if (!is.null(A) && (nrow(A) != 0L || ncol(A) != 0L)) {
       stop("y is empty but A is non-empty")
     }
     if (!is.null(X) && (nrow(X) != 0L || ncol(X) != 0L)) {
       stop("y is empty but X is non-empty")
     }
-    return(invisible(NULL))
+    return(invisible(0L))
   }
-  if (!is.null(A) && nrow(A) != n_obs) {
-    stop("nrow(A) (", nrow(A), ") must match length(y) (", n_obs, ")")
+
+  n_design <- n_obs
+  if (has_elgm) {
+    n_elgm_col <- ncol(elgm_matrix)
+    n_a <- if (is.null(A)) NA_integer_ else nrow(A)
+    n_x <- if (is.null(X)) NA_integer_ else nrow(X)
+    if (!is.na(n_a) && !is.na(n_x) && n_a != n_x) {
+      stop(
+        "nrow(A) (", n_a, ") and nrow(X) (", n_x,
+        ") differ; both must match ncol(elgm_matrix) (", n_elgm_col,
+        ") or both must match length(y) (", n_obs, ")"
+      )
+    }
+    n_rows <- if (!is.na(n_a)) n_a else n_x
+    if (!is.na(n_rows) && n_rows != n_obs && n_rows != n_elgm_col) {
+      what <- if (!is.na(n_a)) "A" else "X"
+      stop(
+        "nrow(", what, ") (", n_rows,
+        ") must match ncol(elgm_matrix) (", n_elgm_col,
+        ") or length(y) (", n_obs, ")"
+      )
+    }
+    if (!is.na(n_rows)) {
+      n_design <- n_rows
+    }
+  } else {
+    if (!is.null(A) && nrow(A) != n_obs) {
+      stop("nrow(A) (", nrow(A), ") must match length(y) (", n_obs, ")")
+    }
+    if (!is.null(X) && nrow(X) != n_obs) {
+      stop("nrow(X) (", nrow(X), ") must match length(y) (", n_obs, ")")
+    }
   }
-  if (!is.null(X) && nrow(X) != n_obs) {
-    stop("nrow(X) (", nrow(X), ") must match length(y) (", n_obs, ")")
-  }
-  invisible(NULL)
+  invisible(as.integer(n_design))
 }
 
 #' @keywords internal
@@ -194,6 +246,18 @@ normalize_random_mult_precision <- function(precision) {
   }
   precision$Q <- as_dsC_upper(precision$Q)
   precision
+}
+
+#' Keep numeric ELGM weights; pattern maps stay \code{ngCMatrix}.
+#' @keywords internal
+coerce_elgm <- function(m) {
+  if (!methods::is(m, "Matrix")) {
+    m <- Matrix::Matrix(m, sparse = TRUE)
+  }
+  if (methods::is(m, "nMatrix") || !methods::.hasSlot(m, "x")) {
+    return(as_ngC(m))
+  }
+  methods::as(methods::as(m, "CsparseMatrix"), "dgCMatrix")
 }
 
 #' Coerce a sparse matrix to \code{ngCMatrix} (Matrix >= 1.6).
@@ -365,18 +429,18 @@ validate_design_parameter_maps <- function(beta_map,
 
 #' Transpose of a design matrix for \code{ATp} / \code{XTp} slots.
 #' @keywords internal
-design_Tp <- function(M, n_obs, what = "M") {
+design_Tp <- function(M, n_rows, what = "M") {
   if (is.null(M)) {
     return(as_dgC(Matrix::sparseMatrix(
       i = integer(0),
       j = integer(0),
-      dims = c(0L, n_obs),
+      dims = c(0L, n_rows),
       repr = "C"
     )))
   }
-  if (nrow(M) != n_obs) {
+  if (nrow(M) != n_rows) {
     stop(
-      "nrow(", what, ") (", nrow(M), ") must match length(y) (", n_obs, ")",
+      "nrow(", what, ") (", nrow(M), ") must match design rows (", n_rows, ")",
       call. = FALSE
     )
   }
@@ -441,9 +505,9 @@ density_data_from_mats <- function(y = numeric(0),
                               precision = NULL,
                               weights = numeric(0)) {
   n_obs <- length(y)
-  validate_density_data_dims(y, A, X)
-  ATp <- design_Tp(A, n_obs, "A")
-  XTp <- design_Tp(X, n_obs, "X")
+  n_design <- validate_density_data_dims(y, A, X, elgm_matrix)
+  ATp <- design_Tp(A, n_design, "A")
+  XTp <- design_Tp(X, n_design, "X")
   if (length(density) != 1L || is.na(density) || !nzchar(density)) {
     density <- NA_character_
   } else {
@@ -486,12 +550,12 @@ density_data_from_mats <- function(y = numeric(0),
     theta_map <- Matrix::Matrix(nrow = 0L, ncol = 0L)
   }
   if (is.null(elgm_matrix)) {
-    elgm_matrix <- Matrix::Matrix(nrow = n_obs, ncol = 0L)
+    elgm_matrix <- as_ngC(Matrix::Matrix(nrow = n_obs, ncol = 0L))
   }
   beta_map <- as_ngC(beta_map)
   gamma_map <- as_ngC(gamma_map)
   theta_map <- as_ngC(theta_map)
-  elgm_matrix <- as_ngC(elgm_matrix)
+  elgm_matrix <- coerce_elgm(elgm_matrix)
   validate_map_at_most_one_per_row_col(beta_map, "beta_map")
   validate_map_at_most_one_per_row_col(gamma_map, "gamma_map")
   n_beta_design <- if (is.null(X)) 0L else ncol(X)
@@ -534,10 +598,13 @@ density_data_from_mats <- function(y = numeric(0),
 #'
 #' @param y Response vector (default empty), or an existing \code{density_data} object
 #'   to recast as another shard.
-#' @param A Random-effects design matrix (\code{nrow(A) = length(y)}; any
-#'   \code{Matrix} class).
-#' @param X Fixed-effects design matrix (\code{nrow(X) = length(y)}; any
-#'   \code{Matrix} class).
+#' @param A Random-effects design matrix (any \code{Matrix} class).
+#'   When \code{elgm_matrix} is missing, \code{nrow(A) = length(y)}.
+#'   When \code{elgm_matrix} is supplied, \code{length(y) = nrow(elgm_matrix)}
+#'   and \code{nrow(A)} equals \code{ncol(elgm_matrix)} (design on ELGM
+#'   columns) or \code{length(y)} (design on ELGM rows).
+#' @param X Fixed-effects design matrix (any \code{Matrix} class). Row
+#'   alignment matches \code{A}.
 #' @param beta_map Beta parameter map (any \code{Matrix}; coerced to
 #'   \code{ngCMatrix}), or a shorthand: length-1 integer \code{n} gives
 #'   \code{Matrix::Matrix(nrow = n, ncol = 0)}; length-2 \code{c(row, n)} gives
@@ -561,8 +628,12 @@ density_data_from_mats <- function(y = numeric(0),
 #'   \code{ngCMatrix}), or the same shorthand forms as
 #'   \code{beta_map}. Column \code{j} selects global theta row for component
 #'   \code{j}. If \code{NULL}, defaults to an empty matrix.
-#' @param elgm_matrix Optional ELGM map (any \code{Matrix}; coerced to
-#'   \code{ngCMatrix}). If \code{NULL}, defaults to \code{Matrix::Matrix(nrow = length(y), ncol = 0)}.
+#' @param elgm_matrix Optional ELGM map (any \code{Matrix}). Pattern matrices
+#'   are coerced to \code{ngCMatrix}. Numeric matrices are stored as
+#'   \code{dgCMatrix}, so entry weights are kept. Rows index the response
+#'   (\code{nrow(elgm_matrix) = length(y)}). Columns index either strata or
+#'   the design rows of \code{A} and \code{X}. If \code{NULL}, defaults to
+#'   \code{Matrix::Matrix(nrow = length(y), ncol = 0)}.
 #' @param density Registered AD density name for this shard (optional).
 #' @param ad_kind Shard kind (\code{"observations"}, \code{"parameters"}, \code{"random"}; optional).
 #' @param package Package recording AD tapes for this shard (optional).

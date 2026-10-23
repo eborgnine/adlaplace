@@ -51,17 +51,15 @@ fitse <- initial$fitse
 trend <- initial$trend
 ```
 
-```{r initial-components, fig.cap="Masked observations, initial integrated-random-walk trend, and detrended residual."}
+```{r initial-components, fig.show="hold", fig.cap="Masked observations and the initial integrated-random-walk trend, with the detrended residual on its own scale.", fig.height=7}
 residual <- y - trend
-plot(y, type = "l", col = "grey40", xlab = "Sample", ylab = "")
+op <- par(mfrow = c(2, 1), mar = c(4, 4, 1.2, 1))
+on.exit(par(op), add = TRUE)
+plot(y, type = "l", col = "grey40", xlab = "Sample", ylab = "Passengers")
 lines(trend, col = "steelblue", lwd = 2)
-lines(residual, col = "darkorange")
-legend(
-  "topleft",
-  c("y", "trend", "y - trend"),
-  col = c("grey40", "steelblue", "darkorange"),
-  lty = 1, bty = "n"
-)
+legend("topleft", c("y", "trend"), col = c("grey40", "steelblue"), lty = 1, bty = "n")
+plot(residual, type = "l", col = "darkorange", xlab = "Sample", ylab = "y - trend")
+abline(h = 0, col = "grey70", lty = 2)
 ```
 
 `aic()` searches orders 1 through 20 by the Gaussian criterion
