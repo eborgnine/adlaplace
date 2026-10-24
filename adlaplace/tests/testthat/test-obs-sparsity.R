@@ -123,7 +123,7 @@ glm_obs_setup <- function(family, compact_tape = TRUE, n = 36L, n_re = 8L,
     compact_tape = compact_tape,
     verbose = FALSE
   )
-  model <- adlaplace:::density_data(
+  model <- adlaplace::density_data(
     y = y,
     A = A,
     X = X,

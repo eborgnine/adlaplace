@@ -1,5 +1,5 @@
 test_that("density_data recasts shard from existing density_data", {
-  obs <- adlaplace:::density_data(
+  obs <- adlaplace::density_data(
     y = 1:3,
     beta_map = 2L,
     gamma_map = 3L,
@@ -22,7 +22,7 @@ test_that("density_data recasts shard from existing density_data", {
 })
 
 test_that("length-1 integer map args become zero-column matrices", {
-  model <- adlaplace:::density_data(
+  model <- adlaplace::density_data(
     beta_map = 2L,
     gamma_map = 3L,
     theta_map = 1L
@@ -35,7 +35,7 @@ test_that("length-1 integer map args become zero-column matrices", {
 })
 
 test_that("length-2 map shorthand builds one-column maps", {
-  model <- adlaplace:::density_data(
+  model <- adlaplace::density_data(
     beta_map = c(1L, 2L),
     theta_map = c(2L, 3L)
   )
@@ -50,17 +50,17 @@ test_that("length-2 map shorthand builds one-column maps", {
 
 test_that("length-2 map shorthand validates row index", {
   expect_error(
-    adlaplace:::density_data(theta_map = c(0L, 1L)),
+    adlaplace::density_data(theta_map = c(0L, 1L)),
     "row index"
   )
   expect_error(
-    adlaplace:::density_data(theta_map = c(4L, 3L)),
+    adlaplace::density_data(theta_map = c(4L, 3L)),
     "row index"
   )
 })
 
 test_that("list(indices, nrow) shorthand builds one-to-one columns", {
-  model <- adlaplace:::density_data(
+  model <- adlaplace::density_data(
     gamma_map = list(c(1L, 3L), 4L)
   )
   expect_equal(nrow(model@gamma_map), 4L)
@@ -70,22 +70,22 @@ test_that("list(indices, nrow) shorthand builds one-to-one columns", {
 
 test_that("list(indices, nrow) shorthand validates shape and values", {
   expect_error(
-    adlaplace:::density_data(theta_map = list(c(1L, 2L), c(3L, 4L))),
+    adlaplace::density_data(theta_map = list(c(1L, 2L), c(3L, 4L))),
     "second element must be scalar nrow"
   )
   expect_error(
-    adlaplace:::density_data(theta_map = list(c(1.5), 3L)),
+    adlaplace::density_data(theta_map = list(c(1.5), 3L)),
     "indices must be finite integers"
   )
   expect_error(
-    adlaplace:::density_data(theta_map = list(c(4L), 3L)),
+    adlaplace::density_data(theta_map = list(c(4L), 3L)),
     "indices must be between 1 and nrow"
   )
 })
 
 test_that("random_diagonal ad_pack_ptr accepts numeric precision vector", {
   nr <- 4L
-  model <- adlaplace:::density_data(
+  model <- adlaplace::density_data(
     gamma_map = Matrix::sparseMatrix(
       i = seq_len(nr),
       j = seq_len(nr),
@@ -109,7 +109,7 @@ test_that("random_diagonal ad_pack_ptr accepts numeric precision vector", {
 
 test_that("random_diagonal ad_pack_ptr errors when precision is NULL", {
   nr <- 4L
-  model <- adlaplace:::density_data(
+  model <- adlaplace::density_data(
     gamma_map = Matrix::sparseMatrix(
       i = seq_len(nr),
       j = seq_len(nr),
@@ -143,7 +143,7 @@ test_that("beta_map and gamma_map default to diagonal maps from X and A", {
     repr = "C"
   )
   X <- matrix(1, 2, 1)
-  model <- adlaplace:::density_data(y = c(1, 2), A = A, X = X, theta_map = Matrix::Diagonal(1L))
+  model <- adlaplace::density_data(y = c(1, 2), A = A, X = X, theta_map = Matrix::Diagonal(1L))
   expect_equal(sizes(model)$n_beta, 1L)
   expect_equal(sizes(model)$n_gamma, 3L)
   expect_equal(ncol(model@beta_map), 1L)
@@ -151,7 +151,7 @@ test_that("beta_map and gamma_map default to diagonal maps from X and A", {
 })
 
 test_that("theta_map defaults to empty map when omitted", {
-  model <- adlaplace:::density_data(
+  model <- adlaplace::density_data(
     y = 1:4,
     A = matrix(0, 4, 4),
     X = matrix(0, 4, 2)
@@ -170,7 +170,7 @@ test_that("density_data does not require theta inference", {
     index1 = FALSE,
     repr = "C"
   )
-  expect_silent(suppressWarnings(adlaplace:::density_data(y = 1, A = A, X = matrix(1, 1, 1))))
+  expect_silent(suppressWarnings(adlaplace::density_data(y = 1, A = A, X = matrix(1, 1, 1))))
 })
 
 test_that("elgm columns set the design row count", {
@@ -190,7 +190,7 @@ test_that("elgm columns set the design row count", {
     x = c(0.4, 0.6, 1, 1, 0.2, 0.8),
     dims = c(n_y, n_cell)
   )
-  model <- adlaplace:::density_data(
+  model <- adlaplace::density_data(
     y = y,
     A = A,
     X = X,
@@ -211,7 +211,7 @@ test_that("elgm columns set the design row count", {
     j = c(1L, 1L, 2L, 2L),
     dims = c(n_y, 2L)
   )
-  expect_silent(adlaplace:::density_data(
+  expect_silent(adlaplace::density_data(
     y = y,
     A = A_obs,
     X = X_obs,
@@ -219,26 +219,67 @@ test_that("elgm columns set the design row count", {
   ))
 
   expect_error(
-    adlaplace:::density_data(y = y, A = A, X = X),
+    adlaplace::density_data(y = y, A = A, X = X),
     "nrow\\(A\\) \\(7\\) must match length\\(y\\) \\(4\\)"
   )
   expect_error(
-    adlaplace:::density_data(
+    adlaplace::density_data(
       y = y[-1L],
       A = A,
       X = X,
       elgm_matrix = elgm
     ),
-    "length\\(y\\) \\(3\\) must match nrow\\(elgm_matrix\\) \\(4\\)"
+    "length\\(y\\) \\(3\\) must match nrow\\(elgm_matrix\\) \\(4\\) or ncol\\(elgm_matrix\\) \\(7\\)"
   )
   expect_error(
-    adlaplace:::density_data(
+    adlaplace::density_data(
       y = y,
       A = A[1:3, , drop = FALSE],
       X = X[1:3, , drop = FALSE],
       elgm_matrix = elgm
     ),
     "must match ncol\\(elgm_matrix\\) \\(7\\) or length\\(y\\) \\(4\\)"
+  )
+})
+
+test_that("aggregated ELGM indexes districts by column", {
+  n_cell <- 5L
+  n_dist <- 2L
+  elgm <- Matrix::sparseMatrix(
+    i = c(1L, 2L, 3L, 3L, 4L, 5L),
+    j = c(1L, 1L, 1L, 2L, 2L, 2L),
+    x = log(c(10, 20, 15, 15, 40, 50)),
+    dims = c(n_cell, n_dist)
+  )
+  model <- adlaplace::density_data(
+    y = c(4, 7),
+    A = Matrix::Diagonal(n_cell),
+    X = Matrix::Matrix(0, n_cell, 0L),
+    elgm_matrix = elgm,
+    density = "poisson_aggregate",
+    ad_kind = "observations"
+  )
+  expect_equal(length(model@y), n_dist)
+  expect_equal(dim(model@elgm_matrix), c(n_cell, n_dist))
+  expect_equal(ncol(model@ATp), n_cell)
+
+  expect_error(
+    adlaplace::density_data(
+      y = c(4, 7, 1),
+      A = Matrix::Diagonal(n_cell),
+      X = Matrix::Matrix(0, n_cell, 0L),
+      elgm_matrix = elgm
+    ),
+    "nrow\\(elgm_matrix\\) \\(5\\) or ncol\\(elgm_matrix\\) \\(2\\)"
+  )
+  expect_error(
+    adlaplace::density_data(
+      y = c(4, 7),
+      A = Matrix::Diagonal(n_dist),
+      X = Matrix::Matrix(0, n_dist, 0L),
+      elgm_matrix = elgm
+    ),
+    "must match nrow\\(elgm_matrix\\) \\(5\\)"
   )
 })
 
@@ -251,7 +292,7 @@ test_that("validate_config_layout allows missing theta when theta_map empty", {
     index1 = FALSE,
     repr = "C"
   )
-  model <- adlaplace:::density_data(y = 1:2, A = A, X = matrix(1, 2, 2))
+  model <- adlaplace::density_data(y = 1:2, A = A, X = matrix(1, 2, 2))
   config <- list(
     beta = rep(0, 2),
     gamma = rep(0, 2)

@@ -138,7 +138,7 @@ test_that("random_mult tape from mgp matches dense density", {
   term <- terms$x_mgp
   prec <- precision(term, NULL)
   nr <- prec$rank
-  model <- adlaplace:::density_data(
+  model <- adlaplace::density_data(
     gamma_map = Matrix::sparseMatrix(
       i = seq_len(nr), j = seq_len(nr), x = 1, dims = c(nr, nr)
     ),

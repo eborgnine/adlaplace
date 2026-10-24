@@ -27,9 +27,11 @@ to recast as another shard.}
 
 \item{A}{Random-effects design matrix (any \code{Matrix} class).
 When \code{elgm_matrix} is missing, \code{nrow(A) = length(y)}.
-When \code{elgm_matrix} is supplied, \code{length(y) = nrow(elgm_matrix)}
-and \code{nrow(A)} equals \code{ncol(elgm_matrix)} (design on ELGM
-columns) or \code{length(y)} (design on ELGM rows).}
+When the response is indexed by ELGM rows (\code{length(y) = nrow(elgm_matrix)}),
+\code{nrow(A)} equals \code{length(y)} or \code{ncol(elgm_matrix)}.
+When the response is aggregated on ELGM columns
+(\code{length(y) = ncol(elgm_matrix)}), \code{nrow(A)} equals
+\code{nrow(elgm_matrix)} (one design row per cell).}
 
 \item{X}{Fixed-effects design matrix (any \code{Matrix} class). Row
 alignment matches \code{A}.}
@@ -62,10 +64,11 @@ otherwise an empty matrix.}
 
 \item{elgm_matrix}{Optional ELGM map (any \code{Matrix}). Pattern matrices
 are coerced to \code{ngCMatrix}. Numeric matrices are stored as
-\code{dgCMatrix}, so entry weights are kept. Rows index the response
-(\code{nrow(elgm_matrix) = length(y)}). Columns index either strata or
-the design rows of \code{A} and \code{X}. If \code{NULL}, defaults to
-\code{Matrix::Matrix(nrow = length(y), ncol = 0)}.}
+\code{dgCMatrix}, so entry weights are kept. Either the response is
+indexed by rows (\code{nrow(elgm_matrix) = length(y)}; columns are strata
+or design rows) or, for an aggregated likelihood, rows are design cells
+and columns are aggregated units (\code{ncol(elgm_matrix) = length(y)}).
+If \code{NULL}, defaults to \code{Matrix::Matrix(nrow = length(y), ncol = 0)}.}
 
 \item{density}{Registered AD density name for this shard (optional).}
 
@@ -117,7 +120,11 @@ local \code{A} columns into the global gamma block.}
 \item{\code{theta_map}}{Theta parameter map (\code{ngCMatrix}). Column \code{j}
 selects global theta row \code{r} for this shard's theta component \code{j}.}
 
-\item{\code{elgm_matrix}}{Optional exposure-lag map (\code{ngCMatrix}; empty by default).}
+\item{\code{elgm_matrix}}{Optional exposure-lag map (\code{CsparseMatrix}). A pattern
+matrix (\code{ngCMatrix}) marks membership. A numeric \code{dgCMatrix}
+stores a weight on each entry, such as population in a cell-region
+intersection. Rows index either observations or design cells; columns
+index strata or aggregated units. Empty by default.}
 
 \item{\code{density}}{Registered AD density name for this shard.}
 
