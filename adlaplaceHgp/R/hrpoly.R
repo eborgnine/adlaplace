@@ -119,9 +119,8 @@ hrpoly <- function(
 #' @return A design matrix for the hrpoly term.
 #' @export
 setMethod("design", "hrpoly", function(term, data) {
-  term <- adlaplace:::add_by_levels(term, data)
+  term <- adlaplace::add_by_levels(term, data)
 
-  # Create an rpoly version of the term (without by slot)
   rpoly_term <- methods::new("rpoly",
     name = term@name,
     label = paste(term@name, "rpoly", sep = "_"),
@@ -130,36 +129,13 @@ setMethod("design", "hrpoly", function(term, data) {
     ref_value = term@ref_value,
     sd = rep_len(Inf, term@p.order)
   )
-  a_base <- design(rpoly_term, data)[, term@p.order]
-
-  a_split <- mapply(
-    function(x, a_base, id) {
-      the_i <- which(x == id)
-      data.frame(
-        i = the_i,
-        j_orig = id,
-        x = a_base[the_i]
-      )
-    },
-    id = term@by@levels,
-    MoreArgs = list(x = data[[term@by@term]], a_base = a_base),
-    SIMPLIFY = FALSE
+  a_base <- design(rpoly_term, data)[, term@p.order, drop = FALSE]
+  g <- adlaplace::group_index(data, term@by@term[1L], term@by@levels)
+  result <- adlaplace::scatter_by_group(a_base, g, length(term@by@levels))
+  colnames(result) <- adlaplace::group_gamma_labels(
+    paste0(term@name, "_hrpoly_", term@p.order),
+    term@by@labels
   )
-  a_df <- do.call(rbind, a_split)
-  a_df$j <- match(a_df$j_orig, term@by@levels)
-
-  result <- Matrix::sparseMatrix(
-    i = a_df$i, j = a_df$j,
-    x = a_df$x, dims = c(length(a_base), length(term@by@levels)),
-    dimnames = list(NULL, paste0(
-      term@name,
-      "_hrpoly_",
-      term@p.order,
-      "_g",
-      term@by@labels
-    ))
-  )
-
   result
 })
 
@@ -169,15 +145,17 @@ setMethod("design", "hrpoly", function(term, data) {
 #' @return A precision matrix for the hrpoly term.
 #' @export
 setMethod("precision", "hrpoly", function(term, data) {
-  term <- adlaplace:::add_by_levels(term, data)
+  term <- adlaplace::add_by_levels(term, data)
   if (term@p.order == 0) {
     return(NULL)
   }
 
+  labels <- adlaplace::group_gamma_labels(
+    paste0(term@name, "_hrpoly_", term@p.order),
+    term@by@labels
+  )
   result <- Matrix::Diagonal(length(term@by@levels), 1)
-  dimnames(result) <- list(
-    paste0(term@name, "_hrpoly_", term@p.order, "_g", term@by@labels)
-  )[c(1, 1)]
+  dimnames(result) <- list(labels, labels)
   result
 
 })
@@ -215,7 +193,7 @@ setMethod("beta_info", "hrpoly", function(term, data) {
 #' @return A data frame containing random effects information for the hrpoly term.
 #' @export
 setMethod("random_info", "hrpoly", function(term, data) {
-  term <- adlaplace:::add_by_levels(term, data)
+  term <- adlaplace::add_by_levels(term, data)
   basis <- NA
 
   result <- expand.grid(
@@ -228,7 +206,7 @@ setMethod("random_info", "hrpoly", function(term, data) {
     stringsAsFactors = FALSE
   )
   result$by_labels <- term@by@labels[match(result$by, term@by@levels)]
-  result$gamma_label <- paste0(result$label,  "_g", result$by_labels)
+  result$gamma_label <- adlaplace::group_gamma_labels(term@label, result$by_labels)
   result
 })
 

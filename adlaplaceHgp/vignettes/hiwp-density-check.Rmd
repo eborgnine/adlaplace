@@ -36,14 +36,15 @@ hiwp_terms <- adlaplaceHgp::hiwp("sqrt_pm",
   by = "state",
   ref_value = ref_value, p = 2,
   knots = knots,
-  init = 0.5
+  init = 0.5,
+  slope_init = 0.5
 )
 names(hiwp_terms)
 ```
 
-`hiwp()` returns four terms: the group-specific IWP deviations (`hiwp`), a
-global IWP (`iwp`), group-specific random slopes (`hrpoly_1`), and a boundary
-polynomial (`rpoly`).
+`hiwp()` returns four terms: a global IWP (`iwp`), its boundary polynomial
+(`rpoly`), the group-specific IWP deviations (`hiwp`), and group-specific
+random slopes (`hrpoly_1`).
 
 ```{r data}
 set.seed(2024)

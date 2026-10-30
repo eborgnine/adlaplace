@@ -10,11 +10,14 @@ export(fem_precision_payload)
 export(hb_basis)
 export(hb_knots)
 export(hb_summary)
+export(hmgp)
 export(matern)
 export(matern_est)
 export(matern_fem_covariance)
 export(mgp)
 export(rsmatern)
+exportClasses(hmgp)
+exportClasses(hmgp_boundary)
 exportClasses(matern)
 exportClasses(mgp)
 exportClasses(mgp_boundary)
@@ -30,6 +33,7 @@ exportMethods(random_info)
 exportMethods(replace_vars)
 exportMethods(theta_info)
 import(RCppAD)
+importClassesFrom(adlaplace,by_group)
 importFrom(Matrix,
   Diagonal,
   Matrix,
@@ -40,15 +44,20 @@ importFrom(Matrix,
 )
 importFrom(Rcpp,evalCpp)
 importFrom(adlaplace,
+  add_by_levels,
   beta_info,
   by_group,
   design,
   extra_density,
+  group_gamma_labels,
+  group_index,
   hinv_trace_index,
   precision,
   psd,
   random_info,
   replace_vars,
+  scatter_by_group,
+  strip_term_name,
   theta_info
 )
 importFrom(methods,

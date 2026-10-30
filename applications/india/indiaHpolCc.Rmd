@@ -138,14 +138,37 @@ dom_init <- c(
 )
 formula_rhs <- c(
   adlaplace::linear("dom", init = dom_init, parscale = 0.1),
+  # Global smooths use their own init; hiwp() is the regional deviation.
+  adlaplace::iwp(
+    "sqrt_pm",
+    p = 2,
+    ref_value = 8,
+    knots = seq(0, 32, by = 2),
+    init = 1.2e-3,
+    parscale = 0.2,
+    lower = 1e-12
+  ),
   adlaplaceHgp::hiwp(
     "sqrt_pm",
     p = 2,
     ref_value = 8,
     knots = seq(0, 32, by = 2),
     by = "eco_region",
-    init = c(1e-3, 1.2e-3, 1e-3),
-    parscale = c(1, 0.2, 1),
+    init = 1e-3,
+    parscale = 1,
+    lower = 1e-12,
+    slope_init = 1e-3,
+    slope_parscale = 1,
+    slope_lower = 1e-12,
+    include_global = FALSE
+  ),
+  adlaplace::iwp(
+    "temp_div10",
+    p = 3,
+    ref_value = 25 / 10,
+    knots = seq(-5, 42.5, by = 2.5) / 10,
+    init = 0.84,
+    parscale = 0.5,
     lower = 1e-12
   ),
   adlaplaceHgp::hiwp(
@@ -154,9 +177,13 @@ formula_rhs <- c(
     ref_value = 25 / 10,
     knots = seq(-5, 42.5, by = 2.5) / 10,
     by = "eco_region",
-    init = c(1e-3, 0.84, 1e-3, 1e-3),
-    parscale = c(1, 0.5, 1, 1),
-    lower = 1e-12
+    init = 1e-3,
+    parscale = 1,
+    lower = 1e-12,
+    slope_init = c(1e-3, 1e-3),
+    slope_parscale = c(1, 1),
+    slope_lower = 1e-12,
+    include_global = FALSE
   )
 )
 cc_formula <- c(formula_lhs, formula_rhs)

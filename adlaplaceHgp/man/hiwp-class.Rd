@@ -17,11 +17,17 @@ hiwp(
   ref_value = 0,
   knots,
   by,
-  init = NULL,
-  lower = NULL,
-  upper = NULL,
-  parscale = NULL,
+  levels = NULL,
+  init = .my_theta_init,
+  lower = .my_theta_lower,
+  upper = .my_theta_upper,
+  parscale = .my_theta_parscale,
   log = TRUE,
+  slope_init = .my_theta_init,
+  slope_lower = .my_theta_lower,
+  slope_upper = .my_theta_upper,
+  slope_parscale = .my_theta_parscale,
+  slope_log = TRUE,
   boundary_is_random = TRUE,
   include_poly = TRUE,
   include_global = TRUE
@@ -48,28 +54,30 @@ hiwp(
 
 \item{by}{Grouping variable for hierarchical structure}
 
-\item{init}{Initial values for theta parameters}
+\item{levels}{Optional group levels, in block order. When omitted, levels
+are taken from the data on the first design or precision call.}
 
-\item{lower}{Lower bounds for theta parameters}
+\item{init, lower, upper, parscale, log}{Scalar SD controls for the group
+deviations. Reused for the global \code{iwp} when \code{include_global}
+is \code{TRUE}.}
 
-\item{upper}{Upper bounds for theta parameters}
+\item{slope_init, slope_lower, slope_upper, slope_parscale, slope_log}{SD
+controls for the per-group \code{hrpoly} slopes, recycled to \code{p - 1}.}
 
-\item{parscale}{Parameter scales for optimization}
-
-\item{log}{Whether theta is optimized on the log scale (recycled like \code{init}).}
-
-\item{boundary_is_random}{Whether boundary should be treated as random}
+\item{boundary_is_random}{Whether the global boundary should be random}
 
 \item{include_poly}{Whether to include polynomial terms}
 
-\item{include_global}{Whether to include global component}
+\item{include_global}{Whether to include the global IWP and its boundary}
 
 \item{term}{An \code{hiwp} term object.}
 
 \item{data}{A data frame containing the variables used in the term.}
 }
 \value{
-A list containing hiwp term object and optionally related terms
+A named list. With the defaults: \code{<x>_iwp}, \code{<x>_rpoly}
+(or \code{<x>_fpoly}), \code{<x>_hiwp}, then one \code{<x>_hrpoly_<d>}
+per slope order.
 
 A design matrix for the HIWP term.
 

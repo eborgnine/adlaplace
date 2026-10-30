@@ -2,6 +2,8 @@
 #' @importFrom Matrix Matrix drop0 kronecker tcrossprod Diagonal sparseMatrix
 #' @importFrom splines splineDesign
 #' @importFrom adlaplace design precision theta_info beta_info random_info extra_density hinv_trace_index replace_vars by_group psd
+#' @importFrom adlaplace add_by_levels group_index scatter_by_group group_gamma_labels strip_term_name
+#' @importClassesFrom adlaplace by_group
 #' @importFrom Rcpp evalCpp
 #' @import RCppAD
 #' @useDynLib adlaplaceFem, .registration = TRUE

@@ -1,8 +1,8 @@
 Package: adlaplaceHgp
 Type: Package
 Title: Hierarchical Gaussian Processes for 'adlaplace'
-Version: 0.6.1
-Date: 2026-08-21
+Version: 0.6.2
+Date: 2026-10-30
 Authors@R: person(given = "Patrick", family = "Brown",
     email = "patrick.borgnine@gmail.com",
     role = c("aut", "cre", "cph"))
@@ -13,7 +13,7 @@ Description: Hierarchical and random-slope integrated Wiener process model terms
 License: GPL (>= 2)
 Depends:
     R (>= 4.1.0),
-    adlaplace (>= 0.7.1)
+    adlaplace (>= 0.7.6)
 Imports: methods, stats, Matrix
 Suggests: GET, testthat (>= 3.0.0), knitr, rmarkdown
 VignetteBuilder: knitr

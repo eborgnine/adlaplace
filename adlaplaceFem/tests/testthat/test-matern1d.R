@@ -118,6 +118,18 @@ test_that("rsmatern recovers range and sd of a simulated FEM field", {
   expect_equal(unname(mle["time_x_rsmatern_sd"]), sd, tolerance = 0.35)
 })
 
+test_that("rsmatern gamma labels put the basis before the group", {
+  term <- rsmatern(
+    "time", mult = "x", by = "region",
+    knots = c(0, 1, 2), levels = c("A", "B")
+  )
+  dat <- data.frame(time = c(0.2, 1.4), x = c(1, 1), region = c("B", "A"))
+  cols <- colnames(design(term, dat))
+  expect_true(all(grepl("_b[0-9]+_g(A|B)$", cols)))
+  expect_true(grepl("_gA$", cols[1]))
+  expect_identical(random_info(term, dat)$gamma_label, cols)
+})
+
 test_that("replace_vars retargets the rsmatern exposure column", {
   term <- rsmatern(
     "time", mult = "sqrt_pm", by = "region",

@@ -18,28 +18,13 @@ fem_bspline_1d <- function(knots, degree = 1L) {
 }
 
 #' @noRd
-.rsmatern_levels <- function(term, data) {
-  if (length(term@by@levels)) {
-    return(term@by@levels)
-  }
-  by_var <- term@by@term[1L]
-  if (!length(by_var) || !by_var %in% names(data)) {
-    stop("rsmatern grouping variable not found in data", call. = FALSE)
-  }
-  x <- data[[by_var]]
-  if (is.factor(x)) levels(x) else as.character(unique(x))
-}
-
-#' @noRd
-.rsmatern_gamma_labels <- function(term, levels, n_basis) {
+.rsmatern_basis_labels <- function(term, n_basis) {
   bpad <- formatC(
     seq_len(n_basis),
     width = max(1L, ceiling(log10(n_basis + 1e-6))),
     flag = "0"
   )
-  unlist(lapply(levels, function(lv) {
-    paste0(term@label, "_", lv, "_b", bpad)
-  }), use.names = FALSE)
+  paste0(term@label, "_b", bpad)
 }
 
 #' @noRd
@@ -162,6 +147,7 @@ rsmatern <- function(
 #'   written into the block for `by`.
 #' @export
 setMethod("design", "rsmatern", function(term, data) {
+  term <- adlaplace::add_by_levels(term, data)
   fem <- .rsmatern_fem(term)
   if (!term@name %in% names(data)) {
     stop("column '", term@name, "' not found", call. = FALSE)
@@ -169,37 +155,26 @@ setMethod("design", "rsmatern", function(term, data) {
   if (!term@mult %in% names(data)) {
     stop("column '", term@mult, "' not found", call. = FALSE)
   }
-  levels <- .rsmatern_levels(term, data)
-  by_var <- term@by@term[1L]
-  reg <- match(as.character(data[[by_var]]), levels)
-  if (anyNA(reg)) {
-    stop("rsmatern: data has grouping levels that are not in the term", call. = FALSE)
-  }
+  levels <- term@by@levels
+  reg <- adlaplace::group_index(data, term@by@term[1L], levels)
   B <- bspline_eval(fem$knots, data[[term@name]], fem$degree, 0L)
   B <- methods::as(methods::as(B, "generalMatrix"), "CsparseMatrix")
   scale <- as.numeric(data[[term@mult]]) - term@ref_mult
   B <- methods::as(Matrix::Diagonal(x = scale) %*% B, "CsparseMatrix")
-  nb <- ncol(B)
-  counts <- diff(B@p)
-  cols <- rep.int(seq_along(counts) - 1L, counts)
-  rows <- B@i
-  col_out <- cols + (reg[rows + 1L] - 1L) * nb
-  A <- Matrix::sparseMatrix(
-    i = rows + 1L,
-    j = col_out + 1L,
-    x = B@x,
-    dims = c(nrow(B), nb * length(levels)),
-    repr = "C"
+  A <- adlaplace::scatter_by_group(B, reg, length(levels))
+  colnames(A) <- adlaplace::group_gamma_labels(
+    .rsmatern_basis_labels(term, ncol(B)),
+    term@by@labels
   )
-  colnames(A) <- .rsmatern_gamma_labels(term, levels, nb)
   A
 })
 
 #' @describeIn rsmatern-class Block-diagonal FEM precision, one block per group.
 #' @export
 setMethod("precision", "rsmatern", function(term, data) {
+  term <- adlaplace::add_by_levels(term, data)
   fem <- .rsmatern_fem(term)
-  levels <- .rsmatern_levels(term, data)
+  levels <- term@by@levels
   nlev <- length(levels)
   if (nlev < 1L) {
     stop("rsmatern needs at least one group level", call. = FALSE)
@@ -217,8 +192,9 @@ setMethod("precision", "rsmatern", function(term, data) {
 #' @describeIn rsmatern-class One metadata row per basis weight and group.
 #' @export
 setMethod("random_info", "rsmatern", function(term, data) {
+  term <- adlaplace::add_by_levels(term, data)
   fem <- .rsmatern_fem(term)
-  levels <- .rsmatern_levels(term, data)
+  levels <- term@by@levels
   basis <- seq_len(fem$n)
   result <- expand.grid(
     basis = basis,
@@ -226,15 +202,16 @@ setMethod("random_info", "rsmatern", function(term, data) {
     KEEP.OUT.ATTRS = FALSE,
     stringsAsFactors = FALSE
   )
-  # Block order matches design(): all basis functions of level 1, then level 2.
-  result <- result[order(match(result$by, levels), result$basis), , drop = FALSE]
   rownames(result) <- NULL
   result$term <- term@name
   result$model <- "rsmatern"
   result$label <- term@label
-  result$by_labels <- result$by
+  result$by_labels <- term@by@labels[match(result$by, levels)]
   result$order <- NA
-  result$gamma_label <- .rsmatern_gamma_labels(term, levels, fem$n)
+  result$gamma_label <- adlaplace::group_gamma_labels(
+    .rsmatern_basis_labels(term, fem$n),
+    term@by@labels
+  )
   result
 })
 

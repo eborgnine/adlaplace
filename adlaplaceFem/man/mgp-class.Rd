@@ -92,6 +92,7 @@ are built from the knots on that side.
 The prior density uses adlaplace's \code{random_mult} kernel with a fixed
 precision \code{Q} (one SD theta). Use \code{\link[adlaplace:psd]{adlaplace::psd()}} /
 \code{\link[adlaplace:psd_prior]{adlaplace::psd_prior()}} for a PC prior on the predictive SD.
+Group-specific deviation curves that share one SD are \code{\link[=hmgp]{hmgp()}}.
 
 FEM construction follows Ziang Zhang's BayesGP near-monotone FEM, with
 Gauss-Legendre quadrature and \code{\link[splines:splineDesign]{splines::splineDesign()}} (no \strong{fda}
@@ -134,5 +135,6 @@ mgp_term <- mgp(x = "pm10", a = 2, knots = knots, ref_value = 30)
 mgp_term
 }
 \seealso{
-\code{\link[adlaplace:psd]{adlaplace::psd()}}, \code{\link[adlaplace:psd_prior]{adlaplace::psd_prior()}}, \link[=mgp_boundary-class]{mgp_boundary}
+\code{\link[adlaplace:psd]{adlaplace::psd()}}, \code{\link[adlaplace:psd_prior]{adlaplace::psd_prior()}}, \link[=mgp_boundary-class]{mgp_boundary},
+\code{\link[=hmgp]{hmgp()}}
 }

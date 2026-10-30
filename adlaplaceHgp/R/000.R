@@ -1,7 +1,9 @@
 #' @import Matrix
 #' @importFrom adlaplace design precision theta_info beta_info random_info
-#' @importFrom adlaplace by_group
+#' @importFrom adlaplace by_group add_by_levels group_index scatter_by_group
+#' @importFrom adlaplace group_gamma_labels strip_term_name ref_align
 #' @importFrom adlaplace iwp iid rpoly fpoly
+#' @importClassesFrom adlaplace iwp by_group
 NULL
 
 .my_beta_init <- 0

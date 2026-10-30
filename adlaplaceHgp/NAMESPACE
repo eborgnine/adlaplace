@@ -22,16 +22,24 @@ exportMethods(random_info)
 exportMethods(replace_vars)
 exportMethods(theta_info)
 import(Matrix)
+importClassesFrom(adlaplace,by_group)
+importClassesFrom(adlaplace,iwp)
 importFrom(adlaplace,
+  add_by_levels,
   beta_info,
   by_group,
   design,
   fpoly,
+  group_gamma_labels,
+  group_index,
   iid,
   iwp,
   precision,
   random_info,
+  ref_align,
   replace_vars,
   rpoly,
+  scatter_by_group,
+  strip_term_name,
   theta_info
 )

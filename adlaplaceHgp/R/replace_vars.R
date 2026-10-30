@@ -36,6 +36,7 @@ setMethod("replace_vars", "hiwp", function(x, map) {
       character(1)
     )
   }
+  x@label <- paste(c(x@name, "hiwp"), collapse = "_")
   x
 })
 

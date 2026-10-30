@@ -8,6 +8,14 @@ test_that("hgp term constructors produce design and precision matrices", {
   )
   knots <- c(0, 0.25, 0.5, 0.75, 1)
 
+  ordered <- hiwp(x = "x", knots = knots, by = "g", levels = c("b", "a"))
+  expect_equal(names(ordered)[1:2], c("x_iwp", "x_rpoly"))
+  expect_equal(ordered$x_hiwp@by@levels, c("b", "a"))
+  expect_error(
+    design(ordered$x_hiwp, data.frame(x = 0.2, g = NA)),
+    "missing values"
+  )
+
   hiwp_terms <- hiwp(x = "x", knots = knots, by = "g", include_global = FALSE)
   hiwp_term <- hiwp_terms[[1]]
   expect_s4_class(hiwp_term, "hiwp")

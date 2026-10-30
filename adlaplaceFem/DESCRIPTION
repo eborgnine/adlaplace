@@ -1,8 +1,8 @@
 Package: adlaplaceFem
 Type: Package
 Title: Finite Element Approximations for Adlaplace
-Version: 0.7.3
-Date: 2026-10-15
+Version: 0.7.4
+Date: 2026-10-30
 Authors@R: c(
     person(given = "Patrick", family = "Brown",
       email = "patrick.borgnine@gmail.com",
@@ -20,13 +20,14 @@ Description: Finite-element approximations for hierarchical models with the
     and higher-order Grams), including hierarchical locally refined B-spline bases,
     design and Gram matrix construction on regular grids, optional terra
     SpatRaster / SpatVector input, AD tape builders for random_fem_ssq_* /
-    random_fem_det_*, and a near-monotone mGP smoother (mgp) with a predictive
-    SD (psd) interface.
+    random_fem_det_*, a near-monotone mGP smoother (mgp) with a predictive
+    SD (psd) interface, and a grouped mGP (hmgp) with one deviation curve
+    per level of a factor.
 SystemRequirements: OpenMP
 License: GPL (>= 2)
 Depends:
     R (>= 4.1.0),
-    adlaplace (>= 0.7.5)
+    adlaplace (>= 0.7.6)
 Imports: methods, stats, Matrix, splines, Rcpp, RCppAD, parallel
 LinkingTo: Rcpp, adlaplace, RcppEigen, trustOptim, Matrix, RCppAD
 Suggests: terra, testthat (>= 3.0.0), geostatsp (>= 2.2.0), knitr, rmarkdown,
@@ -45,13 +46,14 @@ Collate:
     'fem_precision.R'
     'grams_1d.R'
     'hbspline.R'
+    'mgp.R'
+    'hmgp.R'
     'knots.R'
     'matern-geometry.R'
     'matern.R'
     'matern1d.R'
     'matern_est.R'
     'mgp-fem.R'
-    'mgp.R'
     'zzz.R'
 NeedsCompilation: yes
 Config/roxygen2/version: 8.1.0

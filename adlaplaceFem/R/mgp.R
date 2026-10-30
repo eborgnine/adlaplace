@@ -16,6 +16,7 @@
 #' The prior density uses adlaplace's `random_mult` kernel with a fixed
 #' precision `Q` (one SD theta). Use [adlaplace::psd()] /
 #' [adlaplace::psd_prior()] for a PC prior on the predictive SD.
+#' Group-specific deviation curves that share one SD are [hmgp()].
 #'
 #' FEM construction follows Ziang Zhang's BayesGP near-monotone FEM, with
 #' Gauss-Legendre quadrature and [splines::splineDesign()] (no **fda**
@@ -27,7 +28,8 @@
 #' @slot fem Cached list from the internal FEM assembler.
 #' @slot two_sided Logical; both sides of `ref_value` are active.
 #'
-#' @seealso [adlaplace::psd()], [adlaplace::psd_prior()], [mgp_boundary-class]
+#' @seealso [adlaplace::psd()], [adlaplace::psd_prior()], [mgp_boundary-class],
+#'   [hmgp()]
 #' @exportClass mgp
 #' @rdname mgp-class
 setClass(
@@ -85,6 +87,41 @@ setClass(
   )
 )
 
+#' Shared knot, reference, and FEM setup for mgp() and hmgp().
+#' @return List with `x`, `a`, `knots`, `x0`, `cs`, `n_quad`, and `fem`.
+#' @noRd
+.mgp_setup <- function(x, a, knots, ref_value, n_quad) {
+  if (missing(knots)) {
+    stop("knots is required", call. = FALSE)
+  }
+  if (length(knots) < 2L) {
+    stop("knots must have length >= 2", call. = FALSE)
+  }
+  knots <- sort(unique(as.numeric(knots)))
+  if (length(knots) < 2L || any(!is.finite(knots))) {
+    stop("knots must have at least two finite positions", call. = FALSE)
+  }
+  if (length(a) != 1L || (!is.finite(a) && !isTRUE(all.equal(a, Inf))) || a == 0) {
+    stop("a must be a single nonzero value, or Inf", call. = FALSE)
+  }
+  a <- as.numeric(a)
+  n_quad <- as.integer(n_quad)
+  x <- adlaplace::strip_term_name(as.character(x))
+  mgp_check_domain(knots)
+  x0 <- mgp_reference(knots, ref_value)
+  cs <- x0
+  if (!is.finite(cs) || cs <= 0) {
+    stop("ref_value (internal shift) must be positive", call. = FALSE)
+  }
+  fem <- mgp_fem(
+    knots = knots, x0 = x0, a = a, cs = cs, n_quad = n_quad
+  )
+  list(
+    x = x, a = a, knots = knots, x0 = x0, cs = cs,
+    n_quad = n_quad, fem = fem
+  )
+}
+
 #' Near-monotone mGP constructor
 #'
 #' @param x Variable name.
@@ -118,37 +155,18 @@ mgp <- function(
     upper = Inf,
     parscale = 1,
     log = TRUE) {
-  if (missing(knots)) {
-    stop("knots is required for mgp()", call. = FALSE)
-  }
-  if (length(knots) < 2L) {
-    stop("knots must have length >= 2", call. = FALSE)
-  }
-  knots <- sort(unique(as.numeric(knots)))
-  if (length(knots) < 2L || any(!is.finite(knots))) {
-    stop("knots must have at least two finite positions", call. = FALSE)
-  }
-  if (length(a) != 1L || (!is.finite(a) && !isTRUE(all.equal(a, Inf))) || a == 0) {
-    stop("a must be a single nonzero value, or Inf", call. = FALSE)
-  }
-  a <- as.numeric(a)
-  n_quad <- as.integer(n_quad)
   if (length(boundary_sd) != 1L || !(is.finite(boundary_sd) || is.infinite(boundary_sd)) ||
     boundary_sd <= 0) {
     stop("boundary_sd must be a single positive value (or Inf)", call. = FALSE)
   }
-
-  x <- adlaplace::strip_term_name(as.character(x))
-  mgp_check_domain(knots)
-  x0 <- mgp_reference(knots, ref_value)
-  cs <- x0
-  if (!is.finite(cs) || cs <= 0) {
-    stop("ref_value (internal shift) must be positive", call. = FALSE)
-  }
-
-  fem <- mgp_fem(
-    knots = knots, x0 = x0, a = a, cs = cs, n_quad = n_quad
-  )
+  setup <- .mgp_setup(x, a, knots, ref_value, n_quad)
+  x <- setup$x
+  a <- setup$a
+  knots <- setup$knots
+  x0 <- setup$x0
+  cs <- setup$cs
+  n_quad <- setup$n_quad
+  fem <- setup$fem
 
   the_f <- stats::as.formula(paste0("~ 0 + ", x), env = new.env())
   mgp_name <- paste(c(x, "mgp"), collapse = "_")
