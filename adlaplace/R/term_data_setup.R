@@ -308,6 +308,7 @@ empty_parameters_info <- function() {
 build_parameters_info <- function(beta_df, theta_df, names_common) {
   beta_rows <- if (!is.null(beta_df) && nrow(beta_df) > 0L) {
     out <- beta_df[, names_common, drop = FALSE]
+    out$label <- beta_df$beta_label
     out$log <- FALSE
     out
   } else {
@@ -340,8 +341,11 @@ build_parameters_info <- function(beta_df, theta_df, names_common) {
 #'   \code{config$transform_theta} is \code{TRUE} (default for all rows unless a
 #'   model term sets otherwise). \code{info$parameters} stacks \code{beta} and
 #'   \code{theta} rows with the same \code{log} column (\code{FALSE} for
-#'   fixed effects); \code{init}, \code{lower}, and \code{upper} are already on
-#'   the optimization (log) scale where \code{log} is \code{TRUE}.
+#'   fixed effects). Beta rows use \code{beta_label} as \code{label} (one row
+#'   per design column); \code{info$beta$label} stays the shared term name.
+#'   Theta rows keep their term label. \code{init}, \code{lower}, and
+#'   \code{upper} are already on the optimization (log) scale where \code{log}
+#'   is \code{TRUE}.
 #' @export
 term_data_setup <- function(formula, data, verbose = FALSE) {
   formula_in <- formula

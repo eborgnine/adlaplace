@@ -32,6 +32,40 @@ test_that("model_data captures y from explicit observations term", {
   expect_true(length(md$observations) >= 1L)
 })
 
+test_that("parameters label uses beta_label for fixed effects", {
+  dat <- data.frame(
+    y = c(1L, 0L, 1L, 1L, 0L, 1L, 0L, 0L, 1L, 1L, 0L, 1L),
+    trt = factor(
+      rep(c("placebo", "drug", "drug+"), each = 4L),
+      levels = c("placebo", "drug", "drug+")
+    ),
+    wk = rep(c(0L, 1L), each = 6L),
+    ID = factor(rep(paste0("X", 1:4), 3L))
+  )
+  setup <- adlaplace::term_data_setup(
+    adlaplace::binom(y) ~ trt + wk + adlaplace::iid(ID),
+    data = dat
+  )
+  info <- setup$info
+  n_beta <- nrow(info$beta)
+  n_theta <- nrow(info$theta)
+
+  expect_identical(
+    info$parameters$label[seq_len(n_beta)],
+    info$beta$beta_label
+  )
+  expect_identical(anyDuplicated(info$parameters$label), 0L)
+  expect_identical(
+    info$parameters$label[seq(n_beta + 1L, length.out = n_theta)],
+    info$theta$label
+  )
+  expect_true(all(info$beta$label[info$beta$term == "trt"] == "trt_linear"))
+  expect_identical(
+    info$beta$beta_label[info$beta$term == "trt"],
+    c("trt_linear_trtdrug", "trt_linear_trtdrug+")
+  )
+})
+
 test_that("term_data_setup warns when no response/observations term is present", {
   dat <- data.frame(y = 1:5, x1 = 1:5)
   expect_warning(

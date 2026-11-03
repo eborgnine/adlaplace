@@ -76,7 +76,14 @@ sim_fit <- function(x, data, fit, n = 500L) {
       if (!is.null(beta_here)) {
         if (any(beta_here$term %in% names(x))) {
           design_here <- design(term, data = x)
-          par_id <- which(info$parameters$label == beta_here$label)
+          par_id <- match(beta_here$beta_label, info$parameters$label)
+          if (anyNA(par_id)) {
+            stop(
+              "no outer parameter for beta labels: ",
+              paste(beta_here$beta_label[is.na(par_id)], collapse = ", "),
+              call. = FALSE
+            )
+          }
           return(
             as.matrix(
               design_here[, beta_here$beta_label, drop = FALSE] %*%

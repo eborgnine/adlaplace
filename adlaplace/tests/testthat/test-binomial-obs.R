@@ -69,7 +69,17 @@ test_that("adlaplace() fits binomial GLMM on bacteria data", {
 
   est <- coef(fit)
   expect_gt(est[["intercept"]], 1)
-  expect_lt(est[["wk_linear"]], 0)
+  expect_lt(est[["wk_linear_wk"]], 0)
+  beta <- fit$model_data$term_data$info$beta
+  n_beta <- nrow(beta)
+  expect_identical(
+    fit$par_info$label[seq_len(n_beta)],
+    beta$beta_label
+  )
+  expect_identical(
+    rownames(summary(fit)$coefficients),
+    fit$par_info$label
+  )
 
   pql <- MASS::glmmPQL(
     y ~ trt + I(week > 2), random = ~ 1 | ID,
@@ -77,5 +87,5 @@ test_that("adlaplace() fits binomial GLMM on bacteria data", {
   )
   fe <- nlme::fixef(pql)
   expect_equal(est[["intercept"]], unname(fe[["(Intercept)"]]), tolerance = 0.3)
-  expect_equal(est[["wk_linear"]], unname(fe[["I(week > 2)TRUE"]]), tolerance = 0.3)
+  expect_equal(est[["wk_linear_wk"]], unname(fe[["I(week > 2)TRUE"]]), tolerance = 0.3)
 })
