@@ -20,8 +20,11 @@ List with \code{terms}, \code{y}, \code{A}, \code{X}, \code{data}, \code{info}.
   \code{config$transform_theta} is \code{TRUE} (default for all rows unless a
   model term sets otherwise). \code{info$parameters} stacks \code{beta} and
   \code{theta} rows with the same \code{log} column (\code{FALSE} for
-  fixed effects); \code{init}, \code{lower}, and \code{upper} are already on
-  the optimization (log) scale where \code{log} is \code{TRUE}.
+  fixed effects). Beta rows use \code{beta_label} as \code{label} (one row
+  per design column); \code{info$beta$label} stays the shared term name.
+  Theta rows keep their term label. \code{init}, \code{lower}, and
+  \code{upper} are already on the optimization (log) scale where \code{log}
+  is \code{TRUE}.
 }
 \description{
 Build design matrices and parameter metadata from a formula

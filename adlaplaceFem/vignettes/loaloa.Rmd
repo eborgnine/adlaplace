@@ -202,8 +202,8 @@ logLik(fit)
 cf <- coef(fit)
 ad_pars <- c(
   intercept = unname(cf[["intercept"]]),
-  elev = unname(cf[["elev_linear"]]),
-  evi = unname(cf[["evi_linear"]]),
+  elev = unname(cf[["elev_linear_elev"]]),
+  evi = unname(cf[["evi_linear_evi"]]),
   village_sd = unname(cf[["villageID_iid"]]),
   # matern: practical range rho = sqrt(8*nu)/kappa (m); sd = field SD
   range = unname(cf[["geometry_matern_log_range"]]),

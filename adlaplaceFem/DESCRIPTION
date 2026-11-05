@@ -1,8 +1,8 @@
 Package: adlaplaceFem
 Type: Package
 Title: Finite Element Approximations for Adlaplace
-Version: 0.7.4
-Date: 2026-10-30
+Version: 0.7.5
+Date: 2026-11-04
 Authors@R: c(
     person(given = "Patrick", family = "Brown",
       email = "patrick.borgnine@gmail.com",
@@ -10,7 +10,7 @@ Authors@R: c(
     person(given = "Ziang", family = "Zhang",
       email = "ziangzhang@uchicago.edu",
       role = "aut",
-      comment = "near-monotone mGP FEM")
+      comment = "near-monotone mGP and seasonal GP FEM")
   )
 Author: Patrick Brown [aut, cre, cph], Ziang Zhang [aut]
 Maintainer: Patrick Brown <patrick.borgnine@gmail.com>
@@ -21,8 +21,9 @@ Description: Finite-element approximations for hierarchical models with the
     design and Gram matrix construction on regular grids, optional terra
     SpatRaster / SpatVector input, AD tape builders for random_fem_ssq_* /
     random_fem_det_*, a near-monotone mGP smoother (mgp) with a predictive
-    SD (psd) interface, and a grouped mGP (hmgp) with one deviation curve
-    per level of a factor.
+    SD (psd) interface, a grouped mGP (hmgp) with one deviation curve
+    per level of a factor, and a seasonal Gaussian process (sgp) approximated
+    by seasonal B-splines, with a sin/cos boundary companion.
 SystemRequirements: OpenMP
 License: GPL (>= 2)
 Depends:
@@ -54,6 +55,8 @@ Collate:
     'matern1d.R'
     'matern_est.R'
     'mgp-fem.R'
+    'sgp-fem.R'
+    'sgp.R'
     'zzz.R'
 NeedsCompilation: yes
 Config/roxygen2/version: 8.1.0
