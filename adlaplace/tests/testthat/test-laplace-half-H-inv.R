@@ -93,4 +93,25 @@ test_that("laplace_half_H_inv works on log_lik_laplace deriv output", {
   half <- adlaplace::laplace_half_H_inv(laplace)
   expect_equal(nrow(half), Nrandom)
   expect_true(!is.null(laplace$hessian$half_H_inv))
+
+  laplace0 <- adlaplace::log_lik_laplace(
+    x = c(config$beta, config$theta),
+    config = list(verbose = FALSE),
+    gamma = config$gamma,
+    ad_pack = ad_pack,
+    control = list(maxit = 5L, report.level = 0, report.freq = 0),
+    deriv = FALSE
+  )
+  expect_false(is.null(laplace0$hessian$half_H_inv))
+  expect_false(is.null(laplace0$hessian$H_inv))
+  expect_equal(
+    as.matrix(laplace0$hessian$H_inv),
+    as.matrix(laplace$hessian$H_inv),
+    tolerance = 1e-8
+  )
+  expect_equal(
+    as.matrix(Matrix::tcrossprod(laplace0$hessian$half_H_inv)),
+    as.matrix(laplace$hessian$H_inv),
+    tolerance = 1e-8
+  )
 })

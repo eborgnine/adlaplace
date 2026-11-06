@@ -75,6 +75,9 @@ supplied.
 
 When \code{deriv=FALSE}, the return value mirrors \code{\link{inner_opt}()}
 with \code{inner_opt}, top-level \code{gradient}, and \code{hessian}.
+Whenever \code{hessian$chol_inner} is returned, \code{hessian} also contains
+\code{half_H_inv} (\eqn{H^{-1/2}}) and \code{H_inv} (\eqn{H^{-1}}) for the
+inner Hessian, computed in R when the backend did not supply them.
 When \code{deriv=TRUE}, the profile gradient is assembled in C++ inside
 \code{inner_opt}; the same list is augmented with \code{deriv} and
 profile-derivative pieces in \code{gradient$outer}.

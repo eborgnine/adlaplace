@@ -355,6 +355,9 @@ warn_if_inner_status <- function(result) {
 #'
 #' When \code{deriv=FALSE}, the return value mirrors \code{\link{inner_opt}()}
 #' with \code{inner_opt}, top-level \code{gradient}, and \code{hessian}.
+#' Whenever \code{hessian$chol_inner} is returned, \code{hessian} also contains
+#' \code{half_H_inv} (\eqn{H^{-1/2}}) and \code{H_inv} (\eqn{H^{-1}}) for the
+#' inner Hessian, computed in R when the backend did not supply them.
 #' When \code{deriv=TRUE}, the profile gradient is assembled in C++ inside
 #' \code{inner_opt}; the same list is augmented with \code{deriv} and
 #' profile-derivative pieces in \code{gradient$outer}.
@@ -443,6 +446,7 @@ log_lik_laplace <- function(
   )
   warn_if_inner_status(result_inner)
   result <- restructure_laplace_result(result_inner, control_inner = control)
+  result$hessian <- add_hessian_inverses(result$hessian)
 
   if (!deriv) {
     return(result)
@@ -491,6 +495,27 @@ restructure_laplace_result <- function(result_inner, control_inner = NULL) {
   )
   out$hessian <- result_inner$hessian
   out
+}
+
+#' @noRd
+add_hessian_inverses <- function(hessian) {
+  if (!is.list(hessian) || is.null(hessian$chol_inner) ||
+    !is.finite(c(hessian$half_log_det, NA_real_)[1L])) {
+    return(hessian)
+  }
+  if (is.null(hessian$half_H_inv)) {
+    hessian$half_H_inv <- methods::as(
+      half_H_inv_from_ldl(as_ldl_list(hessian$chol_inner)),
+      "CsparseMatrix"
+    )
+  }
+  if (is.null(hessian$H_inv)) {
+    hessian$H_inv <- Matrix::forceSymmetric(
+      Matrix::tcrossprod(hessian$half_H_inv),
+      uplo = "U"
+    )
+  }
+  hessian
 }
 
 log_lik_deriv <- function(
