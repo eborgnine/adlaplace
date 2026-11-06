@@ -114,6 +114,14 @@ test_that("psd(sgp) matches the seasonal predictive SD", {
   expect_equal(pr@rate, -log(0.01) * unit / 0.2)
 })
 
+test_that("sgp precision stays conditioned on a multi-year grid", {
+  knots <- seq(0, 365.25 * 3, by = 30)
+  fem <- adlaplaceFem:::sgp_fem(knots, a = 2 * pi / 365.25, m = 1L)
+  ev <- eigen(as.matrix(fem$Q), symmetric = TRUE, only.values = TRUE)$values
+  expect_gt(min(ev), 0)
+  expect_lt(max(ev) / min(ev), 1e5)
+})
+
 test_that("end-to-end sgp fit on a sine has finite logLik", {
   skip_on_cran()
   set.seed(1)

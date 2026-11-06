@@ -11,6 +11,18 @@ Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
 Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
+// create_ad_shard_biv_iid
+SEXP create_ad_shard_biv_iid(SEXP model, Rcpp::List config);
+RcppExport SEXP _adlaplace_create_ad_shard_biv_iid(SEXP modelSEXP, SEXP configSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< SEXP >::type model(modelSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type config(configSEXP);
+    rcpp_result_gen = Rcpp::wrap(create_ad_shard_biv_iid(model, config));
+    return rcpp_result_gen;
+END_RCPP
+}
 // get_ad_pack_raw_obs
 SEXP get_ad_pack_raw_obs(SEXP model, Rcpp::List config, std::string name);
 RcppExport SEXP _adlaplace_get_ad_pack_raw_obs(SEXP modelSEXP, SEXP configSEXP, SEXP nameSEXP) {
@@ -356,6 +368,7 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
+    {"_adlaplace_create_ad_shard_biv_iid", (DL_FUNC) &_adlaplace_create_ad_shard_biv_iid, 2},
     {"_adlaplace_get_ad_pack_raw_obs", (DL_FUNC) &_adlaplace_get_ad_pack_raw_obs, 3},
     {"_adlaplace_get_ad_pack_raw_parameters", (DL_FUNC) &_adlaplace_get_ad_pack_raw_parameters, 3},
     {"_adlaplace_c_ad_pack_ptr", (DL_FUNC) &_adlaplace_c_ad_pack_ptr, 1},

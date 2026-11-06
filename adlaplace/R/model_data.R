@@ -182,6 +182,26 @@ observation_weights <- function(term_here, data) {
     }
     return(as.numeric(data[[size_col]]))
   }
+  if (methods::is(term_here, "gamma_response") &&
+      length(term_here@by@term) == 1L &&
+      nzchar(term_here@by@term)) {
+    col <- term_here@by@term
+    if (!col %in% names(data)) {
+      stop("gamma by column '", col, "' not found in data", call. = FALSE)
+    }
+    if (length(term_here@by@levels) == 0L) {
+      stop("gamma by levels are empty", call. = FALSE)
+    }
+    idx <- match(as.character(data[[col]]), term_here@by@levels)
+    if (anyNA(idx)) {
+      stop(
+        "gamma by column '", col, "' has levels outside ",
+        paste(term_here@by@levels, collapse = ", "),
+        call. = FALSE
+      )
+    }
+    return(as.numeric(idx - 1L))
+  }
   numeric(0)
 }
 

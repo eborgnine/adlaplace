@@ -9,8 +9,11 @@
 // Rcpp
 #include <Rcpp.h>
 
-// trustOptim
-#include <CG-sparse.h>
+// trustOptim, with the equilibrated preconditioner replaced. The stock
+// header factors a column-scaled Hessian but CG solves as if the factor
+// were of the original Hessian, so CG never reaches the Newton step when
+// column scales differ.
+#include "adlaplace/CG-sparse-adlaplace.h"
 
 // Local
 #include "adlaplace/rviews.hpp"

@@ -1,6 +1,26 @@
 #' @include classes.R
 NULL
 
+#' Column name stored in a \code{by} slot (\code{by_group} or character).
+#' @keywords internal
+by_column_name <- function(term) {
+  if (!methods::is(term, "model_term") || !"by" %in% methods::slotNames(term)) {
+    return(character(0))
+  }
+  by <- methods::slot(term, "by")
+  if (inherits(by, "by_group")) {
+    nm <- by@term
+    if (length(nm) == 1L && is.character(nm) && nzchar(nm)) {
+      return(nm)
+    }
+    return(character(0))
+  }
+  if (is.character(by) && length(by) == 1L && nzchar(by)) {
+    return(by)
+  }
+  character(0)
+}
+
 #' Fill or check the grouping levels of a model term
 #'
 #' Terms with a \code{by} slot of class \code{by_group} get their levels from

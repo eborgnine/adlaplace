@@ -34,6 +34,17 @@ CppAD::vector<CppAD::AD<double>> nbinom_extra(
   const density_data& model,
   const Config& config);
 
+CppAD::vector<CppAD::AD<double>> gamma_obs(
+  const CppAD::vector<CppAD::AD<double>>& x,
+  const density_data& model,
+  const Config& config,
+  size_t Dgroup);
+
+CppAD::vector<CppAD::AD<double>> gamma_extra(
+  const CppAD::vector<CppAD::AD<double>>& x,
+  const density_data& model,
+  const Config& config);
+
 CppAD::vector<CppAD::AD<double>> poisson_obs(
   const CppAD::vector<CppAD::AD<double>>& x,
   const density_data& model,

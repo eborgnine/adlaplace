@@ -32,16 +32,7 @@ required_model_variables <- function(terms) {
     }
   })))
 
-  strata_vars <- unique(unlist(lapply(terms, function(t) {
-    if (methods::is(t, "model_term") &&
-        identical(t@ad_kind, "observations") &&
-        "by" %in% methods::slotNames(t) &&
-        is.character(t@by)) {
-      t@by
-    } else {
-      character(0)
-    }
-  })))
+  strata_vars <- unique(unlist(lapply(terms, by_column_name)))
 
   unique(c(covariates, strata_vars, random_slope_terms, size_vars))
 }
@@ -81,13 +72,7 @@ prepare_model_rows <- function(data, terms, verbose = FALSE) {
     }
   }
 
-  strata_vars <- unique(unlist(lapply(obs_terms, function(t) {
-    if ("by" %in% methods::slotNames(t) && length(t@by)) {
-      t@by
-    } else {
-      character(0)
-    }
-  })))
+  strata_vars <- unique(unlist(lapply(obs_terms, by_column_name)))
   strata_vars <- intersect(strata_vars, names(data))
   if (length(strata_vars) > 0L) {
     ord <- do.call(order, data[, strata_vars, drop = FALSE])

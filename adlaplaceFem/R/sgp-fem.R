@@ -130,6 +130,18 @@ sgp_fem <- function(knots, a, m = 1L, n_quad = 16L) {
     as_dgc_matrix(Matrix::bdiag(blocks))
   }
   Q <- Matrix::forceSymmetric(Q, uplo = "U")
+  # B-splines that nearly reproduce sin and cos are a numerical kernel of
+  # L = d^2/du^2 + ω^2. Those eigenvalues sit about 1e-12 below the rest, so
+  # the Laplace Hessian loses positive definiteness and conjugate gradients
+  # stall. A diagonal shift of 1e-4 of the largest diagonal entry is far
+  # under the 1e-3 relative tolerance against BayesGP's Q. The shifted
+  # directions have almost no design weight, so the seasonal curve is unchanged.
+  d <- Matrix::diag(Q)
+  scale <- max(d)
+  if (is.finite(scale) && scale > 0) {
+    Matrix::diag(Q) <- d + 1e-4 * scale
+    Q <- Matrix::forceSymmetric(Q, uplo = "U")
+  }
   log_det <- as.numeric(Matrix::determinant(Q, logarithm = TRUE)$modulus)
   if (!is.finite(log_det)) {
     stop(

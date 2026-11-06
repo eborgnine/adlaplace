@@ -55,6 +55,7 @@ Collate:
     'germany-data.R'
     'group_helpers.R'
     'hessian_map.R'
+    'biv_iid.R'
     'iid.R'
     'iwp.R'
     'london-data.R'

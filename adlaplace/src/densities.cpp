@@ -175,6 +175,96 @@ CppAD::vector<CppAD::AD<double>> nbinom_extra(
   return result;
 }
 
+namespace {
+
+int gamma_group_index(const density_data& model, std::size_t Dobs) {
+  if (model.weights.size() == 0) {
+    return 0;
+  }
+  if (model.weights.size() != model.y.size()) {
+    Rcpp::stop("gamma weights must be empty or length(y)");
+  }
+  const double w = model.weights[Dobs];
+  if (!std::isfinite(w) || w < 0.0) {
+    Rcpp::stop("gamma group index must be a non-negative finite value");
+  }
+  const int g = static_cast<int>(std::lround(w));
+  const int n_theta = static_cast<int>(model.theta_global.size());
+  if (g < 0 || g >= n_theta) {
+    Rcpp::stop("gamma group %d out of range [0, %d)", g, n_theta);
+  }
+  return g;
+}
+
+CppAD::AD<double> gamma_shape_ad(
+  const CppAD::vector<CppAD::AD<double>>& x,
+  const density_data& model,
+  const Config& config,
+  int group) {
+
+  const std::size_t t_global = model.theta_index(group);
+  const std::size_t t_row = model.theta_row(group);
+  const CppAD::AD<double> log_cv = transform_theta_at(config, t_row)
+    ? x[t_global]
+    : CppAD::log(x[t_global]);
+  return CppAD::exp(CppAD::AD<double>(-2.0) * log_cv);
+}
+
+}  // namespace
+
+CppAD::vector<CppAD::AD<double>> gamma_obs(
+  const CppAD::vector<CppAD::AD<double>>& x,
+  const density_data& model,
+  const Config& config,
+  const size_t Dgroup) {
+
+  const size_t ny = model.y.size();
+  for (size_t D = 0; D < ny; ++D) {
+    if (!(model.y[D] > 0.0)) {
+      Rcpp::stop("gamma observations must be strictly positive");
+    }
+  }
+
+  const auto range = obs_range(config, ny, Dgroup);
+  const bool have_shards = config.obs_groups.ncol() > 0;
+  CppAD::AD<double> result = 0.0;
+
+  for (size_t DI = range.first; DI < range.second; ++DI) {
+    const size_t Dobs = have_shards ? static_cast<size_t>(config.obs_groups.i[DI]) : DI;
+    const int group = gamma_group_index(model, Dobs);
+    const CppAD::AD<double> shape = gamma_shape_ad(x, model, config, group);
+    const CppAD::AD<double> eta = eta_at(x, model, Dobs);
+    const double y = model.y[Dobs];
+    result += -shape * eta - shape * CppAD::AD<double>(y) * CppAD::exp(-eta);
+  }
+
+  CppAD::vector<CppAD::AD<double>> out(1);
+  out[0] = result;
+  return out;
+}
+
+CppAD::vector<CppAD::AD<double>> gamma_extra(
+  const CppAD::vector<CppAD::AD<double>>& x,
+  const density_data& model,
+  const Config& config) {
+
+  const size_t ny = model.y.size();
+  CppAD::AD<double> result = 0.0;
+  for (size_t D = 0; D < ny; ++D) {
+    if (!(model.y[D] > 0.0)) {
+      Rcpp::stop("gamma observations must be strictly positive");
+    }
+    const int group = gamma_group_index(model, D);
+    const CppAD::AD<double> shape = gamma_shape_ad(x, model, config, group);
+    result += shape * CppAD::log(shape) - lgamma_ad(shape) +
+      (shape - CppAD::AD<double>(1.0)) * CppAD::AD<double>(std::log(model.y[D]));
+  }
+
+  CppAD::vector<CppAD::AD<double>> out(1);
+  out[0] = result;
+  return out;
+}
+
 CppAD::vector<CppAD::AD<double>> poisson_obs(
   const CppAD::vector<CppAD::AD<double>>& x,
   const density_data& model,

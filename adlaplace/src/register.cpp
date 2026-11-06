@@ -19,6 +19,7 @@ static LogDensObsFn resolve_obs_density(const std::string& name) {
   if (name == "gaussian_obs") return gaussian_obs;
   if (name == "binomial_obs") return binomial_obs;
   if (name == "dirichlet_multinomial") return dirichlet_multinomial;
+  if (name == "gamma_obs") return gamma_obs;
   Rcpp::stop("unknown observation density: %s", name.c_str());
 }
 
@@ -27,6 +28,7 @@ static LogDensSingleDataFn resolve_extra_density(const std::string& name) {
   if (name == "gaussian_extra") return gaussian_extra;
   if (name == "dirichlet_multinomial_extra") return dirichlet_multinomial_extra;
   if (name == "exp_prior") return exp_prior;
+  if (name == "gamma_extra") return gamma_extra;
   Rcpp::stop("unknown parameters density: %s", name.c_str());
 }
 

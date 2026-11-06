@@ -169,6 +169,19 @@ outer_laplace_bad <- function(result, n_par) {
   !is.finite(nll) || length(d_neg) != n_par || any(!is.finite(d_neg))
 }
 
+# Trust-region collapse and an iteration cap both return a finite objective
+# that is not the inner mode. L-BFGS then follows a noisy profile.
+inner_not_success <- function(result) {
+  if (inherits(result, "error")) {
+    return(TRUE)
+  }
+  status <- result[["inner_opt"]][["status"]]
+  if (is.null(status) || !length(status)) {
+    return(FALSE)
+  }
+  !identical(as.character(status[[1L]]), "Success")
+}
+
 #' Combined outer Laplace evaluation with per-\code{x} cache
 #'
 #' Calls \code{inner_opt(..., deriv = TRUE, return_hessians = FALSE)} so the
@@ -237,9 +250,9 @@ warn_if_inner_status <- function(result) {
     )
   }
   result <- call_inner(cache$gamma)
-  # A warm start can sit where the inner Hessian is unusable. One cold start
-  # recovers the mode; do not feed L-BFGS a fake objective at that point.
-  if (outer_laplace_bad(result, length(x_num)) &&
+  # A warm start can sit where the inner Hessian is unusable, or the trust
+  # region can collapse before the mode. One cold start recovers it.
+  if ((outer_laplace_bad(result, length(x_num)) || inner_not_success(result)) &&
     any(cache$gamma != 0)) {
     if (inherits(result, "error")) {
       warning(
@@ -247,9 +260,14 @@ warn_if_inner_status <- function(result) {
         "); retrying from gamma = 0",
         call. = FALSE
       )
-    } else {
+    } else if (outer_laplace_bad(result, length(x_num))) {
       warning(
         "Laplace objective was not finite; retrying from gamma = 0",
+        call. = FALSE
+      )
+    } else {
+      warning(
+        "inner solve did not report success; retrying from gamma = 0",
         call. = FALSE
       )
     }

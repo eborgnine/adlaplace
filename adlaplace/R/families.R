@@ -305,3 +305,104 @@ setMethod("theta_info", "nbinom", function(term) {
   )
 })
 
+#' Gamma observation model term
+#'
+#' Mean \code{exp(eta)} and coefficient of variation \code{cv} (standard
+#' deviation \code{cv * mean}), so the shape is \code{1/cv^2} and the rate is
+#' \code{shape / mean}. One \code{cv} when \code{by} is omitted, otherwise one
+#' \code{cv} per level of \code{by}. Group indices are stored in the
+#' observation weights (0-based, in \code{by} level order).
+#'
+#' @name gamma_response-class
+#' @aliases gamma
+#' @docType class
+#' @title Gamma observation term
+#' @exportClass gamma_response
+NULL
+
+setClass(
+  "gamma_response",
+  slots = list(by = "by_group"),
+  contains = "model_term",
+  prototype = prototype(
+    knots = numeric(0),
+    ref_value = numeric(0),
+    p.order = as.integer(1),
+    init = 0.05,
+    lower = 1e-4,
+    upper = 5,
+    parscale = 1,
+    log = TRUE,
+    model_role = factor("response", levels = .model_role_levels),
+    density = "gamma_obs",
+    ad_kind = "observations",
+    by = by_group()
+  )
+)
+
+#' Gamma observation term constructor
+#'
+#' @rdname gamma_response-class
+#' @param x Outcome variable name. Values must be strictly positive.
+#' @param by Optional column name. One coefficient of variation per level.
+#' @param init Initial coefficient of variation.
+#' @param lower,upper,parscale Bounds and scale for each coefficient of variation.
+#' @param log Whether each coefficient of variation is optimized on the log scale.
+#' @return A \code{gamma_response} object.
+#' @export
+gamma <- function(x,
+                  by = NULL,
+                  init = 0.05,
+                  lower = 1e-4,
+                  upper = 5,
+                  parscale = 1,
+                  log = TRUE) {
+  x <- strip_term_name(as.character(x))
+  by_obj <- if (is.null(by)) {
+    by_group()
+  } else {
+    by_group(term = strip_term_name(as.character(by)))
+  }
+  methods::new(
+    "gamma_response",
+    name = x,
+    label = paste(x, "gamma_cv", sep = "_"),
+    formula = stats::as.formula(paste(x, "~."), env = new.env()),
+    init = init,
+    lower = lower,
+    upper = upper,
+    parscale = parscale,
+    log = log,
+    by = by_obj
+  )
+}
+
+#' @describeIn gamma_response-class One coefficient of variation, or one per \code{by} level.
+#' @export
+setMethod("theta_info", "gamma_response", function(term) {
+  if (length(term@by@term) == 0L) {
+    labels <- term@label
+  } else {
+    if (length(term@by@levels) == 0L) {
+      stop(
+        "gamma by levels are empty; add_by_levels() must run before theta_info()",
+        call. = FALSE
+      )
+    }
+    labels <- paste(term@label, term@by@levels, sep = "_")
+  }
+  n <- length(labels)
+  data.frame(
+    term = term@name,
+    model = "gamma",
+    label = labels,
+    init = rep(term@init, length.out = n),
+    lower = rep(term@lower, length.out = n),
+    upper = rep(term@upper, length.out = n),
+    parscale = rep(term@parscale, length.out = n),
+    model_role = rep(term@model_role, length.out = n),
+    log = rep(term@log, length.out = n),
+    stringsAsFactors = FALSE
+  )
+})
+

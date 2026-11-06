@@ -9,6 +9,7 @@
 #include "adlaplace/rviews.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <set>
 #include <utility>
 #include <vector>
@@ -106,6 +107,35 @@ inline void add_glm_row_cliques(
   }
 }
 
+inline int gamma_obs_group(const density_data& model, std::size_t Dobs) {
+  if (model.weights.size() == 0) {
+    return 0;
+  }
+  const double w = model.weights[Dobs];
+  return static_cast<int>(std::lround(w));
+}
+
+inline void add_gamma_row_cliques(
+    const density_data& model, const Config& cfg, std::size_t Dgroup,
+    std::set<std::pair<std::size_t, std::size_t>>& pairs) {
+
+  const bool have_shards = cfg.obs_groups.ncol() > 0;
+  const auto range = obs_glm_range(cfg, model.y.size(), Dgroup);
+  std::vector<std::size_t> cols;
+  for (std::size_t DI = range.first; DI < range.second; ++DI) {
+    const std::size_t Dobs = have_shards
+      ? static_cast<size_t>(cfg.obs_groups.i[DI])
+      : DI;
+    cols.clear();
+    collect_obs_design_tape_indices(model, Dobs, cols);
+    const std::size_t theta = model.theta_index(gamma_obs_group(model, Dobs));
+    if (theta < model.n_tape) {
+      cols.push_back(theta);
+    }
+    clique_pairs(cols, pairs);
+  }
+}
+
 inline void add_dirichlet_stratum_cliques(
     const density_data& model, const Config& cfg, std::size_t Dgroup,
     std::set<std::pair<std::size_t, std::size_t>>& pairs) {
@@ -183,15 +213,18 @@ obs_hessian_sparsity(
     dens == "poisson_obs" || dens == "binomial_obs";
   const bool is_theta_glm =
     dens == "gaussian_obs" || dens == "nbinom_obs";
+  const bool is_gamma = dens == "gamma_obs";
   const bool is_dm = dens == "dirichlet_multinomial";
 
-  if (!is_glm && !is_theta_glm && !is_dm) {
+  if (!is_glm && !is_theta_glm && !is_gamma && !is_dm) {
     return empty_sparse_rc();
   }
 
   std::set<std::pair<std::size_t, std::size_t>> pairs;
   if (is_dm) {
     adlaplace_detail::add_dirichlet_stratum_cliques(model, cfg, Dgroup, pairs);
+  } else if (is_gamma) {
+    adlaplace_detail::add_gamma_row_cliques(model, cfg, Dgroup, pairs);
   } else {
     adlaplace_detail::add_glm_row_cliques(
       model, cfg, Dgroup, is_theta_glm, pairs);
