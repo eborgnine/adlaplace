@@ -140,10 +140,32 @@ test_that("exp_prior matches dexp plus Jacobian", {
   )
 })
 
+test_that("outer_profile_hessian is the Schur complement in outer parameters", {
+  # Parameter order: beta, gamma, theta.
+  H <- matrix(c(
+    4, 0.2, 0.1, 0.3,
+    0.2, 2, 0.4, 0.5,
+    0.1, 0.4, 3, 0.6,
+    0.3, 0.5, 0.6, 5
+  ), 4L, 4L)
+  gamma_idx <- 2:3
+  psi_idx <- c(1L, 4L)
+  Hinv <- solve(H[gamma_idx, gamma_idx])
+  dU <- -Hinv %*% H[gamma_idx, psi_idx]
+  res <- list(
+    hessian = list(outer = Matrix::Matrix(H, sparse = TRUE)),
+    gradient = list(outer = list(dU = dU))
+  )
+  got <- adlaplace:::outer_profile_hessian(res, n_beta = 1L, n_gamma = 2L, n_theta = 1L)
+  expected <- H[psi_idx, psi_idx] -
+    H[psi_idx, gamma_idx] %*% Hinv %*% H[gamma_idx, psi_idx]
+  expect_equal(got, expected, tolerance = 1e-10)
+  expect_equal(dim(got), c(2L, 2L))
+})
+
 test_that("bacteria Bayesian formula has one outer parameter and aghq runs", {
   skip_if_not_installed("MASS")
   skip_if_not_installed("aghq")
-  skip_if_not_installed("numDeriv")
 
   data(bacteria, package = "MASS")
   bacteria$present <- as.integer(bacteria$y == "y")
@@ -165,12 +187,31 @@ test_that("bacteria Bayesian formula has one outer parameter and aghq runs", {
   expect_identical(fit$details$outer_opt$convergence, 0L)
 
   ff <- adlaplace::aghq_ff(fit)
+  expect_equal(ff$mode_theta, as.numeric(fit$par_info$mle_internal))
+  expect_equal(ff$fn(ff$mode_theta), fit$details$neg_log_lik, tolerance = 1e-6)
+  expect_lt(
+    max(abs(
+      ff$gr(ff$mode_theta) - as.numeric(fit$details$deriv$d_neg_log_lik)
+    )),
+    1e-4
+  )
+  expect_equal(
+    ff$he(ff$mode_theta),
+    adlaplace:::outer_profile_hessian(
+      fit$details,
+      n_beta = as.integer(fit$ad_pack@sizes["beta"]),
+      n_gamma = as.integer(fit$ad_pack@sizes["gamma"]),
+      n_theta = as.integer(fit$ad_pack@sizes["theta"])
+    ),
+    tolerance = 1e-4
+  )
   quad <- aghq::aghq(
     ff = ff,
     k = 3,
     startingvalue = fit$par_info$mle_internal,
     control = aghq::default_control(negate = TRUE)
   )
+  expect_equal(quad$optresults$ff$mode_theta, ff$mode_theta)
   expect_true(is.finite(quad$normalized_posterior$lognormconst))
   naw <- quad$normalized_posterior$nodesandweights
   expect_true(all(is.finite(naw$logpost_normalized)))

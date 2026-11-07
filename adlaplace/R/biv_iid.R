@@ -7,6 +7,7 @@
 #'
 #' @name biv_iid-class
 #' @aliases biv_iid
+#' @docType class
 #' @exportClass biv_iid
 NULL
 
@@ -99,6 +100,8 @@ biv_iid <- function(x,
 }
 
 #' @describeIn biv_iid-class One column per station-pollutant pair.
+#' @param term A \code{biv_iid} term.
+#' @param data Data frame containing the grouping columns.
 #' @export
 setMethod("design", "biv_iid", function(term, data) {
   info <- .biv_pair_labels(term, data)
