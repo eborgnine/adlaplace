@@ -314,7 +314,7 @@ setMethod("theta_info", "nbinom", function(term) {
 #' observation weights (0-based, in \code{by} level order).
 #'
 #' @name gamma_response-class
-#' @aliases gamma
+#' @aliases gamma_response
 #' @docType class
 #' @title Gamma observation term
 #' @exportClass gamma_response
@@ -350,7 +350,7 @@ setClass(
 #' @param log Whether each coefficient of variation is optimized on the log scale.
 #' @return A \code{gamma_response} object.
 #' @export
-gamma <- function(x,
+gamma_response <- function(x,
                   by = NULL,
                   init = 0.05,
                   lower = 1e-4,

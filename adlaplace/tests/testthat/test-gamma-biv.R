@@ -111,7 +111,7 @@ test_that("bivariate gamma fit recovers the sign of the correlation", {
   dat$pm10_ind <- as.numeric(dat$pollutant == "PM10")
 
   fit <- adlaplace::adlaplace(
-    gamma(value, by = "pollutant") ~ 0 + pm25_ind + pm10_ind +
+    gamma_response(value, by = "pollutant") ~ 0 + pm25_ind + pm10_ind +
       biv_iid(station, by = "pollutant", init = 0.3, rho_init = 0.2),
     data = dat,
     config = list(num_threads = 1L, num_shards = 4L),
