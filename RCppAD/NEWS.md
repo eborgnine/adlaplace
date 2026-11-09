@@ -1,3 +1,11 @@
+# RCppAD 20260000.0-3
+
+* Document that the `ADFun(ADFun&&)` initializer matches upstream
+  coin-or/CppAD@dbf793e (2026-11-09). The constructor form is unchanged from
+  1.20260000.0-2. A full refresh to CppAD 20261109 is not included: that tree
+  moves `thread_alloc` into `cppad_lib`, which is incompatible with this
+  headers-only package.
+
 # RCppAD 20260000.0-2
 
 * `ADFun(ADFun&&)` now delegates to the default constructor before `swap`.

@@ -9,13 +9,14 @@ test_that("compact_tape dens/grad/hess/log_lik match full-domain tapes", {
   )
   y <- rnbinom(Nobs, size = 5, mu = 2)
   og <- adlaplace::obs_groups(Amat, num_shards = 6L)
+  gamma0 <- rnorm(ncol(Amat), sd = 0.1)
 
   build_ptr <- function(compact) {
     config <- list(
       beta = c(0.1, -0.2),
       theta = c(log(5), -1, -1),
       transform_theta = TRUE,
-      gamma = rnorm(ncol(Amat), sd = 0.1),
+      gamma = gamma0,
       obs_groups = og,
       compact_tape = compact,
       num_threads = 1L,
@@ -74,17 +75,29 @@ test_that("compact_tape dens/grad/hess/log_lik match full-domain tapes", {
   pack_c <- ad_pack(compact$ptr, num_threads = 1L)
   pack_f <- ad_pack(full$ptr, num_threads = 1L)
   params <- c(compact$config$beta, compact$config$theta)
+  inner_control <- list(
+    report.level = -1L,
+    grad.tol = 1e-8,
+    cg.tol = 1e-8
+  )
   ll_c <- log_lik_laplace(
     params,
     gamma = compact$config$gamma,
     ad_pack = pack_c,
-    control = list(report.level = -1L)
+    control = inner_control
   )
   ll_f <- log_lik_laplace(
     params,
     gamma = full$config$gamma,
     ad_pack = pack_f,
-    control = list(report.level = -1L)
+    control = inner_control
+  )
+  expect_identical(as.character(ll_c$inner_opt$status), "Success")
+  expect_identical(as.character(ll_f$inner_opt$status), "Success")
+  expect_equal(
+    as.numeric(ll_c$inner_opt$solution),
+    as.numeric(ll_f$inner_opt$solution),
+    tolerance = 1e-6
   )
   expect_equal(ll_c$log_lik, ll_f$log_lik, tolerance = 1e-6)
 })

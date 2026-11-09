@@ -305,18 +305,17 @@ setMethod("theta_info", "nbinom", function(term) {
   )
 })
 
-#' Gamma observation model term
+#' Gamma observation term
 #'
-#' Mean \code{exp(eta)} and coefficient of variation \code{cv} (standard
-#' deviation \code{cv * mean}), so the shape is \code{1/cv^2} and the rate is
-#' \code{shape / mean}. One \code{cv} when \code{by} is omitted, otherwise one
-#' \code{cv} per level of \code{by}. Group indices are stored in the
-#' observation weights (0-based, in \code{by} level order).
+#' @description Mean \code{exp(eta)} and coefficient of variation \code{cv}
+#' (standard deviation \code{cv * mean}), so the shape is \code{1/cv^2} and
+#' the rate is \code{shape / mean}. One \code{cv} when \code{by} is omitted,
+#' otherwise one \code{cv} per level of \code{by}. Group indices are stored
+#' in the observation weights (0-based, in \code{by} level order).
 #'
 #' @name gamma_response-class
 #' @aliases gamma_response
 #' @docType class
-#' @title Gamma observation term
 #' @exportClass gamma_response
 NULL
 
@@ -378,6 +377,7 @@ gamma_response <- function(x,
 }
 
 #' @describeIn gamma_response-class One coefficient of variation, or one per \code{by} level.
+#' @param term A \code{gamma_response} term.
 #' @export
 setMethod("theta_info", "gamma_response", function(term) {
   if (length(term@by@term) == 0L) {

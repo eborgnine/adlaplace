@@ -2,7 +2,7 @@
 % Please edit documentation in R/aghq_ff.R
 \name{aghq_ff}
 \alias{aghq_ff}
-\title{Build \pkg{aghq} objective list from an adlaplace fit}
+\title{Build an \pkg{aghq} objective list from an adlaplace fit}
 \usage{
 aghq_ff(fit, control_inner = NULL)
 }
@@ -13,16 +13,29 @@ aghq_ff(fit, control_inner = NULL)
 \code{fit$control_inner} when present, otherwise a quiet short run.}
 }
 \value{
-A list with \code{fn}, \code{gr}, and \code{he}. The Hessian is
-  a numerical Jacobian of \code{gr} (no AD outer Hessian is available).
+A list with
+\describe{
+  \item{fn}{Scalar negative log-likelihood from
+    \code{log_lik_laplace(..., deriv = FALSE)}.}
+  \item{gr}{Profile gradient from
+    \code{log_lik_laplace(..., deriv = TRUE, return_hessians = FALSE)}.}
+  \item{he}{Hessian of the profiled joint negative log-density in the outer
+    parameters: the Schur complement of \code{hessian$outer} with respect
+    to \code{gamma}, using \code{hessian$H_inv}. From
+    \code{log_lik_laplace(..., deriv = TRUE, return_hessians = TRUE)}.}
+  \item{mode_theta}{\code{fit$par_info$mle_internal}. \pkg{aghq} only calls
+    \code{fn}, \code{gr}, and \code{he}, and keeps this element on
+    \code{quad$optresults$ff}.}
+}
 }
 \description{
-Returns \code{list(fn, gr, he)} suitable for \code{\link[aghq]{aghq}},
-closing over the fitted AD handle and cache. The wrappers return the
-\emph{negated} Laplace-approximate log posterior (same convention as
-\code{\link{outer_fn}} / \code{\link{outer_gr}}), so call
+Returns a list suitable for \code{\link[aghq]{aghq}}. \code{fn}, \code{gr},
+and \code{he} each call \code{\link{log_lik_laplace}} at the supplied outer
+parameters, starting the inner solve at \code{fit$gamma} on every call.
+They return the negated Laplace-approximate log posterior (same convention
+as \code{\link{outer_fn}}), so call
 \code{aghq::default_control(negate = TRUE)}.
 }
 \seealso{
-\code{\link{outer_fn}}, \code{\link{outer_gr}}, \code{\link{adlaplace}}
+\code{\link{log_lik_laplace}}, \code{\link{adlaplace}}
 }

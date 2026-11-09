@@ -29,19 +29,18 @@ gamma_response(
 \item{lower, upper, parscale}{Bounds and scale for each coefficient of variation.}
 
 \item{log}{Whether each coefficient of variation is optimized on the log scale.}
+
+\item{term}{A \code{gamma_response} term.}
 }
 \value{
 A \code{gamma_response} object.
 }
 \description{
-Gamma observation model term
-}
-\details{
-Mean \code{exp(eta)} and coefficient of variation \code{cv} (standard
-deviation \code{cv * mean}), so the shape is \code{1/cv^2} and the rate is
-\code{shape / mean}. One \code{cv} when \code{by} is omitted, otherwise one
-\code{cv} per level of \code{by}. Group indices are stored in the
-observation weights (0-based, in \code{by} level order).
+Mean \code{exp(eta)} and coefficient of variation \code{cv}
+(standard deviation \code{cv * mean}), so the shape is \code{1/cv^2} and
+the rate is \code{shape / mean}. One \code{cv} when \code{by} is omitted,
+otherwise one \code{cv} per level of \code{by}. Group indices are stored
+in the observation weights (0-based, in \code{by} level order).
 }
 \section{Functions}{
 \itemize{

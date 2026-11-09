@@ -156,7 +156,9 @@ patch_sparse_rc () {
 }
 patch_sparse_rc
 
-# ADFun move ctor: default-construct before swap (UBSAN invalid bool load)
+# ADFun move ctor: default-construct before swap (UBSAN invalid bool load).
+# Matches upstream coin-or/CppAD@dbf793e (2026-11-09). Idempotent when that
+# initializer is already present.
 patch_adfun_move () {
   f="$DEST/core/fun_construct.hpp"
   tmp="$f.rcppad.tmp"
@@ -168,10 +170,6 @@ patch_adfun_move () {
     return 0
   fi
   awk '
-    /none of the default constructor values matter to the destructor/ {
-      print "// Initialize before swap. std::swap loads the destination bools."
-      next
-    }
     /::ADFun\(ADFun&& f\)/ {
       print
       print ": ADFun<Base, RecBase>()"
@@ -197,7 +195,9 @@ Applied by \`tools/update-cppad.sh\` (re-run after each upstream refresh):
 5. \`utility/sparse_rc.hpp\` — move ctor initializes \`nr_\`/\`nc_\`/\`nnz_\` before
    \`swap\` (avoids GCC 14 \`-Wuninitialized\` on Windows).
 6. \`core/fun_construct.hpp\` — \`ADFun(ADFun&&)\` delegates to \`ADFun()\` before
-   \`swap\` (avoids an UndefinedBehaviorSanitizer invalid-\`bool\` load).
+   \`swap\` (UndefinedBehaviorSanitizer invalid-\`bool\` load; same as
+   coin-or/CppAD@dbf793e / 2026-11-09). Skipped when refreshing from a tree
+   that already has the initializer.
 
 Helper: \`inst/include/RCppAD/cppad_trace_stream.hpp\`.
 EOF
