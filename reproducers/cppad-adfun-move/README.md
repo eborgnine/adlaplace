@@ -61,3 +61,5 @@ ADFun<Base,RecBase>::ADFun(ADFun&& f)
 That command exits 0 and prints `moved ADFun size_var=0`. The log is [patched-ubsan.txt](patched-ubsan.txt).
 
 `--vendored` overlays `RCppAD`'s patched `fun_construct.hpp` instead of editing the tag with `awk`. Its log is [vendored-ubsan.txt](vendored-ubsan.txt).
+
+Upstream fixed the same constructor in [coin-or/CppAD@dbf793e](https://github.com/coin-or/CppAD/commit/dbf793e) (2026-11-09 release notes). That change was verified here by applying only the move-constructor initializer to the 20260000.0 headers under `-fsanitize=undefined`.

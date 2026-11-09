@@ -258,8 +258,7 @@ num_var_tape_(0)
 { }
 //
 // move semantics version of constructor
-// Initialize before swap. std::swap loads the destination bools, so a
-// destination constructed directly into uninitialized storage is undefined.
+// (none of the default constructor values matter to the destructor)
 template <class Base, class RecBase>
 ADFun<Base,RecBase>::ADFun(ADFun&& f)
 : ADFun<Base, RecBase>()

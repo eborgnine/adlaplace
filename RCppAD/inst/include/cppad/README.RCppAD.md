@@ -10,6 +10,8 @@ Applied by `tools/update-cppad.sh` (re-run after each upstream refresh):
 5. `utility/sparse_rc.hpp` — move ctor initializes `nr_`/`nc_`/`nnz_` before
    `swap` (avoids GCC 14 `-Wuninitialized` on Windows).
 6. `core/fun_construct.hpp` — `ADFun(ADFun&&)` delegates to `ADFun()` before
-   `swap` (avoids an UndefinedBehaviorSanitizer invalid-`bool` load).
+   `swap` (UndefinedBehaviorSanitizer invalid-`bool` load; same as
+   coin-or/CppAD@dbf793e / 2026-11-09). Skipped when refreshing from a tree
+   that already has the initializer.
 
 Helper: `inst/include/RCppAD/cppad_trace_stream.hpp`.
