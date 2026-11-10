@@ -62,12 +62,16 @@ test_that("iid log=FALSE is selective in info$theta", {
 
 test_that("fit$par_info has enriched columns and log-aware se", {
   skip_if_not_installed("mgcv")
+  # Overdispersed counts so both nbinom sd and iid sd have interior optima.
+  # Poisson data push nbinom sd to its lower bound, where the flat profile
+  # lets L-BFGS-B take platform-dependent runaway steps.
   set.seed(11L)
-  n <- 120L
-  g <- sample(6L, n, replace = TRUE)
+  n <- 200L
+  g <- sample(8L, n, replace = TRUE)
+  x <- rnorm(n)
   dat <- data.frame(
-    y = rpois(n, exp(0.2 + rnorm(6L)[g] * 0.2)),
-    x = rnorm(n),
+    y = rnbinom(n, size = 4, mu = exp(1 + 0.3 * x + rnorm(8L, sd = 0.5)[g])),
+    x = x,
     g = factor(g)
   )
   fit <- suppressWarnings(
