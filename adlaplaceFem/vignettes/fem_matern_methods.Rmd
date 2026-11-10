@@ -344,14 +344,20 @@ sites <- data.frame(
 sites$geometry <- as.matrix(sites[c("x", "y")])
 
 matern_cov <- function(h, nu, kappa, sigma2 = 1) {
-  h <- pmax(h, 1e-12)
-  r <- kappa * h
-  sigma2 * (2^(1 - nu) / gamma(nu)) * (r^nu) * besselK(r, nu)
+  # Vignette builds evaluate in globalenv(), where gamma() may be masked.
+  nu <- as.numeric(nu)[[1L]]
+  kappa <- as.numeric(kappa)[[1L]]
+  sigma2 <- as.numeric(sigma2)[[1L]]
+  h <- as.matrix(h)
+  r <- kappa * pmax(as.numeric(h), 1e-12)
+  const <- sigma2 * (2^(1 - nu) / base::gamma(nu))
+  Sigma <- matrix(const * (r^nu) * base::besselK(r, nu), nrow(h), ncol(h))
+  diag(Sigma) <- sigma2
+  Sigma
 }
 
 D <- as.matrix(dist(sites[c("x", "y")]))
 Sigma <- matern_cov(D, nu, kappa, sigma2 = sd^2)
-diag(Sigma) <- sd^2
 ```
 
 FEM covariance at the same sites, for two knot resolutions:
