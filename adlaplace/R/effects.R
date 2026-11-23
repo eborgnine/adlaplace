@@ -115,7 +115,7 @@ term_element_name <- function(term) {
 
 #' Column-name formals coerced even when named (symbols -> character).
 #' @noRd
-.column_name_args <- c("size")
+.column_name_args <- c("size", "mult")
 
 #' @noRd
 coerce_term_call_symbols <- function(expr) {

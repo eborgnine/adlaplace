@@ -1,8 +1,8 @@
 Package: adlaplace
 Type: Package
 Title: Laplace Approximations Using Automatic Differentiation
-Version: 0.7.6
-Date: 2026-10-30
+Version: 0.7.7
+Date: 2026-11-23
 Authors@R: person(given="Patrick", family="Brown", email="patrick.borgnine@gmail.com", role=c("aut","cre","cph"))
 Maintainer: Patrick Brown <patrick.borgnine@gmail.com>
 Description: Computes Laplace-approximate maximum likelihood for hierarchical
@@ -66,6 +66,7 @@ Collate:
     'replace_vars.R'
     'rpoly.R'
     'sim_iid.R'
+    'sinusoids.R'
     'takahashi_davis.R'
     'term_data_setup.R'
     'zzz.R'

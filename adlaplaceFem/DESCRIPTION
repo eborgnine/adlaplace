@@ -28,7 +28,7 @@ SystemRequirements: OpenMP
 License: GPL (>= 2)
 Depends:
     R (>= 4.1.0),
-    adlaplace (>= 0.7.6)
+    adlaplace (>= 0.7.7)
 Imports: methods, stats, Matrix, splines, Rcpp, RCppAD, parallel
 LinkingTo: Rcpp, adlaplace, RcppEigen, trustOptim, Matrix, RCppAD
 Suggests: terra, testthat (>= 3.0.0), geostatsp (>= 2.2.0), knitr, rmarkdown,

@@ -375,13 +375,13 @@ setMethod("psd", "sgp", function(term, h, x = NULL, sd = 1, ...) {
 #' @export
 setMethod("design", "sgp_boundary", function(term, data) {
   x <- .sgp_check_x(term, data, what = "sgp boundary")
-  u <- x - term@ref_value
-  m <- as.integer(term@m)
-  D <- matrix(0, nrow = length(u), ncol = 2L * m)
-  for (i in seq_len(m)) {
-    D[, 2L * i - 1L] <- cos(i * term@a * u)
-    D[, 2L * i] <- sin(i * term@a * u)
-  }
+  # a = 2 * pi / period, so harmonic i matches sinusoids(harmonics = i).
+  D <- adlaplace::sinusoid_basis(
+    x,
+    period = 2 * pi / term@a,
+    harmonics = seq_len(term@m),
+    ref_value = term@ref_value
+  )
   colnames(D) <- .sgp_boundary_labels(term)
   D
 })
