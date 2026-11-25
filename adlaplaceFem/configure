@@ -51,7 +51,14 @@ fi
 
 esc_sed () { printf '%s' "$1" | sed 's/[\/&]/\\&/g'; }
 
+# Older installed adlaplace may omit OPENMP_* from backend-configure.sh.
+OPENMP_CPPFLAGS="${OPENMP_CPPFLAGS:-}"
+OPENMP_CXXFLAGS="${OPENMP_CXXFLAGS:-}"
+OPENMP_LIBS="${OPENMP_LIBS:-}"
 sed \
+  -e "s/@OPENMP_CPPFLAGS@/$(esc_sed "$OPENMP_CPPFLAGS")/g" \
+  -e "s/@OPENMP_CXXFLAGS@/$(esc_sed "$OPENMP_CXXFLAGS")/g" \
+  -e "s/@OPENMP_LIBS@/$(esc_sed "$OPENMP_LIBS")/g" \
   -e "s/@VISIBILITY_CXXFLAGS@/$(esc_sed "$VISIBILITY_CXXFLAGS")/g" \
   -e "s/@WARN_CXXFLAGS@/$(esc_sed "${WARN_CXXFLAGS:-}")/g" \
 "$infile" > "$outfile"

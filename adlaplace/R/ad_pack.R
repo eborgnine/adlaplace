@@ -470,8 +470,10 @@ new_ad_pack_from_ptr <- function(
 #'   When \code{config$obs_groups} is missing and \code{config$obs_units} is set
 #'   (0-based unit indices), observation shards are built via
 #'   \code{\link{obs_groups_units}} (see also \code{\link{ad_pack_drop}}).
-#' @param num_threads Positive integer; OpenMP thread count for \code{inner_opt}
-#'   and parallel \code{trace_hinv_t}. Default \code{1L} (serial).
+#' @param num_threads Positive integer; OpenMP thread count for the
+#'   observation tape build (parallel over observation groups, including
+#'   Hessian colouring), \code{inner_opt} and parallel \code{trace_hinv_t}.
+#'   Default \code{1L} (serial).
 #' @param reorder_shards Character; how to assign OpenMP owner threads when
 #'   \code{num_threads > 1} and there are multiple shards:
 #'   \code{"none"} (default) uses \code{owner_thread = shard_index \% num_threads};
@@ -612,6 +614,9 @@ setMethod(
         n_domain = n_domain
       )
     }
+    # Resolved thread count also drives the parallel tape build in
+    # build_ad_fun_obs (config$num_threads is read by the C++ Config).
+    config$num_threads <- as.integer(num_threads)[1L]
     ptr <- ad_pack_ptr(x, config)
     verbose <- isTRUE(config[["verbose"]])
     new_ad_pack_from_ptr(
@@ -661,6 +666,9 @@ setMethod(
       num_shards = config_build$num_shards,
       num_threads = num_threads
     )
+    # Resolved thread count also drives the parallel tape build in
+    # build_ad_fun_obs (config$num_threads is read by the C++ Config).
+    config_build$num_threads <- as.integer(num_threads)[1L]
     verbose <- isTRUE(config_build[["verbose"]])
     shard_list <- c(x$observations, x$random, x$parameters)
     shard_names <- names(shard_list)

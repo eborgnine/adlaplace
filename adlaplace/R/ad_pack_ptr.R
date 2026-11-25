@@ -23,7 +23,10 @@ NULL
 #' @param config Model configuration list (\code{beta}, \code{theta}, etc.).
 #'   \code{gamma} is optional; when missing, zeros of length
 #'   \code{nrow(gamma_map)} are used as AD tape seeds.
-#'   \code{config$num_threads} does not assign OpenMP threads; use
+#'   \code{config$num_threads} (default 1) is the number of OpenMP threads
+#'   used to build observation tapes in parallel across observation groups
+#'   in \code{build_ad_fun_obs} (taping and Hessian colouring/calibration);
+#'   it does not assign shard owner threads for evaluation — use
 #'   \code{num_threads} on \code{\link{ad_pack}} after merging shards.
 #'   When \code{info} is supplied, missing \code{beta} / \code{theta} /
 #'   \code{gamma} / \code{transform_theta} are filled from it; explicit

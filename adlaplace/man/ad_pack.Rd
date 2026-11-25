@@ -68,8 +68,10 @@ When \code{config$obs_groups} is missing and \code{config$obs_units} is set
 (0-based unit indices), observation shards are built via
 \code{\link{obs_groups_units}} (see also \code{\link{ad_pack_drop}}).}
 
-\item{num_threads}{Positive integer; OpenMP thread count for \code{inner_opt}
-and parallel \code{trace_hinv_t}. Default \code{1L} (serial).}
+\item{num_threads}{Positive integer; OpenMP thread count for the
+observation tape build (parallel over observation groups, including
+Hessian colouring), \code{inner_opt} and parallel \code{trace_hinv_t}.
+Default \code{1L} (serial).}
 
 \item{reorder_shards}{Character; how to assign OpenMP owner threads when
 \code{num_threads > 1} and there are multiple shards:
