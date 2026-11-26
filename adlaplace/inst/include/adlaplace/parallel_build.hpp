@@ -22,24 +22,28 @@
 
 #ifdef _OPENMP
 #include <omp.h>
-#else
-// Serial stubs so callers compile unchanged without OpenMP (the parallel
-// regions below are then ignored pragmas and everything runs serially).
-inline void omp_set_dynamic(int) {}
-inline void omp_set_num_threads(int) {}
-inline int omp_get_thread_num() { return 0; }
-inline int omp_get_num_threads() { return 1; }
-inline int omp_get_max_threads() { return 1; }
-inline int omp_get_num_procs() { return 1; }
-inline int omp_in_parallel() { return 0; }
 #endif
 
 namespace adlaplace_parallel_build {
 
-inline bool in_parallel_callback() { return omp_in_parallel() != 0; }
+// No serial omp_* stubs here. adlaplace/src/include/adlaplace/omp_compat.hpp
+// already provides those for this package, and a second definition fails
+// the no-OpenMP builds (macOS, wasm) that include both headers. These
+// callbacks are only passed to CppAD when OpenMP is on.
+inline bool in_parallel_callback() {
+#ifdef _OPENMP
+  return omp_in_parallel() != 0;
+#else
+  return false;
+#endif
+}
 
 inline std::size_t thread_num_callback() {
+#ifdef _OPENMP
   return static_cast<std::size_t>(omp_get_thread_num());
+#else
+  return 0;
+#endif
 }
 
 // Requested thread count clamped to a usable team size: at least 1, at
