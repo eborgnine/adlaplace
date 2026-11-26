@@ -14,7 +14,8 @@
 //      factory adlaplace calls through virtual dispatch,
 //   4. resolve_*_density() maps -- from the ad_pack name on the R side
 //      (e.g. "skewnormal_obs") to your C++ function pointers,
-//   5. Rcpp exports get_ad_pack_raw_obs() / get_ad_pack_raw_parameters();
+//   5. Rcpp exports get_ad_pack_raw_obs() / get_ad_pack_raw_parameters(),
+//      each a call to observations_ad_pack_ptr / parameters_ad_pack_ptr.
 //      adlaplace::ad_pack_ptr() dispatches to these via the `package` slot
 //      on the model term. Random-effect densities use create_ad_shard_<name>
 //      in adlaplace (or another package) instead — no backend random export.
@@ -62,15 +63,8 @@ static LogDensSingleDataFn resolve_extra_density(const std::string& name) {
 //' @return External pointer of class \code{ad_pack_ptr}.
 // [[Rcpp::export]]
 SEXP get_ad_pack_raw_obs(SEXP model, Rcpp::List config, std::string name) {
-  const density_data ad_model(model);
-  std::vector<AdTape> packs = build_ad_fun_obs(
-    ad_model, config, resolve_obs_density(name));
-  ad_pack* groups = packs_to_ad_fun(
-    std::move(packs),
-    ad_model.num_beta,
-    ad_model.num_theta,
-    adlaplace_example_make_shard);
-  return make_ad_pack_ptr(groups);
+  return observations_ad_pack_ptr(
+    model, config, resolve_obs_density(name), adlaplace_example_make_shard);
 }
 
 //' Build parameters-shard \code{ad_pack_ptr} in this package's shared library.
@@ -81,15 +75,6 @@ SEXP get_ad_pack_raw_obs(SEXP model, Rcpp::List config, std::string name) {
 //' @return External pointer of class \code{ad_pack_ptr}.
 // [[Rcpp::export]]
 SEXP get_ad_pack_raw_parameters(SEXP model, Rcpp::List config, std::string name) {
-  const density_data ad_model(model);
-  AdTape pack = build_ad_fun_parameters(
-    ad_model, config, resolve_extra_density(name));
-  std::vector<AdTape> packs;
-  packs.push_back(std::move(pack));
-  ad_pack* groups = packs_to_ad_fun(
-    std::move(packs),
-    ad_model.num_beta,
-    ad_model.num_theta,
-    adlaplace_example_make_shard);
-  return make_ad_pack_ptr(groups);
+  return parameters_ad_pack_ptr(
+    model, config, resolve_extra_density(name), adlaplace_example_make_shard);
 }
