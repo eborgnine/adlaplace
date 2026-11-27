@@ -2,6 +2,7 @@
 #include "adlaplace/atomics.hpp"
 #include "adlaplace/densities.hpp"
 #include "adlaplace/eta.hpp"
+#include "adlaplace/log_tools.hpp"
 #include "adlaplace/rviews.hpp"
 
 #include <algorithm>
@@ -26,13 +27,6 @@ std::pair<std::size_t, std::size_t> obs_range(
     endP = ny;
   }
   return {startP, endP};
-}
-
-CppAD::AD<double> softplus_ad(const CppAD::AD<double>& z) {
-  return CppAD::CondExpGt(
-    z, CppAD::AD<double>(0.0),
-    z + CppAD::log1p(CppAD::exp(-z)),
-    CppAD::log1p(CppAD::exp(z)));
 }
 
 CppAD::AD<double> log_theta_ad(
@@ -66,7 +60,7 @@ CppAD::vector<CppAD::AD<double>> binomial_obs(
     const CppAD::AD<double> ntrials = have_weights
       ? CppAD::AD<double>(model.weights[Dobs])
       : CppAD::AD<double>(1.0);
-    result += CppAD::AD<double>(model.y[Dobs]) * eta - ntrials * softplus_ad(eta);
+    result += CppAD::AD<double>(model.y[Dobs]) * eta - ntrials * adlaplace::softplus(eta);
   }
 
   CppAD::vector<CppAD::AD<double>> out(1);
@@ -134,7 +128,7 @@ CppAD::vector<CppAD::AD<double>> nbinom_obs(
     const size_t Dobs = have_shards ? static_cast<size_t>(config.obs_groups.i[DI]) : DI;
     const CppAD::AD<double> eta = eta_at(x, model, Dobs);
     const CppAD::AD<double> diff = eta - logNbSize;
-    const CppAD::AD<double> logRplusMu = logNbSize + softplus_ad(diff);
+    const CppAD::AD<double> logRplusMu = logNbSize + adlaplace::softplus(diff);
 
     logDens1 += model.y[Dobs] * eta;
     logDens2 += -logRplusMu * (model.y[Dobs] + nbSize);
@@ -309,22 +303,6 @@ CppAD::vector<CppAD::AD<double>> poisson_obs(
 
 namespace {
 
-CppAD::AD<double> stable_logsumexp(
-  const CppAD::vector<CppAD::AD<double>>& eta) {
-
-  CppAD::AD<double> max_eta = eta[0];
-  for (size_t Deta = 1; Deta < eta.size(); ++Deta) {
-    max_eta = CppAD::CondExpGt(eta[Deta], max_eta, eta[Deta], max_eta);
-  }
-
-  CppAD::AD<double> sumexp = 0.0;
-  for (size_t Deta = 0; Deta < eta.size(); ++Deta) {
-    sumexp += CppAD::exp(eta[Deta] - max_eta);
-  }
-
-  return CppAD::log(sumexp) + max_eta;
-}
-
 CppAD::vector<CppAD::AD<double>> compute_eta_for_stratum(
   const size_t Dstrata,
   const density_data& model,
@@ -357,17 +335,6 @@ CppAD::vector<CppAD::AD<double>> compute_eta_for_stratum(
   return etaHere;
 }
 
-// log(exp(a) + exp(b)), stable for large negative inputs. CondExpGt is
-// nondifferentiable on a == b, but the log-sum-exp correction restores the
-// softmax derivative there (including the tie).
-CppAD::AD<double> logaddexp(
-  const CppAD::AD<double>& a,
-  const CppAD::AD<double>& b) {
-
-  const CppAD::AD<double> m = CppAD::CondExpGt(a, b, a, b);
-  return m + CppAD::log(CppAD::exp(a - m) + CppAD::exp(b - m));
-}
-
 struct TauScale {
   CppAD::AD<double> tau_sq;
   CppAD::AD<double> log_tau_sq;
@@ -383,7 +350,7 @@ CppAD::AD<double> accumulate_contrib_for_stratum(
   const size_t endHere = model.elgm_matrix.p[Dstrata + 1];
   const size_t NinStrata = endHere - startHere;
 
-  const CppAD::AD<double> etaLogSum = stable_logsumexp(etaHere);
+  const CppAD::AD<double> etaLogSum = adlaplace::logsumexp(etaHere);
   CppAD::AD<double> contrib = 0.0;
 
   for (size_t j = 0, k = startHere; j < NinStrata; ++j, ++k) {
@@ -400,7 +367,7 @@ CppAD::AD<double> accumulate_contrib_for_stratum(
         for (int i = 1; i < yhere; ++i) {
           const CppAD::AD<double> log_i_tau =
             std::log(static_cast<double>(i)) + logTauSq;
-          contrib += logaddexp(logMuKhere, log_i_tau);
+          contrib += adlaplace::logaddexp(logMuKhere, log_i_tau);
         }
       }
     }
@@ -493,7 +460,7 @@ CppAD::vector<CppAD::AD<double>> dirichlet_multinomial_extra(
     const size_t sumYhereS = static_cast<size_t>(sumYhere);
     for (size_t Dsum = 1; Dsum < sumYhereS; ++Dsum) {
       // log(1 + i * tau^2) = log(exp(0) + exp(log(i) + log(tau^2)))
-      contribLog1pjTauSq += logaddexp(
+      contribLog1pjTauSq += adlaplace::logaddexp(
         CppAD::AD<double>(0.0),
         std::log(static_cast<double>(Dsum)) + tau_scale.log_tau_sq);
     }

@@ -12,19 +12,19 @@
 // are defined). Rcpp attributes are parsed before macro expansion, so the
 // export and ADLAPLACE_DEFINE_BACKEND stay in the user's file.
 //
-// Single-file sourceCpp model (RcppEigen is required: backend.hpp includes
-// <Eigen/SparseCore>; the cpp17 plugin matters when R is older than 4.3):
+// Single-file sourceCpp model. sourcecpp.hpp includes this header plus the
+// once-only eval and registration implementations. RcppEigen is required
+// (backend.hpp includes <Eigen/SparseCore>); the cpp17 plugin matters when
+// R is older than 4.3:
 //
 //   // [[Rcpp::depends(adlaplace, RCppAD, RcppEigen)]]
 //   // [[Rcpp::plugins(cpp17)]]
-//   #include "adlaplace/extension.hpp"
+//   #include "adlaplace/sourcecpp.hpp"
 //
 //   CppAD::vector<CppAD::AD<double>> my_density(
 //     const CppAD::vector<CppAD::AD<double>>& par,
 //     const density_data& data, const Config& config) { ... }
 //
-//   #include "adlaplace/eval_impl.hpp"
-//   #include "adlaplace/register_impl.hpp"
 //   ADLAPLACE_DEFINE_BACKEND(my_make_shard)
 //
 //   // [[Rcpp::export]]
